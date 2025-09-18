@@ -1,0 +1,12 @@
+{
+  "name": "mizzou-newscrawler-scripts",
+  "version": "0.1.0",
+  "private": true,
+  "devDependencies": {
+    "markdownlint-cli2": "^0.12.0"
+  },
+  "scripts": {
+    "lint:md": "markdownlint-cli2 --ignore '**/node_modules/**' '**/*.md'",
+    "lint:md:fix": "markdownlint-cli2 --fix --ignore '**/node_modules/**' '**/*.md'"
+  }
+}

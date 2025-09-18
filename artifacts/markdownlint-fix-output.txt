@@ -1,0 +1,4 @@
+markdownlint-cli2 v0.12.1 (markdownlint v0.33.0)
+Finding: --ignore-path .markdownlintignore **/*.md
+Linting: 112 file(s)
+Summary: 306 error(s)

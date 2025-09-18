@@ -1,0 +1,41 @@
+[
+  {
+    "name": "missourian.com",
+    "description": "Columbia Missourian - Local news for Columbia, Missouri",
+    "seed_urls": [
+      "https://www.columbiamissourian.com/news/",
+      "https://www.columbiamissourian.com/sports/",
+      "https://www.columbiamissourian.com/opinion/"
+    ],
+    "rules": {
+      "include_patterns": ["/news/", "/sports/", "/opinion/", "/arts_life/"],
+      "exclude_patterns": ["/obituaries/", "/calendar/", "/weather/", "/sports/mizzou_sports/", "/classifieds/"]
+    }
+  },
+  {
+    "name": "komu.com", 
+    "description": "KOMU 8 News - NBC affiliate serving Columbia, Missouri",
+    "seed_urls": [
+      "https://www.komu.com/news/",
+      "https://www.komu.com/sports/",
+      "https://www.komu.com/weather/"
+    ],
+    "rules": {
+      "include_patterns": ["/news/", "/sports/"],
+      "exclude_patterns": ["/weather/", "/sports/mizzou-tigers/", "/obituaries/"]
+    }
+  },
+  {
+    "name": "abc17news.com",
+    "description": "ABC 17 News - Serving Mid-Missouri",
+    "seed_urls": [
+      "https://abc17news.com/news/",
+      "https://abc17news.com/sports/",
+      "https://abc17news.com/community/"
+    ],
+    "rules": {
+      "include_patterns": ["/news/", "/sports/", "/community/"],
+      "exclude_patterns": ["/weather/", "/sports/mizzou/", "/obituaries/", "/contests/"]
+    }
+  }
+]

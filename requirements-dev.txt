@@ -1,0 +1,21 @@
+# Development dependencies
+pytest-xdist>=3.3.0  # Parallel test execution
+pytest-mock>=3.11.0
+coverage>=7.3.0
+
+# Documentation
+sphinx>=7.1.0
+sphinx-rtd-theme>=1.3.0
+
+# Jupyter development
+nbstripout>=0.6.0  # Remove notebook outputs from git
+jupyter-book>=0.15.0
+
+# Code quality
+mypy>=1.5.0
+bandit>=1.7.5  # Security linting
+safety>=2.3.0  # Dependency vulnerability scanning
+
+# Performance profiling
+py-spy>=0.3.0
+memory-profiler>=0.61.0
