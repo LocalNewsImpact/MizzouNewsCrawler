@@ -1,14 +1,73 @@
 # Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 .venv/
+venv/
+env/
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+crawler.log
+gazetteer_backfill.log
+gazetteer_backfill_full.log
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+*.db.backup*
+data/
 
 # Node
 node_modules/
 package-lock.json
 
-# Artifacts
+# Artifacts and temporary files
 artifacts/
+*.tmp
+*.temp
+*.bak
+*.backup
 
-# Editor
-.vscode/
+# Test files
+test_*.py
+tests/test_*.py.new
+
+# Project specific
+models/productionmodel.pt
+backend/reviews.db*
