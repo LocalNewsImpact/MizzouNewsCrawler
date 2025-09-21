@@ -1,0 +1,14 @@
+domain,total,failures,failure_rate,example_failing_urls,example_parity_snippets
+www.kbia.org,19,8,0.42105263157894735,"https://www.kbia.org/missouri-news-network/2025-09-03/city-council-increases-electric-utility-rates-talks-2-7-million-budget-deficit
+https://www.kbia.org/kbia-news/2025-09-05/what-do-columbia-starbucks-workers-want-from-a-union-vote
+https://www.kbia.org/missouri-news/2025-09-04/liuna-955-reaches-pay-agreement-with-city-of-columbia
+https://www.kbia.org/missouri-news-network/2025-09-04/construction-on-u-s-54-over-business-route-50-finishes-ahead-of-schedule
+https://www.kbia.org/missouri-news-network/2025-09-03/columbia-city-council-passes-airport-parking-reform","{""url"": ""https://www.kbia.org/missouri-news-network/2025-09-03/city-council-increases-electric-utility-rates-talks-2-7-million-budget-deficit"", ""headline"": ""City Council increases electric utility rates, talks $2.7 million budget deficit"", ""body_len"": 117, ""fallback_attempted"": [], ""fallback_used"": null, ""fallback_error"": null}
+---
+{""url"": ""https://www.kbia.org/kbia-news/2025-09-05/what-do-columbia-starbucks-workers-want-from-a-union-vote"", ""headline"": ""What do Columbia Starbucks workers want from a union vote?"", ""body_len"": 134, ""fallback_attempted"": [], ""fallback_used"": null, ""fallback_error"": null}
+---
+{""url"": ""https://www.kbia.org/missouri-news/2025-09-04/liuna-955-reaches-pay-agreement-with-city-of-columbia"", ""headline"": ""LiUNA 955 reaches pay agreement with City of Columbia"", ""body_len"": 108, ""fallback_attempted"": [], ""fallback_used"": null, ""fallback_error"": null}
+---
+{""url"": ""https://www.kbia.org/missouri-news-network/2025-09-04/construction-on-u-s-54-over-business-route-50-finishes-ahead-of-schedule"", ""headline"": ""Construction on U.S. 54 over Business Route 50 finishes ahead of schedule"", ""body_len"": 97, ""fallback_attempted"": [], ""fallback_used"": null, ""fallback_error"": null}
+---
+{""url"": ""https://www.kbia.org/missouri-news-network/2025-09-03/columbia-city-council-passes-airport-parking-reform"", ""headline"": ""Columbia City Council passes airport parking reform"", ""body_len"": 75, ""fallback_attempted"": [], ""fallback_used"": null, ""fallback_error"": null}"

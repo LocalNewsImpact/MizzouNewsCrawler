@@ -1,30 +1,24 @@
 #!/usr/bin/env python3
 """
-Enhanced content extraction command with comprehensive telemetry.
-
-This script provides content extraction with detailed outcome tracking,
-error categorization, and performance metrics for analysis and monitoring.
-
-Usage:
-    python scripts/extract_with_telemetry.py --limit 10
-    python scripts/extract_with_telemetry.py --article-id 123
+Extraction script with comprehensive telemetry tracking.
 """
 
 import argparse
-import json
 import logging
 import sys
 import uuid
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
+
 from sqlalchemy import text
 
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+# Add the src directory to the path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from models.database import DatabaseManager
-from utils.telemetry_extractor import TelemetryContentExtractor
-from utils.extraction_telemetry import ExtractionTelemetry
+from src.models.database import DatabaseManager
+from src.utils.telemetry_extractor import TelemetryContentExtractor
+from src.utils.extraction_telemetry import ExtractionTelemetry
 
 
 def setup_logging():
@@ -76,62 +70,71 @@ def get_candidates_for_extraction(db: DatabaseManager, limit: int = None,
         candidates = result.fetchall()
     
     return candidates
-def create_article_from_candidate(db: DatabaseManager, candidate: dict, 
-                                  extraction_result) -> int:
-    """Create an article from a candidate link with extraction results."""
+def create_article_from_candidate(db: DatabaseManager, candidate: dict,
+                                extraction_result):
+    """Create article record from extraction result."""
+    extracted_content = extraction_result.extracted_content or {}
+    
+    content = extracted_content.get('content', '')
+    title = extracted_content.get('title', '')
+    author = extracted_content.get('author', '')
+    publish_date = extracted_content.get('publish_date', '')
     
     # Prepare article data
-    content = extraction_result.extracted_content.get('content', '') if extraction_result.extracted_content else ''
-    title = extraction_result.extracted_content.get('title', '') if extraction_result.extracted_content else ''
-    author = extraction_result.extracted_content.get('author', '') if extraction_result.extracted_content else ''
-    # Extract publish_date from extraction result, not candidate link
-    publish_date = (extraction_result.extracted_content.get('publish_date')
-                    if extraction_result.extracted_content else None)
-    
-    # Create metadata with source information and quality metrics
-    metadata = {
-        'source_name': candidate['source_name'],
-        'source_host_id': candidate['source_host_id'],
-        'dataset_id': candidate['dataset_id'],
-        'source_id': candidate['source_id'],
-        'source_city': candidate.get('source_city'),
-        'source_county': candidate.get('source_county'),
-        'content_quality_score': extraction_result.content_quality_score,
-        'extraction_outcome': extraction_result.outcome.value,
-        'extraction_time_ms': extraction_result.extraction_time_ms,
-        'error_message': extraction_result.error_message if not extraction_result.is_success else None
-    }
-    
     article_data = {
-        'id': str(uuid.uuid4()),  # Generate UUID for article ID
-        'candidate_link_id': candidate['id'],
-        'url': candidate['url'],
         'title': title,
         'content': content,
-        'text': content,  # Use content for both content and text fields
+        'url': candidate['url'],
+        'source': candidate['source'],
         'author': author,
         'publish_date': publish_date,
-        'status': 'extracted' if extraction_result.is_success else 'failed',
-        'metadata': json.dumps(metadata),
-        'extracted_at': datetime.now().isoformat(),
-        'extraction_version': '1.0'
+        'scraped_at': datetime.now().isoformat(),
+        'extraction_method': extraction_result.extraction_method.value,
+        'quality_score': extraction_result.content_quality_score,
+        'extraction_time_ms': extraction_result.extraction_time_ms,
+        'word_count': len(content.split()) if content else 0,
+        'has_images': bool(extracted_content.get('top_image')),
+        'candidate_link_id': candidate['id'],
+        'success': extraction_result.is_success,
+        'error_message': (extraction_result.error_message 
+                         if not extraction_result.is_success else None)
     }
     
-    # Insert article
-    insert_query = """
-        INSERT INTO articles (
-            id, candidate_link_id, url, title, content, text, author, publish_date,
-            status, metadata, extracted_at, extraction_version, created_at
-        ) VALUES (
-            :id, :candidate_link_id, :url, :title, :content, :text, :author, :publish_date,
-            :status, :metadata, :extracted_at, :extraction_version, datetime('now')
-        )
+    # Generate article record
+    article_record = {
+        'id': str(uuid.uuid4()),  # Generate UUID for article ID
+        **article_data
+    }
+def update_candidate_status(db: DatabaseManager, candidate_id: str, status: str,
+                            publish_date: Optional[str] = None,
+                            error_message: Optional[str] = None):
+    """Update candidate_links status after extraction attempt."""
+    update_data = {
+        'candidate_id': candidate_id,
+        'status': status,
+        'processed_at': datetime.now().isoformat()
+    }
+    
+    # Build dynamic update query based on provided fields
+    set_clauses = ['status = :status', 'processed_at = :processed_at']
+    
+    if publish_date:
+        set_clauses.append('publish_date = :publish_date')
+        update_data['publish_date'] = publish_date
+        
+    if error_message:
+        set_clauses.append('error_message = :error_message')
+        update_data['error_message'] = error_message
+    
+    update_query = f"""
+        UPDATE candidate_links 
+        SET {', '.join(set_clauses)}
+        WHERE id = :candidate_id
     """
     
     with db.engine.connect() as conn:
-        result = conn.execute(text(insert_query), article_data)
+        conn.execute(text(update_query), update_data)
         conn.commit()
-        return article_data['id']  # Return the UUID we generated
 
 
 def main():
@@ -223,9 +226,29 @@ def main():
             if extraction_result.is_success:
                 results_summary['successful'] += 1
                 logger.info(f"✓ Successfully extracted content (quality score: {extraction_result.content_quality_score:.2f})")
+                
+                # Update candidate status to 'extracted' with publish date if available
+                extracted_publish_date = None
+                if extraction_result.extracted_content:
+                    extracted_publish_date = extraction_result.extracted_content.get('publish_date')
+                
+                update_candidate_status(
+                    db=db,
+                    candidate_id=candidate['id'],
+                    status='extracted',
+                    publish_date=extracted_publish_date
+                )
             else:
                 results_summary['failed'] += 1
                 logger.warning(f"✗ Extraction failed: {outcome} - {extraction_result.error_message}")
+                
+                # Update candidate status to 'failed' with error message
+                update_candidate_status(
+                    db=db,
+                    candidate_id=candidate['id'],
+                    status='failed',
+                    error_message=extraction_result.error_message
+                )
                 
         except Exception as e:
             results_summary['failed'] += 1

@@ -37,5 +37,24 @@
       "include_patterns": ["/news/", "/sports/", "/community/"],
       "exclude_patterns": ["/weather/", "/sports/mizzou/", "/obituaries/", "/contests/"]
     }
+  },
+  {
+    "name": "cnn.com",
+    "description": "CNN - Test source with multiple RSS feeds",
+    "seed_urls": [
+      "https://www.cnn.com/",
+      "https://www.cnn.com/world",
+      "https://www.cnn.com/politics"
+    ],
+    "rules": {
+      "include_patterns": ["/2024/", "/2025/"],
+      "exclude_patterns": ["/live-news/", "/videos/", "/audio/"]
+    },
+    "rss_feeds": [
+      "http://rss.cnn.com/rss/edition.rss",
+      "http://rss.cnn.com/rss/edition_world.rss",
+      "http://rss.cnn.com/rss/edition_us.rss",
+      "http://rss.cnn.com/rss/edition_politics.rss"
+    ]
   }
 ]

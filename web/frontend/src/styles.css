@@ -1,0 +1,289 @@
+.root{font-family:Inter, Roboto, 'Helvetica Neue', Arial, sans-serif;}
+:root{
+  --surface:#fbfbfd; /* slightly darker than pure white for better contrast */
+  --page-bg:#e9eef4; /* slightly darker neutral page background so inputs pop */
+  --muted:#475056;    /* slightly darker muted */
+  --muted-2:#324047;  /* darker text for labels */
+  --accent:#0b63d4;   /* richer blue accent */
+  --accent-variant:#094fa8;
+  --elevation-1: 0 6px 18px rgba(12,22,36,0.08);
+  --elevation-2: 0 12px 36px rgba(12,22,36,0.12);
+  --radius: 12px;
+  --input-bg:#ffffff;  /* keep inputs white */
+  --input-text:#0b1220; /* black-ish for inputs */
+  --field-border:#cfdde6; /* stronger border so inputs separate from bg */
+  --divider:#dfeaf2;
+}
+html,body{height:100%;margin:0;background:var(--page-bg);color:#0f172a}
+.page{padding:20px;display:flex;justify-content:center}
+.card{background:var(--surface);border-radius:var(--radius);padding:12px;box-shadow:var(--elevation-1);max-width:1100px;width:100%;border:1px solid #eef6fb}
+.card:hover{box-shadow:var(--elevation-2)}
+.meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.meta .title{font-weight:700;font-size:16px;color:var(--muted-2)}
+.muted{color:var(--muted);font-size:13px}
+.row{display:grid;grid-template-columns:1fr 320px;gap:6px;align-items:center;padding:0 0;border-bottom:0}
+.row.notes-row{align-items:stretch}
+.row:not(.notes-row) > .input{display:flex;flex-direction:column;justify-content:center}
+.row:not(.notes-row) > .input:last-child{align-items:center}
+.row > .input:first-child{padding:6px;border-radius:10px;border:0;background:transparent}
+.label{color:var(--muted);font-size:13px;margin-bottom:3px}
+.input{display:flex;flex-direction:column;border:0}
+input[type=text], textarea, select{width:100%;padding:8px;border-radius:10px;border:1px solid var(--field-border);background:var(--input-bg);font-family:inherit;font-size:14px;color:#0f172a;box-sizing:border-box}
+textarea{min-height:120px;resize:vertical}
+
+/* Make the Notes field more compact: reduce its min-height by 75px */
+.row.notes-row textarea {
+  min-height: 45px; /* 120 - 75 = 45 */
+}
+.scroll-body{height:182px;overflow:auto;padding:8px;border:1px solid var(--field-border);border-radius:10px;background:#fbfdff;color:#0b1220;font-size:14px;line-height:1.45}
+/* core tokens and layout */
+.root{font-family:Inter, Roboto, 'Helvetica Neue', Arial, sans-serif;}
+.root{font-family:Inter, Roboto, 'Helvetica Neue', Arial, sans-serif;}
+:root{
+  /* Increased contrast tokens */
+  --surface:#ffffff;
+  --page-bg:#e6eef8; /* slightly darker page to make cards pop */
+  --muted:#2f4050;   /* darker muted text for labels */
+  --muted-2:#0f2430; /* stronger label color */
+  --accent:#0b63d4;
+  --accent-variant:#094fa8;
+  --elevation-1: 0 6px 18px rgba(12,22,36,0.08);
+  --elevation-2: 0 12px 36px rgba(12,22,36,0.14);
+  --radius: 10px;
+  --input-bg:#ffffff; /* keep inputs crisp white */
+  --input-area-bg:#f3f7fb; /* unified tint behind text & tools area */
+  --field-border:rgba(12,22,36,0.12); /* stronger field borders */
+  --divider:#dfeaf2;
+}
+html,body{height:100%;margin:0;background:var(--page-bg);color:#0f172a}
+.page{padding:20px;display:flex;justify-content:center}
+.card{background:var(--input-area-bg);border-radius:var(--radius);padding:14px 24px;box-shadow:var(--elevation-1);max-width:980px;width:100%;border:1px solid rgba(12,22,36,0.08)}
+.card:hover{box-shadow:var(--elevation-2)}
+.meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.meta .title{font-weight:600;font-size:15px}
+.muted{color:var(--muted);font-size:13px}
+
+.row{display:grid;grid-template-columns:60% 40%;gap:4px;align-items:center;padding:0 0;border-bottom:0}
+.row.notes-row{align-items:stretch}
+.row.body-row{align-items:start}
+.row:not(.notes-row) > .input{display:flex;flex-direction:column;justify-content:flex-start}
+.row:not(.notes-row) > .input:last-child{align-items:flex-start}
+.row > .input{padding:4px 6px;border-radius:8px;border:0;background:transparent;display:flex;flex-direction:column;justify-content:center}
+.label{color:#667077; /* medium-dark grey */ font-size:13px;margin-bottom:4px}
+.input{display:flex;flex-direction:column}
+
+/* Tighten spacing specifically for publication -> URL grouping */
+.row.tight-between{padding-bottom:0}
+.row.tight-between + .row{padding-top:0}
+/* Reduce inner cell padding for the compact publication->URL pair so rows sit closer together */
+.row.tight-between > .input,
+.row.tight-between + .row > .input { padding-top:2px; padding-bottom:2px }
+
+/* Ensure right column children expand full width */
+.row > .input:nth-child(2),
+.row > .input:nth-child(2) > * {
+  width:100%;
+  box-sizing:border-box;
+}
+
+/* Add extra right-side padding for the tools area so controls sit away from the card edge */
+.row > .input:nth-child(2) {
+  /* keep tools inset from card edge while matching left cell padding */
+  padding-left:12px;
+  padding-right:24px;
+}
+
+/* Make inner controls (text inputs, MUI outlined input, chip container) match in height and padding */
+.row > .input input[type="text"],
+.row > .input .MuiOutlinedInput-root,
+.row > .input .chip-container {
+  height:40px;
+  box-sizing:border-box;
+}
+.row > .input input[type="text"]{
+  padding:10px 12px;
+}
+.row > .input .MuiOutlinedInput-root{padding:0}
+.row > .input .MuiOutlinedInput-input{padding:10px 12px}
+.row > .input .chip-container{padding:6px 10px;min-height:40px}
+
+/* Static centering: rows that are stable across loads can use a CSS-driven static layout
+   to avoid JS measurement jitter. Add attribute data-static="true" to opt-in. */
+.row.align-to-field[data-static="true"] {
+  /* ensure a consistent row height that comfortably fits single-line inputs and controls */
+  min-height: 56px; /* comfortable for single-line inputs */
+}
+.row.align-to-field[data-static="true"] > .input:nth-child(2) {
+  display:flex;
+  align-items:center; /* vertically center controls */
+  justify-content:flex-start;
+  padding-right: 24px; /* keep the tools inset */
+  transform: none !important; /* override any JS transforms */
+}
+.row.align-to-field[data-static="true"] > .input:first-child {
+  display:flex;
+  flex-direction:column;
+  justify-content:center; /* center label + input vertically inside the left cell */
+}
+
+/* Make MUI Autocomplete and the chip container sit vertically centered within the right cell */
+.row.align-to-field[data-static="true"] .MuiAutocomplete-root,
+.row.align-to-field[data-static="true"] .chip-container,
+.row.align-to-field[data-static="true"] .multi-toggle {
+  height:40px; /* match common input control height */
+  display:flex;
+  align-items:center;
+  margin-top:8px; /* nudge down to align with left input */
+}
+
+/* Nudge sliders slightly down in static rows so the thumb/label centers with inputs */
+.row.align-to-field[data-static="true"] .slider-wrapper{
+  margin-top:8px;
+}
+
+/* Ensure MUI OutlinedInput roots are vertically centered and the inner input matches left input padding */
+.row.align-to-field[data-static="true"] .MuiOutlinedInput-root{
+  display:flex;
+  align-items:center;
+  height:40px;
+}
+.row.align-to-field[data-static="true"] .MuiOutlinedInput-input,
+.row.align-to-field[data-static="true"] .MuiInputBase-input{
+  padding-top:10px !important;
+  padding-bottom:10px !important;
+  padding-left:12px !important;
+  padding-right:36px !important; /* leave room for popup indicator */
+  box-sizing:border-box;
+}
+
+/* Remove the boxed outline from Autocomplete/TextField inputs in the right column */
+.row > .input .MuiOutlinedInput-root,
+.row.align-to-field[data-static="true"] > .input:nth-child(2) .MuiOutlinedInput-root{
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.row > .input .MuiOutlinedInput-notchedOutline,
+.row.align-to-field[data-static="true"] > .input:nth-child(2) .MuiOutlinedInput-notchedOutline{
+  display: none !important;
+}
+.row > .input .MuiOutlinedInput-root.Mui-focused{
+  box-shadow: none !important;
+}
+.row > .input .MuiAutocomplete-inputRoot .MuiOutlinedInput-input::placeholder,
+.row > .input .MuiOutlinedInput-input::placeholder{
+  color: #9aa6b2;
+}
+
+/* Slightly reduce vertical spacing between label and input for compact rows */
+.row.align-to-field[data-static="true"] .label{margin-bottom:4px}
+
+input[type=text], textarea, select{width:100%;padding:10px;border-radius:10px;border:1px solid rgba(12,22,36,0.14);background:var(--input-bg);font-family:inherit;font-size:14px;color:var(--input-text);box-sizing:border-box;box-shadow:inset 0 -1px 0 rgba(12,22,36,0.04)}
+textarea{min-height:120px;resize:vertical}
+.scroll-body{height:150px;overflow:auto;padding:10px;border:1px solid rgba(12,22,36,0.06);border-radius:10px;background:#fcfeff;color:#0b1220;font-size:14px;line-height:1.45}
+
+/* Link field that visually matches text inputs */
+.link-field{
+  display:inline-block;
+  width:100%;
+  padding:10px 12px;
+  border-radius:10px;
+  border:1px solid rgba(12,22,36,0.14);
+  background:var(--input-bg);
+  color:var(--accent);
+  font-size:13px; /* slightly smaller than main input text */
+  box-sizing:border-box;
+  word-break:break-all;
+  text-decoration:underline;
+}
+.link-field:hover{background:#fff}
+
+/* Multiselect / chips */
+.multiselect{display:flex;flex-direction:column;gap:8px}
+.multiselect{position:relative}
+.multiselect{width:100%;display:flex;align-items:center;gap:8px}
+.chip-container{display:flex;flex-wrap:wrap;gap:10px}
+.chip-container{flex:1;min-height:48px;padding:8px;border:1px solid var(--field-border);border-radius:12px;background:var(--input-bg);cursor:text;align-items:center;box-sizing:border-box;transition:box-shadow 140ms ease, border-color 140ms ease}
+.chip-container:focus{outline:none;box-shadow:0 0 0 4px rgba(21,101,192,0.08);border-color:var(--accent)}
+.chip{display:inline-flex;align-items:center;gap:10px;padding:8px 12px;border-radius:10px;background:#fff;color:var(--input-text);font-size:14px;border:1px solid rgba(20,30,40,0.12);box-shadow:0 8px 22px rgba(12,22,36,0.08)}
+.chip-anchor{display:flex;align-items:center;gap:8px}
+.chip .chip-x{margin-left:8px;cursor:pointer;color:#475569;font-size:12px}
+.chip.placeholder{background:#fff;border:1px dashed #e6eef8;color:var(--muted);padding:6px}
+.multi-toggle{display:none !important;align-self:stretch;cursor:pointer;color:var(--muted);font-size:14px;align-items:center;justify-content:center;width:36px;border-radius:8px}
+.multi-toggle::before{content:'';display:none !important}
+.multi-dropdown{position:fixed;top:0;left:0;border:1px solid var(--field-border);border-radius:10px;padding:8px;background:#fff;max-height:360px;overflow:auto;box-shadow:0 20px 48px rgba(12,22,36,0.16);outline-offset:4px;z-index:120;transform:translateY(-8px);opacity:0;visibility:hidden;transition:none;will-change:transform}
+.multi-dropdown{border:0}
+.multi-dropdown.open{transform:translateY(6px);opacity:1;visibility:visible;outline:0}
+.multi-dropdown .chip-container{display:block;padding:8px;border:1px solid var(--field-border);border-radius:8px;background:var(--input-bg);min-height:48px;max-height:140px;overflow:auto;margin-bottom:8px}
+.multi-dropdown .chip-container .chip{margin:4px}
+.multi-dropdown .chip-container{border:0;padding:6px}
+.MuiAutocomplete-root{width:100%}
+.MuiAutocomplete-popupIndicator{right:8px}
+.MuiAutocomplete-popper{box-shadow:0 12px 36px rgba(12,22,36,0.08);border:0;transition:none;will-change:transform}
+.MuiPaper-root.MuiAutocomplete-paper{border:0;box-shadow:none}
+/* Hide default popup indicator to avoid duplicate chevrons */
+.MuiAutocomplete-popupIndicator{display:none}
+/* Collapse the small empty input pill that appears when there are chips + no placeholder */
+.MuiAutocomplete-inputRoot[class*='MuiOutlinedInput-root'] .MuiOutlinedInput-input[readonly]{
+  width:0 !important;
+  padding:0 !important;
+  margin:0 !important;
+}
+.tag-select{position:relative}
+.tag-select .chev-btn{position:absolute;top:8px;right:8px;z-index:3;background:transparent}
+.tag-select .chev-btn:focus{outline:none;box-shadow:0 0 0 4px rgba(11,99,212,0.08);border-radius:8px}
+/* When chips exist we hide the empty input pill and let chips occupy the space */
+.tag-select.has-chips .MuiOutlinedInput-input[readonly]{display:none !important}
+.tag-select .chip-container{padding-left:6px;padding-right:40px;/* leave room for chev button */}
+/* Hide legacy floating chevrons inserted by non-React code inside our tag-select area */
+.tag-select .multi-toggle, .tag-select .chip-anchor .multi-toggle { display: none !important }
+.multi-toggle, .multi-toggle::before, .multi-toggle::after { display: none !important; content: none !important; }
+.chip{transition:transform 160ms ease, opacity 160ms ease}
+.chip.removing{opacity:0;transform:translateY(-6px)}
+
+/* Extra safety: prevent any ::before/::after from rendering carets inside our React tag-select
+   This addresses cases where a legacy stylesheet or a high-specificity rule injects glyphs via
+   pseudo-elements on descendant nodes. We limit the scope to .tag-select to avoid collateral effects. */
+.tag-select *::before,
+.tag-select *::after {
+  content: none !important;
+  display: none !important;
+}
+.multi-option{display:flex;align-items:center;justify-content:space-between;padding:12px;border-radius:8px;cursor:pointer;border:1px solid transparent;margin:4px 0}
+.multi-option .opt-left{display:flex;align-items:center;gap:12px}
+.opt-check{width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;color:var(--accent);font-weight:700;opacity:0;transition:opacity 120ms ease}
+.opt-dot{width:12px;height:12px;border-radius:50%;background:#d1d5db}
+.opt-label{font-size:15px;color:#0b1220}
+.opt-right{color:#9aa6b2;font-size:13px}
+.multi-option:hover{background:#fbfdff}
+.multi-option.selected{background:linear-gradient(180deg,#1565c033,#0f4fa833);border-color:rgba(21,101,192,0.06)}
+.multi-option.selected .opt-check{opacity:1;background:#fff;border:1px solid rgba(21,101,192,0.08);color:var(--accent)}
+.multi-search{width:100%;padding:6px;border:1px solid #eef6ff;border-radius:8px;margin-bottom:6px}
+
+/* Nav and slider */
+.nav-btn{background:transparent;border:1px solid rgba(15,23,42,0.03);padding:6px 8px;border-radius:6px;cursor:pointer;color:var(--muted-2)}
+.nav-btn:hover{background:rgba(11,99,212,0.04)}
+.slider-wrapper{position:relative;display:flex;align-items:center;gap:12px;width:100%}
+.slider{width:100%}
+.slider-value{display:none}
+
+/* MUI value label pinned styling */
+.MuiSlider-valueLabel{background:#333;color:#fff;border:0;padding:6px 10px;border-radius:6px;font-weight:700;transform:translateY(-28px) !important;box-shadow:0 6px 20px rgba(12,22,36,0.18)}
+.MuiSlider-valueLabel span{font-size:13px}
+
+/* Save button */
+#save{padding:10px 14px;border-radius:10px;border:0;cursor:pointer;font-weight:700}
+.btn-unsaved, .btn-edited {
+  background: linear-gradient(180deg,#b22222,#8b1a1a); /* darker red */
+  color: #fff;
+  transition: filter 120ms ease, box-shadow 120ms ease;
+}
+.btn-unsaved:hover, .btn-edited:hover { filter: brightness(0.92); }
+.btn-saved{background:linear-gradient(180deg,var(--accent),var(--accent-variant));color:#fff;border:0;padding:10px 26px;border-radius:8px;cursor:pointer;font-weight:600;box-shadow:0 2px 6px rgba(21,101,192,0.22);margin-bottom:8px;min-width:140px}
+
+.output{margin-top:16px;background:#fbfcfd;padding:12px;border-radius:8px;font-size:13px;border:1px solid rgba(12,22,36,0.03)}
+
+/* Responsive: stack columns on narrow viewports */
+@media (max-width:880px){
+  .row{grid-template-columns:1fr}
+  .row .label{margin-bottom:6px}
+}

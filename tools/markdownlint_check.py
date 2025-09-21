@@ -17,13 +17,16 @@ If `--apply` is provided the script will write fixes in-place. Without
 This is not a full markdownlint replacement, but it helps catch and fix
 several common problems without requiring Node/npm.
 """
+
 from __future__ import annotations
+
 import argparse
-from pathlib import Path
 import re
 import sys
+from pathlib import Path
 
 TAB_REPLACEMENT = "  "  # two spaces
+
 
 def find_md_files(paths: list[Path]) -> list[Path]:
     files = []
@@ -68,7 +71,7 @@ def ensure_blank_lines_around_code_blocks(lines: list[str]) -> None:
     while i < len(lines):
         if fence_re.match(lines[i]):
             # ensure blank line before
-            if i > 0 and lines[i-1].strip() != "":
+            if i > 0 and lines[i - 1].strip() != "":
                 lines.insert(i, "")
                 i += 1
             # find closing fence
@@ -77,8 +80,8 @@ def ensure_blank_lines_around_code_blocks(lines: list[str]) -> None:
                 j += 1
             if j < len(lines):
                 # ensure blank line after closing fence
-                if j + 1 < len(lines) and lines[j+1].strip() != "":
-                    lines.insert(j+1, "")
+                if j + 1 < len(lines) and lines[j + 1].strip() != "":
+                    lines.insert(j + 1, "")
             i = j + 1
         else:
             i += 1
@@ -88,11 +91,11 @@ def ensure_blank_line_before_lists(lines: list[str]) -> None:
     list_re = re.compile(r"^\s*([*\-+]\s+|\d+\.\s+)")
     i = 1
     while i < len(lines):
-        if list_re.match(lines[i]) and lines[i-1].strip() == "":
+        if list_re.match(lines[i]) and lines[i - 1].strip() == "":
             # already okay
             i += 1
             continue
-        if list_re.match(lines[i]) and lines[i-1].strip() != "":
+        if list_re.match(lines[i]) and lines[i - 1].strip() != "":
             # insert blank line before i
             lines.insert(i, "")
             i += 2
@@ -108,16 +111,16 @@ def run_checks_on_text(text: str) -> tuple[list[str], str]:
     issues = []
 
     # 1) tabs
-    for i, l in enumerate(lines, start=1):
-        if "\t" in l:
+    for i, line in enumerate(lines, start=1):
+        if "\t" in line:
             issues.append(f"TAB at line {i}")
-            lines[i-1] = l.replace("\t", TAB_REPLACEMENT)
+            lines[i - 1] = line.replace("\t", TAB_REPLACEMENT)
 
     # 2) trailing whitespace
-    for i, l in enumerate(lines, start=1):
-        if l.rstrip() != l:
+    for i, line in enumerate(lines, start=1):
+        if line.rstrip() != line:
             issues.append(f"Trailing whitespace at line {i}")
-            lines[i-1] = l.rstrip()
+            lines[i - 1] = line.rstrip()
 
     # 3) blank lines around code fences
     ensure_blank_lines_around_code_blocks(lines)

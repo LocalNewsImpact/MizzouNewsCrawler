@@ -1,0 +1,20 @@
+domain,url_pattern,headline_selector,author_selector,date_selector,body_selector,tags_selector,use_jsonld,requires_js,last_tested,skip_patterns,force_include_patterns
+DEFAULT,.*,,h1,article,meta[name=keywords],,false,false,2025-09-01,".pdf;/event;/places;/classifieds;/special_sections;/form;/edition;/archive;/feed;gallery;/ads;/promo;/video;/slideshow;/members-only;/the-bottom-line",""
+www.kbia.org,.*kbia.org.*,h1.article-title,,time[datetime],div.article-body,[class*=byline],true,false,2025-09-01,"/show;/podcast;paul-pepper;(no-date-pattern)",""
+www.ktts.com,.*ktts.com.*,h1,span.author,,article,div.tags,false,false,2025-09-01,"(no-dash)",""
+www.kcur.org,.*kcur.org.*,h1,span.author,time,div.article-body,div.tags,false,false,2025-09-01,"(no-iso-date)",""
+moscout.com,.*moscout.com.*,h1,,time,article,,false,false,2025-09-01,"2022-watch",""
+www.kprs.com,.*kprs.com.*,h1,,time,article,,false,false,2025-09-01,"(no-year)",""
+www.stltoday.com,.*stltoday.com.*,h1,,time,article,,false,false,2025-09-01,"(not-/article)",""
+www.archstl.org,.*archstl.org.*,h1,,time,article,,false,false,2025-09-01,"(not-numeric-trailing)",""
+www.fultonsun.com,.*fultonsun.com.*,h1,,time,article,,false,false,2025-09-01,"/fulton-news;(no-dash)",""
+www.joplinglobe.com,.*joplinglobe.com.*,h1,,time,article,,false,false,2025-09-01,"/image",""
+www.marshallnews.com,.*marshallnews.com.*,h1,,time,article,,false,false,2025-09-01,"-calendar",""
+www.maryvilleforum.com,.*maryvilleforum.com.*,h1,,time,article,,false,false,2025-09-01,"/multimedia/photos;(not-.html)",""
+
+# Notes:
+# - Columns: domain,url_pattern,headline_selector,author_selector,date_selector,body_selector,tags_selector,use_jsonld,requires_js,last_tested,skip_patterns,force_include_patterns
+# - skip_patterns is a semicolon-separated list of substrings or short tokens (use regex strings in parentheses).
+# - (no-date-pattern) indicates the notebook logic: reject when URL lacks an ISO date (YYYY-MM-DD).
+# - (no-dash) indicates the notebook logic: reject URLs without a hyphen (used by some outlets);
+# Update this CSV progressively; the crawler should prefer a domain row over DEFAULT.  

@@ -1,0 +1,6 @@
+{
+  "min_body_length": 200,
+  "fallback_order": ["jsonld","og","meta","selectors","readability"],
+  "user_agent_pool": ["mizzou-crawler/1.0","Mozilla/5.0 (compatible; MizzouBot/1.0)"] ,
+  "rate_limit_per_domain": 1
+}

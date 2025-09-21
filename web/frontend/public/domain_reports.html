@@ -1,0 +1,743 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Domain Reports - Mizzou Reviewer</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Roboto, 'Segoe UI', Arial; margin:0; padding:0; }
+      header { background:#0b63ce; color:white; padding:12px 16px }
+      .wrap { display:flex; gap:12px; padding:12px }
+      .left { width:320px; border-right:1px solid #eee; padding-right:12px }
+      .host { padding:8px; border-bottom:1px solid #f3f3f3; cursor:pointer }
+      .host:hover { background:#f8fbff }
+      .right { flex:1; padding-left:12px }
+      pre { background:#f6f7f8; padding:8px; border-radius:4px; overflow:auto }
+      label { display:block; margin-top:8px; font-size:13px }
+      input, select, textarea { width:100%; box-sizing:border-box; padding:8px; margin-top:4px }
+      .actions { margin-top:10px }
+      button { padding:8px 12px }
+  /* Group display for candidate selectors: radio left, content right */
+  .groupRow { display:flex; gap:12px; align-items:flex-start }
+  .groupRadioCol { width:48px; flex:0 0 48px; display:flex; align-items:flex-start; justify-content:flex-start }
+  .groupContentCol { flex:1 }
+  .groupWrap { border:1px dashed #eee; padding:6px; margin-bottom:8px }
+  .groupWrap.groupSelected { background:#eef8ff; border-color:#c7e6ff }
+  /* grid layout: radio | snippet/content | selectors (spans rows) */
+  .groupGrid { display:grid; grid-template-columns:48px 1fr 320px; gap:12px; align-items:start }
+  .selectorCol { background: #fff; padding:6px; border-left:1px solid #f3f3f3; max-height:260px; overflow:auto }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h3 style="margin:0">Domain Reports</h3>
+      <div style="font-size:12px; opacity:0.9">Review scraper issues by host and submit feedback</div>
+    </header>
+    <div class="wrap">
+      <div class="left">
+        <div style="margin-bottom:8px"><button id="refresh">Refresh</button></div>
+        <div id="hosts"></div>
+      </div>
+      <div class="right">
+        <div id="detailPlaceholder">Select a host to view details</div>
+        <div id="detail" style="display:none">
+          <h4 id="hostTitle"></h4>
+          <div><strong>Issues summary</strong></div>
+          <div id="issuesSummary" style="padding:8px 0"></div>
+
+          <form id="feedbackForm" onsubmit="return false;">
+            <label>Notes <textarea id="fbNotes" rows="5"></textarea></label>
+            <div class="actions">
+              <button id="saveBtn">Save feedback</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const hostsEl = document.getElementById('hosts')
+  const issuesSummary = document.getElementById('issuesSummary')
+      const hostTitle = document.getElementById('hostTitle')
+      const detail = document.getElementById('detail')
+      const placeholder = document.getElementById('detailPlaceholder')
+      const refreshBtn = document.getElementById('refresh')
+
+  const fbNotes = document.getElementById('fbNotes')
+      const saveBtn = document.getElementById('saveBtn')
+
+      let domainIssues = {}
+      let domainFeedback = {}
+      let selectedHost = null
+
+      function safeText(x){ return String(x===undefined? '': x) }
+
+      // Allow overriding backend via query param: ?backend=http://host:port
+      const params = new URLSearchParams(window.location.search)
+      const BACKEND = params.get('backend') || 'http://127.0.0.1:8000'
+
+      async function load() {
+        hostsEl.innerHTML = 'Loading...'
+      try{
+        const [issR, fbR] = await Promise.all([fetch(BACKEND + '/api/domain_issues'), fetch(BACKEND + '/api/domain_feedback')])
+          if(!issR.ok) throw new Error('domain_issues not found')
+          domainIssues = await issR.json()
+          domainFeedback = fbR.ok ? await fbR.json() : {}
+        }catch(e){ hostsEl.innerHTML = '<div style="color:crimson">Failed to load report</div>'; console.error(e); return }
+
+        hostsEl.innerHTML = ''
+        const keys = Object.keys(domainIssues).sort((a,b)=> (domainIssues[b]?.total_urls||0) - (domainIssues[a]?.total_urls||0))
+        if(keys.length===0) hostsEl.innerHTML = '<div>No hosts found</div>'
+        for(const h of keys){
+          const div = document.createElement('div')
+          div.className = 'host'
+          const count = Object.values(domainIssues[h].issues||{}).reduce((a,b)=>a + (Number(b)||0), 0)
+          div.innerHTML = `<div><strong>${h}</strong><div style="font-size:12px;color:#666">${count} issue(s) • ${domainIssues[h].total_urls||0} urls</div></div>`
+          div.onclick = ()=> selectHost(h)
+          hostsEl.appendChild(div)
+        }
+      }
+
+      function selectHost(h){
+        selectedHost = h
+        // Flagged host and counts
+        hostTitle.textContent = `Flagged host: ${h}`
+        const info = domainIssues[h] || { issues: {}, total_urls: 0 }
+        const iss = info.issues || {}
+        const flaggedCount = Object.values(iss).reduce((a,b)=>a + (Number(b)||0), 0)
+        let html = ''
+        html += `<div style="margin-bottom:6px"><strong>Flagged URLs/articles:</strong> ${flaggedCount}</div>`
+        html += `<div style="margin-bottom:6px"><strong>Total URLs scanned:</strong> ${info.total_urls || 0}</div>`
+        // show which page elements are low-confidence/missing with counts
+        html += '<div style="font-weight:600;margin-top:6px">Problematic page elements</div>'
+  html += '<ul style="margin:0 0 8px 18px">'
+        const fieldsOrder = ['author','headline','body']
+        for (const f of fieldsOrder){
+          if (iss[f]) html += `<li>${f.charAt(0).toUpperCase() + f.slice(1)} — ${iss[f]} flagged</li>`
+        }
+        for (const k of Object.keys(iss)){
+          if (!fieldsOrder.includes(k)) html += `<li>${k}: ${iss[k]}</li>`
+        }
+        html += '</ul>'
+        issuesSummary.innerHTML = html
+  const fb = domainFeedback[h] || {notes:''}
+  fbNotes.value = fb.notes || ''
+        placeholder.style.display = 'none'
+        detail.style.display = 'block'
+        // load snapshots and candidates for this host
+        loadSnapshotsForHost(h)
+      }
+
+
+      // load snapshots for a host and render candidate selectors
+      async function loadSnapshotsForHost(host){
+        const listElId = 'snapshotsList'
+        let listEl = document.getElementById(listElId)
+        if(!listEl){
+          listEl = document.createElement('div')
+          listEl.id = listElId
+          const detailEl = document.getElementById('detail')
+          if(detailEl && typeof detailEl.appendChild === 'function'){
+            detailEl.appendChild(listEl)
+          } else {
+            console.warn('detail element missing or not appendable', detailEl)
+            // fallback: append to body
+            document.body.appendChild(listEl)
+          }
+        }
+        listEl.innerHTML = 'Loading snapshots...'
+        try{
+          const r = await fetch(BACKEND + '/api/snapshots_by_host/' + encodeURIComponent(host))
+          if(!r.ok) throw new Error('snapshots not found')
+          const snaps = await r.json()
+          if(!Array.isArray(snaps) || snaps.length===0){ listEl.innerHTML = '<div>No snapshots found for this host</div>'; return }
+          // Deduplicate snapshots by article URL: we only need one representative
+          // snapshot per unique article/template so reviewers don't see repeats.
+          const seenUrls = new Set()
+          const snapsToShow = []
+          for (const s of snaps) {
+            const u = s.url || ''
+            if (!seenUrls.has(u)) {
+              seenUrls.add(u)
+              snapsToShow.push(s)
+            }
+          }
+          listEl.innerHTML = ''
+          for(const s of snapsToShow){
+            const sdiv = document.createElement('div')
+            sdiv.style.borderTop = '1px solid #eee'
+            sdiv.style.padding = '8px 0'
+            const backendBase = BACKEND.replace(/\/$/, '')
+            sdiv.innerHTML = `<div style="font-size:13px"><a href="${backendBase}/api/snapshots/${encodeURIComponent(s.id)}/html" target="_blank">${safeText(s.url)}</a> <span style="color:#666;font-size:12px">(${safeText(s.created_at)})</span></div>`
+            // load snapshot details and show candidates inline (expanded) grouped by missing/low-confidence fields
+            sdiv.style.marginBottom = '8px'
+            try{
+              if(!listEl || typeof listEl.appendChild !== 'function'){
+                console.error('listEl is not a DOM element or appendChild missing', listEl)
+                // attempt recovery: recreate and append
+                const newList = document.createElement('div')
+                newList.id = listElId
+                const det = document.getElementById('detail') || document.body
+                det.appendChild(newList)
+                listEl = newList
+              }
+              listEl.appendChild(sdiv)
+            }catch(innerErr){
+              console.error('Failed to append snapshot div', innerErr, {listEl, sdiv})
+              // surface to UI
+              listEl = listEl || document.createElement('div')
+              listEl.innerHTML = `<div style="color:crimson">UI error appending snapshot: ${safeText(innerErr && innerErr.message)}</div>`
+            }
+            (async ()=>{
+                try{
+                const r2 = await fetch(BACKEND + '/api/snapshots/' + encodeURIComponent(s.id))
+                if(!r2.ok) throw new Error('snapshot not found')
+                const rec = await r2.json()
+                const cand = rec.candidates || []
+
+                // fetch the raw snapshot HTML so we can compute actual DOM depth
+                // for each selector and prefer the deepest matching element (more specific)
+                let doc = null
+                try{
+                  const htmlResp = await fetch(BACKEND.replace(/\/$/, '') + '/api/snapshots/' + encodeURIComponent(s.id) + '/html')
+                  if(htmlResp.ok){
+                    const htmlText = await htmlResp.text()
+                    const parser = new DOMParser()
+                    doc = parser.parseFromString(htmlText, 'text/html')
+                  }
+                }catch(e){ /* ignore snapshot-html fetch errors; fall back to selector string heuristics */ }
+
+                // determine which fields are missing or low-confidence for this snapshot
+                const parsed = rec.parsed_fields || rec.parsed || rec.parsed_fields || {}
+                const modelConf = rec.model_confidence || 0
+                const fieldsToCheck = ['body','headline','author']
+                const missing = []
+                for(const f of fieldsToCheck){
+                  const have = parsed && parsed[f]
+                  if(!have || (modelConf && modelConf < 0.6)) missing.push(f)
+                }
+
+                // group candidates by field
+                const grouped = {}
+                for(const c of cand){
+                  const fld = c.field || 'unknown'
+                  if(!grouped[fld]) grouped[fld] = []
+                  grouped[fld].push(c)
+                }
+
+                // render per missing field
+                for(const fld of missing){
+                  const grp = document.createElement('div')
+                  grp.style.border = '1px solid #eee'
+                  grp.style.padding = '8px'
+                  grp.style.marginTop = '8px'
+                  grp.innerHTML = `<div style="font-weight:600;margin-bottom:6px">${fld.charAt(0).toUpperCase()+fld.slice(1)} (missing/low confidence)</div>`
+
+                  // show source URL for context
+                  const urlLine = document.createElement('div')
+                  urlLine.style.fontSize = '13px'
+                  urlLine.style.marginBottom = '6px'
+                  urlLine.innerHTML = `<div style="font-size:13px"><strong>Story URL</strong>: <a target="_blank" href="${safeText(rec.url)}">${safeText(rec.url)}</a></div>`
+                  grp.appendChild(urlLine)
+
+                  const candidatesForField = grouped[fld] || []
+                    if(candidatesForField.length===0){
+                    const none = document.createElement('div')
+                    none.className = 'muted'
+                    none.textContent = 'No candidate selectors found for this field.'
+                    grp.appendChild(none)
+                  } else {
+                      // group candidates by similarity of their snippet text so
+                      // selectors that capture the same content are shown together.
+                      function normalizeText(t){
+                        if(!t) return ''
+                        return t.replace(/\s+/g,' ').trim().toLowerCase()
+                      }
+                      function tokenSet(t){
+                        const s = normalizeText(t)
+                        if(!s) return new Set()
+                        return new Set(s.split(/\W+/).filter(Boolean))
+                      }
+                      function jaccard(a,b){
+                        if(a.size===0 && b.size===0) return 1
+                        const inter = [...a].filter(x=>b.has(x)).length
+                        const union = new Set([...a,...b]).size
+                        return union===0?0: inter/union
+                      }
+
+                      // build groups — tighten similarity: require the front of
+                      // the snippet to match (prefix) OR a very high token overlap.
+                      // This avoids grouping selectors that share incidental words.
+                      const groups = []
+                      const used = new Array(candidatesForField.length).fill(false)
+                      for(let i=0;i<candidatesForField.length;i++){
+                        if(used[i]) continue
+                        const base = candidatesForField[i]
+                        const baseTokens = tokenSet(base.snippet || base.selector || '')
+                        const baseNorm = (base.snippet || base.selector || '').replace(/\s+/g,' ').trim().toLowerCase()
+                        const grp = {members: [base], rep: base}
+                        used[i]=true
+                        for(let j=i+1;j<candidatesForField.length;j++){
+                          if(used[j]) continue
+                          const other = candidatesForField[j]
+                          const otherTokens = tokenSet(other.snippet || other.selector || '')
+                          const otherNorm = (other.snippet || other.selector || '').replace(/\s+/g,' ').trim().toLowerCase()
+                          const sim = jaccard(baseTokens, otherTokens)
+                          // require prefix match of the start of the text (short prefix)
+                          const prefLen = 20
+                          const prefixMatch = baseNorm && otherNorm && (
+                            baseNorm.startsWith(otherNorm.slice(0,prefLen)) || otherNorm.startsWith(baseNorm.slice(0,prefLen))
+                          )
+                          // group if prefix matches OR token overlap is extremely high
+                          if(prefixMatch || sim >= 0.85){
+                            grp.members.push(other)
+                            used[j]=true
+                            // pick representative as highest score
+                            // prefer an already-accepted candidate as the group's representative
+                            try{
+                              const otherAccepted = Number(other.accepted || 0)
+                              const repAccepted = Number((grp.rep && grp.rep.accepted) || 0)
+                              if(otherAccepted > repAccepted){
+                                grp.rep = other
+                              } else if(Number(other.score||0) > Number(grp.rep.score||0)) {
+                                grp.rep = other
+                              }
+                            }catch(e){
+                              if(Number(other.score||0) > Number(grp.rep.score||0)) grp.rep = other
+                            }
+                          }
+                        }
+                        // choose a better representative: prefer accepted, else prefer
+                        // the most specific/content-nearest selector (smaller extracted
+                        // word count). Tie-break by score. Then sort members by score.
+                        try{
+                          // heuristic: prefer an accepted candidate; otherwise prefer
+                          // the selector that is deeper in the DOM (more specific).
+                          // depth is computed by tokenizing the selector on combinators
+                          // and whitespace. Tie-break by higher score, then smaller words.
+                          async function selectorDepth(sel){
+                                if(!sel) return 0
+                                try{
+                                  // if we have parsed snapshot DOM, compute actual matched node depth
+                                  if(doc){
+                                    try{
+                                      const nodes = Array.from(doc.querySelectorAll(sel))
+                                      if(nodes.length===0) return 0
+                                      function nodeDepth(n){ let d=0; let t=n; while(t && t.nodeType===1){ t=t.parentElement; d+=1 } return d }
+                                      return Math.max(...nodes.map(nodeDepth))
+                                    }catch(e){ /* fall back to string heuristic below */ }
+                                  }
+                                  // fallback: estimate depth by splitting selector on combinators
+                                  const cleaned = sel.replace(/::?\w+(?:\([^)]*\))?/g,'').replace(/\[[^\]]+\]/g,'')
+                                  const parts = cleaned.split(/\s+|>|\+|~/).map(s=>s.trim()).filter(Boolean)
+                                  return parts.length
+                                }catch(e){ return 0 }
+                              }
+                          let rep = grp.rep
+                          // prefer an accepted candidate if present
+                          const accepted = grp.members.find(m=> Number((m.accepted||0)) > 0)
+                          if(accepted) {
+                            rep = accepted
+                          } else {
+                            let best = null
+                            let bestDepth = -1
+                            for(const m of grp.members){
+                              const depth = await selectorDepth(m.selector || '')
+                              if(!best){ best = m; bestDepth = depth; continue }
+                              if(depth > bestDepth){ best = m; bestDepth = depth; continue }
+                              if(depth === bestDepth){
+                                // tie-break by score then prefer smaller words (more specific)
+                                const sc = Number(m.score||0), bsc = Number(best.score||0)
+                                if(sc > bsc) { best = m; bestDepth = depth; continue }
+                                const mw = Number(m.words || 0) || 0
+                                const bw = Number(best.words || 0) || 0
+                                if(mw && bw && mw < bw){ best = m; bestDepth = depth; continue }
+                              }
+                            }
+                            if(best) rep = best
+                          }
+                          grp.rep = rep
+                        }catch(e){ /* fall back to previous rep */ }
+                        // sort members by score descending
+                        grp.members.sort((a,b)=>Number(b.score||0)-Number(a.score||0))
+                        groups.push(grp)
+                      }
+                      // sort groups so highest-rep score first
+                      groups.sort((A,B)=>Number(B.rep.score||0)-Number(A.rep.score||0))
+
+                      // pick a default group to pre-select: prefer the group
+                      // whose representative has the most words (likely the full body)
+                      let defaultGroupIndex = 0
+                      try{
+                        let bestWords = -1
+                        groups.forEach((gg, idx)=>{
+                          const w = Number((gg.rep && gg.rep.words) || 0)
+                          if(w > bestWords){ bestWords = w; defaultGroupIndex = idx }
+                        })
+                      }catch(e){ defaultGroupIndex = 0 }
+
+                      const list = document.createElement('div')
+                      // render groups
+                      groups.forEach((g, gi)=>{
+                        const groupWrap = document.createElement('div')
+                        groupWrap.style.border = '1px dashed #eee'
+                        groupWrap.style.padding = '6px'
+                        groupWrap.style.marginBottom = '8px'
+                        // header with representative selector & count
+                        const header = document.createElement('div')
+                        header.style.fontSize = '13px'
+                        header.style.marginBottom = '6px'
+                        header.innerHTML = `<strong>Group ${gi+1} — ${g.members.length} similar selector(s)</strong> <div style=\"font-size:12px;color:#666\">rep: <code style=\"background:#fff;padding:2px 4px;border-radius:3px\">${safeText(g.rep.selector)}</code> score:${safeText(g.rep.score)}</div>`
+                        groupWrap.appendChild(header)
+                        // attach metadata for this group so submit logic can
+                        // pick the best selector among equivalent members
+                        try{
+                          const meta = g.members.map(m=>({selector:m.selector,score:m.score,words:m.words, snippet: m.snippet || '', id:m.id || null}))
+                          groupWrap.dataset.group = JSON.stringify(meta)
+                          // store mapping for this snapshot+field
+                          window._selectorGroups = window._selectorGroups || {}
+                          window._selectorGroups[`${s.id}::${fld}`] = window._selectorGroups[`${s.id}::${fld}`] || []
+                          window._selectorGroups[`${s.id}::${fld}`].push(meta)
+                        }catch(e){ /* ignore metadata failures */ }
+                        // For each group render ONE selectable snippet (radio) and
+                        // list the group's candidate selectors beneath it. The UI
+                        // asks the reviewer to pick the correct TEXT extraction; the
+                        // app will choose the best selector among the group's members.
+                        (function(){
+                          // representative snippet for the group
+                          const repSnippet = g.rep.snippet || (g.members[0] && g.members[0].snippet) || ''
+                          const inputId = `sel_${s.id}_${fld}_group_${gi}`
+                          const checkedAttr = (gi === defaultGroupIndex) ? ' checked' : ''
+                          // layout: radio in left column, content in right column
+                          const row = document.createElement('div')
+                          row.className = 'groupRow'
+                          const radioCol = document.createElement('div')
+                          radioCol.className = 'groupRadioCol'
+                          radioCol.innerHTML = `<label style="margin:0"><input type=\"radio\" name=\"sel_${s.id}_${fld}\" id=\"${inputId}\" value=\"group:${gi}\" data-group-index=\"${gi}\" data-snippet=\"${safeText(repSnippet)}\"${checkedAttr}></label>`
+                          const contentCol = document.createElement('div')
+                          contentCol.className = 'groupContentCol'
+                          const snippetHtml = repSnippet ? `<div style=\"font-size:13px;margin-top:0\"><pre style=\"background:#f6f7f8;padding:8px;border-radius:4px;white-space:pre-wrap;max-height:200px;overflow:auto\">${safeText(repSnippet)}</pre></div>` : '<div style="font-size:13px;color:#666">(no snippet available)</div>'
+                          contentCol.innerHTML = snippetHtml
+                          row.appendChild(radioCol)
+                          row.appendChild(contentCol)
+                          // create selector column that will visually span the group's rows
+                          const selectorCol = document.createElement('div')
+                          selectorCol.className = 'selectorCol'
+                          // list the selectors for this group inside the selector column (non-selectable list)
+                          const selList = document.createElement('div')
+                          selList.style.marginTop = '0'
+                          selList.style.fontSize = '13px'
+                          selList.innerHTML = '<div style="font-weight:600;margin-bottom:6px">Candidate selectors for this text (app will pick best)</div>'
+                          g.members.forEach(m=>{
+                            const line = document.createElement('div')
+                            line.style.padding = '4px 0'
+                            line.innerHTML = `<code style="background:#fff;padding:2px 4px;border-radius:3px">${safeText(m.selector)}</code> <span style="color:#666;font-size:12px;margin-left:8px">score:${safeText(m.score)}</span>`
+                            selList.appendChild(line)
+                          })
+                          selectorCol.appendChild(selList)
+                          // assemble grid: radio | content | selectors
+                          const grid = document.createElement('div')
+                          grid.className = 'groupGrid'
+                          grid.appendChild(radioCol)
+                          grid.appendChild(contentCol)
+                          grid.appendChild(selectorCol)
+                          groupWrap.appendChild(grid)
+                          // add selection highlighting behavior
+                          const radioElem = groupWrap.querySelector(`#${inputId}`)
+                          const markSelected = (checked)=>{
+                            if(checked) groupWrap.classList.add('groupSelected')
+                            else groupWrap.classList.remove('groupSelected')
+                          }
+                          // initialize default selection highlight
+                          markSelected(gi === defaultGroupIndex)
+                          radioElem.addEventListener('change', (ev)=>{
+                            if(ev.target && ev.target.checked){
+                              // clear other groups' highlights for this field
+                              const metaKey = `${s.id}::${fld}`
+                              const groupsArray = document.querySelectorAll('[data-group]')
+                              groupsArray.forEach(el=>{ if(el !== groupWrap) el.classList.remove('groupSelected') })
+                              markSelected(true)
+                            }
+                          })
+                          // per-group confirmation line showing the selected snippet preview
+                          const confirmLine = document.createElement('div')
+                          confirmLine.style.marginTop = '6px'
+                          confirmLine.style.fontSize = '13px'
+                          confirmLine.className = 'muted'
+                          // determine representative snippet for preview
+                          const _repSnippet = g.rep.snippet || (g.members[0] && g.members[0].snippet) || ''
+                          if(gi === defaultGroupIndex){
+                            const preview = (_repSnippet || '').slice(0,200).replace(/\s+/g,' ')
+                            confirmLine.textContent = 'Selected text preview: ' + (preview ? preview + (_repSnippet.length>200? '...':'') : '<none>')
+                          } else {
+                            confirmLine.textContent = 'No selector selected yet.'
+                          }
+                          groupWrap.appendChild(confirmLine)
+                          // listen for radio changes within this groupWrap
+                          groupWrap.addEventListener('change', (ev)=>{
+                            if(ev.target && ev.target.name && ev.target.name.startsWith('sel_') && ev.target.checked){
+                              confirmLine.textContent = 'Selected: ' + ev.target.value
+                            }
+                          })
+                        })()
+                        list.appendChild(groupWrap)
+                      })
+                      grp.appendChild(list)
+                  }
+
+                  sdiv.appendChild(grp)
+                }
+
+                // add a submit button per snapshot to commit any selections for this snapshot
+                const submitBtn = document.createElement('button')
+                submitBtn.textContent = 'Submit selections and test for this story'
+                submitBtn.style.marginTop = '8px'
+                submitBtn.onclick = async ()=>{
+                  // collect selections for this snapshot (group radios expected)
+                  const toCommit = []
+                  for(const fld of ['body','headline','author']){
+                    const radios = Array.from(document.getElementsByName(`sel_${s.id}_${fld}`))
+                    const checked = radios.filter(r=>r.checked)
+                    if(checked.length===0) continue
+                    // assume one radio per field (groups rendered as value 'group:{index}')
+                    const sel = checked[0]
+                    const val = sel.value || ''
+                    if(val.startsWith('group:')){
+                      const gi = Number(val.split(':')[1])
+                      const metaKey = `${s.id}::${fld}`
+                      const groupsMeta = (window._selectorGroups && window._selectorGroups[metaKey]) || []
+                      const groupMeta = groupsMeta[gi] || []
+                      // pick best selector inside this group's meta
+                      function scoreSelectorForPickMeta(m, candidateSnippet){
+                        try{
+                          // If we have parsed snapshot DOM, try to compute how well
+                          // this selector matches the candidate snippet: prefer
+                          // selectors where a matched node contains the snippet, and
+                          // prefer the deepest such match.
+                          function selectorDepthForMeta(sel){
+                            if(!sel) return 0
+                            try{
+                              const cleaned = sel.replace(/::?\w+(?:\([^)]*\))?/g,'').replace(/\[[^\]]+\]/g,'')
+                              const parts = cleaned.split(/\s+|>|\+|~/).map(s=>s.trim()).filter(Boolean)
+                              return parts.length
+                            }catch(e){ return 0 }
+                          }
+                          // big boost for id-based selectors
+                          if(/#\w+/.test(m.selector)) return 10000 + Number(m.score||0)
+                          const clsCount = (m.selector.match(/\./g)||[]).length
+                          const depth = selectorDepthForMeta(m.selector || '')
+                          const words = Number(m.words || 0) || 0
+                          const depthBoost = depth * 50
+                          const wordPenalty = Math.min(words, 1000) * 0.2
+                          let base = clsCount*100 + Number(m.score||0) + depthBoost - wordPenalty
+
+                          // DOM-aware boosts: if snapshot doc is available, compute
+                          // whether any matched node contains the candidate snippet.
+                          try{
+                            if(typeof doc !== 'undefined' && doc){
+                              let nodes = []
+                              try{ nodes = Array.from(doc.querySelectorAll(m.selector)) }catch(e){ nodes = [] }
+                              if(nodes.length){
+                                // find best node: prefer node whose text contains snippet
+                                const norm = t => (t||'').replace(/\s+/g,' ').trim().toLowerCase()
+                                const candNorm = norm(candidateSnippet || '')
+                                let bestNodeScore = 0
+                                let bestNodeDepth = 0
+                                nodes.forEach(n=>{
+                                  const text = norm(n.textContent || '')
+                                  const depthN = (function(n2){ let d=0; let t=n2; while(t && t.nodeType===1){ t=t.parentElement; d+=1 } return d })(n)
+                                  // containment
+                                  if(candNorm && text.includes(candNorm)){
+                                    // large boost if contains exact snippet
+                                    const s = 100000 + depthN*100
+                                    if(s > bestNodeScore){ bestNodeScore = s; bestNodeDepth = depthN }
+                                  } else if(candNorm){
+                                    // token overlap fallback
+                                    const a = new Set(candNorm.split(/\W+/).filter(Boolean))
+                                    const b = new Set(text.split(/\W+/).filter(Boolean))
+                                    const inter = [...a].filter(x=>b.has(x)).length
+                                    const union = new Set([...a,...b]).size || 1
+                                    const sim = inter/union
+                                    const s = Math.round(sim*1000) + depthN
+                                    if(s > bestNodeScore){ bestNodeScore = s; bestNodeDepth = depthN }
+                                  }
+                                })
+                                if(bestNodeScore > 0){
+                                  // add node-match signal to base score so containment
+                                  // dominates other heuristics
+                                  base += bestNodeScore
+                                  // also nudge by node depth
+                                  base += bestNodeDepth*10
+                                }
+                              }
+                            }
+                          }catch(e){ /* ignore DOM evaluation errors */ }
+
+                          return base
+                        }catch(e){ return Number(m.score||0) }
+                      }
+                      if(groupMeta.length===0){ continue }
+                      // prefer selectors with DOM containment of the candidate
+                      // snippet if snapshot DOM is available; pass the snippet for
+                      // DOM-aware scoring.
+                      // pick best meta using each member's own snippet so DOM-aware
+                      // containment checks use the correct candidate text
+                      let bestMeta = groupMeta[0]
+                      let bestScore = scoreSelectorForPickMeta(bestMeta, bestMeta.snippet || '')
+                      for(const mm of groupMeta.slice(1)){
+                        const sc = scoreSelectorForPickMeta(mm, mm.snippet || '')
+                        if(sc > bestScore){ bestMeta = mm; bestScore = sc }
+                      }
+                      // use the selected meta's snippet in the commit payload (fallback to group radio snippet if empty)
+                      const groupKey = (groups[gi] && typeof groups[gi].key === 'string') ? groups[gi].key : ''
+                      const chosenSnippet = groupKey || bestMeta.snippet || (sel && sel.getAttribute ? sel.getAttribute('data-snippet') : '') || ''
+                      toCommit.push({field: fld, selector: bestMeta.selector, snippet: chosenSnippet})
+                    } else {
+                      // fallback: raw selector value
+                      toCommit.push({field: fld, selector: val, snippet: (sel && sel.getAttribute ? sel.getAttribute('data-snippet') : '') || ''})
+                    }
+                  }
+                  if(toCommit.length===0) return alert('No selectors chosen for this story')
+                  submitBtn.disabled = true
+                  submitBtn.textContent = 'Committing selectors...'
+                  try{
+                      // validate each chosen selector against the snapshot HTML
+                      for(const c of toCommit){
+                        // fetch snapshot HTML from backend static mount
+                        try{
+                          const snapUrl = BACKEND.replace(/\/$/, '') + '/api/snapshots/' + encodeURIComponent(rec.id || s.id) + '/html'
+                          const htmlResp = await fetch(snapUrl)
+                          if(!htmlResp.ok) throw new Error('snapshot html fetch failed')
+                          const htmlText = await htmlResp.text()
+                          // parse and evaluate selector
+                          const parser = new DOMParser()
+                          const doc = parser.parseFromString(htmlText, 'text/html')
+                          let matched = []
+                          try{
+                            matched = Array.from(doc.querySelectorAll(c.selector)).map(el=>el.textContent.trim())
+                          }catch(e){ matched = [] }
+                          const candidateSnippet = (c.snippet || '')
+                          // prefer containment, then coverage (intersection/min-size), then token Jaccard
+                          function tokSet(t){ if(!t) return new Set(); return new Set(t.replace(/\s+/g,' ').toLowerCase().split(/\W+/).filter(Boolean)) }
+                          const candTokens = tokSet(candidateSnippet)
+                          let bestJaccard = 0
+                          let bestCoverage = 0
+                          const norm = t => (t||'').replace(/\s+/g,' ').trim().toLowerCase()
+                          const normCand = norm(candidateSnippet)
+                          for(const m of matched){
+                            const text = (m || '')
+                            const normText = norm(text)
+                            if(normCand && normText.includes(normCand)){
+                              bestJaccard = 1
+                              bestCoverage = 1
+                              break
+                            }
+                            const sset = tokSet(text)
+                            const inter = [...sset].filter(x=>candTokens.has(x)).length
+                            const cov = Math.min( inter / (candTokens.size || 1), inter / (sset.size || 1) )
+                            const union = new Set([...sset,...candTokens]).size || 1
+                            const jacc = inter / union
+                            if(jacc > bestJaccard) bestJaccard = jacc
+                            if(cov > bestCoverage) bestCoverage = cov
+                          }
+                          const bestSim = Math.max(bestJaccard, bestCoverage)
+                          // if similarity is below threshold, ask reviewer to confirm
+                          if(bestSim < 0.6){
+                            try{ console.debug('[selector-validate]', { selector: c.selector, bestJaccard, bestCoverage, bestSim, canonicalLen: (candidateSnippet||'').length, matches: matched.length }) }catch(e){}
+                            const ok = confirm(`Selector ${c.selector} extracted text that differs from the candidate snippet. Similarity=${bestSim.toFixed(2)} (jaccard=${bestJaccard.toFixed(2)}, coverage=${bestCoverage.toFixed(2)}). Commit anyway?`)
+                            if(!ok) throw new Error('user aborted commit for selector ' + c.selector)
+                          }
+                        }catch(e){
+                          // ask reviewer if they want to proceed despite validation error
+                          const proceed = confirm(`Failed to validate selector ${c.selector} against snapshot HTML (reason: ${e && e.message}). Commit anyway?`)
+                          if(!proceed) throw new Error('user aborted due to validation failure')
+                        }
+                        // commit after validation
+                        const commitResp = await fetch(BACKEND + '/api/site_rules/commit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({host: selectedHost, field: c.field, selector: c.selector})})
+                        if(!commitResp.ok) throw new Error('commit failed')
+                      }
+                    // start a re-extract job for the host to validate
+                    const jr = await fetch(BACKEND + '/api/reextract_jobs', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({host: selectedHost})})
+                    if(!jr.ok) throw new Error('failed to start reextract job')
+                    const jjson = await jr.json()
+                    const jobId = jjson.job_id
+                    // poll job status and show simple progress
+                    const progressEl = document.createElement('div')
+                    progressEl.style.marginTop = '8px'
+                    progressEl.textContent = 'Re-extract job started — validating selectors...'
+                    sdiv.appendChild(progressEl)
+                    const poll = async ()=>{
+                      const sresp = await fetch(BACKEND + '/api/reextract_jobs/' + encodeURIComponent(jobId))
+                      if(!sresp.ok){ progressEl.textContent = 'Failed to fetch job status'; return }
+                      const sj = await sresp.json()
+                      progressEl.textContent = 'Re-extract status: ' + sj.status
+                      if(sj.status === 'pending' || sj.status === 'running'){ setTimeout(poll, 1500); return }
+                      if(sj.status === 'success' && sj.result && Array.isArray(sj.result.samples)){
+                        progressEl.innerHTML = '<div style="font-weight:600;margin-bottom:6px">Validation finished — sample parsed results</div>'
+                        for(const sm of sj.result.samples){
+                          const smEl = document.createElement('div')
+                          smEl.style.border = '1px solid #eee'
+                          smEl.style.padding = '8px'
+                          smEl.style.marginBottom = '8px'
+                          const conf = safeText(sm.confidence)
+                          const text = safeText((sm.parsed_fields && (sm.parsed_fields.body || sm.parsed_fields.text || sm.parsed_fields.title)) || '')
+                          smEl.innerHTML = `<div style="font-size:13px"><strong>Snapshot</strong>: ${safeText(sm.path)}</div><div style="font-size:13px;margin-top:6px"><strong>Confidence</strong>: ${conf}</div><div style="font-size:13px;margin-top:6px"><strong>Extracted (truncated)</strong><pre style=\"background:#f6f7f8;padding:8px;border-radius:4px;white-space:pre-wrap;max-height:160px;overflow:auto\">${text ? (text.length>800? text.slice(0,800)+'\n\n...truncated': text) : '<em>none</em>'}</pre></div>`
+                          progressEl.appendChild(smEl)
+                        }
+                      } else {
+                        progressEl.textContent = 'Validation finished with status: ' + sj.status
+                      }
+                    }
+                    poll()
+                  }catch(e){ alert('Failed to commit or run validation'); console.error(e); }
+                  finally{ submitBtn.disabled = false; submitBtn.textContent = 'Submit selections and test for this story' }
+                }
+                sdiv.appendChild(submitBtn)
+              }catch(e){
+                const err = document.createElement('div')
+                err.style.color = 'crimson'
+                const msg = (e && e.message) ? e.message : String(e)
+                err.textContent = 'Failed to load snapshot details: ' + msg
+                // include helpful debug info for copy-paste
+                const info = document.createElement('pre')
+                info.style.background = '#fff3f3'
+                info.style.padding = '6px'
+                info.style.borderRadius = '4px'
+                info.style.maxHeight = '120px'
+                info.style.overflow = 'auto'
+                info.textContent = `fetching snapshot ${s.id} failed\nurl: ${BACKEND + '/api/snapshots/' + encodeURIComponent(s.id)}\nerror: ${msg}`
+                sdiv.appendChild(err)
+                sdiv.appendChild(info)
+                console.error('Failed loading snapshot details', {snapshotId: s.id, host, err: e})
+              }
+            })()
+          }
+        }catch(e){
+          console.error('Failed to load snapshots', e)
+          const msg = (e && e.message) ? e.message : String(e)
+          listEl.innerHTML = `<div style="color:crimson">Failed to load snapshots — ${safeText(msg)}</div>`
+        }
+      }
+
+      async function saveFeedback(){
+        if(!selectedHost) return alert('Select a host first')
+        const payload = {
+          notes: fbNotes.value,
+        }
+        try{
+          const r = await fetch(BACKEND + '/api/domain_feedback/' + encodeURIComponent(selectedHost), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)})
+          if(!r.ok) throw new Error('save failed')
+          alert('Saved')
+          // update local copy
+          domainFeedback[selectedHost] = payload
+        }catch(e){ console.error(e); alert('Failed to save feedback') }
+      }
+
+      refreshBtn.addEventListener('click', load)
+      saveBtn.addEventListener('click', saveFeedback)
+
+      // initial load
+      load()
+    </script>
+  </body>
+</html>
