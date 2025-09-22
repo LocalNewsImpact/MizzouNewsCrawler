@@ -68,9 +68,11 @@ def add_extraction_function():
                 conn.execute(insert_query, tuple(outcome_data.values()))
                 
                 # Update articles table status
-                article_status = 'extracted' if extraction_result.is_success else 'error'
+                article_status = ('extracted' if extraction_result.is_success 
+                                else 'error')
                 conn.execute(
-                    "UPDATE articles SET status = ?, processed_at = datetime('now'), error_message = ? WHERE id = ?",
+                    """UPDATE articles SET status = ?, error_message = ?
+                       WHERE id = ?""",
                     (article_status, extraction_result.error_message, article_id)
                 )
                 
