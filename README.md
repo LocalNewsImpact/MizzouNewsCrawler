@@ -79,16 +79,23 @@ This project converts the original MizzouNewsCrawler into a production-ready scr
 │   │   └── url_verification.py # URL verification service
 │   ├── models/            # SQLAlchemy database models
 │   ├── utils/             # Shared utilities and processing
-│   │   ├── byline_cleaner.py    # Advanced byline processing
-│   │   ├── byline_telemetry.py  # Byline processing metrics
-│   │   ├── telemetry.py         # System-wide telemetry
-│   │   └── process_tracker.py   # Background process monitoring
+│   │   ├── byline_cleaner.py           # Advanced byline processing
+│   │   ├── byline_telemetry.py         # Byline processing metrics
+│   │   ├── telemetry.py                # System-wide telemetry
+│   │   ├── comprehensive_telemetry.py  # Extraction performance tracking
+│   │   └── process_tracker.py          # Background process monitoring
 │   ├── lookups/           # Geographic and entity lookups
 │   └── config.py          # Configuration management
 ├── sources/               # Input data (publinks.csv, sites.json)
 ├── data/                  # SQLite databases and local storage
 ├── artifacts/             # Generated outputs and snapshots
 ├── tests/                 # Test suite
+│   ├── test_telemetry_system.py    # Comprehensive extraction telemetry tests
+│   ├── test_telemetry_api.py       # FastAPI dashboard endpoint tests
+│   └── ...                         # Other test files
+├── backend/               # FastAPI dashboard backend
+│   └── app/
+│       └── main.py        # Dashboard API endpoints for React integration
 ├── tools/                 # Development and maintenance scripts
 ├── requirements.txt       # Python dependencies
 └── example_workflow.py    # Complete workflow demonstration
@@ -99,6 +106,10 @@ This project converts the original MizzouNewsCrawler into a production-ready scr
 - **candidate_links**: Source publications loaded from publinks.csv
 
 - **articles**: Discovered article URLs and extracted content
+
+- **extraction_telemetry_v2**: Comprehensive extraction performance tracking with method timings, HTTP metrics, and field-level success rates
+
+- **http_error_summary**: Aggregated HTTP error tracking by host and status code
 
 - **ml_results**: ML analysis results with model versioning
 
@@ -115,6 +126,10 @@ This project converts the original MizzouNewsCrawler into a production-ready scr
 - **Flexible Filtering**: Support ALL/HOST/COUNTY/CITY filters with limits
 
 - **Status Tracking**: Database tracks crawling progress and errors
+
+- **Comprehensive Telemetry**: Real-time extraction performance monitoring with HTTP error tracking and dashboard API
+
+- **Site Management**: Automated poor performer detection with pause/resume controls
 
 - **Modular Design**: Core logic extracted to importable src/ modules
 
@@ -396,6 +411,149 @@ python scripts/populate_gazetteer.py --address "Test Address" --dry-run
 
 # Monitor telemetry logs during development
 tail -f gazetteer_telemetry.log | jq .
+```
+
+## Comprehensive Extraction Telemetry & Dashboard System
+
+The project includes a comprehensive telemetry system for monitoring content extraction performance, HTTP errors, and site health, providing real-time insights for automated site management and React dashboard integration.
+
+### Extraction Telemetry Architecture
+
+**ExtractionMetrics Class:**
+
+- **Method-Level Tracking**: Detailed timing and success tracking for each extraction method (newspaper4k, beautifulsoup, fallback)
+- **HTTP Status Monitoring**: Automatic capture of HTTP status codes and error categorization (4xx_client_error, 5xx_server_error)
+- **Field-Level Success**: Granular tracking of title, content, author, and date extraction success rates
+- **Error Pattern Recognition**: Regex-based extraction of HTTP status codes from newspaper4k error messages
+
+**ComprehensiveExtractionTelemetry Database:**
+
+- **extraction_telemetry_v2**: Detailed extraction records with method timings, field success, and HTTP metrics
+- **http_error_summary**: Aggregated HTTP error tracking by host and status code
+- **Real-Time Aggregation**: Automatic rollup of error counts and performance statistics
+
+### FastAPI Dashboard API Endpoints
+
+**Telemetry Data Endpoints:**
+
+```bash
+# Overall extraction statistics and performance summary
+GET /api/telemetry/summary?days=7
+
+# HTTP error breakdown by host, status code, and time period
+GET /api/telemetry/http-errors?days=7&host=example.com&status_code=403
+
+# Extraction method performance analysis
+GET /api/telemetry/method-performance?days=7
+
+# Publisher-specific statistics and health metrics
+GET /api/telemetry/publisher-stats?days=7&min_attempts=5
+
+# Poor performing sites requiring attention
+GET /api/telemetry/poor-performers?days=7&min_attempts=10&max_success_rate=25
+
+# Field-level extraction success rates by method
+GET /api/telemetry/field-extraction?days=7
+```
+
+**Site Management API:**
+
+```bash
+# Pause problematic sites based on performance thresholds
+POST /api/site-management/pause
+{
+  "host": "problematic-site.com",
+  "reason": "Poor performance: 0% success rate with 15 attempts"
+}
+
+# Resume paused sites after manual review
+POST /api/site-management/resume
+{
+  "host": "fixed-site.com"
+}
+
+# List all currently paused sites
+GET /api/site-management/paused
+
+# Check individual site status
+GET /api/site-management/status/example.com
+```
+
+### HTTP Error Detection & Tracking
+
+**Automatic HTTP Status Extraction:**
+
+- **Regex Pattern Matching**: Extracts HTTP status codes from newspaper4k error messages using pattern `Status code (\d+)`
+- **Error Type Categorization**: Automatically categorizes errors as 3xx_redirect, 4xx_client_error, or 5xx_server_error
+- **Publisher Error Aggregation**: Tracks error counts per host with first_seen and last_seen timestamps
+
+**Error Tracking Examples:**
+
+```python
+# Error message: "Article `download()` failed with Status code 403"
+# → Extracted: HTTP 403, Type: 4xx_client_error
+
+# Error message: "HTTP Error: Status code 500 Internal Server Error"  
+# → Extracted: HTTP 500, Type: 5xx_server_error
+
+# Automatic site management recommendation based on error patterns
+# → Sites with >80% error rates flagged for pause recommendation
+```
+
+### Dashboard Integration Features
+
+**Real-Time Performance Monitoring:**
+
+- **Success Rate Tracking**: Publisher-level success rates with configurable thresholds
+- **Method Effectiveness**: Comparative performance of extraction methods across publishers
+- **HTTP Error Patterns**: Identification of systematic HTTP error patterns by host
+- **Field Extraction Quality**: Title, content, author extraction success rates per method
+
+**Automated Site Management:**
+
+- **Poor Performer Detection**: Automatic identification of sites with low success rates
+- **Pause/Resume Controls**: API-driven site management with reason tracking
+- **Human Feedback Loop**: Dashboard integration for manual site management decisions
+- **Performance Threshold Alerts**: Configurable thresholds for automated recommendations
+
+### Comprehensive Test Suite
+
+**Test Coverage:**
+
+- **Unit Tests**: ExtractionMetrics class functionality and HTTP status extraction
+- **Integration Tests**: Database operations and ComprehensiveExtractionTelemetry methods
+- **API Tests**: FastAPI endpoint functionality with mocked databases
+- **End-to-End Tests**: Complete workflow simulation from extraction to dashboard data
+
+**Running Telemetry Tests:**
+
+```bash
+# Run complete telemetry system test suite
+python -m pytest tests/test_telemetry_system.py -v
+
+# Test FastAPI endpoints
+python -m pytest tests/test_telemetry_api.py -v
+
+# Test HTTP error extraction functionality
+python -c "
+from src.utils.comprehensive_telemetry import ExtractionMetrics
+metrics = ExtractionMetrics('test', 'test', 'https://test.com', 'test.com')
+# ... test HTTP status extraction from error messages
+"
+```
+
+**Production Integration:**
+
+```bash
+# Initialize telemetry system in extraction pipeline
+from src.utils.comprehensive_telemetry import ExtractionMetrics, ComprehensiveExtractionTelemetry
+
+# Start FastAPI backend for dashboard
+uvicorn backend.app.main:app --reload --port 8000
+
+# Access telemetry dashboard endpoints
+curl http://localhost:8000/api/telemetry/summary?days=7
+curl http://localhost:8000/api/telemetry/poor-performers?max_success_rate=50
 ```
 
 ## Quick Start

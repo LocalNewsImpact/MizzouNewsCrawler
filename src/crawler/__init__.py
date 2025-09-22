@@ -442,7 +442,8 @@ class ContentExtractor:
 
         return data
 
-    def extract_content(self, url: str, html: str = None) -> Dict[str, any]:
+    def extract_content(self, url: str, html: str = None,
+                        metrics: Optional[object] = None) -> Dict[str, any]:
         """Fetch page if needed, extract article data using multiple methods.
 
         Uses intelligent field-level fallback:
@@ -450,11 +451,16 @@ class ContentExtractor:
         2. BeautifulSoup (fallback) - extract only missing fields
         3. Selenium (final fallback) - extract only remaining missing fields
 
+        Args:
+            url: URL to extract content from
+            html: Optional pre-fetched HTML content
+            metrics: Optional ExtractionMetrics object for telemetry tracking
+
         Returns a dictionary with keys: title, author, content, publish_date,
         metadata (original meta), and extracted_at.
         """
         logger.debug(f"Starting content extraction for {url}")
-        
+
         # Initialize result structure
         result = {
             "url": url,
@@ -466,24 +472,59 @@ class ContentExtractor:
             "extracted_at": datetime.utcnow().isoformat(),
             "extraction_methods": {}  # Track which method worked for field
         }
-        
+
         # Try newspaper4k first (primary method)
         if NEWSPAPER_AVAILABLE:
             try:
                 logger.info(f"Attempting newspaper4k extraction for {url}")
+                if metrics:
+                    metrics.start_method("newspaper4k")
+
                 newspaper_result = self._extract_with_newspaper(url, html)
+
                 if newspaper_result:
                     # Copy all successfully extracted fields
                     self._merge_extraction_results(
                         result, newspaper_result, "newspaper4k"
                     )
                     logger.info(f"newspaper4k extraction completed for {url}")
+                    if metrics:
+                        metrics.end_method("newspaper4k", True, None,
+                                          newspaper_result)
+                else:
+                    if metrics:
+                        metrics.end_method("newspaper4k", False,
+                                          "No content extracted",
+                                          newspaper_result or {})
+
             except Exception as e:
                 logger.info(f"newspaper4k extraction failed for {url}: {e}")
+                # Try to get any partial result with metadata (including HTTP status)
+                partial_result = {}
+                if hasattr(e, '__context__') and hasattr(e.__context__, 'response'):
+                    # Some HTTP errors might have response info
+                    pass
+                
+                # Check if this is an HTTP error with status code in the message
+                error_str = str(e)
+                if "Status code" in error_str:
+                    import re
+                    status_match = re.search(r'Status code (\d+)', error_str)
+                    if status_match:
+                        http_status = int(status_match.group(1))
+                        partial_result = {
+                            "metadata": {
+                                "extraction_method": "newspaper4k",
+                                "http_status": http_status
+                            }
+                        }
+                
+                if metrics:
+                    metrics.end_method("newspaper4k", False, str(e), partial_result)
 
         # Check what fields are still missing
         missing_fields = self._get_missing_fields(result)
-        
+
         # Try BeautifulSoup fallback for missing fields
         if missing_fields:
             try:
@@ -491,7 +532,11 @@ class ContentExtractor:
                     f"Attempting BeautifulSoup fallback for missing "
                     f"fields {missing_fields} on {url}"
                 )
+                if metrics:
+                    metrics.start_method("beautifulsoup")
+
                 bs_result = self._extract_with_beautifulsoup(url, html)
+
                 if bs_result:
                     # Only copy missing fields
                     self._merge_extraction_results(
@@ -500,12 +545,23 @@ class ContentExtractor:
                     logger.info(
                         f"BeautifulSoup extraction completed for {url}"
                     )
+                    if metrics:
+                        metrics.end_method("beautifulsoup", True, None,
+                                          bs_result)
+                else:
+                    if metrics:
+                        metrics.end_method("beautifulsoup", False,
+                                          "No content extracted",
+                                          bs_result or {})
+
             except Exception as e:
                 logger.info(f"BeautifulSoup extraction failed for {url}: {e}")
+                if metrics:
+                    metrics.end_method("beautifulsoup", False, str(e), {})
 
         # Check what fields are still missing after BeautifulSoup
         missing_fields = self._get_missing_fields(result)
-        
+
         # Try Selenium final fallback for remaining missing fields
         if missing_fields and SELENIUM_AVAILABLE:
             try:
@@ -513,20 +569,36 @@ class ContentExtractor:
                     f"Attempting Selenium fallback for missing "
                     f"fields {missing_fields} on {url}"
                 )
+                if metrics:
+                    metrics.start_method("selenium")
+
                 selenium_result = self._extract_with_selenium(url)
+
                 if selenium_result:
                     # Only copy still-missing fields
                     self._merge_extraction_results(
                         result, selenium_result, "selenium", missing_fields
                     )
                     logger.info(f"Selenium extraction completed for {url}")
+                    if metrics:
+                        metrics.end_method("selenium", True, None,
+                                          selenium_result)
+                else:
+                    if metrics:
+                        metrics.end_method("selenium", False,
+                                          "No content extracted",
+                                          selenium_result or {})
+
             except Exception as e:
                 logger.info(f"Selenium extraction failed for {url}: {e}")
+                if metrics:
+                    metrics.end_method("selenium", False, str(e), {})
 
         # Log final extraction summary
         final_missing = self._get_missing_fields(result)
         if final_missing:
-            logger.warning(f"Could not extract fields {final_missing} for {url} with any method")
+            logger.warning(f"Could not extract fields {final_missing} "
+                          f"for {url} with any method")
         else:
             logger.info(f"Successfully extracted all fields for {url}")
 
@@ -534,7 +606,7 @@ class ContentExtractor:
         result_copy = result.copy()
         result_copy["metadata"]["extraction_methods"] = result["extraction_methods"]
         del result_copy["extraction_methods"]
-        
+
         return result_copy
 
     def _get_missing_fields(self, result: Dict[str, any]) -> List[str]:
@@ -647,6 +719,7 @@ class ContentExtractor:
     def _extract_with_newspaper(self, url: str, html: str = None) -> Dict[str, any]:
         """Extract content using newspaper4k library with cloudscraper support."""
         article = NewspaperArticle(url)
+        http_status = None
         
         if html:
             # Use provided HTML
@@ -656,6 +729,7 @@ class ContentExtractor:
             try:
                 session = self._get_domain_session(url)
                 response = session.get(url, timeout=self.timeout)
+                http_status = response.status_code
                 
                 # Check if request was successful
                 if response.status_code == 200:
@@ -667,12 +741,34 @@ class ContentExtractor:
                 else:
                     logger.warning(f"Session returned status {response.status_code} for {url}")
                     # Fallback to newspaper4k's built-in download
-                    article.download()
+                    try:
+                        article.download()
+                    except Exception as download_e:
+                        # Try to extract HTTP status from newspaper4k error message
+                        error_str = str(download_e)
+                        if "Status code" in error_str:
+                            import re
+                            status_match = re.search(r'Status code (\d+)', error_str)
+                            if status_match:
+                                http_status = int(status_match.group(1))
+                                logger.warning(f"Newspaper4k download failed with status {http_status}: {error_str}")
+                        raise download_e
                     
             except Exception as e:
                 logger.warning(f"Session fetch failed for {url}: {e}, falling back to newspaper download")
                 # Fallback to newspaper4k's built-in download
-                article.download()
+                try:
+                    article.download()
+                except Exception as download_e:
+                    # Try to extract HTTP status from newspaper4k error message
+                    error_str = str(download_e)
+                    if "Status code" in error_str:
+                        import re
+                        status_match = re.search(r'Status code (\d+)', error_str)
+                        if status_match:
+                            http_status = int(status_match.group(1))
+                            logger.warning(f"Newspaper4k download failed with status {http_status}: {error_str}")
+                    raise download_e
         
         article.parse()
         
@@ -691,7 +787,8 @@ class ContentExtractor:
                 "meta_description": article.meta_description,
                 "keywords": article.keywords,
                 "extraction_method": "newspaper4k",
-                "cloudscraper_used": CLOUDSCRAPER_AVAILABLE and cloudscraper is not None
+                "cloudscraper_used": CLOUDSCRAPER_AVAILABLE and cloudscraper is not None,
+                "http_status": http_status
             },
             "extracted_at": datetime.utcnow().isoformat(),
         }

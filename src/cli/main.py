@@ -580,6 +580,14 @@ def crawl_command(args):
     return 0
 
 
+def telemetry_command(args):
+    """Handle telemetry command."""
+    # Import and delegate to the telemetry command handler
+    from cli.commands.telemetry import handle_telemetry_command
+    
+    return handle_telemetry_command(args)
+
+
 def extract_command(args):
     """Extract content from candidate links using fallback system."""
     logger = logging.getLogger(__name__)
@@ -1408,6 +1416,51 @@ def main():
         help="Extract from specific source only"
     )
 
+    # Telemetry command
+    telemetry_parser = subparsers.add_parser(
+        "telemetry", help="Query extraction performance telemetry"
+    )
+    telemetry_subparsers = telemetry_parser.add_subparsers(
+        dest="telemetry_command", help="Telemetry analysis commands"
+    )
+    
+    # HTTP errors subcommand
+    errors_parser = telemetry_subparsers.add_parser(
+        "errors", help="Show HTTP error summary"
+    )
+    errors_parser.add_argument(
+        "--days", type=int, default=7,
+        help="Number of days to look back (default: 7)"
+    )
+    
+    # Method effectiveness subcommand
+    methods_parser = telemetry_subparsers.add_parser(
+        "methods", help="Show extraction method effectiveness"
+    )
+    methods_parser.add_argument(
+        "--publisher", type=str, help="Filter by specific publisher"
+    )
+    
+    # Publisher stats subcommand
+    publishers_parser = telemetry_subparsers.add_parser(
+        "publishers", help="Show per-publisher performance statistics"
+    )
+
+    # Field extraction analysis subcommand
+    fields_parser = telemetry_subparsers.add_parser(
+        "fields", help="Show field-level extraction success by method"
+    )
+    fields_parser.add_argument(
+        "--publisher", type=str, help="Filter by specific publisher"
+    )
+    fields_parser.add_argument(
+        "--method", type=str, 
+        choices=["newspaper4k", "beautifulsoup", "selenium"],
+        help="Filter by specific extraction method"
+    )
+    
+    telemetry_parser.set_defaults(func=telemetry_command)
+
     # Analyze command
     analyze_parser = subparsers.add_parser("analyze", help="Run ML analysis")
     analyze_parser.add_argument("--limit", type=int, help="Maximum articles to analyze")
@@ -1641,6 +1694,8 @@ def main():
         return crawl_command(args)
     elif args.command == "extract":
         return extract_command(args)
+    elif args.command == "telemetry":
+        return telemetry_command(args)
     elif args.command == "analyze":
         return analyze_command(args)
     elif args.command == "populate-gazetteer":

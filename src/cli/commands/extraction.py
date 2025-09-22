@@ -11,6 +11,10 @@ from sqlalchemy import text
 from src.models.database import DatabaseManager
 from src.crawler import ContentExtractor
 from src.utils.byline_cleaner import BylineCleaner
+from src.utils.comprehensive_telemetry import (
+    ComprehensiveExtractionTelemetry,
+    ExtractionMetrics
+)
 
 logger = logging.getLogger(__name__)
 
@@ -63,9 +67,10 @@ def handle_extraction_command(args) -> int:
             'batches_completed': 0
         }
         
-        # Initialize extractor and byline cleaner once for all batches
+        # Initialize extractor, byline cleaner, and telemetry once for all batches
         extractor = ContentExtractor()
         byline_cleaner = BylineCleaner()
+        telemetry = ComprehensiveExtractionTelemetry()
         
         print(f"\\n🚀 Starting batch extraction: {batches} batches × {per_batch} articles")
         print("=" * 60)
@@ -76,7 +81,7 @@ def handle_extraction_command(args) -> int:
             
             # Process this batch
             batch_stats = _process_batch(
-                args, extractor, byline_cleaner, per_batch, batch_num
+                args, extractor, byline_cleaner, telemetry, per_batch, batch_num
             )
             
             if batch_stats is None:
@@ -131,7 +136,8 @@ def handle_extraction_command(args) -> int:
         return 1
 
 
-def _process_batch(args, extractor, byline_cleaner, per_batch, batch_num):
+def _process_batch(args, extractor, byline_cleaner, telemetry, per_batch,
+                   batch_num):
     """Process a single batch of articles."""
     db = DatabaseManager()
     session = db.session
@@ -168,16 +174,28 @@ def _process_batch(args, extractor, byline_cleaner, per_batch, batch_num):
         for i, article in enumerate(articles, 1):
             url_id, url, source, status, canonical_name = article
             batch_stats['processed'] += 1
-            
+
             print(f"\\n[{i}/{len(articles)}] Processing article from {source}")
             print(f"  URL: {url[:80]}{'...' if len(url) > 80 else ''}")
-            
+
+            # Create telemetry metrics for this extraction
+            operation_id = f"extraction_{batch_num}_{i}"
+            article_id = str(uuid.uuid4())
+            publisher = canonical_name if canonical_name else source
+            metrics = ExtractionMetrics(operation_id, article_id, url, publisher)
+
             try:
-                # Extract content
+                # Extract content with telemetry
                 start_time = time.time()
-                content_data = extractor.extract_content(url)
+                content_data = extractor.extract_content(url, metrics=metrics)
                 extraction_time = time.time() - start_time
-                
+
+                # Finalize telemetry metrics
+                metrics.finalize(content_data if content_data else {})
+
+                # Record telemetry
+                telemetry.record_extraction(metrics)
+
                 print(f"  Extraction completed in {extraction_time:.1f}s")
                 
                 if content_data and content_data.get('title'):
@@ -277,12 +295,20 @@ def _process_batch(args, extractor, byline_cleaner, per_batch, batch_num):
                 else:
                     print("  ❌ Failed: No title extracted")
                     batch_stats['failed'] += 1
-                    
+                    # Record failed extraction in telemetry
+                    metrics.error_message = "No title extracted"
+                    metrics.error_type = "extraction_failure"
+
             except Exception as e:
                 logger.error(f"Failed to extract {url}: {e}")
                 print(f"  ❌ Failed: {str(e)[:100]}...")
                 batch_stats['failed'] += 1
                 session.rollback()
+                # Record exception in telemetry
+                metrics.error_message = str(e)
+                metrics.error_type = "exception"
+                metrics.finalize({})
+                telemetry.record_extraction(metrics)
         
         return batch_stats
         
