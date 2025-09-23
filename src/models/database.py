@@ -15,6 +15,7 @@ from sqlalchemy.orm import sessionmaker
 import sqlite3
 
 from . import Article, Base, CandidateLink, Job, Location, MLResult, Source
+from src.utils.url_utils import normalize_url
 import json
 
 logger = logging.getLogger(__name__)
@@ -218,8 +219,12 @@ def upsert_candidate_link(
     **kwargs,
 ) -> CandidateLink:
     """Insert or update candidate link (idempotent by URL)."""
-    # Check if link already exists
-    existing = session.query(CandidateLink).filter_by(url=url).first()
+    # Normalize URL for consistent deduplication
+    normalized_url = normalize_url(url)
+    
+    # Check if link already exists (using normalized URL)
+    existing = session.query(CandidateLink).filter_by(
+        url=normalized_url).first()
 
     if existing:
         # Update existing record with new data
@@ -228,15 +233,15 @@ def upsert_candidate_link(
                 setattr(existing, key, value)
         # Commit with retry to mitigate transient sqlite locks
         _commit_with_retry(session)
-        logger.debug(f"Updated existing candidate link: {url}")
+        logger.debug(f"Updated existing candidate link: {normalized_url}")
         return existing
     else:
-        # Create new record
-        link = CandidateLink(url=url, source=source, **kwargs)
+        # Create new record (using normalized URL)
+        link = CandidateLink(url=normalized_url, source=source, **kwargs)
         session.add(link)
         # Commit with retry to mitigate transient sqlite locks
         _commit_with_retry(session)
-        logger.info(f"Created new candidate link: {url}")
+        logger.info(f"Created new candidate link: {normalized_url}")
         return link
 
 

@@ -45,6 +45,12 @@ class ExtractionMetrics:
 
         # Field extraction tracking
         self.field_extraction = {}
+        
+        # Final field attribution (which method provided each field)
+        self.final_field_attribution = {}
+        
+        # Track alternative extractions (later methods vs. current fields)
+        self.alternative_extractions = {}
 
         # Final results
         self.extracted_fields = {
@@ -96,6 +102,27 @@ class ExtractionMetrics:
                 # Use first HTTP status we encounter
                 self.set_http_metrics(http_status, 0, 0)
 
+    def record_alternative_extraction(self, method_name: str,
+                                      field_name: str,
+                                      alternative_value: str,
+                                      current_value: str):
+        """Record when a later method extracts an alternative for filled field.
+        
+        Args:
+            method_name: The method that found the alternative
+            field_name: The field that was extracted alternatively
+            alternative_value: The value the later method found
+            current_value: The current value already in the result
+        """
+        if method_name not in self.alternative_extractions:
+            self.alternative_extractions[method_name] = {}
+        
+        self.alternative_extractions[method_name][field_name] = {
+            'alternative_value': alternative_value[:200],  # Truncate
+            'current_value': current_value[:200],          # Truncate
+            'values_differ': alternative_value != current_value
+        }
+
     def set_http_metrics(self, status_code: int, response_size: int,
                          response_time_ms: float):
         """Record HTTP-level metrics."""
@@ -126,7 +153,13 @@ class ExtractionMetrics:
                 'publish_date': bool(final_result.get('publish_date'))
             }
 
-            self.content_length = len(final_result.get('content', ''))
+            # Capture final field attribution from metadata
+            metadata = final_result.get('metadata', {})
+            extraction_methods = metadata.get('extraction_methods', {})
+            if extraction_methods:
+                self.final_field_attribution = extraction_methods
+
+            self.content_length = len(final_result.get('content') or '')
             has_title = bool(final_result.get('title'))
             has_content = bool(final_result.get('content'))
             self.is_success = has_title and has_content
@@ -179,6 +212,8 @@ class ComprehensiveExtractionTelemetry:
                     -- Field extraction tracking
                     field_extraction TEXT,
                     extracted_fields TEXT,
+                    final_field_attribution TEXT,
+                    alternative_extractions TEXT,
 
                     -- Results
                     content_length INTEGER,
@@ -189,6 +224,17 @@ class ComprehensiveExtractionTelemetry:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
+
+            # Add alternative_extractions column if it doesn't exist
+            try:
+                conn.execute('''
+                    ALTER TABLE extraction_telemetry_v2
+                    ADD COLUMN alternative_extractions TEXT
+                ''')
+                print("Added alternative_extractions column")
+            except Exception:
+                # Column already exists
+                pass
 
             # HTTP error tracking
             conn.execute('''
@@ -219,9 +265,10 @@ class ComprehensiveExtractionTelemetry:
                     methods_attempted, successful_method,
                     method_timings, method_success, method_errors,
                     field_extraction, extracted_fields,
+                    final_field_attribution, alternative_extractions,
                     content_length, is_success, error_message, error_type
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                         ?, ?, ?, ?, ?, ?)
+                         ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 metrics.operation_id, metrics.article_id, metrics.url,
                 metrics.publisher, metrics.host,
@@ -236,6 +283,8 @@ class ComprehensiveExtractionTelemetry:
                 json.dumps(metrics.method_errors),
                 json.dumps(metrics.field_extraction),
                 json.dumps(metrics.extracted_fields),
+                json.dumps(metrics.final_field_attribution),
+                json.dumps(metrics.alternative_extractions),
                 metrics.content_length, metrics.is_success,
                 metrics.error_message, metrics.error_type
             ))

@@ -46,6 +46,7 @@ class BylineCleaner:
         
         # Common suffixes/prefixes
         'the', 'for', 'at', 'of', 'and', 'from', 'with', 'by', 'staff writer',
+        'guest',  # Guest contributors, commentators
         
         # Publication words (when used as titles/suffixes)
         'tribune', 'herald', 'gazette', 'times', 'post', 'news', 'press',
@@ -235,7 +236,26 @@ class BylineCleaner:
                 )
                 return self._format_result([], return_json)
             
-            # Step 1: Source name removal
+            # Step 1: Wire service detection (BEFORE source removal to avoid corruption)
+            if self._is_wire_service(byline):
+                self.telemetry.log_transformation_step(
+                    step_name="wire_service_detection",
+                    input_text=byline,
+                    output_text=byline,
+                    transformation_type="classification",
+                    confidence_delta=0.8,
+                    notes="Detected wire service byline - preserving as-is"
+                )
+                
+                self.telemetry.finalize_cleaning_session(
+                    final_authors=[byline.strip()],
+                    cleaning_method="wire_service_passthrough",
+                    likely_valid_authors=True,
+                    likely_noise=False
+                )
+                return self._format_result([byline.strip()], return_json)
+            
+            # Step 2: Source name removal
             cleaned_byline = byline
             if source_name:
                 original_byline = byline
@@ -254,7 +274,7 @@ class BylineCleaner:
                 if cleaned_byline != byline:
                     logger.debug(f"Source removed: '{byline}' -> '{cleaned_byline}'")
             
-            # Step 1.5: Dynamic publication name filtering
+            # Step 2.5: Dynamic publication name filtering
             if self._is_publication_name(cleaned_byline):
                 self.telemetry.log_transformation_step(
                     step_name="dynamic_publication_filter",
@@ -273,25 +293,6 @@ class BylineCleaner:
                     likely_noise=True
                 )
                 return self._format_result([], return_json)
-            
-            # Step 2: Wire service detection
-            if self._is_wire_service(cleaned_byline):
-                self.telemetry.log_transformation_step(
-                    step_name="wire_service_detection",
-                    input_text=cleaned_byline,
-                    output_text=cleaned_byline,
-                    transformation_type="classification",
-                    confidence_delta=0.8,
-                    notes="Detected wire service byline - preserving as-is"
-                )
-                
-                self.telemetry.finalize_cleaning_session(
-                    final_authors=[cleaned_byline.strip()],
-                    cleaning_method="wire_service_passthrough",
-                    likely_valid_authors=True,
-                    likely_noise=False
-                )
-                return self._format_result([cleaned_byline.strip()], return_json)
             
             logger.debug(f"Processing byline: {cleaned_byline}")
             
@@ -695,11 +696,21 @@ class BylineCleaner:
     def _identify_part_type(self, part: str) -> str:
         """
         Identify what type of content a comma-separated part contains.
-        Returns: 'name', 'email', 'title', or 'mixed'
+        Returns: 'name', 'email', 'title', 'photo_credit', or 'mixed'
         """
         part = part.strip()
         if not part:
             return 'empty'
+        
+        # Check for photo credits (e.g., "Photos Jeremy Jacob", "Photo by John Doe")
+        part_lower = part.lower()
+        if (part_lower.startswith('photo ') or 
+            part_lower.startswith('photos ') or
+            'photo by' in part_lower or
+            'photos by' in part_lower or
+            part_lower == 'photo' or
+            part_lower == 'photos'):
+            return 'photo_credit'
         
         # Check for email
         if '@' in part and '.' in part:
@@ -777,10 +788,12 @@ class BylineCleaner:
             return 'mixed'
         
         # Check if it looks like a name (2-3 capitalized words, no special chars)
-        if (len(part_words) <= 3 and 
-            all(word.replace('.', '').isalpha() for word in part_words) and
-            not any(word.lower() in self.TITLES_TO_REMOVE or 
-                   word.lower() in self.JOURNALISM_NOUNS for word in part_words)):
+        if (len(part_words) <= 3 and
+            all(word.replace('.', '').replace("'", '').replace('-', '')
+                .isalpha() for word in part_words) and
+            not any(word.lower() in self.TITLES_TO_REMOVE or
+                    word.lower() in self.JOURNALISM_NOUNS
+                    for word in part_words)):
             return 'name'
         
         # Default to mixed if unclear
@@ -851,16 +864,37 @@ class BylineCleaner:
                 part_type = self._identify_part_type(part)
                 part_types.append((part.strip(), part_type))
             
+            # Special case: "Last, First" name format detection
+            if (len(comma_parts) == 2 and
+                len(part_types) == 2 and
+                all(ptype == 'name' for _, ptype in part_types)):
+
+                first_part = part_types[0][0]  # Potential last name
+                second_part = part_types[1][0]  # Potential first name(s)
+
+                # Check if this looks like "Last, First" pattern
+                first_part_words = first_part.split()
+                second_part_words = second_part.split()
+
+                # Last name should be 1 word, first name(s) should be 1-2 words
+                if (len(first_part_words) == 1 and
+                    1 <= len(second_part_words) <= 2):
+                    # This looks like "Last, First" - reorder to "First Last"
+                    reordered_name = f"{second_part} {first_part}"
+                    logger.debug(f"Detected 'Last, First' format: "
+                                 f"'{text}' -> '{reordered_name}'")
+                    return [reordered_name]
+            
             # Count different types
             non_name_count = sum(1 for _, ptype in part_types
-                                 if ptype in ['email', 'title'])
+                                 if ptype in ['email', 'title', 'photo_credit'])
             
             # Smart processing: if we have multiple non-name parts,
             # extract just the name part(s)
             condition = (non_name_count >= 2 or
                          (non_name_count >= 1 and len(comma_parts) >= 3))
             if condition:
-                # Find parts that are clearly names
+                # Find parts that are clearly names (not photo credits)
                 name_parts = [part for part, ptype in part_types
                               if ptype == 'name']
                 
@@ -869,17 +903,17 @@ class BylineCleaner:
                     return ["__SMART_PROCESSED__"] + name_parts
                 else:
                     # If no clear names, take the first part that's not
-                    # email/title
+                    # email/title/photo_credit
                     for part, ptype in part_types:
-                        if ptype not in ['email', 'title'] and part:
+                        if ptype not in ['email', 'title', 'photo_credit'] and part:
                             return ["__SMART_PROCESSED__", part]
                     
-                    # If all parts are email/title, return empty list
+                    # If all parts are email/title/photo_credit, return empty list
                     # This handles cases like "Senior Editor II, Managing Director III"
                     return ["__SMART_PROCESSED__"]
             
             # If not using smart processing, handle normally
-            # Keep parts that are names or mixed (not pure email/title)
+            # Keep parts that are names or mixed (not email/title/photo_credit)
             authors = []
             for part, ptype in part_types:
                 if ptype in ['name', 'mixed'] and part:
@@ -896,12 +930,12 @@ class BylineCleaner:
                 # Apply deduplication to all comma-separated results
                 return self._deduplicate_authors(authors)
         
-        # Default: return as single author, but only if it's not identified as a title
+        # Default: return as single author, but only if it's not a title or photo credit
         if text.strip():
-            # Check if the entire text is just a title
+            # Check if the entire text is just a title or photo credit
             text_type = self._identify_part_type(text)
-            if text_type == 'title':
-                return []  # Don't return titles as names
+            if text_type in ['title', 'photo_credit']:
+                return []  # Don't return titles or photo credits as names
             
             # For mixed content, try to filter organization words
             if text_type == 'mixed':
@@ -1026,12 +1060,42 @@ class BylineCleaner:
         if not name:
             return ""
         
+        # First decode any HTML entities
+        import html
+        name = html.unescape(name)
+        
         # Check if this name is actually a publication name
         if self._is_publication_name(name):
             return ""  # Filter out publication names
         
+        # Check if this name is a continuous URL string
+        if self._is_url_fragment(name):
+            return ""  # Filter out actual URL strings
+        
+        # Clean up separators and trailing URL-like fragments
+        # Split on common separators and keep only the name part
+        import re
+        separators = [r'\s*•\s*', r'\s*\|\s*', r'\s*–\s*', r'\s*—\s*',
+                      r'\s*-\s*(?=\w+\s*\.|\.)', r'\s*,\s*(?=\.)',
+                      r'\s+(?=\.com|\.org|\.net|\.edu)']
+        
+        cleaned_name = name
+        for separator in separators:
+            parts = re.split(separator, cleaned_name, flags=re.IGNORECASE)
+            if len(parts) > 1:
+                # Take the first part if it looks like a name
+                first_part = parts[0].strip()
+                words = first_part.split()
+                if (len(words) >= 2 and
+                    all(word.replace('.', '').replace("'", '').replace('-', '')
+                        .isalpha() for word in words if word) and
+                    all(word[0].isupper() for word in words
+                        if word and word[0].isalpha())):
+                    cleaned_name = first_part
+                    break
+        
         # Handle mixed person/organization cases
-        cleaned = self._filter_organization_words(name)
+        cleaned = self._filter_organization_words(cleaned_name)
         
         # Remove common patterns like ", Title", ", Title Title", etc.
         # This handles cases like "Mike Wilson, News Editors"
@@ -1062,8 +1126,17 @@ class BylineCleaner:
         # Handle name capitalization
         cleaned = self._normalize_capitalization(cleaned)
         
-        # Remove leading/trailing non-letter characters
-        cleaned = re.sub(r'^[^a-zA-Z]+|[^a-zA-Z\s\'.-]+$', '', cleaned)
+        # Remove leading/trailing non-letter characters, but preserve quotes 
+        # around nicknames
+        # First, check if we have quoted nicknames that should be preserved
+        has_quoted_nickname = re.search(r'"[^"]+\"', cleaned)
+        
+        if not has_quoted_nickname:
+            # Only remove leading/trailing punctuation if no quoted nicknames
+            cleaned = re.sub(r'^[^a-zA-Z]+|[^a-zA-Z\s\'.-]+$', '', cleaned)
+        else:
+            # More conservative cleanup - only remove obvious junk
+            cleaned = re.sub(r'^[^\w"\']+|[^\w"\'.]+$', '', cleaned)
         
         return cleaned.strip()
     
@@ -1106,23 +1179,43 @@ class BylineCleaner:
         return ' '.join(normalized)
     
     def _deduplicate_authors(self, authors: List[str]) -> List[str]:
-        """Remove duplicate author names."""
+        """Remove duplicate author names, preferring non-hyphenated versions."""
         if not authors:
             return []
         
-        seen = set()
         deduplicated = []
+        
+        # First pass: identify hyphen/space variants
+        author_groups = {}  # Maps normalized name to list of variants
         
         for author in authors:
             if not author:
                 continue
             
-            # Normalize for comparison (lowercase, no spaces)
-            normalized = re.sub(r'\s+', '', author.lower())
+            # Create a key that treats hyphens and spaces as equivalent
+            hyphen_normalized = re.sub(r'[\s\-–—]+', '', author.lower())
             
-            if normalized not in seen:
-                seen.add(normalized)
-                deduplicated.append(author)
+            if hyphen_normalized not in author_groups:
+                author_groups[hyphen_normalized] = []
+            author_groups[hyphen_normalized].append(author)
+        
+        # Second pass: for each group, prefer the version without hyphens
+        for normalized_key, variants in author_groups.items():
+            if len(variants) == 1:
+                # Only one variant, keep it
+                deduplicated.append(variants[0])
+            else:
+                # Multiple variants - prefer the one without hyphens
+                non_hyphenated = [v for v in variants
+                                  if '-' not in v and '–' not in v
+                                  and '—' not in v]
+                
+                if non_hyphenated:
+                    # Prefer the first non-hyphenated version
+                    deduplicated.append(non_hyphenated[0])
+                else:
+                    # All have hyphens, keep the first one
+                    deduplicated.append(variants[0])
         
         return deduplicated
     
@@ -1345,6 +1438,8 @@ class BylineCleaner:
     def _is_publication_name(self, text: str) -> bool:
         """
         Check if text matches any known publication name or organization.
+        Publication names are typically binomial n-grams (multiple words).
+        Single words should NOT be filtered as publication names.
         
         Args:
             text: Text to check
@@ -1356,6 +1451,14 @@ class BylineCleaner:
             return False
             
         normalized_text = text.lower().strip()
+        words = normalized_text.split()
+        
+        # CRITICAL: Publication names are binomial n-grams (multiple words)
+        # Single words like "Prince", "McDonald's" should NOT be filtered
+        # Only consider multi-word phrases as potential publication names
+        if len(words) < 2:
+            return False
+        
         publication_names = self.get_publication_names()
         organization_names = self.get_organization_names()
         
@@ -1364,20 +1467,19 @@ class BylineCleaner:
         if ',' in normalized_text:
             return False
         
-        # Check exact match in publications
+        # Check exact match in publications (only for multi-word phrases)
         if normalized_text in publication_names:
             return True
             
-        # Check exact match in organizations
+        # Check exact match in organizations (only for multi-word phrases)
         if normalized_text in organization_names:
             return True
             
-        # Check wire service partials
+        # Check wire service partials (only for multi-word phrases)
         if normalized_text in self.WIRE_SERVICE_PARTIALS:
             return True
             
         # Check if it's an organization (contains organization keywords)
-        words = normalized_text.split()
         org_word_count = sum(
             1 for word in words if word in self.ORGANIZATION_PATTERNS
         )
@@ -1396,6 +1498,121 @@ class BylineCleaner:
             return True
             
         return False
+
+    def _is_url_fragment(self, text: str) -> bool:
+        """
+        Check if text appears to be a continuous URL string.
+        Only detects actual URLs, not spaced-out fragments like ". Com".
+        
+        Args:
+            text: Text to check
+            
+        Returns:
+            True if text appears to be a continuous URL string
+        """
+        if not text or len(text.strip()) < 3:
+            return False
+            
+        text_clean = text.strip()
+        
+        # If there are multiple spaces, it's not a continuous URL
+        if '  ' in text_clean or text_clean.count(' ') > 1:
+            return False
+            
+        # Remove single spaces for checking (like "site .com" -> "site.com")
+        text_no_spaces = text_clean.replace(' ', '').lower()
+        
+        # URL patterns that indicate continuous URL strings
+        import re
+        url_patterns = [
+            r'^https?://',                    # http:// or https://
+            r'^www\.',                       # starts with www.
+            r'^\w+\.\w{2,4}$',              # domain.tld format
+            r'^\w+\.\w+\.\w{2,4}$',         # subdomain.domain.tld
+            r'\.com$|\.org$|\.net$|\.edu$|\.gov$',  # ends with common TLD
+        ]
+        
+        for pattern in url_patterns:
+            if re.search(pattern, text_no_spaces):
+                return True
+                
+        # Special case: malformed URLs with extra dots (like "Www..Com")
+        # But only if it's a continuous string without spaces
+        if (len(text_clean.split()) <= 1 and
+                'www' in text_no_spaces and
+                text_no_spaces.count('.') >= 2):
+            return True
+            
+        return False
+
+    def _extract_name_from_url_fragment(self, text: str) -> str:
+        """
+        Extract valid name from text containing both names and URL fragments.
+        For cases like "Jack Silberberg • .Com", extract "Jack Silberberg".
+        
+        Args:
+            text: Text that may contain both valid names and URL fragments
+            
+        Returns:
+            Cleaned text with URL fragments removed, or empty if no valid name
+        """
+        if not text or not text.strip():
+            return ""
+            
+        import re
+        
+        # Split on separators that might separate names from URL fragments
+        # Including bullets, dashes, pipes, unusual spacing, etc.
+        separators = [
+            r'\s*•\s*',          # bullet separator: "Name • .Com"
+            r'\s*\|\s*',         # pipe separator: "Name | .Com"
+            r'\s*-\s*',          # dash separator: "Name - .Com"
+            r'\s*–\s*',          # en-dash separator: "Name – .Com"
+            r'\s*—\s*',          # em-dash separator: "Name — .Com"
+            r'\s*\.\s*(?=\.)',   # dot before URL: "Name . .Com"
+            r'\s*,\s*(?=\w*\.)',  # comma before URL: "Name , .Com"
+        ]
+        
+        original_text = text.strip()
+        best_name = ""
+        
+        # Try each separator pattern
+        for separator_pattern in separators:
+            parts = re.split(separator_pattern, original_text)
+            if len(parts) > 1:
+                # Check each part to see if it's a valid name vs URL fragment
+                for part in parts:
+                    part = part.strip()
+                    if not part:
+                        continue
+                        
+                    # Check if this part is a URL fragment
+                    if self._is_url_fragment(part):
+                        continue  # Skip URL fragments
+                    
+                    # Check if this part looks like a valid name
+                    # (2-3 words, mostly alphabetic, capitalized)
+                    words = part.split()
+                    if (len(words) >= 2 and len(words) <= 4 and
+                        all(word.replace('.', '').replace("'", '').replace(
+                            '-', '').isalpha() for word in words if word) and
+                        all(word[0].isupper() for word in words
+                            if word and word[0].isalpha())):
+                        
+                        # This looks like a valid name - keep the longest one
+                        if len(part) > len(best_name):
+                            best_name = part
+        
+        # If we found a valid name through separation, return it
+        if best_name:
+            return best_name.strip()
+        
+        # Fallback: if the entire text is a URL fragment, return empty
+        if self._is_url_fragment(original_text):
+            return ""
+        
+        # Otherwise, return the original text (it might be a valid name)
+        return original_text
 
 
 def clean_byline(byline: str, return_json: bool = False) -> Union[str, Dict]:
