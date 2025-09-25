@@ -76,9 +76,9 @@ def run_extraction_batch(batch_size: int, batch_num: int, total_batches: int):
     
     logger = logging.getLogger(__name__)
     
-    logger.info(f"=" * 60)
+    logger.info("=" * 60)
     logger.info(f"Starting batch {batch_num}/{total_batches} (size: {batch_size})")
-    logger.info(f"=" * 60)
+    logger.info("=" * 60)
     
     # Build command
     cmd = [
@@ -166,7 +166,7 @@ def main():
     # Get initial status
     status = get_extraction_status()
     if status:
-        logger.info(f"📊 Initial status:")
+        logger.info("📊 Initial status:")
         logger.info(f"   Articles ready for extraction: {status['articles_ready']}")
         logger.info(f"   Articles already extracted: {status['articles_extracted']}")
         logger.info(f"   Articles in database: {status['articles_in_db']}")
@@ -223,7 +223,7 @@ def main():
     # Final status
     final_status = get_extraction_status()
     if final_status:
-        logger.info(f"📊 Final status:")
+        logger.info("📊 Final status:")
         logger.info(f"   Articles ready: {final_status['articles_ready']}")
         logger.info(f"   Articles extracted: {final_status['articles_extracted']}")
         logger.info(f"   Articles in database: {final_status['articles_in_db']}")

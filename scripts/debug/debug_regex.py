@@ -32,7 +32,7 @@ for i, pattern in enumerate(patterns):
         if match.groups():
             print(f"  Extracted: '{match.group(1).strip()}'")
     else:
-        print(f"  ❌ NO MATCH")
+        print("  ❌ NO MATCH")
 
 # Test a simpler approach
 print("\n" + "="*50)

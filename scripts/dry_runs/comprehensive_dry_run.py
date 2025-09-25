@@ -9,7 +9,7 @@ import json
 import sys
 import os
 from collections import defaultdict, Counter
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 # Add the src directory to the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
@@ -167,7 +167,7 @@ def run_comprehensive_dry_run():
             try:
                 new_authors = cleaner.clean_byline(original_byline, 
                                                  return_json=False)
-            except Exception as e:
+            except Exception:
                 new_authors = []
             
             # Analyze the result
@@ -194,7 +194,7 @@ def run_comprehensive_dry_run():
     print("📊 COMPREHENSIVE ANALYSIS RESULTS")
     print("=" * 60)
     
-    print(f"\n📈 OVERALL PERFORMANCE:")
+    print("\n📈 OVERALL PERFORMANCE:")
     print(f"   Total tests: {total_tests:,}")
     print(f"   Improvements: {overall_improvements:,}")
     print(f"   Degradations: {overall_degradations:,}")
@@ -203,7 +203,7 @@ def run_comprehensive_dry_run():
     print(f"   Improvement rate: {improvement_rate:.1f}%")
     
     # Analyze by scenario
-    print(f"\n📋 RESULTS BY SCENARIO:")
+    print("\n📋 RESULTS BY SCENARIO:")
     
     for scenario, formats in scenario_results.items():
         total_scenario_tests = sum(len(results) for results in formats.values())
@@ -234,7 +234,7 @@ def run_comprehensive_dry_run():
                         print(f"       Removed: {analysis['removed']}")
     
     # Detailed analysis of what gets removed
-    print(f"\n🔍 NOISE FILTERING ANALYSIS:")
+    print("\n🔍 NOISE FILTERING ANALYSIS:")
     removed_terms = Counter()
     
     for scenario, formats in scenario_results.items():
@@ -249,7 +249,7 @@ def run_comprehensive_dry_run():
         print(f"     \"{term}\": {count} times")
     
     # Final recommendation
-    print(f"\n💡 FINAL ASSESSMENT:")
+    print("\n💡 FINAL ASSESSMENT:")
     if improvement_rate > 70:
         print("   ✅ RECOMMENDED: Algorithm shows excellent performance")
     elif improvement_rate > 50:
@@ -259,7 +259,7 @@ def run_comprehensive_dry_run():
     else:
         print("   ❌ NOT RECOMMENDED: Algorithm needs improvement")
     
-    print(f"\n   Key strengths:")
+    print("\n   Key strengths:")
     if overall_improvements > overall_degradations * 2:
         print("   - Significantly more improvements than degradations")
     if removed_terms:

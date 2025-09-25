@@ -14,7 +14,6 @@ import sqlite3
 import json
 import argparse
 from typing import List, Dict, Tuple
-from datetime import datetime
 
 # Import our improved byline cleaner
 from src.utils.byline_cleaner import BylineCleaner
@@ -131,7 +130,7 @@ def fix_article_authors(article_data: List[Tuple], db_path: str, dry_run: bool =
             
             # Check if there's actually a change
             if clean_authors == current_authors:
-                print(f"  Status: ➡️ No change needed")
+                print("  Status: ➡️ No change needed")
                 stats['unchanged'] += 1
                 continue
             
@@ -143,14 +142,14 @@ def fix_article_authors(article_data: List[Tuple], db_path: str, dry_run: bool =
                         "UPDATE articles SET author = ? WHERE id = ?",
                         (new_author_json, article_id)
                     )
-                    print(f"  Status: ✅ Fixed in database")
+                    print("  Status: ✅ Fixed in database")
                     stats['fixed'] += 1
                     
                 except Exception as e:
                     print(f"  Status: ❌ Database update failed: {e}")
                     stats['errors'] += 1
             else:
-                print(f"  Status: 🔍 Would fix (dry run)")
+                print("  Status: 🔍 Would fix (dry run)")
                 stats['fixed'] += 1
         
         if not dry_run:

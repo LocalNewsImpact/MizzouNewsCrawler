@@ -13,7 +13,6 @@ from collections import defaultdict
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 from datetime import datetime
-from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 

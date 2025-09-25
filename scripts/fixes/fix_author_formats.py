@@ -10,7 +10,6 @@ This script:
 
 import json
 import sqlite3
-import sys
 from src.utils.byline_cleaner import BylineCleaner
 
 def fix_author_formats():
@@ -78,7 +77,7 @@ def fix_author_formats():
         if needs_update:
             updates_needed.append((article_id, url, original_author))
     
-    print(f"\n📊 Current Format Analysis:")
+    print("\n📊 Current Format Analysis:")
     print(f"  JSON format: {json_format_count}")
     print(f"  String format: {string_format_count}")
     print(f"  With source contamination: {contaminated_count}")
@@ -143,12 +142,12 @@ def fix_author_formats():
     # Commit changes
     conn.commit()
     
-    print(f"\n✅ Update Complete!")
+    print("\n✅ Update Complete!")
     print(f"  Successful updates: {successful_updates}")
     print(f"  Failed updates: {failed_updates}")
     
     # Verify final state
-    print(f"\n🔍 Verifying final state...")
+    print("\n🔍 Verifying final state...")
     cursor.execute("""
         SELECT author, COUNT(*) as count 
         FROM articles 
@@ -159,7 +158,7 @@ def fix_author_formats():
     """)
     
     final_authors = cursor.fetchall()
-    print(f"Top author entries after update:")
+    print("Top author entries after update:")
     for author, count in final_authors:
         print(f"  '{author}' ({count} articles)")
     
@@ -175,7 +174,7 @@ def fix_author_formats():
     if remaining_contamination > 0:
         print(f"⚠️  Warning: {remaining_contamination} articles still have source contamination")
     else:
-        print(f"✅ No source contamination detected")
+        print("✅ No source contamination detected")
     
     conn.close()
 

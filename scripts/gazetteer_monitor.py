@@ -22,7 +22,7 @@ import logging
 import subprocess
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import List, Tuple
 
@@ -98,14 +98,14 @@ class GazetteerMonitor:
 
         total, populated, unpopulated = self.get_gazetteer_status()
 
-        print(f"Gazetteer Population Status:")
+        print("Gazetteer Population Status:")
         print(f"  Total sources: {total}")
         print(f"  Populated sources: {populated}")
         print(f"  Unpopulated sources: {len(unpopulated)}")
         print(f"  Coverage: {populated/total*100:.1f}%")
 
         if unpopulated:
-            print(f"\nUnpopulated sources (showing first 10):")
+            print("\nUnpopulated sources (showing first 10):")
             for source in unpopulated[:10]:
                 location = (
                     f"{source['city']}, {source['county']}"
@@ -262,19 +262,19 @@ class GazetteerMonitor:
 
             # Brief pause between batches (optional, can be removed if not needed)
             if batch_num < num_batches - 1:  # Don't wait after the last batch
-                print(f"⏳ Waiting 15 seconds before starting next batch...")
+                print("⏳ Waiting 15 seconds before starting next batch...")
                 time.sleep(15)
 
         # Final summary
         total_processed = total_sources - len(overall_failed_sources)
-        print(f"\n📊 Backfill Summary:")
+        print("\n📊 Backfill Summary:")
         print(f"  Total sources: {total_sources}")
         print(f"  Batches processed: {num_batches}")
         print(f"  Successfully processed: {total_processed}")
         print(f"  Failed: {len(overall_failed_sources)}")
 
         if overall_failed_sources:
-            print(f"\n❌ Failed sources:")
+            print("\n❌ Failed sources:")
             for source in overall_failed_sources:
                 location = (
                     f"{source['city']}, {source['county']}"

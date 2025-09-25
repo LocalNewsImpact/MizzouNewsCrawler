@@ -6,7 +6,7 @@ Script to clean and normalize author column in articles table using BylineCleane
 import sqlite3
 import sys
 import os
-from typing import List, Dict, Any
+from typing import Dict, Any
 
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
@@ -142,7 +142,7 @@ def print_summary(stats: Dict[str, Any]) -> None:
     print(f"Total changes made:          {len(stats['changes'])}")
     
     if stats['changes']:
-        print(f"\nFirst 5 changes:")
+        print("\nFirst 5 changes:")
         for i, change in enumerate(stats['changes'][:5]):
             print(f"  {i+1}. {change['original']} → {change['cleaned']} ({change['status']})")
 

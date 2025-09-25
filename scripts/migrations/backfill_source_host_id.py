@@ -19,12 +19,11 @@ import sqlite3
 import sys
 from pathlib import Path
 from urllib.parse import urlparse
-from typing import Dict, Tuple
+from typing import Dict
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from models.database import DatabaseManager
 
 # Configure logging
 logging.basicConfig(

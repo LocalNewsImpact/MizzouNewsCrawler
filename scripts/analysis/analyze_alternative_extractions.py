@@ -97,7 +97,7 @@ def analyze_alternative_extractions():
                         print(f"      #{i+1}: Current='{diff['current'][:30]}...'")
                         print(f"          Alternative='{diff['alternative'][:30]}...'")
     
-    print(f"\n💡 INSIGHTS:")
+    print("\n💡 INSIGHTS:")
     print("• Alternative tracking helps identify extraction quality differences")
     print("• Later methods might find better formatted content")
     print("• Differences can indicate which method is more reliable")

@@ -2,7 +2,6 @@
 Improved content cleaning with better detection of navigation menus and blocks.
 """
 
-import re
 import hashlib
 import logging
 import sqlite3

@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
 import argparse
 import json
-from collections import defaultdict, Counter
+from collections import Counter
 from models.database import DatabaseManager
 from sqlalchemy import text
 

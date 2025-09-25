@@ -7,13 +7,17 @@ and exports datasets for ML model training.
 """
 
 import json
+import logging
 import sqlite3
 import sys
 from pathlib import Path
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 
 import pandas as pd
+
+
+logger = logging.getLogger(__name__)
 
 # Add the parent directory to the path to import src modules
 sys.path.append(str(Path(__file__).parent.parent))
@@ -277,16 +281,20 @@ class BylineTelemetryAnalyzer:
             if row[1] and row[1] != '[]':
                 try:
                     errors = json.loads(row[1])
-                    all_errors.extend([err.get('message', '') for err in errors])
-                except:
-                    pass
-                    
+                    all_errors.extend(
+                        [err.get('message', '') for err in errors]
+                    )
+                except (json.JSONDecodeError, TypeError) as exc:
+                    logger.debug("Failed to parse telemetry errors: %s", exc)
+
             if row[2] and row[2] != '[]':
                 try:
                     warnings = json.loads(row[2])
-                    all_warnings.extend([warn.get('message', '') for warn in warnings])
-                except:
-                    pass
+                    all_warnings.extend(
+                        [warn.get('message', '') for warn in warnings]
+                    )
+                except (json.JSONDecodeError, TypeError) as exc:
+                    logger.debug("Failed to parse telemetry warnings: %s", exc)
         
         # Count error frequencies
         from collections import Counter
@@ -320,7 +328,7 @@ class BylineTelemetryAnalyzer:
         
         # Generate report
         with open(report_file, 'w') as f:
-            f.write(f"# Byline Cleaning Training Data Report\\n")
+            f.write("# Byline Cleaning Training Data Report\\n")
             f.write(f"Generated: {datetime.now().isoformat()}\\n\\n")
             
             f.write("## Executive Summary\\n")
@@ -330,8 +338,8 @@ class BylineTelemetryAnalyzer:
             f.write(f"- **Unique Sources**: {summary.get('unique_sources', 0)}\\n\\n")
             
             f.write("## Performance Metrics\\n")
-            f.write(f"| Metric | Value |\\n")
-            f.write(f"|--------|-------|\\n")
+            f.write("| Metric | Value |\\n")
+            f.write("|--------|-------|\\n")
             for key, value in summary.items():
                 f.write(f"| {key.replace('_', ' ').title()} | {value} |\\n")
             f.write("\\n")
@@ -427,14 +435,14 @@ def main():
         min_confidence = float(sys.argv[3]) if len(sys.argv) > 3 else 0.3
         
         result = analyzer.export_ml_training_data(output_file, min_confidence)
-        print(f"\\n💾 ML Training Data Export")
+        print("\\n💾 ML Training Data Export")
         print("=" * 40)
         for key, value in result.items():
             print(f"{key.replace('_', ' ').title()}: {value}")
             
     elif command == "errors":
         errors = analyzer.get_error_analysis()
-        print(f"\\n⚠️  Error Analysis")
+        print("\\n⚠️  Error Analysis")
         print("=" * 30)
         print(f"Sessions with issues: {errors['total_sessions_with_issues']}")
         
@@ -451,7 +459,7 @@ def main():
     elif command == "report":
         output_dir = sys.argv[2] if len(sys.argv) > 2 else "telemetry_reports"
         report_file = analyzer.generate_training_report(output_dir)
-        print(f"\\n📋 Comprehensive Report Generated")
+        print("\\n📋 Comprehensive Report Generated")
         print("=" * 40)
         print(f"Report saved to: {report_file}")
         

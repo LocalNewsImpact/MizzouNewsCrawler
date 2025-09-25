@@ -97,7 +97,7 @@ def demo_alternative_tracking():
     
     print(f"\n📊 Final result: {json.dumps(target, indent=2)}")
     
-    print(f"\n🎯 ALTERNATIVES CAPTURED:")
+    print("\n🎯 ALTERNATIVES CAPTURED:")
     print(json.dumps(metrics.alternative_extractions, indent=2))
     
     print("\n💡 INSIGHTS:")

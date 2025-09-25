@@ -4,7 +4,6 @@
 Standalone script to test exact content cleaning analysis.
 """
 
-import sys
 import argparse
 import logging
 from src.utils.content_cleaner_twophase import TwoPhaseContentCleaner
@@ -43,14 +42,14 @@ def main():
         return
     
     stats = results['stats']
-    print(f"\n=== ANALYSIS RESULTS ===")
+    print("\n=== ANALYSIS RESULTS ===")
     print(f"Articles analyzed: {results['article_count']}")
     print(f"Segments found: {len(results['segments'])}")
     print(f"Affected articles: {stats['affected_articles']}")
     print(f"Total removable characters: {stats['total_removable_chars']:,}")
     print(f"Removal percentage: {stats['removal_percentage']:.1f}%")
     
-    print(f"\n=== EXACT DUPLICATE SEGMENTS ===")
+    print("\n=== EXACT DUPLICATE SEGMENTS ===")
     for i, segment in enumerate(results['segments'], 1):
         print(f"\n--- Segment {i} ---")
         print(f"Type: {segment['pattern_type']}")

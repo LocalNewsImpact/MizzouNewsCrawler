@@ -213,7 +213,7 @@ def print_re_cleaning_report(stats: Dict):
     print("🧹 BYLINE RE-CLEANING REPORT")
     print("=" * 60)
     
-    print(f"\n📊 OVERALL STATISTICS:")
+    print("\n📊 OVERALL STATISTICS:")
     print(f"   Total articles processed: {stats['total_processed']}")
     print(f"   ✅ Improved: {stats['improved']}")
     print(f"   ➡️ Unchanged: {stats['unchanged']}")
@@ -281,7 +281,7 @@ def main():
         print("\n🚀 Applying improvements to database...")
         real_stats = re_clean_authors(telemetry_data, db_path, dry_run=False)
         
-        print(f"\n✅ Database updated!")
+        print("\n✅ Database updated!")
         print(f"   {real_stats['improved'] + real_stats['empty_to_filled']} articles improved")
         print(f"   {real_stats['unchanged']} articles unchanged")
         

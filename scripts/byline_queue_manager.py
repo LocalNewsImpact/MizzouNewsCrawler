@@ -10,7 +10,6 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
 
 # Add src to path for imports
 sys.path.append(str(Path(__file__).parent.parent))

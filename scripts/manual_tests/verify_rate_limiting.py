@@ -15,7 +15,7 @@ def test_rate_limiting_functionality():
     # Test 1: Verify RateLimitError exists and can be raised
     try:
         raise RateLimitError("Test error")
-    except RateLimitError as e:
+    except RateLimitError:
         print("✅ RateLimitError exception works correctly")
     
     # Test 2: Test rate limiting state management

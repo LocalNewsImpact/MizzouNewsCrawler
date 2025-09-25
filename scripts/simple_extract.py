@@ -173,7 +173,7 @@ def main():
             logger.error(f"✗ Unexpected error: {e}")
     
     # Summary
-    logger.info(f"\nExtraction completed:")
+    logger.info("\nExtraction completed:")
     logger.info(f"  Successful: {successful}")
     logger.info(f"  Failed: {failed}")
     logger.info(f"  Total: {len(candidates)}")

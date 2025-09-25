@@ -11,7 +11,7 @@ import sys
 import os
 import sqlite3
 import json
-from typing import List, Dict, Any, Optional
+from typing import List, Any
 
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
@@ -195,12 +195,12 @@ def demonstrate_database_integration():
             })
         
         # Display results
-        print(f"\n📈 Processing Results:")
+        print("\n📈 Processing Results:")
         print(f"   Records processed: {len(processed_records)}")
         print(f"   Wire services detected: {wire_detected_count}")
         
         # Show detailed results for interesting cases
-        print(f"\n🔍 Detailed Results:")
+        print("\n🔍 Detailed Results:")
         print("-" * 60)
         
         for i, record in enumerate(processed_records[:5], 1):
@@ -211,10 +211,10 @@ def demonstrate_database_integration():
                 print(f"   🎯 Wire Services: {record['detected_wire_services']}")
                 print(f"   📝 Final Wire: {record['final_wire']}")
             else:
-                print(f"   ✅ No wire services detected")
+                print("   ✅ No wire services detected")
         
         # Demonstrate the SQL update pattern (simulation only)
-        print(f"\n💾 SQL Update Pattern (simulation):")
+        print("\n💾 SQL Update Pattern (simulation):")
         print("-" * 40)
         
         update_examples = []
@@ -225,7 +225,7 @@ def demonstrate_database_integration():
         if update_examples:
             print("Example updates that would be performed:")
             for record in update_examples[:3]:
-                print(f"\nUPDATE articles SET")
+                print("\nUPDATE articles SET")
                 if record['new_authors']:
                     authors_json = format_author_json(record['new_authors'])
                     print(f"  author = '{authors_json}',")

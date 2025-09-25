@@ -29,7 +29,6 @@ wire service names that were detected and removed from the byline field.
 This enables proper classification and filtering of wire service content.
 """
 
-import sqlite3
 import sys
 from pathlib import Path
 

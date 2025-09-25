@@ -160,14 +160,14 @@ def main():
     logger.info("STORYSNIFFER DRY RUN ANALYSIS RESULTS")
     logger.info("="*60)
     
-    print(f"\nOverall Summary:")
+    print("\nOverall Summary:")
     print(f"  Total URLs analyzed: {total_analyzed}")
     print(f"  Likely articles: {article_count} ({article_count/total_analyzed*100:.1f}%)")
     print(f"  Non-articles: {non_article_count} ({non_article_count/total_analyzed*100:.1f}%)")
     print(f"  Errors: {error_count} ({error_count/total_analyzed*100:.1f}%)")
     
     # Source-by-source breakdown
-    print(f"\nSource-by-Source Breakdown:")
+    print("\nSource-by-Source Breakdown:")
     print(f"{'Source':<30} {'Total':<8} {'Articles':<10} {'Non-Articles':<12} {'Article %':<10}")
     print("-" * 75)
     
@@ -177,7 +177,7 @@ def main():
     
     # Non-article categorization
     if results['non_articles']:
-        print(f"\nNon-Article URL Categories:")
+        print("\nNon-Article URL Categories:")
         categories = categorize_non_articles(results['non_articles'])
         
         for category, items in sorted(categories.items(), key=lambda x: len(x[1]), reverse=True):
@@ -190,14 +190,14 @@ def main():
     
     # Domain analysis
     if results['non_articles']:
-        print(f"\nTop Domains with Non-Articles:")
+        print("\nTop Domains with Non-Articles:")
         domain_counts = Counter(item['domain'] for item in results['non_articles'])
         for domain, count in domain_counts.most_common(10):
             print(f"  {domain}: {count} non-articles")
     
     # Error analysis
     if results['errors']:
-        print(f"\nError Analysis:")
+        print("\nError Analysis:")
         error_types = Counter(item.get('error', 'Unknown') for item in results['errors'])
         for error, count in error_types.most_common(5):
             print(f"  {error}: {count} occurrences")

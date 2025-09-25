@@ -23,8 +23,7 @@ from web.byline_telemetry_api import (
     submit_byline_feedback,
     get_byline_telemetry_stats,
     get_labeled_training_data,
-    BylineFeedback,
-    BylineTelemetryStats
+    BylineFeedback
 )
 from web.verification_telemetry_api import (
     get_pending_verification_reviews,
@@ -32,8 +31,7 @@ from web.verification_telemetry_api import (
     get_verification_telemetry_stats,
     get_labeled_verification_training_data,
     enhance_verification_with_content,
-    VerificationFeedback,
-    VerificationTelemetryStats
+    VerificationFeedback
 )
 
 ROOT = Path(__file__).resolve().parents[1]

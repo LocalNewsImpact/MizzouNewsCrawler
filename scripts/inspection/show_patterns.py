@@ -27,7 +27,7 @@ def show_pattern_analysis(domain=None, show_ml_only=False, show_dynamic=True):
         ml_eligible = [p for p in all_patterns if p['is_ml_training_eligible']]
         dynamic_only = [p for p in all_patterns if not p['is_ml_training_eligible']]
         
-        print(f"📊 Pattern Summary:")
+        print("📊 Pattern Summary:")
         print(f"   Total patterns: {len(all_patterns)}")
         print(f"   ML Training eligible: {len(ml_eligible)}")
         print(f"   Dynamic (telemetry only): {len(dynamic_only)}")
@@ -70,7 +70,7 @@ def show_pattern_analysis(domain=None, show_ml_only=False, show_dynamic=True):
         domains_with_ml = set(p['domain'] for p in ml_patterns)
         domains_with_patterns = set(p['domain'] for p in all_patterns)
         
-        print(f"📊 Global Pattern Summary:")
+        print("📊 Global Pattern Summary:")
         print(f"   Domains with any patterns: {len(domains_with_patterns)}")
         print(f"   Domains with ML training patterns: {len(domains_with_ml)}")
         print(f"   Total ML training patterns: {len(ml_patterns)}")

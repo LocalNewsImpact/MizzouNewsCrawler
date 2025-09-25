@@ -9,7 +9,6 @@ subscription prompts, navigation elements, and other boilerplate content.
 import re
 import hashlib
 import logging
-import sqlite3
 from collections import defaultdict
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass

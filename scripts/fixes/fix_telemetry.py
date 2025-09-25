@@ -2,7 +2,6 @@
 
 # Fix telemetry.py to update discovery_attempted field in sources table
 
-import re
 
 # Read the file
 with open('src/utils/telemetry.py', 'r') as f:

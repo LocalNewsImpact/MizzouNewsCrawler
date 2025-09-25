@@ -4,7 +4,7 @@ API endpoints for byline cleaning telemetry human feedback.
 Extends the existing reviewer_api.py with telemetry review capabilities.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel
 import sqlite3

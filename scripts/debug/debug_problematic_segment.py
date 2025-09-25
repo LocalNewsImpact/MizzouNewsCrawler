@@ -26,15 +26,15 @@ def debug_segment():
         print(f"Occurrences: {segment['occurrences']}")
         print(f"Position consistency: {segment['position_consistency']:.3f}")
         
-        print(f"\nFULL TEXT:")
+        print("\nFULL TEXT:")
         print(f"'{segment['text']}'")
         
-        print(f"\nAPPEARS IN ARTICLES:")
+        print("\nAPPEARS IN ARTICLES:")
         for article_id in segment['article_ids']:
             print(f"  - {article_id}")
         
         # Show some positions
-        print(f"\nPOSITIONS:")
+        print("\nPOSITIONS:")
         for article_id, positions in list(segment['positions'].items())[:3]:
             print(f"  Article {article_id}: {positions}")
 

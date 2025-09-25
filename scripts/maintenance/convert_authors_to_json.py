@@ -6,7 +6,6 @@ This script converts entries like "John Doe" to ["John Doe"] format.
 
 import sqlite3
 import json
-import sys
 import os
 from typing import List
 
@@ -71,7 +70,7 @@ def convert_normal_to_json_format():
         return
     
     # Show some examples before conversion
-    print(f"\n📋 Examples of entries to convert:")
+    print("\n📋 Examples of entries to convert:")
     for i, (article_id, author) in enumerate(normal_entries[:5], 1):
         authors_list = parse_normal_author(author)
         json_format = convert_to_json_format(authors_list)
@@ -87,7 +86,7 @@ def convert_normal_to_json_format():
         conn.close()
         return
     
-    print(f"\n🔄 Converting entries...")
+    print("\n🔄 Converting entries...")
     
     converted_count = 0
     error_count = 0
@@ -119,7 +118,7 @@ def convert_normal_to_json_format():
     # Commit the changes
     conn.commit()
     
-    print(f"\n✅ Conversion complete!")
+    print("\n✅ Conversion complete!")
     print(f"   Successfully converted: {converted_count}")
     print(f"   Errors: {error_count}")
     
@@ -140,7 +139,7 @@ def convert_normal_to_json_format():
     ''')
     total_json = cursor.fetchone()[0]
     
-    print(f"\n📊 Post-conversion statistics:")
+    print("\n📊 Post-conversion statistics:")
     print(f"   JSON format entries: {total_json:,}")
     print(f"   Normal format entries remaining: {remaining_normal:,}")
     
@@ -154,14 +153,14 @@ def convert_normal_to_json_format():
         ''')
         json_examples = [row[0] for row in cursor.fetchall()]
         
-        print(f"\n📋 Examples after conversion:")
+        print("\n📋 Examples after conversion:")
         for i, example in enumerate(json_examples, 1):
             print(f"   {i}. {example}")
     
     conn.close()
     
     if remaining_normal == 0:
-        print(f"\n🎉 All author entries are now in JSON format!")
+        print("\n🎉 All author entries are now in JSON format!")
     else:
         print(f"\n⚠️  {remaining_normal} entries still in normal format")
 

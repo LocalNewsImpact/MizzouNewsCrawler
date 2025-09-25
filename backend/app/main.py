@@ -4,6 +4,7 @@ import math
 import os
 import queue as pyqueue
 import sqlite3
+import sys
 import threading
 import time as _time
 import uuid
@@ -20,10 +21,9 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 # Add gazetteer telemetry imports
-import sys
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(BASE_DIR))
-from web.gazetteer_telemetry_api import (
+from web.gazetteer_telemetry_api import (  # noqa: E402
     get_gazetteer_stats,
     get_publisher_telemetry,
     get_failed_publishers,
@@ -34,7 +34,9 @@ from web.gazetteer_telemetry_api import (
 )
 
 # Add comprehensive telemetry imports
-from src.utils.comprehensive_telemetry import ComprehensiveExtractionTelemetry
+from src.utils.comprehensive_telemetry import (  # noqa: E402
+    ComprehensiveExtractionTelemetry,
+)
 
 # pydantic.Field not used here
 
@@ -2189,8 +2191,8 @@ def get_http_errors(
 ):
     """Get HTTP error statistics for dashboard monitoring."""
     try:
-        telemetry = ComprehensiveExtractionTelemetry(str(MAIN_DB_PATH))
-        
+        ComprehensiveExtractionTelemetry(str(MAIN_DB_PATH))
+
         # Build WHERE conditions based on parameters
         conditions = []
         params = []
@@ -2251,8 +2253,8 @@ def get_method_performance(
 ):
     """Get extraction method performance statistics."""
     try:
-        telemetry = ComprehensiveExtractionTelemetry(str(MAIN_DB_PATH))
-        
+        ComprehensiveExtractionTelemetry(str(MAIN_DB_PATH))
+
         # Build WHERE conditions
         conditions = []
         params = []

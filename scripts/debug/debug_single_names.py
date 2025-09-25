@@ -47,7 +47,7 @@ def debug_specific_cases():
         if part_type in ['title', 'photo_credit']:
             print(f"2. Would be filtered out due to type '{part_type}'")
         else:
-            print(f"2. Would be passed to validation")
+            print("2. Would be passed to validation")
             
             # Test validation
             valid = cleaner._validate_authors([case])

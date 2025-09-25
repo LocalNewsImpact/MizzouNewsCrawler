@@ -10,11 +10,9 @@ This module implements a parallel approach to byline cleaning that:
 This can be tested alongside the current BylineCleaner to compare effectiveness.
 """
 
-import re
 import logging
-from typing import List, Dict, Optional, Union, Tuple, NamedTuple
+from typing import List, Dict, Optional, Union
 from dataclasses import dataclass
-from difflib import SequenceMatcher
 
 # Import the existing cleaner for comparison
 from .byline_cleaner import BylineCleaner

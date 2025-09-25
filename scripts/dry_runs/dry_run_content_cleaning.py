@@ -111,7 +111,7 @@ def main():
             )
 
             if not result.get('segments'):
-                print(f"    ❌ No boilerplate segments detected")
+                print("    ❌ No boilerplate segments detected")
                 print()
                 continue
 
@@ -157,7 +157,7 @@ def main():
 
             # Show examples if requested
             if args.show_examples and good_segments:
-                print(f"    🔍 Top segments:")
+                print("    🔍 Top segments:")
                 for j, segment in enumerate(good_segments[:3], 1):
                     pattern_emoji = {
                         'navigation': '🧭',

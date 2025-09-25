@@ -6,7 +6,6 @@ import sqlite3
 from urllib.parse import urlparse
 from collections import defaultdict, Counter
 import json
-from pathlib import Path
 from datetime import datetime
 
 from src.utils.content_cleaner_improved import ImprovedContentCleaner
@@ -167,7 +166,7 @@ def analyze_domains(domain, min_articles, confidence_threshold, dry_run, verbose
                 patterns = ', '.join([f"{k}({v})" for k, v in domain_stats['pattern_types'].most_common()])
                 click.echo(f"   🔍 Patterns: {patterns}")
         else:
-            click.echo(f"   ⚪ No boilerplate detected")
+            click.echo("   ⚪ No boilerplate detected")
         
         click.echo()
         detailed_results[domain_name] = domain_stats
@@ -277,7 +276,7 @@ def clean_article(article_id, confidence_threshold, dry_run, show_content):
         if not dry_run:
             cursor.execute('UPDATE articles SET content = ? WHERE id = ?', (cleaned_content, article_id))
             conn.commit()
-            click.echo(f"💾 Article content updated in database")
+            click.echo("💾 Article content updated in database")
     else:
         click.echo("⚪ No boilerplate detected")
         click.echo(f"⏱️  Processing time: {telemetry.processing_time:.3f}s")
@@ -549,14 +548,14 @@ def analyze_exact(domain, sample_size, min_occurrences, dry_run):
         return
     
     stats = results['stats']
-    click.echo(f"\n=== ANALYSIS RESULTS ===")
+    click.echo("\n=== ANALYSIS RESULTS ===")
     click.echo(f"Articles analyzed: {results['article_count']}")
     click.echo(f"Segments found: {len(results['segments'])}")
     click.echo(f"Affected articles: {stats['affected_articles']}")
     click.echo(f"Total removable characters: {stats['total_removable_chars']:,}")
     click.echo(f"Removal percentage: {stats['removal_percentage']:.1f}%")
     
-    click.echo(f"\n=== EXACT DUPLICATE SEGMENTS ===")
+    click.echo("\n=== EXACT DUPLICATE SEGMENTS ===")
     for i, segment in enumerate(results['segments'], 1):
         click.echo(f"\n--- Segment {i} ---")
         click.echo(f"Type: {segment['pattern_type']}")

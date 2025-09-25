@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 import requests
 from requests.exceptions import (
-    RequestException, Timeout, ConnectionError, SSLError, HTTPError
+    Timeout, ConnectionError, SSLError
 )
 
 from utils.extraction_outcomes import ExtractionOutcome, ExtractionResult
@@ -424,7 +424,6 @@ class TelemetryContentExtractor:
     def _is_valid_date_format(self, date_str: str) -> bool:
         """Check if date string is in a valid format."""
         from datetime import datetime
-        import re
         
         # Common date formats
         formats = [

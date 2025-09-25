@@ -18,7 +18,6 @@ import sys
 import os
 import sqlite3
 import json
-import time
 from typing import List, Dict, Any, Optional, Tuple
 from difflib import SequenceMatcher
 
@@ -327,7 +326,7 @@ class WireBackfillProcessor:
                         if final_wire:
                             print(f"      🎯 Wire Service: {final_wire}")
                         else:
-                            print(f"      ✅ Local Content")
+                            print("      ✅ Local Content")
                         
                         # Store update for later execution
                         updates_to_perform.append({
@@ -336,7 +335,7 @@ class WireBackfillProcessor:
                             'final_wire': final_wire
                         })
                     else:
-                        print(f"      ✅ No changes needed")
+                        print("      ✅ No changes needed")
                     
                     self.stats['total_processed'] += 1
                     
@@ -388,7 +387,7 @@ class WireBackfillProcessor:
     
     def _print_stats(self):
         """Print current statistics."""
-        print(f"\n📊 Current Statistics:")
+        print("\n📊 Current Statistics:")
         print(f"   Total Processed: {self.stats['total_processed']}")
         print(f"   Wire Detected: {self.stats['wire_detected']}")
         print(f"   Local Content: {self.stats['local_content']}")
@@ -409,14 +408,14 @@ class WireBackfillProcessor:
             wire_percentage = (self.stats['wire_detected'] / self.stats['total_processed']) * 100
             local_percentage = (self.stats['local_content'] / self.stats['total_processed']) * 100
             
-            print(f"\n📈 Content Distribution:")
+            print("\n📈 Content Distribution:")
             print(f"   Wire Content: {wire_percentage:.1f}%")
             print(f"   Local Content: {local_percentage:.1f}%")
             
             if self.stats['source_matches'] > 0:
-                print(f"\n🏠 Source Matching:")
+                print("\n🏠 Source Matching:")
                 print(f"   Wire services matching source names: {self.stats['source_matches']}")
-                print(f"   These were correctly classified as LOCAL content")
+                print("   These were correctly classified as LOCAL content")
 
 
 def main():

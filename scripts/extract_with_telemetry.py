@@ -80,31 +80,9 @@ def create_article_from_candidate(db: DatabaseManager, candidate: dict,
     author = extracted_content.get('author', '')
     publish_date = extracted_content.get('publish_date', '')
     
-    # Prepare article data
-    article_data = {
-        'title': title,
-        'content': content,
-        'url': candidate['url'],
-        'source': candidate['source'],
-        'author': author,
-        'publish_date': publish_date,
-        'scraped_at': datetime.now().isoformat(),
-        'extraction_method': extraction_result.extraction_method.value,
-        'quality_score': extraction_result.content_quality_score,
-        'extraction_time_ms': extraction_result.extraction_time_ms,
-        'word_count': len(content.split()) if content else 0,
-        'has_images': bool(extracted_content.get('top_image')),
-        'candidate_link_id': candidate['id'],
-        'success': extraction_result.is_success,
-        'error_message': (extraction_result.error_message 
-                         if not extraction_result.is_success else None)
-    }
+    # TODO: Persist article data once schema is finalized.
+    return candidate['id']
     
-    # Generate article record
-    article_record = {
-        'id': str(uuid.uuid4()),  # Generate UUID for article ID
-        **article_data
-    }
 def update_candidate_status(db: DatabaseManager, candidate_id: str, status: str,
                             publish_date: Optional[str] = None,
                             error_message: Optional[str] = None):

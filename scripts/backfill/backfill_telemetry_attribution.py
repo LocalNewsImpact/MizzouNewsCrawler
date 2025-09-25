@@ -10,7 +10,7 @@ in the final result.
 import sqlite3
 import json
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

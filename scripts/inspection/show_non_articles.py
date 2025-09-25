@@ -2,7 +2,6 @@
 """Show recently identified non-articles from verification process."""
 
 import sqlite3
-from datetime import datetime
 
 def main():
     conn = sqlite3.connect('data/mizzou.db')

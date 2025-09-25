@@ -293,7 +293,7 @@ class ContentExtractor:
         # Initialize primary session
         self._create_new_session()
         
-        logger.info(f"ContentExtractor initialized with user agent rotation enabled")
+        logger.info("ContentExtractor initialized with user agent rotation enabled")
 
     def _create_new_session(self):
         """Create a new session with current user agent and clear cookies."""

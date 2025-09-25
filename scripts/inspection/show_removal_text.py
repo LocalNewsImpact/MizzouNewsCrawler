@@ -37,13 +37,13 @@ def show_removal_text():
         return
     
     stats = results['stats']
-    print(f"\n=== REMOVAL SUMMARY ===")
+    print("\n=== REMOVAL SUMMARY ===")
     print(f"Articles analyzed: {results['article_count']}")
     print(f"Removable segments: {len(results['segments'])}")
     print(f"Total removable characters: {stats['total_removable_chars']:,}")
     print(f"Removal percentage: {stats['removal_percentage']:.1f}%")
     
-    print(f"\n=== COMPLETE REMOVABLE TEXT ===")
+    print("\n=== COMPLETE REMOVABLE TEXT ===")
     print("=" * 80)
     
     total_chars = 0
@@ -64,7 +64,7 @@ def show_removal_text():
         
         total_chars += segment['length'] * segment['occurrences']
     
-    print(f"\n=== TOTAL IMPACT ===")
+    print("\n=== TOTAL IMPACT ===")
     print(f"Total characters that would be removed: {total_chars:,}")
     print(f"Unique segments: {len(results['segments'])}")
     print(f"Average segment length: {sum(s['length'] for s in results['segments']) // len(results['segments'])} chars")

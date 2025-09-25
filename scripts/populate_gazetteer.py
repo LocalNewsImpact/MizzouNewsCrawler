@@ -1731,7 +1731,7 @@ def main(
         # Summary of bulk processing efficiency
         total_sources = processed_count + skipped_count
         if total_sources > 0:
-            print(f"\n  BULK PROCESSING SUMMARY:")
+            print("\n  BULK PROCESSING SUMMARY:")
             print(f"    Sources processed: {processed_count}")
             print(f"    Sources skipped (existing data): {skipped_count}")
             print(f"    Total sources: {total_sources}")

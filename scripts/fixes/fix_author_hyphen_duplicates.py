@@ -233,7 +233,7 @@ def main():
     
     dry_run = args.dry_run or not args.apply
     
-    logger.info(f"Starting hyphen duplicate fix...")
+    logger.info("Starting hyphen duplicate fix...")
     logger.info(f"Database: {args.db_path}")
     logger.info(f"Mode: {'DRY RUN' if dry_run else 'APPLY CHANGES'}")
     

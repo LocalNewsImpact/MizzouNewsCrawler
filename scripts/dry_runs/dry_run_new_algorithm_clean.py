@@ -226,14 +226,14 @@ def run_dry_run_analysis():
                        in changes_by_category.items()
                        if category != 'no_change')
     
-    print(f"\n📈 OVERALL IMPACT:")
+    print("\n📈 OVERALL IMPACT:")
     print(f"   Total articles analyzed: {total_articles:,}")
     print(f"   Articles that would change: {changed_count:,}")
     print(f"   Percentage changed: {(changed_count/total_articles)*100:.1f}%")
     print(f"   Articles unchanged: {len(changes_by_category['no_change']):,}")
     
     # Changes by category
-    print(f"\n📋 CHANGES BY CATEGORY:")
+    print("\n📋 CHANGES BY CATEGORY:")
     category_items = sorted(changes_by_category.items(),
                            key=lambda x: len(x[1]), reverse=True)
     for category, changes in category_items:
@@ -258,7 +258,7 @@ def run_dry_run_analysis():
     
     # Concerning examples
     if concerning_examples:
-        print(f"\n⚠️  CONCERNING EXAMPLES:")
+        print("\n⚠️  CONCERNING EXAMPLES:")
         for i, example in enumerate(concerning_examples[:5], 1):
             analysis = example['analysis']
             print(f"\n   Example {i} (Article ID: {example['article_id']}):")
@@ -271,14 +271,14 @@ def run_dry_run_analysis():
                 print(f"   ➖ Removed: {analysis['removed']}")
     
     # Byline pattern analysis
-    print(f"\n📝 BYLINE PATTERN ANALYSIS:")
+    print("\n📝 BYLINE PATTERN ANALYSIS:")
     total_patterns = sum(byline_patterns.values())
     for pattern, count in byline_patterns.most_common():
         percentage = (count / total_patterns) * 100
         print(f"   {pattern.title()} bylines: {count:,} ({percentage:.1f}%)")
     
     # Summary recommendations
-    print(f"\n💡 RECOMMENDATIONS:")
+    print("\n💡 RECOMMENDATIONS:")
     
     improvement_count = sum(1 for category, changes
                            in changes_by_category.items()
@@ -292,7 +292,7 @@ def run_dry_run_analysis():
     else:
         print("   ❌ Algorithm may cause problems")
     
-    print(f"\n   Key metrics:")
+    print("\n   Key metrics:")
     print(f"   - Improvements: {improvement_count:,}/{changed_count:,}")
     success_rate = (improvement_count/max(changed_count, 1))*100
     print(f"   - Success rate: {success_rate:.1f}%")

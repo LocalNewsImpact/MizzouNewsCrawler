@@ -203,9 +203,6 @@ def load_sources_command(args):
 
     # Import models for normalized schema
     from models import Dataset, Source, DatasetSource
-    from sqlalchemy.orm import sessionmaker
-    from sqlalchemy import select
-    from urllib.parse import urlparse
     import pandas as pd
 
     Session = sessionmaker(bind=db.engine)
@@ -669,7 +666,7 @@ def populate_gazetteer_command(args):
     from pathlib import Path
 
     # Import process tracker for telemetry
-    from ..utils.process_tracker import get_tracker, ProcessContext
+    from ..utils.process_tracker import ProcessContext
 
     # Add scripts directory to path
     scripts_dir = Path(__file__).resolve().parents[2] / "scripts"
@@ -783,7 +780,7 @@ def list_sources_command(args):
 
         else:
             # Default table format
-            print(f"\n=== Available Sources ===")
+            print("\n=== Available Sources ===")
             print(f"Found {len(sources_df)} sources")
             print()
 
@@ -939,7 +936,7 @@ def discover_urls_command(args):
 
                         # Show detailed failure report if requested
                         if args.source_limit and args.source_limit <= 10:
-                            print(f"\n=== Detailed Failure Report ===")
+                            print("\n=== Detailed Failure Report ===")
                             report = discovery.telemetry.generate_failure_report(
                                 recent_op_id
                             )
@@ -1014,7 +1011,7 @@ def _print_detailed_discovery_report(report):
     _print_summary_discovery_report(report)
     
     summary = report["summary"]
-    print(f"\n=== Detailed Statistics ===")
+    print("\n=== Detailed Statistics ===")
     print(f"Technical successes: {summary['technical_success_count']}")
     print(f"Content successes: {summary['content_success_count']}")
     print(f"Technical failures: {summary['technical_failure_count']}")

@@ -210,14 +210,14 @@ def run_dry_run_analysis():
     total_articles = len(articles)
     changed_articles = sum(len(changes) for category, changes in changes_by_category.items() if category != 'no_change')
     
-    print(f"\n📈 OVERALL IMPACT:")
+    print("\n📈 OVERALL IMPACT:")
     print(f"   Total articles analyzed: {total_articles:,}")
     print(f"   Articles that would change: {changed_articles:,}")
     print(f"   Percentage changed: {(changed_articles/total_articles)*100:.1f}%")
     print(f"   Articles unchanged: {len(changes_by_category['no_change']):,}")
     
     # Changes by category
-    print(f"\n📋 CHANGES BY CATEGORY:")
+    print("\n📋 CHANGES BY CATEGORY:")
     for category, changes in sorted(changes_by_category.items(), key=lambda x: len(x[1]), reverse=True):
         count = len(changes)
         percentage = (count / total_articles) * 100
@@ -252,14 +252,14 @@ def run_dry_run_analysis():
                 print(f"   ➖ Removed: {analysis['removed']}")
     
     # Byline pattern analysis
-    print(f"\n📝 BYLINE PATTERN ANALYSIS:")
+    print("\n📝 BYLINE PATTERN ANALYSIS:")
     total_patterns = sum(byline_patterns.values())
     for pattern, count in byline_patterns.most_common():
         percentage = (count / total_patterns) * 100
         print(f"   {pattern.title()} bylines: {count:,} ({percentage:.1f}%)")
     
     # Detailed category analysis
-    print(f"\n🔍 DETAILED CATEGORY ANALYSIS:")
+    print("\n🔍 DETAILED CATEGORY ANALYSIS:")
     
     for category in ['extraction_success', 'more_authors', 'fewer_authors', 'different_authors', 'removal']:
         if category in changes_by_category:
@@ -276,7 +276,7 @@ def run_dry_run_analysis():
                     print(f"         After: {analysis['new_authors']}")
     
     # Summary recommendations
-    print(f"\n💡 RECOMMENDATIONS:")
+    print("\n💡 RECOMMENDATIONS:")
     
     improvement_count = sum(1 for category, changes in changes_by_category.items() 
                           for change in changes if change['analysis']['is_improvement'])
@@ -288,7 +288,7 @@ def run_dry_run_analysis():
     else:
         print("   ❌ Algorithm may cause more problems - recommend further development")
     
-    print(f"\n   Key metrics:")
+    print("\n   Key metrics:")
     print(f"   - Improvements: {improvement_count:,}/{changed_articles:,} changed articles")
     print(f"   - Success rate: {(improvement_count/max(changed_articles, 1))*100:.1f}%")
     

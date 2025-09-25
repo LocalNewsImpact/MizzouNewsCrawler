@@ -3,7 +3,6 @@
 Detailed content cleaning analysis showing exactly what text would be removed.
 """
 import sys
-import sqlite3
 import argparse
 from urllib.parse import urlparse
 from pathlib import Path
@@ -39,7 +38,7 @@ def main():
     
     args = parser.parse_args()
     
-    print(f"🔍 DETAILED CONTENT CLEANING ANALYSIS")
+    print("🔍 DETAILED CONTENT CLEANING ANALYSIS")
     print(f"Domain: {args.domain}")
     print("=" * 60)
     
@@ -76,7 +75,7 @@ def main():
         estimated_removal_pct = (removal_chars / stats['total_content_chars'] * 100
                                  if stats['total_content_chars'] > 0 else 0)
         
-        print(f"📊 ANALYSIS RESULTS:")
+        print("📊 ANALYSIS RESULTS:")
         print(f"   Articles analyzed: {result['article_count']}")
         print(f"   Segments for removal: {segment_count}")
         print(f"   Estimated removal: {estimated_removal_pct:.1f}% of content")
@@ -84,7 +83,7 @@ def main():
         print()
         
         # Show detailed segments
-        print(f"📝 SEGMENTS TO BE REMOVED:")
+        print("📝 SEGMENTS TO BE REMOVED:")
         print("=" * 60)
         
         for i, segment in enumerate(good_segments, 1):
@@ -107,7 +106,7 @@ def main():
             # Show text preview or full text
             text = segment['text']
             if args.show_full_text or len(text) <= 200:
-                print(f"    TEXT:")
+                print("    TEXT:")
                 print("    " + "─" * 50)
                 for line in text.split('\n'):
                     print(f"    {line}")
@@ -124,7 +123,7 @@ def main():
                     preview_lines.append(line)
                     char_count += len(line) + 1  # +1 for newline
                 
-                print(f"    TEXT PREVIEW (use --show-full-text to see all):")
+                print("    TEXT PREVIEW (use --show-full-text to see all):")
                 print("    " + "─" * 50)
                 for line in preview_lines:
                     print(f"    {line}")

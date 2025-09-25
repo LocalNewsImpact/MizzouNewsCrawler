@@ -2,7 +2,7 @@
 
 import sqlite3
 import re
-from typing import List, Dict, Tuple
+from typing import List, Dict
 from collections import defaultdict
 import logging
 

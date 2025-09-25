@@ -9,7 +9,6 @@ for existing sources using direct SQL updates.
 
 import logging
 import sys
-from pathlib import Path
 from urllib.parse import urlparse
 import json
 

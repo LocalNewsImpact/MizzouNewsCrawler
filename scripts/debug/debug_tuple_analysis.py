@@ -63,7 +63,7 @@ def debug_tuple_analysis():
                 print(f"    Classified as TITLE (title_word={has_title_word}, email={has_email})")
             else:
                 non_title_count += 1
-                print(f"    Classified as NON-TITLE")
+                print("    Classified as NON-TITLE")
         
         print(f"  Summary: title_count={title_count}, non_title_count={non_title_count}, total_parts={len(comma_parts)}")
         

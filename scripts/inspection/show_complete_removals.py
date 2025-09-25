@@ -141,7 +141,7 @@ def analyze_domain_removals():
     
     conn.close()
     
-    print(f"✅ Analysis complete!")
+    print("✅ Analysis complete!")
     print(f"📄 Detailed report saved to: {output_file}")
     print(f"🎯 {domains_with_removals} domains have removable content")
     print(f"📊 {total_removals} total segments identified for removal")

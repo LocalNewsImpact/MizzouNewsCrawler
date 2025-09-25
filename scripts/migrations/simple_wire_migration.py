@@ -58,7 +58,7 @@ def main():
         cursor.execute("SELECT COUNT(*) FROM articles")
         count = cursor.fetchone()[0]
         
-        print(f"✅ Wire column added successfully!")
+        print("✅ Wire column added successfully!")
         print(f"📊 Articles table has {count:,} records")
         
         conn.close()

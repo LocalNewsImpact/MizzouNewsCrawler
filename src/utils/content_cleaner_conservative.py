@@ -5,9 +5,9 @@ This version adds additional safety checks to avoid removing legitimate content
 that might look like boilerplate (like related article headlines).
 """
 
-from .content_cleaner_improved import ImprovedContentCleaner, BoilerplateMatch
+from .content_cleaner_improved import ImprovedContentCleaner
 import re
-from typing import List, Dict, Tuple, Optional
+from typing import List, Tuple, Optional
 
 
 class ConservativeContentCleaner(ImprovedContentCleaner):

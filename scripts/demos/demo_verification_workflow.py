@@ -100,7 +100,7 @@ def run_verification_demo(batch_size=10):
     
     metrics = service.process_batch(candidates_dict)
     
-    print(f"✅ Verification complete!")
+    print("✅ Verification complete!")
     print(f"   Articles found: {metrics['verified_articles']}")
     print(f"   Non-articles: {metrics['verified_non_articles']}")
     print(f"   Errors: {metrics['verification_errors']}")
@@ -167,7 +167,7 @@ def show_telemetry_data():
                     print(f"Latest verification job: {last_entry['job_name']}")
                     print(f"Timestamp: {last_entry['timestamp']}")
                     print(f"Batch size: {last_entry['batch_size']}")
-                    print(f"Metrics:")
+                    print("Metrics:")
                     for key, value in last_entry['metrics'].items():
                         if isinstance(value, float):
                             print(f"  {key}: {value:.2f}")

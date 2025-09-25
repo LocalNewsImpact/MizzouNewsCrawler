@@ -17,7 +17,7 @@ from pathlib import Path
 src_path = Path(__file__).parent / 'src'
 sys.path.insert(0, str(src_path))
 
-from utils.byline_cleaner import BylineCleaner
+from utils.byline_cleaner import BylineCleaner  # noqa: E402
 
 
 def demo_wire_service_integration():
@@ -87,10 +87,10 @@ def demo_wire_service_integration():
         # Simulate database update
         if primary_wire:
             print(f"   📊 Would set wire = '{primary_wire}'")
-            print(f"   🏷️  Classification: WIRE CONTENT")
+            print("   🏷️  Classification: WIRE CONTENT")
         else:
-            print(f"   📊 Would set wire = NULL")
-            print(f"   🏷️  Classification: LOCAL/STAFF CONTENT")
+            print("   📊 Would set wire = NULL")
+            print("   🏷️  Classification: LOCAL/STAFF CONTENT")
     
     print("\n🔍 Sample Wire Service Queries:")
     print("-" * 32)
@@ -198,7 +198,7 @@ def demo_backfill_process():
         print("📝 No articles found with obvious wire service patterns")
     
     # Show proposed backfill query
-    print(f"\n📋 Proposed Backfill Process:")
+    print("\n📋 Proposed Backfill Process:")
     print("-" * 28)
     print("1. SELECT articles WHERE wire IS NULL AND byline IS NOT NULL")
     print("2. FOR EACH article:")

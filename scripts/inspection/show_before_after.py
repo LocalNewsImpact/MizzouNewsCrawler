@@ -60,7 +60,7 @@ def show_before_after():
     # Clean the content
     cleaned_content = cleaner.clean_article_content(original_content, results['segments'])
     
-    print(f"=== BEFORE/AFTER COMPARISON ===")
+    print("=== BEFORE/AFTER COMPARISON ===")
     print(f"Article ID: {article_id}")
     print(f"URL: {url}")
     print(f"Original length: {len(original_content):,} chars")
@@ -68,21 +68,21 @@ def show_before_after():
     print(f"Removed: {len(original_content) - len(cleaned_content):,} chars "
           f"({(len(original_content) - len(cleaned_content)) / len(original_content) * 100:.1f}%)")
     
-    print(f"\n" + "="*80)
+    print("\n" + "="*80)
     print("ORIGINAL CONTENT (first 1000 chars):")
     print("="*80)
     print(original_content[:1000])
     if len(original_content) > 1000:
         print("...")
     
-    print(f"\n" + "="*80)
+    print("\n" + "="*80)
     print("CLEANED CONTENT (first 1000 chars):")
     print("="*80)
     print(cleaned_content[:1000])
     if len(cleaned_content) > 1000:
         print("...")
     
-    print(f"\n" + "="*80)
+    print("\n" + "="*80)
     print("REMOVED SEGMENTS:")
     print("="*80)
     for i, segment in enumerate(results['segments'], 1):

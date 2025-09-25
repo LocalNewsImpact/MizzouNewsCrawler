@@ -7,7 +7,7 @@ logging.basicConfig(level=logging.INFO)
 
 # Ensure project root is importable
 sys.path.insert(0, ".")
-from src.crawler.discovery import NewsDiscovery
+from src.crawler.discovery import NewsDiscovery  # noqa: E402
 
 # Instantiate with a modest timeout so failures surface quickly
 nd = NewsDiscovery(timeout=8, delay=0.1)

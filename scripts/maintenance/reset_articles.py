@@ -91,7 +91,7 @@ def reset_last_articles(count=15):
                 WHERE id IN ({cl_placeholders})
             """), cl_params)
             
-            logger.info(f"Updated candidate_links status.")
+            logger.info("Updated candidate_links status.")
         
         # Commit the transaction
         session.commit()

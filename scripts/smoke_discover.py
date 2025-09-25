@@ -15,7 +15,6 @@ import sys
 import json
 import logging
 from src.crawler.discovery import NewsDiscovery
-from src.models.database import DatabaseManager
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

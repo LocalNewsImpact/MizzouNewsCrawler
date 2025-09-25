@@ -8,7 +8,6 @@ evidence of previous discovery attempts in other tables.
 """
 
 import sqlite3
-from datetime import datetime
 from pathlib import Path
 
 
@@ -95,7 +94,7 @@ def backfill_discovery_attempted():
         
         conn.commit()
         
-        print(f"\n=== Backfill Results ===")
+        print("\n=== Backfill Results ===")
         print(f"Total sources updated: {total_updated}")
         print(f"Sources with discovery attempts: {sources_with_attempts}")
         print(f"Sources never attempted: {sources_never_attempted}")

@@ -17,7 +17,7 @@ def debug_suffix_issue():
     # Test the full cleaning process
     result = cleaner.clean_byline(test)
     print(f"Result: {result}")
-    print(f"Expected: ['Mary Jones Sr.', 'Robert Davis III']")
+    print("Expected: ['Mary Jones Sr.', 'Robert Davis III']")
     
     # Check part types
     comma_parts = test.split(',')

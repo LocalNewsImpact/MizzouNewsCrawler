@@ -243,7 +243,7 @@ def _show_field_extraction(telemetry, publisher: str = None,
               f"{date_rate:<7.1f}% {count:<8}")
     
     # Show overall field success across all methods
-    print(f"\\n📊 Field Extraction Summary:")
+    print("\\n📊 Field Extraction Summary:")
     total_extractions = sum(data['count'] for data in field_data)
     if total_extractions > 0:
         overall_title = sum(data['title_success_rate'] * data['count'] 
