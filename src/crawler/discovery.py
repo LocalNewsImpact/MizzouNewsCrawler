@@ -19,17 +19,17 @@ from urllib.parse import urljoin
 import pandas as pd
 import requests
 from sqlalchemy import text
-import feedparser
+import feedparser  # type: ignore[import]
 from .scheduling import parse_frequency_to_days
-from newspaper import Config, build
+from newspaper import Config, build  # type: ignore[import]
 # Using multiprocessing for build timeouts; no concurrent.futures needed here
 
 try:
-    import cloudscraper
+    import cloudscraper  # type: ignore[import]
 except ImportError:
     cloudscraper = None
 try:
-    from storysniffer import StorySniffer
+    from storysniffer import StorySniffer  # type: ignore[import]
 except ImportError:
     StorySniffer = None
 
@@ -41,18 +41,22 @@ except Exception:
 
 from ..models.database import DatabaseManager, upsert_candidate_link
 from src.utils.telemetry import (
-    OperationTracker,
     OperationType,
     OperationMetrics,
     DiscoveryMethod,
     DiscoveryMethodStatus,
+    create_telemetry_system,
 )
 from src.utils.discovery_outcomes import DiscoveryOutcome, DiscoveryResult
 
 logger = logging.getLogger(__name__)
 
 
-def _newspaper_build_worker(target_url: str, out_path: str, fetch_images_flag: bool):
+def _newspaper_build_worker(
+    target_url: str,
+    out_path: str,
+    fetch_images_flag: bool,
+):
     """Worker function executed in a separate process to perform
     `newspaper.build` and write discovered article URLs to `out_path`.
 
@@ -84,6 +88,7 @@ def _newspaper_build_worker(target_url: str, out_path: str, fetch_images_flag: b
     except Exception:
         # Swallow any unexpected errors in the worker
         return
+
 
 # How many consecutive non-network failures (e.g. 404/parse) are required
 # before we mark a source as permanently missing an RSS feed.
@@ -153,8 +158,9 @@ class NewsDiscovery:
             logger.info("StorySniffer not available, using newspaper4k/RSS")
 
         # Initialize telemetry tracker
-        db_manager = DatabaseManager(self.database_url)
-        self.telemetry = OperationTracker(db_manager.engine)
+        self.telemetry = create_telemetry_system(
+            database_url=self.database_url,
+        )
 
         logger.info(f"NewsDiscovery initialized with {days_back}-day window")
         logger.info(
@@ -182,31 +188,93 @@ class NewsDiscovery:
                     text("SELECT metadata FROM sources WHERE id = :id"),
                     {"id": source_id},
                 ).fetchone()
-                cur = res[0] if res else None
-                if isinstance(cur, str):
+                current = res[0] if res else None
+                if isinstance(current, str):
                     try:
-                        cur_meta = json.loads(cur)
+                        cur_meta = json.loads(current)
                     except Exception:
                         cur_meta = {}
-                elif cur is None:
+                elif current is None:
                     cur_meta = {}
                 else:
-                    cur_meta = cur
+                    cur_meta = current
 
-                # Merge updates
                 merged = dict(cur_meta or {})
                 merged.update(updates or {})
 
-                # Write back as JSON string (SQLite will accept TEXT)
                 conn.execute(
-                    text("UPDATE sources SET metadata = :meta WHERE id = :id"),
+                    text(
+                        "UPDATE sources SET metadata = :meta WHERE id = :id"
+                    ),
                     {"meta": json.dumps(merged), "id": source_id},
                 )
-            dbm.close()
         except Exception:
-            logger.exception(
-                "Failed to update source metadata for %s",
+            logger.debug(
+                "Failed to update metadata for source %s",
                 source_id,
+            )
+
+    def _reset_rss_failure_state(
+        self,
+        source_id: Optional[str],
+    ) -> None:
+        if not source_id:
+            return
+        now_iso = datetime.utcnow().isoformat()
+        updates = {
+            "rss_last_failed": now_iso,
+            "rss_missing": None,
+            "rss_consecutive_failures": 0,
+        }
+        self._update_source_meta(source_id, updates)
+
+    def _increment_rss_failure(
+        self,
+        source_id: Optional[str],
+    ) -> None:
+        if not source_id:
+            return
+        try:
+            dbm = DatabaseManager(self.database_url)
+            with dbm.engine.connect() as conn:
+                query = text(
+                    "SELECT metadata FROM sources WHERE id = :id"
+                )
+                result = conn.execute(
+                    query,
+                    {"id": source_id},
+                ).fetchone()
+
+            cur_meta: Dict[str, Any] = {}
+            if result and result[0]:
+                raw_meta = result[0]
+                try:
+                    cur_meta = json.loads(raw_meta)
+                except Exception:
+                    cur_meta = raw_meta or {}
+
+            failure_count = 0
+            if isinstance(cur_meta, dict):
+                failure_count = cur_meta.get(
+                    "rss_consecutive_failures",
+                    0,
+                )
+
+            next_count = failure_count + 1
+            updates = {
+                "rss_consecutive_failures": next_count,
+            }
+            if next_count >= RSS_MISSING_THRESHOLD:
+                updates["rss_missing"] = (
+                    datetime.utcnow().isoformat()
+                )
+
+            self._update_source_meta(source_id, updates)
+        except Exception:
+            missing_iso = datetime.utcnow().isoformat()
+            self._update_source_meta(
+                source_id,
+                {"rss_missing": missing_iso},
             )
 
     def _get_existing_urls(self) -> Set[str]:
@@ -235,19 +303,53 @@ class NewsDiscovery:
             db_manager = DatabaseManager(self.database_url)
             with db_manager.engine.connect() as conn:
                 result = conn.execute(
-                    text("SELECT url FROM candidate_links WHERE source_host_id = :source_id"),
-                    {"source_id": source_id}
+                    text(
+                        "SELECT url FROM candidate_links "
+                        "WHERE source_host_id = :source_id"
+                    ),
+                    {"source_id": source_id},
                 )
                 return {row[0] for row in result.fetchall()}
         except Exception:
             logger.debug(f"Failed to get existing URLs for source {source_id}")
             return set()
 
+    def _get_existing_article_count(self, source_id: str) -> int:
+        """Count already-extracted articles for a source."""
+        try:
+            db_manager = DatabaseManager(self.database_url)
+            with db_manager.engine.connect() as conn:
+                result = conn.execute(
+                    text(
+                        """
+                        SELECT COUNT(a.id)
+                        FROM articles a
+                        JOIN candidate_links cl ON a.candidate_link_id = cl.id
+                        WHERE cl.source_id = :source_id
+                        """
+                    ),
+                    {"source_id": source_id},
+                )
+                row = result.fetchone()
+                if row is None:
+                    return 0
+                return int(row[0] or 0)
+        except Exception:
+            logger.debug(
+                "Failed to get existing article count for source %s",
+                source_id,
+            )
+            return 0
+
     def get_sources_to_process(
         self,
         dataset_label: Optional[str] = None,
         limit: Optional[int] = None,
         due_only: bool = True,
+        host_filter: Optional[str] = None,
+        city_filter: Optional[str] = None,
+        county_filter: Optional[str] = None,
+        host_limit: Optional[int] = None,
     ) -> tuple[pd.DataFrame, Dict[str, int]]:
         """Retrieve sources from database that need URL discovery.
 
@@ -255,6 +357,10 @@ class NewsDiscovery:
             dataset_label: Filter by specific dataset
             limit: Maximum number of sources to process
             due_only: Whether to filter to only sources due for discovery
+            host_filter: Exact host value to match
+            city_filter: City name to match (case-insensitive)
+            county_filter: County name to match (case-insensitive)
+            host_limit: Maximum number of hosts to return after filtering
 
         Returns:
             Tuple of (DataFrame with source information, stats dict)
@@ -263,7 +369,33 @@ class NewsDiscovery:
             # Use actual schema: id, host, host_norm, canonical_name,
             # city, county, owner, type, metadata
             # Prioritize sources that have never been attempted for discovery
-            query = """
+            where_clauses = ["s.host IS NOT NULL", "s.host != ''"]
+            params: Dict[str, Any] = {}
+
+            join_clause = ""
+            if dataset_label:
+                join_clause = (
+                    "\nJOIN dataset_sources ds ON s.id = ds.source_id"
+                    "\nJOIN datasets d ON ds.dataset_id = d.id"
+                )
+                where_clauses.append("d.label = :dataset_label")
+                params["dataset_label"] = dataset_label
+
+            if host_filter:
+                where_clauses.append("LOWER(s.host) = :host_filter")
+                params["host_filter"] = host_filter.lower()
+
+            if city_filter:
+                where_clauses.append("LOWER(s.city) = :city_filter")
+                params["city_filter"] = city_filter.lower()
+
+            if county_filter:
+                where_clauses.append("LOWER(s.county) = :county_filter")
+                params["county_filter"] = county_filter.lower()
+
+            where_sql = " AND ".join(where_clauses)
+
+            query = f"""
             SELECT DISTINCT
                 s.id,
                 s.canonical_name as name,
@@ -273,78 +405,34 @@ class NewsDiscovery:
                 s.county,
                 s.type as type_classification,
                 s.host,
-                CASE 
+                CASE
                     WHEN cl.source_host_id IS NULL THEN 0
                     ELSE 1
                 END as discovery_attempted
             FROM sources s
             LEFT JOIN candidate_links cl ON s.id = cl.source_host_id
-            WHERE s.host IS NOT NULL
-            AND s.host != ''
+            {join_clause}
+            WHERE {where_sql}
+            ORDER BY discovery_attempted ASC, s.canonical_name ASC
             """
 
-            params = []
-            if dataset_label:
-                # Join with dataset_sources if filtering by dataset
-                query = """
-                SELECT DISTINCT
-                    s.id,
-                    s.canonical_name as name,
-                    'https://' || s.host as url,
-                    s.metadata,
-                    s.city,
-                    s.county,
-                    s.type as type_classification,
-                    s.host,
-                    CASE 
-                        WHEN cl.source_host_id IS NULL THEN 0
-                        ELSE 1
-                    END as discovery_attempted
-                FROM sources s
-                LEFT JOIN candidate_links cl ON s.id = cl.source_host_id
-                JOIN dataset_sources ds ON s.id = ds.source_id
-                JOIN datasets d ON ds.dataset_id = d.id
-                WHERE s.host IS NOT NULL
-                AND s.host != ''
-                AND d.label = ?
-                """
-                params.append(dataset_label)
-
-            # Order by discovery priority: unattempted first, then by name
-            query += " ORDER BY discovery_attempted ASC, s.canonical_name ASC"
-
             if limit:
-                query += f" LIMIT {limit}"
-
-            # Only pass `params` to pandas when we actually have any. Passing
-            # an empty list previously surfaced a SQLAlchemy/DBAPI argument
-            # error in some environments (see: "List argument must consist
-            # only of tuples or dictionaries"). Use the simpler call when
-            # there are no params.
-            # SQLAlchemy / DBAPI expects a tuple/dict for parameter binding.
-            # If we collected params as a Python list, convert to tuple for
-            # the single-execution case. If there are no params, pass None
-            # to pandas so it doesn't attempt parameter binding.
-            sql_params = None
-            if params:
                 try:
-                    sql_params = tuple(params)
+                    safe_limit = int(limit)
+                    if safe_limit > 0:
+                        query += f" LIMIT {safe_limit}"
                 except Exception:
-                    # As a fallback, pass the raw params (pandas/sqlalchemy
-                    # will raise if it's invalid) — but normally tuple() is fine
-                    sql_params = params
+                    pass
 
-            if sql_params is not None:
-                df = pd.read_sql_query(query, db.engine, params=sql_params)
-            else:
-                df = pd.read_sql_query(query, db.engine)
+            df = pd.read_sql_query(query, db.engine, params=params or None)
 
             # If requested, filter to only sources that are due for
             # discovery according to their declared frequency and the
             # most recent `candidate_links.processed_at` timestamp.
             sources_before_due_filter = len(df)
             sources_skipped = 0
-            
+            host_limited = 0
+
             if due_only and not df.empty:
                 from .scheduling import should_schedule_discovery
 
@@ -381,11 +469,23 @@ class NewsDiscovery:
                     # If constructing the mask fails, fall back to original df
                     pass
 
+            if host_limit and not df.empty:
+                try:
+                    safe_host_limit = int(host_limit)
+                    if safe_host_limit > 0 and len(df) > safe_host_limit:
+                        host_limited = len(df) - safe_host_limit
+                        df = df.head(safe_host_limit)
+                except Exception:
+                    pass
+
             stats = {
                 "sources_available": sources_before_due_filter,
                 "sources_due": len(df),
                 "sources_skipped": sources_skipped,
             }
+
+            if host_limited:
+                stats["sources_limited_by_host"] = host_limited
 
             return df, stats
 
@@ -411,7 +511,7 @@ class NewsDiscovery:
         discovered_articles = []
 
         try:
-            from newspaper import Config
+            from newspaper import Config  # type: ignore[import]
 
             # Create optimized config for faster discovery
             config = Config()
@@ -635,8 +735,10 @@ class NewsDiscovery:
 
                     fetch_images_flag = False
                     try:
-                        # config may or may not expose fetch_images; default False
-                        fetch_images_flag = bool(getattr(config, "fetch_images", False))
+                        # config may omit fetch_images; default to False
+                        fetch_images_flag = bool(
+                            getattr(config, "fetch_images", False)
+                        )
                     except Exception:
                         fetch_images_flag = False
 
@@ -692,7 +794,10 @@ class NewsDiscovery:
                     )
 
             # Don't download all articles - just get the URLs
-            article_count = len(paper.articles) if paper is not None else 0
+            articles_attr = []
+            if paper is not None:
+                articles_attr = getattr(paper, "articles", []) or []
+            article_count = len(articles_attr)
             logger.info("Found %d potential articles" % (article_count,))
 
             if article_count == 0:
@@ -705,7 +810,7 @@ class NewsDiscovery:
             existing_urls = self._get_existing_urls()
 
             # Limit processing and don't download full content
-            articles_to_process = paper.articles[
+            articles_to_process = articles_attr[
                 : min(self.max_articles_per_source, 25)
             ]
 
@@ -738,7 +843,10 @@ class NewsDiscovery:
                     logger.warning(f"{msg}: {article_error}")
                     continue
 
-            logger.info("newspaper4k found %d articles", len(discovered_articles))
+            logger.info(
+                "newspaper4k found %d articles",
+                len(discovered_articles),
+            )
 
         except Exception as e:
             msg = "Failed to discover articles with newspaper4k"
@@ -760,10 +868,9 @@ class NewsDiscovery:
         )
 
         # Normalize enums and common string variants
-        if hasattr(method, "value"):
-            method_val = method.value
-        else:
-            method_val = str(method)
+        method_val = getattr(method, "value", method)
+        if not isinstance(method_val, str):
+            method_val = str(method_val)
 
         # Attempt to include feed URL or source of discovery for disambiguation
         details = None
@@ -875,8 +982,9 @@ class NewsDiscovery:
         """Attempt to discover RSS feeds and extract article URLs - OPTIMIZED.
 
         Args:
-            source_url: The base URL of the news source
-            custom_rss_feeds: Optional list of known RSS feed URLs for this source
+            source_url: Base URL of the news source.
+            custom_rss_feeds: Optional list of known RSS feed URLs
+                for this source.
 
         Returns:
             List of discovered article metadata from RSS feeds
@@ -1158,7 +1266,9 @@ class NewsDiscovery:
                                         pd = datetime(
                                             *entry.published_parsed[:6]
                                         )
-                                        article_data["publish_date"] = pd.isoformat()
+                                        article_data[
+                                            "publish_date"
+                                        ] = pd.isoformat()
                                     except Exception:
                                         pass
                                 discovered_articles.append(article_data)
@@ -1180,7 +1290,8 @@ class NewsDiscovery:
             logger.info(f"RSS discovery skipped for {source_url}")
         elif feeds_successful == 0:
             logger.warning(
-                "RSS discovery failed for %s: tried %d potential feed URLs, none worked",
+                "RSS discovery failed for %s: tried %d potential feed URLs, "
+                "none worked",
                 source_url,
                 feeds_tried,
             )
@@ -1267,10 +1378,7 @@ class NewsDiscovery:
         articles_new = 0
         articles_duplicate = 0
         articles_expired = 0
-        discovery_errors = []
         discovery_methods_attempted = []
-        primary_error = None
-        http_status = None
 
         all_discovered = []
         start_time = time.time()
@@ -1341,8 +1449,6 @@ class NewsDiscovery:
             pass
 
         # Prepare a parsed `source_meta` for use by all discovery methods.
-        # Some branches previously parsed metadata lazily which could leave
-        # `source_meta` undefined for later methods (causing UnboundLocalError).
         source_meta = None
         try:
             if "metadata" in source_row.index:
@@ -1357,8 +1463,8 @@ class NewsDiscovery:
         except Exception:
             source_meta = None
 
-        # Whether to skip probing RSS feeds based on recent metadata; set
-        # a default here so downstream logic always has the variable.
+        # Whether to skip probing RSS feeds based on recent metadata; set a
+        # default here so downstream logic always has the variable.
         skip_rss = False
 
         # If no historical data, use all methods
@@ -1382,7 +1488,10 @@ class NewsDiscovery:
                 try:
                     # Extract custom RSS feeds if available
                     custom_rss_feeds = None
-                    if hasattr(source_row, "rss_feeds") and source_row.rss_feeds:
+                    if (
+                        hasattr(source_row, "rss_feeds")
+                        and source_row.rss_feeds
+                    ):
                         if isinstance(source_row.rss_feeds, str):
                             try:
                                 custom_rss_feeds = json.loads(
@@ -1393,9 +1502,9 @@ class NewsDiscovery:
                         elif isinstance(source_row.rss_feeds, list):
                             custom_rss_feeds = source_row.rss_feeds
 
-                    # Extract source metadata if present to allow frequency-aware
-                    # fallback gating inside RSS discovery and to check whether
-                    # RSS was recently marked missing (so we can skip it).
+                    # Extract source metadata if present to allow
+                    # frequency-aware fallback gating inside RSS discovery
+                    # and to check whether RSS was recently marked missing.
                     source_meta = None
                     try:
                         if "metadata" in source_row.index:
@@ -1427,7 +1536,8 @@ class NewsDiscovery:
                             except Exception:
                                 missing_dt = None
 
-                            # Compute recency window based on declared frequency
+                            # Compute recency window based on declared
+                            # frequency
                             recent_activity_days = 90
                             try:
                                 freq = (
@@ -1448,7 +1558,8 @@ class NewsDiscovery:
                                 if missing_dt >= threshold:
                                     skip_rss = True
                                     logger.info(
-                                        "Skipping RSS for %s because rss_missing set on %s",
+                                        "Skipping RSS for %s because "
+                                        "rss_missing set on %s",
                                         source_name,
                                         missing_dt.isoformat(),
                                     )
@@ -1457,7 +1568,8 @@ class NewsDiscovery:
 
                     if skip_rss:
                         logger.info(
-                            "Skipping RSS discovery for %s due to recent rss_missing flag",
+                            "Skipping RSS discovery for %s due to a recent "
+                            "rss_missing flag",
                             source_name,
                         )
                         rss_articles = []
@@ -1472,32 +1584,41 @@ class NewsDiscovery:
                                 custom_rss_feeds,
                                 source_meta=source_meta,
                             )
-                            # Backwards compatibility: allow monkeypatched functions
-                            # to return either a list (old behavior) or (list, summary)
-                            if isinstance(_rss_ret, tuple) and len(_rss_ret) == 2:
+                            # Backwards compatibility: allow monkeypatched
+                            # functions to return either a list (old behavior)
+                            # or (list, summary).
+                            if (
+                                isinstance(_rss_ret, tuple)
+                                and len(_rss_ret) == 2
+                            ):
                                 rss_articles, rss_summary = _rss_ret
                             else:
                                 rss_articles = _rss_ret or []
                                 rss_summary = {
-                                    "feeds_tried": len(rss_articles) and 1 or 0,
-                                    "feeds_successful": (
-                                        1 if len(rss_articles) > 0 else 0
+                                    "feeds_tried": int(bool(rss_articles)),
+                                    "feeds_successful": int(
+                                        bool(rss_articles)
                                     ),
                                     "network_errors": 0,
                                 }
                             all_discovered.extend(rss_articles)
                             logger.info(
-                                f"RSS discovery found {len(rss_articles)} articles"
+                                "RSS discovery found %d articles",
+                                len(rss_articles),
                             )
 
-                            # Persist metadata about discovery method effectiveness
+                            # Persist metadata about discovery method
+                            # effectiveness
                             try:
                                 if rss_articles and source_id:
-                                    # Successful discovery: clear all failure counters/flags
+                                    # Successful discovery: clear all failure
+                                    # counters/flags
                                     self._update_source_meta(
                                         source_id,
                                         {
-                                            "last_successful_method": "rss_feed",
+                                            "last_successful_method": (
+                                                "rss_feed"
+                                            ),
                                             "rss_missing": None,
                                             "rss_last_failed": None,
                                             "rss_consecutive_failures": 0,
@@ -1505,7 +1626,9 @@ class NewsDiscovery:
                                     )
                                 elif source_id and not rss_articles:
                                     # We attempted feeds but found no articles.
-                                    feeds_tried = rss_summary.get("feeds_tried", 0)
+                                    feeds_tried = rss_summary.get(
+                                        "feeds_tried", 0
+                                    )
                                     feeds_successful = rss_summary.get(
                                         "feeds_successful", 0
                                     )
@@ -1513,77 +1636,37 @@ class NewsDiscovery:
                                         "network_errors", 0
                                     )
 
-                                    if feeds_tried > 0 and feeds_successful == 0:
+                                    if (
+                                        feeds_tried > 0
+                                        and feeds_successful == 0
+                                    ):
                                         if network_errors > 0:
-                                            # Transient network failures: record last failed ts
-                                            # and reset consecutive non-network failure counter.
-                                            self._update_source_meta(
+                                            # Transient network failures: reset
+                                            # counters without marking missing.
+                                            self._reset_rss_failure_state(
                                                 source_id,
-                                                {
-                                                    "rss_last_failed": datetime.utcnow().isoformat(),
-                                                    "rss_missing": None,
-                                                    "rss_consecutive_failures": 0,
-                                                },
                                             )
                                         else:
-                                            # Non-network failure (e.g. 404/parse). Increment
-                                            # consecutive failure counter and only mark
-                                            # `rss_missing` if it reaches threshold.
-                                            try:
-                                                # Read current counter
-                                                dbm = DatabaseManager(self.database_url)
-                                                with dbm.engine.connect() as conn:
-                                                    cur = conn.execute(
-                                                        text(
-                                                            "SELECT metadata FROM sources WHERE id = :id"
-                                                        ),
-                                                        {"id": source_id},
-                                                    ).fetchone()
-                                                    cur_meta = {}
-                                                    if cur and cur[0]:
-                                                        try:
-                                                            cur_meta = json.loads(
-                                                                cur[0]
-                                                            )
-                                                        except Exception:
-                                                            cur_meta = cur[0] or {}
-
-                                                prev = (
-                                                    cur_meta.get(
-                                                        "rss_consecutive_failures", 0
-                                                    )
-                                                    if isinstance(cur_meta, dict)
-                                                    else 0
-                                                )
-                                                now = prev + 1
-                                                updates = {
-                                                    "rss_consecutive_failures": now
-                                                }
-                                                if now >= RSS_MISSING_THRESHOLD:
-                                                    updates["rss_missing"] = (
-                                                        datetime.utcnow().isoformat()
-                                                    )
-
-                                                self._update_source_meta(
-                                                    source_id, updates
-                                                )
-                                            except Exception:
-                                                # Best-effort only; fallback to marking missing
-                                                self._update_source_meta(
-                                                    source_id,
-                                                    {
-                                                        "rss_missing": datetime.utcnow().isoformat()
-                                                    },
-                                                )
+                                            # Non-network failure (e.g. 404 or
+                                            # parse). Increment counters and
+                                            # mark missing once threshold hits.
+                                            self._increment_rss_failure(
+                                                source_id,
+                                            )
                             except Exception:
                                 logger.debug(
-                                    "Failed to persist RSS discovery metadata for source %s",
+                                    (
+                                        "Failed to persist RSS discovery "
+                                        "metadata for source %s"
+                                    ),
                                     source_id,
                                 )
 
                         except Exception as rss_error:
                             logger.warning(
-                                f"RSS discovery failed for {source_name}: {rss_error}"
+                                "RSS discovery failed for %s: %s",
+                                source_name,
+                                rss_error,
                             )
                             # Record specific RSS failure
                             if operation_id:
@@ -1594,13 +1677,16 @@ class NewsDiscovery:
                                         error=rss_error,
                                         site_name=source_name,
                                         discovery_method="rss",
-                                        response_time_ms=(time.time() - start_time)
+                                        response_time_ms=(
+                                            time.time() - start_time
+                                        )
                                         * 1000,
                                     )
                                 except Exception:
                                     pass
 
-                            # Decide whether this looks like a transient network error
+                            # Decide whether this looks like a transient
+                            # network error.
                             is_network_error = False
                             try:
                                 import requests as _requests
@@ -1626,28 +1712,35 @@ class NewsDiscovery:
                             try:
                                 if source_id:
                                     if is_network_error:
-                                        # Transient: record last failed timestamp but don't mark missing
+                                        # Transient issue: record last failed
+                                        # timestamp but avoid marking missing.
+                                        failed_iso = (
+                                            datetime.utcnow().isoformat()
+                                        )
                                         self._update_source_meta(
                                             source_id,
-                                            {
-                                                "rss_last_failed": datetime.utcnow().isoformat(),
-                                            },
+                                            {"rss_last_failed": failed_iso},
                                         )
                                     else:
-                                        # Treat as permanent failure to find RSS (parse/404)
+                                        # Treat as permanent failure to
+                                        # find RSS (parse/404).
+                                        missing_iso = (
+                                            datetime.utcnow().isoformat()
+                                        )
                                         self._update_source_meta(
                                             source_id,
-                                            {
-                                                "rss_missing": datetime.utcnow().isoformat()
-                                            },
+                                            {"rss_missing": missing_iso},
                                         )
                             except Exception:
                                 logger.debug(
-                                    "Failed to persist rss failure for %s", source_id
+                                    "Failed to persist rss failure for %s",
+                                    source_id,
                                 )
                 except Exception as rss_error:
                     logger.warning(
-                        f"RSS discovery failed for {source_name}: {rss_error}"
+                        "RSS discovery failed for %s: %s",
+                        source_name,
+                        rss_error,
                     )
                     # Record specific RSS failure
                     if operation_id:
@@ -1661,13 +1754,15 @@ class NewsDiscovery:
                         )
             else:
                 logger.info(
-                    f"Skipping RSS discovery for {source_name} "
-                    f"(historically ineffective)"
+                    "Skipping RSS discovery for %s (historically ineffective)",
+                    source_name,
                 )
 
             # If RSS found enough articles, skip slower methods
             if len(all_discovered) >= self.max_articles_per_source // 2:
-                logger.info("RSS found sufficient articles, skipping slower methods")
+                logger.info(
+                    "RSS found sufficient articles, skipping slower methods"
+                )
             else:
                 # Method 2: newspaper4k (slower but comprehensive)
                 if DiscoveryMethod.NEWSPAPER4K in effective_methods:
@@ -1760,13 +1855,15 @@ class NewsDiscovery:
             return DiscoveryResult(
                 outcome=DiscoveryOutcome.UNKNOWN_ERROR,
                 error_details=str(e),
-                metadata={"source_name": source_name, "error_location": "discovery_pipeline"}
+                metadata={"source_name": source_name,
+                          "error_location": "discovery_pipeline"}
             )
 
         # If no articles found, record as content error
         if len(all_discovered) == 0:
             if operation_id:
-                content_error = Exception("No articles discovered from any method")
+                content_error = Exception(
+                    "No articles discovered from any method")
                 self.telemetry.record_site_failure(
                     operation_id=operation_id,
                     site_url=source_url,
@@ -1781,7 +1878,7 @@ class NewsDiscovery:
 
         # Categorize discovered articles
         articles_found_total = len(all_discovered)
-        
+
         # Deduplicate by URL and categorize
         unique_articles = {}
         for article in all_discovered:
@@ -1796,7 +1893,7 @@ class NewsDiscovery:
         articles_duplicate = 0
         articles_expired = 0
         stored_count = 0
-        
+
         # Store in database and track outcomes
         with DatabaseManager(self.database_url) as db:
             for url, article_data in unique_articles.items():
@@ -1805,7 +1902,7 @@ class NewsDiscovery:
                     if url in existing_urls:
                         articles_duplicate += 1
                         continue
-                    
+
                     # Check if article is within date range
                     discovered_publish_date = article_data.get("publish_date")
                     if discovered_publish_date:
@@ -1816,7 +1913,7 @@ class NewsDiscovery:
                                 typed_publish_date = datetime.fromisoformat(
                                     discovered_publish_date
                                 )
-                            
+
                             if not self._is_recent_article(typed_publish_date):
                                 articles_expired += 1
                                 continue
@@ -1851,17 +1948,23 @@ class NewsDiscovery:
                                 typed_publish_date = discovered_publish_date
                             else:
                                 try:
-                                    typed_publish_date = datetime.fromisoformat(
+                                    fromiso = datetime.fromisoformat
+                                    typed_publish_date = fromiso(
                                         discovered_publish_date
                                     )
                                 except Exception:
-                                    from dateutil.parser import parse as _parse_date
-                                    typed_publish_date = _parse_date(
-                                        discovered_publish_date
-                                    )
+                                    if _parse_date:
+                                        typed_publish_date = _parse_date(
+                                            discovered_publish_date
+                                        )
+                                    else:
+                                        raise
                         except Exception:
                             logger.debug(
-                                "Unable to parse discovered publish_date '%s' for %s",
+                                (
+                                    "Unable to parse discovered publish_date "
+                                    "'%s' for %s"
+                                ),
                                 discovered_publish_date,
                                 url,
                             )
@@ -1899,7 +2002,7 @@ class NewsDiscovery:
                     continue
 
         logger.info(f"Stored {stored_count} candidate URLs for {source_name}")
-        
+
         # Determine primary outcome
         if articles_new > 0:
             outcome = DiscoveryOutcome.NEW_ARTICLES_FOUND
@@ -1920,7 +2023,11 @@ class NewsDiscovery:
             articles_new=articles_new,
             articles_duplicate=articles_duplicate,
             articles_expired=articles_expired,
-            method_used=",".join(discovery_methods_attempted) if discovery_methods_attempted else "unknown",
+            method_used=(
+                ",".join(discovery_methods_attempted)
+                if discovery_methods_attempted
+                else "unknown"
+            ),
             metadata={
                 "source_name": source_name,
                 "discovery_time_ms": (time.time() - start_time) * 1000,
@@ -1936,6 +2043,11 @@ class NewsDiscovery:
         source_filter: Optional[str] = None,
         source_uuids: Optional[List[str]] = None,
         due_only: bool = False,
+        host_filter: Optional[str] = None,
+        city_filter: Optional[str] = None,
+        county_filter: Optional[str] = None,
+        host_limit: Optional[int] = None,
+        existing_article_limit: Optional[int] = None,
     ) -> Dict[str, int]:
         """Run the complete discovery pipeline.
 
@@ -1944,6 +2056,15 @@ class NewsDiscovery:
             source_limit: Maximum number of sources to process
             source_filter: Optional filter for source name/URL
             source_uuids: Optional list of specific source UUIDs to process
+            due_only:
+                Whether to respect scheduling (default False to allow
+                caller control)
+            host_filter: Exact host value to match
+            city_filter: City name filter (case-insensitive)
+            county_filter: County name filter (case-insensitive)
+            host_limit: Maximum number of hosts to process
+            existing_article_limit:
+                Skip sources with greater-or-equal existing article counts
 
         Returns:
             Dictionary with processing statistics
@@ -1961,7 +2082,13 @@ class NewsDiscovery:
 
             # Get sources to process (respect `due_only` scheduling)
             sources_df, source_stats = self.get_sources_to_process(
-                dataset_label=dataset_label, limit=source_limit, due_only=due_only
+                dataset_label=dataset_label,
+                limit=source_limit,
+                due_only=due_only,
+                host_filter=host_filter,
+                city_filter=city_filter,
+                county_filter=county_filter,
+                host_limit=host_limit,
             )
 
             # Apply UUID filtering first (most specific)
@@ -1978,9 +2105,18 @@ class NewsDiscovery:
                     }
             elif source_filter:
                 # Filter by source name or URL (fallback)
-                mask = sources_df["name"].str.contains(
-                    source_filter, case=False, na=False
-                ) | sources_df["url"].str.contains(source_filter, case=False, na=False)
+                mask = (
+                    sources_df["name"].str.contains(
+                        source_filter,
+                        case=False,
+                        na=False,
+                    )
+                    | sources_df["url"].str.contains(
+                        source_filter,
+                        case=False,
+                        na=False,
+                    )
+                )
                 sources_df = sources_df[mask]
 
             logger.info(f"Processing {len(sources_df)} sources")
@@ -1995,38 +2131,71 @@ class NewsDiscovery:
                 "total_candidates_discovered": 0,
                 "sources_failed": 0,
                 "sources_succeeded": 0,
-                "sources_with_content": 0,  # Sources that found >=1 article
-                "sources_no_content": 0,   # Sources that found 0 articles
+                "sources_with_content": 0,  # Sources finding >=1 article
+                "sources_no_content": 0,  # Sources that found 0 articles
             }
+
+            if source_stats.get("sources_limited_by_host"):
+                stats["sources_limited_by_host"] = source_stats[
+                    "sources_limited_by_host"
+                ]
 
             # (scheduling/due-only filtering is handled by
             # `get_sources_to_process` when `due_only=True` is passed)
 
             for idx, source_row in sources_df.iterrows():
+                if (
+                    existing_article_limit is not None
+                    and existing_article_limit >= 0
+                ):
+                    try:
+                        existing_count = self._get_existing_article_count(
+                            str(source_row.get("id"))
+                        )
+                    except Exception:
+                        existing_count = 0
+
+                    if existing_count >= existing_article_limit:
+                        stats.setdefault("sources_skipped_existing", 0)
+                        stats["sources_skipped_existing"] += 1
+                        logger.info(
+                            "Skipping %s: %s existing articles (limit=%s)",
+                            source_row.get("name"),
+                            existing_count,
+                            existing_article_limit,
+                        )
+                        continue
+
                 try:
                     discovery_result = self.process_source(
-                        source_row, dataset_label, tracker.operation_id
+                        source_row,
+                        dataset_label,
+                        tracker.operation_id,
                     )
-                    
+
                     # Record detailed discovery outcome for telemetry
                     self.telemetry.record_discovery_outcome(
                         operation_id=tracker.operation_id,
-                        source_id=str(source_row.get('id', '')),
-                        source_name=str(source_row.get('name', 'Unknown')),
-                        source_url=str(source_row.get('url', '')),
-                        discovery_result=discovery_result
+                        source_id=str(source_row.get("id", "")),
+                        source_name=str(
+                            source_row.get("name", "Unknown")
+                        ),
+                        source_url=str(source_row.get("url", "")),
+                        discovery_result=discovery_result,
                     )
-                    
+
                     stats["sources_processed"] += 1
-                    stats["total_candidates_discovered"] += discovery_result.articles_new
-                    
+                    stats["total_candidates_discovered"] += (
+                        discovery_result.articles_new
+                    )
+
                     # Track different types of success
                     if discovery_result.is_technical_failure:
                         stats["sources_failed"] += 1
                     else:
                         stats["sources_succeeded"] += 1
-                    
-                    # Track content success separately  
+
+                    # Track content success separately
                     if discovery_result.articles_new > 0:
                         stats["sources_with_content"] += 1
                     else:
@@ -2047,9 +2216,10 @@ class NewsDiscovery:
                     # Respectful delay between sources
                     time.sleep(self.delay)
 
-                    # Persist a last discovery timestamp into source metadata.
-                    # Scheduling logic can use this when candidate_links haven't
-                    # yet been updated (or when processed_at is not present).
+                    # Persist a last discovery timestamp into source
+                    # metadata. Scheduling logic can use this when
+                    # candidate_links haven't yet been updated or when
+                    # processed_at is not present.
                     try:
                         self._update_source_meta(
                             source_row.get("id"),
@@ -2066,7 +2236,11 @@ class NewsDiscovery:
                         )
 
                 except Exception as e:
-                    logger.error(f"Failed to process source {source_row['name']}: {e}")
+                    logger.error(
+                        "Failed to process source %s: %s",
+                        source_row.get("name"),
+                        e,
+                    )
                     stats["sources_failed"] += 1
                     stats["sources_processed"] += 1
 
@@ -2083,12 +2257,17 @@ class NewsDiscovery:
                     tracker.update_progress(
                         processed=metrics.processed_items,
                         total=metrics.total_items,
-                        message=f"Failed: {source_row['name']}",
+                        message=(
+                            "Failed: "
+                            f"{source_row.get('name', 'Unknown')}"
+                        ),
                     )
 
             logger.info(
-                f"Discovery complete. Processed {stats['sources_processed']} sources, "
-                f"found {stats['total_candidates_discovered']} candidate URLs"
+                "Discovery complete. Processed %s sources, found %s "
+                "candidate URLs",
+                stats["sources_processed"],
+                stats["total_candidates_discovered"],
             )
 
             # Add scheduling stats to the return dictionary
@@ -2108,27 +2287,42 @@ def get_sources_from_db(db_manager, dataset_id=None, limit=None):
     Returns:
         List of source dictionaries with 'id', 'host', 'canonical_name'
     """
-    from sqlalchemy import select, Table, MetaData
+    from sqlalchemy import MetaData, Table, select
 
     try:
         metadata = MetaData()
-        sources_tbl = Table("sources", metadata, autoload_with=db_manager.engine)
+        sources_tbl = Table(
+            "sources",
+            metadata,
+            autoload_with=db_manager.engine,
+        )
 
         if dataset_id:
             # Join with dataset_sources to filter by dataset
-            ds_tbl = Table("dataset_sources", metadata, autoload_with=db_manager.engine)
+            ds_tbl = Table(
+                "dataset_sources",
+                metadata,
+                autoload_with=db_manager.engine,
+            )
             query = (
                 select(
-                    sources_tbl.c.id, sources_tbl.c.host, sources_tbl.c.canonical_name
+                    sources_tbl.c.id,
+                    sources_tbl.c.host,
+                    sources_tbl.c.canonical_name,
                 )
                 .select_from(
-                    sources_tbl.join(ds_tbl, sources_tbl.c.id == ds_tbl.c.source_id)
+                    sources_tbl.join(
+                        ds_tbl,
+                        sources_tbl.c.id == ds_tbl.c.source_id,
+                    )
                 )
                 .where(ds_tbl.c.dataset_id == dataset_id)
             )
         else:
             query = select(
-                sources_tbl.c.id, sources_tbl.c.host, sources_tbl.c.canonical_name
+                sources_tbl.c.id,
+                sources_tbl.c.host,
+                sources_tbl.c.canonical_name,
             )
 
         if limit:
@@ -2158,6 +2352,11 @@ def run_discovery_pipeline(
     database_url: str = "sqlite:///data/mizzou.db",
     max_articles_per_source: int = 50,
     days_back: int = 7,
+    host_filter: Optional[str] = None,
+    city_filter: Optional[str] = None,
+    county_filter: Optional[str] = None,
+    host_limit: Optional[int] = None,
+    existing_article_limit: Optional[int] = None,
 ) -> Dict[str, int]:
     """Convenience function to run the discovery pipeline.
 
@@ -2184,6 +2383,11 @@ def run_discovery_pipeline(
         source_limit=source_limit,
         source_filter=source_filter,
         source_uuids=source_uuids,
+        host_filter=host_filter,
+        city_filter=city_filter,
+        county_filter=county_filter,
+        host_limit=host_limit,
+        existing_article_limit=existing_article_limit,
     )
 
 
@@ -2200,7 +2404,10 @@ if __name__ == "__main__":
         dataset_label=dataset_label, source_limit=source_limit
     )
 
-    print(f"\nDiscovery completed:")
+    print("\nDiscovery completed:")
     print(f"  Sources processed: {stats['sources_processed']}")
     print(f"  Candidates found: {stats['total_candidates_discovered']}")
-    print(f"  Success rate: {stats['sources_succeeded']}/{stats['sources_processed']}")
+    print(
+        "  Success rate: "
+        f"{stats['sources_succeeded']}/{stats['sources_processed']}"
+    )

@@ -715,13 +715,26 @@ python -m src.cli.main discover-urls --max-articles 100 --days-back 14 --source-
 
 # Filter sources by name/URL pattern
 python -m src.cli.main discover-urls --source-filter "missouri" --source-limit 20
+
+# Target a single host (exact match on candidate host)
+python -m src.cli.main discover-urls --host "standard-democrat.com" --max-articles 40
+
+# Filter by location metadata
+python -m src.cli.main discover-urls --county "St. Louis" --city "Ferguson" --host-limit 5
+
+# Skip saturated sources that already have enough extracted articles
+python -m src.cli.main discover-urls --existing-article-limit 75 --source-limit 30
 ```
 
 **Key Options:**
 
-- `--due-only`: Only process sources due for discovery (default behavior)
-- `--force-all`: Override scheduling and process all sources
-- `--max-articles`: Articles to discover per source (default: 50)
+- `--due-only`: Only process sources due for discovery (enabled by default)
+- `--force-all`: Override scheduling and process all sources (disables `--due-only`)
+- `--max-articles`: Articles to discover per source (default: 50); legacy alias `--article-limit`
+- `--existing-article-limit`: Skip sources that already have at least this many extracted articles (also set when using `--article-limit`)
+- `--source-filter` / `--source`: Match sources by name or URL substring
+- `--host`, `--city`, `--county`: Filter sources by metadata fields from `publinks`
+- `--host-limit`: Cap the number of unique hosts processed in one run
 - `--days-back`: How far back to look for articles (default: 7 days)
 
 #### Content Extraction
@@ -739,21 +752,18 @@ python -m src.cli.main extract --limit 50 --batches 5
 python -m src.cli.main extract --source "Columbia Missourian" --limit 25
 ```
 
-### Legacy Crawling Commands
+### Deprecated Crawl Alias
 
-The original crawling interface is still available for compatibility:
+The legacy `crawl` command now emits a deprecation warning and forwards all
+arguments to `discover-urls`. Prefer running `discover-urls` directly so you get
+access to the richer filtering options above. Example translation:
 
-```bash
-# Crawl ALL sources with limits
-python -m src.cli.main crawl --filter ALL --host-limit 10 --article-limit 5
+- Legacy: `python -m src.cli.main crawl --filter HOST --host standard-democrat.com --article-limit 10`
+- Modern: `python -m src.cli.main discover-urls --host standard-democrat.com --article-limit 10`
 
-# Crawl single host
-python -m src.cli.main crawl --filter HOST --host "standard-democrat.com" --article-limit 10
-
-# Crawl by location
-python -m src.cli.main crawl --filter COUNTY --county "Scott" --host-limit 5 --article-limit 3
-python -m src.cli.main crawl --filter CITY --city "Sikeston" --article-limit 5
-```
+All existing automation that still invokes `crawl` will continue to work, but
+please plan to migrate scripts to `discover-urls` to avoid the warning and stay
+on the supported path.
 
 ### Geographic Enhancement
 

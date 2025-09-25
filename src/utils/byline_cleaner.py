@@ -6,14 +6,7 @@ import json
 import logging
 import re
 from difflib import SequenceMatcher
-from typing import List, Optional
-
-logger = logging.getLogger(__name__)
-
-import json
-import logging
-import re
-from typing import Dict, List, Optional, Union
+from typing import List, Optional, Dict, Union
 
 # Import telemetry system
 from .byline_telemetry import BylineCleaningTelemetry
@@ -44,9 +37,12 @@ class BylineCleaner:
         'director', 'manager', 'coordinator', 'specialist', 'analyst',
         'producer', 'photographer', 'videographer', 'multimedia',
         
+        # Special correspondent/contributor patterns
+        'special', 'contributing', 'freelance', 'guest', 'visiting',
+        
         # Common suffixes/prefixes
         'the', 'for', 'at', 'of', 'and', 'from', 'with', 'by', 'staff writer',
-        'guest',  # Guest contributors, commentators
+        'to', 'he', 'tot', 'teh',  # Common typos and words in "Special to"
         
         # Publication words (when used as titles/suffixes)
         'tribune', 'herald', 'gazette', 'times', 'post', 'news', 'press',
@@ -60,14 +56,30 @@ class BylineCleaner:
     
     # Wire services and syndicated content sources (preserve these for later filtering)
     WIRE_SERVICES = {
-        'associated press', 'ap', 'reuters', 'bloomberg', 'cnn', 'fox news', 'fox',
-        'nbc', 'abc', 'cbs', 'npr', 'pbs', 'usa today', 'wall street journal',
-        'new york times', 'washington post', 'los angeles times', 'chicago tribune',
+        'associated press', 'ap', 'reuters', 'bloomberg', 'cnn', 
+        'cnn newssource', 'fox news', 'fox', 'nbc', 'abc', 'abc news', 
+        'cbs', 'npr', 'pbs', 'usa today', 'wall street journal', 
+        'new york times', 'the new york times', 'washington post', 
+        'the washington post', 'los angeles times', 'chicago tribune', 
         'boston globe', 'the guardian', 'bbc', 'politico', 'the hill',
         'mcclatchy', 'gannett', 'hearst', 'scripps', 'sinclair'
     }
     
-    # Journalism-specific nouns that are never names
+    # Normalization mapping for wire services to canonical names
+    WIRE_SERVICE_NORMALIZATION = {
+        'associated press': 'The Associated Press',
+        'the associated press': 'The Associated Press', 
+        'ap': 'The Associated Press',
+        'cnn': 'CNN NewsSource',
+        'cnn newssource': 'CNN NewsSource',
+        'hearst': 'Hearst',
+        'abc': 'ABC News', 
+        'abc news': 'ABC News',
+        'reuters': 'Reuters',
+        'bloomberg': 'Bloomberg',
+        'npr': 'NPR',
+        'pbs': 'PBS'
+    }    # Journalism-specific nouns that are never names
     JOURNALISM_NOUNS = {
         # Core journalism terms
         'news', 'editor', 'editors', 'reporter', 'reporters', 'staff', 'writer', 'writers',
@@ -139,6 +151,11 @@ class BylineCleaner:
         r'^story\s+by\s+(.+)$',
         r'^report\s+by\s+(.+)$',
         
+        # "Special to" patterns (extract name before "Special")
+        r'^(.+?)\s+special\s+to?t?\s*(the|he)?\s*(.+)$',
+        r'^(.+?)\s+special\s+correspondent.*$',
+        r'^(.+?)\s+special\s+contributor.*$',
+        
         # Email patterns (remove emails)
         r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',
         
@@ -190,6 +207,12 @@ class BylineCleaner:
         # Dynamic publication filter cache
         self._publication_cache = None
         self._publication_cache_timestamp = None
+        
+        # Wire service detection tracking
+        self._detected_wire_services = []
+        
+        # Current source name for wire service filtering
+        self._current_source_name = None
     
     def clean_byline(
         self, 
@@ -214,7 +237,9 @@ class BylineCleaner:
             source_canonical_name: Canonical source name for telemetry
             
         Returns:
-            List of cleaned author names or JSON object with details
+            List of cleaned author names or JSON object with details.
+            When return_json=True, includes wire_service_detected flag for
+            downstream article classification.
         """
         # Start telemetry session
         telemetry_id = self.telemetry.start_cleaning_session(
@@ -227,6 +252,12 @@ class BylineCleaner:
         )
         
         try:
+            # Reset wire service detection for this cleaning session
+            self._detected_wire_services = []
+            
+            # Store source name for wire service filtering
+            self._current_source_name = source_canonical_name or source_name
+            
             if not byline or not byline.strip():
                 self.telemetry.finalize_cleaning_session(
                     final_authors=[],
@@ -237,25 +268,86 @@ class BylineCleaner:
                 return self._format_result([], return_json)
             
             # Step 1: Wire service detection (BEFORE source removal to avoid corruption)
+            detected_wire_service = None
             if self._is_wire_service(byline):
-                self.telemetry.log_transformation_step(
-                    step_name="wire_service_detection",
-                    input_text=byline,
-                    output_text=byline,
-                    transformation_type="classification",
-                    confidence_delta=0.8,
-                    notes="Detected wire service byline - preserving as-is"
-                )
+                # Get the detected wire service name
+                detected_wire_service = (
+                    self._detected_wire_services[-1]
+                    if self._detected_wire_services else None)
                 
-                self.telemetry.finalize_cleaning_session(
-                    final_authors=[byline.strip()],
-                    cleaning_method="wire_service_passthrough",
-                    likely_valid_authors=True,
-                    likely_noise=False
-                )
-                return self._format_result([byline.strip()], return_json)
+                # Check if this wire service is from the publication's
+                # own source
+                if (detected_wire_service and self._current_source_name and
+                    self._is_wire_service_from_own_source(
+                        detected_wire_service, self._current_source_name)):
+                    
+                    # This is local content - continue with normal processing
+                    # to extract author name
+                    self.telemetry.log_transformation_step(
+                        step_name="wire_service_detection",
+                        input_text=byline,
+                        output_text=byline,
+                        transformation_type="classification",
+                        confidence_delta=0.6,
+                        notes=(f"Detected own-source wire service "
+                               f"'{detected_wire_service}' - extracting "
+                               f"author name")
+                    )
+                    
+                    # Clear the wire service detection since this is local
+                    # content
+                    self._detected_wire_services = []
+                    
+                else:
+                    # This is syndicated content - preserve wire service
+                    # name as-is
+                    self.telemetry.log_transformation_step(
+                        step_name="wire_service_detection",
+                        input_text=byline,
+                        output_text=byline,
+                        transformation_type="classification",
+                        confidence_delta=0.8,
+                        notes=(f"Detected syndicated wire service "
+                               f"'{detected_wire_service}' - preserving as-is")
+                    )
+                    
+                    self.telemetry.finalize_cleaning_session(
+                        final_authors=[byline.strip()],
+                        cleaning_method="wire_service_passthrough",
+                        likely_valid_authors=True,
+                        likely_noise=False
+                    )
+                    return self._format_result([byline.strip()], return_json)
             
-            # Step 2: Source name removal
+            # Step 2: Check for "Special to" patterns BEFORE source removal
+            # (because source removal might break the pattern matching)
+            special_extracted = self._extract_special_contributor(byline)
+            if special_extracted:
+                logger.debug(f"Extracted using special contributor pattern: {special_extracted}")
+                
+                # Clean the extracted name and skip most processing
+                cleaned_name = self._clean_author_name(special_extracted)
+                if cleaned_name:
+                    final_authors = [cleaned_name]
+                    
+                    self.telemetry.log_transformation_step(
+                        step_name="special_contributor_extraction",
+                        input_text=byline,
+                        output_text=special_extracted,
+                        transformation_type="special_pattern_extraction",
+                        confidence_delta=0.8,
+                        notes="Extracted special contributor and skipped standard processing"
+                    )
+                    
+                    self.telemetry.finalize_cleaning_session(
+                        final_authors=final_authors,
+                        cleaning_method="special_contributor",
+                        likely_valid_authors=True,
+                        likely_noise=False
+                    )
+                    return self._format_result(final_authors, return_json)
+            
+            # Step 3: Source name removal (for standard processing)
             cleaned_byline = byline
             if source_name:
                 original_byline = byline
@@ -274,7 +366,7 @@ class BylineCleaner:
                 if cleaned_byline != byline:
                     logger.debug(f"Source removed: '{byline}' -> '{cleaned_byline}'")
             
-            # Step 2.5: Dynamic publication name filtering
+            # Step 3.5: Dynamic publication name filtering
             if self._is_publication_name(cleaned_byline):
                 self.telemetry.log_transformation_step(
                     step_name="dynamic_publication_filter",
@@ -296,7 +388,7 @@ class BylineCleaner:
             
             logger.debug(f"Processing byline: {cleaned_byline}")
             
-            # Step 3: Pattern extraction
+            # Step 4: Standard pattern extraction
             text = cleaned_byline.lower().strip()
             extracted_text = None
             pattern_used = None
@@ -315,7 +407,7 @@ class BylineCleaner:
             if not extracted_text:
                 extracted_text = cleaned_byline.strip()
                 pattern_used = "no_pattern"
-                logger.debug(f"No pattern matched, using full text")
+                logger.debug("No pattern matched, using full text")
             
             self.telemetry.log_transformation_step(
                 step_name="pattern_extraction",
@@ -345,16 +437,29 @@ class BylineCleaner:
             
             # Step 5: Extract individual authors
             before_author_extraction = cleaned_text
-            authors = self._extract_authors(cleaned_text)
             
-            self.telemetry.log_transformation_step(
-                step_name="author_extraction",
-                input_text=before_author_extraction,
-                output_text=str(authors),
-                transformation_type="name_parsing",
-                confidence_delta=0.2,
-                notes=f"Extracted {len(authors)} potential authors"
-            )
+            # If we used special contributor extraction, we already have 
+            # a single clean author name, so bypass _extract_authors
+            if special_extracted:
+                authors = [cleaned_text]
+                self.telemetry.log_transformation_step(
+                    step_name="author_extraction",
+                    input_text=before_author_extraction,
+                    output_text=str(authors),
+                    transformation_type="special_contributor_bypass",
+                    confidence_delta=0.3,
+                    notes="Bypassed _extract_authors for special contributor"
+                )
+            else:
+                authors = self._extract_authors(cleaned_text)
+                self.telemetry.log_transformation_step(
+                    step_name="author_extraction",
+                    input_text=before_author_extraction,
+                    output_text=str(authors),
+                    transformation_type="name_parsing",
+                    confidence_delta=0.2,
+                    notes=f"Extracted {len(authors)} potential authors"
+                )
             
             logger.debug(f"Extracted authors: {authors}")
             
@@ -473,6 +578,62 @@ class BylineCleaner:
         else:
             return self._format_result([], return_json)
     
+    def _extract_special_contributor(self, byline: str) -> Optional[str]:
+        """
+        Extract author name from 'Special to' constructions.
+        
+        Handles patterns like:
+        - "By JOHN DOE Special to the Herald"
+        - "By JANE SMITH Special tot he Times" (with typos)
+        - "By AUTHOR Special correspondent"
+        
+        Args:
+            byline: The byline text to process
+            
+        Returns:
+            Extracted author name or None if no pattern matches
+        """
+        import re
+        
+        # Normalize the byline
+        text = byline.lower().strip()
+        
+        # Remove "by" prefix first
+        text = re.sub(r'^by\s+', '', text)
+        
+        # Patterns to match "Special to" constructions
+        special_patterns = [
+            # "Name Special to [the] Publication" 
+            r'^(.+?)\s+special\s+(?:to|tot|teh)\s*(?:the|he)?\s*(.+)$',
+            # "Name Special correspondent/contributor"
+            r'^(.+?)\s+special\s+(?:correspondent|contributor).*$',
+            # "Name Special" (standalone)
+            r'^(.+?)\s+special\s*$',
+        ]
+        
+        for pattern in special_patterns:
+            match = re.match(pattern, text)
+            if match:
+                name_part = match.group(1).strip()
+                # Make sure we have a reasonable name (at least 2 words)
+                if len(name_part.split()) >= 2:
+                    return name_part
+        
+        return None
+    
+    def _normalize_wire_service(self, service_name: str) -> str:
+        """
+        Normalize wire service name to canonical form.
+        
+        Args:
+            service_name: Raw wire service name detected
+            
+        Returns:
+            Normalized canonical wire service name
+        """
+        service_lower = service_name.lower().strip()
+        return self.WIRE_SERVICE_NORMALIZATION.get(service_lower, service_name)
+    
     def _is_wire_service(self, byline: str) -> bool:
         """Check if byline is from wire service/syndicated source."""
         byline_lower = byline.lower().strip()
@@ -486,19 +647,30 @@ class BylineCleaner:
         for wire_service in self.WIRE_SERVICES:
             if (byline_lower == wire_service or
                     byline_lower.startswith(wire_service + ' ')):
+                # Track detected wire service with normalization
+                normalized_service = self._normalize_wire_service(wire_service)
+                self._detected_wire_services.append(normalized_service)
                 return True
         
         # Check for common wire service patterns
         wire_patterns = [
-            r'^(ap|reuters|bloomberg|cnn|npr|pbs)$',
-            r'^(the\s+)?(associated\s+press|new\s+york\s+times|'
-            r'washington\s+post)$',
-            r'^(usa\s+today|wall\s+street\s+journal|'
-            r'los\s+angeles\s+times)$'
+            (r'^(ap|reuters|bloomberg|cnn|npr|pbs)$', 'AP/Reuters/Bloomberg/CNN/NPR/PBS'),
+            (r'^(the\s+)?(associated\s+press|new\s+york\s+times|'
+             r'washington\s+post)$', 'Major Publication'),
+            (r'^(usa\s+today|wall\s+street\s+journal|'
+             r'los\s+angeles\s+times)$', 'National Publication')
         ]
         
-        for pattern in wire_patterns:
+        for pattern, service_category in wire_patterns:
             if re.match(pattern, byline_lower):
+                # Extract the actual matched service
+                match = re.match(pattern, byline_lower)
+                if match:
+                    matched_service = match.group(0)
+                    normalized_service = self._normalize_wire_service(matched_service)
+                    self._detected_wire_services.append(normalized_service)
+                else:
+                    self._detected_wire_services.append(service_category)
                 return True
         
         return False
@@ -519,6 +691,50 @@ class BylineCleaner:
         cleaned = re.sub(r'\s+(staff|reporter|editor)$', '', cleaned, flags=re.IGNORECASE)
         
         return cleaned
+    
+    def _is_wire_service_from_own_source(self, wire_service: str, source_name: str) -> bool:
+        """
+        Check if detected wire service is from the publication's own source.
+        
+        Returns True if the wire service matches the source (local content),
+        False if it's syndicated content.
+        """
+        if not wire_service or not source_name:
+            return False
+        
+        # Calculate similarity using same logic as backfill script
+        from difflib import SequenceMatcher
+        
+        # Normalize for comparison
+        def normalize_for_comparison(text: str) -> str:
+            import re
+            text = text.lower().strip()
+            # Remove articles and common publication words
+            text = re.sub(r'\b(the|a|an|news|press|daily|weekly|times|post|gazette|herald|tribune|journal)\b', '', text)
+            # Remove extra whitespace and punctuation
+            text = re.sub(r'[^\w\s]', '', text)
+            text = re.sub(r'\s+', ' ', text).strip()
+            return text
+        
+        norm_wire = normalize_for_comparison(wire_service)
+        norm_source = normalize_for_comparison(source_name)
+        
+        # Calculate similarity
+        similarity = SequenceMatcher(None, norm_wire, norm_source).ratio()
+        
+        # High similarity threshold - this is the publication's own content
+        if similarity > 0.7:  # 70% similarity threshold
+            return True
+        
+        # Check for direct substring matches (case insensitive)
+        wire_lower = wire_service.lower()
+        source_lower = source_name.lower()
+        
+        # Check if wire service is contained in source name or vice versa
+        if (wire_lower in source_lower or source_lower in wire_lower):
+            return True
+        
+        return False
     
     def _remove_source_name(self, text: str, source_name: str) -> str:
         """Remove source/publication name from author text using fuzzy matching."""
@@ -681,6 +897,14 @@ class BylineCleaner:
         # Skip byline extraction patterns
         for pattern in self.compiled_patterns[4:]:
             text = pattern.sub('', text)
+        
+        # Remove domain suffixes (e.g., "• @domain.com", "• .com")
+        text = re.sub(r'\s*[•·]\s*@?\w*\.com\b.*$', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'\s*[•·]\s*@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}.*$', '', text, flags=re.IGNORECASE)
+        
+        # Remove trailing email domains and handles
+        text = re.sub(r'\s*@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}.*$', '', text)
+        text = re.sub(r'\s*\.\s*(com|org|net|edu|gov).*$', '', text, flags=re.IGNORECASE)
         
         # Remove parenthetical information
         text = re.sub(r'\([^)]*\)', '', text)
@@ -854,18 +1078,28 @@ class BylineCleaner:
             
             return unique_authors
         
-        # Handle comma-separated content with type identification
-        if ',' in text:
-            comma_parts = text.split(',')
+        # Handle comma-separated or pipe-separated content with type identification
+        # Support formats like "Name, Title" or "Name | Title | @Handle"
+        has_comma = ',' in text
+        has_pipe = '|' in text
+        
+        if has_comma or has_pipe:
+            # Choose the primary separator (prefer pipe if both exist)
+            if has_pipe:
+                separator = '|'
+                parts = text.split('|')
+            else:
+                separator = ','
+                parts = text.split(',')
             
             # Identify the type of each part
             part_types = []
-            for part in comma_parts:
+            for part in parts:
                 part_type = self._identify_part_type(part)
                 part_types.append((part.strip(), part_type))
             
-            # Special case: "Last, First" name format detection
-            if (len(comma_parts) == 2 and
+            # Special case: "Last, First" name format detection (only for comma-separated)
+            if (separator == ',' and len(parts) == 2 and
                 len(part_types) == 2 and
                 all(ptype == 'name' for _, ptype in part_types)):
 
@@ -892,7 +1126,7 @@ class BylineCleaner:
             # Smart processing: if we have multiple non-name parts,
             # extract just the name part(s)
             condition = (non_name_count >= 2 or
-                         (non_name_count >= 1 and len(comma_parts) >= 3))
+                         (non_name_count >= 1 and len(parts) >= 3))
             if condition:
                 # Find parts that are clearly names (not photo credits)
                 name_parts = [part for part, ptype in part_types
@@ -952,8 +1186,10 @@ class BylineCleaner:
     def _filter_organization_words(self, text: str) -> str:
         """
         Remove organization/publication words from mixed person/org text.
-        Uses fuzzy matching on multi-word phrases (minimum 2 words) to avoid
-        removing surnames that happen to appear in organization names.
+        # Priority order:
+        # 1. Check for recognized organizations/publications using n-gram
+        # 2. Use database-informed person name detection
+        # 3. Apply individual word filtering as fallback
         
         Args:
             text: Text that might contain person + organization words
@@ -972,88 +1208,273 @@ class BylineCleaner:
         all_org_names = set()
         all_org_names.update(publication_names)
         all_org_names.update(organization_names)
+        all_org_names.update(self.WIRE_SERVICES)  # Add wire services!
         
         # Convert to lowercase for case-insensitive matching
         org_names_lower = {name.lower() for name in all_org_names}
         
-        # Find spans to remove using sliding window approach
-        spans_to_remove = []
+        # STEP 1: ORGANIZATION/PUBLICATION DETECTION (Priority)
+        # Check for complete publication/organization matches first
         text_lower = text.lower()
+        text_words = text_lower.split()
+        spans_to_remove = []
         
-        # Check for multi-word organization matches (minimum 2 words)
+        # Check for multi-word organization matches ONLY (minimum 2 words)
+        # Single-word matches will be handled in STEP 3 after person name protection
         for org_name in org_names_lower:
             org_words = org_name.split()
             if len(org_words) >= 2:  # Require at least 2 words
-                # Use fuzzy matching - check if organization name appears in text
-                if org_name in text_lower:
-                    # Find exact position
-                    start_pos = text_lower.find(org_name)
-                    if start_pos != -1:
-                        end_pos = start_pos + len(org_name)
-                        spans_to_remove.append((start_pos, end_pos))
-                else:
-                    # Check for partial matches (e.g., "hancock school" in "hancock place middle school")
-                    # This handles cases where we have a subset of the organization name
-                    for window_size in range(len(org_words), 1, -1):  # Start with full length, work down
-                        for i in range(len(org_words) - window_size + 1):
-                            partial_org = ' '.join(org_words[i:i + window_size])
-                            if len(partial_org.split()) >= 2 and partial_org in text_lower:
-                                start_pos = text_lower.find(partial_org)
-                                if start_pos != -1:
-                                    end_pos = start_pos + len(partial_org)
-                                    spans_to_remove.append((start_pos, end_pos))
+                # Strategy 1: Try exact match first
+                for start_idx in range(len(text_words) - len(org_words) + 1):
+                    end_idx = start_idx + len(org_words)
+                    text_ngram = text_words[start_idx:end_idx]
+                    if text_ngram == org_words:
+                        # Calculate character positions for span removal
+                        words_before = text_words[:start_idx]
+                        char_start = len(' '.join(words_before))
+                        if words_before:  # Add space if there are words before
+                            char_start += 1
+                        
+                        # Calculate end position
+                        matched_text = ' '.join(text_ngram)
+                        char_end = char_start + len(matched_text)
+                        
+                        spans_to_remove.append((char_start, char_end))
+                        
+                        # Track if this was a wire service
+                        if org_name in {ws.lower() for ws in self.WIRE_SERVICES}:
+                            # Find the original wire service name and normalize it
+                            for service in self.WIRE_SERVICES:
+                                if service.lower() == org_name:
+                                    normalized_service = self._normalize_wire_service(service)
+                                    self._detected_wire_services.append(normalized_service)
                                     break
-                        if spans_to_remove:  # Found a match, stop looking
-                            break
+                
+                # Strategy 2: Check if text contains a subsequence of org words
+                # (e.g., "missouri independent" matches "the missouri independent")
+                if len(org_words) >= 3:  # Only for longer organization names
+                    # Try all contiguous subsequences of length 2+
+                    for subseq_len in range(2, len(org_words)):
+                        max_start = len(org_words) - subseq_len + 1
+                        for subseq_start in range(max_start):
+                            subseq_end = subseq_start + subseq_len
+                            org_subseq = org_words[subseq_start:subseq_end]
+                            
+                            # Check if this subsequence appears in text
+                            subseq_max_start = (len(text_words) -
+                                                len(org_subseq) + 1)
+                            for start_idx in range(subseq_max_start):
+                                end_idx = start_idx + len(org_subseq)
+                                text_ngram = text_words[start_idx:end_idx]
+                                if text_ngram == org_subseq:
+                                    # Calculate character positions
+                                    words_before = text_words[:start_idx]
+                                    char_start = len(' '.join(words_before))
+                                    if words_before:
+                                        char_start += 1
+                                    
+                                    matched_text = ' '.join(text_ngram)
+                                    char_end = char_start + len(matched_text)
+                                    
+                                    spans_to_remove.append(
+                                        (char_start, char_end))
         
-        # Remove overlapping spans and sort by position
-        spans_to_remove = sorted(set(spans_to_remove))
-        merged_spans = []
-        for start, end in spans_to_remove:
-            if merged_spans and start <= merged_spans[-1][1]:
-                # Overlapping spans, merge them
-                merged_spans[-1] = (merged_spans[-1][0], max(merged_spans[-1][1], end))
+        # Apply organization removal spans (prioritized)
+        if spans_to_remove:
+            # Sort spans by start position (reverse order for safe removal)
+            spans_to_remove.sort(key=lambda x: x[0], reverse=True)
+            result_text = text
+            
+            for start, end in spans_to_remove:
+                result_text = result_text[:start] + result_text[end:]
+            
+            # Clean up extra spaces
+            result_text = re.sub(r'\s+', ' ', result_text).strip()
+            
+            # If we removed organizations and have something left, return it
+            if result_text:
+                return result_text
             else:
-                merged_spans.append((start, end))
+                # If removing organizations left nothing, return empty
+                return ""
         
-        # Remove organization text by reconstructing string without removed spans
-        if not merged_spans:
-            # No organization matches found, filter individual journalism terms
-            filtered_words = []
-            for word in words:
-                word_lower = word.lower().strip()
-                # Skip obvious organization patterns and journalism terms (single words only)
-                if (word_lower not in self.ORGANIZATION_PATTERNS and
-                        word_lower not in self.WIRE_SERVICE_PARTIALS and
-                        word_lower not in self.JOURNALISM_NOUNS and
-                        word_lower not in self.TITLES_TO_REMOVE):
-                    filtered_words.append(word)
-            return ' '.join(filtered_words).strip()
+        # STEP 2: DATABASE-INFORMED PERSON NAME DETECTION
+        # Get known name patterns from database to inform protection
+        known_name_patterns = self._get_known_name_patterns()
+        protected_spans = []
         
-        # Reconstruct text without the organization spans
-        result_parts = []
-        last_end = 0
-        for start, end in merged_spans:
-            if start > last_end:
-                result_parts.append(text[last_end:start])
-            last_end = end
-        if last_end < len(text):
-            result_parts.append(text[last_end:])
+        # Check if beginning looks like a known person name pattern
+        if len(text_words) >= 2:
+            for name_len in [3, 2]:  # Check 3 words first, then 2
+                if len(text_words) >= name_len:
+                    potential_name = text_words[:name_len]
+                    
+                    # Check if this matches known name patterns
+                    if self._matches_known_name_pattern(
+                            potential_name, known_name_patterns):
+                        # Calculate character span for this name
+                        name_text = ' '.join(words[:name_len])
+                        char_end = len(name_text)
+                        protected_spans.append((0, char_end))
+                        break  # Use the longer name if found
+                    
+                    # Fallback: basic person name heuristics
+                    looks_like_person = True
+                    
+                    for i, word in enumerate(potential_name):
+                        original_word = words[i] if i < len(words) else ""
+                        
+                        # Must be alphabetic (allow apostrophes, hyphens)
+                        clean_word = word.replace("'", "").replace("-", "")
+                        if not clean_word.isalpha():
+                            looks_like_person = False
+                            break
+                        
+                        # Must be capitalized in original
+                        if not (original_word and original_word[0].isupper()):
+                            looks_like_person = False
+                            break
+                        
+                        # Must not be an obvious organization word
+                        if (word in self.ORGANIZATION_PATTERNS or
+                                word in self.JOURNALISM_NOUNS or
+                                word in self.TITLES_TO_REMOVE):
+                            looks_like_person = False
+                            break
+                    
+                    if looks_like_person:
+                        # Calculate character span for this name
+                        name_text = ' '.join(words[:name_len])
+                        char_end = len(name_text)
+                        protected_spans.append((0, char_end))
+                        break  # Use the longer name if found
         
-        # Clean up extra whitespace and filter remaining individual journalism terms
-        result = ' '.join(''.join(result_parts).split())
+        # STEP 3: INDIVIDUAL WORD FILTERING (Fallback)
+        # If no organizations were removed and no person names protected,
+        # apply individual word filtering including single-word wire services
+        filtered_words = []
+        wire_services_lower = {name.lower() for name in self.WIRE_SERVICES}
         
-        # Final pass to remove individual journalism terms that weren't part of org names
-        final_words = []
-        for word in result.split():
+        for word in words:
             word_lower = word.lower().strip()
+            
+            # Check if this word is a wire service
+            if word_lower in wire_services_lower:
+                # Track removed wire service with normalization
+                # Find the original service name from WIRE_SERVICES
+                for service in self.WIRE_SERVICES:
+                    if service.lower() == word_lower:
+                        normalized_service = self._normalize_wire_service(service)
+                        self._detected_wire_services.append(normalized_service)
+                        break
+                continue  # Skip this word
+            
+            # Skip obvious organization patterns, journalism terms
             if (word_lower not in self.ORGANIZATION_PATTERNS and
                     word_lower not in self.WIRE_SERVICE_PARTIALS and
                     word_lower not in self.JOURNALISM_NOUNS and
                     word_lower not in self.TITLES_TO_REMOVE):
-                final_words.append(word)
+                filtered_words.append(word)
         
-        return ' '.join(final_words).strip()
+        return ' '.join(filtered_words).strip()
+    
+    def _get_known_name_patterns(self) -> Dict[str, int]:
+        """
+        Get patterns of known person names from the database.
+        Returns dictionary with pattern -> frequency count.
+        """
+        try:
+            import sqlite3
+            db_path = "data/mizzou.db"
+            
+            # Query for existing clean author names to build patterns
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            
+            # Get clean author names from the database
+            cursor.execute("""
+                SELECT clean_authors FROM articles
+                WHERE clean_authors IS NOT NULL
+                AND clean_authors != '[]'
+                AND clean_authors != ''
+            """)
+            
+            name_patterns = {}
+            for (clean_authors_json,) in cursor.fetchall():
+                try:
+                    import json
+                    authors = json.loads(clean_authors_json)
+                    for author in authors:
+                        if isinstance(author, str) and author.strip():
+                            # Extract patterns: first name, last name, etc.
+                            words = author.strip().split()
+                            if len(words) >= 2:
+                                # Pattern: first + last name
+                                first_lower = words[0].lower()
+                                last_lower = words[-1].lower()
+                                pattern = f"{first_lower}_{last_lower}"
+                                name_patterns[pattern] = (
+                                    name_patterns.get(pattern, 0) + 1)
+                                
+                                # Pattern: first name frequency
+                                first_pattern = f"first_{first_lower}"
+                                name_patterns[first_pattern] = (
+                                    name_patterns.get(first_pattern, 0) + 1)
+                                
+                                # Pattern: last name frequency
+                                last_pattern = f"last_{last_lower}"
+                                name_patterns[last_pattern] = (
+                                    name_patterns.get(last_pattern, 0) + 1)
+                                
+                except (json.JSONDecodeError, TypeError):
+                    continue
+            
+            conn.close()
+            return name_patterns
+            
+        except Exception:
+            # Return empty dict if database access fails
+            return {}
+    
+    def _matches_known_name_pattern(self, potential_name: List[str],
+                                    known_patterns: Dict[str, int]) -> bool:
+        """
+        Check if potential name matches patterns from known authors.
+        
+        Args:
+            potential_name: List of words that might form a person name
+            known_patterns: Dictionary of known name patterns with frequencies
+            
+        Returns:
+            True if this looks like a known person name pattern
+        """
+        if not potential_name or not known_patterns:
+            return False
+        
+        # Check for exact name pattern match
+        if len(potential_name) >= 2:
+            first_word = potential_name[0].lower()
+            last_word = potential_name[-1].lower()
+            
+            # Check if we've seen this first+last combination before
+            full_pattern = f"{first_word}_{last_word}"
+            if (full_pattern in known_patterns and
+                    known_patterns[full_pattern] >= 2):
+                return True
+            
+            # Check if first name appears frequently
+            first_pattern = f"first_{first_word}"
+            if (first_pattern in known_patterns and
+                    known_patterns[first_pattern] >= 5):
+                return True
+            
+            # Check if last name appears frequently
+            last_pattern = f"last_{last_word}"
+            if (last_pattern in known_patterns and
+                    known_patterns[last_pattern] >= 3):
+                return True
+        
+        return False
 
     def _clean_author_name(self, name: str) -> str:
         """Clean an individual author name."""
@@ -1268,16 +1689,75 @@ class BylineCleaner:
                         deduplicated_authors.append(author.strip())
             authors = deduplicated_authors
         
+        # Deduplicate wire services and filter out source matches
+        unique_wire_services = []
+        seen_services = set()
+        for service in self._detected_wire_services:
+            service_normalized = service.lower().strip()
+            if service_normalized not in seen_services:
+                # Check if this wire service matches the source name (indicating local content)
+                if hasattr(self, '_current_source_name') and self._current_source_name:
+                    if self._is_wire_service_from_own_source(service, self._current_source_name):
+                        # This is local content, not wire content - skip it
+                        continue
+                
+                seen_services.add(service_normalized)
+                unique_wire_services.append(service)
+        
+        # CRITICAL FIX: Remove wire service names from authors when wire content is detected
+        if unique_wire_services:
+            # Create a set of all wire service variations for filtering
+            wire_service_names = set()
+            for service in unique_wire_services:
+                wire_service_names.add(service.lower().strip())
+                # Also add common variations
+                if service.lower() == 'the associated press':
+                    wire_service_names.update(['associated press', 'ap'])
+                elif service.lower() == 'cnn newssource':
+                    wire_service_names.update(['cnn', 'cnn newsource'])
+                elif service.lower() == 'abc news':
+                    wire_service_names.update(['abc'])
+            
+            # Filter out wire service names from authors
+            filtered_authors = []
+            for author in authors:
+                author_normalized = author.lower().strip()
+                if author_normalized not in wire_service_names:
+                    filtered_authors.append(author)
+            
+            authors = filtered_authors
+        
         if return_json:
             return {
                 "authors": authors,
                 "count": len(authors),
                 "primary_author": authors[0] if authors else None,
-                "has_multiple_authors": len(authors) > 1
+                "has_multiple_authors": len(authors) > 1,
+                "wire_services": unique_wire_services,
+                "is_wire_content": len(unique_wire_services) > 0,
+                "primary_wire_service": unique_wire_services[0] if unique_wire_services else None
             }
         else:
             # Return array for normalized individual names (better for DB operations)
             return authors
+
+    def get_detected_wire_services(self) -> List[str]:
+        """
+        Get list of wire services detected in the last cleaning operation.
+        
+        Returns:
+            List of wire service names that were removed from byline
+        """
+        return list(self._detected_wire_services)
+    
+    def get_primary_wire_service(self) -> Optional[str]:
+        """
+        Get the primary (first detected) wire service from last cleaning.
+        
+        Returns:
+            Primary wire service name or None if no wire services detected
+        """
+        return self._detected_wire_services[0] if self._detected_wire_services else None
     
     def clean_bulk_bylines(self, bylines: List[str], return_json: bool = False) -> List[Union[str, Dict]]:
         """

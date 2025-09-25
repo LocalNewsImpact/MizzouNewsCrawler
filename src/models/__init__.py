@@ -125,11 +125,57 @@ class Article(Base):
     # Processing metadata
     extracted_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     extraction_version = Column(String)  # Version of parsing logic
+    # Classification outputs
+    primary_label = Column(String)
+    primary_label_confidence = Column(Float)
+    alternate_label = Column(String)
+    alternate_label_confidence = Column(Float)
+    label_version = Column(String, index=True)
+    label_model_version = Column(String)
+    labels_updated_at = Column(DateTime)
 
     # Relationships
     candidate_link = relationship("CandidateLink", back_populates="articles")
     ml_results = relationship("MLResult", back_populates="article")
     locations = relationship("Location", back_populates="article")
+    labels = relationship(
+        "ArticleLabel",
+        back_populates="article",
+        cascade="all, delete-orphan",
+    )
+
+
+class ArticleLabel(Base):
+    """Versioned article labels with primary and alternate predictions."""
+
+    __tablename__ = "article_labels"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    article_id = Column(
+        String,
+        ForeignKey("articles.id"),
+        nullable=False,
+        index=True,
+    )
+    label_version = Column(String, nullable=False, index=True)
+    model_version = Column(String, nullable=False)
+    model_path = Column(String)
+    primary_label = Column(String, nullable=False)
+    primary_label_confidence = Column(Float)
+    alternate_label = Column(String)
+    alternate_label_confidence = Column(Float)
+    applied_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    meta = Column(JSON)
+
+    article = relationship("Article", back_populates="labels")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "article_id",
+            "label_version",
+            name="uq_article_label_version",
+        ),
+    )
 
 
 class MLResult(Base):

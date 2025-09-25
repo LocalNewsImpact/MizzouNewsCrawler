@@ -52,7 +52,12 @@ def handle_extraction_command(args) -> int:
         per_batch = args.limit
         total_articles = batches * per_batch
         
-        logger.info(f"Starting extraction: {batches} batches of {per_batch} articles each (total: {total_articles})")
+        logger.info(
+            "Starting extraction: %s batches of %s articles each (total: %s)",
+            batches,
+            per_batch,
+            total_articles,
+        )
         
         # Overall statistics tracking
         overall_stats = {
@@ -68,7 +73,10 @@ def handle_extraction_command(args) -> int:
         extractor = ContentExtractor()
         byline_cleaner = BylineCleaner()
         
-        print(f"\n🚀 Starting batch extraction: {batches} batches × {per_batch} articles")
+        print(
+            "\n🚀 Starting batch extraction: "
+            f"{batches} batches × {per_batch} articles"
+        )
         print("=" * 60)
         
         for batch_num in range(1, batches + 1):
@@ -78,12 +86,18 @@ def handle_extraction_command(args) -> int:
             session = db.session
             
             # Build query for articles to extract
-            query = text("""
+            query = text(
+                """
                 SELECT id, url, source, status
                 FROM candidate_links
                 WHERE status = 'article'
-                AND id NOT IN (SELECT candidate_link_id FROM articles WHERE candidate_link_id IS NOT NULL)
-            """)
+                AND id NOT IN (
+                    SELECT candidate_link_id
+                    FROM articles
+                    WHERE candidate_link_id IS NOT NULL
+                )
+                """
+            )
             
             if hasattr(args, 'source') and args.source:
                 query = text(f"{query.text} AND source = '{args.source}'")
@@ -116,7 +130,11 @@ def handle_extraction_command(args) -> int:
             session.close()
             
             # Show batch summary
-            success_rate = (batch_stats['successful'] / batch_stats['processed'] * 100) if batch_stats['processed'] > 0 else 0
+            success_rate = (
+                (batch_stats['successful'] / batch_stats['processed']) * 100
+                if batch_stats['processed'] > 0
+                else 0
+            )
             print(f"\n✅ Batch {batch_num} complete:")
             print(f"   Processed: {batch_stats['processed']}")
             print(f"   Successful: {batch_stats['successful']}")
@@ -125,7 +143,10 @@ def handle_extraction_command(args) -> int:
             
             # Show user agent rotation stats
             rotation_stats = extractor.get_rotation_stats()
-            print(f"   Domains accessed: {rotation_stats['total_domains_accessed']}")
+            print(
+                "   Domains accessed: "
+                f"{rotation_stats['total_domains_accessed']}"
+            )
             
             # Brief pause between batches
             if batch_num < batches:
@@ -133,19 +154,33 @@ def handle_extraction_command(args) -> int:
                 time.sleep(2)
         
         # Final summary
-        print(f"\n🎯 EXTRACTION COMPLETE")
+        print("\n🎯 EXTRACTION COMPLETE")
         print("=" * 60)
-        overall_success_rate = (overall_stats['total_successful'] / overall_stats['total_processed'] * 100) if overall_stats['total_processed'] > 0 else 0
-        print(f"Batches completed: {overall_stats['batches_completed']}/{batches}")
+        overall_success_rate = (
+            (
+                overall_stats['total_successful']
+                / overall_stats['total_processed']
+            )
+            * 100
+            if overall_stats['total_processed'] > 0
+            else 0
+        )
+        print(
+            "Batches completed: "
+            f"{overall_stats['batches_completed']}/{batches}"
+        )
         print(f"Total articles processed: {overall_stats['total_processed']}")
         print(f"Total successful: {overall_stats['total_successful']}")
         print(f"Total failed: {overall_stats['total_failed']}")
         print(f"Overall success rate: {overall_success_rate:.1f}%")
-        
+
         # Show final rotation statistics
         rotation_stats = extractor.get_rotation_stats()
-        print(f"\nUser Agent Rotation Summary:")
-        print(f"  Total domains: {rotation_stats['total_domains_accessed']}")
+        print("\nUser Agent Rotation Summary:")
+        print(
+            "  Total domains: "
+            f"{rotation_stats['total_domains_accessed']}"
+        )
         print(f"  Active sessions: {rotation_stats['active_sessions']}")
         for domain, count in rotation_stats['request_counts'].items():
             print(f"  {domain}: {count} requests")
@@ -159,231 +194,251 @@ def handle_extraction_command(args) -> int:
 
 def _process_batch(articles, extractor, byline_cleaner, session, batch_num):
     """Process a single batch of articles."""
-    batch_stats = {'processed': 0, 'successful': 0, 'failed': 0}
-            
-        print(f"Found {len(articles)} articles for extraction")
-        
-        # Initialize extractor
-        extractor = ContentExtractor()
-        
-        extracted_count = 0
-        failed_count = 0
-        partial_count = 0
-        
-        # Track field completion for quality reporting
-        field_stats = {
-            'title': {'present': 0, 'total': 0},
-            'content': {'present': 0, 'total': 0},
-            'author': {'present': 0, 'total': 0},
-            'publish_date': {'present': 0, 'total': 0},
-            'metadata': {'present': 0, 'total': 0}
-        }
-        
-        # Track extraction method usage
-        method_stats = {
-            'newspaper4k': {'used': 0, 'fields_extracted': 0},
-            'beautifulsoup': {'used': 0, 'fields_extracted': 0},
-            'selenium': {'used': 0, 'fields_extracted': 0}
-        }
-        
-        for i, article in enumerate(articles, 1):
-            url_id, url, source, status = article
-            
-            print(f"\n[{i}/{len(articles)}] Processing article from {source}")
-            print(f"  URL: {url[:80]}{'...' if len(url) > 80 else ''}")
-            print("  Starting extraction with three-tier fallback system...")
-            
-            try:
-                # Extract content
-                start_time = time.time()
-                content_data = extractor.extract_content(url)
-                extraction_time = time.time() - start_time
-                
-                print(f"  Extraction completed in {extraction_time:.1f}s")
-                
-                if content_data and content_data.get('title'):
-                    # Track field completion for quality reporting
-                    field_stats['title']['total'] += 1
-                    field_stats['content']['total'] += 1
-                    field_stats['author']['total'] += 1
-                    field_stats['publish_date']['total'] += 1
-                    field_stats['metadata']['total'] += 1
-                    
-                    fields_present = 0
-                    total_fields = 5
-                    
-                    if content_data.get('title'):
-                        field_stats['title']['present'] += 1
-                        fields_present += 1
-                    if content_data.get('content') and len(content_data.get('content', '').strip()) > 0:
-                        field_stats['content']['present'] += 1
-                        fields_present += 1
-                    if content_data.get('author'):
-                        field_stats['author']['present'] += 1
-                        fields_present += 1
-                    if content_data.get('publish_date'):
-                        field_stats['publish_date']['present'] += 1
-                        fields_present += 1
-                    if content_data.get('metadata') and content_data.get('metadata') != {}:
-                        field_stats['metadata']['present'] += 1
-                        fields_present += 1
-                    
-                    # Calculate completion percentage for this article
-                    completion_percentage = (fields_present / total_fields) * 100
-                    
-                    # Determine status based on completion
-                    if completion_percentage == 100.0:
-                        status_icon = "✅ Success"
-                        status_text = "Complete"
-                    else:
-                        status_icon = "⚠️  Partial"
-                        status_text = f"{completion_percentage:.0f}% complete"
-                    
-                    print(f"  {status_icon}: {content_data['title'][:50]}... ({status_text})")
-                    
-                    # Show extraction methods used if available
-                    metadata = content_data.get('metadata', {})
-                    extraction_methods = metadata.get('extraction_methods', {})
-                    if extraction_methods:
-                        # Track method usage statistics
-                        for field, method in extraction_methods.items():
-                            if method in method_stats:
-                                method_stats[method]['fields_extracted'] += 1
-                        
-                        # Track which methods were used for this URL
-                        used_methods = set(extraction_methods.values())
-                        for method in used_methods:
-                            if method in method_stats:
-                                method_stats[method]['used'] += 1
-                        
-                        methods_summary = []
-                        for field, method in extraction_methods.items():
-                            methods_summary.append(f"{field}:{method}")
-                        if methods_summary:
-                            print(f"    Methods: {', '.join(methods_summary)}")
-                    
-                        # Use transaction to ensure atomicity
-                        try:
-                            # Clean the author field if present
-                            raw_author = content_data.get('author')
-                            cleaned_author = None
-                            if raw_author:
-                                cleaned_author = byline_cleaner.clean_byline(raw_author)
-                                logger.info(f"Author cleaning: '{raw_author}' → '{cleaned_author}'")
-                            
-                            # Save to articles table
-                            article_id = str(uuid.uuid4())
-                            now = datetime.utcnow()
-                            
-                            # Insert into articles table
-                            session.execute(
-                                text("""
-                                    INSERT INTO articles 
-                                    (id, candidate_link_id, url, title, author, publish_date, 
-                                     content, text, status, metadata, extracted_at, created_at, extraction_version)
-                                    VALUES 
-                                    (:id, :candidate_link_id, :url, :title, :author, :publish_date, 
-                                     :content, :text, :status, :metadata, :extracted_at, :created_at, :extraction_version)
-                                """),
-                                {
-                                    "id": article_id,
-                                    "candidate_link_id": str(url_id),
-                                    "url": url,
-                                    "title": content_data.get('title'),
-                                    "author": cleaned_author,  # Use cleaned author instead of raw
-                                    "publish_date": content_data.get('publish_date'),
-                                    "content": content_data.get('content'),
-                                    "text": content_data.get('content'),
-                                    "status": "extracted",
-                                    "metadata": str(content_data.get('metadata', {})),
-                                    "extracted_at": now.isoformat(),
-                                    "created_at": now.isoformat(),
-                                    "extraction_version": "v1.0"
-                                }
-                            )
-                            
-                            # Only update candidate_links status if article save succeeded
-                            session.execute(
-                                text("UPDATE candidate_links SET status = 'extracted' "
-                                     "WHERE id = :url_id"),
-                                {"url_id": url_id}
-                            )
-                            
-                            # Commit transaction
-                            session.commit()
-                            
-                            # Update counters based on completion
-                            if completion_percentage == 100.0:
-                                extracted_count += 1
-                            else:
-                                partial_count += 1
-                                
-                        except Exception as db_error:
-                            # Rollback transaction on any database error
-                            session.rollback()
-                            print(f"  ❌ Database error: {str(db_error)}")
-                            failed_count += 1
+
+    print(f"Found {len(articles)} articles for extraction")
+
+    extracted_count = 0
+    failed_count = 0
+    partial_count = 0
+
+    # Track field completion for quality reporting
+    field_stats = {
+        'title': {'present': 0, 'total': 0},
+        'content': {'present': 0, 'total': 0},
+        'author': {'present': 0, 'total': 0},
+        'publish_date': {'present': 0, 'total': 0},
+        'metadata': {'present': 0, 'total': 0},
+    }
+
+    # Track extraction method usage
+    method_stats = {
+        'newspaper4k': {'used': 0, 'fields_extracted': 0},
+        'beautifulsoup': {'used': 0, 'fields_extracted': 0},
+        'selenium': {'used': 0, 'fields_extracted': 0},
+    }
+
+    for index, article in enumerate(articles, 1):
+        url_id, url, source, status = article
+
+        print(f"\n[{index}/{len(articles)}] Processing article from {source}")
+        print(f"  URL: {url[:80]}{'...' if len(url) > 80 else ''}")
+        print("  Starting extraction with three-tier fallback system...")
+
+        try:
+            start_time = time.time()
+            content_data = extractor.extract_content(url)
+            extraction_time = time.time() - start_time
+
+            print(f"  Extraction completed in {extraction_time:.1f}s")
+
+            if content_data and content_data.get('title'):
+                # Track field completion for quality reporting
+                field_stats['title']['total'] += 1
+                field_stats['content']['total'] += 1
+                field_stats['author']['total'] += 1
+                field_stats['publish_date']['total'] += 1
+                field_stats['metadata']['total'] += 1
+
+                fields_present = 0
+                total_fields = 5
+
+                if content_data.get('title'):
+                    field_stats['title']['present'] += 1
+                    fields_present += 1
+                if (
+                    content_data.get('content')
+                    and content_data.get('content', '').strip()
+                ):
+                    field_stats['content']['present'] += 1
+                    fields_present += 1
+                if content_data.get('author'):
+                    field_stats['author']['present'] += 1
+                    fields_present += 1
+                if content_data.get('publish_date'):
+                    field_stats['publish_date']['present'] += 1
+                    fields_present += 1
+                if content_data.get('metadata'):
+                    field_stats['metadata']['present'] += 1
+                    fields_present += 1
+
+                completion_percentage = (fields_present / total_fields) * 100
+
+                if completion_percentage == 100.0:
+                    status_icon = "✅ Success"
+                    status_text = "Complete"
                 else:
-                    print("  ❌ Failed: No content extracted")
-                    failed_count += 1
-                    
-            except Exception as e:
-                print(f"  ❌ Error: {str(e)}")
-                failed_count += 1
-                
-        session.close()
-        
-        print("\nExtraction complete:")
-        print(f"  ✅ Successfully extracted: {extracted_count}")
-        print(f"  ⚠️  Partially extracted: {partial_count}")
-        print(f"  ❌ Failed: {failed_count}")
-        total_processed = extracted_count + partial_count + failed_count
-        print(f"  📊 Total processed: {total_processed}")
-        
-        # Display field completion report
-        if extracted_count > 0:
-            print("\n📊 Field Completion Report:")
-            print("=" * 40)
-            for field, stats in field_stats.items():
-                if stats['total'] > 0:
-                    percentage = (stats['present'] / stats['total']) * 100
-                    print(f"  {field.capitalize():>12}: "
-                          f"{stats['present']:>3}/{stats['total']:<3} "
-                          f"({percentage:>5.1f}%)")
-            
-            # Overall quality score
-            total_fields = sum(
-                stats['total'] for stats in field_stats.values()
-            )
-            total_present = sum(
-                stats['present'] for stats in field_stats.values()
-            )
-            overall_percentage = (
-                (total_present / total_fields) * 100
-                if total_fields > 0 else 0
-            )
-            print("-" * 40)
-            print(f"  {'Overall Quality':>12}: "
-                  f"{total_present:>3}/{total_fields:<3} "
-                  f"({overall_percentage:>5.1f}%)")
-            
-            # Display extraction method statistics
-            print("\n🔧 Extraction Method Usage:")
-            print("=" * 40)
-            for method, stats in method_stats.items():
-                if stats['used'] > 0:
-                    avg_fields = (
-                        stats['fields_extracted'] / stats['used']
-                        if stats['used'] > 0 else 0
+                    status_icon = "⚠️  Partial"
+                    status_text = f"{completion_percentage:.0f}% complete"
+
+                print(
+                    f"  {status_icon}: {content_data['title'][:50]}... "
+                    f"({status_text})"
+                )
+
+                metadata = content_data.get('metadata', {}) or {}
+                extraction_methods = metadata.get('extraction_methods', {})
+                if extraction_methods:
+                    for field_name, method in extraction_methods.items():
+                        if method in method_stats:
+                            method_stats[method]['fields_extracted'] += 1
+
+                    for method in set(extraction_methods.values()):
+                        if method in method_stats:
+                            method_stats[method]['used'] += 1
+
+                    methods_summary = [
+                        f"{field_name}:{method}"
+                        for field_name, method in extraction_methods.items()
+                    ]
+                    if methods_summary:
+                        print(f"    Methods: {', '.join(methods_summary)}")
+
+                try:
+                    raw_author = content_data.get('author')
+                    cleaned_author = None
+                    if raw_author:
+                        cleaned_author = byline_cleaner.clean_byline(
+                            raw_author
+                        )
+                        logger.info(
+                            "Author cleaning: '%s' → '%s'",
+                            raw_author,
+                            cleaned_author,
+                        )
+
+                    article_id = str(uuid.uuid4())
+                    now = datetime.utcnow()
+
+                    session.execute(
+                        text(
+                            """
+                            INSERT INTO articles (
+                                id,
+                                candidate_link_id,
+                                url,
+                                title,
+                                author,
+                                publish_date,
+                                content,
+                                text,
+                                status,
+                                metadata,
+                                extracted_at,
+                                created_at,
+                                extraction_version
+                            ) VALUES (
+                                :id,
+                                :candidate_link_id,
+                                :url,
+                                :title,
+                                :author,
+                                :publish_date,
+                                :content,
+                                :text,
+                                :status,
+                                :metadata,
+                                :extracted_at,
+                                :created_at,
+                                :extraction_version
+                            )
+                            """
+                        ),
+                        {
+                            "id": article_id,
+                            "candidate_link_id": str(url_id),
+                            "url": url,
+                            "title": content_data.get('title'),
+                            "author": cleaned_author,
+                            "publish_date": content_data.get('publish_date'),
+                            "content": content_data.get('content'),
+                            "text": content_data.get('content'),
+                            "status": "extracted",
+                            "metadata": str(metadata),
+                            "extracted_at": now.isoformat(),
+                            "created_at": now.isoformat(),
+                            "extraction_version": "v1.0",
+                        },
                     )
-                    print(f"  {method.capitalize():>12}: "
-                          f"{stats['used']:>2} URLs, "
-                          f"{stats['fields_extracted']:>2} fields "
-                          f"({avg_fields:.1f} avg/URL)")
-        
-        return 0
-        
-    except Exception as e:
-        logger.error(f"Extraction command failed: {e}")
-        print(f"Error: {e}")
-        return 1
+
+                    session.execute(
+                        text(
+                            "UPDATE candidate_links SET status = 'extracted' "
+                            "WHERE id = :url_id"
+                        ),
+                        {"url_id": url_id},
+                    )
+
+                    session.commit()
+
+                    if completion_percentage == 100.0:
+                        extracted_count += 1
+                    else:
+                        partial_count += 1
+
+                except Exception as db_error:
+                    session.rollback()
+                    print(f"  ❌ Database error: {db_error}")
+                    failed_count += 1
+
+            else:
+                print("  ❌ Failed: No content extracted")
+                failed_count += 1
+
+        except Exception as exc:  # pragma: no cover - log and continue
+            print(f"  ❌ Error: {exc}")
+            failed_count += 1
+
+    total_processed = extracted_count + partial_count + failed_count
+
+    print("\nExtraction complete:")
+    print(f"  ✅ Successfully extracted: {extracted_count}")
+    print(f"  ⚠️  Partially extracted: {partial_count}")
+    print(f"  ❌ Failed: {failed_count}")
+    print(f"  📊 Total processed: {total_processed}")
+
+    if extracted_count > 0:
+        print("\n📊 Field Completion Report:")
+        print("=" * 40)
+        for field, stats in field_stats.items():
+            if stats['total'] > 0:
+                percentage = (stats['present'] / stats['total']) * 100
+                print(
+                    f"  {field.capitalize():>12}: "
+                    f"{stats['present']:>3}/{stats['total']:<3} "
+                    f"({percentage:>5.1f}%)"
+                )
+
+        total_fields = sum(stats['total'] for stats in field_stats.values())
+        total_present = sum(stats['present'] for stats in field_stats.values())
+        overall_percentage = (
+            (total_present / total_fields) * 100 if total_fields > 0 else 0
+        )
+        print("-" * 40)
+        print(
+            f"  {'Overall Quality':>12}: "
+            f"{total_present:>3}/{total_fields:<3} "
+            f"({overall_percentage:>5.1f}%)"
+        )
+
+        print("\n🔧 Extraction Method Usage:")
+        print("=" * 40)
+        for method, stats in method_stats.items():
+            if stats['used'] > 0:
+                avg_fields = (
+                    stats['fields_extracted'] / stats['used']
+                    if stats['used'] > 0
+                    else 0
+                )
+                print(
+                    f"  {method.capitalize():>12}: "
+                    f"{stats['used']:>2} URLs, "
+                    f"{stats['fields_extracted']:>2} fields "
+                    f"({avg_fields:.1f} avg/URL)"
+                )
+
+    return {
+        'processed': total_processed,
+        'successful': extracted_count,
+        'failed': failed_count,
+        'partial': partial_count,
+    }

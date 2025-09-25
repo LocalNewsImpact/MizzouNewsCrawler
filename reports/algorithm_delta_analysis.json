@@ -1,0 +1,1940 @@
+{
+  "summary": {
+    "total_articles": 141,
+    "changes": {
+      "identical": 134,
+      "new_extraction": 0,
+      "removal": 1,
+      "expansion": 1,
+      "reduction": 0,
+      "modification": 5
+    }
+  },
+  "detailed_changes": [
+    {
+      "article_id": "04c1a1fe-3f1a-4426-a9f0-b97ea55b4034",
+      "raw_byline": "Chris Howell  chris.howell@sedaliademocrat.com",
+      "source_name": "The Sedalia Democrat",
+      "old_authors": [
+        "Chris Howell"
+      ],
+      "new_authors": [
+        "Chris Howell"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "0ac4c0cd-0119-4e5c-8b2b-9c0c5e7f6a76",
+      "raw_byline": "Nick Spacek",
+      "source_name": "The Pitch/Kansas City Pitch",
+      "old_authors": [
+        "Nick Spacek"
+      ],
+      "new_authors": [
+        "Nick Spacek"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "0cb85dcf-3d3b-451d-9cde-80725c3a54e2",
+      "raw_byline": "Calla Truschel Jacobs",
+      "source_name": "The University News",
+      "old_authors": [
+        "Calla Truschel Jacobs"
+      ],
+      "new_authors": [
+        "Calla Truschel Jacobs"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "0dde8cad-dbbe-46bc-b353-5bdc75a25e47",
+      "raw_byline": "Allison Scavo",
+      "source_name": "The Pitch/Kansas City Pitch",
+      "old_authors": [
+        "Allison Scavo"
+      ],
+      "new_authors": [
+        "Allison Scavo"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "0eaf1b9d-9bc2-4488-a4d3-d29971ff5c91",
+      "raw_byline": "Wes Fowler, Adam Groza, Benjamin Hawkins, Richard Nations",
+      "source_name": "The Pathway",
+      "old_authors": [
+        "Wes Fowler",
+        "Adam Groza",
+        "Benjamin Hawkins",
+        "Richard Nations"
+      ],
+      "new_authors": [
+        "Wes Fowler",
+        "Adam Groza",
+        "Benjamin Hawkins",
+        "Richard Nations"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "0f28ed4a-efeb-4d49-8810-86004c2a98d4",
+      "raw_byline": "Jamie Santner, Sports, Hailey Lampley",
+      "source_name": "The Standard",
+      "old_authors": [
+        "Jamie Santner",
+        "Hailey Lampley"
+      ],
+      "new_authors": [
+        "Jamie Santner",
+        "Hailey Lampley"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "1150ac0a-e3a3-4175-b998-6b37a6f7a004",
+      "raw_byline": "Joseph Glaser",
+      "source_name": "The University News",
+      "old_authors": [
+        "Joseph Glaser"
+      ],
+      "new_authors": [
+        "Joseph Glaser"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "11c3ba1f-81b9-41c1-a4d3-5816912027f5",
+      "raw_byline": "Maddy Shugart",
+      "source_name": "The Pitch/Kansas City Pitch",
+      "old_authors": [
+        "Maddy Shugart"
+      ],
+      "new_authors": [
+        "Maddy Shugart"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "1385f1e6-4a8c-4c09-a432-26e56716b247",
+      "raw_byline": "Jack Denebeim  jack.denebeim@sedaliademocrat.com",
+      "source_name": "The Sedalia Democrat",
+      "old_authors": [
+        "Jack Denebeim"
+      ],
+      "new_authors": [
+        "Jack Denebeim"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "140aaa51-03be-4991-817f-4a9e0f55f608",
+      "raw_byline": "Jennifer Shutt, Annelise Hanshaw, Ceilidh Kern, Nada Hassanein",
+      "source_name": "The Missouri Independent",
+      "old_authors": [
+        "Jennifer Shutt",
+        "Annelise Hanshaw",
+        "Ceilidh Kern",
+        "Nada Hassanein"
+      ],
+      "new_authors": [
+        "Jennifer Shutt",
+        "Annelise Hanshaw",
+        "Ceilidh Kern",
+        "Nada Hassanein"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "145ff493-e094-472d-9712-fe544f69d274",
+      "raw_byline": "Coach Leonard",
+      "source_name": "The Nevada Daily Mail",
+      "old_authors": [
+        "Coach Leonard"
+      ],
+      "new_authors": [
+        "Coach Leonard"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "15597c87-ef3a-4945-a84e-bfc03f5dee9d",
+      "raw_byline": "Jennifer Shutt and Ariana Figueroa States Newsroom, Jennifer Shutt, Ariana Figueroa States Newsroom",
+      "source_name": "The Sedalia Democrat",
+      "old_authors": [
+        "Jennifer Shutt"
+      ],
+      "new_authors": [
+        "Jennifer Shutt"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "155a5df4-864a-4367-8597-b03eb1a245a9",
+      "raw_byline": "Ava Gorton, Campus Activities Editor",
+      "source_name": "The Standard",
+      "old_authors": [
+        "Ava Gorton"
+      ],
+      "new_authors": [
+        "Ava Gorton"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "1582cb8b-57d3-43b4-a551-e5980a9a4ac0",
+      "raw_byline": "Dawn Jones",
+      "source_name": "The Nevada Daily Mail",
+      "old_authors": [
+        "Dawn Jones"
+      ],
+      "new_authors": [
+        "Dawn Jones"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "177c7528-a06d-44f9-b47b-ab5af5678caf",
+      "raw_byline": "Dawn Jones",
+      "source_name": "The Nevada Daily Mail",
+      "old_authors": [
+        "Dawn Jones"
+      ],
+      "new_authors": [
+        "Dawn Jones"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "1b09fb44-ba98-4ffc-9269-263fb034ca36",
+      "raw_byline": "Sarah Sipple",
+      "source_name": "The Pitch/Kansas City Pitch",
+      "old_authors": [
+        "Sarah Sipple"
+      ],
+      "new_authors": [
+        "Sarah Sipple"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "1d02d392-d5ce-4b5a-b586-c1f117a857b4",
+      "raw_byline": "Rob Phillips, Adam Groza, Wes Fowler, Richard Nations",
+      "source_name": "The Pathway",
+      "old_authors": [
+        "Rob Phillips",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_authors": [
+        "Rob Phillips",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "1d8e5964-e127-4165-8a59-a70ef990f700",
+      "raw_byline": "Jeremy Jacob, Sports Editor, Jeremy Jacob, Sports Editor",
+      "source_name": "The Mexico Ledger",
+      "old_authors": [
+        "Jeremy Jacob"
+      ],
+      "new_authors": [
+        "Jeremy Jacob"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "2227893a-7b66-475e-aca6-32100bb8dae4",
+      "raw_byline": "Nick Spacek",
+      "source_name": "The Pitch/Kansas City Pitch",
+      "old_authors": [
+        "Nick Spacek"
+      ],
+      "new_authors": [
+        "Nick Spacek"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "23dd1f6a-31d3-48b1-91f9-f6e4cdaf4ede",
+      "raw_byline": "Leslie Peacock Caldwell, Adam Groza, Wes Fowler, Richard Nations",
+      "source_name": "The Pathway",
+      "old_authors": [
+        "Leslie Peacock Caldwell",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_authors": [
+        "Leslie Peacock Caldwell",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "273bc646-373e-4e0f-b703-e77d9d2ff16a",
+      "raw_byline": "Shauneen Miranda, Annelise Hanshaw",
+      "source_name": "The Missouri Independent",
+      "old_authors": [
+        "Shauneen Miranda",
+        "Annelise Hanshaw"
+      ],
+      "new_authors": [
+        "Shauneen Miranda",
+        "Annelise Hanshaw"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "2e25f266-37fc-4b4e-985a-c8c6eaf501b8",
+      "raw_byline": "Karen Garcia, Adam Groza, Wes Fowler, Richard Nations",
+      "source_name": "The Pathway",
+      "old_authors": [
+        "Karen Garcia",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_authors": [
+        "Karen Garcia",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "2f1fa8f0-4688-4c31-8dc5-acd91dd7d39c",
+      "raw_byline": "Jack Denebeim jack.denebeim@sedaliademocrat.com",
+      "source_name": "The Sedalia Democrat",
+      "old_authors": [
+        "Jack Denebeim"
+      ],
+      "new_authors": [
+        "Jack Denebeim"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "304cb12e-b3c9-428d-8f6a-7209bdc2424b",
+      "raw_byline": "Ariana Figueroa, Thomas White, Kevin Hardy, M\u00f3nica Cordero",
+      "source_name": "The Missouri Independent",
+      "old_authors": [
+        "Ariana Figueroa",
+        "Hite",
+        "Kevin Hardy",
+        "M\u00f3nica Cordero"
+      ],
+      "new_authors": [
+        "Ariana Figueroa",
+        "Thomas White",
+        "Kevin Hardy",
+        "M\u00f3nica Cordero"
+      ],
+      "comparison": {
+        "change_type": "modification",
+        "added": [
+          "thomas white"
+        ],
+        "removed": [
+          "hite"
+        ],
+        "description": "Added: 1, Removed: 1"
+      }
+    },
+    {
+      "article_id": "31268f33-03b6-4f0f-b0c8-c333abeef875",
+      "raw_byline": "Emma Browka",
+      "source_name": "The University News",
+      "old_authors": [
+        "Emma Browka"
+      ],
+      "new_authors": [
+        "Emma Browka"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "31f01640-a083-44f9-9051-753ebf2f3c6c",
+      "raw_byline": "Anna Claire Vollers, Suzanne King, Annelise Hanshaw, Jonah Foster, Xander Lundblad, Seth Schwartzberg",
+      "source_name": "The Missouri Independent",
+      "old_authors": [
+        "Anna Claire Vollers",
+        "Suzanne King",
+        "Annelise Hanshaw",
+        "Jonah Foster",
+        "Xander Lundblad",
+        "Seth Schwartzberg"
+      ],
+      "new_authors": [
+        "Anna Claire Vollers",
+        "Suzanne King",
+        "Annelise Hanshaw",
+        "Jonah Foster",
+        "Xander Lundblad",
+        "Seth Schwartzberg"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "33a5b7ce-6b7c-4c4d-b3ee-55593bc5ae9a",
+      "raw_byline": "Reegan Johnson",
+      "source_name": "The University News",
+      "old_authors": [
+        "Reegan Johnson"
+      ],
+      "new_authors": [
+        "Reegan Johnson"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "354b236c-e608-4930-9aad-d2af23081c14",
+      "raw_byline": "Ariana Figueroa, Jesse Bogan, Mary Sanchez, Robbie Sequeira",
+      "source_name": "The Missouri Independent",
+      "old_authors": [
+        "Ariana Figueroa",
+        "Jesse Bogan",
+        "Mary Sanchez",
+        "Robbie Sequeira"
+      ],
+      "new_authors": [
+        "Ariana Figueroa",
+        "Jesse Bogan",
+        "Mary Sanchez",
+        "Robbie Sequeira"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "35dc4f13-4b5a-45a1-903c-1b2ffa079c69",
+      "raw_byline": "CNN Newsource",
+      "source_name": "News Press Now",
+      "old_authors": [
+        "CNN Newsource"
+      ],
+      "new_authors": [
+        "CNN Newsource"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "39c57362-0a42-453f-b37c-f89503165962",
+      "raw_byline": "Katie Moore, Jason Hancock, Clara Bates, Rudi Keller",
+      "source_name": "The Missouri Independent",
+      "old_authors": [
+        "Katie Moore",
+        "Jason Hancock",
+        "Clara Bates",
+        "Rudi Keller"
+      ],
+      "new_authors": [
+        "Katie Moore",
+        "Jason Hancock",
+        "Clara Bates",
+        "Rudi Keller"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "3b1e88aa-6896-4f29-9bcc-068567e308ff",
+      "raw_byline": "Rudi Keller, Anna Spoerre, Nada Hassanein",
+      "source_name": "The Missouri Independent",
+      "old_authors": [
+        "Rudi Keller",
+        "Anna Spoerre",
+        "Nada Hassanein"
+      ],
+      "new_authors": [
+        "Rudi Keller",
+        "Anna Spoerre",
+        "Nada Hassanein"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "3ba84b20-e107-4b3d-af6d-2f16ae630966",
+      "raw_byline": "Brendan Brunette",
+      "source_name": "The University News",
+      "old_authors": [
+        "Brendan Brunette"
+      ],
+      "new_authors": [
+        "Brendan Brunette"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "3ecded4f-fd68-4302-8159-01ccdbc6313c",
+      "raw_byline": "Dawn Jones",
+      "source_name": "The Nevada Daily Mail",
+      "old_authors": [
+        "Dawn Jones"
+      ],
+      "new_authors": [
+        "Dawn Jones"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "3f42073f-e953-41b7-9aef-680f3d4cb945",
+      "raw_byline": "Guest",
+      "source_name": "The Missouri Times",
+      "old_authors": [
+        "Guest"
+      ],
+      "new_authors": [],
+      "comparison": {
+        "change_type": "removal",
+        "added": [],
+        "removed": [
+          "guest"
+        ],
+        "description": "Added: 0, Removed: 1"
+      }
+    },
+    {
+      "article_id": "4149b72c-8e2d-403b-b305-b881c08e85d0",
+      "raw_byline": "Jennifer Shutt, Anna Claire Vollers, Kevin Hardy",
+      "source_name": "The Missouri Independent",
+      "old_authors": [
+        "Jennifer Shutt",
+        "Anna Claire Vollers",
+        "Kevin Hardy"
+      ],
+      "new_authors": [
+        "Jennifer Shutt",
+        "Anna Claire Vollers",
+        "Kevin Hardy"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "42506232-f7fe-47f0-86a1-1c40f004bf59",
+      "raw_byline": "Scott Barkley, Adam Groza, Wes Fowler, Richard Nations",
+      "source_name": "The Pathway",
+      "old_authors": [
+        "Scott Barkley",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_authors": [
+        "Scott Barkley",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "429f61df-d81c-4fe7-9273-a98050374e48",
+      "raw_byline": "Nick Spacek",
+      "source_name": "The Pitch/Kansas City Pitch",
+      "old_authors": [
+        "Nick Spacek"
+      ],
+      "new_authors": [
+        "Nick Spacek"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "442d6ed3-9f50-4f6b-8341-76a25a039f57",
+      "raw_byline": "ERLC Staff, Adam Groza, Wes Fowler, Richard Nations",
+      "source_name": "The Pathway",
+      "old_authors": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_authors": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "45d0028a-0e64-4cdb-99fa-19790057242c",
+      "raw_byline": "Rudi Keller",
+      "source_name": "The Missouri Independent",
+      "old_authors": [
+        "Rudi Keller"
+      ],
+      "new_authors": [
+        "Rudi Keller"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "46ca1d27-4873-4f12-8f87-151190baf892",
+      "raw_byline": "Aidan DeSpain",
+      "source_name": "The University News",
+      "old_authors": [
+        "Aidan DeSpain"
+      ],
+      "new_authors": [
+        "Aidan DeSpain"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "47007364-5d79-4f30-95ec-4151bb2bd40d",
+      "raw_byline": "Tim Henderson, Mary Sanchez, Nada Hassanein",
+      "source_name": "The Missouri Independent",
+      "old_authors": [
+        "Tim Henderson",
+        "Mary Sanchez",
+        "Nada Hassanein"
+      ],
+      "new_authors": [
+        "Tim Henderson",
+        "Mary Sanchez",
+        "Nada Hassanein"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "4ab5dacc-7e47-4083-a483-f40b694317e5",
+      "raw_byline": "Sky Strauss, Staff, Sky Strauss, Staff",
+      "source_name": "The Mexico Ledger",
+      "old_authors": [
+        "Sky Strauss"
+      ],
+      "new_authors": [
+        "Sky Strauss"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "4c32301a-4c5b-427d-99d1-5a9b3a5fface",
+      "raw_byline": "L.J. Salzman, Adam Groza, Wes Fowler, Richard Nations",
+      "source_name": "The Pathway",
+      "old_authors": [
+        "L.J. Salzman",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_authors": [
+        "L.J. Salzman",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "4c5b2b7f-e7eb-488f-9750-4cde4945728d",
+      "raw_byline": "Ariana Figueroa, Mary Sanchez, Nada Hassanein, Ashley Murray",
+      "source_name": "The Missouri Independent",
+      "old_authors": [
+        "Ariana Figueroa",
+        "Mary Sanchez",
+        "Nada Hassanein",
+        "Ashley Murray"
+      ],
+      "new_authors": [
+        "Ariana Figueroa",
+        "Mary Sanchez",
+        "Nada Hassanein",
+        "Ashley Murray"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "4ccf19f0-9fdf-4250-bd0b-5972d6df3cf9",
+      "raw_byline": "Reegan Johnson",
+      "source_name": "The University News",
+      "old_authors": [
+        "Reegan Johnson"
+      ],
+      "new_authors": [
+        "Reegan Johnson"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "4ce5247e-ee4c-45be-952d-bbe3c2658a00",
+      "raw_byline": "Rudi Keller Missouri Independent",
+      "source_name": "The Sedalia Democrat",
+      "old_authors": [
+        "Rudi Keller"
+      ],
+      "new_authors": [
+        "Rudi Keller Missouri"
+      ],
+      "comparison": {
+        "change_type": "modification",
+        "added": [
+          "rudi keller missouri"
+        ],
+        "removed": [
+          "rudi keller"
+        ],
+        "description": "Added: 1, Removed: 1"
+      }
+    },
+    {
+      "article_id": "4e986184-24c3-4a52-8ea5-a5027624c779",
+      "raw_byline": "Kayl Baker",
+      "source_name": "The University News",
+      "old_authors": [
+        "Kayl Baker"
+      ],
+      "new_authors": [
+        "Kayl Baker"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "502615e3-04c9-4048-bd30-7db3d6c8a8a7",
+      "raw_byline": "W. Paul Bohlen, Senior Sports",
+      "source_name": "The Standard",
+      "old_authors": [
+        "W. Paul Bohlen"
+      ],
+      "new_authors": [
+        "W. Paul Bohlen"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "50fffffe-c3ec-47f2-abfc-43ba7922338f",
+      "raw_byline": "Abby Olcese",
+      "source_name": "The Pitch/Kansas City Pitch",
+      "old_authors": [
+        "Abby Olcese"
+      ],
+      "new_authors": [
+        "Abby Olcese"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "5362821f-b4eb-4735-a5e7-a822d3da26cb",
+      "raw_byline": "Columbia Missourian staff, Rudi Keller, Annelise Hanshaw",
+      "source_name": "The Missouri Independent",
+      "old_authors": [
+        "Rudi Keller",
+        "Annelise Hanshaw"
+      ],
+      "new_authors": [
+        "Rudi Keller",
+        "Annelise Hanshaw"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "54ca83d5-838d-4ffe-8793-0ec0c7a08d0c",
+      "raw_byline": "Shalina Chatlani, Suzanne King, Annelise Hanshaw, Jonah Foster, Xander Lundblad, Seth Schwartzberg",
+      "source_name": "The Missouri Independent",
+      "old_authors": [
+        "Shalina Chatlani",
+        "Suzanne King",
+        "Annelise Hanshaw",
+        "Jonah Foster",
+        "Xander Lundblad",
+        "Seth Schwartzberg"
+      ],
+      "new_authors": [
+        "Shalina Chatlani",
+        "Suzanne King",
+        "Annelise Hanshaw",
+        "Jonah Foster",
+        "Xander Lundblad",
+        "Seth Schwartzberg"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "566b5936-29c9-4b4c-b92a-c570bb301f1d",
+      "raw_byline": "Jonah Foster, Xander Lundblad, Seth Schwartzberg, Suzanne King, Anna Spoerre, Bram Sable-Smith",
+      "source_name": "The Missouri Independent",
+      "old_authors": [
+        "Jonah Foster",
+        "Xander Lundblad",
+        "Seth Schwartzberg",
+        "Suzanne King",
+        "Anna Spoerre",
+        "Bram Sable-Smith"
+      ],
+      "new_authors": [
+        "Jonah Foster",
+        "Xander Lundblad",
+        "Seth Schwartzberg",
+        "Suzanne King",
+        "Anna Spoerre",
+        "Bram Sable-Smith"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "5a06ae4a-7edd-4a3f-8095-d7224d428129",
+      "raw_byline": "Tharran Gaines, Adam Groza, Wes Fowler, Richard Nations",
+      "source_name": "The Pathway",
+      "old_authors": [
+        "Tharran Gaines",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_authors": [
+        "Tharran Gaines",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "5cbc55b7-d588-4bba-8d44-21e78ce085e6",
+      "raw_byline": "Jennifer Shutt, Ariana Figueroa, Kevin Hardy, Bram Sable-Smith, Tim Henderson",
+      "source_name": "The Missouri Independent",
+      "old_authors": [
+        "Jennifer Shutt",
+        "Ariana Figueroa",
+        "Kevin Hardy",
+        "Bram Sable-Smith",
+        "Tim Henderson"
+      ],
+      "new_authors": [
+        "Jennifer Shutt",
+        "Ariana Figueroa",
+        "Kevin Hardy",
+        "Bram Sable-Smith",
+        "Tim Henderson"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "5e2ce040-6fba-41a7-8d02-793b19280530",
+      "raw_byline": "Jamie Santner, Sports",
+      "source_name": "The Standard",
+      "old_authors": [
+        "Jamie Santner"
+      ],
+      "new_authors": [
+        "Jamie Santner"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "5e2d3616-58dd-43ea-89b2-f01216fecc28",
+      "raw_byline": "Dawn Jones",
+      "source_name": "The Nevada Daily Mail",
+      "old_authors": [
+        "Dawn Jones"
+      ],
+      "new_authors": [
+        "Dawn Jones"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "5eba2844-2d24-42cb-8d29-d9850d7e7bec",
+      "raw_byline": "Hannibal-LaGrange University, Adam Groza, Wes Fowler, Richard Nations",
+      "source_name": "The Pathway",
+      "old_authors": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_authors": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "6360fd8b-6864-42dd-9d39-a049b72b031a",
+      "raw_byline": "Calla Truschel Jacobs",
+      "source_name": "The University News",
+      "old_authors": [
+        "Calla Truschel Jacobs"
+      ],
+      "new_authors": [
+        "Calla Truschel Jacobs"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "64334a59-62b6-49a0-8967-21b060aedb3e",
+      "raw_byline": "Semoball",
+      "source_name": "The Prospect News",
+      "old_authors": [
+        "Semoball"
+      ],
+      "new_authors": [
+        "Semoball"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "655b9e6a-ffcb-4dcc-9058-ed207c47306b",
+      "raw_byline": "Sky Strauss, Staff, Sky Strauss, Staff",
+      "source_name": "The Mexico Ledger",
+      "old_authors": [
+        "Sky Strauss"
+      ],
+      "new_authors": [
+        "Sky Strauss"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "69a13584-11b3-4d9e-83cf-898b35e458ee",
+      "raw_byline": "Jake Kroesen",
+      "source_name": "The Missouri Times",
+      "old_authors": [
+        "Jake Kroesen"
+      ],
+      "new_authors": [
+        "Jake Kroesen"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "6a0dbf41-3080-42ec-88e5-536e93148176",
+      "raw_byline": "Richard Nations, Adam Groza, Wes Fowler, Hannibal-LaGrange University",
+      "source_name": "The Pathway",
+      "old_authors": [
+        "Richard Nations",
+        "Adam Groza",
+        "Wes Fowler"
+      ],
+      "new_authors": [
+        "Richard Nations",
+        "Adam Groza",
+        "Wes Fowler"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "6e4ff9a5-c9b0-4114-94da-23fd5eb8f4d4",
+      "raw_byline": "Vicki Stamps, Adam Groza, Wes Fowler, Richard Nations",
+      "source_name": "The Pathway",
+      "old_authors": [
+        "Vicki Stamps",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_authors": [
+        "Vicki Stamps",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "6e52da4f-cef0-4826-a5fe-81ee4d8cde01",
+      "raw_byline": "Faith Bemiss-McKinney faith.bemiss@sedaliademocrat.com",
+      "source_name": "The Sedalia Democrat",
+      "old_authors": [
+        "Faith Bemiss-Mckinney"
+      ],
+      "new_authors": [
+        "Faith Bemiss-Mckinney"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "7535ceb4-1e82-4a99-b734-afcb19775a85",
+      "raw_byline": "Dawn Jones",
+      "source_name": "The Nevada Daily Mail",
+      "old_authors": [
+        "Dawn Jones"
+      ],
+      "new_authors": [
+        "Dawn Jones"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "75c12b33-e198-4eaa-9994-34819b37cde4",
+      "raw_byline": "Ron Calzone, Brian Kaylor, Rudi Keller, Barbara Shelly",
+      "source_name": "The Missouri Independent",
+      "old_authors": [
+        "Ron Calzone",
+        "Brian Kaylor",
+        "Rudi Keller",
+        "Barbara Shelly"
+      ],
+      "new_authors": [
+        "Ron Calzone",
+        "Brian Kaylor",
+        "Rudi Keller",
+        "Barbara Shelly"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "79930010-47af-4957-b804-a2d4945dee34",
+      "raw_byline": "Benjamin Hawkins, Adam Groza, Wes Fowler, Richard Nations",
+      "source_name": "The Pathway",
+      "old_authors": [
+        "Benjamin Hawkins",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_authors": [
+        "Benjamin Hawkins",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "7a96021a-6524-4ca6-9b18-724beed1d496",
+      "raw_byline": "Teresa Lee",
+      "source_name": "The Prospect News",
+      "old_authors": [
+        "Teresa Lee"
+      ],
+      "new_authors": [
+        "Teresa Lee"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "7b6855ae-0cd0-4916-8700-696a80c50cfc",
+      "raw_byline": "Sophia Keeney, Guest",
+      "source_name": "The Standard",
+      "old_authors": [
+        "Sophia Keeney"
+      ],
+      "new_authors": [
+        "Sophia Keeney"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "7c2a3749-fa36-4949-8f4d-85ecef111ca8",
+      "raw_byline": "Bridgette Dunlap, David Norlin, Brian Kaylor",
+      "source_name": "The Missouri Independent",
+      "old_authors": [
+        "Bridgette Dunlap",
+        "David Norlin",
+        "Brian Kaylor"
+      ],
+      "new_authors": [
+        "Bridgette Dunlap",
+        "David Norlin",
+        "Brian Kaylor"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "7caaf9b8-933c-47cb-b3a8-3ef5a16877c7",
+      "raw_byline": "CNN Newsource",
+      "source_name": "News Press Now",
+      "old_authors": [
+        "CNN Newsource"
+      ],
+      "new_authors": [
+        "CNN Newsource"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "7cb8a185-c072-4749-8717-855a11d3f1f1",
+      "raw_byline": "Shauneen Miranda, Robbie Sequeira, Rudi Keller",
+      "source_name": "The Missouri Independent",
+      "old_authors": [
+        "Shauneen Miranda",
+        "Robbie Sequeira",
+        "Rudi Keller"
+      ],
+      "new_authors": [
+        "Shauneen Miranda",
+        "Robbie Sequeira",
+        "Rudi Keller"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "7eb842d5-7cdd-47aa-9dda-43e072239bb0",
+      "raw_byline": "CNN Newsource",
+      "source_name": "ABC 17 KMIZ News",
+      "old_authors": [
+        "CNN Newsource"
+      ],
+      "new_authors": [
+        "CNN Newsource"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "80232e4f-519c-4d05-a757-76fe3c6044ca",
+      "raw_byline": "Makanaka Bgoni",
+      "source_name": "The Standard",
+      "old_authors": [
+        "Makanaka Bgoni"
+      ],
+      "new_authors": [
+        "Makanaka Bgoni"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "8172796f-eb35-47a2-b1b2-763441871b89",
+      "raw_byline": "Rudi Keller, Jason Hancock",
+      "source_name": "The Missouri Independent",
+      "old_authors": [
+        "Rudi Keller",
+        "Jason Hancock"
+      ],
+      "new_authors": [
+        "Rudi Keller",
+        "Jason Hancock"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "81d4c74f-8ddd-4a40-8aaa-7367f03eb8ae",
+      "raw_byline": "Jonathan Shorman, Jason Hancock, Rudi Keller",
+      "source_name": "The Missouri Independent",
+      "old_authors": [
+        "Jonathan Shorman",
+        "Jason Hancock",
+        "Rudi Keller"
+      ],
+      "new_authors": [
+        "Jonathan Shorman",
+        "Jason Hancock",
+        "Rudi Keller"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "82145e3e-4020-45fa-95f6-35b4ba089778",
+      "raw_byline": "CNN Newsource",
+      "source_name": "News Press Now",
+      "old_authors": [
+        "CNN Newsource"
+      ],
+      "new_authors": [
+        "CNN Newsource"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "83efa519-99b2-4f72-8b15-32cd75dd1443",
+      "raw_byline": "Will Barnett",
+      "source_name": "The Prospect News",
+      "old_authors": [
+        "Will Barnett"
+      ],
+      "new_authors": [
+        "Will Barnett"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "86cb3dfe-1c6b-4b30-9295-bd46b32257af",
+      "raw_byline": "Rudi Keller, Jason Hancock",
+      "source_name": "The Missouri Independent",
+      "old_authors": [
+        "Rudi Keller",
+        "Jason Hancock"
+      ],
+      "new_authors": [
+        "Rudi Keller",
+        "Jason Hancock"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "86cf4ddc-688c-4953-954e-603000f0cf13",
+      "raw_byline": "Dawn Jones",
+      "source_name": "The Nevada Daily Mail",
+      "old_authors": [
+        "Dawn Jones"
+      ],
+      "new_authors": [
+        "Dawn Jones"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "87750127-e249-4512-9dbf-744e94c74aa5",
+      "raw_byline": "Miles Mullin, Adam Groza, Wes Fowler, Richard Nations",
+      "source_name": "The Pathway",
+      "old_authors": [
+        "Miles Mullin",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_authors": [
+        "Miles Mullin",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "884f680a-3cb2-4d5a-b631-e7b7700878cb",
+      "raw_byline": "Rob Phillips, Adam Groza, Wes Fowler, Richard Nations",
+      "source_name": "The Pathway",
+      "old_authors": [
+        "Rob Phillips",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_authors": [
+        "Rob Phillips",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "8a774fbd-ec7e-4ac2-98ea-3568851e4855",
+      "raw_byline": "Alex Dodderidge",
+      "source_name": "The Pitch/Kansas City Pitch",
+      "old_authors": [
+        "Alex Dodderidge"
+      ],
+      "new_authors": [
+        "Alex Dodderidge"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "8a85c2dc-e28a-4cfc-9643-c344207cee56",
+      "raw_byline": "Cole Lee",
+      "source_name": "The Prospect News",
+      "old_authors": [
+        "Cole Lee"
+      ],
+      "new_authors": [
+        "Cole Lee"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "8ce953c6-06b5-47c2-8b18-7e4d81546c54",
+      "raw_byline": "Debra Tune",
+      "source_name": "The Prospect News",
+      "old_authors": [
+        "Debra Tune"
+      ],
+      "new_authors": [
+        "Debra Tune"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "8cfd88b1-345d-4ab4-b976-4ac0ef518c44",
+      "raw_byline": "Chris Howell  chris.howell@sedaliademocrat.com",
+      "source_name": "The Sedalia Democrat",
+      "old_authors": [
+        "Chris Howell"
+      ],
+      "new_authors": [
+        "Chris Howell"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "90879609-6eb3-469b-a1c8-b3dd403724c9",
+      "raw_byline": "Lily Hale",
+      "source_name": "The Standard",
+      "old_authors": [
+        "Lily Hale"
+      ],
+      "new_authors": [
+        "Lily Hale"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "918ac6b1-4c48-4434-b46f-244b968fab4b",
+      "raw_byline": "Rudi Keller, Anna Spoerre",
+      "source_name": "The Missouri Independent",
+      "old_authors": [
+        "Rudi Keller",
+        "Anna Spoerre"
+      ],
+      "new_authors": [
+        "Rudi Keller",
+        "Anna Spoerre"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "93b6e2c8-f327-46c5-afb3-d5b1dc65dc8d",
+      "raw_byline": "Ashlyn Jones",
+      "source_name": "The University News",
+      "old_authors": [
+        "Ashlyn Jones"
+      ],
+      "new_authors": [
+        "Ashlyn Jones"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "9482812a-cb5e-40f1-8c0f-d994b3cf4d92",
+      "raw_byline": "Associated Press",
+      "source_name": "News Press Now",
+      "old_authors": [
+        "Associated"
+      ],
+      "new_authors": [
+        "Associated Press"
+      ],
+      "comparison": {
+        "change_type": "modification",
+        "added": [
+          "associated press"
+        ],
+        "removed": [
+          "associated"
+        ],
+        "description": "Added: 1, Removed: 1"
+      }
+    },
+    {
+      "article_id": "96b4b588-ba91-46d6-9fe9-cf3df1a20de1",
+      "raw_byline": "Jennifer Shutt, Suzanne King, Nada Hassanein",
+      "source_name": "The Missouri Independent",
+      "old_authors": [
+        "Jennifer Shutt",
+        "Suzanne King",
+        "Nada Hassanein"
+      ],
+      "new_authors": [
+        "Jennifer Shutt",
+        "Suzanne King",
+        "Nada Hassanein"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "980993ac-c0cd-4d18-ad8d-e4858c524fb7",
+      "raw_byline": "Aden Zuccarini",
+      "source_name": "The Standard",
+      "old_authors": [
+        "Aden Zuccarini"
+      ],
+      "new_authors": [
+        "Aden Zuccarini"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "9a813d7c-d729-421f-aaaf-e6a55b3c4b73",
+      "raw_byline": "Tessa Sanchez, Adam Groza, Wes Fowler, Richard Nations",
+      "source_name": "The Pathway",
+      "old_authors": [
+        "Tessa Sanchez",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_authors": [
+        "Tessa Sanchez",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "9c974f74-a24f-4eb2-a7d5-0cb9e1938796",
+      "raw_byline": "Annelise Hanshaw, Anna Spoerre",
+      "source_name": "The Missouri Independent",
+      "old_authors": [
+        "Annelise Hanshaw",
+        "Anna Spoerre"
+      ],
+      "new_authors": [
+        "Annelise Hanshaw",
+        "Anna Spoerre"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "a0a4ab72-a967-49a2-a25e-a5ff8c556ba2",
+      "raw_byline": "Jennifer Shutt, Sofia Resnick, Ariana Figueroa, Ashley Murray",
+      "source_name": "The Missouri Independent",
+      "old_authors": [
+        "Jennifer Shutt",
+        "Sofia Resnick",
+        "Ariana Figueroa",
+        "Ashley Murray"
+      ],
+      "new_authors": [
+        "Jennifer Shutt",
+        "Sofia Resnick",
+        "Ariana Figueroa",
+        "Ashley Murray"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "a2c99cc4-0a2d-44f9-b00c-276aaf51cfaa",
+      "raw_byline": "Mariya Yasinovska",
+      "source_name": "The University News",
+      "old_authors": [
+        "Mariya Yasinovska"
+      ],
+      "new_authors": [
+        "Mariya Yasinovska"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "a7fb6068-e28c-4e51-906e-8df84272b83f",
+      "raw_byline": "Maggie Adair",
+      "source_name": "The Prospect News",
+      "old_authors": [
+        "Maggie Adair"
+      ],
+      "new_authors": [
+        "Maggie Adair"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "a8f3487c-8cd5-48c6-94e0-ff585299d85c",
+      "raw_byline": "Ellie Sellers",
+      "source_name": "The Standard",
+      "old_authors": [
+        "Ellie Sellers"
+      ],
+      "new_authors": [
+        "Ellie Sellers"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "ac9d4d81-4451-47a4-8834-5bf561634720",
+      "raw_byline": "IMB, Adam Groza, Wes Fowler, Richard Nations",
+      "source_name": "The Pathway",
+      "old_authors": [
+        "Imb",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_authors": [
+        "Imb",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    },
+    {
+      "article_id": "af500d2e-dc54-4e03-ace7-0a30fd1e0ad5",
+      "raw_byline": "Aditya Gunturu",
+      "source_name": "The University News",
+      "old_authors": [
+        "Aditya Gunturu"
+      ],
+      "new_authors": [
+        "Aditya Gunturu"
+      ],
+      "comparison": {
+        "change_type": "identical",
+        "added": [],
+        "removed": [],
+        "description": "No changes"
+      }
+    }
+  ],
+  "errors": []
+}

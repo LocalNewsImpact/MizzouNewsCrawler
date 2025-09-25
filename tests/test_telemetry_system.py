@@ -209,26 +209,27 @@ class TestComprehensiveExtractionTelemetry:
         # Verify data was saved
         conn = sqlite3.connect(db_path)
         cur = conn.cursor()
-        
+
         cur.execute("SELECT * FROM extraction_telemetry_v2")
         records = cur.fetchall()
         assert len(records) == 1
-        
-        record = records[0]
-        assert record[1] == "op1"  # operation_id
-        assert record[2] == "art1"  # article_id
-        assert record[3] == "https://test.com/article"  # url
-        assert record[4] == "test.com"  # publisher
-        assert record[5] == "test.com"  # host
-        assert record[9] == 200  # http_status_code
-        assert record[14] == "newspaper4k"  # successful_method
-        assert record[21] == 1  # is_success
-        
+
+        columns = [desc[0] for desc in cur.description]
+        record = dict(zip(columns, records[0]))
+        assert record["operation_id"] == "op1"
+        assert record["article_id"] == "art1"
+        assert record["url"] == "https://test.com/article"
+        assert record["publisher"] == "test.com"
+        assert record["host"] == "test.com"
+        assert record["http_status_code"] == 200
+        assert record["successful_method"] == "newspaper4k"
+        assert record["is_success"] == 1
+
         # Check field extraction data
-        field_extraction = json.loads(record[18])
+        field_extraction = json.loads(record["field_extraction"])
         assert field_extraction["newspaper4k"]["title"] is True
         assert field_extraction["newspaper4k"]["content"] is True
-        
+
         conn.close()
     
     def test_save_metrics_with_http_error(self, temp_db):
@@ -254,19 +255,22 @@ class TestComprehensiveExtractionTelemetry:
         conn = sqlite3.connect(db_path)
         cur = conn.cursor()
         
-        cur.execute("SELECT http_status_code, http_error_type, is_success FROM extraction_telemetry_v2")
-        record = cur.fetchone()
-        assert record[0] == 403
-        assert record[1] == "4xx_client_error"
-        assert record[2] == 0
+        cur.execute(
+            "SELECT http_status_code, http_error_type, is_success "
+            "FROM extraction_telemetry_v2"
+        )
+        record = dict(zip([desc[0] for desc in cur.description], cur.fetchone()))
+        assert record["http_status_code"] == 403
+        assert record["http_error_type"] == "4xx_client_error"
+        assert record["is_success"] == 0
         
         # Verify HTTP error summary
         cur.execute("SELECT host, status_code, error_type, count FROM http_error_summary")
-        error_record = cur.fetchone()
-        assert error_record[0] == "blocked.com"
-        assert error_record[1] == 403
-        assert error_record[2] == "4xx_client_error"
-        assert error_record[3] == 1
+        error_record = dict(zip([desc[0] for desc in cur.description], cur.fetchone()))
+        assert error_record["host"] == "blocked.com"
+        assert error_record["status_code"] == 403
+        assert error_record["error_type"] == "4xx_client_error"
+        assert error_record["count"] == 1
         
         conn.close()
     

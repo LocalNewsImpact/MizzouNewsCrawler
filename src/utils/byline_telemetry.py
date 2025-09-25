@@ -6,19 +6,24 @@ and performance analysis.
 """
 
 import json
-import sqlite3
 import time
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from src.config import DATABASE_URL
+from src.telemetry.store import TelemetryStore, get_store
 
 
 class BylineCleaningTelemetry:
     """Comprehensive telemetry collection for byline cleaning operations."""
-    
-    def __init__(self, enable_telemetry: bool = True):
+
+    def __init__(
+        self,
+        enable_telemetry: bool = True,
+        store: Optional[TelemetryStore] = None,
+        database_url: str = DATABASE_URL,
+    ) -> None:
         """
         Initialize telemetry collector.
         
@@ -28,10 +33,82 @@ class BylineCleaningTelemetry:
         self.enable_telemetry = enable_telemetry
         self.session_id = str(uuid.uuid4())
         self.step_counter = 0
+        self._store: TelemetryStore = store or get_store(database_url)
         
         # Current cleaning session data
         self.current_session: Optional[Dict[str, Any]] = None
         self.transformation_steps: List[Dict[str, Any]] = []
+
+        self._ensure_tables()
+
+    def _ensure_tables(self) -> None:
+        with self._store.connection() as conn:
+            conn.execute(
+                '''
+                CREATE TABLE IF NOT EXISTS byline_cleaning_telemetry (
+                    id TEXT PRIMARY KEY,
+                    article_id TEXT,
+                    candidate_link_id TEXT,
+                    source_id TEXT,
+                    source_name TEXT,
+                    raw_byline TEXT,
+                    raw_byline_length INTEGER,
+                    raw_byline_words INTEGER,
+                    extraction_timestamp TIMESTAMP,
+                    cleaning_method TEXT,
+                    source_canonical_name TEXT,
+                    final_authors_json TEXT,
+                    final_authors_count INTEGER,
+                    final_authors_display TEXT,
+                    confidence_score REAL,
+                    processing_time_ms REAL,
+                    has_wire_service BOOLEAN,
+                    has_email BOOLEAN,
+                    has_title BOOLEAN,
+                    has_organization BOOLEAN,
+                    source_name_removed BOOLEAN,
+                    duplicates_removed_count INTEGER,
+                    likely_valid_authors BOOLEAN,
+                    likely_noise BOOLEAN,
+                    requires_manual_review BOOLEAN,
+                    cleaning_errors TEXT,
+                    parsing_warnings TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                '''
+            )
+
+            conn.execute(
+                '''
+                CREATE TABLE IF NOT EXISTS byline_transformation_steps (
+                    id TEXT PRIMARY KEY,
+                    telemetry_id TEXT NOT NULL,
+                    step_number INTEGER,
+                    step_name TEXT,
+                    input_text TEXT,
+                    output_text TEXT,
+                    transformation_type TEXT,
+                    removed_content TEXT,
+                    added_content TEXT,
+                    confidence_delta REAL,
+                    processing_time_ms REAL,
+                    notes TEXT,
+                    timestamp TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (telemetry_id)
+                        REFERENCES byline_cleaning_telemetry(id)
+                )
+                '''
+            )
+
+            conn.execute(
+                '''
+                CREATE INDEX IF NOT EXISTS idx_byline_steps_telemetry
+                ON byline_transformation_steps(telemetry_id)
+                '''
+            )
+
+            conn.commit()
         
     def start_cleaning_session(
         self,
@@ -125,14 +202,23 @@ class BylineCleaningTelemetry:
         if step_name == "source_removal" and removed_content:
             self.current_session['source_name_removed'] = True
             
-        if step_name == "wire_service_detection" and "wire service" in str(notes).lower():
+        if (
+            step_name == "wire_service_detection"
+            and "wire service" in str(notes).lower()
+        ):
             self.current_session['has_wire_service'] = True
             
         if step_name == "duplicate_removal" and removed_content:
             # Count removed duplicates
             if removed_content:
-                removed_count = len([item for item in removed_content.split(',') if item.strip()])
-                self.current_session['duplicates_removed_count'] += removed_count
+                removed_count = len([
+                    item
+                    for item in removed_content.split(',')
+                    if item.strip()
+                ])
+                self.current_session['duplicates_removed_count'] += (
+                    removed_count
+                )
                 
         # Update running confidence score
         self.current_session['confidence_score'] += confidence_delta
@@ -199,8 +285,12 @@ class BylineCleaningTelemetry:
             'likely_valid_authors': likely_valid_authors,
             'likely_noise': likely_noise,
             'requires_manual_review': requires_manual_review,
-            'cleaning_errors': json.dumps(self.current_session['cleaning_errors']),
-            'parsing_warnings': json.dumps(self.current_session['parsing_warnings'])
+            'cleaning_errors': json.dumps(
+                self.current_session['cleaning_errors']
+            ),
+            'parsing_warnings': json.dumps(
+                self.current_session['parsing_warnings']
+            )
         })
         
         # Store the session data
@@ -215,86 +305,100 @@ class BylineCleaningTelemetry:
         """Store the current session telemetry data to database."""
         if not self.current_session:
             return
-            
-        try:
-            # Convert DATABASE_URL to file path
-            db_path = DATABASE_URL.replace('sqlite:///', '')
-            conn = sqlite3.connect(db_path)
+
+        session = dict(self.current_session)
+        steps = [dict(step) for step in self.transformation_steps]
+
+        def writer(conn):
             cursor = conn.cursor()
-            
-            # Insert main telemetry record
-            cursor.execute("""
-                INSERT INTO byline_cleaning_telemetry (
-                    id, article_id, candidate_link_id, source_id, source_name,
-                    raw_byline, raw_byline_length, raw_byline_words,
-                    extraction_timestamp, cleaning_method, source_canonical_name,
-                    final_authors_json, final_authors_count, final_authors_display,
-                    confidence_score, processing_time_ms, has_wire_service,
-                    has_email, has_title, has_organization, source_name_removed,
-                    duplicates_removed_count, likely_valid_authors, likely_noise,
-                    requires_manual_review, cleaning_errors, parsing_warnings
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                self.current_session['telemetry_id'],
-                self.current_session.get('article_id'),
-                self.current_session.get('candidate_link_id'),
-                self.current_session.get('source_id'),
-                self.current_session.get('source_name'),
-                self.current_session['raw_byline'],
-                self.current_session['raw_byline_length'],
-                self.current_session['raw_byline_words'],
-                self.current_session['extraction_timestamp'],
-                self.current_session.get('cleaning_method'),
-                self.current_session.get('source_canonical_name'),
-                self.current_session.get('final_authors_json'),
-                self.current_session.get('final_authors_count'),
-                self.current_session.get('final_authors_display'),
-                self.current_session['confidence_score'],
-                self.current_session.get('processing_time_ms'),
-                self.current_session['has_wire_service'],
-                self.current_session['has_email'],
-                self.current_session['has_title'],
-                self.current_session['has_organization'],
-                self.current_session['source_name_removed'],
-                self.current_session['duplicates_removed_count'],
-                self.current_session.get('likely_valid_authors'),
-                self.current_session.get('likely_noise'),
-                self.current_session.get('requires_manual_review'),
-                self.current_session.get('cleaning_errors'),
-                self.current_session.get('parsing_warnings')
-            ))
-            
-            # Insert transformation steps
-            for step in self.transformation_steps:
-                cursor.execute("""
-                    INSERT INTO byline_transformation_steps (
-                        id, telemetry_id, step_number, step_name, input_text,
-                        output_text, transformation_type, removed_content,
-                        added_content, confidence_delta, processing_time_ms,
-                        notes, timestamp
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    step['id'],
-                    step['telemetry_id'],
-                    step['step_number'],
-                    step['step_name'],
-                    step['input_text'],
-                    step['output_text'],
-                    step['transformation_type'],
-                    step.get('removed_content'),
-                    step.get('added_content'),
-                    step['confidence_delta'],
-                    step['processing_time_ms'],
-                    step.get('notes'),
-                    step['timestamp']
-                ))
-            
-            conn.commit()
-            conn.close()
-            
-        except Exception as e:
-            print(f"Warning: Failed to store telemetry data: {e}")
+            try:
+                cursor.execute(
+                    '''
+                    INSERT INTO byline_cleaning_telemetry (
+                        id, article_id, candidate_link_id, source_id,
+                        source_name, raw_byline, raw_byline_length,
+                        raw_byline_words, extraction_timestamp,
+                        cleaning_method,
+                        source_canonical_name, final_authors_json,
+                        final_authors_count, final_authors_display,
+                        confidence_score, processing_time_ms, has_wire_service,
+                        has_email, has_title, has_organization,
+                        source_name_removed, duplicates_removed_count,
+                        likely_valid_authors, likely_noise,
+                        requires_manual_review, cleaning_errors,
+                        parsing_warnings
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''',
+                    (
+                        session['telemetry_id'],
+                        session.get('article_id'),
+                        session.get('candidate_link_id'),
+                        session.get('source_id'),
+                        session.get('source_name'),
+                        session['raw_byline'],
+                        session['raw_byline_length'],
+                        session['raw_byline_words'],
+                        session['extraction_timestamp'],
+                        session.get('cleaning_method'),
+                        session.get('source_canonical_name'),
+                        session.get('final_authors_json'),
+                        session.get('final_authors_count'),
+                        session.get('final_authors_display'),
+                        session['confidence_score'],
+                        session.get('processing_time_ms'),
+                        session['has_wire_service'],
+                        session['has_email'],
+                        session['has_title'],
+                        session['has_organization'],
+                        session['source_name_removed'],
+                        session['duplicates_removed_count'],
+                        session.get('likely_valid_authors'),
+                        session.get('likely_noise'),
+                        session.get('requires_manual_review'),
+                        session.get('cleaning_errors'),
+                        session.get('parsing_warnings'),
+                    ),
+                )
+
+                for step in steps:
+                    cursor.execute(
+                        '''
+                        INSERT INTO byline_transformation_steps (
+                            id, telemetry_id, step_number, step_name,
+                            input_text, output_text, transformation_type,
+                            removed_content, added_content, confidence_delta,
+                            processing_time_ms, notes, timestamp
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ''',
+                        (
+                            step['id'],
+                            step['telemetry_id'],
+                            step['step_number'],
+                            step['step_name'],
+                            step['input_text'],
+                            step['output_text'],
+                            step['transformation_type'],
+                            step.get('removed_content'),
+                            step.get('added_content'),
+                            step['confidence_delta'],
+                            step['processing_time_ms'],
+                            step.get('notes'),
+                            step['timestamp'],
+                        ),
+                    )
+            finally:
+                cursor.close()
+
+        try:
+            self._store.submit(writer)
+        except Exception as exc:  # pragma: no cover - telemetry best effort
+            print(f"Warning: Failed to store telemetry data: {exc}")
             # Don't fail the cleaning process due to telemetry issues
+
+    def flush(self) -> None:
+        if self.enable_telemetry:
+            self._store.flush()
             
     def get_session_summary(self) -> Optional[Dict[str, Any]]:
         """Get a summary of the current cleaning session."""

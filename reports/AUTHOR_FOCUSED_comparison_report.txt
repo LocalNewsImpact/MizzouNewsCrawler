@@ -1,0 +1,98 @@
+================================================================================
+FOCUSED AUTHOR EXTRACTION COMPARISON
+OLD (Current) vs NEW (Experimental) Methods
+================================================================================
+
+ACCURACY COMPARISON:
+----------------------------------------
+Total Test Cases: 111
+OLD Method Exact Matches: 109 (98.2%)
+NEW Method Exact Matches: 102 (91.9%)
+Method Agreement: 104 (93.7%)
+
+PERFORMANCE COMPARISON:
+----------------------------------------
+OLD Method Average Time: 76.53ms
+NEW Method Average Time: 105.88ms
+Speed Ratio (NEW/OLD): 1.4x
+
+IMPROVEMENT ANALYSIS:
+----------------------------------------
+  equivalent: 102 (91.9%)
+  equivalent_distance: 2 (1.8%)
+  old_better: 7 (6.3%)
+
+NEW METHOD STRATEGY USAGE:
+----------------------------------------
+  smart_parsing: 110 (99.1%)
+  fallback: 1 (0.9%)
+
+DETAILED EXAMPLES:
+----------------------------------------
+
+EQUIVALENT:
+  1. Byline: "Ella Conklin, Katie Puttoff, Brayden Thompson, Ellen Basse"
+     CURRENT: ['Ella Conklin', 'Katie Puttoff', 'Brayden Thompson', 'Ellen Basse']
+     OLD: ['Ella Conklin', 'Katie Puttoff', 'Brayden Thompson', 'Ellen Basse']
+     NEW: ['Ella Conklin', 'Katie Puttoff', 'Brayden Thompson', 'Ellen Basse'] (confidence: 0.50, strategy: smart_parsing)
+
+  2. Byline: "Debra Tune"
+     CURRENT: ['Debra Tune']
+     OLD: ['Debra Tune']
+     NEW: ['Debra Tune'] (confidence: 0.50, strategy: smart_parsing)
+
+  3. Byline: "Emma Browka"
+     CURRENT: ['Emma Browka']
+     OLD: ['Emma Browka']
+     NEW: ['Emma Browka'] (confidence: 0.50, strategy: smart_parsing)
+
+  4. Byline: "Vicki Stamps, Adam Groza, Wes Fowler, Richard Nations"
+     CURRENT: ['Vicki Stamps', 'Adam Groza', 'Wes Fowler', 'Richard Nations']
+     OLD: ['Vicki Stamps', 'Adam Groza', 'Wes Fowler', 'Richard Nations']
+     NEW: ['Vicki Stamps', 'Adam Groza', 'Wes Fowler', 'Richard Nations'] (confidence: 0.50, strategy: smart_parsing)
+
+  5. Byline: "Jake Kroesen"
+     CURRENT: ['Jake Kroesen']
+     OLD: ['Jake Kroesen']
+     NEW: ['Jake Kroesen'] (confidence: 0.50, strategy: smart_parsing)
+
+
+EQUIVALENT DISTANCE:
+  1. Byline: "Ariana Figueroa, Thomas White, Kevin Hardy, Mónica Cordero"
+     CURRENT: ['Ariana Figueroa', 'Hite', 'Kevin Hardy', 'Mónica Cordero']
+     OLD: ['Ariana Figueroa', 'Thomas White', 'Kevin Hardy', 'Mónica Cordero']
+     NEW: ['Ariana Figueroa', 'Thomas White', 'Kevin Hardy', 'Mónica Cordero'] (confidence: 0.50, strategy: smart_parsing)
+
+  2. Byline: "Tim Ellsworth, Adam Groza, Wes Fowler, Richard Nations"
+     CURRENT: ['Tillsworth', 'Adam Groza', 'Wes Fowler', 'Richard Nations']
+     OLD: ['Tim Ellsworth', 'Adam Groza', 'Wes Fowler', 'Richard Nations']
+     NEW: ['Tim Ellsworth', 'Adam Groza', 'Wes Fowler', 'Richard Nations'] (confidence: 0.50, strategy: smart_parsing)
+
+
+OLD BETTER:
+  1. Byline: "IMB, Adam Groza, Wes Fowler, Richard Nations"
+     CURRENT: ['Imb', 'Adam Groza', 'Wes Fowler', 'Richard Nations']
+     OLD: ['Imb', 'Adam Groza', 'Wes Fowler', 'Richard Nations']
+     NEW: ['Adam Groza', 'Wes Fowler', 'Richard Nations'] (confidence: 0.50, strategy: smart_parsing)
+
+  2. Byline: "Jacob Miklas, William J. Ford, Ceilidh Kern, Abigail Didonna, Will Firra, Zoe Naylor, Peter Pynadath"
+     CURRENT: ['Jacob Miklas', 'Ford', 'Ceilidh Kern', 'Abigail Didonna', 'Will Firra', 'Zoe Naylor', 'Peter Pynadath']
+     OLD: ['Jacob Miklas', 'Ford', 'Ceilidh Kern', 'Abigail Didonna', 'Will Firra', 'Zoe Naylor', 'Peter Pynadath']
+     NEW: ['Jacob Miklas', 'Ceilidh Kern', 'Abigail Didonna', 'Will Firra', 'Zoe Naylor', 'Peter Pynadath'] (confidence: 0.50, strategy: smart_parsing)
+
+  3. Byline: "Faith Bemiss-McKinney faith.bemiss@sedaliademocrat.com"
+     CURRENT: ['Faith Bemiss-Mckinney']
+     OLD: ['Faith Bemiss-Mckinney']
+     NEW: ['Faith Bemiss-Mckinney Faith.Bemiss@Sedaliademocrat.Com'] (confidence: 0.50, strategy: smart_parsing)
+
+  4. Byline: "Jack Denebeim  jack.denebeim@sedaliademocrat.com"
+     CURRENT: ['Jack Denebeim']
+     OLD: ['Jack Denebeim']
+     NEW: ['Jack Denebeim Jack.Denebeim@Sedaliademocrat.Com'] (confidence: 0.50, strategy: smart_parsing)
+
+  5. Byline: "Jack Denebeim jack.denebeim@sedaliademocrat.com"
+     CURRENT: ['Jack Denebeim']
+     OLD: ['Jack Denebeim']
+     NEW: ['Jack Denebeim Jack.Denebeim@Sedaliademocrat.Com'] (confidence: 0.50, strategy: smart_parsing)
+
+================================================================================

@@ -1,0 +1,1384 @@
+COMPLETE TEXT REMOVAL ANALYSIS
+==================================================
+Generated: 2025-09-24 04:38:31
+
+ 1. abc17news.com (91 articles)
+    ✅ 2 segments for removal
+    📈 Estimated removal: 0.4% of content
+    📝 1593 characters removable
+
+    SEGMENT 1 (Confidence: 0.70)
+    Pattern: FOOTER
+    Occurrences: 6 times
+    Length: 91 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "™ & © 2025 Cable News Network, Inc., a Warner Bros. Discovery Company. All rights reserved."
+
+    APPEARS IN ARTICLES:
+    • https://abc17news.com/money/cnn-business-consumer/2025/09/20/us-will-complete-tiktok-deal-in-coming-days-and-control-its-algorithm-white-house-says/
+    • https://abc17news.com/cnn-spanish/2025/09/20/la-casa-blanca-esta-100-segura-de-que-el-acuerdo-de-tiktok-esta-cerrado-el-algoritmo-sera-controlado-por-ee-uu/
+    • https://abc17news.com/politics/national-politics/cnn-us-politics/2025/09/20/its-a-new-world-with-trump-inside-democrats-shutdown-gamble/
+    • https://abc17news.com/news/national-world/cnn-national/2025/09/20/what-we-know-about-charlie-kirks-memorial-service/
+    • https://abc17news.com/news/national-world/cnn-world/2025/09/20/an-activists-murder-rocked-honduras-now-her-daughter-is-in-the-hot-seat/
+    • https://abc17news.com/cnn-spanish/2025/09/20/el-asesinato-de-una-activista-conmociono-a-honduras-ahora-su-hija-teme-ser-la-proxima-victima/
+
+    SEGMENT 2 (Confidence: 0.60)
+    Pattern: OTHER
+    Occurrences: 3 times
+    Length: 86 characters
+    Boundary Score: 0.60
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "ABC 17 News is committed to providing a forum for civil and constructive conversation."
+
+    APPEARS IN ARTICLES:
+    • https://abc17news.com/news/transportation/road-construction/2025/09/19/road-work-scheduled-for-several-columbia-streets/
+    • https://abc17news.com/cnn-spanish/2025/09/19/trump-anuncia-otro-ataque-letal-contra-presunta-embarcacion-de-narcotrafico-en-aguas-internacionales/
+    • https://abc17news.com/sports/high-school-sports/sportszone-football-friday/2025/09/19/sportszone-football-friday-highlights-and-scores-week-four-2/
+
+======================================================================
+
+ 2. www.newspressnow.com (50 articles)
+    ✅ 5 segments for removal
+    📈 Estimated removal: 2.6% of content
+    📝 4050 characters removable
+
+    SEGMENT 1 (Confidence: 0.60)
+    Pattern: OTHER
+    Occurrences: 8 times
+    Length: 108 characters
+    Boundary Score: 0.60
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Please keep your comments respectful and relevant. You can review our Community Guidelines by clicking here."
+
+    APPEARS IN ARTICLES:
+    • https://www.newspressnow.com/ap/ap-sports/2025/09/20/american-league-glance-180/
+    • https://www.newspressnow.com/ap/ap-sports/2025/09/20/nhl-preseason-expanded-glance-2/
+    • https://www.newspressnow.com/ap/ap-sports/2025/09/19/ncaa-football-scores-15/
+    • https://www.newspressnow.com/ap/ap-sports/2025/09/19/sports-betting-line-188/
+    • https://www.newspressnow.com/ap/ap-sports/2025/09/20/national-league-glance-182/
+    • https://www.newspressnow.com/ap/ap-nebraska-news/2025/09/19/winning-numbers-drawn-in-fridays-nebraska-pick-5-20/
+    • https://www.newspressnow.com/ap/ap-sports/2025/09/20/ap-scorecard-183/
+    • https://www.newspressnow.com/ap/ap-sports/2025/09/20/nhl-preseason-glance-2/
+
+    SEGMENT 2 (Confidence: 0.60)
+    Pattern: OTHER
+    Occurrences: 8 times
+    Length: 89 characters
+    Boundary Score: 0.60
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "News-Press Now is committed to providing a forum for civil and constructive conversation."
+
+    APPEARS IN ARTICLES:
+    • https://www.newspressnow.com/ap/ap-sports/2025/09/20/american-league-glance-180/
+    • https://www.newspressnow.com/ap/ap-sports/2025/09/20/nhl-preseason-expanded-glance-2/
+    • https://www.newspressnow.com/ap/ap-sports/2025/09/19/ncaa-football-scores-15/
+    • https://www.newspressnow.com/ap/ap-sports/2025/09/19/sports-betting-line-188/
+    • https://www.newspressnow.com/ap/ap-sports/2025/09/20/national-league-glance-182/
+    • https://www.newspressnow.com/ap/ap-nebraska-news/2025/09/19/winning-numbers-drawn-in-fridays-nebraska-pick-5-20/
+    • https://www.newspressnow.com/ap/ap-sports/2025/09/20/ap-scorecard-183/
+    • https://www.newspressnow.com/ap/ap-sports/2025/09/20/nhl-preseason-glance-2/
+
+    SEGMENT 3 (Confidence: 0.60)
+    Pattern: OTHER
+    Occurrences: 8 times
+    Length: 57 characters
+    Boundary Score: 0.60
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "You can review our Community Guidelines by clicking here."
+
+    APPEARS IN ARTICLES:
+    • https://www.newspressnow.com/ap/ap-sports/2025/09/20/american-league-glance-180/
+    • https://www.newspressnow.com/ap/ap-sports/2025/09/20/nhl-preseason-expanded-glance-2/
+    • https://www.newspressnow.com/ap/ap-sports/2025/09/19/ncaa-football-scores-15/
+    • https://www.newspressnow.com/ap/ap-sports/2025/09/19/sports-betting-line-188/
+    • https://www.newspressnow.com/ap/ap-sports/2025/09/20/national-league-glance-182/
+    • https://www.newspressnow.com/ap/ap-nebraska-news/2025/09/19/winning-numbers-drawn-in-fridays-nebraska-pick-5-20/
+    • https://www.newspressnow.com/ap/ap-sports/2025/09/20/ap-scorecard-183/
+    • https://www.newspressnow.com/ap/ap-sports/2025/09/20/nhl-preseason-glance-2/
+
+    SEGMENT 4 (Confidence: 0.70)
+    Pattern: OTHER
+    Occurrences: 6 times
+    Length: 23 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "By The Associated Press"
+
+    APPEARS IN ARTICLES:
+    • https://www.newspressnow.com/ap/ap-iowa-news/2025/09/19/winning-numbers-drawn-in-fridays-iowa-pick-3-evening-22/
+    • https://www.newspressnow.com/ap/ap-iowa-news/2025/09/19/winning-numbers-drawn-in-fridays-iowa-pick-4-evening-21/
+    • https://www.newspressnow.com/ap/ap-sports/2025/09/20/sports-on-tv-for-sunday-sept-21/
+    • https://www.newspressnow.com/ap/ap-nebraska-news/2025/09/19/winning-numbers-drawn-in-fridays-nebraska-pick-3-20/
+    • https://www.newspressnow.com/sports/kansas-city-royals/2025/09/20/massey-leads-royals-against-the-blue-jays-after-4-hit-outing/
+    • https://www.newspressnow.com/ap/ap-missouri-news/2025/09/19/winning-numbers-drawn-in-fridays-missouri-pick-3-evening-20/
+
+    SEGMENT 5 (Confidence: 0.60)
+    Pattern: OTHER
+    Occurrences: 4 times
+    Length: 138 characters
+    Boundary Score: 0.60
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "The daybook is for planning purposes only and is not intended for publication or broadcast. You should verify any event you plan to cover."
+
+    APPEARS IN ARTICLES:
+    • https://www.newspressnow.com/ap/ap-iowa-news/2025/09/20/iowa-daybook-187/
+    • https://www.newspressnow.com/ap/ap-nebraska-news/2025/09/20/nebraska-daybook-186/
+    • https://www.newspressnow.com/ap/ap-kansas-news/2025/09/20/kansas-daybook-184/
+    • https://www.newspressnow.com/ap/ap-missouri-news/2025/09/20/missouri-daybook-185/
+
+======================================================================
+
+ 3. www.douglascountyherald.com (45 articles)
+    ✅ 20 segments for removal
+    📈 Estimated removal: 11.6% of content
+    📝 15950 characters removable
+
+    SEGMENT 1 (Confidence: 0.70)
+    Pattern: OTHER
+    Occurrences: 4 times
+    Length: 112 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Deputy Jesse Three Eagles arrived at the scene of a child who had become entrapped under a bridge while swimming"
+
+    APPEARS IN ARTICLES:
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald/181420908/
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald-clarence-nash/181417350/
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald-clarence-nash/181417243/
+    • https://www.douglascountyherald.com/2025/06/20/child-rescued-from-culvert-at-local-swimming-area/
+
+    SEGMENT 2 (Confidence: 0.70)
+    Pattern: SIDEBAR
+    Occurrences: 4 times
+    Length: 94 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "National Yo-Yo Contest, set to take place June 27–29 at the Westgate Las Vegas Resort & Casino"
+
+    APPEARS IN ARTICLES:
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald/181420908/
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald-clarence-nash/181417350/
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald-clarence-nash/181417243/
+    • https://www.douglascountyherald.com/2025/06/04/ava-teen-qualifies-for-national-yo-yo-contest-in-las-vegas/
+
+    SEGMENT 3 (Confidence: 0.70)
+    Pattern: OTHER
+    Occurrences: 4 times
+    Length: 82 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "The investigation is the first for the Ava Police Department in more than 20 years"
+
+    APPEARS IN ARTICLES:
+    • https://www.douglascountyherald.com/2025/08/22/vaughan-arrested-for-murder-of-springfield-man/
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald/181420908/
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald-clarence-nash/181417350/
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald-clarence-nash/181417243/
+
+    SEGMENT 4 (Confidence: 0.70)
+    Pattern: OTHER
+    Occurrences: 4 times
+    Length: 74 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "The Lady Bears who had an incredible season had to settle for fourth place"
+
+    APPEARS IN ARTICLES:
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald/181420908/
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald-clarence-nash/181417350/
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald-clarence-nash/181417243/
+    • https://www.douglascountyherald.com/2025/06/04/lady-bears-finish-fourth-in-class-2/
+
+    SEGMENT 5 (Confidence: 0.70)
+    Pattern: OTHER
+    Occurrences: 4 times
+    Length: 67 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Sheriff Chris Degase said the woman fired several shots at deputies"
+
+    APPEARS IN ARTICLES:
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald/181420908/
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald-clarence-nash/181417350/
+    • https://www.douglascountyherald.com/2025/05/22/douglas-county-woman-shot-by-deputies/
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald-clarence-nash/181417243/
+
+    SEGMENT 6 (Confidence: 1.00)
+    Pattern: OTHER
+    Occurrences: 3 times
+    Length: 126 characters
+    Boundary Score: 1.00
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Video from the Ava Board of Aldermen meeting will be posted to the Douglas County Herald’s website at douglascountyherald.com."
+
+    APPEARS IN ARTICLES:
+    • https://www.douglascountyherald.com/2021/05/13/city-aldermen-purchase-mowers-hire-pool-staff/
+    • https://www.douglascountyherald.com/2021/07/15/ava-city-council-ava-has-1-9m-in-reserves-reduced-coc-agreement-approved/
+    • https://www.douglascountyherald.com/2021/05/27/ava-city-council-tables-coc-agreement-renews-fairgrounds-landfill-community-center/
+    • https://www.douglascountyherald.com/2021/06/10/ava-city-council-approves-12m-budget-for-fy-2022/
+
+    SEGMENT 7 (Confidence: 0.70)
+    Pattern: OTHER
+    Occurrences: 3 times
+    Length: 366 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Douglas County investigators said a woman was critically injured during an officer-involved shooting. The shooting happened on Wednesday around 6 p.m. Deputies attempted to arrest the woman wanted on felony charges, according to a press release from the Sheriff’s Office. Sheriff Chris Degase said the woman fired several shots at deputies. The deputies fired back,…"
+
+    APPEARS IN ARTICLES:
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald/181420908/
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald-clarence-nash/181417350/
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald-clarence-nash/181417243/
+
+    SEGMENT 8 (Confidence: 0.70)
+    Pattern: OTHER
+    Occurrences: 3 times
+    Length: 351 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "White River Valley Electric Cooperative’s (WRVEC) annual meeting will be taking place virtually on Friday, August 22 at 10 a.m. The 86th Annual Meeting will highlight the “people behind the power.” Members will tune in to the closed-captioned meeting at WhiteRiverMeeting.com. A call-in option will also be provided for members who do not have access…"
+
+    APPEARS IN ARTICLES:
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald/181420908/
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald-clarence-nash/181417350/
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald-clarence-nash/181417243/
+
+    SEGMENT 9 (Confidence: 0.70)
+    Pattern: SIDEBAR
+    Occurrences: 3 times
+    Length: 338 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Fifteen-year-old Cade Dillon Ackerly of Ava has secured a spot in the 2025 U.S. National Yo-Yo Contest, set to take place June 27–29 at the Westgate Las Vegas Resort & Casino. nAckerly earned his qualification through his performance at the 2025 Pacific Northwest Regional Yo-Yo Championship, where he placed 9th in the 1A division. This…"
+
+    APPEARS IN ARTICLES:
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald/181420908/
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald-clarence-nash/181417350/
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald-clarence-nash/181417243/
+
+    SEGMENT 10 (Confidence: 0.70)
+    Pattern: SIDEBAR
+    Occurrences: 3 times
+    Length: 334 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "A five-vehicle crash on Missouri Route 5 north of Ava resulted in one serious injury Friday afternoon, according to the Missouri State Highway Patrol. The crash occurred around 4:20 p.m. on May 30, approximately five miles north of Ava, when northbound traffic came to a stop for a vehicle turning left. A Chevrolet Silverado, driven…"
+
+    APPEARS IN ARTICLES:
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald/181420908/
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald-clarence-nash/181417350/
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald-clarence-nash/181417243/
+
+    SEGMENT 11 (Confidence: 0.70)
+    Pattern: SIDEBAR
+    Occurrences: 3 times
+    Length: 329 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "The Ava R-1 School District is proud to announce it will again offer before-school care and an afterschool program for the 2025-26 school year. The program is open to all Douglas County students in preschool through eighth grade. The Bears Den program is funded by the 21st Century Community Learning Centers (CCLC) Grant and is…"
+
+    APPEARS IN ARTICLES:
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald/181420908/
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald-clarence-nash/181417350/
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald-clarence-nash/181417243/
+
+    SEGMENT 12 (Confidence: 0.70)
+    Pattern: SIDEBAR
+    Occurrences: 3 times
+    Length: 329 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "On May 30, Susan Sinclair, 58, of Seymour, was taken into custody by the Douglas County Sheriff’s Office at Barnes Hospital in St. Louis after being medically cleared for confinement. Douglas County Deputies shot Sinclair on May 21, after she shot at deputies who were attempting to take her into custody for felony warrants for…"
+
+    APPEARS IN ARTICLES:
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald/181420908/
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald-clarence-nash/181417350/
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald-clarence-nash/181417243/
+
+    SEGMENT 13 (Confidence: 0.70)
+    Pattern: SIDEBAR
+    Occurrences: 3 times
+    Length: 317 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "An Ava man has been charged after a body was found with multiple stab wounds in Douglas County during the early Friday morning, Aug. 15. The investigation is the first for the Ava Police Department in more than 20 years. Court records show that Aaron Ray Vaughan, 54, has been charged with first-degree murder, armed…"
+
+    APPEARS IN ARTICLES:
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald/181420908/
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald-clarence-nash/181417350/
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald-clarence-nash/181417243/
+
+    SEGMENT 14 (Confidence: 0.70)
+    Pattern: SIDEBAR
+    Occurrences: 3 times
+    Length: 317 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "A Douglas County deputy and an Ozark County dispatcher rescued a child Thursday that had been swept away in a culvert at a popular swimming hole. The incident happened near State Highway PP. Deputy Jesse Three Eagles arrived at the scene of a child who had become entrapped under a bridge while swimming. As rescuers…"
+
+    APPEARS IN ARTICLES:
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald/181420908/
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald-clarence-nash/181417350/
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald-clarence-nash/181417243/
+
+    SEGMENT 15 (Confidence: 0.70)
+    Pattern: SIDEBAR
+    Occurrences: 3 times
+    Length: 312 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "By Dick Salgado Ava Lions Club and the Ava Citizens Action League In a display of civic pride and collaboration, the Ava Lions Club and the Ava Citizens Action League joined forces to host the monthly luncheon held by the Ava Area Chamber of Commerce that brought together neighbors, leaders, and volunteers for…"
+
+    APPEARS IN ARTICLES:
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald/181420908/
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald-clarence-nash/181417350/
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald-clarence-nash/181417243/
+
+    SEGMENT 16 (Confidence: 0.70)
+    Pattern: SIDEBAR
+    Occurrences: 3 times
+    Length: 312 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "The Class 2 Final Four was not nice to Ava. The Lady Bears who had an incredible season had to settle for fourth place. This was Ava’s second Final Four appearance in three years. They also finished fourth in 2023. Ava fell to powerhouse Kennett 8-15; it was Kennett’s seventh top-three performance at the state…"
+
+    APPEARS IN ARTICLES:
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald/181420908/
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald-clarence-nash/181417350/
+    • https://www.douglascountyherald.com/article/the-douglas-county-herald-clarence-nash/181417243/
+
+    SEGMENT 17 (Confidence: 0.70)
+    Pattern: OTHER
+    Occurrences: 3 times
+    Length: 93 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Username and Password Help Please enter your email and we will send you a password reset link"
+
+    APPEARS IN ARTICLES:
+    • https://www.douglascountyherald.com/2025/03/06/moe-melton/
+    • https://www.douglascountyherald.com/2025/03/06/patricia-sue-hodges/
+    • https://www.douglascountyherald.com/2025/03/14/audrey-faye-mcvay/
+
+    SEGMENT 18 (Confidence: 0.70)
+    Pattern: OTHER
+    Occurrences: 3 times
+    Length: 42 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Username Password Login Lost your password"
+
+    APPEARS IN ARTICLES:
+    • https://www.douglascountyherald.com/2025/03/06/moe-melton/
+    • https://www.douglascountyherald.com/2025/03/06/patricia-sue-hodges/
+    • https://www.douglascountyherald.com/2025/03/14/audrey-faye-mcvay/
+
+    SEGMENT 19 (Confidence: 0.60)
+    Pattern: OTHER
+    Occurrences: 3 times
+    Length: 55 characters
+    Boundary Score: 0.60
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Now, get up and go enjoy our beautiful Ozarks outdoors!"
+
+    APPEARS IN ARTICLES:
+    • https://www.douglascountyherald.com/2020/10/15/notes-from-hunter-creek-10/
+    • https://www.douglascountyherald.com/2020/10/08/70949/
+    • https://www.douglascountyherald.com/2020/11/25/notes-from-hunter-creek-12/
+    • https://www.douglascountyherald.com/2020/10/29/notes-from-hunter-creek-11/
+    • https://www.douglascountyherald.com/2020/07/09/the-nineteenth-amendment/
+
+    SEGMENT 20 (Confidence: 0.60)
+    Pattern: OTHER
+    Occurrences: 3 times
+    Length: 32 characters
+    Boundary Score: 0.60
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Meetings are open to the public."
+
+    APPEARS IN ARTICLES:
+    • https://www.douglascountyherald.com/2021/05/13/city-aldermen-purchase-mowers-hire-pool-staff/
+    • https://www.douglascountyherald.com/2021/07/15/ava-city-council-ava-has-1-9m-in-reserves-reduced-coc-agreement-approved/
+    • https://www.douglascountyherald.com/2021/05/27/ava-city-council-tables-coc-agreement-renews-fairgrounds-landfill-community-center/
+    • https://www.douglascountyherald.com/2021/06/10/ava-city-council-approves-12m-budget-for-fy-2022/
+
+======================================================================
+
+ 4. www.kmbc.com (39 articles)
+    ❌ No boilerplate segments detected
+
+ 5. www.darnews.com (39 articles)
+    ✅ 2 segments for removal
+    📈 Estimated removal: 0.4% of content
+    📝 824 characters removable
+
+    SEGMENT 1 (Confidence: 0.70)
+    Pattern: SIDEBAR
+    Occurrences: 9 times
+    Length: 39 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Receive Today's News FREE Sign up today"
+
+    APPEARS IN ARTICLES:
+    • https://www.darnews.com/world/texts-reveal-behind-the-scenes-maneuvering-of-the-vaticans-trial-of-the-century-16e780fa
+    • https://www.darnews.com/posterboard-ads/godfathers-pizza-602155dc
+    • https://www.darnews.com/world/trumps-economic-promises-to-black-voters-fall-short-after-a-modest-shift-in-support-for-him-in-2024-588c2d23
+    • https://www.darnews.com/news/many-challenges-face-area-business-owners-not-the-least-is-managing-personnel-661acf65
+    • https://www.darnews.com/world/ice-denies-using-excessive-force-as-it-broadens-immigration-arrests-in-chicago-fd6d049f
+    • https://www.darnews.com/news/a-legacy-of-health-encouragement-to-carry-on-through-upcoming-jess-walk-d62dfa27
+    • https://www.darnews.com/sports/royals-swept-by-green-wave-thursday-34f86aba
+    • https://www.darnews.com/world/pakistani-dating-show-sparks-anger-ahead-of-its-debut-on-youtube-7c90ce07
+    • https://www.darnews.com/world/how-to-get-a-covid-19-shot-and-ensure-its-covered-by-your-insurance-300170f7
+    • https://www.darnews.com/news/five-community-banks-unite-as-fm-bank-trust-promising-seamless-service-and-local-focus-e676df12
+    • https://www.darnews.com/world/mexican-churches-mark-the-anniversary-of-deadly-quakes-with-remembrance-and-lessons-for-the-future-26291829
+    • https://www.darnews.com/posterboard-ads/donut-house-bd68271e
+    • https://www.darnews.com/world/russia-launches-a-large-scale-attack-on-ukraine-killing-3-and-wounding-dozens-b5177726
+    • https://www.darnews.com/world/in-battles-over-free-speech-comedians-are-often-center-stage-0a152542
+    • https://www.darnews.com/world/pennsylvania-detectives-killed-in-an-ambush-are-remembered-for-saving-lives-and-helping-others-17c4aee4
+
+    SEGMENT 2 (Confidence: 0.70)
+    Pattern: OTHER
+    Occurrences: 8 times
+    Length: 31 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Advertisement Related World Sep"
+
+    APPEARS IN ARTICLES:
+    • https://www.darnews.com/world/texts-reveal-behind-the-scenes-maneuvering-of-the-vaticans-trial-of-the-century-16e780fa
+    • https://www.darnews.com/world/trumps-economic-promises-to-black-voters-fall-short-after-a-modest-shift-in-support-for-him-in-2024-588c2d23
+    • https://www.darnews.com/world/ice-denies-using-excessive-force-as-it-broadens-immigration-arrests-in-chicago-fd6d049f
+    • https://www.darnews.com/world/pakistani-dating-show-sparks-anger-ahead-of-its-debut-on-youtube-7c90ce07
+    • https://www.darnews.com/world/how-to-get-a-covid-19-shot-and-ensure-its-covered-by-your-insurance-300170f7
+    • https://www.darnews.com/world/mexican-churches-mark-the-anniversary-of-deadly-quakes-with-remembrance-and-lessons-for-the-future-26291829
+    • https://www.darnews.com/world/russia-launches-a-large-scale-attack-on-ukraine-killing-3-and-wounding-dozens-b5177726
+    • https://www.darnews.com/world/in-battles-over-free-speech-comedians-are-often-center-stage-0a152542
+    • https://www.darnews.com/world/pennsylvania-detectives-killed-in-an-ambush-are-remembered-for-saving-lives-and-helping-others-17c4aee4
+
+======================================================================
+
+ 6. missouriindependent.com (36 articles)
+    ✅ 2 segments for removal
+    📈 Estimated removal: 0.7% of content
+    📝 1506 characters removable
+
+    SEGMENT 1 (Confidence: 0.70)
+    Pattern: SIDEBAR
+    Occurrences: 3 times
+    Length: 155 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "View Republishing Guidelines Copy to clipboard 1 Republish Our stories may be republished online or in print under Creative Commons license CC BY-NC-ND 4.0"
+
+    APPEARS IN ARTICLES:
+    • https://missouriindependent.com/briefs/judge-allows-mizzou-students-for-justice-in-palestine-to-join-the-homecoming-parade/
+    • https://missouriindependent.com/2025/09/19/american-data-centers-are-key-to-beating-china-in-the-ai-race-missouri-can-lead-the-way/
+    • https://missouriindependent.com/briefs/the-independent-wins-28-journalism-awards-in-annual-missouri-press-contest/
+
+    SEGMENT 2 (Confidence: 0.70)
+    Pattern: OTHER
+    Occurrences: 3 times
+    Length: 72 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Contact Editor Jason Hancock for questions: info@missouriindependent.com"
+
+    APPEARS IN ARTICLES:
+    • https://missouriindependent.com/briefs/judge-allows-mizzou-students-for-justice-in-palestine-to-join-the-homecoming-parade/
+    • https://missouriindependent.com/2025/09/19/american-data-centers-are-key-to-beating-china-in-the-ai-race-missouri-can-lead-the-way/
+    • https://missouriindependent.com/briefs/the-independent-wins-28-journalism-awards-in-annual-missouri-press-contest/
+
+======================================================================
+
+ 7. www.newstribune.com (35 articles)
+    ❌ No boilerplate segments detected
+
+ 8. www.kprs.com (35 articles)
+    ✅ 1 segments for removal
+    📈 Estimated removal: 1.2% of content
+    📝 589 characters removable
+
+    SEGMENT 1 (Confidence: 0.70)
+    Pattern: OTHER
+    Occurrences: 5 times
+    Length: 62 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Editorial credit: Featureflash Photo Agency / Shutterstock.com"
+
+    APPEARS IN ARTICLES:
+    • https://www.kprs.com/2025/09/16/kehlani-drops-reimagined-unfolded/
+    • https://www.kprs.com/2025/09/18/cardi-b-expecting-her-fourth-child-reveals-pregnancy-after-tour-announcement-2/
+    • https://www.kprs.com/2025/09/18/abc-suspends-jimmy-kimmel-live-indefinitely-regarding-charlie-kirk-shooting-comments/
+    • https://www.kprs.com/2025/09/15/mariah-carey-teases-new-album-with-the-song-sugar-sweet-ft-shenseea-and-kehlani/
+    • https://www.kprs.com/2025/09/18/cardi-b-expecting-her-fourth-child-reveals-pregnancy-after-tour-announcement/
+
+======================================================================
+
+ 9. www.kbia.org (35 articles)
+    ✅ 1 segments for removal
+    📈 Estimated removal: 0.2% of content
+    📝 248 characters removable
+
+    SEGMENT 1 (Confidence: 0.50)
+    Pattern: OTHER
+    Occurrences: 4 times
+    Length: 62 characters
+    Boundary Score: 0.50
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Here's a roundup of regional headlines from the KBIA Newsroom:"
+
+    APPEARS IN ARTICLES:
+    • https://www.kbia.org/podcast/kbia-newscast/2025-09-18/morning-newscast-for-september-18-2025
+    • https://www.kbia.org/podcast/kbia-newscast/2025-09-19/morning-newscast-for-september-19-2025
+    • https://www.kbia.org/podcast/kbia-newscast/2025-09-17/afternoon-newscast-for-september-17-2025
+    • https://www.kbia.org/podcast/kbia-newscast/2025-09-18/afternoon-newscast-for-september-18-2025
+
+======================================================================
+
+10. dailyjournalonline.com (34 articles)
+    ✅ 6 segments for removal
+    📈 Estimated removal: 3.2% of content
+    📝 4732 characters removable
+
+    SEGMENT 1 (Confidence: 0.70)
+    Pattern: OTHER
+    Occurrences: 6 times
+    Length: 93 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Username and Password Help Please enter your email and we will send you a password reset link"
+
+    APPEARS IN ARTICLES:
+    • https://dailyjournalonline.com/2025/09/14/weekend-roundup-north-county-wins-every-bracket-at-doubles-tourney/
+    • https://dailyjournalonline.com/2025/09/19/from-our-files-229/
+    • https://dailyjournalonline.com/2025/09/14/football-recap-raiders-prevail-on-kick-return-td-knights-soundly-beat-poplar-bluff/
+    • https://dailyjournalonline.com/2025/09/17/tuesday-roundup-lady-raiders-sweep-potosi-for-6th-straight-maaa-tennis-title/
+    • https://dailyjournalonline.com/2025/09/19/thursday-roundup-north-county-snaps-4-game-slide-with-6-extra-base-hits/
+    • https://dailyjournalonline.com/2025/09/19/birth-announcement-143/
+
+    SEGMENT 2 (Confidence: 0.70)
+    Pattern: SIDEBAR
+    Occurrences: 6 times
+    Length: 47 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Related Posts Mineral Area men weather early St"
+
+    APPEARS IN ARTICLES:
+    • https://dailyjournalonline.com/2025/09/14/weekend-roundup-north-county-wins-every-bracket-at-doubles-tourney/
+    • https://dailyjournalonline.com/2025/09/14/football-recap-raiders-prevail-on-kick-return-td-knights-soundly-beat-poplar-bluff/
+    • https://dailyjournalonline.com/2025/09/17/tuesday-roundup-lady-raiders-sweep-potosi-for-6th-straight-maaa-tennis-title/
+    • https://dailyjournalonline.com/2025/09/16/monday-roundup-st-paul-flips-fifth-set-to-claim-first-victory-over-west-county/
+    • https://dailyjournalonline.com/2025/09/19/thursday-roundup-north-county-snaps-4-game-slide-with-6-extra-base-hits/
+    • https://dailyjournalonline.com/2025/09/18/wednesday-roundup-av-potosi-tennis-teams-control-road-opponents/
+
+    SEGMENT 3 (Confidence: 0.70)
+    Pattern: OTHER
+    Occurrences: 6 times
+    Length: 42 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Username Password Login Lost your password"
+
+    APPEARS IN ARTICLES:
+    • https://dailyjournalonline.com/2025/09/14/weekend-roundup-north-county-wins-every-bracket-at-doubles-tourney/
+    • https://dailyjournalonline.com/2025/09/19/from-our-files-229/
+    • https://dailyjournalonline.com/2025/09/14/football-recap-raiders-prevail-on-kick-return-td-knights-soundly-beat-poplar-bluff/
+    • https://dailyjournalonline.com/2025/09/17/tuesday-roundup-lady-raiders-sweep-potosi-for-6th-straight-maaa-tennis-title/
+    • https://dailyjournalonline.com/2025/09/19/thursday-roundup-north-county-snaps-4-game-slide-with-6-extra-base-hits/
+    • https://dailyjournalonline.com/2025/09/19/birth-announcement-143/
+
+    SEGMENT 4 (Confidence: 0.70)
+    Pattern: SIDEBAR
+    Occurrences: 5 times
+    Length: 40 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Related Posts Promotions announced at St"
+
+    APPEARS IN ARTICLES:
+    • https://dailyjournalonline.com/2025/09/18/bonne-terre-receives-excellent-audit-report/
+    • https://dailyjournalonline.com/2025/09/17/horn-and-clover-reclassified-as-parental-dispute/
+    • https://dailyjournalonline.com/2025/09/18/macs-champion-of-excellence-award-recipients/
+    • https://dailyjournalonline.com/2025/09/18/solar-waste-ribbon-cutting-celebration-in-farmington/
+    • https://dailyjournalonline.com/2025/09/19/paisley-grace-med-spa-iv-lounge-celebrates-ribbon-cutting/
+
+    SEGMENT 5 (Confidence: 0.90)
+    Pattern: SIDEBAR
+    Occurrences: 4 times
+    Length: 138 characters
+    Boundary Score: 0.90
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Posted in Daily Journal Sports Leave a Comment Name (required) Email (will not be published) (required) Comment Click here to cancel reply"
+
+    APPEARS IN ARTICLES:
+    • https://dailyjournalonline.com/2025/09/14/weekend-roundup-north-county-wins-every-bracket-at-doubles-tourney/
+    • https://dailyjournalonline.com/2025/09/14/football-recap-raiders-prevail-on-kick-return-td-knights-soundly-beat-poplar-bluff/
+    • https://dailyjournalonline.com/2025/09/17/tuesday-roundup-lady-raiders-sweep-potosi-for-6th-straight-maaa-tennis-title/
+    • https://dailyjournalonline.com/2025/09/16/monday-roundup-st-paul-flips-fifth-set-to-claim-first-victory-over-west-county/
+    • https://dailyjournalonline.com/2025/09/19/thursday-roundup-north-county-snaps-4-game-slide-with-6-extra-base-hits/
+    • https://dailyjournalonline.com/2025/09/18/wednesday-roundup-av-potosi-tennis-teams-control-road-opponents/
+
+    SEGMENT 6 (Confidence: 0.70)
+    Pattern: SIDEBAR
+    Occurrences: 4 times
+    Length: 306 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Charles September 18, 2025 | No Comments » Wednesday Roundup: AV, Potosi tennis teams control road opponents September 18, 2025 | No Comments » Tuesday Roundup: Lady Raiders sweep Potosi for 6th straight MAAA tennis title September 17, 2025 | No Comments » Local Schedule September 17, 2025 | No Comments »"
+
+    APPEARS IN ARTICLES:
+    • https://dailyjournalonline.com/2025/09/14/weekend-roundup-north-county-wins-every-bracket-at-doubles-tourney/
+    • https://dailyjournalonline.com/2025/09/14/football-recap-raiders-prevail-on-kick-return-td-knights-soundly-beat-poplar-bluff/
+    • https://dailyjournalonline.com/2025/09/16/monday-roundup-st-paul-flips-fifth-set-to-claim-first-victory-over-west-county/
+    • https://dailyjournalonline.com/2025/09/19/thursday-roundup-north-county-snaps-4-game-slide-with-6-extra-base-hits/
+
+======================================================================
+
+11. www.semissourian.com (33 articles)
+    ✅ 4 segments for removal
+    📈 Estimated removal: 3.5% of content
+    📝 5872 characters removable
+
+    SEGMENT 1 (Confidence: 0.70)
+    Pattern: SIDEBAR
+    Occurrences: 7 times
+    Length: 328 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Sign Up Shopping Classifieds Auctions Homes semoSearch Jobs Links Contact Us Support Guide Newsletters Terms of Service AI Policy Submission Forms Letter to the Editor Paid Election Letter Submit Speak Out Submit a Story or Photo View Classified Delisting Request Submit Event Wedding Form © 2025 rustmedia Sitemap Terms Privacy"
+
+    APPEARS IN ARTICLES:
+    • https://www.semissourian.com/world/democratic-leaders-in-congress-demand-a-meeting-with-trump-as-government-shutdown-looms-a214d540
+    • https://www.semissourian.com/world/russia-launches-a-large-scale-attack-on-ukraine-killing-3-and-wounding-dozens-b5177726
+    • https://www.semissourian.com/news/florists-sprout-back-up-after-fire-burnt-down-business-07cbd4e5
+    • https://www.semissourian.com/world/cyberattack-disrupts-check-in-systems-at-major-european-airports-29b6d890
+    • https://www.semissourian.com/world/zohran-mamdanis-been-called-a-communist-wholl-defund-the-police-heres-where-he-actually-stands-59f6a66c
+    • https://www.semissourian.com/news/when-the-river-is-low-so-are-farmers-profits-291b02f3
+    • https://www.semissourian.com/world/ice-denies-using-excessive-force-as-it-broadens-immigration-arrests-in-chicago-fd6d049f
+
+    SEGMENT 2 (Confidence: 0.70)
+    Pattern: OTHER
+    Occurrences: 7 times
+    Length: 122 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Connect with the Southeast Missourian Newsroom: For corrections to this story or other insights for the editor, click here"
+
+    APPEARS IN ARTICLES:
+    • https://www.semissourian.com/world/democratic-leaders-in-congress-demand-a-meeting-with-trump-as-government-shutdown-looms-a214d540
+    • https://www.semissourian.com/world/russia-launches-a-large-scale-attack-on-ukraine-killing-3-and-wounding-dozens-b5177726
+    • https://www.semissourian.com/news/florists-sprout-back-up-after-fire-burnt-down-business-07cbd4e5
+    • https://www.semissourian.com/world/cyberattack-disrupts-check-in-systems-at-major-european-airports-29b6d890
+    • https://www.semissourian.com/world/zohran-mamdanis-been-called-a-communist-wholl-defund-the-police-heres-where-he-actually-stands-59f6a66c
+    • https://www.semissourian.com/news/when-the-river-is-low-so-are-farmers-profits-291b02f3
+    • https://www.semissourian.com/world/ice-denies-using-excessive-force-as-it-broadens-immigration-arrests-in-chicago-fd6d049f
+
+    SEGMENT 3 (Confidence: 0.70)
+    Pattern: SIDEBAR
+    Occurrences: 7 times
+    Length: 42 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Receive Daily Headlines FREE Sign up today"
+
+    APPEARS IN ARTICLES:
+    • https://www.semissourian.com/world/democratic-leaders-in-congress-demand-a-meeting-with-trump-as-government-shutdown-looms-a214d540
+    • https://www.semissourian.com/world/russia-launches-a-large-scale-attack-on-ukraine-killing-3-and-wounding-dozens-b5177726
+    • https://www.semissourian.com/news/florists-sprout-back-up-after-fire-burnt-down-business-07cbd4e5
+    • https://www.semissourian.com/world/cyberattack-disrupts-check-in-systems-at-major-european-airports-29b6d890
+    • https://www.semissourian.com/world/zohran-mamdanis-been-called-a-communist-wholl-defund-the-police-heres-where-he-actually-stands-59f6a66c
+    • https://www.semissourian.com/news/when-the-river-is-low-so-are-farmers-profits-291b02f3
+    • https://www.semissourian.com/world/ice-denies-using-excessive-force-as-it-broadens-immigration-arrests-in-chicago-fd6d049f
+
+    SEGMENT 4 (Confidence: 0.70)
+    Pattern: OTHER
+    Occurrences: 5 times
+    Length: 31 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Advertisement Related World Sep"
+
+    APPEARS IN ARTICLES:
+    • https://www.semissourian.com/world/democratic-leaders-in-congress-demand-a-meeting-with-trump-as-government-shutdown-looms-a214d540
+    • https://www.semissourian.com/world/russia-launches-a-large-scale-attack-on-ukraine-killing-3-and-wounding-dozens-b5177726
+    • https://www.semissourian.com/world/cyberattack-disrupts-check-in-systems-at-major-european-airports-29b6d890
+    • https://www.semissourian.com/world/zohran-mamdanis-been-called-a-communist-wholl-defund-the-police-heres-where-he-actually-stands-59f6a66c
+    • https://www.semissourian.com/world/ice-denies-using-excessive-force-as-it-broadens-immigration-arrests-in-chicago-fd6d049f
+
+======================================================================
+
+12. bocojo.com (32 articles)
+    ✅ 2 segments for removal
+    📈 Estimated removal: 4.4% of content
+    📝 3298 characters removable
+
+    SEGMENT 1 (Confidence: 0.70)
+    Pattern: OTHER
+    Occurrences: 5 times
+    Length: 38 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "By Cassidy Brown, Boone County Journal"
+
+    APPEARS IN ARTICLES:
+    • https://bocojo.com/news/a-harvest-party-10th-annual-dine-in-the-dirt-fundraiser-event-takes-place-on-sunday/
+    • https://bocojo.com/news/foundation-laid-for-new-vo-ag-wing-at-southern-boone-high-school/?utm_source=rss&utm_medium=rss&utm_campaign=foundation-laid-for-new-vo-ag-wing-at-southern-boone-high-school
+    • https://bocojo.com/news/a-harvest-party-10th-annual-dine-in-the-dirt-fundraiser-event-takes-place-on-sunday/?utm_source=rss&utm_medium=rss&utm_campaign=a-harvest-party-10th-annual-dine-in-the-dirt-fundraiser-event-takes-place-on-sunday
+    • https://bocojo.com/news/memorial-bench-honoring-crystal-branch-beloved-teacher-and-coach-installed-at-southern-boone-primary-school/?utm_source=rss&utm_medium=rss&utm_campaign=memorial-bench-honoring-crystal-branch-beloved-teacher-and-coach-installed-at-southern-boone-primary-school
+    • https://bocojo.com/news/memorial-bench-honoring-crystal-branch-beloved-teacher-and-coach-installed-at-southern-boone-primary-school/
+    • https://bocojo.com/news/foundation-laid-for-new-vo-ag-wing-at-southern-boone-high-school/
+
+    SEGMENT 2 (Confidence: 0.70)
+    Pattern: OTHER
+    Occurrences: 3 times
+    Length: 147 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Missouri CASA has already raised $2.7 million and has another $600,000 pledged as a matching grant, said Executive Director Kelly Hill on Wednesday"
+
+    APPEARS IN ARTICLES:
+    • https://bocojo.com/news/missouri-casa-pushes-through-setbacks-to-raise-funds-for-new-building/?utm_source=rss&utm_medium=rss&utm_campaign=missouri-casa-pushes-through-setbacks-to-raise-funds-for-new-building
+    • https://bocojo.com/news/missouri-casa-pushes-through-setbacks-to-raise-funds-for-new-building/
+    • https://bocojo.com/news/missouri-casa-pushes-through-setbacks-to-raise-funds-for-new-building/#comments
+
+======================================================================
+
+13. www.bransontrilakesnews.com (31 articles)
+    ✅ 5 segments for removal
+    📈 Estimated removal: 10.7% of content
+    📝 19611 characters removable
+
+    SEGMENT 1 (Confidence: 1.00)
+    Pattern: SIDEBAR
+    Occurrences: 31 times
+    Length: 146 characters
+    Boundary Score: 1.00
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Watch this discussion Get an email notification whenever someone contributes to the discussion Notifications from this discussion will be disabled"
+
+    APPEARS IN ARTICLES:
+    • https://www.bransontrilakesnews.com/news/national/article_dd6f561d-babb-526f-86e3-39e580f249f7.html
+    • https://www.bransontrilakesnews.com/news/national/article_41d7e5de-5dd4-5321-a1e0-83cbd30cedbf.html
+    • https://www.bransontrilakesnews.com/news/national/article_12a4dc77-8d6d-5ef1-80f2-7a26d205f40f.html
+    • https://www.bransontrilakesnews.com/lifestyles/entertainment/article_72779a34-0dba-5290-ab4d-d608130addb7.html
+    • https://www.bransontrilakesnews.com/news/local/article_7af45e5d-aa43-4f4d-98e9-066caaa2dd7c.html#comments
+    • https://www.bransontrilakesnews.com/news/local/article_cd4439fb-5a9f-4485-b4c6-9cecd4c93941.html
+    • https://www.bransontrilakesnews.com/entertainment/article_d491250a-4607-413a-b66f-5facc2e9f293.html
+    • https://www.bransontrilakesnews.com/news/local/article_7af45e5d-aa43-4f4d-98e9-066caaa2dd7c.html
+    • https://www.bransontrilakesnews.com/news/local/article_80a97a1c-7648-4169-9e0d-e076f7ab2616.html#comments
+    • https://www.bransontrilakesnews.com/news/local/article_80a97a1c-7648-4169-9e0d-e076f7ab2616.html
+    • https://www.bransontrilakesnews.com/news/local/article_4289b6f7-8a7a-496f-8be3-bbbc8932d720.html
+    • https://www.bransontrilakesnews.com/entertainment/article_6a620137-60b3-4540-9656-9d0107fee999.html
+    • https://www.bransontrilakesnews.com/lifestyles/health/article_c3fbd5ca-d304-5166-87db-3f7cee24c627.html
+    • https://www.bransontrilakesnews.com/news/national/article_008542ae-7f8e-5408-915a-c55779b8eba4.html
+    • https://www.bransontrilakesnews.com/news/national/article_0911c60a-f6f9-5b7b-a0fc-cca6d01d9faa.html
+    • https://www.bransontrilakesnews.com/entertainment/article_6aa105a1-4317-4605-a125-795e963cce94.html
+    • https://www.bransontrilakesnews.com/news/local/article_f72e0786-edc1-47a7-a20c-83f49359071d.html
+    • https://www.bransontrilakesnews.com/entertainment/article_d491250a-4607-413a-b66f-5facc2e9f293.html#comments
+    • https://www.bransontrilakesnews.com/news/national/article_40941476-09b1-5aca-af74-f51027880dc3.html
+    • https://www.bransontrilakesnews.com/news/national/article_06e4594c-be37-5214-8d7e-277d7ed2039c.html
+    • https://www.bransontrilakesnews.com/lifestyles/entertainment/article_053f6a0a-705d-5de6-a521-f128e28906f6.html
+    • https://www.bransontrilakesnews.com/news/local/article_912bb3dd-c07b-4352-8c84-826824992c56.html
+    • https://www.bransontrilakesnews.com/news/national/article_84248a08-6707-58ee-b5fd-b6e2537ab100.html
+    • https://www.bransontrilakesnews.com/news/national/article_332a6dad-72c0-5804-84e9-e28ee7bc1a18.html
+    • https://www.bransontrilakesnews.com/news/local/article_9a8813aa-bf87-41b5-95df-fd882b00890f.html
+    • https://www.bransontrilakesnews.com/lifestyles/entertainment/article_e3a635b3-b29e-567b-9738-e2bf2615d6b8.html
+    • https://www.bransontrilakesnews.com/entertainment/article_6aa105a1-4317-4605-a125-795e963cce94.html#comments
+    • https://www.bransontrilakesnews.com/news/national/article_35f36f10-81b4-5046-9cd3-85d03ac3cf42.html
+    • https://www.bransontrilakesnews.com/entertainment/article_6a620137-60b3-4540-9656-9d0107fee999.html#comments
+    • https://www.bransontrilakesnews.com/news/local/article_7de4a693-9d5d-4ad2-a28f-4746acfaee33.html
+    • https://www.bransontrilakesnews.com/news/local/article_7de4a693-9d5d-4ad2-a28f-4746acfaee33.html#comments
+
+    SEGMENT 2 (Confidence: 1.00)
+    Pattern: SIDEBAR
+    Occurrences: 31 times
+    Length: 36 characters
+    Boundary Score: 1.00
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Post a comment Watch this discussion"
+
+    APPEARS IN ARTICLES:
+    • https://www.bransontrilakesnews.com/news/national/article_dd6f561d-babb-526f-86e3-39e580f249f7.html
+    • https://www.bransontrilakesnews.com/news/national/article_41d7e5de-5dd4-5321-a1e0-83cbd30cedbf.html
+    • https://www.bransontrilakesnews.com/news/national/article_12a4dc77-8d6d-5ef1-80f2-7a26d205f40f.html
+    • https://www.bransontrilakesnews.com/lifestyles/entertainment/article_72779a34-0dba-5290-ab4d-d608130addb7.html
+    • https://www.bransontrilakesnews.com/news/local/article_7af45e5d-aa43-4f4d-98e9-066caaa2dd7c.html#comments
+    • https://www.bransontrilakesnews.com/news/local/article_cd4439fb-5a9f-4485-b4c6-9cecd4c93941.html
+    • https://www.bransontrilakesnews.com/entertainment/article_d491250a-4607-413a-b66f-5facc2e9f293.html
+    • https://www.bransontrilakesnews.com/news/local/article_7af45e5d-aa43-4f4d-98e9-066caaa2dd7c.html
+    • https://www.bransontrilakesnews.com/news/local/article_80a97a1c-7648-4169-9e0d-e076f7ab2616.html#comments
+    • https://www.bransontrilakesnews.com/news/local/article_80a97a1c-7648-4169-9e0d-e076f7ab2616.html
+    • https://www.bransontrilakesnews.com/news/local/article_4289b6f7-8a7a-496f-8be3-bbbc8932d720.html
+    • https://www.bransontrilakesnews.com/entertainment/article_6a620137-60b3-4540-9656-9d0107fee999.html
+    • https://www.bransontrilakesnews.com/lifestyles/health/article_c3fbd5ca-d304-5166-87db-3f7cee24c627.html
+    • https://www.bransontrilakesnews.com/news/national/article_008542ae-7f8e-5408-915a-c55779b8eba4.html
+    • https://www.bransontrilakesnews.com/news/national/article_0911c60a-f6f9-5b7b-a0fc-cca6d01d9faa.html
+    • https://www.bransontrilakesnews.com/entertainment/article_6aa105a1-4317-4605-a125-795e963cce94.html
+    • https://www.bransontrilakesnews.com/news/local/article_f72e0786-edc1-47a7-a20c-83f49359071d.html
+    • https://www.bransontrilakesnews.com/entertainment/article_d491250a-4607-413a-b66f-5facc2e9f293.html#comments
+    • https://www.bransontrilakesnews.com/news/national/article_40941476-09b1-5aca-af74-f51027880dc3.html
+    • https://www.bransontrilakesnews.com/news/national/article_06e4594c-be37-5214-8d7e-277d7ed2039c.html
+    • https://www.bransontrilakesnews.com/lifestyles/entertainment/article_053f6a0a-705d-5de6-a521-f128e28906f6.html
+    • https://www.bransontrilakesnews.com/news/local/article_912bb3dd-c07b-4352-8c84-826824992c56.html
+    • https://www.bransontrilakesnews.com/news/national/article_84248a08-6707-58ee-b5fd-b6e2537ab100.html
+    • https://www.bransontrilakesnews.com/news/national/article_332a6dad-72c0-5804-84e9-e28ee7bc1a18.html
+    • https://www.bransontrilakesnews.com/news/local/article_9a8813aa-bf87-41b5-95df-fd882b00890f.html
+    • https://www.bransontrilakesnews.com/lifestyles/entertainment/article_e3a635b3-b29e-567b-9738-e2bf2615d6b8.html
+    • https://www.bransontrilakesnews.com/entertainment/article_6aa105a1-4317-4605-a125-795e963cce94.html#comments
+    • https://www.bransontrilakesnews.com/news/national/article_35f36f10-81b4-5046-9cd3-85d03ac3cf42.html
+    • https://www.bransontrilakesnews.com/entertainment/article_6a620137-60b3-4540-9656-9d0107fee999.html#comments
+    • https://www.bransontrilakesnews.com/news/local/article_7de4a693-9d5d-4ad2-a28f-4746acfaee33.html
+    • https://www.bransontrilakesnews.com/news/local/article_7de4a693-9d5d-4ad2-a28f-4746acfaee33.html#comments
+
+    SEGMENT 3 (Confidence: 0.70)
+    Pattern: SIDEBAR
+    Occurrences: 31 times
+    Length: 53 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "News Updates Would you like to receive our daily news"
+
+    APPEARS IN ARTICLES:
+    • https://www.bransontrilakesnews.com/news/national/article_dd6f561d-babb-526f-86e3-39e580f249f7.html
+    • https://www.bransontrilakesnews.com/news/national/article_41d7e5de-5dd4-5321-a1e0-83cbd30cedbf.html
+    • https://www.bransontrilakesnews.com/news/national/article_12a4dc77-8d6d-5ef1-80f2-7a26d205f40f.html
+    • https://www.bransontrilakesnews.com/lifestyles/entertainment/article_72779a34-0dba-5290-ab4d-d608130addb7.html
+    • https://www.bransontrilakesnews.com/news/local/article_7af45e5d-aa43-4f4d-98e9-066caaa2dd7c.html#comments
+    • https://www.bransontrilakesnews.com/news/local/article_cd4439fb-5a9f-4485-b4c6-9cecd4c93941.html
+    • https://www.bransontrilakesnews.com/entertainment/article_d491250a-4607-413a-b66f-5facc2e9f293.html
+    • https://www.bransontrilakesnews.com/news/local/article_7af45e5d-aa43-4f4d-98e9-066caaa2dd7c.html
+    • https://www.bransontrilakesnews.com/news/local/article_80a97a1c-7648-4169-9e0d-e076f7ab2616.html#comments
+    • https://www.bransontrilakesnews.com/news/local/article_80a97a1c-7648-4169-9e0d-e076f7ab2616.html
+    • https://www.bransontrilakesnews.com/news/local/article_4289b6f7-8a7a-496f-8be3-bbbc8932d720.html
+    • https://www.bransontrilakesnews.com/entertainment/article_6a620137-60b3-4540-9656-9d0107fee999.html
+    • https://www.bransontrilakesnews.com/lifestyles/health/article_c3fbd5ca-d304-5166-87db-3f7cee24c627.html
+    • https://www.bransontrilakesnews.com/news/national/article_008542ae-7f8e-5408-915a-c55779b8eba4.html
+    • https://www.bransontrilakesnews.com/news/national/article_0911c60a-f6f9-5b7b-a0fc-cca6d01d9faa.html
+    • https://www.bransontrilakesnews.com/entertainment/article_6aa105a1-4317-4605-a125-795e963cce94.html
+    • https://www.bransontrilakesnews.com/news/local/article_f72e0786-edc1-47a7-a20c-83f49359071d.html
+    • https://www.bransontrilakesnews.com/entertainment/article_d491250a-4607-413a-b66f-5facc2e9f293.html#comments
+    • https://www.bransontrilakesnews.com/news/national/article_40941476-09b1-5aca-af74-f51027880dc3.html
+    • https://www.bransontrilakesnews.com/news/national/article_06e4594c-be37-5214-8d7e-277d7ed2039c.html
+    • https://www.bransontrilakesnews.com/lifestyles/entertainment/article_053f6a0a-705d-5de6-a521-f128e28906f6.html
+    • https://www.bransontrilakesnews.com/news/local/article_912bb3dd-c07b-4352-8c84-826824992c56.html
+    • https://www.bransontrilakesnews.com/news/national/article_84248a08-6707-58ee-b5fd-b6e2537ab100.html
+    • https://www.bransontrilakesnews.com/news/national/article_332a6dad-72c0-5804-84e9-e28ee7bc1a18.html
+    • https://www.bransontrilakesnews.com/news/local/article_9a8813aa-bf87-41b5-95df-fd882b00890f.html
+    • https://www.bransontrilakesnews.com/lifestyles/entertainment/article_e3a635b3-b29e-567b-9738-e2bf2615d6b8.html
+    • https://www.bransontrilakesnews.com/entertainment/article_6aa105a1-4317-4605-a125-795e963cce94.html#comments
+    • https://www.bransontrilakesnews.com/news/national/article_35f36f10-81b4-5046-9cd3-85d03ac3cf42.html
+    • https://www.bransontrilakesnews.com/entertainment/article_6a620137-60b3-4540-9656-9d0107fee999.html#comments
+    • https://www.bransontrilakesnews.com/news/local/article_7de4a693-9d5d-4ad2-a28f-4746acfaee33.html
+    • https://www.bransontrilakesnews.com/news/local/article_7de4a693-9d5d-4ad2-a28f-4746acfaee33.html#comments
+
+    SEGMENT 4 (Confidence: 0.60)
+    Pattern: OTHER
+    Occurrences: 31 times
+    Length: 30 characters
+    Boundary Score: 0.60
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "PLEASE TURN OFF YOUR CAPS LOCK"
+
+    APPEARS IN ARTICLES:
+    • https://www.bransontrilakesnews.com/news/national/article_dd6f561d-babb-526f-86e3-39e580f249f7.html
+    • https://www.bransontrilakesnews.com/news/national/article_41d7e5de-5dd4-5321-a1e0-83cbd30cedbf.html
+    • https://www.bransontrilakesnews.com/news/national/article_12a4dc77-8d6d-5ef1-80f2-7a26d205f40f.html
+    • https://www.bransontrilakesnews.com/lifestyles/entertainment/article_72779a34-0dba-5290-ab4d-d608130addb7.html
+    • https://www.bransontrilakesnews.com/news/local/article_7af45e5d-aa43-4f4d-98e9-066caaa2dd7c.html#comments
+    • https://www.bransontrilakesnews.com/news/local/article_cd4439fb-5a9f-4485-b4c6-9cecd4c93941.html
+    • https://www.bransontrilakesnews.com/entertainment/article_d491250a-4607-413a-b66f-5facc2e9f293.html
+    • https://www.bransontrilakesnews.com/news/local/article_7af45e5d-aa43-4f4d-98e9-066caaa2dd7c.html
+    • https://www.bransontrilakesnews.com/news/local/article_80a97a1c-7648-4169-9e0d-e076f7ab2616.html#comments
+    • https://www.bransontrilakesnews.com/news/local/article_80a97a1c-7648-4169-9e0d-e076f7ab2616.html
+    • https://www.bransontrilakesnews.com/news/local/article_4289b6f7-8a7a-496f-8be3-bbbc8932d720.html
+    • https://www.bransontrilakesnews.com/entertainment/article_6a620137-60b3-4540-9656-9d0107fee999.html
+    • https://www.bransontrilakesnews.com/lifestyles/health/article_c3fbd5ca-d304-5166-87db-3f7cee24c627.html
+    • https://www.bransontrilakesnews.com/news/national/article_008542ae-7f8e-5408-915a-c55779b8eba4.html
+    • https://www.bransontrilakesnews.com/news/national/article_0911c60a-f6f9-5b7b-a0fc-cca6d01d9faa.html
+    • https://www.bransontrilakesnews.com/entertainment/article_6aa105a1-4317-4605-a125-795e963cce94.html
+    • https://www.bransontrilakesnews.com/news/local/article_f72e0786-edc1-47a7-a20c-83f49359071d.html
+    • https://www.bransontrilakesnews.com/entertainment/article_d491250a-4607-413a-b66f-5facc2e9f293.html#comments
+    • https://www.bransontrilakesnews.com/news/national/article_40941476-09b1-5aca-af74-f51027880dc3.html
+    • https://www.bransontrilakesnews.com/news/national/article_06e4594c-be37-5214-8d7e-277d7ed2039c.html
+    • https://www.bransontrilakesnews.com/lifestyles/entertainment/article_053f6a0a-705d-5de6-a521-f128e28906f6.html
+    • https://www.bransontrilakesnews.com/news/local/article_912bb3dd-c07b-4352-8c84-826824992c56.html
+    • https://www.bransontrilakesnews.com/news/national/article_84248a08-6707-58ee-b5fd-b6e2537ab100.html
+    • https://www.bransontrilakesnews.com/news/national/article_332a6dad-72c0-5804-84e9-e28ee7bc1a18.html
+    • https://www.bransontrilakesnews.com/news/local/article_9a8813aa-bf87-41b5-95df-fd882b00890f.html
+    • https://www.bransontrilakesnews.com/lifestyles/entertainment/article_e3a635b3-b29e-567b-9738-e2bf2615d6b8.html
+    • https://www.bransontrilakesnews.com/entertainment/article_6aa105a1-4317-4605-a125-795e963cce94.html#comments
+    • https://www.bransontrilakesnews.com/news/national/article_35f36f10-81b4-5046-9cd3-85d03ac3cf42.html
+    • https://www.bransontrilakesnews.com/entertainment/article_6a620137-60b3-4540-9656-9d0107fee999.html#comments
+    • https://www.bransontrilakesnews.com/news/local/article_7de4a693-9d5d-4ad2-a28f-4746acfaee33.html
+    • https://www.bransontrilakesnews.com/news/local/article_7de4a693-9d5d-4ad2-a28f-4746acfaee33.html#comments
+
+    SEGMENT 5 (Confidence: 0.80)
+    Pattern: OTHER
+    Occurrences: 30 times
+    Length: 74 characters
+    Boundary Score: 0.80
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Cancel Start watching Stop watching (0) comments Welcome to the discussion"
+
+    APPEARS IN ARTICLES:
+    • https://www.bransontrilakesnews.com/news/national/article_dd6f561d-babb-526f-86e3-39e580f249f7.html
+    • https://www.bransontrilakesnews.com/news/national/article_41d7e5de-5dd4-5321-a1e0-83cbd30cedbf.html
+    • https://www.bransontrilakesnews.com/news/national/article_12a4dc77-8d6d-5ef1-80f2-7a26d205f40f.html
+    • https://www.bransontrilakesnews.com/lifestyles/entertainment/article_72779a34-0dba-5290-ab4d-d608130addb7.html
+    • https://www.bransontrilakesnews.com/news/local/article_7af45e5d-aa43-4f4d-98e9-066caaa2dd7c.html#comments
+    • https://www.bransontrilakesnews.com/news/local/article_cd4439fb-5a9f-4485-b4c6-9cecd4c93941.html
+    • https://www.bransontrilakesnews.com/entertainment/article_d491250a-4607-413a-b66f-5facc2e9f293.html
+    • https://www.bransontrilakesnews.com/news/local/article_7af45e5d-aa43-4f4d-98e9-066caaa2dd7c.html
+    • https://www.bransontrilakesnews.com/news/local/article_80a97a1c-7648-4169-9e0d-e076f7ab2616.html#comments
+    • https://www.bransontrilakesnews.com/news/local/article_80a97a1c-7648-4169-9e0d-e076f7ab2616.html
+    • https://www.bransontrilakesnews.com/news/local/article_4289b6f7-8a7a-496f-8be3-bbbc8932d720.html
+    • https://www.bransontrilakesnews.com/entertainment/article_6a620137-60b3-4540-9656-9d0107fee999.html
+    • https://www.bransontrilakesnews.com/lifestyles/health/article_c3fbd5ca-d304-5166-87db-3f7cee24c627.html
+    • https://www.bransontrilakesnews.com/news/national/article_008542ae-7f8e-5408-915a-c55779b8eba4.html
+    • https://www.bransontrilakesnews.com/news/national/article_0911c60a-f6f9-5b7b-a0fc-cca6d01d9faa.html
+    • https://www.bransontrilakesnews.com/entertainment/article_6aa105a1-4317-4605-a125-795e963cce94.html
+    • https://www.bransontrilakesnews.com/news/local/article_f72e0786-edc1-47a7-a20c-83f49359071d.html
+    • https://www.bransontrilakesnews.com/entertainment/article_d491250a-4607-413a-b66f-5facc2e9f293.html#comments
+    • https://www.bransontrilakesnews.com/news/national/article_40941476-09b1-5aca-af74-f51027880dc3.html
+    • https://www.bransontrilakesnews.com/news/national/article_06e4594c-be37-5214-8d7e-277d7ed2039c.html
+    • https://www.bransontrilakesnews.com/lifestyles/entertainment/article_053f6a0a-705d-5de6-a521-f128e28906f6.html
+    • https://www.bransontrilakesnews.com/news/national/article_84248a08-6707-58ee-b5fd-b6e2537ab100.html
+    • https://www.bransontrilakesnews.com/news/national/article_332a6dad-72c0-5804-84e9-e28ee7bc1a18.html
+    • https://www.bransontrilakesnews.com/news/local/article_9a8813aa-bf87-41b5-95df-fd882b00890f.html
+    • https://www.bransontrilakesnews.com/lifestyles/entertainment/article_e3a635b3-b29e-567b-9738-e2bf2615d6b8.html
+    • https://www.bransontrilakesnews.com/entertainment/article_6aa105a1-4317-4605-a125-795e963cce94.html#comments
+    • https://www.bransontrilakesnews.com/news/national/article_35f36f10-81b4-5046-9cd3-85d03ac3cf42.html
+    • https://www.bransontrilakesnews.com/entertainment/article_6a620137-60b3-4540-9656-9d0107fee999.html#comments
+    • https://www.bransontrilakesnews.com/news/local/article_7de4a693-9d5d-4ad2-a28f-4746acfaee33.html
+    • https://www.bransontrilakesnews.com/news/local/article_7de4a693-9d5d-4ad2-a28f-4746acfaee33.html#comments
+
+======================================================================
+
+14. www.griffonnews.com (27 articles)
+    ✅ 1 segments for removal
+    📈 Estimated removal: 2.8% of content
+    📝 2534 characters removable
+
+    SEGMENT 1 (Confidence: 1.00)
+    Pattern: SIDEBAR
+    Occurrences: 7 times
+    Length: 362 characters
+    Boundary Score: 1.00
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Joseph brings Pride to the Civic Center Park Movies and TV shows casting in Kansas City MoWest brings back their Spanish program MoWest students trade books for bedframes in day of service Arrow Rock to stage 1850 election this weekend; Columbia has two festivals planned Images Videos Commented Sorry, there are no recent results for popular commented articles."
+
+    APPEARS IN ARTICLES:
+    • https://www.griffonnews.com/sports/mowest-hosts-walk-on-tryouts-for-football/article_12132d82-dd9c-430e-90fd-a16b6121a49c.html
+    • https://www.griffonnews.com/multimedia/checkout-the-library-renovations/article_ef4a8232-3334-4bd8-948e-8b065dd84714.html
+    • https://www.griffonnews.com/sports/griffons-shut-out-bemidji-state-in-home-opener-victory/article_df6a4090-287b-4bd8-b8d7-4e868e633185.html
+    • https://www.griffonnews.com/sports/griffons-stumble-against-rogers-state/article_c24cd5b5-9a3e-4146-b044-0adffc09dde8.html
+    • https://www.griffonnews.com/sports/griffons-tennis-fall-to-bearcats/article_c67df9c9-7509-4d45-97b9-5263ef89bd30.html
+    • https://www.griffonnews.com/sports/paige-bueckers-selected-first-overall-in-2025-wnba-draft/article_52cc9c4b-6524-4685-96e9-7f0205606638.html
+    • https://www.griffonnews.com/sports/new-women-s-basketball-coach/article_a055aacb-bbad-4aa6-97b5-688d8a1f4857.html
+
+======================================================================
+
+15. www.emissourian.com (27 articles)
+    ❌ No boilerplate segments detected
+
+16. www.dddnews.com (26 articles)
+    ❌ No boilerplate segments detected
+
+17. www.laclederecord.com (25 articles)
+    ✅ 1 segments for removal
+    📈 Estimated removal: 0.4% of content
+    📝 132 characters removable
+
+    SEGMENT 1 (Confidence: 0.60)
+    Pattern: OTHER
+    Occurrences: 3 times
+    Length: 44 characters
+    Boundary Score: 0.60
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "For more on this story, see Wednesday's LCR."
+
+    APPEARS IN ARTICLES:
+    • https://www.laclederecord.com/stories/lebanon-track-and-field-athletes-qualify-for-sectionals,131873
+    • https://www.laclederecord.com/stories/local-football-star-joins-ozarks-lunkers,130989
+    • https://www.laclederecord.com/stories/carter-sing-is-sixth-best-youth-weightlifter-in-world,129969
+
+======================================================================
+
+18. www.gasconadecountyrepublican.com (25 articles)
+    ✅ 12 segments for removal
+    📈 Estimated removal: 20.2% of content
+    📝 13713 characters removable
+
+    SEGMENT 1 (Confidence: 0.60)
+    Pattern: SUBSCRIPTION
+    Occurrences: 9 times
+    Length: 158 characters
+    Boundary Score: 0.60
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "We have recently launched a new and improved website. To continue reading, you will need to either log into your member account, or purchase a new membership."
+
+    APPEARS IN ARTICLES:
+    • https://www.gasconadecountyrepublican.com/stories/xc-owensville-invite-middle-school-at-linn-09-18-2025,234047
+    • https://www.gasconadecountyrepublican.com/stories/xc-hermann-invite-varsity-boys-at-linn-09-18-2025,234046
+    • https://www.gasconadecountyrepublican.com/stories/softball-owensville-varsity-vs-hermann-at-owensville-09-18-2025,234045
+    • https://www.gasconadecountyrepublican.com/stories/hermann-football-09-18-2025,234048
+    • https://www.gasconadecountyrepublican.com/stories/owensville-harriers-earn-five-medals-from-linn-columbia,233745
+    • https://www.gasconadecountyrepublican.com/stories/hermann-cheer-09-18-2025,234049
+    • https://www.gasconadecountyrepublican.com/stories/meramec-regional-planning-comprehensive-to-unveil-draft-of-comprehensive-plan-for-city-of-hermann,233742
+    • https://www.gasconadecountyrepublican.com/stories/gcr-9-17-25,233752
+    • https://www.gasconadecountyrepublican.com/stories/red-oak-road-in-gerald-will-be-close-friday-for-repairs,233740
+
+    SEGMENT 2 (Confidence: 0.60)
+    Pattern: SUBSCRIPTION
+    Occurrences: 9 times
+    Length: 94 characters
+    Boundary Score: 0.60
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "If you are a current print subscriber, you can set up a free website account by clicking here."
+
+    APPEARS IN ARTICLES:
+    • https://www.gasconadecountyrepublican.com/stories/xc-owensville-invite-middle-school-at-linn-09-18-2025,234047
+    • https://www.gasconadecountyrepublican.com/stories/xc-hermann-invite-varsity-boys-at-linn-09-18-2025,234046
+    • https://www.gasconadecountyrepublican.com/stories/softball-owensville-varsity-vs-hermann-at-owensville-09-18-2025,234045
+    • https://www.gasconadecountyrepublican.com/stories/hermann-football-09-18-2025,234048
+    • https://www.gasconadecountyrepublican.com/stories/owensville-harriers-earn-five-medals-from-linn-columbia,233745
+    • https://www.gasconadecountyrepublican.com/stories/hermann-cheer-09-18-2025,234049
+    • https://www.gasconadecountyrepublican.com/stories/meramec-regional-planning-comprehensive-to-unveil-draft-of-comprehensive-plan-for-city-of-hermann,233742
+    • https://www.gasconadecountyrepublican.com/stories/gcr-9-17-25,233752
+    • https://www.gasconadecountyrepublican.com/stories/red-oak-road-in-gerald-will-be-close-friday-for-repairs,233740
+
+    SEGMENT 3 (Confidence: 0.60)
+    Pattern: OTHER
+    Occurrences: 8 times
+    Length: 65 characters
+    Boundary Score: 0.60
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Otherwise, click here to view your options for becoming a member."
+
+    APPEARS IN ARTICLES:
+    • https://www.gasconadecountyrepublican.com/stories/xc-owensville-invite-middle-school-at-linn-09-18-2025,234047
+    • https://www.gasconadecountyrepublican.com/stories/xc-hermann-invite-varsity-boys-at-linn-09-18-2025,234046
+    • https://www.gasconadecountyrepublican.com/stories/softball-owensville-varsity-vs-hermann-at-owensville-09-18-2025,234045
+    • https://www.gasconadecountyrepublican.com/stories/hermann-football-09-18-2025,234048
+    • https://www.gasconadecountyrepublican.com/stories/owensville-harriers-earn-five-medals-from-linn-columbia,233745
+    • https://www.gasconadecountyrepublican.com/stories/hermann-cheer-09-18-2025,234049
+    • https://www.gasconadecountyrepublican.com/stories/meramec-regional-planning-comprehensive-to-unveil-draft-of-comprehensive-plan-for-city-of-hermann,233742
+    • https://www.gasconadecountyrepublican.com/stories/red-oak-road-in-gerald-will-be-close-friday-for-repairs,233740
+
+    SEGMENT 4 (Confidence: 0.70)
+    Pattern: OTHER
+    Occurrences: 7 times
+    Length: 58 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Red Oak Road, south of Gerald, will be closed Friday, Sept"
+
+    APPEARS IN ARTICLES:
+    • https://www.gasconadecountyrepublican.com/stories/xc-owensville-invite-middle-school-at-linn-09-18-2025,234047
+    • https://www.gasconadecountyrepublican.com/stories/xc-hermann-invite-varsity-boys-at-linn-09-18-2025,234046
+    • https://www.gasconadecountyrepublican.com/stories/softball-owensville-varsity-vs-hermann-at-owensville-09-18-2025,234045
+    • https://www.gasconadecountyrepublican.com/stories/hermann-football-09-18-2025,234048
+    • https://www.gasconadecountyrepublican.com/stories/owensville-harriers-earn-five-medals-from-linn-columbia,233745
+    • https://www.gasconadecountyrepublican.com/stories/hermann-cheer-09-18-2025,234049
+    • https://www.gasconadecountyrepublican.com/stories/red-oak-road-in-gerald-will-be-close-friday-for-repairs,233740
+
+    SEGMENT 5 (Confidence: 0.70)
+    Pattern: SIDEBAR
+    Occurrences: 6 times
+    Length: 195 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Amy Jackson with the Franklin County Highway Department has announced a one day road closure in the Gerald area. Red Oak Road, south of Gerald, will be closed Friday, Sept. 19, from 8 a.m. to 3 …"
+
+    APPEARS IN ARTICLES:
+    • https://www.gasconadecountyrepublican.com/stories/xc-owensville-invite-middle-school-at-linn-09-18-2025,234047
+    • https://www.gasconadecountyrepublican.com/stories/xc-hermann-invite-varsity-boys-at-linn-09-18-2025,234046
+    • https://www.gasconadecountyrepublican.com/stories/softball-owensville-varsity-vs-hermann-at-owensville-09-18-2025,234045
+    • https://www.gasconadecountyrepublican.com/stories/hermann-football-09-18-2025,234048
+    • https://www.gasconadecountyrepublican.com/stories/owensville-harriers-earn-five-medals-from-linn-columbia,233745
+    • https://www.gasconadecountyrepublican.com/stories/hermann-cheer-09-18-2025,234049
+
+    SEGMENT 6 (Confidence: 0.70)
+    Pattern: OTHER
+    Occurrences: 6 times
+    Length: 189 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "HERMANN — A plan for a Drug Teen Summit next year to discuss the dangers of opioid-based drugs and aimed at Gasconade County’s middle school and high school students was approved Thursday …"
+
+    APPEARS IN ARTICLES:
+    • https://www.gasconadecountyrepublican.com/stories/xc-owensville-invite-middle-school-at-linn-09-18-2025,234047
+    • https://www.gasconadecountyrepublican.com/stories/xc-hermann-invite-varsity-boys-at-linn-09-18-2025,234046
+    • https://www.gasconadecountyrepublican.com/stories/softball-owensville-varsity-vs-hermann-at-owensville-09-18-2025,234045
+    • https://www.gasconadecountyrepublican.com/stories/hermann-football-09-18-2025,234048
+    • https://www.gasconadecountyrepublican.com/stories/owensville-harriers-earn-five-medals-from-linn-columbia,233745
+    • https://www.gasconadecountyrepublican.com/stories/hermann-cheer-09-18-2025,234049
+
+    SEGMENT 7 (Confidence: 0.70)
+    Pattern: OTHER
+    Occurrences: 6 times
+    Length: 188 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "A 17-year-old boy from Beaufort was injured in an accident Sunday, Sept 14 at 6 p.m. The youth, who was not identified by the Missouri State Highway Patrol by policy adopted in 2024, was …"
+
+    APPEARS IN ARTICLES:
+    • https://www.gasconadecountyrepublican.com/stories/xc-owensville-invite-middle-school-at-linn-09-18-2025,234047
+    • https://www.gasconadecountyrepublican.com/stories/xc-hermann-invite-varsity-boys-at-linn-09-18-2025,234046
+    • https://www.gasconadecountyrepublican.com/stories/softball-owensville-varsity-vs-hermann-at-owensville-09-18-2025,234045
+    • https://www.gasconadecountyrepublican.com/stories/hermann-football-09-18-2025,234048
+    • https://www.gasconadecountyrepublican.com/stories/owensville-harriers-earn-five-medals-from-linn-columbia,233745
+    • https://www.gasconadecountyrepublican.com/stories/hermann-cheer-09-18-2025,234049
+
+    SEGMENT 8 (Confidence: 0.70)
+    Pattern: SIDEBAR
+    Occurrences: 6 times
+    Length: 121 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Meramec Regional Planning Comprehensive to unveil draft of Comprehensive Plan for City of Hermann on Tuesday at City Hall"
+
+    APPEARS IN ARTICLES:
+    • https://www.gasconadecountyrepublican.com/stories/xc-owensville-invite-middle-school-at-linn-09-18-2025,234047
+    • https://www.gasconadecountyrepublican.com/stories/xc-hermann-invite-varsity-boys-at-linn-09-18-2025,234046
+    • https://www.gasconadecountyrepublican.com/stories/softball-owensville-varsity-vs-hermann-at-owensville-09-18-2025,234045
+    • https://www.gasconadecountyrepublican.com/stories/hermann-football-09-18-2025,234048
+    • https://www.gasconadecountyrepublican.com/stories/owensville-harriers-earn-five-medals-from-linn-columbia,233745
+    • https://www.gasconadecountyrepublican.com/stories/hermann-cheer-09-18-2025,234049
+
+    SEGMENT 9 (Confidence: 0.70)
+    Pattern: OTHER
+    Occurrences: 6 times
+    Length: 103 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "The youth, who was not identified by the Missouri State Highway Patrol by policy adopted in 2024, was …"
+
+    APPEARS IN ARTICLES:
+    • https://www.gasconadecountyrepublican.com/stories/xc-owensville-invite-middle-school-at-linn-09-18-2025,234047
+    • https://www.gasconadecountyrepublican.com/stories/xc-hermann-invite-varsity-boys-at-linn-09-18-2025,234046
+    • https://www.gasconadecountyrepublican.com/stories/softball-owensville-varsity-vs-hermann-at-owensville-09-18-2025,234045
+    • https://www.gasconadecountyrepublican.com/stories/hermann-football-09-18-2025,234048
+    • https://www.gasconadecountyrepublican.com/stories/owensville-harriers-earn-five-medals-from-linn-columbia,233745
+    • https://www.gasconadecountyrepublican.com/stories/hermann-cheer-09-18-2025,234049
+
+    SEGMENT 10 (Confidence: 0.70)
+    Pattern: OTHER
+    Occurrences: 6 times
+    Length: 82 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Teen Drug Summit in 2026 to receive opioid suit funds; might be held in Owensville"
+
+    APPEARS IN ARTICLES:
+    • https://www.gasconadecountyrepublican.com/stories/xc-owensville-invite-middle-school-at-linn-09-18-2025,234047
+    • https://www.gasconadecountyrepublican.com/stories/xc-hermann-invite-varsity-boys-at-linn-09-18-2025,234046
+    • https://www.gasconadecountyrepublican.com/stories/softball-owensville-varsity-vs-hermann-at-owensville-09-18-2025,234045
+    • https://www.gasconadecountyrepublican.com/stories/hermann-football-09-18-2025,234048
+    • https://www.gasconadecountyrepublican.com/stories/owensville-harriers-earn-five-medals-from-linn-columbia,233745
+    • https://www.gasconadecountyrepublican.com/stories/hermann-cheer-09-18-2025,234049
+
+    SEGMENT 11 (Confidence: 0.70)
+    Pattern: OTHER
+    Occurrences: 6 times
+    Length: 55 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Red Oak Road in Gerald will be close Friday for repairs"
+
+    APPEARS IN ARTICLES:
+    • https://www.gasconadecountyrepublican.com/stories/xc-owensville-invite-middle-school-at-linn-09-18-2025,234047
+    • https://www.gasconadecountyrepublican.com/stories/xc-hermann-invite-varsity-boys-at-linn-09-18-2025,234046
+    • https://www.gasconadecountyrepublican.com/stories/softball-owensville-varsity-vs-hermann-at-owensville-09-18-2025,234045
+    • https://www.gasconadecountyrepublican.com/stories/hermann-football-09-18-2025,234048
+    • https://www.gasconadecountyrepublican.com/stories/owensville-harriers-earn-five-medals-from-linn-columbia,233745
+    • https://www.gasconadecountyrepublican.com/stories/hermann-cheer-09-18-2025,234049
+
+    SEGMENT 12 (Confidence: 0.50)
+    Pattern: OTHER
+    Occurrences: 6 times
+    Length: 191 characters
+    Boundary Score: 0.50
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Posting road wins over Belle and Salem earlier in the week, Jamie Ridenhour’s Owensville varsity Dutchgirl volleyball team hit the road over the weekend for the Dig for Life Tournament held …"
+
+    APPEARS IN ARTICLES:
+    • https://www.gasconadecountyrepublican.com/stories/xc-owensville-invite-middle-school-at-linn-09-18-2025,234047
+    • https://www.gasconadecountyrepublican.com/stories/xc-hermann-invite-varsity-boys-at-linn-09-18-2025,234046
+    • https://www.gasconadecountyrepublican.com/stories/softball-owensville-varsity-vs-hermann-at-owensville-09-18-2025,234045
+    • https://www.gasconadecountyrepublican.com/stories/hermann-football-09-18-2025,234048
+    • https://www.gasconadecountyrepublican.com/stories/owensville-harriers-earn-five-medals-from-linn-columbia,233745
+    • https://www.gasconadecountyrepublican.com/stories/hermann-cheer-09-18-2025,234049
+
+======================================================================
+
+19. www.columbiatribune.com (25 articles)
+    ✅ 1 segments for removal
+    📈 Estimated removal: 0.5% of content
+    📝 549 characters removable
+
+    SEGMENT 1 (Confidence: 0.60)
+    Pattern: OTHER
+    Occurrences: 3 times
+    Length: 63 characters
+    Boundary Score: 0.60
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Prices were accurate at the time of publication but may change."
+
+    APPEARS IN ARTICLES:
+    • https://www.columbiatribune.com/story/shopping/2025/09/20/how-to-watch-college-football-live-stream-saturday-sling-day-pass/86225757007/
+    • https://www.columbiatribune.com/story/shopping/2025/09/20/holiday-deal-toybox-3d-printer-for-kids/86033904007/
+    • https://www.columbiatribune.com/story/sports/college/tiger-extra/2025/09/20/missouri-football-vs-south-carolina-tv-channel-kickoff-time-streaming/86164233007/
+
+======================================================================
+
+20. www.webstercountycitizen.com (24 articles)
+    ✅ 2 segments for removal
+    📈 Estimated removal: 16.7% of content
+    📝 14846 characters removable
+
+    SEGMENT 1 (Confidence: 0.70)
+    Pattern: SIDEBAR
+    Occurrences: 23 times
+    Length: 362 characters
+    Boundary Score: 0.70
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Jenny Han Gives an Update - 2025 53rd Annual Apple Festival Tab available in this week's Citizen and FREE online - ‘Miss Indiana!’ - Webb takes corndog crown - Parade with 79 entries ‘AGT’s Howie Mandel Reveals Family’s Scary Secret Health Battle - They came, competed and won - eEdition Did ‘Jeopardy!’ Player Paolo Pasco Qualify For the Tournament of Champions"
+
+    APPEARS IN ARTICLES:
+    • https://www.webstercountycitizen.com/sports/article_b1ee2112-ed32-4a82-8a2e-7df4f8ebc1aa.html
+    • https://www.webstercountycitizen.com/news/article_6251ce55-0c5b-48d5-9a38-1a3fb51c02bd.html
+    • https://www.webstercountycitizen.com/upcoming_events/article_066d6d2f-ba09-4ce4-926e-144529e98d5d.html
+    • https://www.webstercountycitizen.com/community/article_6d912aa9-bdfc-48ae-b3ca-58203c723836.html
+    • https://www.webstercountycitizen.com/community/article_d89cfc68-4559-4efe-86f6-1d0c76961479.html
+    • https://www.webstercountycitizen.com/news/article_2ee79049-80f9-4e1f-ad2f-54e00c777bc9.html
+    • https://www.webstercountycitizen.com/sports/article_cfb7bf03-8b61-445f-b8ba-03ce0777df08.html
+    • https://www.webstercountycitizen.com/community/article_498ba683-4474-45ea-bfd9-f3121ba0a5ad.html
+    • https://www.webstercountycitizen.com/community/article_6de6d3e8-a6ea-4ae2-aea8-2eeabf8c06a3.html
+    • https://www.webstercountycitizen.com/news/article_dfe08beb-2677-4f7f-9f94-1bb759678ccb.html
+    • https://www.webstercountycitizen.com/news/article_261ef0d5-50a4-4ed0-b8e6-9c7a138bf202.html
+    • https://www.webstercountycitizen.com/community/article_81551fdf-c024-4dd0-9d38-45be50ac75fd.html
+    • https://www.webstercountycitizen.com/news/article_f553b0bc-6e04-438d-a925-5babb5888d9d.html
+    • https://www.webstercountycitizen.com/news/article_5887ce9c-f28b-436e-aad8-9c78f199465b.html
+    • https://www.webstercountycitizen.com/news/article_cf7badaa-5cd6-44f2-a3d5-20f075446e16.html
+    • https://www.webstercountycitizen.com/opinion/article_20e0a6d1-9768-4dc5-8087-aa9315aadf25.html
+    • https://www.webstercountycitizen.com/community/article_e3fdbf7c-03c4-47c8-a8e8-b30cdb72e2a5.html
+    • https://www.webstercountycitizen.com/news/article_44d2193a-7cb1-48bf-9369-b0825ccb43ac.html
+    • https://www.webstercountycitizen.com/community/article_8130b150-ee3f-11ef-8297-27cfd0562367.html
+    • https://www.webstercountycitizen.com/community/article_216e74dc-75af-44da-9602-d02fcc59b2c9.html
+    • https://www.webstercountycitizen.com/community/article_45667631-bc02-4d86-8d67-09bc24bb0846.html
+    • https://www.webstercountycitizen.com/news/article_2eb5321a-abc1-4310-90e8-92d6c232848b.html
+    • https://www.webstercountycitizen.com/upcoming_events/article_6ca9c607-4677-473e-99b3-fb58292d2876.html
+
+    SEGMENT 2 (Confidence: 0.60)
+    Pattern: OTHER
+    Occurrences: 23 times
+    Length: 76 characters
+    Boundary Score: 0.60
+    --------------------------------------------------
+    COMPLETE TEXT:
+    "Commented Sorry, there are no recent results for popular commented articles."
+
+    APPEARS IN ARTICLES:
+    • https://www.webstercountycitizen.com/sports/article_b1ee2112-ed32-4a82-8a2e-7df4f8ebc1aa.html
+    • https://www.webstercountycitizen.com/news/article_6251ce55-0c5b-48d5-9a38-1a3fb51c02bd.html
+    • https://www.webstercountycitizen.com/upcoming_events/article_066d6d2f-ba09-4ce4-926e-144529e98d5d.html
+    • https://www.webstercountycitizen.com/community/article_6d912aa9-bdfc-48ae-b3ca-58203c723836.html
+    • https://www.webstercountycitizen.com/community/article_d89cfc68-4559-4efe-86f6-1d0c76961479.html
+    • https://www.webstercountycitizen.com/news/article_2ee79049-80f9-4e1f-ad2f-54e00c777bc9.html
+    • https://www.webstercountycitizen.com/sports/article_cfb7bf03-8b61-445f-b8ba-03ce0777df08.html
+    • https://www.webstercountycitizen.com/community/article_498ba683-4474-45ea-bfd9-f3121ba0a5ad.html
+    • https://www.webstercountycitizen.com/community/article_6de6d3e8-a6ea-4ae2-aea8-2eeabf8c06a3.html
+    • https://www.webstercountycitizen.com/news/article_dfe08beb-2677-4f7f-9f94-1bb759678ccb.html
+    • https://www.webstercountycitizen.com/news/article_261ef0d5-50a4-4ed0-b8e6-9c7a138bf202.html
+    • https://www.webstercountycitizen.com/community/article_81551fdf-c024-4dd0-9d38-45be50ac75fd.html
+    • https://www.webstercountycitizen.com/news/article_f553b0bc-6e04-438d-a925-5babb5888d9d.html
+    • https://www.webstercountycitizen.com/news/article_5887ce9c-f28b-436e-aad8-9c78f199465b.html
+    • https://www.webstercountycitizen.com/news/article_cf7badaa-5cd6-44f2-a3d5-20f075446e16.html
+    • https://www.webstercountycitizen.com/opinion/article_20e0a6d1-9768-4dc5-8087-aa9315aadf25.html
+    • https://www.webstercountycitizen.com/community/article_e3fdbf7c-03c4-47c8-a8e8-b30cdb72e2a5.html
+    • https://www.webstercountycitizen.com/news/article_44d2193a-7cb1-48bf-9369-b0825ccb43ac.html
+    • https://www.webstercountycitizen.com/community/article_8130b150-ee3f-11ef-8297-27cfd0562367.html
+    • https://www.webstercountycitizen.com/community/article_216e74dc-75af-44da-9602-d02fcc59b2c9.html
+    • https://www.webstercountycitizen.com/community/article_45667631-bc02-4d86-8d67-09bc24bb0846.html
+    • https://www.webstercountycitizen.com/news/article_2eb5321a-abc1-4310-90e8-92d6c232848b.html
+    • https://www.webstercountycitizen.com/upcoming_events/article_6ca9c607-4677-473e-99b3-fb58292d2876.html
+
+======================================================================
+
+SUMMARY
+==================================================
+Total domains analyzed: 20
+Domains with removable content: 16
+Total removable segments: 67
+Analysis completed: 2025-09-24 04:38:32

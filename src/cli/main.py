@@ -605,15 +605,58 @@ def analyze_command(args):
     logger = logging.getLogger(__name__)
     logger.info("Starting ML analysis")
 
-    # TODO: Implement ML analysis
-    # This would involve:
-    # 1. Loading articles with status='extracted'
-    # 2. Running ML models on content
-    # 3. Storing results in ml_results table
-    # 4. Extracting locations and storing in locations table
+    from services.classification_service import ArticleClassificationService
+    from ml.article_classifier import ArticleClassifier
 
-    logger.info("ML analysis not yet implemented")
-    return 0
+    label_version = args.label_version or "default"
+    statuses = args.statuses or ["cleaned", "local"]
+    batch_size = max(1, args.batch_size or 16)
+    top_k = max(1, args.top_k or 2)
+    model_path = Path(args.model_path or "models").expanduser()
+
+    try:
+        classifier = ArticleClassifier(model_path=model_path)
+    except Exception as exc:  # pylint: disable=broad-except
+        logger.exception("Failed to load classification model: %s", exc)
+        return 1
+
+    db = DatabaseManager()
+    service = ArticleClassificationService(db.session)
+
+    try:
+        stats = service.apply_classification(
+            classifier,
+            label_version=label_version,
+            model_version=args.model_version,
+            model_path=str(model_path),
+            statuses=statuses,
+            limit=args.limit,
+            batch_size=batch_size,
+            top_k=top_k,
+            dry_run=args.dry_run,
+        )
+
+        print("\n=== Classification Summary ===")
+        print(f"Articles eligible: {stats.processed}")
+        print(f"Predictions saved: {stats.labeled}")
+        print(f"Skipped (empty/no prediction): {stats.skipped}")
+        print(f"Errors: {stats.errors}")
+        if args.dry_run:
+            print("\nDry-run mode: no labels were persisted.")
+
+        logger.info(
+            "Classification complete: processed=%s labeled=%s skipped=%s errors=%s",
+            stats.processed,
+            stats.labeled,
+            stats.skipped,
+            stats.errors,
+        )
+        return 0
+    except Exception as exc:  # pylint: disable=broad-except
+        logger.exception("Classification run failed: %s", exc)
+        return 1
+    finally:
+        db.close()
 
 
 def populate_gazetteer_command(args):
@@ -1463,7 +1506,51 @@ def main():
 
     # Analyze command
     analyze_parser = subparsers.add_parser("analyze", help="Run ML analysis")
-    analyze_parser.add_argument("--limit", type=int, help="Maximum articles to analyze")
+    analyze_parser.add_argument(
+        "--limit",
+        type=int,
+        help="Maximum articles to analyze",
+    )
+    analyze_parser.add_argument(
+        "--label-version",
+        default="default",
+        help="Version identifier for stored labels (default: default)",
+    )
+    analyze_parser.add_argument(
+        "--model-path",
+        default=str(Path("models")),
+        help="Path or identifier for the classification model",
+    )
+    analyze_parser.add_argument(
+        "--model-version",
+        help="Override model version metadata stored with labels",
+    )
+    analyze_parser.add_argument(
+        "--statuses",
+        nargs="+",
+        default=["cleaned", "local"],
+        help=(
+            "Article statuses eligible for classification "
+            "(default: cleaned local)"
+        ),
+    )
+    analyze_parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=16,
+        help="Number of articles per classification batch (default: 16)",
+    )
+    analyze_parser.add_argument(
+        "--top-k",
+        type=int,
+        default=2,
+        help="Number of predictions to keep per article (default: 2)",
+    )
+    analyze_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Run classification without saving results",
+    )
 
     # Populate gazetteer command
     gazetteer_parser = subparsers.add_parser(

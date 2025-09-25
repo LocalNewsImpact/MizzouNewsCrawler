@@ -1,0 +1,219 @@
+================================================================================
+OLD vs NEW BYLINE CLEANING METHOD COMPARISON
+================================================================================
+
+SUMMARY STATISTICS:
+----------------------------------------
+Total Tests: 300
+Agreements: 269 (89.7%)
+Disagreements: 31 (10.3%)
+
+PERFORMANCE COMPARISON:
+----------------------------------------
+OLD Method Average Time: 41.29ms
+NEW Method Average Time: 74.41ms
+Speed Ratio (NEW/OLD): 1.8x
+NEW method is 1.8x slower than OLD
+
+DISAGREEMENT ANALYSIS:
+----------------------------------------
+Total Disagreements: 31
+
+Difference Types:
+  new_found_authors: 15 (48.4%)
+  completely_different: 8 (25.8%)
+  new_subset: 3 (9.7%)
+  new_superset: 3 (9.7%)
+  old_found_authors: 2 (6.5%)
+
+NEW Method Strategy Usage in Disagreements:
+  smart_parsing: 20 (64.5%)
+  wire_service: 4 (12.9%)
+  no_strategies_worked: 2 (6.5%)
+  fallback: 5 (16.1%)
+
+NEW Method Confidence Distribution in Disagreements:
+  high (0.8-1.0): 4 (12.9%)
+  medium (0.6-0.8): 0 (0.0%)
+  low (0.0-0.6): 27 (87.1%)
+
+OVERALL NEW METHOD STRATEGY USAGE:
+----------------------------------------
+  smart_parsing: 251 (83.7%)
+  fallback: 20 (6.7%)
+  no_strategies_worked: 16 (5.3%)
+  wire_service: 8 (2.7%)
+  special_contributor: 4 (1.3%)
+  standard_original: 1 (0.3%)
+
+EXAMPLE DISAGREEMENTS:
+----------------------------------------
+
+NEW_FOUND_AUTHORS:
+  1. Byline: "Photo Jeremy Jacob"
+     OLD Result: []
+     NEW Result: ['Photo Jeremy Jacob']
+     NEW Confidence: 0.50
+     NEW Strategy: smart_parsing
+
+  2. Byline: "CNN NewsSource"
+     OLD Result: []
+     NEW Result: ['CNN NewsSource']
+     NEW Confidence: 0.80
+     NEW Strategy: wire_service
+
+  3. Byline: "The Prospect-News"
+     OLD Result: []
+     NEW Result: ['Prospect-']
+     NEW Confidence: 0.20
+     NEW Strategy: fallback
+
+
+COMPLETELY_DIFFERENT:
+  1. Byline: "Carthage News Online, University of Missouri"
+     OLD Result: ['Carthage']
+     NEW Result: ['Carthage Online']
+     NEW Confidence: 0.50
+     NEW Strategy: smart_parsing
+
+  2. Byline: "Chris Howell  chris.howell@sedaliademocrat.com"
+     OLD Result: ['Chris Howell']
+     NEW Result: ['Chris Howell Chris.Howell@Sedaliademocrat.Com']
+     NEW Confidence: 0.50
+     NEW Strategy: smart_parsing
+
+  3. Byline: "Associated Press, AAMER MADHANI and KONSTANTIN TOROPIN"
+     OLD Result: ['Aamer Madhani', 'Konstantin Toropin']
+     NEW Result: ['Associated , Aamer Madhani', 'Konstantin Toropin', 'Aamer Madhani Konstantin Toropin']
+     NEW Confidence: 0.50
+     NEW Strategy: smart_parsing
+
+
+NEW_SUBSET:
+  1. Byline: "Tawnya Bach, KOAM News Now"
+     OLD Result: ['Tawnya Bach', 'Koam']
+     NEW Result: ['Tawnya Bach']
+     NEW Confidence: 0.50
+     NEW Strategy: smart_parsing
+
+  2. Byline: "O'Connor, Sean, Mary Jane"
+     OLD Result: ["O'Connor", 'Sean', 'Mary Jane']
+     NEW Result: ['Mary Jane']
+     NEW Confidence: 0.50
+     NEW Strategy: smart_parsing
+
+
+NEW_SUPERSET:
+  1. Byline: "Photo by Jane Smith, Jeremy Jacob, Sports Editor"
+     OLD Result: ['Jeremy Jacob']
+     NEW Result: ['Photo Jane Smith', 'Jeremy Jacob']
+     NEW Confidence: 0.50
+     NEW Strategy: smart_parsing
+
+  2. Byline: "Photos  Jeremy Jacob, Sports Editor, Jeremy Jacob, Sports Editor"
+     OLD Result: ['Jeremy Jacob']
+     NEW Result: ['Photos Jeremy Jacob', 'Jeremy Jacob']
+     NEW Confidence: 0.50
+     NEW Strategy: smart_parsing
+
+
+OLD_FOUND_AUTHORS:
+  1. Byline: "MarshfieldWebTV.com"
+     OLD Result: ['MarshfieldWebTV']
+     NEW Result: []
+     NEW Confidence: 0.00
+     NEW Strategy: no_strategies_worked
+
+  2. Byline: "STLtoday.com"
+     OLD Result: ['STLtoday']
+     NEW Result: []
+     NEW Confidence: 0.00
+     NEW Strategy: no_strategies_worked
+
+CASES WHERE NEW METHOD FOUND AUTHORS (OLD DIDN'T):
+----------------------------------------
+  1. "Photo Jeremy Jacob"
+     OLD: []
+     NEW: ['Photo Jeremy Jacob'] (confidence: 0.50, strategy: smart_parsing)
+
+  2. "CNN NewsSource"
+     OLD: []
+     NEW: ['CNN NewsSource'] (confidence: 0.80, strategy: wire_service)
+
+  3. "The Prospect-News"
+     OLD: []
+     NEW: ['Prospect-'] (confidence: 0.20, strategy: fallback)
+
+  4. "Missourian staff"
+     OLD: []
+     NEW: ['Missourian'] (confidence: 0.20, strategy: fallback)
+
+  5. "R.D. Hohenfeldt Staff Writer rd.hohenfeldt@phelpscountyfocus.com"
+     OLD: []
+     NEW: ['R.D. Hohenfeldt Rd.Hohenfeldt@Phelpscountyfocus.Com'] (confidence: 0.50, strategy: smart_parsing)
+
+  6. "Reuters"
+     OLD: []
+     NEW: ['Reuters'] (confidence: 0.80, strategy: wire_service)
+
+  7. "Associated Press"
+     OLD: []
+     NEW: ['Associated Press'] (confidence: 0.80, strategy: wire_service)
+
+  8. "ABC News"
+     OLD: []
+     NEW: ['ABC News'] (confidence: 0.80, strategy: wire_service)
+
+  9. "Photo by Jeremy Jacob"
+     OLD: []
+     NEW: ['Photo Jeremy Jacob'] (confidence: 0.50, strategy: smart_parsing)
+
+  10. "Dave Roberts Sports Editor dave.roberts@phelpscountyfocus.com"
+     OLD: []
+     NEW: ['Dave Roberts Dave.Roberts@Phelpscountyfocus.Com'] (confidence: 0.50, strategy: smart_parsing)
+
+CASES WHERE OLD METHOD FOUND AUTHORS (NEW DIDN'T):
+----------------------------------------
+  1. "MarshfieldWebTV.com"
+     OLD: ['MarshfieldWebTV']
+     NEW: [] (confidence: 0.00, strategy: no_strategies_worked)
+
+  2. "STLtoday.com"
+     OLD: ['STLtoday']
+     NEW: [] (confidence: 0.00, strategy: no_strategies_worked)
+
+WIRE SERVICE DETECTION CASES:
+----------------------------------------
+  1. "CNN NewsSource"
+     OLD: []
+     NEW: ['CNN NewsSource'] (confidence: 0.80)
+
+  2. "Reuters"
+     OLD: []
+     NEW: ['Reuters'] (confidence: 0.80)
+
+  3. "Associated Press"
+     OLD: []
+     NEW: ['Associated Press'] (confidence: 0.80)
+
+  4. "ABC News"
+     OLD: []
+     NEW: ['ABC News'] (confidence: 0.80)
+
+  5. "Associated Press | Wire Service"
+     OLD: ['Associated Press | Wire Service']
+     NEW: ['Associated Press | Wire Service'] (confidence: 0.80)
+
+  6. "By Associated Press"
+     OLD: ['By Associated Press']
+     NEW: ['By Associated Press'] (confidence: 0.80)
+
+  7. "ABC 17 News Team"
+     OLD: ['ABC 17 News Team']
+     NEW: ['ABC 17 News Team'] (confidence: 0.80)
+
+  8. "FOX 2"
+     OLD: ['FOX 2']
+     NEW: ['FOX 2'] (confidence: 0.80)
+
+================================================================================

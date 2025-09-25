@@ -1,6 +1,5 @@
 # Development dependencies
 pytest-xdist>=3.3.0  # Parallel test execution
-pytest-mock>=3.11.0
 coverage>=7.3.0
 
 # Documentation

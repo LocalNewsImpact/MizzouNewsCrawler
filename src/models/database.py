@@ -7,14 +7,23 @@ import time
 import uuid
 from typing import Any, Dict, List, Literal, Optional
 from urllib.parse import urlparse
+from datetime import datetime
 
 import pandas as pd
 from sqlalchemy import MetaData, Table, create_engine, insert, select, text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker
-import sqlite3
 
-from . import Article, Base, CandidateLink, Job, Location, MLResult, Source
+from . import (
+    Article,
+    ArticleLabel,
+    Base,
+    CandidateLink,
+    Job,
+    Location,
+    MLResult,
+    Source,
+)
 from src.utils.url_utils import normalize_url
 import json
 
@@ -314,6 +323,94 @@ def save_ml_results(
         article_id,
     )
     return ml_records
+
+
+def _prediction_to_tuple(
+    prediction: Optional[Any],
+) -> tuple[Optional[str], Optional[float]]:
+    """Normalize prediction objects or dicts into (label, score)."""
+
+    if prediction is None:
+        return None, None
+
+    if hasattr(prediction, "label"):
+        label = getattr(prediction, "label")
+        score = getattr(prediction, "score", None)
+        return label, score
+
+    if isinstance(prediction, dict):
+        label = prediction.get("label")
+        score = prediction.get("score") or prediction.get("confidence")
+        return label, score
+
+    return None, None
+
+
+def save_article_classification(
+    session,
+    article_id: str,
+    label_version: str,
+    model_version: str,
+    primary_prediction: Any,
+    alternate_prediction: Optional[Any] = None,
+    model_path: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> ArticleLabel:
+    """Persist primary/alternate labels and update article snapshot."""
+
+    primary_label, primary_score = _prediction_to_tuple(primary_prediction)
+    alt_label, alt_score = _prediction_to_tuple(alternate_prediction)
+
+    if primary_label is None:
+        raise ValueError("Primary prediction must include a label")
+
+    record = (
+        session.query(ArticleLabel)
+        .filter(
+            ArticleLabel.article_id == article_id,
+            ArticleLabel.label_version == label_version,
+        )
+        .one_or_none()
+    )
+
+    now = datetime.utcnow()
+
+    if record:
+        record.model_version = model_version
+        record.model_path = model_path
+        record.primary_label = primary_label
+        record.primary_label_confidence = primary_score
+        record.alternate_label = alt_label
+        record.alternate_label_confidence = alt_score
+        record.meta = metadata
+        record.applied_at = now
+    else:
+        record = ArticleLabel(
+            article_id=article_id,
+            label_version=label_version,
+            model_version=model_version,
+            model_path=model_path,
+            primary_label=primary_label,
+            primary_label_confidence=primary_score,
+            alternate_label=alt_label,
+            alternate_label_confidence=alt_score,
+            applied_at=now,
+            meta=metadata,
+        )
+        session.add(record)
+
+    article = session.query(Article).filter_by(id=article_id).one_or_none()
+    if article:
+        article.primary_label = primary_label
+        article.primary_label_confidence = primary_score
+        article.alternate_label = alt_label
+        article.alternate_label_confidence = alt_score
+        article.label_version = label_version
+        article.label_model_version = model_version
+        article.labels_updated_at = now
+
+    _commit_with_retry(session)
+    return record
 
 
 def save_locations(
@@ -814,6 +911,30 @@ def bulk_insert_articles(
                     conn.execute(text("ALTER TABLE articles ADD COLUMN status TEXT"))
                 except Exception:
                     pass
+
+        label_columns = {
+            "primary_label": "TEXT",
+            "primary_label_confidence": "REAL",
+            "alternate_label": "TEXT",
+            "alternate_label_confidence": "REAL",
+            "label_version": "TEXT",
+            "label_model_version": "TEXT",
+            "labels_updated_at": "TIMESTAMP",
+        }
+
+        if inspector_cols:
+            for col_name, col_type in label_columns.items():
+                if col_name not in inspector_cols:
+                    with engine.connect() as conn:
+                        try:
+                            conn.execute(
+                                text(
+                                    "ALTER TABLE articles ADD COLUMN "
+                                    f"{col_name} {col_type}"
+                                )
+                            )
+                        except Exception:
+                            pass
     except Exception:
         # If migrations can't be introspected, proceed and rely on the DB to
         # accept columns present in `df`.

@@ -8,10 +8,11 @@ methods, publishers, and error conditions to optimize extraction strategies.
 import json
 import time
 from datetime import datetime
-from typing import Dict, Optional, Any, List
-from urllib.parse import urlparse
-import sqlite3
 from pathlib import Path
+from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
+
+from src.telemetry.store import TelemetryStore, get_store
 
 
 class ExtractionMetrics:
@@ -168,19 +169,31 @@ class ExtractionMetrics:
 class ComprehensiveExtractionTelemetry:
     """Enhanced telemetry system for extraction performance analysis."""
 
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(
+        self,
+        db_path: Optional[str] = None,
+        store: Optional[TelemetryStore] = None,
+    ) -> None:
         """Initialize telemetry system."""
-        if db_path is None:
-            data_path = Path(__file__).parent.parent.parent / "data"
-            self.db_path = data_path / "mizzou.db"
+        if store is not None:
+            self._store = store
         else:
-            self.db_path = Path(db_path)
+            if db_path is not None:
+                resolved = Path(db_path)
+                resolved.parent.mkdir(parents=True, exist_ok=True)
+                database_url = f"sqlite:///{resolved}"
+                self._store = TelemetryStore(
+                    database=database_url,
+                    async_writes=False,
+                )
+            else:
+                self._store = get_store()
 
         self._ensure_telemetry_tables()
 
     def _ensure_telemetry_tables(self):
         """Create telemetry tables if they don't exist."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._store.connection() as conn:
             # Enhanced extraction telemetry table
             conn.execute('''
                 CREATE TABLE IF NOT EXISTS extraction_telemetry_v2 (
@@ -255,8 +268,15 @@ class ComprehensiveExtractionTelemetry:
 
     def record_extraction(self, metrics: ExtractionMetrics):
         """Record detailed extraction metrics."""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute('''
+        def writer(conn):
+            is_success = bool(metrics.is_success)
+            if not is_success:
+                if metrics.successful_method:
+                    is_success = True
+                else:
+                    is_success = any(metrics.method_success.values())
+            conn.execute(
+                '''
                 INSERT INTO extraction_telemetry_v2 (
                     operation_id, article_id, url, publisher, host,
                     start_time, end_time, total_duration_ms,
@@ -269,122 +289,149 @@ class ComprehensiveExtractionTelemetry:
                     content_length, is_success, error_message, error_type
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                          ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                metrics.operation_id, metrics.article_id, metrics.url,
-                metrics.publisher, metrics.host,
-                metrics.start_time, metrics.end_time,
-                metrics.total_duration_ms,
-                metrics.http_status_code, metrics.http_error_type,
-                metrics.response_size_bytes, metrics.response_time_ms,
-                json.dumps(metrics.methods_attempted),
-                metrics.successful_method,
-                json.dumps(metrics.method_timings),
-                json.dumps(metrics.method_success),
-                json.dumps(metrics.method_errors),
-                json.dumps(metrics.field_extraction),
-                json.dumps(metrics.extracted_fields),
-                json.dumps(metrics.final_field_attribution),
-                json.dumps(metrics.alternative_extractions),
-                metrics.content_length, metrics.is_success,
-                metrics.error_message, metrics.error_type
-            ))
+                ''',
+                (
+                    metrics.operation_id,
+                    metrics.article_id,
+                    metrics.url,
+                    metrics.publisher,
+                    metrics.host,
+                    metrics.start_time,
+                    metrics.end_time,
+                    metrics.total_duration_ms,
+                    metrics.http_status_code,
+                    metrics.http_error_type,
+                    metrics.response_size_bytes,
+                    metrics.response_time_ms,
+                    json.dumps(metrics.methods_attempted),
+                    metrics.successful_method,
+                    json.dumps(metrics.method_timings),
+                    json.dumps(metrics.method_success),
+                    json.dumps(metrics.method_errors),
+                    json.dumps(metrics.field_extraction),
+                    json.dumps(metrics.extracted_fields),
+                    json.dumps(metrics.final_field_attribution),
+                    json.dumps(metrics.alternative_extractions),
+                    metrics.content_length,
+                    int(is_success),
+                    metrics.error_message,
+                    metrics.error_type,
+                ),
+            )
 
-            # Track HTTP errors
             if metrics.http_status_code and metrics.http_error_type:
-                conn.execute('''
+                now = datetime.utcnow()
+                conn.execute(
+                    '''
                     INSERT INTO http_error_summary
                     (host, status_code, error_type, count, last_seen)
                     VALUES (?, ?, ?, 1, ?)
                     ON CONFLICT(host, status_code) DO UPDATE SET
                         count = count + 1,
                         last_seen = ?
-                ''', (metrics.host, metrics.http_status_code,
-                      metrics.http_error_type, datetime.utcnow(),
-                      datetime.utcnow()))
+                    ''',
+                    (
+                        metrics.host,
+                        metrics.http_status_code,
+                        metrics.http_error_type,
+                        now,
+                        now,
+                    ),
+                )
 
-            conn.commit()
+        self._store.submit(writer)
 
     def get_error_summary(self, days: int = 7) -> list:
         """Get HTTP error summary for the last N days."""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute('''
+        with self._store.connection() as conn:
+            cursor = conn.execute(
+                '''
                 SELECT host, status_code, error_type, count, last_seen
                 FROM http_error_summary
                 WHERE last_seen >= datetime('now', '-{} days')
                 ORDER BY count DESC, last_seen DESC
-            '''.format(days))
+                '''.format(days)
+            )
+            try:
+                columns = [col[0] for col in cursor.description]
+                return [dict(zip(columns, row)) for row in cursor.fetchall()]
+            finally:
+                cursor.close()
 
-            return [dict(zip([col[0] for col in cursor.description], row))
-                    for row in cursor.fetchall()]
-
-    def get_method_effectiveness(self, publisher: Optional[str] = None) -> list:
+    def get_method_effectiveness(
+        self, publisher: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """Get method effectiveness stats."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._store.connection() as conn:
             where_clause = ""
-            params = []
+            params: List[Any] = []
 
             if publisher:
                 where_clause = "WHERE publisher = ?"
                 params.append(publisher)
 
-            # Get individual method stats from JSON data
-            cursor = conn.execute(f'''
-                SELECT
-                    method_timings,
-                    method_success,
-                    is_success
-                FROM extraction_telemetry_v2
-                {where_clause}
-            ''', params)
+            query = (
+                "SELECT method_timings, method_success, is_success "
+                "FROM extraction_telemetry_v2 "
+            )
+            if where_clause:
+                query += where_clause
 
-            method_stats = {}
-            for row in cursor.fetchall():
-                timings_json, success_json, overall_success = row
-                if timings_json:
+            cursor = conn.execute(query, params)
+            try:
+                method_stats: Dict[str, Dict[str, float]] = {}
+                for row in cursor.fetchall():
+                    timings_json, success_json, _overall_success = row
+                    if not timings_json:
+                        continue
+
                     try:
                         timings = json.loads(timings_json)
-                        successes = (json.loads(success_json)
-                                     if success_json else {})
-                        
-                        for method, timing in timings.items():
-                            if method not in method_stats:
-                                method_stats[method] = {
-                                    'count': 0,
-                                    'total_duration': 0,
-                                    'success_count': 0
-                                }
-                            
-                            method_stats[method]['count'] += 1
-                            method_stats[method]['total_duration'] += timing
-                            if successes.get(method, False):
-                                method_stats[method]['success_count'] += 1
+                        successes = (
+                            json.loads(success_json)
+                            if success_json
+                            else {}
+                        )
                     except (json.JSONDecodeError, TypeError):
                         continue
 
-            # Convert method stats to result format
-            method_results = []
-            for method, stats in method_stats.items():
-                avg_duration = (stats['total_duration'] / stats['count']
-                                if stats['count'] > 0 else 0)
-                success_rate = (stats['success_count'] / stats['count']
-                                if stats['count'] > 0 else 0)
-                
-                method_results.append({
-                    'method_type': method,
-                    'successful_method': method,  # For compatibility
-                    'count': stats['count'],
-                    'avg_duration': avg_duration,
-                    'success_rate': success_rate
-                })
+                    for method, timing in timings.items():
+                        if method not in method_stats:
+                            method_stats[method] = {
+                                'count': 0,
+                                'total_duration': 0.0,
+                                'success_count': 0,
+                            }
 
-            # Sort by count descending
-            method_results.sort(key=lambda x: x['count'], reverse=True)
-            return method_results
+                        stats = method_stats[method]
+                        stats['count'] += 1
+                        stats['total_duration'] += timing
+                        if successes.get(method, False):
+                            stats['success_count'] += 1
+            finally:
+                cursor.close()
 
-    def get_publisher_stats(self) -> list:
+        method_results: List[Dict[str, Any]] = []
+        for method, stats in method_stats.items():
+            count = stats['count']
+            avg_duration = stats['total_duration'] / count if count else 0.0
+            success_rate = stats['success_count'] / count if count else 0.0
+            method_results.append({
+                'method_type': method,
+                'successful_method': method,
+                'count': count,
+                'avg_duration': avg_duration,
+                'success_rate': success_rate,
+            })
+
+        method_results.sort(key=lambda item: item['count'], reverse=True)
+        return method_results
+
+    def get_publisher_stats(self) -> List[Dict[str, Any]]:
         """Get per-publisher performance statistics."""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute('''
+        with self._store.connection() as conn:
+            cursor = conn.execute(
+                '''
                 SELECT
                     publisher,
                     host,
@@ -395,98 +442,97 @@ class ComprehensiveExtractionTelemetry:
                 FROM extraction_telemetry_v2
                 GROUP BY publisher, host, successful_method
                 ORDER BY total_attempts DESC
-            ''')
+                '''
+            )
+            try:
+                columns = [col[0] for col in cursor.description]
+                return [dict(zip(columns, row)) for row in cursor.fetchall()]
+            finally:
+                cursor.close()
 
-            return [dict(zip([col[0] for col in cursor.description], row))
-                    for row in cursor.fetchall()]
-
-    def get_field_extraction_stats(self, publisher: Optional[str] = None,
-                                   method: Optional[str] = None) -> list:
+    def get_field_extraction_stats(
+        self,
+        publisher: Optional[str] = None,
+        method: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
         """Get field-level extraction success statistics by method."""
-        with sqlite3.connect(self.db_path) as conn:
-            where_clauses = []
-            params = []
+        with self._store.connection() as conn:
+            where_parts: List[str] = []
+            params: List[Any] = []
 
             if publisher:
-                where_clauses.append("publisher = ?")
+                where_parts.append("publisher = ?")
                 params.append(publisher)
 
-            where_clause = ""
-            if where_clauses:
-                where_clause = "WHERE " + " AND ".join(where_clauses)
+            where_clause = ''
+            if where_parts:
+                where_clause = "WHERE " + " AND ".join(where_parts)
 
-            # Get field extraction data from JSON
-            cursor = conn.execute(f'''
-                SELECT 
-                    field_extraction,
-                    methods_attempted,
-                    successful_method
-                FROM extraction_telemetry_v2
-                {where_clause}
-            ''', params)
+            query = (
+                "SELECT field_extraction, methods_attempted, "
+                "successful_method FROM extraction_telemetry_v2 "
+            )
+            if where_clause:
+                query += where_clause
 
-            # Process results to extract field success by method
-            method_field_stats = {}
-            
-            for row in cursor.fetchall():
-                field_extraction_json, methods_json, successful_method = row
-                
-                try:
-                    # Parse methods attempted
-                    methods = json.loads(methods_json) if methods_json else []
-                    
-                    # Parse field extraction data
-                    field_data = (json.loads(field_extraction_json) 
-                                 if field_extraction_json else {})
-                    
-                    # Process each method that was attempted
+            cursor = conn.execute(query, params)
+            method_field_stats: Dict[str, Dict[str, int]] = {}
+            try:
+                for row in cursor.fetchall():
+                    field_extraction_json, methods_json, _successful = row
+
+                    try:
+                        methods = (
+                            json.loads(methods_json) if methods_json else []
+                        )
+                        field_data = (
+                            json.loads(field_extraction_json)
+                            if field_extraction_json
+                            else {}
+                        )
+                    except (json.JSONDecodeError, TypeError):
+                        continue
+
                     for method_name in methods:
-                        # Skip if filtering by specific method
                         if method and method_name != method:
                             continue
-                            
-                        if method_name not in method_field_stats:
-                            method_field_stats[method_name] = {
+
+                        stats = method_field_stats.setdefault(
+                            method_name,
+                            {
                                 'count': 0,
                                 'title_success': 0,
                                 'author_success': 0,
                                 'content_success': 0,
-                                'date_success': 0
-                            }
-                        
-                        method_field_stats[method_name]['count'] += 1
-                        
-                        # Check field success for this method
+                                'date_success': 0,
+                            },
+                        )
+
+                        stats['count'] += 1
                         method_fields = field_data.get(method_name, {})
                         if method_fields.get('title'):
-                            method_field_stats[method_name]['title_success'] += 1
+                            stats['title_success'] += 1
                         if method_fields.get('author'):
-                            method_field_stats[method_name]['author_success'] += 1
+                            stats['author_success'] += 1
                         if method_fields.get('content'):
-                            method_field_stats[method_name]['content_success'] += 1
+                            stats['content_success'] += 1
                         if method_fields.get('publish_date'):
-                            method_field_stats[method_name]['date_success'] += 1
-                
-                except (json.JSONDecodeError, TypeError):
-                    continue
+                            stats['date_success'] += 1
+            finally:
+                cursor.close()
 
-            # Convert to result format with success rates
-            results = []
-            for method_name, stats in method_field_stats.items():
-                count = stats['count']
-                results.append({
-                    'method': method_name,
-                    'count': count,
-                    'title_success_rate': (stats['title_success'] / count 
-                                          if count > 0 else 0),
-                    'author_success_rate': (stats['author_success'] / count 
-                                           if count > 0 else 0),
-                    'content_success_rate': (stats['content_success'] / count 
-                                            if count > 0 else 0),
-                    'date_success_rate': (stats['date_success'] / count 
-                                         if count > 0 else 0)
-                })
+        results: List[Dict[str, Any]] = []
+        for method_name, stats in method_field_stats.items():
+            count = stats['count']
+            denominator = count if count else 1
+            results.append({
+                'method': method_name,
+                'count': count,
+                'title_success_rate': stats['title_success'] / denominator,
+                'author_success_rate': stats['author_success'] / denominator,
+                'content_success_rate': stats['content_success'] / denominator,
+                'date_success_rate': stats['date_success'] / denominator,
+            })
 
-            # Sort by count descending
-            results.sort(key=lambda x: x['count'], reverse=True)
-            return results
+        results.sort(key=lambda item: item['count'], reverse=True)
+        return results

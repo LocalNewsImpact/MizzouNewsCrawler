@@ -7,17 +7,68 @@ import time
 import uuid
 import json
 from datetime import datetime
+from collections import defaultdict
 from sqlalchemy import text
 
-from src.models.database import DatabaseManager
+from src.models.database import (
+    DatabaseManager,
+    calculate_content_hash,
+    _commit_with_retry,
+)
 from src.crawler import ContentExtractor
 from src.utils.byline_cleaner import BylineCleaner
+from src.utils.content_cleaner_balanced import BalancedBoundaryContentCleaner
 from src.utils.comprehensive_telemetry import (
     ComprehensiveExtractionTelemetry,
     ExtractionMetrics
 )
 
 logger = logging.getLogger(__name__)
+
+
+ARTICLE_INSERT_SQL = text(
+    "INSERT INTO articles (id, candidate_link_id, url, title, author, "
+    "publish_date, content, text, status, metadata, wire, extracted_at, "
+    "created_at, text_hash) VALUES (:id, :candidate_link_id, :url, :title, "
+    ":author, :publish_date, :content, :text, :status, :metadata, :wire, "
+    ":extracted_at, :created_at, :text_hash)"
+)
+
+CANDIDATE_STATUS_UPDATE_SQL = text(
+    "UPDATE candidate_links SET status = :status WHERE id = :id"
+)
+
+PAUSE_CANDIDATE_LINKS_SQL = text(
+    "UPDATE candidate_links "
+    "SET status = :status, error_message = :error "
+    "WHERE url LIKE :host_like OR source = :host"
+)
+
+ARTICLE_UPDATE_SQL = text(
+    "UPDATE articles SET content = :content, text = :text, "
+    "text_hash = :text_hash, text_excerpt = :excerpt, status = :status "
+    "WHERE id = :id"
+)
+
+ARTICLE_STATUS_UPDATE_SQL = text(
+    "UPDATE articles SET status = :status WHERE id = :id"
+)
+
+
+def _format_cleaned_authors(authors):
+    """Convert a list of cleaned author names into a display string."""
+    if not authors:
+        return None
+
+    normalized = [
+        author.strip()
+        for author in authors
+        if author and author.strip()
+    ]
+    if not normalized:
+        return None
+
+    return ", ".join(normalized)
 
 
 def add_extraction_parser(subparsers):
@@ -58,25 +109,33 @@ def handle_extraction_command(args) -> int:
     host_403_tracker = {}
 
     try:
+        domains_for_cleaning = defaultdict(list)
         for batch_num in range(1, batches + 1):
             result = _process_batch(
-                args, 
-                extractor, 
-                byline_cleaner, 
-                telemetry, 
-                per_batch, 
+                args,
+                extractor,
+                byline_cleaner,
+                telemetry,
+                per_batch,
                 batch_num,
-                host_403_tracker
+                host_403_tracker,
+                domains_for_cleaning,
             )
             logger.info(f"Batch {batch_num}: {result}")
             if batch_num < batches:
                 time.sleep(0.1)
         
+        if domains_for_cleaning:
+            _run_post_extraction_cleaning(domains_for_cleaning)
+
         # Log driver usage stats before cleanup
         driver_stats = extractor.get_driver_stats()
         if driver_stats['has_persistent_driver']:
-            logger.info(f"ChromeDriver efficiency: {driver_stats['driver_reuse_count']} reuses, "
-                       f"{driver_stats['driver_creation_count']} creations")
+            logger.info(
+                "ChromeDriver efficiency: %s reuses, %s creations",
+                driver_stats['driver_reuse_count'],
+                driver_stats['driver_creation_count'],
+            )
         
         return 0
     except Exception:
@@ -87,8 +146,17 @@ def handle_extraction_command(args) -> int:
         extractor.close_persistent_driver()
 
 
-def _process_batch(args, extractor, byline_cleaner, telemetry, per_batch, batch_num, host_403_tracker):
-    """Process a single extraction batch with domain-aware rate limit handling."""
+def _process_batch(
+    args,
+    extractor,
+    byline_cleaner,
+    telemetry,
+    per_batch,
+    batch_num,
+    host_403_tracker,
+    domains_for_cleaning,
+):
+    """Process a single extraction batch with domain-aware rate limiting."""
     db = DatabaseManager()
     session = db.session
 
@@ -97,13 +165,16 @@ def _process_batch(args, extractor, byline_cleaner, telemetry, per_batch, batch_
     max_failures_per_domain = 2
     
     try:
-        # Get articles with domain diversity to avoid getting stuck on rate-limited domains
+        # Get articles with domain diversity to avoid rate-limit lockups
         q = """
         SELECT cl.id, cl.url, cl.source, cl.status, s.canonical_name
         FROM candidate_links cl
         LEFT JOIN sources s ON cl.source_id = s.id
         WHERE cl.status = 'article'
-        AND cl.id NOT IN (SELECT candidate_link_id FROM articles WHERE candidate_link_id IS NOT NULL)
+        AND cl.id NOT IN (
+            SELECT candidate_link_id FROM articles
+            WHERE candidate_link_id IS NOT NULL
+        )
         ORDER BY RANDOM()  -- Use random order to mix domains
         LIMIT :limit_with_buffer
         """
@@ -112,7 +183,10 @@ def _process_batch(args, extractor, byline_cleaner, telemetry, per_batch, batch_
         buffer_multiplier = 3
         params = {"limit_with_buffer": per_batch * buffer_multiplier}
         if getattr(args, "source", None):
-            q = q.replace("WHERE cl.status = 'article'", "WHERE cl.status = 'article' AND cl.source = :source")
+            q = q.replace(
+                "WHERE cl.status = 'article'",
+                "WHERE cl.status = 'article' AND cl.source = :source",
+            )
             params["source"] = args.source
 
         result = session.execute(text(q), params)
@@ -136,19 +210,32 @@ def _process_batch(args, extractor, byline_cleaner, telemetry, per_batch, batch_
             
             # Skip domains that have failed too many times
             if domain in skipped_domains:
-                logger.debug(f"Skipping {url} - domain {domain} temporarily blocked")
+                logger.debug(
+                    "Skipping %s - domain %s temporarily blocked",
+                    url,
+                    domain,
+                )
                 continue
                 
             # Check if domain is currently rate limited by extractor
             if extractor._check_rate_limit(domain):
-                logger.info(f"Skipping {url} - domain {domain} is rate limited")
+                logger.info(
+                    "Skipping %s - domain %s is rate limited",
+                    url,
+                    domain,
+                )
                 skipped_domains.add(domain)
                 continue
             
             operation_id = f"ex_{batch_num}_{url_id}"
             article_id = str(uuid.uuid4())
             publisher = canonical_name or source
-            metrics = ExtractionMetrics(operation_id, article_id, url, publisher)
+            metrics = ExtractionMetrics(
+                operation_id,
+                article_id,
+                url,
+                publisher,
+            )
 
             try:
                 content = extractor.extract_content(url, metrics=metrics)
@@ -159,29 +246,57 @@ def _process_batch(args, extractor, byline_cleaner, telemetry, per_batch, batch_
                     # Reset failure count on success
                     if domain in domain_failures:
                         domain_failures[domain] = 0
-                        
-                    # Clean the author field if present
+
+                    # Clean author and check for wire services
                     raw_author = content.get("author")
                     cleaned_author = None
+                    wire_service_info = None
+                    article_status = "extracted"
+                    
                     if raw_author:
-                        cleaned_list = byline_cleaner.clean_byline(raw_author)
-                        # Convert list to JSON string for database storage
-                        cleaned_author = json.dumps(cleaned_list)
-                        logger.info(
-                            f"Author cleaning: '{raw_author}' → "
-                            f"'{cleaned_list}'"
+                        # Get full JSON result with wire service detection
+                        byline_result = byline_cleaner.clean_byline(
+                            raw_author,
+                            return_json=True,
+                            source_name=source,
+                            candidate_link_id=str(url_id)
                         )
+
+                        # Extract cleaned authors and wire service information
+                        cleaned_list = byline_result.get("authors", [])
+                        wire_services = byline_result.get("wire_services", [])
+                        is_wire_content = byline_result.get(
+                            "is_wire_content",
+                            False,
+                        )
+
+                        # Store cleaned authors as human-readable string
+                        cleaned_author = _format_cleaned_authors(cleaned_list)
+
+                        # Handle wire service detection
+                        if is_wire_content and wire_services:
+                            article_status = "wire"
+                            wire_service_info = json.dumps(wire_services)
+                            logger.info(
+                                "Wire service '%s': authors=%s, wire=%s",
+                                raw_author,
+                                cleaned_list,
+                                wire_services,
+                            )
+                        else:
+                            logger.info(
+                                "Author cleaning: '%s' → '%s'",
+                                raw_author,
+                                cleaned_list,
+                            )
                     
                     now = datetime.utcnow()
+                    content_text = content.get("content", "")
+                    text_hash = (calculate_content_hash(content_text)
+                                 if content_text else None)
+                    
                     session.execute(
-                        text(
-                            "INSERT INTO articles (id, candidate_link_id, url, title, "
-                            "author, publish_date, content, text, status, metadata, "
-                            "extracted_at, created_at) "
-                            "VALUES (:id, :candidate_link_id, :url, :title, "
-                            ":author, :publish_date, :content, :text, :status, :metadata, "
-                            ":extracted_at, :created_at)"
-                        ),
+                        ARTICLE_INSERT_SQL,
                         {
                             "id": article_id,
                             "candidate_link_id": str(url_id),
@@ -189,36 +304,49 @@ def _process_batch(args, extractor, byline_cleaner, telemetry, per_batch, batch_
                             "title": content.get("title"),
                             "author": cleaned_author,
                             "publish_date": content.get("publish_date"),
-                            "content": content.get("content"),
-                            "text": content.get("content"),  # Same as content
-                            "status": "extracted",
-                            "metadata": json.dumps(content.get("metadata", {})),
+                            "content": content_text,
+                            "text": content_text,  # Same as content
+                            "status": article_status,
+                            "metadata": json.dumps(
+                                content.get("metadata", {})
+                            ),
+                            "wire": wire_service_info,
                             "extracted_at": now.isoformat(),
                             "created_at": now.isoformat(),
+                            "text_hash": text_hash,
                         },
                     )
                     session.execute(
-                        text("UPDATE candidate_links SET status = :status WHERE id = :id"),
-                        {"status": "extracted", "id": str(url_id)},
+                        CANDIDATE_STATUS_UPDATE_SQL,
+                        {"status": article_status, "id": str(url_id)},
                     )
                     session.commit()
+                    domains_for_cleaning[domain].append(article_id)
                     processed += 1
                 else:
                     # Track failure for domain awareness
-                    domain_failures[domain] = domain_failures.get(domain, 0) + 1
+                    domain_failures[domain] = (
+                        domain_failures.get(domain, 0) + 1
+                    )
                     
-                    # If domain has failed too many times, skip it for rest of batch
+                    # If domain has failed too many times,
+                    # skip it for rest of batch
                     if domain_failures[domain] >= max_failures_per_domain:
-                        logger.warning(f"Domain {domain} failed "
-                                     f"{domain_failures[domain]} times, "
-                                     f"skipping for remainder of batch")
+                        logger.warning(
+                            "Domain %s failed %s times; skipping batch",
+                            domain,
+                            domain_failures[domain],
+                        )
                         skipped_domains.add(domain)
                     
-                    # For rate limit errors, also add to skipped domains immediately
+                    # For rate limit errors, also add to skipped domains
+                    # immediately
                     error_msg = content.get("error", "") if content else ""
                     if "Rate limited" in error_msg or "429" in error_msg:
-                        logger.warning(f"Rate limit detected for {domain}, "
-                                     f"skipping remaining URLs")
+                        logger.warning(
+                            "Rate limit detected for %s; skipping URLs",
+                            domain,
+                        )
                         skipped_domains.add(domain)
                     
                     metrics.error_message = "No title extracted"
@@ -229,17 +357,24 @@ def _process_batch(args, extractor, byline_cleaner, telemetry, per_batch, batch_
                 # Check for rate limit in exception
                 error_str = str(e)
                 if "Rate limited" in error_str or "429" in error_str:
-                    logger.warning(f"Rate limit exception for {domain}, "
-                                 f"skipping remaining URLs")
+                    logger.warning(
+                        "Rate limit exception for %s, skipping remaining URLs",
+                        domain,
+                    )
                     skipped_domains.add(domain)
-                    domain_failures[domain] = max_failures_per_domain  # Max out
+                    domain_failures[domain] = max_failures_per_domain
+                    # Cap at max failures once rate limited
                 else:
                     # Track other failures for domain awareness
-                    domain_failures[domain] = domain_failures.get(domain, 0) + 1
+                    domain_failures[domain] = (
+                        domain_failures.get(domain, 0) + 1
+                    )
                     if domain_failures[domain] >= max_failures_per_domain:
-                        logger.warning(f"Domain {domain} failed "
-                                     f"{domain_failures[domain]} times, "
-                                     f"skipping for remainder of batch")
+                        logger.warning(
+                            "Domain %s failed %s times; skipping batch",
+                            domain,
+                            domain_failures[domain],
+                        )
                         skipped_domains.add(domain)
                 
                 metrics.error_message = str(e)
@@ -264,30 +399,191 @@ def _process_batch(args, extractor, byline_cleaner, telemetry, per_batch, batch_
                         host_like = f"%{host}%"
                         try:
                             session.execute(
-                                text(
-                                    "UPDATE candidate_links SET status = :status, error_message = :error "
-                                    "WHERE url LIKE :host_like OR source = :host"
-                                ),
-                                {"status": "paused", "error": reason, "host_like": host_like, "host": host},
+                                PAUSE_CANDIDATE_LINKS_SQL,
+                                {
+                                    "status": "paused",
+                                    "error": reason,
+                                    "host_like": host_like,
+                                    "host": host,
+                                },
                             )
                             session.commit()
-                            logger.warning(f"Auto-paused candidate links for host {host} after multiple 403 responses")
+                            logger.warning(
+                                "Auto-paused host %s after repeated 403s",
+                                host,
+                            )
                         except Exception:
-                            logger.exception(f"Failed to pause candidate links for {host}")
+                            logger.exception(
+                                "Failed to pause candidate links for %s",
+                                host,
+                            )
                             session.rollback()
 
         # Log domain skipping summary
         if skipped_domains:
-            logger.info(f"Batch {batch_num} skipped domains due to failures: "
-                       f"{', '.join(skipped_domains)}")
+            skipped_list = ", ".join(sorted(skipped_domains))
+            logger.info(
+                "Batch %s skipped domains due to failures: %s",
+                batch_num,
+                skipped_list,
+            )
         
         if domain_failures:
-            failure_summary = {k: v for k, v in domain_failures.items() if v > 0}
+            failure_summary = {
+                key: value
+                for key, value in domain_failures.items()
+                if value > 0
+            }
             if failure_summary:
-                logger.info(f"Batch {batch_num} domain failure counts: "
-                           f"{failure_summary}")
+                logger.info(
+                    "Batch %s domain failure counts: %s",
+                    batch_num,
+                    failure_summary,
+                )
 
-        return {"processed": processed, "skipped_domains": len(skipped_domains)}
+        return {
+            "processed": processed,
+            "skipped_domains": len(skipped_domains),
+        }
 
+    finally:
+        session.close()
+
+
+def _run_post_extraction_cleaning(domains_to_articles):
+    """Trigger content cleaning for recently extracted articles."""
+    cleaner = BalancedBoundaryContentCleaner(enable_telemetry=True)
+    db = DatabaseManager()
+    session = db.session
+
+    try:
+        for domain, article_ids in domains_to_articles.items():
+            if not article_ids:
+                continue
+
+            try:
+                cleaner.analyze_domain(domain)
+            except Exception:
+                logger.exception(
+                    "Domain analysis failed before cleaning for %s", domain
+                )
+                continue
+
+            for article_id in article_ids:
+                try:
+                    row = session.execute(
+                        text(
+                            "SELECT content, status FROM articles "
+                            "WHERE id = :id"
+                        ),
+                        {"id": article_id},
+                    ).fetchone()
+
+                    if not row:
+                        continue
+
+                    original_content = row[0] or ""
+                    current_status = row[1] or "extracted"
+                    if not original_content.strip():
+                        continue
+
+                    cleaned_content, metadata = cleaner.process_single_article(
+                        text=original_content,
+                        domain=domain,
+                        article_id=article_id,
+                    )
+
+                    wire_detected = metadata.get("wire_detected")
+                    locality_assessment = (
+                        metadata.get("locality_assessment") or {}
+                    )
+                    is_local_wire = bool(
+                        wire_detected
+                        and locality_assessment
+                        and locality_assessment.get("is_local")
+                    )
+
+                    new_status = current_status
+
+                    if is_local_wire:
+                        if current_status in {"wire", "cleaned", "extracted"}:
+                            new_status = "local"
+                    elif wire_detected:
+                        if current_status == "extracted":
+                            new_status = "wire"
+                    elif current_status == "extracted":
+                        new_status = "cleaned"
+
+                    status_changed = new_status != current_status
+
+                    article_updated = False
+
+                    if cleaned_content != original_content:
+                        new_hash = (
+                            calculate_content_hash(cleaned_content)
+                            if cleaned_content
+                            else None
+                        )
+                        excerpt = (
+                            cleaned_content[:500] if cleaned_content else None
+                        )
+
+                        session.execute(
+                            ARTICLE_UPDATE_SQL,
+                            {
+                                "content": cleaned_content,
+                                "text": cleaned_content,
+                                "text_hash": new_hash,
+                                "excerpt": excerpt,
+                                "status": new_status,
+                                "id": article_id,
+                            },
+                        )
+
+                        logger.info(
+                            "Cleaning removed %s chars for article %s (%s)",
+                            metadata.get("chars_removed"),
+                            article_id,
+                            domain,
+                        )
+
+                        if status_changed:
+                            logger.info(
+                                "Updated article %s (%s) status: %s -> %s",
+                                article_id,
+                                domain,
+                                current_status,
+                                new_status,
+                            )
+
+                        article_updated = True
+                    elif status_changed:
+                        session.execute(
+                            ARTICLE_STATUS_UPDATE_SQL,
+                            {"status": new_status, "id": article_id},
+                        )
+                        logger.info(
+                            "Updated article %s (%s) status: %s -> %s",
+                            article_id,
+                            domain,
+                            current_status,
+                            new_status,
+                        )
+                        article_updated = True
+
+                    if article_updated:
+                        _commit_with_retry(session)
+
+                except Exception:
+                    session.rollback()
+                    logger.exception(
+                        "Failed to clean article %s for domain %s",
+                        article_id,
+                        domain,
+                    )
+
+    except Exception:
+        session.rollback()
+        logger.exception("Failed to complete post-extraction content cleaning")
     finally:
         session.close()

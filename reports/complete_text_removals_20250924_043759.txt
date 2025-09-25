@@ -1,0 +1,70 @@
+COMPLETE TEXT REMOVAL ANALYSIS
+==================================================
+Generated: 2025-09-24 04:37:59
+
+ 1. abc17news.com (91 articles)
+    ❌ No boilerplate segments detected
+
+ 2. www.newspressnow.com (50 articles)
+    ❌ No boilerplate segments detected
+
+ 3. www.douglascountyherald.com (45 articles)
+    ❌ No boilerplate segments detected
+
+ 4. www.kmbc.com (39 articles)
+    ❌ No boilerplate segments detected
+
+ 5. www.darnews.com (39 articles)
+    ❌ No boilerplate segments detected
+
+ 6. missouriindependent.com (36 articles)
+    ❌ No boilerplate segments detected
+
+ 7. www.newstribune.com (35 articles)
+    ❌ No boilerplate segments detected
+
+ 8. www.kprs.com (35 articles)
+    ❌ No boilerplate segments detected
+
+ 9. www.kbia.org (35 articles)
+    ❌ No boilerplate segments detected
+
+10. dailyjournalonline.com (34 articles)
+    ❌ No boilerplate segments detected
+
+11. www.semissourian.com (33 articles)
+    ❌ No boilerplate segments detected
+
+12. bocojo.com (32 articles)
+    ❌ No boilerplate segments detected
+
+13. www.bransontrilakesnews.com (31 articles)
+    ❌ No boilerplate segments detected
+
+14. www.griffonnews.com (27 articles)
+    ❌ No boilerplate segments detected
+
+15. www.emissourian.com (27 articles)
+    ❌ No boilerplate segments detected
+
+16. www.dddnews.com (26 articles)
+    ❌ No boilerplate segments detected
+
+17. www.laclederecord.com (25 articles)
+    ❌ No boilerplate segments detected
+
+18. www.gasconadecountyrepublican.com (25 articles)
+    ❌ No boilerplate segments detected
+
+19. www.columbiatribune.com (25 articles)
+    ❌ No boilerplate segments detected
+
+20. www.webstercountycitizen.com (24 articles)
+    ❌ No boilerplate segments detected
+
+SUMMARY
+==================================================
+Total domains analyzed: 20
+Domains with removable content: 0
+Total removable segments: 0
+Analysis completed: 2025-09-24 04:38:00

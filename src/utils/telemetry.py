@@ -16,6 +16,7 @@ Features:
 
 import json
 import logging
+import sqlite3
 import threading
 import time
 import uuid
@@ -23,12 +24,12 @@ from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import requests
-from sqlalchemy import text
-import sqlite3
-from functools import wraps
+
+from src.config import DATABASE_URL
+from src.telemetry.store import TelemetryStore, get_store
 
 
 class OperationType(str, Enum):
@@ -94,6 +95,49 @@ class FailureType(str, Enum):
     AUTHENTICATION_ERROR = "authentication_error"
     RATE_LIMITED = "rate_limited"
     UNKNOWN = "unknown"
+
+
+_NETWORK_ERROR_KEYWORDS: Tuple[str, ...] = (
+    "connection",
+    "network",
+    "dns",
+    "hostname",
+    "resolve",
+)
+
+_SSL_ERROR_KEYWORDS: Tuple[str, ...] = (
+    "ssl",
+    "tls",
+    "certificate",
+    "handshake",
+)
+
+_TIMEOUT_KEYWORDS: Tuple[str, ...] = (
+    "timeout",
+    "timed out",
+    "read timeout",
+)
+
+_RATE_LIMIT_KEYWORDS: Tuple[str, ...] = (
+    "rate limit",
+    "too many requests",
+    "429",
+)
+
+_AUTH_ERROR_KEYWORDS: Tuple[str, ...] = (
+    "unauthorized",
+    "forbidden",
+    "authentication",
+    "401",
+    "403",
+)
+
+_CONTENT_ERROR_KEYWORDS: Tuple[str, ...] = (
+    "content",
+    "empty",
+    "no articles",
+    "no data",
+)
 
 
 @dataclass
@@ -206,6 +250,196 @@ class DiscoveryMethodEffectiveness:
             self.last_status_codes = []
 
 
+def _apply_schema(conn: sqlite3.Connection, statements: Iterable[str]) -> None:
+    """Execute a series of DDL statements on the provided connection."""
+
+    cursor = conn.cursor()
+    try:
+        for statement in statements:
+            cursor.execute(statement)
+        conn.commit()
+    finally:
+        cursor.close()
+
+
+def _format_timestamp(value: datetime) -> str:
+    """Normalize datetimes for SQLite storage."""
+
+    if value.tzinfo is not None:
+        value = value.astimezone(timezone.utc).replace(tzinfo=None)
+    return value.strftime("%Y-%m-%d %H:%M:%S")
+
+
+_OPERATIONS_SCHEMA = (
+    """
+    CREATE TABLE IF NOT EXISTS operations (
+        id TEXT PRIMARY KEY,
+        operation_type TEXT NOT NULL,
+        status TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP NULL,
+        user_id TEXT,
+        session_id TEXT,
+        parameters TEXT,
+        metrics TEXT,
+        error_details TEXT,
+        result_summary TEXT
+    )
+    """,
+)
+
+_HTTP_STATUS_SCHEMA = (
+    """
+    CREATE TABLE IF NOT EXISTS http_status_tracking (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source_id TEXT NOT NULL,
+        source_url TEXT NOT NULL,
+        discovery_method TEXT NOT NULL,
+        attempted_url TEXT NOT NULL,
+        status_code INTEGER NOT NULL,
+        status_category TEXT NOT NULL,
+        response_time_ms REAL NOT NULL,
+        timestamp TIMESTAMP NOT NULL,
+        operation_id TEXT NOT NULL,
+        error_message TEXT,
+        content_length INTEGER
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_http_source_method
+    ON http_status_tracking (source_id, discovery_method)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_http_status_code
+    ON http_status_tracking (status_code)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_http_timestamp
+    ON http_status_tracking (timestamp)
+    """,
+)
+
+_DISCOVERY_METHOD_SCHEMA = (
+    """
+    CREATE TABLE IF NOT EXISTS discovery_method_effectiveness (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source_id TEXT NOT NULL,
+        source_url TEXT NOT NULL,
+        discovery_method TEXT NOT NULL,
+        status TEXT NOT NULL,
+        articles_found INTEGER NOT NULL DEFAULT 0,
+        success_rate REAL NOT NULL DEFAULT 0.0,
+        last_attempt TIMESTAMP NOT NULL,
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        avg_response_time_ms REAL NOT NULL DEFAULT 0.0,
+        last_status_codes TEXT,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """,
+    """
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_effectiveness_source_method
+    ON discovery_method_effectiveness (source_id, discovery_method)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_effectiveness_source
+    ON discovery_method_effectiveness (source_id)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_effectiveness_method
+    ON discovery_method_effectiveness (discovery_method)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_effectiveness_success_rate
+    ON discovery_method_effectiveness (success_rate)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_effectiveness_last_attempt
+    ON discovery_method_effectiveness (last_attempt)
+    """,
+)
+
+_DISCOVERY_OUTCOMES_SCHEMA = (
+    """
+    CREATE TABLE IF NOT EXISTS discovery_outcomes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        operation_id TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        source_name TEXT NOT NULL,
+        source_url TEXT NOT NULL,
+        outcome TEXT NOT NULL,
+        articles_found INTEGER NOT NULL DEFAULT 0,
+        articles_new INTEGER NOT NULL DEFAULT 0,
+        articles_duplicate INTEGER NOT NULL DEFAULT 0,
+        articles_expired INTEGER NOT NULL DEFAULT 0,
+        methods_attempted TEXT NOT NULL,
+        method_used TEXT,
+        error_details TEXT,
+        http_status INTEGER,
+        discovery_time_ms REAL NOT NULL DEFAULT 0.0,
+        is_success BOOLEAN NOT NULL DEFAULT 0,
+        is_content_success BOOLEAN NOT NULL DEFAULT 0,
+        is_technical_failure BOOLEAN NOT NULL DEFAULT 0,
+        metadata TEXT,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_discovery_operation
+    ON discovery_outcomes (operation_id)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_discovery_source
+    ON discovery_outcomes (source_id)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_discovery_outcome
+    ON discovery_outcomes (outcome)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_discovery_success
+    ON discovery_outcomes (is_success)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_discovery_content_success
+    ON discovery_outcomes (is_content_success)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_discovery_timestamp
+    ON discovery_outcomes (timestamp)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_discovery_source_outcome
+    ON discovery_outcomes (source_id, outcome)
+    """,
+)
+
+_BASE_SCHEMA = (
+    *_OPERATIONS_SCHEMA,
+    *_HTTP_STATUS_SCHEMA,
+    *_DISCOVERY_METHOD_SCHEMA,
+    *_DISCOVERY_OUTCOMES_SCHEMA,
+)
+
+
+def _parse_timestamp(value: Optional[str]) -> datetime:
+    """Parse a SQLite timestamp string into a timezone-aware datetime."""
+
+    if not value:
+        return datetime.now(timezone.utc)
+
+    try:
+        parsed = datetime.fromisoformat(value.replace(" ", "T"))
+    except ValueError:
+        return datetime.now(timezone.utc)
+
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
 class TelemetryReporter:
     """Handles sending telemetry data to external APIs."""
 
@@ -230,7 +464,6 @@ class TelemetryReporter:
         """Send operation event to external API."""
         if not self.api_base_url:
             return False
-
         try:
             url = f"{self.api_base_url}/api/v1/telemetry/operations"
             payload = self._serialize_event(event)
@@ -253,7 +486,9 @@ class TelemetryReporter:
             return False
 
         try:
-            url = f"{self.api_base_url}/api/v1/telemetry/progress/{operation_id}"
+            url = (
+                f"{self.api_base_url}/api/v1/telemetry/progress/{operation_id}"
+            )
             payload = asdict(metrics)
             payload["timestamp"] = datetime.now(timezone.utc).isoformat()
 
@@ -285,306 +520,248 @@ class OperationTracker:
     """Main tracking system for crawler operations."""
 
     def __init__(
-        self, db_engine, telemetry_reporter: Optional[TelemetryReporter] = None
-    ):
-        self.db_engine = db_engine
-        self.telemetry_reporter = telemetry_reporter
+        self,
+        store: Optional[Any] = None,
+        *,
+        telemetry_reporter: Optional[TelemetryReporter] = None,
+        database_url: str = DATABASE_URL,
+    ) -> None:
         self.logger = logging.getLogger(__name__)
+        self.database_url = database_url
+        self._store = self._resolve_store(store, database_url)
+        self.telemetry_reporter = telemetry_reporter
         self.active_operations: Dict[str, Dict[str, Any]] = {}
         self._lock = threading.Lock()
 
-        # Ensure telemetry operations table exists
-        self._create_operations_table()
-        self._create_tracking_tables()
+        self._ensure_base_schema()
 
-    def _create_operations_table(self):
-        """Create operations table for telemetry tracking."""
-        create_table_sql = """
-        CREATE TABLE IF NOT EXISTS operations (
-            id TEXT PRIMARY KEY,
-            operation_type TEXT NOT NULL,
-            status TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            completed_at TIMESTAMP NULL,
-            user_id TEXT,
-            session_id TEXT,
-            parameters TEXT,
-            metrics TEXT,
-            error_details TEXT,
-            result_summary TEXT
+    def _resolve_operation_type(self, operation_id: str) -> OperationType:
+        operation = self.active_operations.get(operation_id, {})
+        op_type = operation.get("operation_type")
+        if isinstance(op_type, OperationType):
+            return op_type
+        return OperationType.LOAD_SOURCES
+
+    def _resolve_store(
+        self,
+        candidate: Optional[Any],
+        database_url: str,
+    ) -> TelemetryStore:
+        if isinstance(candidate, TelemetryStore):
+            return candidate
+
+        if candidate is None:
+            return get_store(database_url)
+
+        if hasattr(candidate, "connect") or hasattr(candidate, "execute"):
+            self.logger.debug(
+                "Received legacy engine; building TelemetryStore "
+                "from database_url"
+            )
+            return get_store(database_url)
+
+        self.logger.warning(
+            "Unsupported store type %s; falling back to database_url",
+            type(candidate),
         )
-        """
+        return get_store(database_url)
 
-        with self.db_engine.connect() as conn:
-            conn.execute(text(create_table_sql))
-            conn.commit()
+    def _ensure_base_schema(self) -> None:
+        with self._store.connection() as conn:
+            _apply_schema(conn, _BASE_SCHEMA)
 
-    def _create_tracking_tables(self):
-        """Create tables for HTTP status and discovery method tracking."""
+    @contextmanager
+    def _connection(self):
+        with self._store.connection() as conn:
+            conn.row_factory = sqlite3.Row
+            yield conn
 
-        # HTTP status tracking table
-        http_status_table_sql = """
-        CREATE TABLE IF NOT EXISTS http_status_tracking (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            source_id TEXT NOT NULL,
-            source_url TEXT NOT NULL,
-            discovery_method TEXT NOT NULL,
-            attempted_url TEXT NOT NULL,
-            status_code INTEGER NOT NULL,
-            status_category TEXT NOT NULL,
-            response_time_ms REAL NOT NULL,
-            timestamp TIMESTAMP NOT NULL,
-            operation_id TEXT NOT NULL,
-            error_message TEXT,
-            content_length INTEGER
-        )
-        """
-
-        # Discovery method effectiveness table
-        effectiveness_table_sql = """
-        CREATE TABLE IF NOT EXISTS discovery_method_effectiveness (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            source_id TEXT NOT NULL,
-            source_url TEXT NOT NULL,
-            discovery_method TEXT NOT NULL,
-            status TEXT NOT NULL,
-            articles_found INTEGER NOT NULL DEFAULT 0,
-            success_rate REAL NOT NULL DEFAULT 0.0,
-            last_attempt TIMESTAMP NOT NULL,
-            attempt_count INTEGER NOT NULL DEFAULT 0,
-            avg_response_time_ms REAL NOT NULL DEFAULT 0.0,
-            last_status_codes TEXT,
-            notes TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-        """
-
-        # Index creation statements
-        http_status_indexes = [
-            (
-                "CREATE INDEX IF NOT EXISTS idx_http_source_method "
-                "ON http_status_tracking (source_id, discovery_method)"
-            ),
-            (
-                "CREATE INDEX IF NOT EXISTS idx_http_status_code "
-                "ON http_status_tracking (status_code)"
-            ),
-            (
-                "CREATE INDEX IF NOT EXISTS idx_http_timestamp "
-                "ON http_status_tracking (timestamp)"
-            ),
-        ]
-
-        effectiveness_indexes = [
-            (
-                "CREATE UNIQUE INDEX IF NOT EXISTS "
-                "idx_effectiveness_source_method "
-                "ON discovery_method_effectiveness "
-                "(source_id, discovery_method)"
-            ),
-            (
-                "CREATE INDEX IF NOT EXISTS idx_effectiveness_source "
-                "ON discovery_method_effectiveness (source_id)"
-            ),
-            (
-                "CREATE INDEX IF NOT EXISTS idx_effectiveness_method "
-                "ON discovery_method_effectiveness (discovery_method)"
-            ),
-            (
-                "CREATE INDEX IF NOT EXISTS "
-                "idx_effectiveness_success_rate "
-                "ON discovery_method_effectiveness (success_rate)"
-            ),
-            (
-                "CREATE INDEX IF NOT EXISTS "
-                "idx_effectiveness_last_attempt "
-                "ON discovery_method_effectiveness (last_attempt)"
-            ),
-        ]
-
-        with self.db_engine.connect() as conn:
-            # Create tables
-            conn.execute(text(http_status_table_sql))
-            conn.execute(text(effectiveness_table_sql))
-
-            # Create indexes
-            for index_sql in http_status_indexes:
-                conn.execute(text(index_sql))
-            for index_sql in effectiveness_indexes:
-                conn.execute(text(index_sql))
-
-            conn.commit()
-
-        # Create discovery outcomes table
-        self._create_discovery_outcomes_table()
-
-    def _create_discovery_outcomes_table(self):
-        """Create table for storing detailed discovery outcomes."""
-        create_table_sql = """
-        CREATE TABLE IF NOT EXISTS discovery_outcomes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            operation_id TEXT NOT NULL,
-            source_id TEXT NOT NULL,
-            source_name TEXT NOT NULL,
-            source_url TEXT NOT NULL,
-            outcome TEXT NOT NULL,
-            articles_found INTEGER NOT NULL DEFAULT 0,
-            articles_new INTEGER NOT NULL DEFAULT 0,
-            articles_duplicate INTEGER NOT NULL DEFAULT 0,
-            articles_expired INTEGER NOT NULL DEFAULT 0,
-            methods_attempted TEXT NOT NULL,
-            method_used TEXT,
-            error_details TEXT,
-            http_status INTEGER,
-            discovery_time_ms REAL NOT NULL DEFAULT 0.0,
-            is_success BOOLEAN NOT NULL DEFAULT 0,
-            is_content_success BOOLEAN NOT NULL DEFAULT 0,
-            is_technical_failure BOOLEAN NOT NULL DEFAULT 0,
-            metadata TEXT,
-            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-        """
-
-        # Create indexes for efficient querying
-        indexes = [
-            "CREATE INDEX IF NOT EXISTS idx_discovery_operation ON discovery_outcomes (operation_id)",
-            "CREATE INDEX IF NOT EXISTS idx_discovery_source ON discovery_outcomes (source_id)",
-            "CREATE INDEX IF NOT EXISTS idx_discovery_outcome ON discovery_outcomes (outcome)",
-            "CREATE INDEX IF NOT EXISTS idx_discovery_success ON discovery_outcomes (is_success)",
-            "CREATE INDEX IF NOT EXISTS idx_discovery_content_success ON discovery_outcomes (is_content_success)",
-            "CREATE INDEX IF NOT EXISTS idx_discovery_timestamp ON discovery_outcomes (timestamp)",
-            "CREATE INDEX IF NOT EXISTS idx_discovery_source_outcome ON discovery_outcomes (source_id, outcome)",
-        ]
-
-        with self.db_engine.connect() as conn:
-            conn.execute(text(create_table_sql))
-            for index_sql in indexes:
-                conn.execute(text(index_sql))
-            conn.commit()
-
-    def record_discovery_outcome(self, operation_id: str, source_id: str, source_name: str, 
-                                source_url: str, discovery_result):
+    def record_discovery_outcome(
+        self,
+        operation_id: str,
+        source_id: str,
+        source_name: str,
+        source_url: str,
+        discovery_result,
+    ) -> None:
         """Record detailed discovery outcome for reporting and analysis."""
+
         from src.utils.discovery_outcomes import DiscoveryResult
-        
+
         if not isinstance(discovery_result, DiscoveryResult):
-            self.logger.warning(f"Expected DiscoveryResult, got {type(discovery_result)}")
+            self.logger.warning(
+                "Expected DiscoveryResult, got %s", type(discovery_result)
+            )
             return
 
-        try:
-            # Convert DiscoveryResult to database record
-            outcome_data = {
-                "operation_id": operation_id,
-                "source_id": source_id,
-                "source_name": source_name,
-                "source_url": source_url,
-                "outcome": discovery_result.outcome.value,
-                "articles_found": discovery_result.articles_found,
-                "articles_new": discovery_result.articles_new,
-                "articles_duplicate": discovery_result.articles_duplicate,
-                "articles_expired": discovery_result.articles_expired,
-                "methods_attempted": ",".join(discovery_result.metadata.get("methods_attempted", [])),
-                "method_used": discovery_result.method_used,
-                "error_details": discovery_result.error_details,
-                "http_status": discovery_result.http_status,
-                "discovery_time_ms": discovery_result.metadata.get("discovery_time_ms", 0.0),
-                "is_success": 1 if discovery_result.is_success else 0,
-                "is_content_success": 1 if discovery_result.is_content_success else 0,
-                "is_technical_failure": 1 if discovery_result.is_technical_failure else 0,
-                "metadata": json.dumps(discovery_result.metadata),
-            }
+        outcome_data = {
+            "operation_id": operation_id,
+            "source_id": source_id,
+            "source_name": source_name,
+            "source_url": source_url,
+            "outcome": discovery_result.outcome.value,
+            "articles_found": discovery_result.articles_found,
+            "articles_new": discovery_result.articles_new,
+            "articles_duplicate": discovery_result.articles_duplicate,
+            "articles_expired": discovery_result.articles_expired,
+            "methods_attempted": ",".join(
+                discovery_result.metadata.get("methods_attempted", [])
+            ),
+            "method_used": discovery_result.method_used,
+            "error_details": discovery_result.error_details,
+            "http_status": discovery_result.http_status,
+            "discovery_time_ms": discovery_result.metadata.get(
+                "discovery_time_ms", 0.0
+            ),
+            "is_success": 1 if discovery_result.is_success else 0,
+            "is_content_success": (
+                1 if discovery_result.is_content_success else 0
+            ),
+            "is_technical_failure": (
+                1 if discovery_result.is_technical_failure else 0
+            ),
+            "metadata": json.dumps(discovery_result.metadata),
+        }
 
-            insert_sql = """
-            INSERT INTO discovery_outcomes (
-                operation_id, source_id, source_name, source_url, outcome,
-                articles_found, articles_new, articles_duplicate, articles_expired,
-                methods_attempted, method_used, error_details, http_status,
-                discovery_time_ms, is_success, is_content_success, is_technical_failure,
-                metadata
-            ) VALUES (
-                :operation_id, :source_id, :source_name, :source_url, :outcome,
-                :articles_found, :articles_new, :articles_duplicate, :articles_expired,
-                :methods_attempted, :method_used, :error_details, :http_status,
-                :discovery_time_ms, :is_success, :is_content_success, :is_technical_failure,
-                :metadata
+        insert_sql = """
+        INSERT INTO discovery_outcomes (
+            operation_id,
+            source_id,
+            source_name,
+            source_url,
+            outcome,
+            articles_found,
+            articles_new,
+            articles_duplicate,
+            articles_expired,
+            methods_attempted,
+            method_used,
+            error_details,
+            http_status,
+            discovery_time_ms,
+            is_success,
+            is_content_success,
+            is_technical_failure,
+            metadata
+        ) VALUES (
+            :operation_id,
+            :source_id,
+            :source_name,
+            :source_url,
+            :outcome,
+            :articles_found,
+            :articles_new,
+            :articles_duplicate,
+            :articles_expired,
+            :methods_attempted,
+            :method_used,
+            :error_details,
+            :http_status,
+            :discovery_time_ms,
+            :is_success,
+            :is_content_success,
+            :is_technical_failure,
+            :metadata
+        )
+        """
+
+        update_source_sql = """
+        UPDATE sources
+        SET discovery_attempted = CURRENT_TIMESTAMP
+        WHERE id = :source_id
+        """
+
+        def writer(conn: sqlite3.Connection) -> None:
+            retries = 4
+            backoff = 0.1
+            for attempt in range(retries):
+                cursor = conn.cursor()
+                try:
+                    cursor.execute(insert_sql, outcome_data)
+                    cursor.execute(update_source_sql, {"source_id": source_id})
+                    return
+                except sqlite3.OperationalError as exc:
+                    conn.rollback()
+                    self.logger.warning(
+                        "sqlite OperationalError on discovery outcome write"
+                        " (%d/%d): %s",
+                        attempt + 1,
+                        retries,
+                        exc,
+                    )
+                    time.sleep(backoff)
+                    backoff *= 2
+                finally:
+                    cursor.close()
+
+            self.logger.error(
+                "Failed to record discovery outcome for %s after retries",
+                source_name,
             )
-            """
 
-            with self.db_engine.connect() as conn:
-                conn.execute(text(insert_sql), outcome_data)
-                
-                # Update discovery_attempted timestamp in sources table
-                # This ensures sources are marked as attempted even if they failed
-                sources_update_sql = """
-                UPDATE sources 
-                SET discovery_attempted = CURRENT_TIMESTAMP 
-                WHERE id = :source_id
-                """
-                conn.execute(text(sources_update_sql), {"source_id": source_id})
-                
-                conn.commit()
+        self._store.submit(writer, ensure=_DISCOVERY_OUTCOMES_SCHEMA)
 
-            self.logger.debug(f"Recorded discovery outcome for {source_name}: {discovery_result.outcome.value}")
-
-        except Exception as e:
-            self.logger.error(f"Failed to record discovery outcome for {source_name}: {e}")
-
-    def get_discovery_outcomes_report(self, operation_id: Optional[str] = None, 
-                                    hours_back: int = 24) -> Dict[str, Any]:
+    def get_discovery_outcomes_report(
+        self,
+        operation_id: Optional[str] = None,
+        hours_back: int = 24,
+    ) -> Dict[str, Any]:
         """Generate a detailed report of discovery outcomes."""
+
         try:
-            # Base query
-            where_clauses = []
-            params = {}
+            where_parts: List[str] = []
+            params: Dict[str, Any] = {}
 
             if operation_id:
-                where_clauses.append("operation_id = :operation_id")
+                where_parts.append("operation_id = :operation_id")
                 params["operation_id"] = operation_id
             else:
-                where_clauses.append("timestamp >= datetime('now', '-' || :hours_back || ' hours')")
+                where_parts.append(
+                    (
+                        "timestamp >= datetime('now', '-' || :hours_back || "
+                        " ' hours')"
+                    )
+                )
                 params["hours_back"] = hours_back
 
-            where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+            where_clause = (
+                f"WHERE {' AND '.join(where_parts)}" if where_parts else ""
+            )
 
-            # Summary query
             summary_sql = f"""
-            SELECT 
-                COUNT(*) as total_sources,
-                SUM(is_success) as technical_success_count,
-                SUM(is_content_success) as content_success_count,
-                SUM(is_technical_failure) as technical_failure_count,
-                SUM(articles_found) as total_articles_found,
-                SUM(articles_new) as total_new_articles,
-                SUM(articles_duplicate) as total_duplicate_articles,
-                SUM(articles_expired) as total_expired_articles,
-                AVG(discovery_time_ms) as avg_discovery_time_ms
-            FROM discovery_outcomes 
+            SELECT
+                COUNT(*) AS total_sources,
+                SUM(is_success) AS technical_success_count,
+                SUM(is_content_success) AS content_success_count,
+                SUM(is_technical_failure) AS technical_failure_count,
+                SUM(articles_found) AS total_articles_found,
+                SUM(articles_new) AS total_new_articles,
+                SUM(articles_duplicate) AS total_duplicate_articles,
+                SUM(articles_expired) AS total_expired_articles,
+                AVG(discovery_time_ms) AS avg_discovery_time_ms
+            FROM discovery_outcomes
             {where_clause}
             """
 
-            # Outcome breakdown query  
             breakdown_sql = f"""
-            SELECT 
-                outcome,
-                COUNT(*) as count,
-                ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM discovery_outcomes {where_clause}), 2) as percentage
-            FROM discovery_outcomes 
+            SELECT outcome, COUNT(*) AS count
+            FROM discovery_outcomes
             {where_clause}
             GROUP BY outcome
             ORDER BY count DESC
             """
 
-            # Top performing sources
             top_sources_sql = f"""
-            SELECT 
+            SELECT
                 source_name,
-                COUNT(*) as attempts,
-                SUM(is_content_success) as content_successes,
-                SUM(articles_new) as total_new_articles,
-                ROUND(SUM(is_content_success) * 100.0 / COUNT(*), 2) as content_success_rate
-            FROM discovery_outcomes 
+                COUNT(*) AS attempts,
+                SUM(is_content_success) AS content_successes,
+                SUM(articles_new) AS total_new_articles,
+                ROUND(
+                    SUM(is_content_success) * 100.0 / COUNT(*),
+                    2
+                ) AS content_success_rate
+            FROM discovery_outcomes
             {where_clause}
             GROUP BY source_name
             HAVING attempts >= 1
@@ -592,81 +769,105 @@ class OperationTracker:
             LIMIT 10
             """
 
-            with self.db_engine.connect() as conn:
-                # Get summary
-                summary_result = conn.execute(text(summary_sql), params).fetchone()
-                
-                # Get breakdown
-                breakdown_results = conn.execute(text(breakdown_sql), params).fetchall()
-                
-                # Get top sources
-                top_sources_results = conn.execute(text(top_sources_sql), params).fetchall()
+            with self._connection() as conn:
+                summary_row = conn.execute(summary_sql, params).fetchone()
+                breakdown_rows = conn.execute(breakdown_sql, params).fetchall()
+                top_rows = conn.execute(top_sources_sql, params).fetchall()
 
-                # Calculate rates
-                total_sources = summary_result[0] if summary_result[0] else 1
-                technical_success_rate = (summary_result[1] / total_sources * 100) if total_sources > 0 else 0
-                content_success_rate = (summary_result[2] / total_sources * 100) if total_sources > 0 else 0
+            summary = {
+                "total_sources": 0,
+                "technical_success_count": 0,
+                "content_success_count": 0,
+                "technical_failure_count": 0,
+                "total_articles_found": 0,
+                "total_new_articles": 0,
+                "total_duplicate_articles": 0,
+                "total_expired_articles": 0,
+                "avg_discovery_time_ms": 0.0,
+            }
 
-                return {
-                    "summary": {
-                        "total_sources": summary_result[0],
-                        "technical_success_count": summary_result[1],
-                        "content_success_count": summary_result[2], 
-                        "technical_failure_count": summary_result[3],
-                        "total_articles_found": summary_result[4],
-                        "total_new_articles": summary_result[5],
-                        "total_duplicate_articles": summary_result[6],
-                        "total_expired_articles": summary_result[7],
-                        "avg_discovery_time_ms": summary_result[8],
-                        "technical_success_rate": round(technical_success_rate, 2),
-                        "content_success_rate": round(content_success_rate, 2),
-                    },
-                    "outcome_breakdown": [
-                        {
-                            "outcome": row[0],
-                            "count": row[1], 
-                            "percentage": row[2]
-                        } for row in breakdown_results
-                    ],
-                    "top_performing_sources": [
-                        {
-                            "source_name": row[0],
-                            "attempts": row[1],
-                            "content_successes": row[2],
-                            "total_new_articles": row[3],
-                            "content_success_rate": row[4]
-                        } for row in top_sources_results
-                    ]
-                }
+            if summary_row:
+                for key in summary:
+                    summary[key] = summary_row[key] or 0
 
-        except Exception as e:
-            self.logger.error(f"Failed to generate discovery outcomes report: {e}")
-            return {"error": str(e)}
+            total_sources = summary["total_sources"]
+            if total_sources:
+                technical_rate = (
+                    summary["technical_success_count"] / total_sources * 100
+                )
+                content_rate = (
+                    summary["content_success_count"] / total_sources * 100
+                )
+            else:
+                technical_rate = 0.0
+                content_rate = 0.0
+
+            breakdown = [
+                {"outcome": row["outcome"], "count": row["count"]}
+                for row in breakdown_rows
+            ]
+
+            # Compute percentages client-side to avoid divide-by-zero in SQL
+            breakdown_total = sum(item["count"] for item in breakdown) or 1
+            for item in breakdown:
+                item["percentage"] = round(
+                    item["count"] * 100.0 / breakdown_total,
+                    2,
+                )
+
+            top_performers = []
+            for row in top_rows:
+                attempts = row["attempts"] or 0
+                rate = row["content_success_rate"] or 0.0
+                top_performers.append(
+                    {
+                        "source_name": row["source_name"],
+                        "attempts": attempts,
+                        "content_successes": row["content_successes"] or 0,
+                        "total_new_articles": row["total_new_articles"] or 0,
+                        "content_success_rate": rate,
+                    }
+                )
+
+            return {
+                "summary": {
+                    **summary,
+                    "technical_success_rate": round(technical_rate, 2),
+                    "content_success_rate": round(content_rate, 2),
+                },
+                "outcome_breakdown": breakdown,
+                "top_performing_sources": top_performers,
+            }
+
+        except Exception as exc:  # pragma: no cover - logged for diagnosis
+            self.logger.error(
+                "Failed to generate discovery outcomes report: %s",
+                exc,
+            )
+            return {"error": str(exc)}
 
     @contextmanager
     def track_operation(self, operation_type: OperationType, **kwargs):
         """Context manager for tracking operations."""
+
         operation_id = str(uuid.uuid4())
 
         try:
-            # Start tracking
             self.start_operation(operation_id, operation_type, **kwargs)
-
-            # Yield tracker for updates
             yield OperationContext(self, operation_id)
-
-            # Mark as completed
             self.complete_operation(operation_id)
-
-        except Exception as e:
-            # Mark as failed
-            self.fail_operation(operation_id, str(e))
+        except Exception as exc:
+            self.fail_operation(operation_id, str(exc))
             raise
 
     def start_operation(
-        self, operation_id: str, operation_type: OperationType, **kwargs
-    ):
+        self,
+        operation_id: str,
+        operation_type: OperationType,
+        **kwargs,
+    ) -> None:
         """Start tracking an operation."""
+
         with self._lock:
             self.active_operations[operation_id] = {
                 "operation_type": operation_type,
@@ -676,10 +877,13 @@ class OperationTracker:
                 **kwargs,
             }
 
-        # Create database record
-        self._update_job_record(operation_id, OperationStatus.STARTED, **kwargs)
+        self._update_job_record(
+            operation_id,
+            OperationStatus.STARTED,
+            operation_type=operation_type.value,
+            **kwargs,
+        )
 
-        # Send telemetry event
         event = OperationEvent(
             event_id=str(uuid.uuid4()),
             operation_id=operation_id,
@@ -691,49 +895,55 @@ class OperationTracker:
         )
         self._send_event(event)
 
-    def update_progress(self, operation_id: str, metrics: OperationMetrics):
+    def update_progress(
+        self,
+        operation_id: str,
+        metrics: OperationMetrics,
+    ) -> None:
         """Update operation progress."""
+
         with self._lock:
             if operation_id in self.active_operations:
                 self.active_operations[operation_id]["metrics"] = metrics
-                self.active_operations[operation_id][
-                    "status"
-                ] = OperationStatus.IN_PROGRESS
+                self.active_operations[operation_id]["status"] = (
+                    OperationStatus.IN_PROGRESS
+                )
 
-        # Update database
         self._update_job_record(
-            operation_id, OperationStatus.IN_PROGRESS, metrics=metrics
+            operation_id,
+            OperationStatus.IN_PROGRESS,
+            metrics=metrics,
         )
 
-        # Send progress update
         if self.telemetry_reporter:
             self.telemetry_reporter.send_progress_update(operation_id, metrics)
 
     def complete_operation(
-        self, operation_id: str, result_summary: Optional[Dict[str, Any]] = None
-    ):
+        self,
+        operation_id: str,
+        result_summary: Optional[Dict[str, Any]] = None,
+    ) -> None:
         """Mark operation as completed."""
+
         with self._lock:
             if operation_id in self.active_operations:
-                self.active_operations[operation_id][
-                    "status"
-                ] = OperationStatus.COMPLETED
-                self.active_operations[operation_id]["end_time"] = datetime.now(
-                    timezone.utc
+                self.active_operations[operation_id]["status"] = (
+                    OperationStatus.COMPLETED
+                )
+                self.active_operations[operation_id]["end_time"] = (
+                    datetime.now(timezone.utc)
                 )
 
-        # Update database
         self._update_job_record(
-            operation_id, OperationStatus.COMPLETED, result_summary=result_summary
+            operation_id,
+            OperationStatus.COMPLETED,
+            result_summary=result_summary,
         )
 
-        # Send completion event
         event = OperationEvent(
             event_id=str(uuid.uuid4()),
             operation_id=operation_id,
-            operation_type=self.active_operations.get(operation_id, {}).get(
-                "operation_type"
-            ),
+            operation_type=self._resolve_operation_type(operation_id),
             status=OperationStatus.COMPLETED,
             timestamp=datetime.now(timezone.utc),
             message="Operation completed successfully",
@@ -746,136 +956,168 @@ class OperationTracker:
         operation_id: str,
         error_message: str,
         error_details: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         """Mark operation as failed."""
+
         with self._lock:
             if operation_id in self.active_operations:
-                self.active_operations[operation_id]["status"] = OperationStatus.FAILED
-                self.active_operations[operation_id]["end_time"] = datetime.now(
-                    timezone.utc
+                self.active_operations[operation_id]["status"] = (
+                    OperationStatus.FAILED
+                )
+                self.active_operations[operation_id]["end_time"] = (
+                    datetime.now(timezone.utc)
                 )
 
-        # Update database
+        combined_error = {"message": error_message, **(error_details or {})}
+
         self._update_job_record(
             operation_id,
             OperationStatus.FAILED,
-            error_details={"message": error_message, **(error_details or {})},
+            error_details=combined_error,
         )
 
-        # Send failure event
         event = OperationEvent(
             event_id=str(uuid.uuid4()),
             operation_id=operation_id,
-            operation_type=self.active_operations.get(operation_id, {}).get(
-                "operation_type"
-            ),
+            operation_type=self._resolve_operation_type(operation_id),
             status=OperationStatus.FAILED,
             timestamp=datetime.now(timezone.utc),
             message=f"Operation failed: {error_message}",
-            error_details={"message": error_message, **(error_details or {})},
+            error_details=combined_error,
         )
         self._send_event(event)
 
-    def get_operation_status(self, operation_id: str) -> Optional[Dict[str, Any]]:
-        """Get current status of an operation."""
+    def get_operation_status(
+        self,
+        operation_id: str,
+    ) -> Optional[Dict[str, Any]]:
         with self._lock:
             return self.active_operations.get(operation_id)
 
     def list_active_operations(self) -> List[Dict[str, Any]]:
-        """List all active operations."""
         with self._lock:
             return [
                 {"operation_id": op_id, **details}
                 for op_id, details in self.active_operations.items()
                 if details["status"]
-                in [OperationStatus.STARTED, OperationStatus.IN_PROGRESS]
+                in (OperationStatus.STARTED, OperationStatus.IN_PROGRESS)
             ]
 
-    def _update_job_record(self, operation_id: str, status: OperationStatus, **kwargs):
-        """Update operation record in database.
+    def _update_job_record(
+        self,
+        operation_id: str,
+        status: OperationStatus,
+        **kwargs,
+    ) -> None:
+        """Upsert operation tracking rows with retry handling."""
 
-        Retries on sqlite3.OperationalError (database is locked) a few
-        times with exponential backoff to reduce transient lock failures.
-        """
+        operation_type = kwargs.get("operation_type", "")
+        if isinstance(operation_type, OperationType):
+            operation_type = operation_type.value
 
-        @wraps(self._update_job_record)
-        def _inner_update():
-            # Check if record exists
-            with self.db_engine.connect() as conn:
-                result = conn.execute(
-                    text("SELECT id FROM operations WHERE id = :id"),
-                    {"id": operation_id},
-                )
-                exists = result.fetchone() is not None
+        parameters = json.dumps(kwargs.get("parameters", {}))
+        metrics_json = (
+            json.dumps(asdict(kwargs["metrics"]))
+            if kwargs.get("metrics")
+            else None
+        )
+        error_json = (
+            json.dumps(kwargs["error_details"])
+            if kwargs.get("error_details")
+            else None
+        )
+        summary_json = (
+            json.dumps(kwargs["result_summary"])
+            if kwargs.get("result_summary")
+            else None
+        )
 
-            if not exists:
-                # Insert new record
-                insert_sql = """
-                INSERT INTO operations (id, operation_type, status, 
-                                      user_id, session_id, parameters)
-                VALUES (:id, :operation_type, :status, 
-                        :user_id, :session_id, :parameters)
-                """
-                with self.db_engine.connect() as conn:
-                    conn.execute(
-                        text(insert_sql),
-                        {
-                            "id": operation_id,
-                            "operation_type": kwargs.get("operation_type", ""),
-                            "status": status.value,
-                            "user_id": kwargs.get("user_id"),
-                            "session_id": kwargs.get("session_id"),
-                            "parameters": json.dumps(kwargs.get("parameters", {})),
-                        },
+        def writer(conn: sqlite3.Connection) -> None:
+            retries = 4
+            backoff = 0.1
+            for attempt in range(retries):
+                cursor = conn.cursor()
+                try:
+                    cursor.execute(
+                        "SELECT 1 FROM operations WHERE id = ?",
+                        (operation_id,),
                     )
-                    conn.commit()
-            else:
-                # Update existing record
-                update_fields = ["status = :status", "updated_at = CURRENT_TIMESTAMP"]
-                params = {"id": operation_id, "status": status.value}
+                    exists = cursor.fetchone() is not None
 
-                if status == OperationStatus.COMPLETED:
-                    update_fields.append("completed_at = CURRENT_TIMESTAMP")
+                    if not exists:
+                        cursor.execute(
+                            """
+                            INSERT INTO operations (
+                                id,
+                                operation_type,
+                                status,
+                                user_id,
+                                session_id,
+                                parameters
+                            ) VALUES (?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                operation_id,
+                                operation_type,
+                                status.value,
+                                kwargs.get("user_id"),
+                                kwargs.get("session_id"),
+                                parameters,
+                            ),
+                        )
+                    else:
+                        update_fields: List[str] = [
+                            "status = ?",
+                            "updated_at = CURRENT_TIMESTAMP",
+                        ]
+                        params: List[Any] = [status.value]
 
-                if "metrics" in kwargs and kwargs["metrics"]:
-                    update_fields.append("metrics = :metrics")
-                    params["metrics"] = json.dumps(asdict(kwargs["metrics"]))
+                        if status == OperationStatus.COMPLETED:
+                            update_fields.append(
+                                "completed_at = CURRENT_TIMESTAMP"
+                            )
 
-                if "error_details" in kwargs:
-                    update_fields.append("error_details = :error_details")
-                    params["error_details"] = json.dumps(kwargs["error_details"])
+                        if metrics_json is not None:
+                            update_fields.append("metrics = ?")
+                            params.append(metrics_json)
 
-                if "result_summary" in kwargs:
-                    update_fields.append("result_summary = :result_summary")
-                    params["result_summary"] = json.dumps(kwargs["result_summary"])
+                        if error_json is not None:
+                            update_fields.append("error_details = ?")
+                            params.append(error_json)
 
-                update_sql = (
-                    f"UPDATE operations SET {', '.join(update_fields)} "
-                    f"WHERE id = :id"
-                )
+                        if summary_json is not None:
+                            update_fields.append("result_summary = ?")
+                            params.append(summary_json)
 
-                with self.db_engine.connect() as conn:
-                    conn.execute(text(update_sql), params)
-                    conn.commit()
+                        params.append(operation_id)
 
-        # Retry loop
-        retries = 4
-        backoff = 0.1
-        for attempt in range(retries):
-            try:
-                _inner_update()
-                return
-            except sqlite3.OperationalError as oe:
-                # Database locked - wait and retry
-                self.logger.warning(
-                    f"sqlite OperationalError on update_job_record (attempt {attempt+1}/{retries}): {oe}"
-                )
-                time.sleep(backoff)
-                backoff *= 2
-                continue
-            except Exception as e:
-                self.logger.error(f"Failed to update job record: {e}")
-                return
+                        cursor.execute(
+                            "UPDATE operations SET "
+                            + ", ".join(update_fields)
+                            + " WHERE id = ?",
+                            params,
+                        )
+
+                    return
+                except sqlite3.OperationalError as exc:
+                    conn.rollback()
+                    self.logger.warning(
+                        "sqlite error on operations write (%d/%d): %s",
+                        attempt + 1,
+                        retries,
+                        exc,
+                    )
+                    time.sleep(backoff)
+                    backoff *= 2
+                finally:
+                    cursor.close()
+
+            self.logger.error(
+                "Failed to update operations record for %s after retries",
+                operation_id,
+            )
+
+        self._store.submit(writer, ensure=_OPERATIONS_SCHEMA)
 
     def record_site_failure(
         self,
@@ -930,26 +1172,17 @@ class OperationTracker:
     ) -> FailureType:
         """Categorize the type of failure based on error and context."""
         error_str = str(error).lower()
-        error_type = type(error).__name__.lower()
 
         # Network-related errors
-        if any(
-            keyword in error_str
-            for keyword in ["connection", "network", "dns", "hostname", "resolve"]
-        ):
+        if any(keyword in error_str for keyword in _NETWORK_ERROR_KEYWORDS):
             return FailureType.NETWORK_ERROR
 
         # SSL/TLS errors
-        if any(
-            keyword in error_str
-            for keyword in ["ssl", "tls", "certificate", "handshake"]
-        ):
+        if any(keyword in error_str for keyword in _SSL_ERROR_KEYWORDS):
             return FailureType.SSL_ERROR
 
         # Timeout errors
-        if any(
-            keyword in error_str for keyword in ["timeout", "timed out", "read timeout"]
-        ):
+        if any(keyword in error_str for keyword in _TIMEOUT_KEYWORDS):
             return FailureType.TIMEOUT
 
         # Cloudflare protection
@@ -965,20 +1198,15 @@ class OperationTracker:
             return FailureType.CLOUDFLARE_PROTECTION
 
         # Rate limiting
-        if (
-            any(
-                keyword in error_str
-                for keyword in ["rate limit", "too many requests", "429"]
-            )
-            or http_status == 429
+        if any(keyword in error_str for keyword in _RATE_LIMIT_KEYWORDS) or (
+            http_status == 429
         ):
             return FailureType.RATE_LIMITED
 
         # Authentication errors
-        if any(
-            keyword in error_str
-            for keyword in ["unauthorized", "forbidden", "authentication", "401", "403"]
-        ) or http_status in [401, 403]:
+        if any(keyword in error_str for keyword in _AUTH_ERROR_KEYWORDS) or (
+            http_status in {401, 403}
+        ):
             return FailureType.AUTHENTICATION_ERROR
 
         # HTTP status code errors
@@ -1030,13 +1258,19 @@ class OperationTracker:
         failures = self.get_site_failures(operation_id)
 
         if not failures:
-            return {"total_failures": 0, "failure_types": {}, "failed_sites": []}
+            return {
+                "total_failures": 0,
+                "failure_types": {},
+                "failed_sites": [],
+            }
 
         # Count failures by type
-        failure_counts = {}
+        failure_counts: Dict[str, int] = {}
         for failure in failures:
             failure_type = failure.failure_type.value
-            failure_counts[failure_type] = failure_counts.get(failure_type, 0) + 1
+            failure_counts[failure_type] = (
+                failure_counts.get(failure_type, 0) + 1
+            )
 
         # Get failed site URLs
         failed_sites = [failure.site_url for failure in failures]
@@ -1045,20 +1279,26 @@ class OperationTracker:
         total_retries = sum(failure.retry_count for failure in failures)
         avg_retries = total_retries / len(failures) if failures else 0
 
+        most_common = None
+        if failure_counts:
+            most_common = max(
+                failure_counts.items(),
+                key=lambda item: item[1],
+            )[0]
+
         return {
             "total_failures": len(failures),
             "failure_types": failure_counts,
             "failed_sites": failed_sites,
             "total_retries": total_retries,
             "average_retries": avg_retries,
-            "most_common_failure": (
-                max(failure_counts.items(), key=lambda x: x[1])[0]
-                if failure_counts
-                else None
-            ),
+            "most_common_failure": most_common,
         }
 
-    def identify_common_failures(self, operation_id: str) -> List[Dict[str, Any]]:
+    def identify_common_failures(
+        self,
+        operation_id: str,
+    ) -> List[Dict[str, Any]]:
         """Identify patterns in failures for debugging."""
         failures = self.get_site_failures(operation_id)
 
@@ -1085,9 +1325,11 @@ class OperationTracker:
 
             if failure.response_time_ms:
                 current_avg = pattern["avg_response_time"]
-                pattern["avg_response_time"] = (
-                    current_avg * (pattern["count"] - 1) + failure.response_time_ms
-                ) / pattern["count"]
+                count = pattern["count"]
+                weighted_total = (
+                    current_avg * (count - 1) + failure.response_time_ms
+                )
+                pattern["avg_response_time"] = weighted_total / count
 
             if failure.http_status:
                 pattern["http_statuses"].add(failure.http_status)
@@ -1109,14 +1351,21 @@ class OperationTracker:
             return "No failures detected in this operation."
 
         report = []
-        report.append(f"=== Failure Report for Operation {operation_id} ===")
+        report.append(
+            f"=== Failure Report for Operation {operation_id} ==="
+        )
         report.append(f"Total failures: {summary['total_failures']}")
 
         if summary["most_common_failure"]:
-            report.append(f"Most common failure type: {summary['most_common_failure']}")
+            report.append(
+                "Most common failure type: "
+                f"{summary['most_common_failure']}"
+            )
 
         report.append(f"Total retries attempted: {summary['total_retries']}")
-        report.append(f"Average retries per failure: {summary['average_retries']:.1f}")
+        report.append(
+            f"Average retries per failure: {summary['average_retries']:.1f}"
+        )
 
         report.append("\n--- Failure Breakdown by Type ---")
         for failure_type, count in summary["failure_types"].items():
@@ -1126,16 +1375,21 @@ class OperationTracker:
         if common_failures:
             report.append("\n--- Common Failure Patterns ---")
             for i, pattern in enumerate(common_failures[:5], 1):
-                report.append(
-                    f"{i}. {pattern['failure_type']} ({pattern['count']} sites)"
+                pattern_header = (
+                    f"{i}. {pattern['failure_type']}"
+                    f" ({pattern['count']} sites)"
                 )
+                report.append(pattern_header)
                 report.append(f"   Error: {pattern['error_pattern']}")
                 if pattern["avg_response_time"] > 0:
                     report.append(
-                        f"   Avg response time: {pattern['avg_response_time']:.0f}ms"
+                        "   Avg response time: "
+                        f"{pattern['avg_response_time']:.0f}ms"
                     )
                 if pattern["http_statuses"]:
-                    report.append(f"   HTTP statuses: {pattern['http_statuses']}")
+                    report.append(
+                        f"   HTTP statuses: {pattern['http_statuses']}"
+                    )
                 report.append("")
 
         return "\n".join(report)
@@ -1209,30 +1463,36 @@ class OperationTracker:
         effectiveness.attempt_count += 1
         effectiveness.last_attempt = datetime.now(timezone.utc)
         effectiveness.status = status
-        effectiveness.articles_found = max(effectiveness.articles_found, articles_found)
+        effectiveness.articles_found = max(
+            effectiveness.articles_found,
+            articles_found,
+        )
 
         # Calculate rolling average response time
-        total_time = (
-            effectiveness.avg_response_time_ms * (effectiveness.attempt_count - 1)
-            + response_time_ms
+        previous_total_time = (
+            effectiveness.avg_response_time_ms
+            * (effectiveness.attempt_count - 1)
         )
-        effectiveness.avg_response_time_ms = total_time / effectiveness.attempt_count
+        total_time = previous_total_time + response_time_ms
+        effectiveness.avg_response_time_ms = (
+            total_time / effectiveness.attempt_count
+        )
 
         # Update success rate
         if status == DiscoveryMethodStatus.SUCCESS and articles_found > 0:
-            success_count = max(
-                1, effectiveness.attempt_count * effectiveness.success_rate / 100
+            success_estimate = (
+                effectiveness.attempt_count * effectiveness.success_rate / 100
             )
+            success_count = max(1, success_estimate)
             effectiveness.success_rate = (
                 success_count / effectiveness.attempt_count
             ) * 100
         else:
             # Decay success rate if this attempt failed
-            effectiveness.success_rate = (
-                effectiveness.success_rate
-                * (effectiveness.attempt_count - 1)
-                / effectiveness.attempt_count
-            )
+            decay_factor = (
+                effectiveness.attempt_count - 1
+            ) / effectiveness.attempt_count
+            effectiveness.success_rate *= decay_factor
 
         # Update recent status codes (keep last 10)
         effectiveness.last_status_codes.extend(status_codes)
@@ -1244,90 +1504,128 @@ class OperationTracker:
         # Store in database
         self._store_method_effectiveness(effectiveness)
 
-    def get_effective_discovery_methods(self, source_id: str) -> List[DiscoveryMethod]:
+    def get_effective_discovery_methods(
+        self,
+        source_id: str,
+    ) -> List[DiscoveryMethod]:
         """Get list of discovery methods that work well for a source."""
         try:
-            with self.db_engine.connect() as connection:
-                result = connection.execute(
-                    text(
-                        """
-                        SELECT discovery_method, success_rate, articles_found,
-                               attempt_count, status
-                        FROM discovery_method_effectiveness 
-                        WHERE source_id = :source_id 
-                        ORDER BY success_rate DESC, articles_found DESC
+            with self._connection() as conn:
+                cursor = conn.execute(
                     """
-                    ),
+                    SELECT discovery_method,
+                           success_rate,
+                           articles_found,
+                           attempt_count,
+                           status
+                    FROM discovery_method_effectiveness
+                    WHERE source_id = :source_id
+                    ORDER BY success_rate DESC, articles_found DESC
+                    """,
                     {"source_id": source_id},
                 )
 
-                effective_methods = []
-                for row in result:
-                    # Consider effective if success rate > 50% and found articles
+                effective_methods: List[DiscoveryMethod] = []
+                for row in cursor.fetchall():
+                    success_rate = row["success_rate"] or 0
+                    articles = row["articles_found"] or 0
+                    attempts = row["attempt_count"] or 0
+
                     if (
-                        row.success_rate > 50
-                        and row.articles_found > 0
-                        and row.attempt_count >= 2
+                        success_rate > 50
+                        and articles > 0
+                        and attempts >= 2
                     ):
                         try:
-                            method = DiscoveryMethod(row.discovery_method)
-                            effective_methods.append(method)
+                            method = DiscoveryMethod(row["discovery_method"])
                         except ValueError:
-                            continue  # Skip unknown methods
+                            continue
+                        effective_methods.append(method)
 
                 return effective_methods
 
-        except Exception as e:
-            self.logger.error(f"Failed to get effective methods: {e}")
-            # Return all methods as fallback
-            return [
-                DiscoveryMethod.RSS_FEED,
-                DiscoveryMethod.NEWSPAPER4K,
-                DiscoveryMethod.STORYSNIFFER,
-            ]
+        except Exception as exc:
+            self.logger.error("Failed to get effective methods: %s", exc)
+
+        # Return all methods as fallback
+        return [
+            DiscoveryMethod.RSS_FEED,
+            DiscoveryMethod.NEWSPAPER4K,
+            DiscoveryMethod.STORYSNIFFER,
+        ]
 
     def _store_http_status_tracking(self, tracking: HTTPStatusTracking):
         """Store HTTP status tracking in database."""
+        payload = {
+            "source_id": tracking.source_id,
+            "source_url": tracking.source_url,
+            "discovery_method": tracking.discovery_method.value,
+            "attempted_url": tracking.attempted_url,
+            "status_code": tracking.status_code,
+            "status_category": tracking.status_category.value,
+            "response_time_ms": tracking.response_time_ms,
+            "timestamp": _format_timestamp(tracking.timestamp),
+            "operation_id": tracking.operation_id,
+            "error_message": tracking.error_message,
+            "content_length": tracking.content_length,
+        }
 
-        def _do_insert():
-            with self.db_engine.connect() as connection:
-                connection.execute(
-                    text(
+        def writer(conn: sqlite3.Connection) -> None:
+            retries = 3
+            backoff = 0.1
+            for attempt in range(retries):
+                cursor = conn.cursor()
+                try:
+                    cursor.execute(
                         """
-                        INSERT INTO http_status_tracking 
-                        (source_id, source_url, discovery_method, attempted_url,
-                         status_code, status_category, response_time_ms, 
-                         timestamp, operation_id, error_message, content_length)
-                        VALUES (:source_id, :source_url, :discovery_method, 
-                               :attempted_url, :status_code, :status_category,
-                               :response_time_ms, :timestamp, :operation_id,
-                               :error_message, :content_length)
-                    """
-                    ),
-                    asdict(tracking),
-                )
-                connection.commit()
+                        INSERT INTO http_status_tracking (
+                            source_id,
+                            source_url,
+                            discovery_method,
+                            attempted_url,
+                            status_code,
+                            status_category,
+                            response_time_ms,
+                            timestamp,
+                            operation_id,
+                            error_message,
+                            content_length
+                        ) VALUES (
+                            :source_id,
+                            :source_url,
+                            :discovery_method,
+                            :attempted_url,
+                            :status_code,
+                            :status_category,
+                            :response_time_ms,
+                            :timestamp,
+                            :operation_id,
+                            :error_message,
+                            :content_length
+                        )
+                        """,
+                        payload,
+                    )
+                    return
+                except sqlite3.OperationalError as exc:
+                    conn.rollback()
+                    self.logger.warning(
+                        "sqlite error on http_status insert (%d/%d): %s",
+                        attempt + 1,
+                        retries,
+                        exc,
+                    )
+                    time.sleep(backoff)
+                    backoff *= 2
+                finally:
+                    cursor.close()
 
-        retries = 3
-        backoff = 0.1
-        for attempt in range(retries):
-            try:
-                _do_insert()
-                return
-            except sqlite3.OperationalError as oe:
-                # Use logger args to avoid long f-strings
-                self.logger.warning(
-                    "sqlite OperationalError on http_status insert (%d/%d): %s",
-                    attempt + 1,
-                    retries,
-                    oe,
-                )
-                time.sleep(backoff)
-                backoff *= 2
-                continue
-            except Exception as e:
-                self.logger.error("Failed to store HTTP status tracking: %s", e)
-                return
+            self.logger.error(
+                "Failed to store HTTP status tracking for %s after retries",
+                tracking.source_id,
+            )
+
+        self._store.submit(writer, ensure=_HTTP_STATUS_SCHEMA)
 
     def _get_or_create_method_effectiveness(
         self,
@@ -1337,38 +1635,55 @@ class OperationTracker:
     ) -> DiscoveryMethodEffectiveness:
         """Get existing or create new method effectiveness record."""
         try:
-            with self.db_engine.connect() as connection:
-                result = connection.execute(
-                    text(
-                        """
-                        SELECT * FROM discovery_method_effectiveness
-                        WHERE source_id = :source_id
-                        AND discovery_method = :discovery_method
+            with self._connection() as conn:
+                row = conn.execute(
                     """
-                    ),
+                    SELECT
+                        source_id,
+                        source_url,
+                        discovery_method,
+                        status,
+                        articles_found,
+                        success_rate,
+                        last_attempt,
+                        attempt_count,
+                        avg_response_time_ms,
+                        last_status_codes,
+                        notes
+                    FROM discovery_method_effectiveness
+                    WHERE source_id = :source_id
+                    AND discovery_method = :discovery_method
+                    """,
                     {
                         "source_id": source_id,
                         "discovery_method": discovery_method.value,
                     },
-                )
+                ).fetchone()
 
-                row = result.fetchone()
                 if row:
                     return DiscoveryMethodEffectiveness(
-                        source_id=row.source_id,
-                        source_url=row.source_url,
-                        discovery_method=DiscoveryMethod(row.discovery_method),
-                        status=DiscoveryMethodStatus(row.status),
-                        articles_found=row.articles_found,
-                        success_rate=row.success_rate,
-                        last_attempt=row.last_attempt,
-                        attempt_count=row.attempt_count,
-                        avg_response_time_ms=row.avg_response_time_ms,
-                        last_status_codes=json.loads(row.last_status_codes or "[]"),
-                        notes=row.notes,
+                        source_id=row["source_id"],
+                        source_url=row["source_url"],
+                        discovery_method=DiscoveryMethod(
+                            row["discovery_method"]
+                        ),
+                        status=DiscoveryMethodStatus(row["status"]),
+                        articles_found=row["articles_found"],
+                        success_rate=row["success_rate"],
+                        last_attempt=_parse_timestamp(row["last_attempt"]),
+                        attempt_count=row["attempt_count"],
+                        avg_response_time_ms=row["avg_response_time_ms"],
+                        last_status_codes=json.loads(
+                            row["last_status_codes"] or "[]"
+                        ),
+                        notes=row["notes"],
                     )
-        except Exception as e:
-            self.logger.error(f"Failed to get method effectiveness: {e}")
+        except Exception as exc:
+            self.logger.error(
+                "Failed to get method effectiveness for %s: %s",
+                source_id,
+                exc,
+            )
 
         # Create new record
         return DiscoveryMethodEffectiveness(
@@ -1384,17 +1699,36 @@ class OperationTracker:
             last_status_codes=[],
         )
 
-    def _store_method_effectiveness(self, effectiveness: DiscoveryMethodEffectiveness):
+    def _store_method_effectiveness(
+        self,
+        effectiveness: DiscoveryMethodEffectiveness,
+    ):
         """Store or update method effectiveness in database."""
+        payload = {
+            "source_id": effectiveness.source_id,
+            "source_url": effectiveness.source_url,
+            "discovery_method": effectiveness.discovery_method.value,
+            "status": effectiveness.status.value,
+            "articles_found": effectiveness.articles_found,
+            "success_rate": effectiveness.success_rate,
+            "last_attempt": _format_timestamp(effectiveness.last_attempt),
+            "attempt_count": effectiveness.attempt_count,
+            "avg_response_time_ms": effectiveness.avg_response_time_ms,
+            "last_status_codes": json.dumps(effectiveness.last_status_codes),
+            "notes": effectiveness.notes,
+        }
 
-        def _do_upsert():
-            with self.db_engine.connect() as connection:
-                # Try to update existing record
-                result = connection.execute(
-                    text(
+        def writer(conn: sqlite3.Connection) -> None:
+            retries = 3
+            backoff = 0.1
+            for attempt in range(retries):
+                cursor = conn.cursor()
+                try:
+                    cursor.execute(
                         """
                         UPDATE discovery_method_effectiveness
-                        SET status = :status, articles_found = :articles_found,
+                        SET status = :status,
+                            articles_found = :articles_found,
                             success_rate = :success_rate,
                             last_attempt = :last_attempt,
                             attempt_count = :attempt_count,
@@ -1403,82 +1737,62 @@ class OperationTracker:
                             notes = :notes
                         WHERE source_id = :source_id
                         AND discovery_method = :discovery_method
-                    """
-                    ),
-                    {
-                        "source_id": effectiveness.source_id,
-                        "discovery_method": (effectiveness.discovery_method.value),
-                        "status": effectiveness.status.value,
-                        "articles_found": effectiveness.articles_found,
-                        "success_rate": effectiveness.success_rate,
-                        "last_attempt": effectiveness.last_attempt,
-                        "attempt_count": effectiveness.attempt_count,
-                        "avg_response_time_ms": (effectiveness.avg_response_time_ms),
-                        "last_status_codes": json.dumps(
-                            effectiveness.last_status_codes
-                        ),
-                        "notes": effectiveness.notes,
-                    },
-                )
-
-                if result.rowcount == 0:
-                    # Insert new record
-                    connection.execute(
-                        text(
-                            """
-                            INSERT INTO discovery_method_effectiveness
-                            (source_id, source_url, discovery_method, status,
-                             articles_found, success_rate, last_attempt,
-                             attempt_count, avg_response_time_ms,
-                             last_status_codes, notes)
-                            VALUES (:source_id, :source_url, :discovery_method,
-                                   :status, :articles_found, :success_rate,
-                                   :last_attempt, :attempt_count,
-                                   :avg_response_time_ms, :last_status_codes,
-                                   :notes)
-                        """
-                        ),
-                        {
-                            "source_id": effectiveness.source_id,
-                            "source_url": effectiveness.source_url,
-                            "discovery_method": (effectiveness.discovery_method.value),
-                            "status": effectiveness.status.value,
-                            "articles_found": effectiveness.articles_found,
-                            "success_rate": effectiveness.success_rate,
-                            "last_attempt": effectiveness.last_attempt,
-                            "attempt_count": effectiveness.attempt_count,
-                            "avg_response_time_ms": (
-                                effectiveness.avg_response_time_ms
-                            ),
-                            "last_status_codes": json.dumps(
-                                effectiveness.last_status_codes
-                            ),
-                            "notes": effectiveness.notes,
-                        },
+                        """,
+                        payload,
                     )
 
-                connection.commit()
+                    if cursor.rowcount == 0:
+                        cursor.execute(
+                            """
+                            INSERT INTO discovery_method_effectiveness (
+                                source_id,
+                                source_url,
+                                discovery_method,
+                                status,
+                                articles_found,
+                                success_rate,
+                                last_attempt,
+                                attempt_count,
+                                avg_response_time_ms,
+                                last_status_codes,
+                                notes
+                            ) VALUES (
+                                :source_id,
+                                :source_url,
+                                :discovery_method,
+                                :status,
+                                :articles_found,
+                                :success_rate,
+                                :last_attempt,
+                                :attempt_count,
+                                :avg_response_time_ms,
+                                :last_status_codes,
+                                :notes
+                            )
+                            """,
+                            payload,
+                        )
 
-        retries = 3
-        backoff = 0.1
-        for attempt in range(retries):
-            try:
-                _do_upsert()
-                return
-            except sqlite3.OperationalError as oe:
-                # Shorten the logged message and avoid long f-strings
-                self.logger.warning(
-                    "sqlite OperationalError on method upsert (%d/%d): %s",
-                    attempt + 1,
-                    retries,
-                    oe,
-                )
-                time.sleep(backoff)
-                backoff *= 2
-                continue
-            except Exception as e:
-                self.logger.error(f"Failed to store method effectiveness: {e}")
-                return
+                    return
+                except sqlite3.OperationalError as exc:
+                    conn.rollback()
+                    self.logger.warning(
+                        "sqlite OperationalError on method upsert (%d/%d): %s",
+                        attempt + 1,
+                        retries,
+                        exc,
+                    )
+                    time.sleep(backoff)
+                    backoff *= 2
+                finally:
+                    cursor.close()
+
+            self.logger.error(
+                "Failed to store method effectiveness for %s after retries",
+                effectiveness.source_id,
+            )
+
+        self._store.submit(writer, ensure=_DISCOVERY_METHOD_SCHEMA)
 
     def _send_event(self, event: OperationEvent):
         """Send event to telemetry system."""
@@ -1528,7 +1842,11 @@ class OperationContext:
         self.last_update = current_time
 
         if message:
-            self.tracker.logger.info(f"Operation {self.operation_id}: {message}")
+            self.tracker.logger.info(
+                "Operation %s: %s",
+                self.operation_id,
+                message,
+            )
 
     def log_message(self, message: str, level: str = "info"):
         """Log a message for this operation."""
@@ -1537,11 +1855,19 @@ class OperationContext:
 
 
 def create_telemetry_system(
-    db_engine, api_base_url: Optional[str] = None, api_key: Optional[str] = None
+    database_url: str = DATABASE_URL,
+    *,
+    api_base_url: Optional[str] = None,
+    api_key: Optional[str] = None,
+    store: Optional[TelemetryStore] = None,
 ) -> OperationTracker:
     """Factory function to create telemetry system."""
     reporter = None
     if api_base_url:
         reporter = TelemetryReporter(api_base_url, api_key)
 
-    return OperationTracker(db_engine, reporter)
+    return OperationTracker(
+        store=store,
+        telemetry_reporter=reporter,
+        database_url=database_url,
+    )

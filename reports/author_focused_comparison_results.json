@@ -1,0 +1,6299 @@
+{
+  "metadata": {
+    "test_count": 111,
+    "timestamp": "2025-09-23 13:59:06",
+    "description": "Focused comparison on real author bylines from production articles"
+  },
+  "summary": {
+    "total_tests": 222,
+    "old_exact_matches": 218,
+    "new_exact_matches": 204,
+    "old_new_agreement": 208,
+    "old_accuracy_rate": 0.9819819819819819,
+    "new_accuracy_rate": 0.918918918918919,
+    "method_agreement_rate": 0.9369369369369369,
+    "old_avg_time_ms": 28.613768621473174,
+    "new_avg_time_ms": 49.45733313037603,
+    "speed_ratio": 1.7284452734849063
+  },
+  "improvements": {
+    "improvement_types": {
+      "equivalent": 204,
+      "equivalent_distance": 4,
+      "old_better": 14
+    },
+    "examples_by_type": {
+      "equivalent": [
+        {
+          "byline": "Ella Conklin, Katie Puttoff, Brayden Thompson, Ellen Basse",
+          "current": [
+            "Ella Conklin",
+            "Katie Puttoff",
+            "Brayden Thompson",
+            "Ellen Basse"
+          ],
+          "old": [
+            "Ella Conklin",
+            "Katie Puttoff",
+            "Brayden Thompson",
+            "Ellen Basse"
+          ],
+          "new": [
+            "Ella Conklin",
+            "Katie Puttoff",
+            "Brayden Thompson",
+            "Ellen Basse"
+          ],
+          "new_confidence": 0.5,
+          "new_strategy": "smart_parsing"
+        },
+        {
+          "byline": "Debra Tune",
+          "current": [
+            "Debra Tune"
+          ],
+          "old": [
+            "Debra Tune"
+          ],
+          "new": [
+            "Debra Tune"
+          ],
+          "new_confidence": 0.5,
+          "new_strategy": "smart_parsing"
+        },
+        {
+          "byline": "Emma Browka",
+          "current": [
+            "Emma Browka"
+          ],
+          "old": [
+            "Emma Browka"
+          ],
+          "new": [
+            "Emma Browka"
+          ],
+          "new_confidence": 0.5,
+          "new_strategy": "smart_parsing"
+        },
+        {
+          "byline": "Vicki Stamps, Adam Groza, Wes Fowler, Richard Nations",
+          "current": [
+            "Vicki Stamps",
+            "Adam Groza",
+            "Wes Fowler",
+            "Richard Nations"
+          ],
+          "old": [
+            "Vicki Stamps",
+            "Adam Groza",
+            "Wes Fowler",
+            "Richard Nations"
+          ],
+          "new": [
+            "Vicki Stamps",
+            "Adam Groza",
+            "Wes Fowler",
+            "Richard Nations"
+          ],
+          "new_confidence": 0.5,
+          "new_strategy": "smart_parsing"
+        },
+        {
+          "byline": "Jake Kroesen",
+          "current": [
+            "Jake Kroesen"
+          ],
+          "old": [
+            "Jake Kroesen"
+          ],
+          "new": [
+            "Jake Kroesen"
+          ],
+          "new_confidence": 0.5,
+          "new_strategy": "smart_parsing"
+        }
+      ],
+      "equivalent_distance": [
+        {
+          "byline": "Ariana Figueroa, Thomas White, Kevin Hardy, Mónica Cordero",
+          "current": [
+            "Ariana Figueroa",
+            "Hite",
+            "Kevin Hardy",
+            "Mónica Cordero"
+          ],
+          "old": [
+            "Ariana Figueroa",
+            "Thomas White",
+            "Kevin Hardy",
+            "Mónica Cordero"
+          ],
+          "new": [
+            "Ariana Figueroa",
+            "Thomas White",
+            "Kevin Hardy",
+            "Mónica Cordero"
+          ],
+          "new_confidence": 0.5,
+          "new_strategy": "smart_parsing"
+        },
+        {
+          "byline": "Tim Ellsworth, Adam Groza, Wes Fowler, Richard Nations",
+          "current": [
+            "Tillsworth",
+            "Adam Groza",
+            "Wes Fowler",
+            "Richard Nations"
+          ],
+          "old": [
+            "Tim Ellsworth",
+            "Adam Groza",
+            "Wes Fowler",
+            "Richard Nations"
+          ],
+          "new": [
+            "Tim Ellsworth",
+            "Adam Groza",
+            "Wes Fowler",
+            "Richard Nations"
+          ],
+          "new_confidence": 0.5,
+          "new_strategy": "smart_parsing"
+        },
+        {
+          "byline": "Ariana Figueroa, Thomas White, Kevin Hardy, Mónica Cordero",
+          "current": [
+            "Ariana Figueroa",
+            "Hite",
+            "Kevin Hardy",
+            "Mónica Cordero"
+          ],
+          "old": [
+            "Ariana Figueroa",
+            "Thomas White",
+            "Kevin Hardy",
+            "Mónica Cordero"
+          ],
+          "new": [
+            "Ariana Figueroa",
+            "Thomas White",
+            "Kevin Hardy",
+            "Mónica Cordero"
+          ],
+          "new_confidence": 0.5,
+          "new_strategy": "smart_parsing"
+        },
+        {
+          "byline": "Tim Ellsworth, Adam Groza, Wes Fowler, Richard Nations",
+          "current": [
+            "Tillsworth",
+            "Adam Groza",
+            "Wes Fowler",
+            "Richard Nations"
+          ],
+          "old": [
+            "Tim Ellsworth",
+            "Adam Groza",
+            "Wes Fowler",
+            "Richard Nations"
+          ],
+          "new": [
+            "Tim Ellsworth",
+            "Adam Groza",
+            "Wes Fowler",
+            "Richard Nations"
+          ],
+          "new_confidence": 0.5,
+          "new_strategy": "smart_parsing"
+        }
+      ],
+      "old_better": [
+        {
+          "byline": "IMB, Adam Groza, Wes Fowler, Richard Nations",
+          "current": [
+            "Imb",
+            "Adam Groza",
+            "Wes Fowler",
+            "Richard Nations"
+          ],
+          "old": [
+            "Imb",
+            "Adam Groza",
+            "Wes Fowler",
+            "Richard Nations"
+          ],
+          "new": [
+            "Adam Groza",
+            "Wes Fowler",
+            "Richard Nations"
+          ],
+          "new_confidence": 0.5,
+          "new_strategy": "smart_parsing"
+        },
+        {
+          "byline": "Jacob Miklas, William J. Ford, Ceilidh Kern, Abigail Didonna, Will Firra, Zoe Naylor, Peter Pynadath",
+          "current": [
+            "Jacob Miklas",
+            "Ford",
+            "Ceilidh Kern",
+            "Abigail Didonna",
+            "Will Firra",
+            "Zoe Naylor",
+            "Peter Pynadath"
+          ],
+          "old": [
+            "Jacob Miklas",
+            "Ford",
+            "Ceilidh Kern",
+            "Abigail Didonna",
+            "Will Firra",
+            "Zoe Naylor",
+            "Peter Pynadath"
+          ],
+          "new": [
+            "Jacob Miklas",
+            "Ceilidh Kern",
+            "Abigail Didonna",
+            "Will Firra",
+            "Zoe Naylor",
+            "Peter Pynadath"
+          ],
+          "new_confidence": 0.5,
+          "new_strategy": "smart_parsing"
+        },
+        {
+          "byline": "Faith Bemiss-McKinney faith.bemiss@sedaliademocrat.com",
+          "current": [
+            "Faith Bemiss-Mckinney"
+          ],
+          "old": [
+            "Faith Bemiss-Mckinney"
+          ],
+          "new": [
+            "Faith Bemiss-Mckinney Faith.Bemiss@Sedaliademocrat.Com"
+          ],
+          "new_confidence": 0.5,
+          "new_strategy": "smart_parsing"
+        },
+        {
+          "byline": "Jack Denebeim  jack.denebeim@sedaliademocrat.com",
+          "current": [
+            "Jack Denebeim"
+          ],
+          "old": [
+            "Jack Denebeim"
+          ],
+          "new": [
+            "Jack Denebeim Jack.Denebeim@Sedaliademocrat.Com"
+          ],
+          "new_confidence": 0.5,
+          "new_strategy": "smart_parsing"
+        },
+        {
+          "byline": "Jack Denebeim jack.denebeim@sedaliademocrat.com",
+          "current": [
+            "Jack Denebeim"
+          ],
+          "old": [
+            "Jack Denebeim"
+          ],
+          "new": [
+            "Jack Denebeim Jack.Denebeim@Sedaliademocrat.Com"
+          ],
+          "new_confidence": 0.5,
+          "new_strategy": "smart_parsing"
+        }
+      ]
+    },
+    "new_strategy_usage": {
+      "smart_parsing": 220,
+      "fallback": 2
+    }
+  },
+  "all_results": [
+    {
+      "raw_byline": "Ella Conklin, Katie Puttoff, Brayden Thompson, Ellen Basse",
+      "current_extraction": [
+        "Ella Conklin",
+        "Katie Puttoff",
+        "Brayden Thompson",
+        "Ellen Basse"
+      ],
+      "old_result": [
+        "Ella Conklin",
+        "Katie Puttoff",
+        "Brayden Thompson",
+        "Ellen Basse"
+      ],
+      "new_result": [
+        "Ella Conklin",
+        "Katie Puttoff",
+        "Brayden Thompson",
+        "Ellen Basse"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 1885.8268750045681,
+      "new_time_ms": 271.0488750017248,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Debra Tune",
+      "current_extraction": [
+        "Debra Tune"
+      ],
+      "old_result": [
+        "Debra Tune"
+      ],
+      "new_result": [
+        "Debra Tune"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 25.378416990861297,
+      "new_time_ms": 50.79374999331776,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Emma Browka",
+      "current_extraction": [
+        "Emma Browka"
+      ],
+      "old_result": [
+        "Emma Browka"
+      ],
+      "new_result": [
+        "Emma Browka"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 25.21062501182314,
+      "new_time_ms": 50.250916989170946,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Vicki Stamps, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Vicki Stamps",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Vicki Stamps",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Vicki Stamps",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 100.7212080003228,
+      "new_time_ms": 157.10616699652746,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Jake Kroesen",
+      "current_extraction": [
+        "Jake Kroesen"
+      ],
+      "old_result": [
+        "Jake Kroesen"
+      ],
+      "new_result": [
+        "Jake Kroesen"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.928667000494897,
+      "new_time_ms": 48.736541997641325,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Jennifer Shutt, Annelise Hanshaw, Ceilidh Kern, Nada Hassanein",
+      "current_extraction": [
+        "Jennifer Shutt",
+        "Annelise Hanshaw",
+        "Ceilidh Kern",
+        "Nada Hassanein"
+      ],
+      "old_result": [
+        "Jennifer Shutt",
+        "Annelise Hanshaw",
+        "Ceilidh Kern",
+        "Nada Hassanein"
+      ],
+      "new_result": [
+        "Jennifer Shutt",
+        "Annelise Hanshaw",
+        "Ceilidh Kern",
+        "Nada Hassanein"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 100.70441701100208,
+      "new_time_ms": 156.3057919993298,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Alex Dodderidge",
+      "current_extraction": [
+        "Alex Dodderidge"
+      ],
+      "old_result": [
+        "Alex Dodderidge"
+      ],
+      "new_result": [
+        "Alex Dodderidge"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.74849999998696,
+      "new_time_ms": 49.088875006418675,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Missouri Baptist University, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 104.68699999910314,
+      "new_time_ms": 138.45258299261332,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 3,
+      "old_author_count": 3,
+      "new_author_count": 3,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Wes Fowler, Adam Groza, Benjamin Hawkins, Richard Nations",
+      "current_extraction": [
+        "Wes Fowler",
+        "Adam Groza",
+        "Benjamin Hawkins",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Wes Fowler",
+        "Adam Groza",
+        "Benjamin Hawkins",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Wes Fowler",
+        "Adam Groza",
+        "Benjamin Hawkins",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 99.88941600022372,
+      "new_time_ms": 156.81299999414477,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Ariana Figueroa, Thomas White, Kevin Hardy, Mónica Cordero",
+      "current_extraction": [
+        "Ariana Figueroa",
+        "Hite",
+        "Kevin Hardy",
+        "Mónica Cordero"
+      ],
+      "old_result": [
+        "Ariana Figueroa",
+        "Thomas White",
+        "Kevin Hardy",
+        "Mónica Cordero"
+      ],
+      "new_result": [
+        "Ariana Figueroa",
+        "Thomas White",
+        "Kevin Hardy",
+        "Mónica Cordero"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 98.61325001111254,
+      "new_time_ms": 157.01783400436398,
+      "old_vs_current_match": false,
+      "new_vs_current_match": false,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent_distance"
+    },
+    {
+      "raw_byline": "Jennifer Shutt, Sofia Resnick, Ariana Figueroa, Ashley Murray",
+      "current_extraction": [
+        "Jennifer Shutt",
+        "Sofia Resnick",
+        "Ariana Figueroa",
+        "Ashley Murray"
+      ],
+      "old_result": [
+        "Jennifer Shutt",
+        "Sofia Resnick",
+        "Ariana Figueroa",
+        "Ashley Murray"
+      ],
+      "new_result": [
+        "Jennifer Shutt",
+        "Sofia Resnick",
+        "Ariana Figueroa",
+        "Ashley Murray"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 97.84595799283125,
+      "new_time_ms": 157.28979199775495,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Allison Scavo",
+      "current_extraction": [
+        "Allison Scavo"
+      ],
+      "old_result": [
+        "Allison Scavo"
+      ],
+      "new_result": [
+        "Allison Scavo"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.738166990573518,
+      "new_time_ms": 49.41924999002367,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Ariana Figueroa, Jesse Bogan, Mary Sanchez, Robbie Sequeira",
+      "current_extraction": [
+        "Ariana Figueroa",
+        "Jesse Bogan",
+        "Mary Sanchez",
+        "Robbie Sequeira"
+      ],
+      "old_result": [
+        "Ariana Figueroa",
+        "Jesse Bogan",
+        "Mary Sanchez",
+        "Robbie Sequeira"
+      ],
+      "new_result": [
+        "Ariana Figueroa",
+        "Jesse Bogan",
+        "Mary Sanchez",
+        "Robbie Sequeira"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 98.51512500608806,
+      "new_time_ms": 157.38204099761788,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Karen Garcia, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Karen Garcia",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Karen Garcia",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Karen Garcia",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 99.54120899783447,
+      "new_time_ms": 156.91450001031626,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "IMB, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Imb",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Imb",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 95.63470800640061,
+      "new_time_ms": 149.32516700355336,
+      "old_vs_current_match": true,
+      "new_vs_current_match": false,
+      "old_vs_new_match": false,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 3,
+      "improvement_type": "old_better"
+    },
+    {
+      "raw_byline": "Jacob Miklas, William J. Ford, Ceilidh Kern, Abigail Didonna, Will Firra, Zoe Naylor, Peter Pynadath",
+      "current_extraction": [
+        "Jacob Miklas",
+        "Ford",
+        "Ceilidh Kern",
+        "Abigail Didonna",
+        "Will Firra",
+        "Zoe Naylor",
+        "Peter Pynadath"
+      ],
+      "old_result": [
+        "Jacob Miklas",
+        "Ford",
+        "Ceilidh Kern",
+        "Abigail Didonna",
+        "Will Firra",
+        "Zoe Naylor",
+        "Peter Pynadath"
+      ],
+      "new_result": [
+        "Jacob Miklas",
+        "Ceilidh Kern",
+        "Abigail Didonna",
+        "Will Firra",
+        "Zoe Naylor",
+        "Peter Pynadath"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 176.6587919992162,
+      "new_time_ms": 275.28979199996684,
+      "old_vs_current_match": true,
+      "new_vs_current_match": false,
+      "old_vs_new_match": false,
+      "current_author_count": 7,
+      "old_author_count": 7,
+      "new_author_count": 6,
+      "improvement_type": "old_better"
+    },
+    {
+      "raw_byline": "Rebecca Rivas, Ariana Figueroa",
+      "current_extraction": [
+        "Rebecca Rivas",
+        "Ariana Figueroa"
+      ],
+      "old_result": [
+        "Rebecca Rivas",
+        "Ariana Figueroa"
+      ],
+      "new_result": [
+        "Rebecca Rivas",
+        "Ariana Figueroa"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 49.05420799332205,
+      "new_time_ms": 84.0867080114549,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 2,
+      "old_author_count": 2,
+      "new_author_count": 2,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Aidan DeSpain",
+      "current_extraction": [
+        "Aidan DeSpain"
+      ],
+      "old_result": [
+        "Aidan DeSpain"
+      ],
+      "new_result": [
+        "Aidan DeSpain"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.738583000726067,
+      "new_time_ms": 49.79129099228885,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Faith Bemiss-McKinney faith.bemiss@sedaliademocrat.com",
+      "current_extraction": [
+        "Faith Bemiss-Mckinney"
+      ],
+      "old_result": [
+        "Faith Bemiss-Mckinney"
+      ],
+      "new_result": [
+        "Faith Bemiss-Mckinney Faith.Bemiss@Sedaliademocrat.Com"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.788791008177213,
+      "new_time_ms": 59.97891700826585,
+      "old_vs_current_match": true,
+      "new_vs_current_match": false,
+      "old_vs_new_match": false,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "old_better"
+    },
+    {
+      "raw_byline": "Lauren Hutchens",
+      "current_extraction": [
+        "Lauren Hutchens"
+      ],
+      "old_result": [
+        "Lauren Hutchens"
+      ],
+      "new_result": [
+        "Lauren Hutchens"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.560542005929165,
+      "new_time_ms": 49.036540993256494,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Kayl Baker",
+      "current_extraction": [
+        "Kayl Baker"
+      ],
+      "old_result": [
+        "Kayl Baker"
+      ],
+      "new_result": [
+        "Kayl Baker"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.639458002639003,
+      "new_time_ms": 49.2731249978533,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Nick Spacek",
+      "current_extraction": [
+        "Nick Spacek"
+      ],
+      "old_result": [
+        "Nick Spacek"
+      ],
+      "new_result": [
+        "Nick Spacek"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.664540993398987,
+      "new_time_ms": 49.118667011498474,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Suzanne King, Jonah Foster, Xander Lundblad, Seth Schwartzberg, Bram Sable-Smith, Alex Cox, Adeleine Halsey, Kyla Pehr, Savvy Sleevar",
+      "current_extraction": [
+        "Suzanne King",
+        "Jonah Foster",
+        "Xander Lundblad",
+        "Seth Schwartzberg",
+        "Bram Sable-Smith",
+        "Alex Cox",
+        "Adeleine Halsey",
+        "Kyla Pehr",
+        "Savvy Sleevar"
+      ],
+      "old_result": [
+        "Suzanne King",
+        "Jonah Foster",
+        "Xander Lundblad",
+        "Seth Schwartzberg",
+        "Bram Sable-Smith",
+        "Alex Cox",
+        "Adeleine Halsey",
+        "Kyla Pehr",
+        "Savvy Sleevar"
+      ],
+      "new_result": [
+        "Suzanne King",
+        "Jonah Foster",
+        "Xander Lundblad",
+        "Seth Schwartzberg",
+        "Bram Sable-Smith",
+        "Alex Cox",
+        "Adeleine Halsey",
+        "Kyla Pehr",
+        "Savvy Sleevar"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 222.8647500014631,
+      "new_time_ms": 335.4783750110073,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 9,
+      "old_author_count": 9,
+      "new_author_count": 9,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Richard Nations, Adam Groza, Wes Fowler, Hannibal-LaGrange University",
+      "current_extraction": [
+        "Richard Nations",
+        "Adam Groza",
+        "Wes Fowler"
+      ],
+      "old_result": [
+        "Richard Nations",
+        "Adam Groza",
+        "Wes Fowler"
+      ],
+      "new_result": [
+        "Richard Nations",
+        "Adam Groza",
+        "Wes Fowler"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 73.89066599716898,
+      "new_time_ms": 131.64591600070707,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 3,
+      "old_author_count": 3,
+      "new_author_count": 3,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "W. Paul Bohlen, Senior Sports",
+      "current_extraction": [
+        "W. Paul Bohlen"
+      ],
+      "old_result": [
+        "W. Paul Bohlen"
+      ],
+      "new_result": [
+        "W. Paul Bohlen"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 30.35845900012646,
+      "new_time_ms": 96.88333400117699,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Ariana Figueroa, Mary Sanchez, Nada Hassanein, Ashley Murray",
+      "current_extraction": [
+        "Ariana Figueroa",
+        "Mary Sanchez",
+        "Nada Hassanein",
+        "Ashley Murray"
+      ],
+      "old_result": [
+        "Ariana Figueroa",
+        "Mary Sanchez",
+        "Nada Hassanein",
+        "Ashley Murray"
+      ],
+      "new_result": [
+        "Ariana Figueroa",
+        "Mary Sanchez",
+        "Nada Hassanein",
+        "Ashley Murray"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 98.40895900561009,
+      "new_time_ms": 156.46170900436118,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Jack Denebeim  jack.denebeim@sedaliademocrat.com",
+      "current_extraction": [
+        "Jack Denebeim"
+      ],
+      "old_result": [
+        "Jack Denebeim"
+      ],
+      "new_result": [
+        "Jack Denebeim Jack.Denebeim@Sedaliademocrat.Com"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.4385000114562,
+      "new_time_ms": 60.324957987177186,
+      "old_vs_current_match": true,
+      "new_vs_current_match": false,
+      "old_vs_new_match": false,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "old_better"
+    },
+    {
+      "raw_byline": "Adam Groza, Wes Fowler, Benjamin Hawkins, Richard Nations",
+      "current_extraction": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Benjamin Hawkins",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Benjamin Hawkins",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Benjamin Hawkins",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 97.89166699920315,
+      "new_time_ms": 156.5521659940714,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Valerie Rosqueta",
+      "current_extraction": [
+        "Valerie Rosqueta"
+      ],
+      "old_result": [
+        "Valerie Rosqueta"
+      ],
+      "new_result": [
+        "Valerie Rosqueta"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.830750000546686,
+      "new_time_ms": 49.37195799720939,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Rob Phillips, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Rob Phillips",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Rob Phillips",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Rob Phillips",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 99.41116700065322,
+      "new_time_ms": 157.41675000754185,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Ava Gorton, Campus Activities Editor",
+      "current_extraction": [
+        "Ava Gorton"
+      ],
+      "old_result": [
+        "Ava Gorton"
+      ],
+      "new_result": [
+        "Ava Gorton"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.58650000335183,
+      "new_time_ms": 59.215999994194135,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Joseph Glaser",
+      "current_extraction": [
+        "Joseph Glaser"
+      ],
+      "old_result": [
+        "Joseph Glaser"
+      ],
+      "new_result": [
+        "Joseph Glaser"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.63429101044312,
+      "new_time_ms": 50.45891700137872,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Jack Denebeim jack.denebeim@sedaliademocrat.com",
+      "current_extraction": [
+        "Jack Denebeim"
+      ],
+      "old_result": [
+        "Jack Denebeim"
+      ],
+      "new_result": [
+        "Jack Denebeim Jack.Denebeim@Sedaliademocrat.Com"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.956499997642823,
+      "new_time_ms": 59.29991599987261,
+      "old_vs_current_match": true,
+      "new_vs_current_match": false,
+      "old_vs_new_match": false,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "old_better"
+    },
+    {
+      "raw_byline": "Anna Claire Vollers, Rebecca Rivas",
+      "current_extraction": [
+        "Anna Claire Vollers",
+        "Rebecca Rivas"
+      ],
+      "old_result": [
+        "Anna Claire Vollers",
+        "Rebecca Rivas"
+      ],
+      "new_result": [
+        "Anna Claire Vollers",
+        "Rebecca Rivas"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 54.54995800391771,
+      "new_time_ms": 95.72050000133459,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 2,
+      "old_author_count": 2,
+      "new_author_count": 2,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Ashlyn Jones",
+      "current_extraction": [
+        "Ashlyn Jones"
+      ],
+      "old_result": [
+        "Ashlyn Jones"
+      ],
+      "new_result": [
+        "Ashlyn Jones"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.48804199229926,
+      "new_time_ms": 49.03475000173785,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Midwestern Baptist Theological Seminary, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 107.88229199533816,
+      "new_time_ms": 142.7348750003148,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 3,
+      "old_author_count": 3,
+      "new_author_count": 3,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Annelise Hanshaw, Anna Spoerre",
+      "current_extraction": [
+        "Annelise Hanshaw",
+        "Anna Spoerre"
+      ],
+      "old_result": [
+        "Annelise Hanshaw",
+        "Anna Spoerre"
+      ],
+      "new_result": [
+        "Annelise Hanshaw",
+        "Anna Spoerre"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 48.99870800727513,
+      "new_time_ms": 84.49154198751785,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 2,
+      "old_author_count": 2,
+      "new_author_count": 2,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Senior Airman Robert Hicks 509th Bomb Wing Public Affairs",
+      "current_extraction": [
+        "Airman Robert Hicks 509Th Bomb Public"
+      ],
+      "old_result": [
+        "Airman Robert Hicks 509Th Bomb Public"
+      ],
+      "new_result": [
+        "Airman Robert Hicks 509Th Bomb Public"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 112.01508399972226,
+      "new_time_ms": 128.29762500768993,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Jason Hancock, Rudi Keller",
+      "current_extraction": [
+        "Jason Hancock",
+        "Rudi Keller"
+      ],
+      "old_result": [
+        "Jason Hancock",
+        "Rudi Keller"
+      ],
+      "new_result": [
+        "Jason Hancock",
+        "Rudi Keller"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 49.50891699991189,
+      "new_time_ms": 84.14141599496361,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 2,
+      "old_author_count": 2,
+      "new_author_count": 2,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Jamie Santner, Sports, Hailey Lampley",
+      "current_extraction": [
+        "Jamie Santner",
+        "Hailey Lampley"
+      ],
+      "old_result": [
+        "Jamie Santner",
+        "Hailey Lampley"
+      ],
+      "new_result": [
+        "Jamie Santner",
+        "Hailey Lampley"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 49.556375000975095,
+      "new_time_ms": 111.30662499635946,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 2,
+      "old_author_count": 2,
+      "new_author_count": 2,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Aditya Gunturu",
+      "current_extraction": [
+        "Aditya Gunturu"
+      ],
+      "old_result": [
+        "Aditya Gunturu"
+      ],
+      "new_result": [
+        "Aditya Gunturu"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.749709002207965,
+      "new_time_ms": 49.15191599866375,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Ella Conklin, File Photo, The Standard",
+      "current_extraction": [
+        "Ella Conklin",
+        "File Photo"
+      ],
+      "old_result": [
+        "Ella Conklin",
+        "File Photo"
+      ],
+      "new_result": [
+        "Ella Conklin",
+        "File Photo"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 48.760874997242354,
+      "new_time_ms": 95.203249991755,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 2,
+      "old_author_count": 2,
+      "new_author_count": 2,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Ariana Figueroa, Mary Sanchez, Tim Henderson",
+      "current_extraction": [
+        "Ariana Figueroa",
+        "Mary Sanchez",
+        "Tim Henderson"
+      ],
+      "old_result": [
+        "Ariana Figueroa",
+        "Mary Sanchez",
+        "Tim Henderson"
+      ],
+      "new_result": [
+        "Ariana Figueroa",
+        "Mary Sanchez",
+        "Tim Henderson"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 75.7814169919584,
+      "new_time_ms": 123.37962500168942,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 3,
+      "old_author_count": 3,
+      "new_author_count": 3,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Chris Howell  chris.howell@sedaliademocrat.com",
+      "current_extraction": [
+        "Chris Howell"
+      ],
+      "old_result": [
+        "Chris Howell"
+      ],
+      "new_result": [
+        "Chris Howell Chris.Howell@Sedaliademocrat.Com"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 25.366874993778765,
+      "new_time_ms": 61.93666599574499,
+      "old_vs_current_match": true,
+      "new_vs_current_match": false,
+      "old_vs_new_match": false,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "old_better"
+    },
+    {
+      "raw_byline": "Jeremy Jacob, Sports Editor, Jeremy Jacob, Sports Editor",
+      "current_extraction": [
+        "Jeremy Jacob"
+      ],
+      "old_result": [
+        "Jeremy Jacob"
+      ],
+      "new_result": [
+        "Jeremy Jacob"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 49.40037499181926,
+      "new_time_ms": 148.56962498743087,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Abby Olcese",
+      "current_extraction": [
+        "Abby Olcese"
+      ],
+      "old_result": [
+        "Abby Olcese"
+      ],
+      "new_result": [
+        "Abby Olcese"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 25.316875005955808,
+      "new_time_ms": 49.31304100318812,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Jonah Foster, Xander Lundblad, Seth Schwartzberg, Suzanne King, Anna Spoerre, Bram Sable-Smith",
+      "current_extraction": [
+        "Jonah Foster",
+        "Xander Lundblad",
+        "Seth Schwartzberg",
+        "Suzanne King",
+        "Anna Spoerre",
+        "Bram Sable-Smith"
+      ],
+      "old_result": [
+        "Jonah Foster",
+        "Xander Lundblad",
+        "Seth Schwartzberg",
+        "Suzanne King",
+        "Anna Spoerre",
+        "Bram Sable-Smith"
+      ],
+      "new_result": [
+        "Jonah Foster",
+        "Xander Lundblad",
+        "Seth Schwartzberg",
+        "Suzanne King",
+        "Anna Spoerre",
+        "Bram Sable-Smith"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 148.1032919982681,
+      "new_time_ms": 231.435458001215,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 6,
+      "old_author_count": 6,
+      "new_author_count": 6,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Ellie Sellers",
+      "current_extraction": [
+        "Ellie Sellers"
+      ],
+      "old_result": [
+        "Ellie Sellers"
+      ],
+      "new_result": [
+        "Ellie Sellers"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.737542000366375,
+      "new_time_ms": 50.39033299544826,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Rudi Keller, Jason Hancock, Annelise Hanshaw, Anna Spoerre",
+      "current_extraction": [
+        "Rudi Keller",
+        "Jason Hancock",
+        "Annelise Hanshaw",
+        "Anna Spoerre"
+      ],
+      "old_result": [
+        "Rudi Keller",
+        "Jason Hancock",
+        "Annelise Hanshaw",
+        "Anna Spoerre"
+      ],
+      "new_result": [
+        "Rudi Keller",
+        "Jason Hancock",
+        "Annelise Hanshaw",
+        "Anna Spoerre"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 126.4537919923896,
+      "new_time_ms": 166.06162500102073,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Jennifer Shutt, Suzanne King, Nada Hassanein",
+      "current_extraction": [
+        "Jennifer Shutt",
+        "Suzanne King",
+        "Nada Hassanein"
+      ],
+      "old_result": [
+        "Jennifer Shutt",
+        "Suzanne King",
+        "Nada Hassanein"
+      ],
+      "new_result": [
+        "Jennifer Shutt",
+        "Suzanne King",
+        "Nada Hassanein"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 74.77162500435952,
+      "new_time_ms": 120.83237500337418,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 3,
+      "old_author_count": 3,
+      "new_author_count": 3,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Liz Garcia",
+      "current_extraction": [
+        "Liz Garcia"
+      ],
+      "old_result": [
+        "Liz Garcia"
+      ],
+      "new_result": [
+        "Liz Garcia"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.736417006351985,
+      "new_time_ms": 48.530375002883375,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Hannibal-LaGrange University, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 74.40733299881686,
+      "new_time_ms": 130.32954098889604,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 3,
+      "old_author_count": 3,
+      "new_author_count": 3,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Don Munsch, Editor, Don Munsch",
+      "current_extraction": [
+        "Don Munsch"
+      ],
+      "old_result": [
+        "Don Munsch"
+      ],
+      "new_result": [
+        "Don Munsch"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 48.48825000226498,
+      "new_time_ms": 109.69479200139176,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Anna Claire Vollers, Suzanne King, Annelise Hanshaw, Jonah Foster, Xander Lundblad, Seth Schwartzberg",
+      "current_extraction": [
+        "Anna Claire Vollers",
+        "Suzanne King",
+        "Annelise Hanshaw",
+        "Jonah Foster",
+        "Xander Lundblad",
+        "Seth Schwartzberg"
+      ],
+      "old_result": [
+        "Anna Claire Vollers",
+        "Suzanne King",
+        "Annelise Hanshaw",
+        "Jonah Foster",
+        "Xander Lundblad",
+        "Seth Schwartzberg"
+      ],
+      "new_result": [
+        "Anna Claire Vollers",
+        "Suzanne King",
+        "Annelise Hanshaw",
+        "Jonah Foster",
+        "Xander Lundblad",
+        "Seth Schwartzberg"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 152.26137499848846,
+      "new_time_ms": 238.55491699941922,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 6,
+      "old_author_count": 6,
+      "new_author_count": 6,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Rudi Keller, Jason Hancock",
+      "current_extraction": [
+        "Rudi Keller",
+        "Jason Hancock"
+      ],
+      "old_result": [
+        "Rudi Keller",
+        "Jason Hancock"
+      ],
+      "new_result": [
+        "Rudi Keller",
+        "Jason Hancock"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 49.300458005745895,
+      "new_time_ms": 84.10766700399108,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 2,
+      "old_author_count": 2,
+      "new_author_count": 2,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Dawn Jones",
+      "current_extraction": [
+        "Dawn Jones"
+      ],
+      "old_result": [
+        "Dawn Jones"
+      ],
+      "new_result": [
+        "Dawn Jones"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.658624999574386,
+      "new_time_ms": 49.44512499787379,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Leslie Peacock Caldwell, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Leslie Peacock Caldwell",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Leslie Peacock Caldwell",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Leslie Peacock Caldwell",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 103.49970799870789,
+      "new_time_ms": 166.7661249957746,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Hunter Meacheam",
+      "current_extraction": [
+        "Hunter Meacheam"
+      ],
+      "old_result": [
+        "Hunter Meacheam"
+      ],
+      "new_result": [
+        "Hunter Meacheam"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.558291988796555,
+      "new_time_ms": 48.41800000576768,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Ulaa Kuziez",
+      "current_extraction": [
+        "Ulaa Kuziez"
+      ],
+      "old_result": [
+        "Ulaa Kuziez"
+      ],
+      "new_result": [
+        "Ulaa Kuziez"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 25.58358399255667,
+      "new_time_ms": 49.36400000588037,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Tharran Gaines, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Tharran Gaines",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Tharran Gaines",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Tharran Gaines",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 97.61891599919181,
+      "new_time_ms": 156.03037500113714,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Cole Lee",
+      "current_extraction": [
+        "Cole Lee"
+      ],
+      "old_result": [
+        "Cole Lee"
+      ],
+      "new_result": [
+        "Cole Lee"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.513333002687432,
+      "new_time_ms": 49.226624993025325,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Jennifer Shutt, Ariana Figueroa, Kevin Hardy, Bram Sable-Smith, Tim Henderson",
+      "current_extraction": [
+        "Jennifer Shutt",
+        "Ariana Figueroa",
+        "Kevin Hardy",
+        "Bram Sable-Smith",
+        "Tim Henderson"
+      ],
+      "old_result": [
+        "Jennifer Shutt",
+        "Ariana Figueroa",
+        "Kevin Hardy",
+        "Bram Sable-Smith",
+        "Tim Henderson"
+      ],
+      "new_result": [
+        "Jennifer Shutt",
+        "Ariana Figueroa",
+        "Kevin Hardy",
+        "Bram Sable-Smith",
+        "Tim Henderson"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 122.33387499873061,
+      "new_time_ms": 191.5344580047531,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 5,
+      "old_author_count": 5,
+      "new_author_count": 5,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Sarah Sipple",
+      "current_extraction": [
+        "Sarah Sipple"
+      ],
+      "old_result": [
+        "Sarah Sipple"
+      ],
+      "new_result": [
+        "Sarah Sipple"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.48404200549703,
+      "new_time_ms": 50.30491699289996,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Rylie Robinson",
+      "current_extraction": [
+        "Rylie Robinson"
+      ],
+      "old_result": [
+        "Rylie Robinson"
+      ],
+      "new_result": [
+        "Rylie Robinson"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.967124991235323,
+      "new_time_ms": 49.97895800624974,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Jamie Santner, Sports",
+      "current_extraction": [
+        "Jamie Santner"
+      ],
+      "old_result": [
+        "Jamie Santner"
+      ],
+      "new_result": [
+        "Jamie Santner"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 25.012124999193475,
+      "new_time_ms": 76.855749997776,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Maddy Shugart",
+      "current_extraction": [
+        "Maddy Shugart"
+      ],
+      "old_result": [
+        "Maddy Shugart"
+      ],
+      "new_result": [
+        "Maddy Shugart"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 25.889458003803156,
+      "new_time_ms": 49.618749995715916,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Semoball",
+      "current_extraction": [
+        "Semoball"
+      ],
+      "old_result": [
+        "Semoball"
+      ],
+      "new_result": [
+        "Semoball"
+      ],
+      "new_confidence": 0.2,
+      "new_strategy": "fallback",
+      "old_time_ms": 20.37483299500309,
+      "new_time_ms": 42.03137499280274,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Tim Ellsworth, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Tillsworth",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Tim Ellsworth",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Tim Ellsworth",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 100.75374999723863,
+      "new_time_ms": 158.85737500502728,
+      "old_vs_current_match": false,
+      "new_vs_current_match": false,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent_distance"
+    },
+    {
+      "raw_byline": "Shauneen Miranda, Annelise Hanshaw",
+      "current_extraction": [
+        "Shauneen Miranda",
+        "Annelise Hanshaw"
+      ],
+      "old_result": [
+        "Shauneen Miranda",
+        "Annelise Hanshaw"
+      ],
+      "new_result": [
+        "Shauneen Miranda",
+        "Annelise Hanshaw"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 49.777125008404255,
+      "new_time_ms": 85.91779100243002,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 2,
+      "old_author_count": 2,
+      "new_author_count": 2,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Makanaka Bgoni",
+      "current_extraction": [
+        "Makanaka Bgoni"
+      ],
+      "old_result": [
+        "Makanaka Bgoni"
+      ],
+      "new_result": [
+        "Makanaka Bgoni"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.69024999300018,
+      "new_time_ms": 49.27004199998919,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Tim Henderson, Mary Sanchez, Nada Hassanein",
+      "current_extraction": [
+        "Tim Henderson",
+        "Mary Sanchez",
+        "Nada Hassanein"
+      ],
+      "old_result": [
+        "Tim Henderson",
+        "Mary Sanchez",
+        "Nada Hassanein"
+      ],
+      "new_result": [
+        "Tim Henderson",
+        "Mary Sanchez",
+        "Nada Hassanein"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 74.81099999858998,
+      "new_time_ms": 119.51499999850057,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 3,
+      "old_author_count": 3,
+      "new_author_count": 3,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Staff, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 73.532708993298,
+      "new_time_ms": 147.35766599187627,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 3,
+      "old_author_count": 3,
+      "new_author_count": 3,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Brooke Benne",
+      "current_extraction": [
+        "Brooke Benne"
+      ],
+      "old_result": [
+        "Brooke Benne"
+      ],
+      "new_result": [
+        "Brooke Benne"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.75774999766145,
+      "new_time_ms": 49.18820800958201,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Jennifer Shutt, Anna Claire Vollers, Kevin Hardy",
+      "current_extraction": [
+        "Jennifer Shutt",
+        "Anna Claire Vollers",
+        "Kevin Hardy"
+      ],
+      "old_result": [
+        "Jennifer Shutt",
+        "Anna Claire Vollers",
+        "Kevin Hardy"
+      ],
+      "new_result": [
+        "Jennifer Shutt",
+        "Anna Claire Vollers",
+        "Kevin Hardy"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 78.5348339995835,
+      "new_time_ms": 130.2570419939002,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 3,
+      "old_author_count": 3,
+      "new_author_count": 3,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Shalina Chatlani, Suzanne King, Annelise Hanshaw, Jonah Foster, Xander Lundblad, Seth Schwartzberg",
+      "current_extraction": [
+        "Shalina Chatlani",
+        "Suzanne King",
+        "Annelise Hanshaw",
+        "Jonah Foster",
+        "Xander Lundblad",
+        "Seth Schwartzberg"
+      ],
+      "old_result": [
+        "Shalina Chatlani",
+        "Suzanne King",
+        "Annelise Hanshaw",
+        "Jonah Foster",
+        "Xander Lundblad",
+        "Seth Schwartzberg"
+      ],
+      "new_result": [
+        "Shalina Chatlani",
+        "Suzanne King",
+        "Annelise Hanshaw",
+        "Jonah Foster",
+        "Xander Lundblad",
+        "Seth Schwartzberg"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 147.7824169996893,
+      "new_time_ms": 227.3009579948848,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 6,
+      "old_author_count": 6,
+      "new_author_count": 6,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Jonathan Shorman, Jason Hancock, Rudi Keller",
+      "current_extraction": [
+        "Jonathan Shorman",
+        "Jason Hancock",
+        "Rudi Keller"
+      ],
+      "old_result": [
+        "Jonathan Shorman",
+        "Jason Hancock",
+        "Rudi Keller"
+      ],
+      "new_result": [
+        "Jonathan Shorman",
+        "Jason Hancock",
+        "Rudi Keller"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 73.58912500785664,
+      "new_time_ms": 120.13162500807084,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 3,
+      "old_author_count": 3,
+      "new_author_count": 3,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Dan Steinbeck, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Dan Steinbeck",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Dan Steinbeck",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Dan Steinbeck",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 99.43924999970477,
+      "new_time_ms": 155.4505830135895,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Coach Leonard",
+      "current_extraction": [
+        "Coach Leonard"
+      ],
+      "old_result": [
+        "Coach Leonard"
+      ],
+      "new_result": [
+        "Coach Leonard"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.1265420045238,
+      "new_time_ms": 48.036833002697676,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Scott Barkley, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Scott Barkley",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Scott Barkley",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Scott Barkley",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 97.25295800308231,
+      "new_time_ms": 158.05795800406486,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Stephen Fuller",
+      "current_extraction": [
+        "Stephen Fuller"
+      ],
+      "old_result": [
+        "Stephen Fuller"
+      ],
+      "new_result": [
+        "Stephen Fuller"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 25.522291995002888,
+      "new_time_ms": 50.22187500435393,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Rudi Keller, Anna Spoerre, Nada Hassanein",
+      "current_extraction": [
+        "Rudi Keller",
+        "Anna Spoerre",
+        "Nada Hassanein"
+      ],
+      "old_result": [
+        "Rudi Keller",
+        "Anna Spoerre",
+        "Nada Hassanein"
+      ],
+      "new_result": [
+        "Rudi Keller",
+        "Anna Spoerre",
+        "Nada Hassanein"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 74.05004200700205,
+      "new_time_ms": 120.88216599659063,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 3,
+      "old_author_count": 3,
+      "new_author_count": 3,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Andy Cullinane",
+      "current_extraction": [
+        "Andy Cullinane"
+      ],
+      "old_result": [
+        "Andy Cullinane"
+      ],
+      "new_result": [
+        "Andy Cullinane"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.766082991845906,
+      "new_time_ms": 49.577124998904765,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Will Barnett",
+      "current_extraction": [
+        "Will Barnett"
+      ],
+      "old_result": [
+        "Will Barnett"
+      ],
+      "new_result": [
+        "Will Barnett"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.66683299280703,
+      "new_time_ms": 48.31825000292156,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Brendan Brunette",
+      "current_extraction": [
+        "Brendan Brunette"
+      ],
+      "old_result": [
+        "Brendan Brunette"
+      ],
+      "new_result": [
+        "Brendan Brunette"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.168999996618368,
+      "new_time_ms": 48.65100000461098,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Miles Mullin, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Miles Mullin",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Miles Mullin",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Miles Mullin",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 97.78066600847524,
+      "new_time_ms": 156.0065839876188,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "ERLC Staff, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 73.78304201120045,
+      "new_time_ms": 154.8241670097923,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 3,
+      "old_author_count": 3,
+      "new_author_count": 3,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Maggie Adair",
+      "current_extraction": [
+        "Maggie Adair"
+      ],
+      "old_result": [
+        "Maggie Adair"
+      ],
+      "new_result": [
+        "Maggie Adair"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.92404200893361,
+      "new_time_ms": 48.783250007545575,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Rudi Keller",
+      "current_extraction": [
+        "Rudi Keller"
+      ],
+      "old_result": [
+        "Rudi Keller"
+      ],
+      "new_result": [
+        "Rudi Keller"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.597957992227748,
+      "new_time_ms": 48.83387500012759,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Reegan Johnson",
+      "current_extraction": [
+        "Reegan Johnson"
+      ],
+      "old_result": [
+        "Reegan Johnson"
+      ],
+      "new_result": [
+        "Reegan Johnson"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.536415992770344,
+      "new_time_ms": 48.41337499965448,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Bridgette Dunlap, David Norlin, Brian Kaylor",
+      "current_extraction": [
+        "Bridgette Dunlap",
+        "David Norlin",
+        "Brian Kaylor"
+      ],
+      "old_result": [
+        "Bridgette Dunlap",
+        "David Norlin",
+        "Brian Kaylor"
+      ],
+      "new_result": [
+        "Bridgette Dunlap",
+        "David Norlin",
+        "Brian Kaylor"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 74.16100001137238,
+      "new_time_ms": 122.49283299024682,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 3,
+      "old_author_count": 3,
+      "new_author_count": 3,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Mariya Yasinovska",
+      "current_extraction": [
+        "Mariya Yasinovska"
+      ],
+      "old_result": [
+        "Mariya Yasinovska"
+      ],
+      "new_result": [
+        "Mariya Yasinovska"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.67699999397155,
+      "new_time_ms": 48.46583399921656,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Aden Zuccarini",
+      "current_extraction": [
+        "Aden Zuccarini"
+      ],
+      "old_result": [
+        "Aden Zuccarini"
+      ],
+      "new_result": [
+        "Aden Zuccarini"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.343791999854147,
+      "new_time_ms": 48.59983398637269,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Ron Calzone, Brian Kaylor, Rudi Keller, Barbara Shelly",
+      "current_extraction": [
+        "Ron Calzone",
+        "Brian Kaylor",
+        "Rudi Keller",
+        "Barbara Shelly"
+      ],
+      "old_result": [
+        "Ron Calzone",
+        "Brian Kaylor",
+        "Rudi Keller",
+        "Barbara Shelly"
+      ],
+      "new_result": [
+        "Ron Calzone",
+        "Brian Kaylor",
+        "Rudi Keller",
+        "Barbara Shelly"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 97.44004100502934,
+      "new_time_ms": 156.26191599585582,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Benjamin Hawkins, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Benjamin Hawkins",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Benjamin Hawkins",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Benjamin Hawkins",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 97.29808299744036,
+      "new_time_ms": 155.7207089936128,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Katie Moore, Jason Hancock, Clara Bates, Rudi Keller",
+      "current_extraction": [
+        "Katie Moore",
+        "Jason Hancock",
+        "Clara Bates",
+        "Rudi Keller"
+      ],
+      "old_result": [
+        "Katie Moore",
+        "Jason Hancock",
+        "Clara Bates",
+        "Rudi Keller"
+      ],
+      "new_result": [
+        "Katie Moore",
+        "Jason Hancock",
+        "Clara Bates",
+        "Rudi Keller"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 97.40812500240281,
+      "new_time_ms": 155.10987500601914,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Columbia Missourian staff, Rudi Keller, Annelise Hanshaw",
+      "current_extraction": [
+        "Rudi Keller",
+        "Annelise Hanshaw"
+      ],
+      "old_result": [
+        "Rudi Keller",
+        "Annelise Hanshaw"
+      ],
+      "new_result": [
+        "Rudi Keller",
+        "Annelise Hanshaw"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 99.56550000060815,
+      "new_time_ms": 100.50016699824482,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 2,
+      "old_author_count": 2,
+      "new_author_count": 2,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Tessa Sanchez, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Tessa Sanchez",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Tessa Sanchez",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Tessa Sanchez",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 96.75354200589936,
+      "new_time_ms": 153.2592500007013,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Rudi Keller, Anna Spoerre",
+      "current_extraction": [
+        "Rudi Keller",
+        "Anna Spoerre"
+      ],
+      "old_result": [
+        "Rudi Keller",
+        "Anna Spoerre"
+      ],
+      "new_result": [
+        "Rudi Keller",
+        "Anna Spoerre"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 49.235749989748,
+      "new_time_ms": 84.17629200266674,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 2,
+      "old_author_count": 2,
+      "new_author_count": 2,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Shauneen Miranda, Robbie Sequeira, Rudi Keller",
+      "current_extraction": [
+        "Shauneen Miranda",
+        "Robbie Sequeira",
+        "Rudi Keller"
+      ],
+      "old_result": [
+        "Shauneen Miranda",
+        "Robbie Sequeira",
+        "Rudi Keller"
+      ],
+      "new_result": [
+        "Shauneen Miranda",
+        "Robbie Sequeira",
+        "Rudi Keller"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 73.4423340036301,
+      "new_time_ms": 119.95612499595154,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 3,
+      "old_author_count": 3,
+      "new_author_count": 3,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Jennifer Shutt, Paige Gross, Sofia Resnick, Ariana Figueroa",
+      "current_extraction": [
+        "Jennifer Shutt",
+        "Paige Gross",
+        "Sofia Resnick",
+        "Ariana Figueroa"
+      ],
+      "old_result": [
+        "Jennifer Shutt",
+        "Paige Gross",
+        "Sofia Resnick",
+        "Ariana Figueroa"
+      ],
+      "new_result": [
+        "Jennifer Shutt",
+        "Paige Gross",
+        "Sofia Resnick",
+        "Ariana Figueroa"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 98.31766699790023,
+      "new_time_ms": 155.22945899283513,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Sophia Keeney, Guest",
+      "current_extraction": [
+        "Sophia Keeney"
+      ],
+      "old_result": [
+        "Sophia Keeney"
+      ],
+      "new_result": [
+        "Sophia Keeney"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.643500000820495,
+      "new_time_ms": 74.29891699575819,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Sky Strauss, Staff, Sky Strauss, Staff",
+      "current_extraction": [
+        "Sky Strauss"
+      ],
+      "old_result": [
+        "Sky Strauss"
+      ],
+      "new_result": [
+        "Sky Strauss"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 49.241582994000055,
+      "new_time_ms": 111.12258299544919,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Jennifer Shutt and Ariana Figueroa States Newsroom, Jennifer Shutt, Ariana Figueroa States Newsroom",
+      "current_extraction": [
+        "Jennifer Shutt"
+      ],
+      "old_result": [
+        "Jennifer Shutt"
+      ],
+      "new_result": [
+        "Jennifer Shutt",
+        "Ariana Figueroa States Newsroom, Jennifer Shutt, Ariana Figueroa States Newsroom",
+        "Jennifer Shutt Ariana Figueroa States",
+        "Ariana Figueroa States"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.255416996311396,
+      "new_time_ms": 293.7342079967493,
+      "old_vs_current_match": true,
+      "new_vs_current_match": false,
+      "old_vs_new_match": false,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 4,
+      "improvement_type": "old_better"
+    },
+    {
+      "raw_byline": "Lily Hale",
+      "current_extraction": [
+        "Lily Hale"
+      ],
+      "old_result": [
+        "Lily Hale"
+      ],
+      "new_result": [
+        "Lily Hale"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.759958003414795,
+      "new_time_ms": 49.23779200180434,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Rebecca Evans",
+      "current_extraction": [
+        "Rebecca Evans"
+      ],
+      "old_result": [
+        "Rebecca Evans"
+      ],
+      "new_result": [
+        "Rebecca Evans"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.670875005540438,
+      "new_time_ms": 49.11337498924695,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Calla Truschel Jacobs",
+      "current_extraction": [
+        "Calla Truschel Jacobs"
+      ],
+      "old_result": [
+        "Calla Truschel Jacobs"
+      ],
+      "new_result": [
+        "Calla Truschel Jacobs"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 30.11066699400544,
+      "new_time_ms": 59.81295800302178,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Teresa Lee",
+      "current_extraction": [
+        "Teresa Lee"
+      ],
+      "old_result": [
+        "Teresa Lee"
+      ],
+      "new_result": [
+        "Teresa Lee"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.52833300048951,
+      "new_time_ms": 49.19508298917208,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Kenny Hulshof",
+      "current_extraction": [
+        "Kenny Hulshof"
+      ],
+      "old_result": [
+        "Kenny Hulshof"
+      ],
+      "new_result": [
+        "Kenny Hulshof"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.678541987668723,
+      "new_time_ms": 49.15929099661298,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Rudi Keller Missouri Independent",
+      "current_extraction": [
+        "Rudi Keller"
+      ],
+      "old_result": [
+        "Rudi Keller"
+      ],
+      "new_result": [
+        "Rudi Keller"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 60.086292010964826,
+      "new_time_ms": 69.29675000719726,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Annelise Hanshaw",
+      "current_extraction": [
+        "Annelise Hanshaw"
+      ],
+      "old_result": [
+        "Annelise Hanshaw"
+      ],
+      "new_result": [
+        "Annelise Hanshaw"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.910874999477528,
+      "new_time_ms": 48.77466699690558,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "L.J. Salzman, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "L.J. Salzman",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "L.J. Salzman",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "L.J. Salzman",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 97.31833399564493,
+      "new_time_ms": 157.22454199567437,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Ella Conklin, Katie Puttoff, Brayden Thompson, Ellen Basse",
+      "current_extraction": [
+        "Ella Conklin",
+        "Katie Puttoff",
+        "Brayden Thompson",
+        "Ellen Basse"
+      ],
+      "old_result": [
+        "Ella Conklin",
+        "Katie Puttoff",
+        "Brayden Thompson",
+        "Ellen Basse"
+      ],
+      "new_result": [
+        "Ella Conklin",
+        "Katie Puttoff",
+        "Brayden Thompson",
+        "Ellen Basse"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 99.94429200014565,
+      "new_time_ms": 157.86120799020864,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Debra Tune",
+      "current_extraction": [
+        "Debra Tune"
+      ],
+      "old_result": [
+        "Debra Tune"
+      ],
+      "new_result": [
+        "Debra Tune"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.64791599777527,
+      "new_time_ms": 49.39333299989812,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Emma Browka",
+      "current_extraction": [
+        "Emma Browka"
+      ],
+      "old_result": [
+        "Emma Browka"
+      ],
+      "new_result": [
+        "Emma Browka"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.684957999852486,
+      "new_time_ms": 49.281041996437125,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Vicki Stamps, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Vicki Stamps",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Vicki Stamps",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Vicki Stamps",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 97.94812499603722,
+      "new_time_ms": 157.10275000310503,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Jake Kroesen",
+      "current_extraction": [
+        "Jake Kroesen"
+      ],
+      "old_result": [
+        "Jake Kroesen"
+      ],
+      "new_result": [
+        "Jake Kroesen"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.541709004552104,
+      "new_time_ms": 49.01883300044574,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Jennifer Shutt, Annelise Hanshaw, Ceilidh Kern, Nada Hassanein",
+      "current_extraction": [
+        "Jennifer Shutt",
+        "Annelise Hanshaw",
+        "Ceilidh Kern",
+        "Nada Hassanein"
+      ],
+      "old_result": [
+        "Jennifer Shutt",
+        "Annelise Hanshaw",
+        "Ceilidh Kern",
+        "Nada Hassanein"
+      ],
+      "new_result": [
+        "Jennifer Shutt",
+        "Annelise Hanshaw",
+        "Ceilidh Kern",
+        "Nada Hassanein"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 97.42516699770931,
+      "new_time_ms": 154.84850000939332,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Alex Dodderidge",
+      "current_extraction": [
+        "Alex Dodderidge"
+      ],
+      "old_result": [
+        "Alex Dodderidge"
+      ],
+      "new_result": [
+        "Alex Dodderidge"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.736375009524636,
+      "new_time_ms": 49.65749999973923,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Missouri Baptist University, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 104.54179199587088,
+      "new_time_ms": 136.50833298743237,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 3,
+      "old_author_count": 3,
+      "new_author_count": 3,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Wes Fowler, Adam Groza, Benjamin Hawkins, Richard Nations",
+      "current_extraction": [
+        "Wes Fowler",
+        "Adam Groza",
+        "Benjamin Hawkins",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Wes Fowler",
+        "Adam Groza",
+        "Benjamin Hawkins",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Wes Fowler",
+        "Adam Groza",
+        "Benjamin Hawkins",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 99.60899999714456,
+      "new_time_ms": 155.63437499804422,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Ariana Figueroa, Thomas White, Kevin Hardy, Mónica Cordero",
+      "current_extraction": [
+        "Ariana Figueroa",
+        "Hite",
+        "Kevin Hardy",
+        "Mónica Cordero"
+      ],
+      "old_result": [
+        "Ariana Figueroa",
+        "Thomas White",
+        "Kevin Hardy",
+        "Mónica Cordero"
+      ],
+      "new_result": [
+        "Ariana Figueroa",
+        "Thomas White",
+        "Kevin Hardy",
+        "Mónica Cordero"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 97.9729579994455,
+      "new_time_ms": 158.5417499882169,
+      "old_vs_current_match": false,
+      "new_vs_current_match": false,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent_distance"
+    },
+    {
+      "raw_byline": "Jennifer Shutt, Sofia Resnick, Ariana Figueroa, Ashley Murray",
+      "current_extraction": [
+        "Jennifer Shutt",
+        "Sofia Resnick",
+        "Ariana Figueroa",
+        "Ashley Murray"
+      ],
+      "old_result": [
+        "Jennifer Shutt",
+        "Sofia Resnick",
+        "Ariana Figueroa",
+        "Ashley Murray"
+      ],
+      "new_result": [
+        "Jennifer Shutt",
+        "Sofia Resnick",
+        "Ariana Figueroa",
+        "Ashley Murray"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 98.99383300216869,
+      "new_time_ms": 156.10412499518134,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Allison Scavo",
+      "current_extraction": [
+        "Allison Scavo"
+      ],
+      "old_result": [
+        "Allison Scavo"
+      ],
+      "new_result": [
+        "Allison Scavo"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 25.182500001392327,
+      "new_time_ms": 49.256333004450426,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Ariana Figueroa, Jesse Bogan, Mary Sanchez, Robbie Sequeira",
+      "current_extraction": [
+        "Ariana Figueroa",
+        "Jesse Bogan",
+        "Mary Sanchez",
+        "Robbie Sequeira"
+      ],
+      "old_result": [
+        "Ariana Figueroa",
+        "Jesse Bogan",
+        "Mary Sanchez",
+        "Robbie Sequeira"
+      ],
+      "new_result": [
+        "Ariana Figueroa",
+        "Jesse Bogan",
+        "Mary Sanchez",
+        "Robbie Sequeira"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 97.92000000015832,
+      "new_time_ms": 158.41945800639223,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Karen Garcia, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Karen Garcia",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Karen Garcia",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Karen Garcia",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 98.3499580033822,
+      "new_time_ms": 156.65362500294577,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "IMB, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Imb",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Imb",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 94.19408399844542,
+      "new_time_ms": 145.48995900258888,
+      "old_vs_current_match": true,
+      "new_vs_current_match": false,
+      "old_vs_new_match": false,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 3,
+      "improvement_type": "old_better"
+    },
+    {
+      "raw_byline": "Jacob Miklas, William J. Ford, Ceilidh Kern, Abigail Didonna, Will Firra, Zoe Naylor, Peter Pynadath",
+      "current_extraction": [
+        "Jacob Miklas",
+        "Ford",
+        "Ceilidh Kern",
+        "Abigail Didonna",
+        "Will Firra",
+        "Zoe Naylor",
+        "Peter Pynadath"
+      ],
+      "old_result": [
+        "Jacob Miklas",
+        "Ford",
+        "Ceilidh Kern",
+        "Abigail Didonna",
+        "Will Firra",
+        "Zoe Naylor",
+        "Peter Pynadath"
+      ],
+      "new_result": [
+        "Jacob Miklas",
+        "Ceilidh Kern",
+        "Abigail Didonna",
+        "Will Firra",
+        "Zoe Naylor",
+        "Peter Pynadath"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 175.88629201054573,
+      "new_time_ms": 272.37012500700075,
+      "old_vs_current_match": true,
+      "new_vs_current_match": false,
+      "old_vs_new_match": false,
+      "current_author_count": 7,
+      "old_author_count": 7,
+      "new_author_count": 6,
+      "improvement_type": "old_better"
+    },
+    {
+      "raw_byline": "Rebecca Rivas, Ariana Figueroa",
+      "current_extraction": [
+        "Rebecca Rivas",
+        "Ariana Figueroa"
+      ],
+      "old_result": [
+        "Rebecca Rivas",
+        "Ariana Figueroa"
+      ],
+      "new_result": [
+        "Rebecca Rivas",
+        "Ariana Figueroa"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 48.930750010185875,
+      "new_time_ms": 84.44004099874292,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 2,
+      "old_author_count": 2,
+      "new_author_count": 2,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Aidan DeSpain",
+      "current_extraction": [
+        "Aidan DeSpain"
+      ],
+      "old_result": [
+        "Aidan DeSpain"
+      ],
+      "new_result": [
+        "Aidan DeSpain"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.543749997974373,
+      "new_time_ms": 48.773499991511926,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Faith Bemiss-McKinney faith.bemiss@sedaliademocrat.com",
+      "current_extraction": [
+        "Faith Bemiss-Mckinney"
+      ],
+      "old_result": [
+        "Faith Bemiss-Mckinney"
+      ],
+      "new_result": [
+        "Faith Bemiss-Mckinney Faith.Bemiss@Sedaliademocrat.Com"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.56700000038836,
+      "new_time_ms": 59.26300000282936,
+      "old_vs_current_match": true,
+      "new_vs_current_match": false,
+      "old_vs_new_match": false,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "old_better"
+    },
+    {
+      "raw_byline": "Lauren Hutchens",
+      "current_extraction": [
+        "Lauren Hutchens"
+      ],
+      "old_result": [
+        "Lauren Hutchens"
+      ],
+      "new_result": [
+        "Lauren Hutchens"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.843417006195523,
+      "new_time_ms": 49.04962501314003,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Kayl Baker",
+      "current_extraction": [
+        "Kayl Baker"
+      ],
+      "old_result": [
+        "Kayl Baker"
+      ],
+      "new_result": [
+        "Kayl Baker"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.242083003628068,
+      "new_time_ms": 49.06729199865367,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Nick Spacek",
+      "current_extraction": [
+        "Nick Spacek"
+      ],
+      "old_result": [
+        "Nick Spacek"
+      ],
+      "new_result": [
+        "Nick Spacek"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.4920829863986,
+      "new_time_ms": 49.11420799908228,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Suzanne King, Jonah Foster, Xander Lundblad, Seth Schwartzberg, Bram Sable-Smith, Alex Cox, Adeleine Halsey, Kyla Pehr, Savvy Sleevar",
+      "current_extraction": [
+        "Suzanne King",
+        "Jonah Foster",
+        "Xander Lundblad",
+        "Seth Schwartzberg",
+        "Bram Sable-Smith",
+        "Alex Cox",
+        "Adeleine Halsey",
+        "Kyla Pehr",
+        "Savvy Sleevar"
+      ],
+      "old_result": [
+        "Suzanne King",
+        "Jonah Foster",
+        "Xander Lundblad",
+        "Seth Schwartzberg",
+        "Bram Sable-Smith",
+        "Alex Cox",
+        "Adeleine Halsey",
+        "Kyla Pehr",
+        "Savvy Sleevar"
+      ],
+      "new_result": [
+        "Suzanne King",
+        "Jonah Foster",
+        "Xander Lundblad",
+        "Seth Schwartzberg",
+        "Bram Sable-Smith",
+        "Alex Cox",
+        "Adeleine Halsey",
+        "Kyla Pehr",
+        "Savvy Sleevar"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 220.96745899762027,
+      "new_time_ms": 338.7622919981368,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 9,
+      "old_author_count": 9,
+      "new_author_count": 9,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Richard Nations, Adam Groza, Wes Fowler, Hannibal-LaGrange University",
+      "current_extraction": [
+        "Richard Nations",
+        "Adam Groza",
+        "Wes Fowler"
+      ],
+      "old_result": [
+        "Richard Nations",
+        "Adam Groza",
+        "Wes Fowler"
+      ],
+      "new_result": [
+        "Richard Nations",
+        "Adam Groza",
+        "Wes Fowler"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 74.76766699983273,
+      "new_time_ms": 131.7223749938421,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 3,
+      "old_author_count": 3,
+      "new_author_count": 3,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "W. Paul Bohlen, Senior Sports",
+      "current_extraction": [
+        "W. Paul Bohlen"
+      ],
+      "old_result": [
+        "W. Paul Bohlen"
+      ],
+      "new_result": [
+        "W. Paul Bohlen"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 32.32754199416377,
+      "new_time_ms": 95.34758298832458,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Ariana Figueroa, Mary Sanchez, Nada Hassanein, Ashley Murray",
+      "current_extraction": [
+        "Ariana Figueroa",
+        "Mary Sanchez",
+        "Nada Hassanein",
+        "Ashley Murray"
+      ],
+      "old_result": [
+        "Ariana Figueroa",
+        "Mary Sanchez",
+        "Nada Hassanein",
+        "Ashley Murray"
+      ],
+      "new_result": [
+        "Ariana Figueroa",
+        "Mary Sanchez",
+        "Nada Hassanein",
+        "Ashley Murray"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 100.03412498917896,
+      "new_time_ms": 154.75300000980496,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Jack Denebeim  jack.denebeim@sedaliademocrat.com",
+      "current_extraction": [
+        "Jack Denebeim"
+      ],
+      "old_result": [
+        "Jack Denebeim"
+      ],
+      "new_result": [
+        "Jack Denebeim Jack.Denebeim@Sedaliademocrat.Com"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.773333992925473,
+      "new_time_ms": 59.52537500706967,
+      "old_vs_current_match": true,
+      "new_vs_current_match": false,
+      "old_vs_new_match": false,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "old_better"
+    },
+    {
+      "raw_byline": "Adam Groza, Wes Fowler, Benjamin Hawkins, Richard Nations",
+      "current_extraction": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Benjamin Hawkins",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Benjamin Hawkins",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Benjamin Hawkins",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 98.84858300210908,
+      "new_time_ms": 158.05724999518134,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Valerie Rosqueta",
+      "current_extraction": [
+        "Valerie Rosqueta"
+      ],
+      "old_result": [
+        "Valerie Rosqueta"
+      ],
+      "new_result": [
+        "Valerie Rosqueta"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.823084007948637,
+      "new_time_ms": 48.98912500357255,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Rob Phillips, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Rob Phillips",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Rob Phillips",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Rob Phillips",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 98.94395800074562,
+      "new_time_ms": 156.53487498639151,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Ava Gorton, Campus Activities Editor",
+      "current_extraction": [
+        "Ava Gorton"
+      ],
+      "old_result": [
+        "Ava Gorton"
+      ],
+      "new_result": [
+        "Ava Gorton"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.408625002251938,
+      "new_time_ms": 60.04766699334141,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Joseph Glaser",
+      "current_extraction": [
+        "Joseph Glaser"
+      ],
+      "old_result": [
+        "Joseph Glaser"
+      ],
+      "new_result": [
+        "Joseph Glaser"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.15320799627807,
+      "new_time_ms": 48.9610829972662,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Jack Denebeim jack.denebeim@sedaliademocrat.com",
+      "current_extraction": [
+        "Jack Denebeim"
+      ],
+      "old_result": [
+        "Jack Denebeim"
+      ],
+      "new_result": [
+        "Jack Denebeim Jack.Denebeim@Sedaliademocrat.Com"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.59587500197813,
+      "new_time_ms": 59.592124991468154,
+      "old_vs_current_match": true,
+      "new_vs_current_match": false,
+      "old_vs_new_match": false,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "old_better"
+    },
+    {
+      "raw_byline": "Anna Claire Vollers, Rebecca Rivas",
+      "current_extraction": [
+        "Anna Claire Vollers",
+        "Rebecca Rivas"
+      ],
+      "old_result": [
+        "Anna Claire Vollers",
+        "Rebecca Rivas"
+      ],
+      "new_result": [
+        "Anna Claire Vollers",
+        "Rebecca Rivas"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 54.07174999709241,
+      "new_time_ms": 95.29058299085591,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 2,
+      "old_author_count": 2,
+      "new_author_count": 2,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Ashlyn Jones",
+      "current_extraction": [
+        "Ashlyn Jones"
+      ],
+      "old_result": [
+        "Ashlyn Jones"
+      ],
+      "new_result": [
+        "Ashlyn Jones"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.578791999374516,
+      "new_time_ms": 48.917500011157244,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Midwestern Baptist Theological Seminary, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 109.92724999960046,
+      "new_time_ms": 140.37599999574013,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 3,
+      "old_author_count": 3,
+      "new_author_count": 3,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Annelise Hanshaw, Anna Spoerre",
+      "current_extraction": [
+        "Annelise Hanshaw",
+        "Anna Spoerre"
+      ],
+      "old_result": [
+        "Annelise Hanshaw",
+        "Anna Spoerre"
+      ],
+      "new_result": [
+        "Annelise Hanshaw",
+        "Anna Spoerre"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 49.4749580102507,
+      "new_time_ms": 86.68125000258442,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 2,
+      "old_author_count": 2,
+      "new_author_count": 2,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Senior Airman Robert Hicks 509th Bomb Wing Public Affairs",
+      "current_extraction": [
+        "Airman Robert Hicks 509Th Bomb Public"
+      ],
+      "old_result": [
+        "Airman Robert Hicks 509Th Bomb Public"
+      ],
+      "new_result": [
+        "Airman Robert Hicks 509Th Bomb Public"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 115.62191700795665,
+      "new_time_ms": 133.85104200278874,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Jason Hancock, Rudi Keller",
+      "current_extraction": [
+        "Jason Hancock",
+        "Rudi Keller"
+      ],
+      "old_result": [
+        "Jason Hancock",
+        "Rudi Keller"
+      ],
+      "new_result": [
+        "Jason Hancock",
+        "Rudi Keller"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 52.138500002911314,
+      "new_time_ms": 88.15624999988358,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 2,
+      "old_author_count": 2,
+      "new_author_count": 2,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Jamie Santner, Sports, Hailey Lampley",
+      "current_extraction": [
+        "Jamie Santner",
+        "Hailey Lampley"
+      ],
+      "old_result": [
+        "Jamie Santner",
+        "Hailey Lampley"
+      ],
+      "new_result": [
+        "Jamie Santner",
+        "Hailey Lampley"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 50.15487500349991,
+      "new_time_ms": 114.5898329996271,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 2,
+      "old_author_count": 2,
+      "new_author_count": 2,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Aditya Gunturu",
+      "current_extraction": [
+        "Aditya Gunturu"
+      ],
+      "old_result": [
+        "Aditya Gunturu"
+      ],
+      "new_result": [
+        "Aditya Gunturu"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 25.081334009882994,
+      "new_time_ms": 50.61341600958258,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Ella Conklin, File Photo, The Standard",
+      "current_extraction": [
+        "Ella Conklin",
+        "File Photo"
+      ],
+      "old_result": [
+        "Ella Conklin",
+        "File Photo"
+      ],
+      "new_result": [
+        "Ella Conklin",
+        "File Photo"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 50.32116599613801,
+      "new_time_ms": 95.40979198936839,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 2,
+      "old_author_count": 2,
+      "new_author_count": 2,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Ariana Figueroa, Mary Sanchez, Tim Henderson",
+      "current_extraction": [
+        "Ariana Figueroa",
+        "Mary Sanchez",
+        "Tim Henderson"
+      ],
+      "old_result": [
+        "Ariana Figueroa",
+        "Mary Sanchez",
+        "Tim Henderson"
+      ],
+      "new_result": [
+        "Ariana Figueroa",
+        "Mary Sanchez",
+        "Tim Henderson"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 73.45291700039525,
+      "new_time_ms": 120.65129099937622,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 3,
+      "old_author_count": 3,
+      "new_author_count": 3,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Chris Howell  chris.howell@sedaliademocrat.com",
+      "current_extraction": [
+        "Chris Howell"
+      ],
+      "old_result": [
+        "Chris Howell"
+      ],
+      "new_result": [
+        "Chris Howell Chris.Howell@Sedaliademocrat.Com"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.320709009771235,
+      "new_time_ms": 59.371750001446344,
+      "old_vs_current_match": true,
+      "new_vs_current_match": false,
+      "old_vs_new_match": false,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "old_better"
+    },
+    {
+      "raw_byline": "Jeremy Jacob, Sports Editor, Jeremy Jacob, Sports Editor",
+      "current_extraction": [
+        "Jeremy Jacob"
+      ],
+      "old_result": [
+        "Jeremy Jacob"
+      ],
+      "new_result": [
+        "Jeremy Jacob"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 49.13075000513345,
+      "new_time_ms": 146.10174999688752,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Abby Olcese",
+      "current_extraction": [
+        "Abby Olcese"
+      ],
+      "old_result": [
+        "Abby Olcese"
+      ],
+      "new_result": [
+        "Abby Olcese"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.801583000225946,
+      "new_time_ms": 48.924375005299225,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Jonah Foster, Xander Lundblad, Seth Schwartzberg, Suzanne King, Anna Spoerre, Bram Sable-Smith",
+      "current_extraction": [
+        "Jonah Foster",
+        "Xander Lundblad",
+        "Seth Schwartzberg",
+        "Suzanne King",
+        "Anna Spoerre",
+        "Bram Sable-Smith"
+      ],
+      "old_result": [
+        "Jonah Foster",
+        "Xander Lundblad",
+        "Seth Schwartzberg",
+        "Suzanne King",
+        "Anna Spoerre",
+        "Bram Sable-Smith"
+      ],
+      "new_result": [
+        "Jonah Foster",
+        "Xander Lundblad",
+        "Seth Schwartzberg",
+        "Suzanne King",
+        "Anna Spoerre",
+        "Bram Sable-Smith"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 146.8147089908598,
+      "new_time_ms": 228.22679199452978,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 6,
+      "old_author_count": 6,
+      "new_author_count": 6,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Ellie Sellers",
+      "current_extraction": [
+        "Ellie Sellers"
+      ],
+      "old_result": [
+        "Ellie Sellers"
+      ],
+      "new_result": [
+        "Ellie Sellers"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.62066699808929,
+      "new_time_ms": 50.39099999703467,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Rudi Keller, Jason Hancock, Annelise Hanshaw, Anna Spoerre",
+      "current_extraction": [
+        "Rudi Keller",
+        "Jason Hancock",
+        "Annelise Hanshaw",
+        "Anna Spoerre"
+      ],
+      "old_result": [
+        "Rudi Keller",
+        "Jason Hancock",
+        "Annelise Hanshaw",
+        "Anna Spoerre"
+      ],
+      "new_result": [
+        "Rudi Keller",
+        "Jason Hancock",
+        "Annelise Hanshaw",
+        "Anna Spoerre"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 98.94266600895207,
+      "new_time_ms": 155.9331669996027,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Jennifer Shutt, Suzanne King, Nada Hassanein",
+      "current_extraction": [
+        "Jennifer Shutt",
+        "Suzanne King",
+        "Nada Hassanein"
+      ],
+      "old_result": [
+        "Jennifer Shutt",
+        "Suzanne King",
+        "Nada Hassanein"
+      ],
+      "new_result": [
+        "Jennifer Shutt",
+        "Suzanne King",
+        "Nada Hassanein"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 74.36250000318978,
+      "new_time_ms": 120.61312499281485,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 3,
+      "old_author_count": 3,
+      "new_author_count": 3,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Liz Garcia",
+      "current_extraction": [
+        "Liz Garcia"
+      ],
+      "old_result": [
+        "Liz Garcia"
+      ],
+      "new_result": [
+        "Liz Garcia"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.29491700604558,
+      "new_time_ms": 48.27641599695198,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Hannibal-LaGrange University, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 74.28745899233036,
+      "new_time_ms": 131.24391599558294,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 3,
+      "old_author_count": 3,
+      "new_author_count": 3,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Don Munsch, Editor, Don Munsch",
+      "current_extraction": [
+        "Don Munsch"
+      ],
+      "old_result": [
+        "Don Munsch"
+      ],
+      "new_result": [
+        "Don Munsch"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 49.725542005035095,
+      "new_time_ms": 111.1670829996001,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Anna Claire Vollers, Suzanne King, Annelise Hanshaw, Jonah Foster, Xander Lundblad, Seth Schwartzberg",
+      "current_extraction": [
+        "Anna Claire Vollers",
+        "Suzanne King",
+        "Annelise Hanshaw",
+        "Jonah Foster",
+        "Xander Lundblad",
+        "Seth Schwartzberg"
+      ],
+      "old_result": [
+        "Anna Claire Vollers",
+        "Suzanne King",
+        "Annelise Hanshaw",
+        "Jonah Foster",
+        "Xander Lundblad",
+        "Seth Schwartzberg"
+      ],
+      "new_result": [
+        "Anna Claire Vollers",
+        "Suzanne King",
+        "Annelise Hanshaw",
+        "Jonah Foster",
+        "Xander Lundblad",
+        "Seth Schwartzberg"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 153.09845900628716,
+      "new_time_ms": 238.52158299996518,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 6,
+      "old_author_count": 6,
+      "new_author_count": 6,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Rudi Keller, Jason Hancock",
+      "current_extraction": [
+        "Rudi Keller",
+        "Jason Hancock"
+      ],
+      "old_result": [
+        "Rudi Keller",
+        "Jason Hancock"
+      ],
+      "new_result": [
+        "Rudi Keller",
+        "Jason Hancock"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 49.74141699494794,
+      "new_time_ms": 84.66274999955203,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 2,
+      "old_author_count": 2,
+      "new_author_count": 2,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Dawn Jones",
+      "current_extraction": [
+        "Dawn Jones"
+      ],
+      "old_result": [
+        "Dawn Jones"
+      ],
+      "new_result": [
+        "Dawn Jones"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 25.13112500309944,
+      "new_time_ms": 49.8532920028083,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Leslie Peacock Caldwell, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Leslie Peacock Caldwell",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Leslie Peacock Caldwell",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Leslie Peacock Caldwell",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 103.32100000232458,
+      "new_time_ms": 167.22254100022838,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Hunter Meacheam",
+      "current_extraction": [
+        "Hunter Meacheam"
+      ],
+      "old_result": [
+        "Hunter Meacheam"
+      ],
+      "new_result": [
+        "Hunter Meacheam"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.639750001369976,
+      "new_time_ms": 49.0312920010183,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Ulaa Kuziez",
+      "current_extraction": [
+        "Ulaa Kuziez"
+      ],
+      "old_result": [
+        "Ulaa Kuziez"
+      ],
+      "new_result": [
+        "Ulaa Kuziez"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.196208993089385,
+      "new_time_ms": 48.83329199219588,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Tharran Gaines, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Tharran Gaines",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Tharran Gaines",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Tharran Gaines",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 97.8636249928968,
+      "new_time_ms": 157.62195800198242,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Cole Lee",
+      "current_extraction": [
+        "Cole Lee"
+      ],
+      "old_result": [
+        "Cole Lee"
+      ],
+      "new_result": [
+        "Cole Lee"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 24.717166990740225,
+      "new_time_ms": 49.476540996693075,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Jennifer Shutt, Ariana Figueroa, Kevin Hardy, Bram Sable-Smith, Tim Henderson",
+      "current_extraction": [
+        "Jennifer Shutt",
+        "Ariana Figueroa",
+        "Kevin Hardy",
+        "Bram Sable-Smith",
+        "Tim Henderson"
+      ],
+      "old_result": [
+        "Jennifer Shutt",
+        "Ariana Figueroa",
+        "Kevin Hardy",
+        "Bram Sable-Smith",
+        "Tim Henderson"
+      ],
+      "new_result": [
+        "Jennifer Shutt",
+        "Ariana Figueroa",
+        "Kevin Hardy",
+        "Bram Sable-Smith",
+        "Tim Henderson"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 110.88837499846704,
+      "new_time_ms": 166.8245410110103,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 5,
+      "old_author_count": 5,
+      "new_author_count": 5,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Sarah Sipple",
+      "current_extraction": [
+        "Sarah Sipple"
+      ],
+      "old_result": [
+        "Sarah Sipple"
+      ],
+      "new_result": [
+        "Sarah Sipple"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 21.425790997454897,
+      "new_time_ms": 42.30149999784771,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Rylie Robinson",
+      "current_extraction": [
+        "Rylie Robinson"
+      ],
+      "old_result": [
+        "Rylie Robinson"
+      ],
+      "new_result": [
+        "Rylie Robinson"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 21.056249999674037,
+      "new_time_ms": 42.1794590074569,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Jamie Santner, Sports",
+      "current_extraction": [
+        "Jamie Santner"
+      ],
+      "old_result": [
+        "Jamie Santner"
+      ],
+      "new_result": [
+        "Jamie Santner"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 21.770958992419764,
+      "new_time_ms": 63.679625003715046,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Maddy Shugart",
+      "current_extraction": [
+        "Maddy Shugart"
+      ],
+      "old_result": [
+        "Maddy Shugart"
+      ],
+      "new_result": [
+        "Maddy Shugart"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 21.327791997464374,
+      "new_time_ms": 43.26212499290705,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Semoball",
+      "current_extraction": [
+        "Semoball"
+      ],
+      "old_result": [
+        "Semoball"
+      ],
+      "new_result": [
+        "Semoball"
+      ],
+      "new_confidence": 0.2,
+      "new_strategy": "fallback",
+      "old_time_ms": 17.955749994143844,
+      "new_time_ms": 35.532958994735964,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Tim Ellsworth, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Tillsworth",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Tim Ellsworth",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Tim Ellsworth",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 84.44412499375176,
+      "new_time_ms": 135.09554199117702,
+      "old_vs_current_match": false,
+      "new_vs_current_match": false,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent_distance"
+    },
+    {
+      "raw_byline": "Shauneen Miranda, Annelise Hanshaw",
+      "current_extraction": [
+        "Shauneen Miranda",
+        "Annelise Hanshaw"
+      ],
+      "old_result": [
+        "Shauneen Miranda",
+        "Annelise Hanshaw"
+      ],
+      "new_result": [
+        "Shauneen Miranda",
+        "Annelise Hanshaw"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 41.81187500944361,
+      "new_time_ms": 73.05683300364763,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 2,
+      "old_author_count": 2,
+      "new_author_count": 2,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Makanaka Bgoni",
+      "current_extraction": [
+        "Makanaka Bgoni"
+      ],
+      "old_result": [
+        "Makanaka Bgoni"
+      ],
+      "new_result": [
+        "Makanaka Bgoni"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 20.812833987292834,
+      "new_time_ms": 42.36620799929369,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Tim Henderson, Mary Sanchez, Nada Hassanein",
+      "current_extraction": [
+        "Tim Henderson",
+        "Mary Sanchez",
+        "Nada Hassanein"
+      ],
+      "old_result": [
+        "Tim Henderson",
+        "Mary Sanchez",
+        "Nada Hassanein"
+      ],
+      "new_result": [
+        "Tim Henderson",
+        "Mary Sanchez",
+        "Nada Hassanein"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 63.83649999042973,
+      "new_time_ms": 104.51241700502578,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 3,
+      "old_author_count": 3,
+      "new_author_count": 3,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Staff, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 63.56841699744109,
+      "new_time_ms": 127.02487499336712,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 3,
+      "old_author_count": 3,
+      "new_author_count": 3,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Brooke Benne",
+      "current_extraction": [
+        "Brooke Benne"
+      ],
+      "old_result": [
+        "Brooke Benne"
+      ],
+      "new_result": [
+        "Brooke Benne"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 21.264916998916306,
+      "new_time_ms": 44.27054199913982,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Jennifer Shutt, Anna Claire Vollers, Kevin Hardy",
+      "current_extraction": [
+        "Jennifer Shutt",
+        "Anna Claire Vollers",
+        "Kevin Hardy"
+      ],
+      "old_result": [
+        "Jennifer Shutt",
+        "Anna Claire Vollers",
+        "Kevin Hardy"
+      ],
+      "new_result": [
+        "Jennifer Shutt",
+        "Anna Claire Vollers",
+        "Kevin Hardy"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 69.21379199775402,
+      "new_time_ms": 113.64429199602455,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 3,
+      "old_author_count": 3,
+      "new_author_count": 3,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Shalina Chatlani, Suzanne King, Annelise Hanshaw, Jonah Foster, Xander Lundblad, Seth Schwartzberg",
+      "current_extraction": [
+        "Shalina Chatlani",
+        "Suzanne King",
+        "Annelise Hanshaw",
+        "Jonah Foster",
+        "Xander Lundblad",
+        "Seth Schwartzberg"
+      ],
+      "old_result": [
+        "Shalina Chatlani",
+        "Suzanne King",
+        "Annelise Hanshaw",
+        "Jonah Foster",
+        "Xander Lundblad",
+        "Seth Schwartzberg"
+      ],
+      "new_result": [
+        "Shalina Chatlani",
+        "Suzanne King",
+        "Annelise Hanshaw",
+        "Jonah Foster",
+        "Xander Lundblad",
+        "Seth Schwartzberg"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 129.4601249974221,
+      "new_time_ms": 197.49762500578072,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 6,
+      "old_author_count": 6,
+      "new_author_count": 6,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Jonathan Shorman, Jason Hancock, Rudi Keller",
+      "current_extraction": [
+        "Jonathan Shorman",
+        "Jason Hancock",
+        "Rudi Keller"
+      ],
+      "old_result": [
+        "Jonathan Shorman",
+        "Jason Hancock",
+        "Rudi Keller"
+      ],
+      "new_result": [
+        "Jonathan Shorman",
+        "Jason Hancock",
+        "Rudi Keller"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 64.19491700944491,
+      "new_time_ms": 104.94558399659581,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 3,
+      "old_author_count": 3,
+      "new_author_count": 3,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Dan Steinbeck, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Dan Steinbeck",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Dan Steinbeck",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Dan Steinbeck",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 84.62345899897628,
+      "new_time_ms": 135.16970800992567,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Coach Leonard",
+      "current_extraction": [
+        "Coach Leonard"
+      ],
+      "old_result": [
+        "Coach Leonard"
+      ],
+      "new_result": [
+        "Coach Leonard"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 21.43262499885168,
+      "new_time_ms": 42.64529200736433,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Scott Barkley, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Scott Barkley",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Scott Barkley",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Scott Barkley",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 84.46095800900366,
+      "new_time_ms": 137.17033300781623,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Stephen Fuller",
+      "current_extraction": [
+        "Stephen Fuller"
+      ],
+      "old_result": [
+        "Stephen Fuller"
+      ],
+      "new_result": [
+        "Stephen Fuller"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 21.01158299774397,
+      "new_time_ms": 43.19650000252295,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Rudi Keller, Anna Spoerre, Nada Hassanein",
+      "current_extraction": [
+        "Rudi Keller",
+        "Anna Spoerre",
+        "Nada Hassanein"
+      ],
+      "old_result": [
+        "Rudi Keller",
+        "Anna Spoerre",
+        "Nada Hassanein"
+      ],
+      "new_result": [
+        "Rudi Keller",
+        "Anna Spoerre",
+        "Nada Hassanein"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 65.34258299507201,
+      "new_time_ms": 105.65262498857919,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 3,
+      "old_author_count": 3,
+      "new_author_count": 3,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Andy Cullinane",
+      "current_extraction": [
+        "Andy Cullinane"
+      ],
+      "old_result": [
+        "Andy Cullinane"
+      ],
+      "new_result": [
+        "Andy Cullinane"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 21.393667004304007,
+      "new_time_ms": 42.11208299966529,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Will Barnett",
+      "current_extraction": [
+        "Will Barnett"
+      ],
+      "old_result": [
+        "Will Barnett"
+      ],
+      "new_result": [
+        "Will Barnett"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 21.24754099349957,
+      "new_time_ms": 42.64899999543559,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Brendan Brunette",
+      "current_extraction": [
+        "Brendan Brunette"
+      ],
+      "old_result": [
+        "Brendan Brunette"
+      ],
+      "new_result": [
+        "Brendan Brunette"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 21.42162498785183,
+      "new_time_ms": 41.9337499915855,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Miles Mullin, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Miles Mullin",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Miles Mullin",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Miles Mullin",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 84.80945900373627,
+      "new_time_ms": 136.12016598926857,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "ERLC Staff, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 63.92016699828673,
+      "new_time_ms": 135.7989170064684,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 3,
+      "old_author_count": 3,
+      "new_author_count": 3,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Maggie Adair",
+      "current_extraction": [
+        "Maggie Adair"
+      ],
+      "old_result": [
+        "Maggie Adair"
+      ],
+      "new_result": [
+        "Maggie Adair"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 21.30041699274443,
+      "new_time_ms": 42.34266700223088,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Rudi Keller",
+      "current_extraction": [
+        "Rudi Keller"
+      ],
+      "old_result": [
+        "Rudi Keller"
+      ],
+      "new_result": [
+        "Rudi Keller"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 21.350499999243766,
+      "new_time_ms": 42.67337500641588,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Reegan Johnson",
+      "current_extraction": [
+        "Reegan Johnson"
+      ],
+      "old_result": [
+        "Reegan Johnson"
+      ],
+      "new_result": [
+        "Reegan Johnson"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 21.124457998666912,
+      "new_time_ms": 41.96112499630544,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Bridgette Dunlap, David Norlin, Brian Kaylor",
+      "current_extraction": [
+        "Bridgette Dunlap",
+        "David Norlin",
+        "Brian Kaylor"
+      ],
+      "old_result": [
+        "Bridgette Dunlap",
+        "David Norlin",
+        "Brian Kaylor"
+      ],
+      "new_result": [
+        "Bridgette Dunlap",
+        "David Norlin",
+        "Brian Kaylor"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 101.04150000552181,
+      "new_time_ms": 111.58262500248384,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 3,
+      "old_author_count": 3,
+      "new_author_count": 3,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Mariya Yasinovska",
+      "current_extraction": [
+        "Mariya Yasinovska"
+      ],
+      "old_result": [
+        "Mariya Yasinovska"
+      ],
+      "new_result": [
+        "Mariya Yasinovska"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 21.442041004775092,
+      "new_time_ms": 43.208041999605484,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Aden Zuccarini",
+      "current_extraction": [
+        "Aden Zuccarini"
+      ],
+      "old_result": [
+        "Aden Zuccarini"
+      ],
+      "new_result": [
+        "Aden Zuccarini"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 22.286834006081335,
+      "new_time_ms": 42.90450000553392,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Ron Calzone, Brian Kaylor, Rudi Keller, Barbara Shelly",
+      "current_extraction": [
+        "Ron Calzone",
+        "Brian Kaylor",
+        "Rudi Keller",
+        "Barbara Shelly"
+      ],
+      "old_result": [
+        "Ron Calzone",
+        "Brian Kaylor",
+        "Rudi Keller",
+        "Barbara Shelly"
+      ],
+      "new_result": [
+        "Ron Calzone",
+        "Brian Kaylor",
+        "Rudi Keller",
+        "Barbara Shelly"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 85.22129199991468,
+      "new_time_ms": 135.71312499698251,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Benjamin Hawkins, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Benjamin Hawkins",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Benjamin Hawkins",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Benjamin Hawkins",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 84.95799999218434,
+      "new_time_ms": 135.3667920047883,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Katie Moore, Jason Hancock, Clara Bates, Rudi Keller",
+      "current_extraction": [
+        "Katie Moore",
+        "Jason Hancock",
+        "Clara Bates",
+        "Rudi Keller"
+      ],
+      "old_result": [
+        "Katie Moore",
+        "Jason Hancock",
+        "Clara Bates",
+        "Rudi Keller"
+      ],
+      "new_result": [
+        "Katie Moore",
+        "Jason Hancock",
+        "Clara Bates",
+        "Rudi Keller"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 86.31045800575521,
+      "new_time_ms": 135.362625005655,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Columbia Missourian staff, Rudi Keller, Annelise Hanshaw",
+      "current_extraction": [
+        "Rudi Keller",
+        "Annelise Hanshaw"
+      ],
+      "old_result": [
+        "Rudi Keller",
+        "Annelise Hanshaw"
+      ],
+      "new_result": [
+        "Rudi Keller",
+        "Annelise Hanshaw"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 85.65475000068545,
+      "new_time_ms": 87.8420420049224,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 2,
+      "old_author_count": 2,
+      "new_author_count": 2,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Tessa Sanchez, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "Tessa Sanchez",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "Tessa Sanchez",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "Tessa Sanchez",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 84.45100000244565,
+      "new_time_ms": 136.96912500017788,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Rudi Keller, Anna Spoerre",
+      "current_extraction": [
+        "Rudi Keller",
+        "Anna Spoerre"
+      ],
+      "old_result": [
+        "Rudi Keller",
+        "Anna Spoerre"
+      ],
+      "new_result": [
+        "Rudi Keller",
+        "Anna Spoerre"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 43.80641599709634,
+      "new_time_ms": 73.63512499432545,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 2,
+      "old_author_count": 2,
+      "new_author_count": 2,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Shauneen Miranda, Robbie Sequeira, Rudi Keller",
+      "current_extraction": [
+        "Shauneen Miranda",
+        "Robbie Sequeira",
+        "Rudi Keller"
+      ],
+      "old_result": [
+        "Shauneen Miranda",
+        "Robbie Sequeira",
+        "Rudi Keller"
+      ],
+      "new_result": [
+        "Shauneen Miranda",
+        "Robbie Sequeira",
+        "Rudi Keller"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 64.07866599329282,
+      "new_time_ms": 105.60754199104849,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 3,
+      "old_author_count": 3,
+      "new_author_count": 3,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Jennifer Shutt, Paige Gross, Sofia Resnick, Ariana Figueroa",
+      "current_extraction": [
+        "Jennifer Shutt",
+        "Paige Gross",
+        "Sofia Resnick",
+        "Ariana Figueroa"
+      ],
+      "old_result": [
+        "Jennifer Shutt",
+        "Paige Gross",
+        "Sofia Resnick",
+        "Ariana Figueroa"
+      ],
+      "new_result": [
+        "Jennifer Shutt",
+        "Paige Gross",
+        "Sofia Resnick",
+        "Ariana Figueroa"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 85.89570799085777,
+      "new_time_ms": 136.64741699176375,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Sophia Keeney, Guest",
+      "current_extraction": [
+        "Sophia Keeney"
+      ],
+      "old_result": [
+        "Sophia Keeney"
+      ],
+      "new_result": [
+        "Sophia Keeney"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 21.101374994032085,
+      "new_time_ms": 64.8049580049701,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Sky Strauss, Staff, Sky Strauss, Staff",
+      "current_extraction": [
+        "Sky Strauss"
+      ],
+      "old_result": [
+        "Sky Strauss"
+      ],
+      "new_result": [
+        "Sky Strauss"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 42.37545900105033,
+      "new_time_ms": 100.02608300419524,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Jennifer Shutt and Ariana Figueroa States Newsroom, Jennifer Shutt, Ariana Figueroa States Newsroom",
+      "current_extraction": [
+        "Jennifer Shutt"
+      ],
+      "old_result": [
+        "Jennifer Shutt"
+      ],
+      "new_result": [
+        "Jennifer Shutt",
+        "Ariana Figueroa States Newsroom, Jennifer Shutt, Ariana Figueroa States Newsroom",
+        "Jennifer Shutt Ariana Figueroa States",
+        "Ariana Figueroa States"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 21.681375001207925,
+      "new_time_ms": 254.7041670040926,
+      "old_vs_current_match": true,
+      "new_vs_current_match": false,
+      "old_vs_new_match": false,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 4,
+      "improvement_type": "old_better"
+    },
+    {
+      "raw_byline": "Lily Hale",
+      "current_extraction": [
+        "Lily Hale"
+      ],
+      "old_result": [
+        "Lily Hale"
+      ],
+      "new_result": [
+        "Lily Hale"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 21.487624995643273,
+      "new_time_ms": 42.24504099693149,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Rebecca Evans",
+      "current_extraction": [
+        "Rebecca Evans"
+      ],
+      "old_result": [
+        "Rebecca Evans"
+      ],
+      "new_result": [
+        "Rebecca Evans"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 21.384833002230152,
+      "new_time_ms": 43.5365410085069,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Calla Truschel Jacobs",
+      "current_extraction": [
+        "Calla Truschel Jacobs"
+      ],
+      "old_result": [
+        "Calla Truschel Jacobs"
+      ],
+      "new_result": [
+        "Calla Truschel Jacobs"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 26.11024999350775,
+      "new_time_ms": 52.5945419940399,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Teresa Lee",
+      "current_extraction": [
+        "Teresa Lee"
+      ],
+      "old_result": [
+        "Teresa Lee"
+      ],
+      "new_result": [
+        "Teresa Lee"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 21.433000001707114,
+      "new_time_ms": 42.52662500948645,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Kenny Hulshof",
+      "current_extraction": [
+        "Kenny Hulshof"
+      ],
+      "old_result": [
+        "Kenny Hulshof"
+      ],
+      "new_result": [
+        "Kenny Hulshof"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 21.456958987982944,
+      "new_time_ms": 42.10545799287502,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Rudi Keller Missouri Independent",
+      "current_extraction": [
+        "Rudi Keller"
+      ],
+      "old_result": [
+        "Rudi Keller"
+      ],
+      "new_result": [
+        "Rudi Keller"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 51.706083002500236,
+      "new_time_ms": 60.509832997922786,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "Annelise Hanshaw",
+      "current_extraction": [
+        "Annelise Hanshaw"
+      ],
+      "old_result": [
+        "Annelise Hanshaw"
+      ],
+      "new_result": [
+        "Annelise Hanshaw"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 21.49266700143926,
+      "new_time_ms": 42.127749999053776,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 1,
+      "old_author_count": 1,
+      "new_author_count": 1,
+      "improvement_type": "equivalent"
+    },
+    {
+      "raw_byline": "L.J. Salzman, Adam Groza, Wes Fowler, Richard Nations",
+      "current_extraction": [
+        "L.J. Salzman",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "old_result": [
+        "L.J. Salzman",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_result": [
+        "L.J. Salzman",
+        "Adam Groza",
+        "Wes Fowler",
+        "Richard Nations"
+      ],
+      "new_confidence": 0.5,
+      "new_strategy": "smart_parsing",
+      "old_time_ms": 84.73366701218765,
+      "new_time_ms": 135.73708399781026,
+      "old_vs_current_match": true,
+      "new_vs_current_match": true,
+      "old_vs_new_match": true,
+      "current_author_count": 4,
+      "old_author_count": 4,
+      "new_author_count": 4,
+      "improvement_type": "equivalent"
+    }
+  ]
+}

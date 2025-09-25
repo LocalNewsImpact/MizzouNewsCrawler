@@ -1,0 +1,949 @@
+{
+  "generated_at": "2025-09-24T11:05:32.971068",
+  "parameters": {
+    "max_domains": 5,
+    "sample_size": 5,
+    "min_articles": 1,
+    "min_boundary_score": 0.5,
+    "db_path": "data/mizzou.db"
+  },
+  "domains": [
+    {
+      "domain": "abc17news.com",
+      "total_articles": 91,
+      "analyzed_articles": 5,
+      "removal_percentage": 1.9270549809471966,
+      "removable_characters": 531,
+      "segment_count": 6,
+      "segments": [
+        {
+          "segment_index": 1,
+          "text": "™ & © 2025 Cable News Network, Inc., a Warner Bros. Discovery Company. All rights reserved.",
+          "pattern_type": "footer",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 91,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent footer pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 2,
+          "text": "ABC 17 News is committed to providing a forum for civil and constructive conversation.",
+          "pattern_type": "other",
+          "boundary_score": 0.6,
+          "occurrences": 1,
+          "length": 86,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 3,
+          "text": "ABC 17 News is committed to providing a forum for civil and constructive conversation.",
+          "pattern_type": "other",
+          "boundary_score": 0.6,
+          "occurrences": 1,
+          "length": 86,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 4,
+          "text": "™ & © 2025 Cable News Network, Inc., a Warner Bros. Discovery Company. All rights reserved.",
+          "pattern_type": "footer",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 91,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent footer pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 5,
+          "text": "™ & © 2025 Cable News Network, Inc., a Warner Bros. Discovery Company. All rights reserved.",
+          "pattern_type": "footer",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 91,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent footer pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 6,
+          "text": "ABC 17 News is committed to providing a forum for civil and constructive conversation.",
+          "pattern_type": "other",
+          "boundary_score": 0.6,
+          "occurrences": 1,
+          "length": 86,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        }
+      ],
+      "wire_patterns": [
+        {
+          "segment_index": 1,
+          "provider": "CNN NewsSource",
+          "detection_method": "regex_pattern",
+          "confidence": 0.8,
+          "pattern_text": "™ & © 2025 Cable News Network, Inc., a Warner Bros. Discovery Company. All rights reserved."
+        },
+        {
+          "segment_index": 2,
+          "provider": "ABC News",
+          "detection_method": "pattern_analysis",
+          "confidence": 0.9,
+          "pattern_text": "ABC 17 News is committed to providing a forum for civil and constructive conversation."
+        },
+        {
+          "segment_index": 3,
+          "provider": "ABC News",
+          "detection_method": "pattern_analysis",
+          "confidence": 0.9,
+          "pattern_text": "ABC 17 News is committed to providing a forum for civil and constructive conversation."
+        },
+        {
+          "segment_index": 4,
+          "provider": "CNN NewsSource",
+          "detection_method": "regex_pattern",
+          "confidence": 0.8,
+          "pattern_text": "™ & © 2025 Cable News Network, Inc., a Warner Bros. Discovery Company. All rights reserved."
+        },
+        {
+          "segment_index": 5,
+          "provider": "CNN NewsSource",
+          "detection_method": "regex_pattern",
+          "confidence": 0.8,
+          "pattern_text": "™ & © 2025 Cable News Network, Inc., a Warner Bros. Discovery Company. All rights reserved."
+        },
+        {
+          "segment_index": 6,
+          "provider": "ABC News",
+          "detection_method": "pattern_analysis",
+          "confidence": 0.9,
+          "pattern_text": "ABC 17 News is committed to providing a forum for civil and constructive conversation."
+        }
+      ]
+    },
+    {
+      "domain": "www.newspressnow.com",
+      "total_articles": 50,
+      "analyzed_articles": 5,
+      "removal_percentage": 4.36957093972098,
+      "removable_characters": 830,
+      "segment_count": 10,
+      "segments": [
+        {
+          "segment_index": 1,
+          "text": "By The Associated Press",
+          "pattern_type": "other",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 23,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 2,
+          "text": "News-Press Now is committed to providing a forum for civil and constructive conversation.",
+          "pattern_type": "other",
+          "boundary_score": 0.6,
+          "occurrences": 1,
+          "length": 89,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 3,
+          "text": "Please keep your comments respectful and relevant. You can review our Community Guidelines by clicking here.",
+          "pattern_type": "other",
+          "boundary_score": 0.6,
+          "occurrences": 1,
+          "length": 108,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 4,
+          "text": "Please keep your comments respectful and relevant. You can review our Community Guidelines by clicking here.",
+          "pattern_type": "other",
+          "boundary_score": 0.6,
+          "occurrences": 1,
+          "length": 108,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 5,
+          "text": "News-Press Now is committed to providing a forum for civil and constructive conversation.",
+          "pattern_type": "other",
+          "boundary_score": 0.6,
+          "occurrences": 1,
+          "length": 89,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 6,
+          "text": "You can review our Community Guidelines by clicking here.",
+          "pattern_type": "other",
+          "boundary_score": 0.6,
+          "occurrences": 1,
+          "length": 57,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 7,
+          "text": "The daybook is for planning purposes only and is not intended for publication or broadcast. You should verify any event you plan to cover.",
+          "pattern_type": "other",
+          "boundary_score": 0.6,
+          "occurrences": 1,
+          "length": 138,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 8,
+          "text": "You can review our Community Guidelines by clicking here.",
+          "pattern_type": "other",
+          "boundary_score": 0.6,
+          "occurrences": 1,
+          "length": 57,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 9,
+          "text": "By The Associated Press",
+          "pattern_type": "other",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 23,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 10,
+          "text": "The daybook is for planning purposes only and is not intended for publication or broadcast. You should verify any event you plan to cover.",
+          "pattern_type": "other",
+          "boundary_score": 0.6,
+          "occurrences": 1,
+          "length": 138,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        }
+      ],
+      "wire_patterns": [
+        {
+          "segment_index": 1,
+          "provider": "The Associated Press",
+          "detection_method": "pattern_analysis",
+          "confidence": 0.9,
+          "pattern_text": "By The Associated Press"
+        },
+        {
+          "segment_index": 9,
+          "provider": "The Associated Press",
+          "detection_method": "pattern_analysis",
+          "confidence": 0.9,
+          "pattern_text": "By The Associated Press"
+        }
+      ]
+    },
+    {
+      "domain": "www.douglascountyherald.com",
+      "total_articles": 45,
+      "analyzed_articles": 5,
+      "removal_percentage": 51.85443451732403,
+      "removable_characters": 11898,
+      "segment_count": 55,
+      "segments": [
+        {
+          "segment_index": 1,
+          "text": "Now, get up and go enjoy our beautiful Ozarks outdoors!",
+          "pattern_type": "other",
+          "boundary_score": 0.6,
+          "occurrences": 1,
+          "length": 55,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 2,
+          "text": "Video from the Ava Board of Aldermen meeting will be posted to the Douglas County Herald’s website at douglascountyherald.com.",
+          "pattern_type": "other",
+          "boundary_score": 1.0,
+          "occurrences": 1,
+          "length": 126,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 3,
+          "text": "Sheriff Chris Degase said the woman fired several shots at deputies",
+          "pattern_type": "other",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 67,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 4,
+          "text": "The Class 2 Final Four was not nice to Ava. The Lady Bears who had an incredible season had to settle for fourth place. This was Ava’s second Final Four appearance in three years. They also finished fourth in 2023. Ava fell to powerhouse Kennett 8-15; it was Kennett’s seventh top-three performance at the state…",
+          "pattern_type": "sidebar",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 312,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent sidebar pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 5,
+          "text": "On May 30, Susan Sinclair, 58, of Seymour, was taken into custody by the Douglas County Sheriff’s Office at Barnes Hospital in St. Louis after being medically cleared for confinement. Douglas County Deputies shot Sinclair on May 21, after she shot at deputies who were attempting to take her into custody for felony warrants for…",
+          "pattern_type": "sidebar",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 329,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent sidebar pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 6,
+          "text": "An Ava man has been charged after a body was found with multiple stab wounds in Douglas County during the early Friday morning, Aug. 15. The investigation is the first for the Ava Police Department in more than 20 years. Court records show that Aaron Ray Vaughan, 54, has been charged with first-degree murder, armed…",
+          "pattern_type": "sidebar",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 317,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent sidebar pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 7,
+          "text": "Now, get up and go enjoy our beautiful Ozarks outdoors!",
+          "pattern_type": "other",
+          "boundary_score": 0.6,
+          "occurrences": 1,
+          "length": 55,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 8,
+          "text": "The Lady Bears who had an incredible season had to settle for fourth place",
+          "pattern_type": "other",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 74,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 9,
+          "text": "The Ava R-1 School District is proud to announce it will again offer before-school care and an afterschool program for the 2025-26 school year. The program is open to all Douglas County students in preschool through eighth grade. The Bears Den program is funded by the 21st Century Community Learning Centers (CCLC) Grant and is…",
+          "pattern_type": "sidebar",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 329,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent sidebar pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 10,
+          "text": "A five-vehicle crash on Missouri Route 5 north of Ava resulted in one serious injury Friday afternoon, according to the Missouri State Highway Patrol. The crash occurred around 4:20 p.m. on May 30, approximately five miles north of Ava, when northbound traffic came to a stop for a vehicle turning left. A Chevrolet Silverado, driven…",
+          "pattern_type": "sidebar",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 334,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent sidebar pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 11,
+          "text": "An Ava man has been charged after a body was found with multiple stab wounds in Douglas County during the early Friday morning, Aug. 15. The investigation is the first for the Ava Police Department in more than 20 years. Court records show that Aaron Ray Vaughan, 54, has been charged with first-degree murder, armed…",
+          "pattern_type": "sidebar",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 317,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent sidebar pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 12,
+          "text": "Username and Password Help Please enter your email and we will send you a password reset link",
+          "pattern_type": "other",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 93,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 13,
+          "text": "Meetings are open to the public.",
+          "pattern_type": "other",
+          "boundary_score": 0.6,
+          "occurrences": 1,
+          "length": 32,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 14,
+          "text": "Deputy Jesse Three Eagles arrived at the scene of a child who had become entrapped under a bridge while swimming",
+          "pattern_type": "other",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 112,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 15,
+          "text": "Douglas County investigators said a woman was critically injured during an officer-involved shooting. The shooting happened on Wednesday around 6 p.m. Deputies attempted to arrest the woman wanted on felony charges, according to a press release from the Sheriff’s Office. Sheriff Chris Degase said the woman fired several shots at deputies. The deputies fired back,…",
+          "pattern_type": "other",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 366,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 16,
+          "text": "The Lady Bears who had an incredible season had to settle for fourth place",
+          "pattern_type": "other",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 74,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 17,
+          "text": "Fifteen-year-old Cade Dillon Ackerly of Ava has secured a spot in the 2025 U.S. National Yo-Yo Contest, set to take place June 27–29 at the Westgate Las Vegas Resort & Casino. nAckerly earned his qualification through his performance at the 2025 Pacific Northwest Regional Yo-Yo Championship, where he placed 9th in the 1A division. This…",
+          "pattern_type": "sidebar",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 338,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent sidebar pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 18,
+          "text": "A Douglas County deputy and an Ozark County dispatcher rescued a child Thursday that had been swept away in a culvert at a popular swimming hole. The incident happened near State Highway PP. Deputy Jesse Three Eagles arrived at the scene of a child who had become entrapped under a bridge while swimming. As rescuers…",
+          "pattern_type": "sidebar",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 317,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent sidebar pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 19,
+          "text": "By Dick Salgado Ava Lions Club and the Ava Citizens Action League In a display of civic pride and collaboration, the Ava Lions Club and the Ava Citizens Action League joined forces to host the monthly luncheon held by the Ava Area Chamber of Commerce that brought together neighbors, leaders, and volunteers for…",
+          "pattern_type": "sidebar",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 312,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent sidebar pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 20,
+          "text": "On May 30, Susan Sinclair, 58, of Seymour, was taken into custody by the Douglas County Sheriff’s Office at Barnes Hospital in St. Louis after being medically cleared for confinement. Douglas County Deputies shot Sinclair on May 21, after she shot at deputies who were attempting to take her into custody for felony warrants for…",
+          "pattern_type": "sidebar",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 329,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent sidebar pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 21,
+          "text": "The Class 2 Final Four was not nice to Ava. The Lady Bears who had an incredible season had to settle for fourth place. This was Ava’s second Final Four appearance in three years. They also finished fourth in 2023. Ava fell to powerhouse Kennett 8-15; it was Kennett’s seventh top-three performance at the state…",
+          "pattern_type": "sidebar",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 312,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent sidebar pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 22,
+          "text": "Meetings are open to the public.",
+          "pattern_type": "other",
+          "boundary_score": 0.6,
+          "occurrences": 1,
+          "length": 32,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 23,
+          "text": "White River Valley Electric Cooperative’s (WRVEC) annual meeting will be taking place virtually on Friday, August 22 at 10 a.m. The 86th Annual Meeting will highlight the “people behind the power.” Members will tune in to the closed-captioned meeting at WhiteRiverMeeting.com. A call-in option will also be provided for members who do not have access…",
+          "pattern_type": "other",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 351,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 24,
+          "text": "A Douglas County deputy and an Ozark County dispatcher rescued a child Thursday that had been swept away in a culvert at a popular swimming hole. The incident happened near State Highway PP. Deputy Jesse Three Eagles arrived at the scene of a child who had become entrapped under a bridge while swimming. As rescuers…",
+          "pattern_type": "sidebar",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 317,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent sidebar pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 25,
+          "text": "A five-vehicle crash on Missouri Route 5 north of Ava resulted in one serious injury Friday afternoon, according to the Missouri State Highway Patrol. The crash occurred around 4:20 p.m. on May 30, approximately five miles north of Ava, when northbound traffic came to a stop for a vehicle turning left. A Chevrolet Silverado, driven…",
+          "pattern_type": "sidebar",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 334,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent sidebar pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 26,
+          "text": "On May 30, Susan Sinclair, 58, of Seymour, was taken into custody by the Douglas County Sheriff’s Office at Barnes Hospital in St. Louis after being medically cleared for confinement. Douglas County Deputies shot Sinclair on May 21, after she shot at deputies who were attempting to take her into custody for felony warrants for…",
+          "pattern_type": "sidebar",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 329,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent sidebar pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 27,
+          "text": "White River Valley Electric Cooperative’s (WRVEC) annual meeting will be taking place virtually on Friday, August 22 at 10 a.m. The 86th Annual Meeting will highlight the “people behind the power.” Members will tune in to the closed-captioned meeting at WhiteRiverMeeting.com. A call-in option will also be provided for members who do not have access…",
+          "pattern_type": "other",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 351,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 28,
+          "text": "National Yo-Yo Contest, set to take place June 27–29 at the Westgate Las Vegas Resort & Casino",
+          "pattern_type": "sidebar",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 94,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent sidebar pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 29,
+          "text": "Sheriff Chris Degase said the woman fired several shots at deputies",
+          "pattern_type": "other",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 67,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 30,
+          "text": "The investigation is the first for the Ava Police Department in more than 20 years",
+          "pattern_type": "other",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 82,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 31,
+          "text": "The Lady Bears who had an incredible season had to settle for fourth place",
+          "pattern_type": "other",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 74,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 32,
+          "text": "The Class 2 Final Four was not nice to Ava. The Lady Bears who had an incredible season had to settle for fourth place. This was Ava’s second Final Four appearance in three years. They also finished fourth in 2023. Ava fell to powerhouse Kennett 8-15; it was Kennett’s seventh top-three performance at the state…",
+          "pattern_type": "sidebar",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 312,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent sidebar pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 33,
+          "text": "A Douglas County deputy and an Ozark County dispatcher rescued a child Thursday that had been swept away in a culvert at a popular swimming hole. The incident happened near State Highway PP. Deputy Jesse Three Eagles arrived at the scene of a child who had become entrapped under a bridge while swimming. As rescuers…",
+          "pattern_type": "sidebar",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 317,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent sidebar pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 34,
+          "text": "The Ava R-1 School District is proud to announce it will again offer before-school care and an afterschool program for the 2025-26 school year. The program is open to all Douglas County students in preschool through eighth grade. The Bears Den program is funded by the 21st Century Community Learning Centers (CCLC) Grant and is…",
+          "pattern_type": "sidebar",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 329,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent sidebar pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 35,
+          "text": "Deputy Jesse Three Eagles arrived at the scene of a child who had become entrapped under a bridge while swimming",
+          "pattern_type": "other",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 112,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 36,
+          "text": "White River Valley Electric Cooperative’s (WRVEC) annual meeting will be taking place virtually on Friday, August 22 at 10 a.m. The 86th Annual Meeting will highlight the “people behind the power.” Members will tune in to the closed-captioned meeting at WhiteRiverMeeting.com. A call-in option will also be provided for members who do not have access…",
+          "pattern_type": "other",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 351,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 37,
+          "text": "Username and Password Help Please enter your email and we will send you a password reset link",
+          "pattern_type": "other",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 93,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 38,
+          "text": "Username Password Login Lost your password",
+          "pattern_type": "other",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 42,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 39,
+          "text": "The investigation is the first for the Ava Police Department in more than 20 years",
+          "pattern_type": "other",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 82,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 40,
+          "text": "An Ava man has been charged after a body was found with multiple stab wounds in Douglas County during the early Friday morning, Aug. 15. The investigation is the first for the Ava Police Department in more than 20 years. Court records show that Aaron Ray Vaughan, 54, has been charged with first-degree murder, armed…",
+          "pattern_type": "sidebar",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 317,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent sidebar pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 41,
+          "text": "Sheriff Chris Degase said the woman fired several shots at deputies",
+          "pattern_type": "other",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 67,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 42,
+          "text": "Deputy Jesse Three Eagles arrived at the scene of a child who had become entrapped under a bridge while swimming",
+          "pattern_type": "other",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 112,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 43,
+          "text": "National Yo-Yo Contest, set to take place June 27–29 at the Westgate Las Vegas Resort & Casino",
+          "pattern_type": "sidebar",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 94,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent sidebar pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 44,
+          "text": "A five-vehicle crash on Missouri Route 5 north of Ava resulted in one serious injury Friday afternoon, according to the Missouri State Highway Patrol. The crash occurred around 4:20 p.m. on May 30, approximately five miles north of Ava, when northbound traffic came to a stop for a vehicle turning left. A Chevrolet Silverado, driven…",
+          "pattern_type": "sidebar",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 334,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent sidebar pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 45,
+          "text": "Username Password Login Lost your password",
+          "pattern_type": "other",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 42,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 46,
+          "text": "By Dick Salgado Ava Lions Club and the Ava Citizens Action League In a display of civic pride and collaboration, the Ava Lions Club and the Ava Citizens Action League joined forces to host the monthly luncheon held by the Ava Area Chamber of Commerce that brought together neighbors, leaders, and volunteers for…",
+          "pattern_type": "sidebar",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 312,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent sidebar pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 47,
+          "text": "Douglas County investigators said a woman was critically injured during an officer-involved shooting. The shooting happened on Wednesday around 6 p.m. Deputies attempted to arrest the woman wanted on felony charges, according to a press release from the Sheriff’s Office. Sheriff Chris Degase said the woman fired several shots at deputies. The deputies fired back,…",
+          "pattern_type": "other",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 366,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 48,
+          "text": "National Yo-Yo Contest, set to take place June 27–29 at the Westgate Las Vegas Resort & Casino",
+          "pattern_type": "sidebar",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 94,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent sidebar pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 49,
+          "text": "By Dick Salgado Ava Lions Club and the Ava Citizens Action League In a display of civic pride and collaboration, the Ava Lions Club and the Ava Citizens Action League joined forces to host the monthly luncheon held by the Ava Area Chamber of Commerce that brought together neighbors, leaders, and volunteers for…",
+          "pattern_type": "sidebar",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 312,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent sidebar pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 50,
+          "text": "The Ava R-1 School District is proud to announce it will again offer before-school care and an afterschool program for the 2025-26 school year. The program is open to all Douglas County students in preschool through eighth grade. The Bears Den program is funded by the 21st Century Community Learning Centers (CCLC) Grant and is…",
+          "pattern_type": "sidebar",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 329,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent sidebar pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 51,
+          "text": "Video from the Ava Board of Aldermen meeting will be posted to the Douglas County Herald’s website at douglascountyherald.com.",
+          "pattern_type": "other",
+          "boundary_score": 1.0,
+          "occurrences": 1,
+          "length": 126,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 52,
+          "text": "The investigation is the first for the Ava Police Department in more than 20 years",
+          "pattern_type": "other",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 82,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 53,
+          "text": "Douglas County investigators said a woman was critically injured during an officer-involved shooting. The shooting happened on Wednesday around 6 p.m. Deputies attempted to arrest the woman wanted on felony charges, according to a press release from the Sheriff’s Office. Sheriff Chris Degase said the woman fired several shots at deputies. The deputies fired back,…",
+          "pattern_type": "other",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 366,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 54,
+          "text": "Fifteen-year-old Cade Dillon Ackerly of Ava has secured a spot in the 2025 U.S. National Yo-Yo Contest, set to take place June 27–29 at the Westgate Las Vegas Resort & Casino. nAckerly earned his qualification through his performance at the 2025 Pacific Northwest Regional Yo-Yo Championship, where he placed 9th in the 1A division. This…",
+          "pattern_type": "sidebar",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 338,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent sidebar pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 55,
+          "text": "Fifteen-year-old Cade Dillon Ackerly of Ava has secured a spot in the 2025 U.S. National Yo-Yo Contest, set to take place June 27–29 at the Westgate Las Vegas Resort & Casino. nAckerly earned his qualification through his performance at the 2025 Pacific Northwest Regional Yo-Yo Championship, where he placed 9th in the 1A division. This…",
+          "pattern_type": "sidebar",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 338,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent sidebar pattern",
+          "article_ids": []
+        }
+      ],
+      "wire_patterns": []
+    },
+    {
+      "domain": "www.kmbc.com",
+      "total_articles": 39,
+      "analyzed_articles": 5,
+      "removal_percentage": 0.0,
+      "removable_characters": 0,
+      "segment_count": 0,
+      "segments": [],
+      "wire_patterns": []
+    },
+    {
+      "domain": "www.darnews.com",
+      "total_articles": 39,
+      "analyzed_articles": 5,
+      "removal_percentage": 0.5814436414984634,
+      "removable_characters": 140,
+      "segment_count": 4,
+      "segments": [
+        {
+          "segment_index": 1,
+          "text": "Receive Today's News FREE Sign up today",
+          "pattern_type": "sidebar",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 39,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent sidebar pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 2,
+          "text": "Advertisement Related World Sep",
+          "pattern_type": "other",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 31,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 3,
+          "text": "Receive Today's News FREE Sign up today",
+          "pattern_type": "sidebar",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 39,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent sidebar pattern",
+          "article_ids": []
+        },
+        {
+          "segment_index": 4,
+          "text": "Advertisement Related World Sep",
+          "pattern_type": "other",
+          "boundary_score": 0.7,
+          "occurrences": 1,
+          "length": 31,
+          "position_consistency": 1.0,
+          "removal_reason": "Persistent other pattern",
+          "article_ids": []
+        }
+      ],
+      "wire_patterns": []
+    }
+  ]
+}
