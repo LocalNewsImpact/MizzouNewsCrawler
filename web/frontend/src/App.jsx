@@ -8,6 +8,7 @@ import Dashboard from './Dashboard'
 import CrawlIssues from './CrawlIssues'
 import BylineReviewInterface from './BylineReviewInterface'
 import VerificationReviewInterface from './VerificationReviewInterface'
+import CodeReviewInterface from './CodeReviewInterface'
 import GazetteerTelemetry from './GazetteerTelemetry'
 
 export default function App(){
@@ -2009,6 +2010,7 @@ export default function App(){
           <button onClick={()=>setActiveTab('wire')} style={{padding:8, background: activeTab==='wire' ? '#ddd' : 'transparent'}}>Wire</button>
           <button onClick={()=>setActiveTab('byline-review')} style={{padding:8, background: activeTab==='byline-review' ? '#ddd' : 'transparent'}}>Byline Review</button>
           <button onClick={()=>setActiveTab('verification-review')} style={{padding:8, background: activeTab==='verification-review' ? '#ddd' : 'transparent'}}>URL Review</button>
+          <button onClick={()=>setActiveTab('code-review')} style={{padding:8, background: activeTab==='code-review' ? '#ddd' : 'transparent'}}>Code Review</button>
           <button onClick={()=>setActiveTab('gazetteer')} style={{padding:8, background: activeTab==='gazetteer' ? '#ddd' : 'transparent'}}>Gazetteer</button>
           <button onClick={()=>setActiveTab('review')} style={{padding:8, background: activeTab==='review' ? '#ddd' : 'transparent'}}>Review</button>
         </div>
@@ -2027,6 +2029,8 @@ export default function App(){
           <BylineReviewInterface />
         ) : activeTab === 'verification-review' ? (
           <VerificationReviewInterface />
+        ) : activeTab === 'code-review' ? (
+          <CodeReviewInterface />
         ) : activeTab === 'gazetteer' ? (
           <GazetteerTelemetry />
         ) : ( <>

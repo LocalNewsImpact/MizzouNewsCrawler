@@ -17,7 +17,6 @@ import {
 import {
   CheckCircle,
   Cancel,
-  PartiallyCloudyDay,
   Schedule,
   Speed,
   Source

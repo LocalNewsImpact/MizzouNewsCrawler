@@ -35,6 +35,16 @@ from web.verification_telemetry_api import (
     VerificationFeedback,
     VerificationTelemetryStats
 )
+from web.code_review_telemetry_api import (
+    get_pending_code_reviews,
+    submit_code_review_feedback,
+    get_code_review_stats,
+    add_code_review_item,
+    init_code_review_tables,
+    CodeReviewFeedback,
+    CodeReviewStats,
+    CodeReviewItem
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 # Prefer pipeline/processed when running from project root.
@@ -739,6 +749,64 @@ def api_enhance_verification(verification_id: str, headline: str = "", excerpt: 
             return {"status": "ok", "verification_id": verification_id}
         else:
             raise HTTPException(status_code=404, detail="Verification record not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Code Review Telemetry Endpoints ---
+
+@app.get("/api/code_review_telemetry/pending")
+def api_get_pending_code_reviews(limit: int = 50):
+    """Get code review items that need human review."""
+    try:
+        # Initialize tables if they don't exist
+        init_code_review_tables()
+        
+        items = get_pending_code_reviews(limit=limit)
+        return {
+            "status": "ok",
+            "count": len(items),
+            "items": [item.dict() for item in items]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/code_review_telemetry/feedback")
+def api_submit_code_review_feedback(feedback: CodeReviewFeedback):
+    """Submit human feedback for a code review item."""
+    try:
+        success = submit_code_review_feedback(feedback)
+        if success:
+            return {"status": "ok", "review_id": feedback.review_id}
+        else:
+            raise HTTPException(status_code=404, detail="Code review record not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/code_review_telemetry/stats")
+def api_get_code_review_stats():
+    """Get summary statistics for code review telemetry."""
+    try:
+        stats = get_code_review_stats()
+        return stats.dict()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/code_review_telemetry/add")
+def api_add_code_review_item(item: CodeReviewItem):
+    """Add a new code review item."""
+    try:
+        # Initialize tables if they don't exist
+        init_code_review_tables()
+        
+        success = add_code_review_item(item)
+        if success:
+            return {"status": "ok", "review_id": item.review_id}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to add code review item")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
