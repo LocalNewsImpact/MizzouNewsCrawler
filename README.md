@@ -12,6 +12,60 @@ This project converts the original MizzouNewsCrawler into a production-ready scr
 
 - **Phase 2 — Production**: Deploy on GKE with Postgres, orchestrate with Kubernetes jobs
 
+## Recent Maintenance (2025-09-24)
+
+### Telemetry alignment
+
+- Confirmed that the gazetteer enrichment telemetry is still emitting the full four-event sequence (attempt → geocoding → OSM query → enrichment result). You can tail `gazetteer_telemetry.log` in the repo root to verify the JSON payloads or run a focused dry run with `python scripts/populate_gazetteer.py --address "Columbia, MO" --dry-run` to generate fresh events without mutating the database.
+- Verified that `scripts/monitor_gazetteer.py` surfaces the `query_groups_used` counter so the slimmer grouped-query footprint remains visible in console summaries.
+- The telemetry JSON continues to play nicely with pytest captures; if you need to confirm structure, `python -m pytest tests/test_telemetry_system.py -k gazetteer -vv` validates the schema the log writer emits.
+
+### Metadata & cleaning fixes
+
+- Normalized `articles.metadata` so that legacy single-quoted Python dict strings are re-serialized as valid JSON. This prevents downstream JSON extraction failures and allowed the classification pipeline to hydrate publication context again. The one-off cleanup snippet we ran is preserved below for future backfills:
+
+  ```python
+  import json
+  import sqlite3
+  from ast import literal_eval
+
+  with sqlite3.connect("data/mizzou.db") as conn:
+    rows = conn.execute(
+      "SELECT id, metadata FROM articles WHERE metadata LIKE '{%'"
+    ).fetchall()
+    for article_id, raw in rows:
+      try:
+        normalized = json.dumps(literal_eval(raw))
+      except (SyntaxError, ValueError):
+        continue
+      conn.execute(
+        "UPDATE articles SET metadata = ? WHERE id = ?",
+        (normalized, article_id),
+      )
+    conn.commit()
+  ```
+
+- After normalizing metadata, rerun the `clean_authors.py` smoke checks to ensure the Gazetteer-driven organization filters still match publication names pulled from metadata.
+- Spot-check content-cleaning telemetry with `python detailed_content_analysis.py --domain example.com` to confirm that newly captured segments continue to hydrate the `content_cleaning_telemetry` tables without JSON parsing errors.
+
+### CIN classifier rollout
+
+- `models/productionmodel.pt` is now the default CIN checkpoint used by the CLI `analyze` command. The loader in `src/ml/article_classifier.py` remaps legacy `classifier_primary.*` keys so the model initializes cleanly on CPU. Expect an informational log confirming the resolved checkpoint path when the model loads.
+- To refresh the label store after the checkpoint swap, we executed:
+
+  ```bash
+  source venv/bin/activate
+  python -m src.cli.main analyze \
+    --model-path models/productionmodel.pt \
+    --label-version cin-2024q4 \
+    --statuses cleaned local \
+    --batch-size 32
+  ```
+
+  The first pass reprocessed the 50 provisional articles; a second run without `--limit` cleared the remaining 2,341 eligible records.
+- The latest classification export lives in `reports/cin_labels_last14days_with_sources.csv`. It excludes wire stories, joins publication name/city/county metadata, and is written with UTF-8 encoding for compatibility with downstream analytics notebooks.
+- When adding new CIN labels, continue filtering on `articles.source_is_wire = 0` and persist the joined dataset via pandas’ `to_csv(..., encoding="utf-8", index=False)` to match the sanitized export format.
+
 ## Architecture
 
 **CSV-to-Database-Driven Design:**
@@ -62,7 +116,7 @@ This project converts the original MizzouNewsCrawler into a production-ready scr
 
 ### Project Structure
 
-```
+```text
 ├── src/                    # Core business logic
 │   ├── cli/               # Command-line interface
 │   │   ├── main.py        # Main CLI entry point with all commands
@@ -81,6 +135,8 @@ This project converts the original MizzouNewsCrawler into a production-ready scr
 │   ├── utils/             # Shared utilities and processing
 │   │   ├── byline_cleaner.py           # Advanced byline processing
 │   │   ├── byline_telemetry.py         # Byline processing metrics
+│   │   ├── content_cleaner_balanced.py # Boilerplate detection and removal
+│   │   ├── content_cleaning_telemetry.py # Content cleaning metrics and ML data
 │   │   ├── telemetry.py                # System-wide telemetry
 │   │   ├── comprehensive_telemetry.py  # Extraction performance tracking
 │   │   └── process_tracker.py          # Background process monitoring
@@ -216,6 +272,52 @@ The `BylineCleaner` system provides intelligent author name extraction with adva
 - **Caching System**: Optimized performance with publication name caching
 
 - **Dynamic Updates**: Real-time integration with gazetteer data for organization recognition
+
+### Content Cleaning & Boilerplate Detection
+
+The project includes an advanced content cleaning system that automatically identifies and removes boilerplate content (navigation menus, sidebars, subscription prompts) while preserving legitimate article text.
+
+**Intelligent Pattern Recognition:**
+
+- **Balanced Boundary Detection**: Two-phase approach using rough candidate identification followed by precise boundary refinement to avoid clipping article content
+
+- **Pattern Classification**: Multi-category system distinguishing sidebar content, subscription prompts, navigation menus, and footer elements
+
+- **Confidence Scoring**: 0.0-1.0 confidence scale for removal decisions with detailed boundary quality assessment
+
+**Persistent Pattern Library:**
+
+- **Domain-Specific Storage**: Reusable boilerplate patterns saved per domain for efficient future processing
+
+- **ML Training Distinction**: Persistent patterns (subscription, navigation, footer) marked for ML training; dynamic patterns (headlines, trending) captured for telemetry only
+
+- **Cross-Domain Analysis**: Global pattern library enabling insights across multiple news sources
+
+**Comprehensive Telemetry System:**
+
+- **Session Tracking**: Complete audit trail of cleaning sessions with domain, article counts, and processing metrics
+
+- **Segment-Level Logging**: Detailed capture of each detected boilerplate segment including position, confidence, occurrence frequency, and removal reasoning
+
+- **Pattern Type Classification**: Automatic categorization into subscription, sidebar, navigation, trending, and other pattern types
+
+- **ML-Ready Data Structure**: Telemetry schema designed for machine learning model training with feature extraction capabilities
+
+**Quality Assurance:**
+
+- **Boundary Validation**: Strict sentence boundary detection to prevent partial content removal
+
+- **Position Consistency**: Analysis of content placement across articles to confirm boilerplate status
+
+- **Manual Review Integration**: Flagging of complex patterns for human validation before automated removal
+
+**CLI Analysis Tools:**
+
+- **Domain-Specific Analysis**: `detailed_content_analysis.py` for examining boilerplate patterns within specific domains
+
+- **Cross-Domain Insights**: `dry_run_content_cleaning.py` for analyzing patterns across entire database
+
+- **Pattern Visualization**: `show_patterns.py` for viewing ML training vs telemetry pattern distinctions
 
 ## Gazetteer Telemetry System
 
@@ -980,6 +1082,29 @@ alembic upgrade head
 # Lint code
 pre-commit run --all-files
 ```
+
+### Content Cleaning Tools
+
+The project includes specialized tools for analyzing and implementing content cleaning:
+
+```bash
+# Dry run content cleaning across all articles
+python dry_run_content_cleaning.py
+
+# Detailed content analysis for a specific domain
+python detailed_content_analysis.py douglascountyherald.com
+
+# Show persistent pattern analysis (ML training vs telemetry patterns)
+python show_patterns.py www.douglascountyherald.com
+
+# View cross-domain pattern summary
+python show_patterns.py --summary
+
+# Test ML training vs telemetry pattern separation
+python test_ml_telemetry.py
+```
+
+These tools use the `BalancedBoundaryContentCleaner` and `ContentCleaningTelemetry` systems to identify and remove boilerplate content while maintaining comprehensive tracking for quality assurance and machine learning applications.
 
 ## Running tests in VS Code
 
