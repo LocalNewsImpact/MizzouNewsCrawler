@@ -1,0 +1,662 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mizzou Reviewer — Frontend</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+      :root{
+        --surface:#ffffff;
+        --page-bg:#eef3f7; /* slightly warmer page background */
+        --muted:#475569; /* darker muted for labels */
+        --accent:#1565c0; /* primary accent */
+        --accent-variant:#0f4fa8;
+        --elevation-1: 0 2px 6px rgba(15,23,42,0.06);
+        --elevation-2: 0 8px 24px rgba(15,23,42,0.12);
+        --radius: 10px;
+        --input-bg:#f7fbff; /* very subtle blue tint to separate from white */
+        --field-border:#cfe7fb;
+        --divider:#e6eef4;
+      }
+
+      /* base */
+  html,body{height:100%;margin:0;font-family:Inter, Roboto, "Helvetica Neue", Arial, sans-serif;background:var(--page-bg);color:#0f172a;font-size:15px;font-weight:400;line-height:1.4}
+      .page{padding:28px;display:flex;justify-content:center}
+
+    /* card */
+  .card{background:var(--surface);border-radius:var(--radius);padding:12px;box-shadow:var(--elevation-1);max-width:1100px;width:100%;border:1px solid #eef6fb}
+    .card:hover{box-shadow:var(--elevation-2)}
+
+    /* header */
+    .meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+    .meta .title{font-weight:600;font-size:16px}
+    #count{color:var(--muted);font-size:13px}
+
+    /* rows: two columns: left main, right controls (tighter spacing, no HRs) */
+  .row{display:grid;grid-template-columns:1fr 320px;gap:8px;align-items:center;padding:6px 0;border-bottom:0}
+  .row.notes-row{align-items:stretch}
+  /* center contents inside each input cell for non-notes rows so controls (sliders) align to center */
+  .row:not(.notes-row) > .input{display:flex;flex-direction:column;justify-content:center}
+  .row:not(.notes-row) > .input:last-child{align-items:center}
+    .row:last-child{border-bottom:0}
+
+  /* subtle left-column surface to separate the two cells; reduced padding for density */
+  .row > .input:first-child{background:#fbfdff;padding:4px;border-radius:8px;border:none}
+
+      .label{color:var(--muted);font-size:13px;margin-bottom:3px}
+      .input{display:flex;flex-direction:column}
+
+      /* inputs */
+  input[type=text], textarea, select{width:100%;padding:8px;border-radius:10px;border:1px solid var(--field-border);background:var(--input-bg);font-family:inherit;font-size:14px;color:#0f172a;box-sizing:border-box}
+      input[type=text]::placeholder, textarea::placeholder{color:#94a3b8}
+      input[type=text]:focus, textarea:focus, select:focus{outline:none;border-color:var(--accent);box-shadow:0 6px 18px rgba(21,101,192,0.12)}
+      textarea{min-height:120px;resize:vertical}
+
+  /* body area (reduced height for denser layout) */
+  .scroll-body{height:182px;overflow:auto;padding:8px;border:1px solid var(--field-border);border-radius:10px;background:#fbfdff;color:#0b1220}
+
+      /* selects */
+      select[multiple]{min-height:72px;padding:8px;background:var(--input-bg)}
+      select{appearance:none}
+
+  /* multiselect chip UI */
+  .hidden-select{display:none}
+  .multiselect{display:flex;flex-direction:column;gap:8px}
+  .multiselect{position:relative}
+  .multiselect{width:100%;display:flex;align-items:center;gap:8px}
+  .chip-container{display:flex;flex-wrap:wrap;gap:10px}
+  .chip-container{flex:1;min-height:48px;padding:8px;border:1px solid var(--field-border);border-radius:12px;background:var(--input-bg);cursor:text;align-items:center;box-sizing:border-box;transition:box-shadow 140ms ease, border-color 140ms ease}
+  .chip-container:focus{outline:none;box-shadow:0 0 0 4px rgba(21,101,192,0.12);border-color:var(--accent)}
+  .chip{display:inline-flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;background:#fff;color:#0b1220;font-size:15px;border:1px solid rgba(15,23,42,0.05);box-shadow:0 6px 20px rgba(15,23,42,0.06)}
+
+  /* anchor row that holds the inline chips and the caret toggle */
+  .chip-anchor{display:flex;align-items:center;gap:8px;position:relative}
+  /* Hide legacy multi-toggle entirely; React's anchored chevron (.chev-btn) will be used */
+  .multi-toggle{display:none !important}
+  .chip .chip-x{margin-left:8px;cursor:pointer;color:#475569;font-size:12px}
+  .chip.placeholder{background:#fff;border:1px dashed #e6eef8;color:var(--muted);padding:6px}
+    /* Legacy toggle elements are hidden — React renders the single anchored chevron (\.chev-btn) */
+    .multi-toggle{display:none !important;align-self:stretch;cursor:pointer;color:var(--muted);font-size:14px;align-items:center;justify-content:center;width:36px;border-radius:8px}
+    .multi-toggle::before{content:'';display:none !important}
+    /* small caret button visual (kept for backwards-compatibility but visually suppressed) */
+    .multi-toggle{border:1px solid transparent;background:transparent}
+
+    /* Safety: ensure no legacy caret pseudo-elements render anywhere in the app
+      This will prevent duplicate visual carets when React provides the chevron. */
+    .multi-toggle, .multi-toggle::before, .multi-toggle::after { display: none !important; content: none !important; }
+  /* Anchor the legacy caret to the right of the chip-anchor and prevent it from floating */
+  .chip-anchor{position:relative}
+  .chip-anchor .multi-toggle{position:relative;right:0;top:0;margin-left:8px}
+  /* If a React tag-select is present, hide legacy multi-toggle inside it to avoid duplicate chevrons */
+  .tag-select .multi-toggle{display:none !important}
+  /* Prevent chip-container from expanding to full width when used as a portal target */
+  .chip-container{flex:0 1 auto}
+  /* dropdown floats above the page so opening doesn't push layout */
+  /* dropdown floats and animates in; kept absolutely positioned so it doesn't affect layout
+    we animate transform + opacity for a smooth slide, and control visibility to avoid flashes */
+  /* use fixed positioning so dropdown placement uses viewport coordinates and won't drift off-screen
+    JS will compute left/top from the chip's boundingClientRect and clamp to viewport */
+  .multi-dropdown{position:fixed;top:0;left:0;border:1px solid var(--field-border);border-radius:10px;padding:6px;background:#fff;max-height:320px;overflow:auto;box-shadow:0 24px 48px rgba(15,23,42,0.14);outline-offset:4px;z-index:120;transform:translateY(-8px);opacity:0;visibility:hidden;transition:transform 180ms cubic-bezier(.2,.9,.2,1), opacity 160ms ease}
+  .multi-dropdown.open{transform:translateY(6px);opacity:1;visibility:visible;outline:3px solid rgba(21,101,192,0.12)}
+  /* chip area inside dropdown should look like a textarea */
+  .multi-dropdown .chip-container{display:block;padding:8px;border:1px solid var(--field-border);border-radius:8px;background:var(--input-bg);min-height:48px;max-height:110px;overflow:auto;margin-bottom:8px}
+  .multi-dropdown .chip-container .chip{margin:4px}
+  .chip{transition:transform 160ms ease, opacity 160ms ease}
+  .chip.removing{opacity:0;transform:translateY(-6px)}
+  @keyframes dropdownIn{ from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
+  .multi-option{display:flex;align-items:center;justify-content:space-between;padding:12px;border-radius:8px;cursor:pointer;border:1px solid transparent;margin:4px 0}
+  .multi-option .opt-left{display:flex;align-items:center;gap:12px}
+  .opt-check{width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;color:var(--accent);font-weight:700;opacity:0;transition:opacity 120ms ease}
+  .opt-dot{width:12px;height:12px;border-radius:50%;background:#d1d5db}
+  .opt-label{font-size:15px;color:#0b1220}
+  .opt-right{color:#9aa6b2;font-size:13px}
+  .multi-option:hover{background:#fbfdff}
+  .multi-option.selected{background:linear-gradient(180deg,#1565c033,#0f4fa833);border-color:rgba(21,101,192,0.08)}
+  .multi-option.selected .opt-check{opacity:1;background:#fff;border:1px solid rgba(21,101,192,0.12);color:var(--accent)}
+  .multi-search{width:100%;padding:6px;border:1px solid #eef6ff;border-radius:8px;margin-bottom:6px}
+  .nav-btn{background:transparent;border:1px solid transparent;padding:6px 8px;border-radius:6px;cursor:pointer}
+  .nav-btn:hover{background:#f1f7ff}
+
+      /* Ensure text fields that display DB data are left-aligned */
+      .input input, .input textarea, .scroll-body, .input select {
+        text-align: left;
+        direction: ltr;
+      }
+
+      /* sliders and controls */
+      .controls{display:flex;gap:12px;align-items:center}
+      .slider{width:160px}
+      .muted{color:var(--muted);font-size:13px}
+
+  /* center right-column controls (sliders) vertically alongside left inputs */
+  .row > .input:last-child { display:flex; align-items:center; }
+  .row > .input:last-child .slider-wrapper { width:100%; }
+
+  /* slider value bubble and slider styling */
+  .slider-wrapper{position:relative;display:inline-block;width:100%}
+  .slider{width:160px}
+  .slider-value{position:absolute;top:-28px;left:0;transform:translateX(-50%);background:#fff;padding:4px 8px;border-radius:8px;font-weight:600;font-size:12px;color:#0b1220;border:1px solid #e6eef8;box-shadow:0 2px 6px rgba(15,23,42,0.06)}
+  .class-label{font-weight:600;color:#0b1220}
+
+      /* primary button */
+  button.primary{background:linear-gradient(180deg,var(--accent),var(--accent-variant));color:#fff;border:0;padding:10px 16px;border-radius:8px;cursor:pointer;font-weight:600;box-shadow:0 2px 6px rgba(21,101,192,0.22)}
+  button.primary:active{transform:translateY(1px)}
+  .btn-unsaved{background:#ef4444;color:#fff;border:0;padding:10px 16px;border-radius:8px;cursor:pointer;font-weight:600;margin-bottom:8px}
+  .btn-unsaved:active{transform:translateY(1px)}
+  .btn-saved{background:linear-gradient(180deg,var(--accent),var(--accent-variant));color:#fff;border:0;padding:10px 26px;border-radius:8px;cursor:pointer;font-weight:600;box-shadow:0 2px 6px rgba(21,101,192,0.22);margin-bottom:8px;min-width:140px}
+
+      /* responsive */
+      @media (max-width:880px){
+        .row{grid-template-columns:1fr;}
+        .row .label{margin-bottom:6px}
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="card">
+        <div class="meta">
+          <div style="display:flex;align-items:center;gap:12px">
+            <button id="prev" class="nav-btn" aria-label="Previous article">◀</button>
+            <div class="title" id="title">1 of 0</div>
+            <button id="next" class="nav-btn" aria-label="Next article">▶</button>
+          </div>
+          <div class="muted" id="count"></div>
+        </div>
+
+        <!-- Row: Publication name (left-justified in first cell) -->
+        <div class="row">
+          <div class="input">
+            <div class="label">Publication</div>
+            <input type="text" id="pub" placeholder="Publication name">
+          </div>
+          <div class="input"></div>
+        </div>
+
+        <!-- Row: Article URL (left-justified in first cell) -->
+        <div class="row">
+          <div class="input">
+            <div class="label">Article URL</div>
+            <input type="text" id="url" placeholder="https://...">
+          </div>
+          <div class="input">
+            <div id="pubDate" class="muted" style="font-size:13px;align-self:flex-start;">&nbsp;</div>
+          </div>
+        </div>
+
+        <!-- Row: Headline | dropdown -->
+        <div class="row">
+          <div class="input">
+            <div class="label">Headline</div>
+            <input type="text" id="headline" />
+          </div>
+          <div class="input">
+            <select id="headlineErrors" multiple class="hidden-select">
+              <option value="missing_byline">Missing byline</option>
+              <option value="bad_caps">Bad caps</option>
+              <option value="truncated">Truncated</option>
+            </select>
+      <div class="multiselect" data-target="headlineErrors" role="application" aria-haspopup="listbox" aria-owns="headlineErrors-dropdown">
+        <div class="chip-container" id="headlineErrors-chips" aria-live="polite" tabindex="0"></div>
+        <div class="multi-dropdown" id="headlineErrors-dropdown" role="listbox" aria-multiselectable="true"></div>
+      </div>
+          </div>
+        </div>
+
+        <!-- Row: Author | dropdown -->
+        <div class="row">
+          <div class="input">
+            <div class="label">Author</div>
+            <input type="text" id="author" placeholder="Author name" />
+          </div>
+          <div class="input">
+            <select id="authorErrors" multiple class="hidden-select">
+              <option value="unknown">Unknown author</option>
+              <option value="wire_byline">Wire byline</option>
+              <option value="no_byline">No byline</option>
+              <option value="inaccurate">Inaccurate attribution</option>
+            </select>
+            <div class="multiselect" data-target="authorErrors" role="application" aria-haspopup="listbox" aria-owns="authorErrors-dropdown">
+              <div class="chip-container" id="authorErrors-chips" aria-live="polite" tabindex="0"></div>
+              <div class="multi-dropdown" id="authorErrors-dropdown" role="listbox" aria-multiselectable="true"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row: Body text | dropdown -->
+        <div class="row">
+          <div class="input">
+            <div class="label">Body</div>
+            <div id="bodyText" class="scroll-body"></div>
+          </div>
+          <div class="input">
+            <select id="bodyErrors" multiple class="hidden-select">
+              <option value="js_injection">Contains JS</option>
+              <option value="wire">Is wire copy</option>
+              <option value="truncated_body">Truncated body</option>
+              <option value="photo_only">Photo only</option>
+            </select>
+            <div class="multiselect" data-target="bodyErrors" role="application" aria-haspopup="listbox" aria-owns="bodyErrors-dropdown">
+              <div class="chip-container" id="bodyErrors-chips" aria-live="polite" tabindex="0"></div>
+              <div class="multi-dropdown" id="bodyErrors-dropdown" role="listbox" aria-multiselectable="true"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row: Primary Classification -->
+        <div class="row">
+          <div class="input">
+            <div class="label">Primary Classification</div>
+            <input type="text" id="primaryLabel" readonly />
+          </div>
+          <div class="input">
+            <div class="slider-wrapper">
+              <div id="primarySliderValue" class="slider-value">3</div>
+              <input id="primarySlider" class="slider" type="range" min="1" max="5" value="3" step="1" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Row: Secondary Classification -->
+        <div class="row">
+          <div class="input">
+            <div class="label">Secondary Classification</div>
+            <input type="text" id="secondaryLabel" readonly />
+          </div>
+          <div class="input">
+            <div class="slider-wrapper">
+              <div id="secondarySliderValue" class="slider-value">3</div>
+              <input id="secondarySlider" class="slider" type="range" min="1" max="5" value="3" step="1" />
+            </div>
+          </div>
+        </div>
+
+  <!-- Row: Notes | Submit -->
+  <div class="row notes-row">
+          <div class="input">
+            <div class="label">Notes</div>
+            <textarea id="notes" placeholder="Add reviewer notes..."></textarea>
+          </div>
+          <div class="input" style="display:flex;flex-direction:column;justify-content:flex-end;align-items:stretch;">
+              <div style="flex:1"></div>
+            <div style="display:flex;flex-direction:column;gap:8px;align-items:stretch">
+              <button id="save" class="btn-unsaved">Not Saved</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <script>
+      // front-end JS: load first article, keep save behavior
+      let articles = [];
+      let currentIndex = 0;
+
+      async function fetchArticles() {
+        try {
+          const res = await fetch('/api/articles');
+          const json = await res.json();
+          articles = json.results || [];
+          document.getElementById('count').textContent = `${articles.length} articles`;
+          if (articles.length) loadArticle(0);
+        } catch (e) {
+          console.error('fetchArticles', e);
+        }
+      }
+
+      function deriveHostname(u){
+        try{ const url = new URL(u); return url.hostname.replace(/^www\./,''); }catch(e){ return ''; }
+      }
+
+      function loadArticle(index) {
+        const a = articles[index] || {};
+        currentIndex = index;
+  // show 'N of X' in the header
+  document.getElementById('title').textContent = `${index+1} of ${articles.length}`;
+  // top-right: clear (we don't show total here anymore)
+  const countEl = document.getElementById('count'); if(countEl) countEl.textContent = '';
+  // populate the publication date next to URL
+  const pubEl = document.getElementById('pubDate');
+  if (pubEl) pubEl.textContent = a.publish_date || '';
+
+  // map CSV fields
+  document.getElementById('pub').value = a.publication || deriveHostname(a.url || '');
+  document.getElementById('url').value = a.url || '';
+  document.getElementById('headline').value = a.title || '';
+  document.getElementById('author').value = a.authors || '';
+  // populate ML label displays and initialize sliders
+  const primaryLabelEl = document.getElementById('primaryLabel');
+  const secondaryLabelEl = document.getElementById('secondaryLabel');
+  const primarySlider = document.getElementById('primarySlider');
+  const secondarySlider = document.getElementById('secondarySlider');
+  const primarySliderValue = document.getElementById('primarySliderValue');
+  const secondarySliderValue = document.getElementById('secondarySliderValue');
+  const labels = a.ml_labels || a.classification || a.ml_classification || a.predicted_labels || [];
+  let labArr = [];
+  if (Array.isArray(labels)) labArr = labels.map(x=> typeof x === 'string' ? x : (x.label || x.name || '')).filter(Boolean);
+  else if (typeof labels === 'string') labArr = [labels];
+  else if (labels && typeof labels === 'object') labArr = Object.values(labels).map(v=> typeof v === 'string' ? v : (v.label||v.name||'')).filter(Boolean);
+  primaryLabelEl.value = labArr[0] || '';
+  secondaryLabelEl.value = labArr[1] || '';
+  // initialize sliders from any existing review or defaults
+  if (primarySlider){ primarySlider.value = (a._review && a._review.primary_rating) ? a._review.primary_rating : 3; primarySliderValue.textContent = primarySlider.value; }
+  if (secondarySlider){ secondarySlider.value = (a._review && a._review.secondary_rating) ? a._review.secondary_rating : 3; secondarySliderValue.textContent = secondarySlider.value; }
+  // 'news' is the CSV column that holds extracted article body in this dataset
+  document.getElementById('bodyText').textContent = a.news || a.body || a.content || '';
+  // mark as not saved when loading a fresh article into editor
+  setSaveButton(false);
+  // align sliders relative to their associated left inputs
+  setTimeout(alignSliders,50);
+      }
+
+      async function saveReview() {
+          const payload = {
+                reviewer: 'localuser',
+                primary_classification: document.getElementById('primaryLabel').value || null,
+                secondary_classification: document.getElementById('secondaryLabel').value || null,
+                primary_rating: parseInt(document.getElementById('primarySlider').value,10),
+                secondary_rating: parseInt(document.getElementById('secondarySlider').value,10),
+                tags: [
+                  ...Array.from(document.getElementById('headlineErrors').selectedOptions).map(o=>o.value),
+                  ...Array.from(document.getElementById('bodyErrors').selectedOptions).map(o=>o.value),
+                  ...Array.from(document.getElementById('authorErrors').selectedOptions).map(o=>o.value)
+                ],
+                notes: document.getElementById('notes').value
+              };
+  const status = document.getElementById('status');
+  if(status) status.textContent = 'Saving...';
+        try {
+          const res = await fetch(`/api/articles/${currentIndex}/reviews`, {
+            method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
+          });
+          const json = await res.json();
+            if(json && json.success){ if(status) status.textContent = 'Saved'; setSaveButton(true);} else { if(status) status.textContent = (json.error || 'Error'); setSaveButton(false); }
+        } catch (e) { status.textContent = 'Error'; console.error(e); }
+      }
+
+      function setSaveButton(saved){
+        const btn = document.getElementById('save');
+        if(!btn) return;
+        if(saved){ btn.className='btn-saved'; btn.textContent='Saved'; }
+        else { btn.className='btn-unsaved'; btn.textContent='Not Saved'; }
+      }
+
+      // center sliders then offset them downward by half the height of their left input
+      function alignSliders(){
+        try{
+          const primaryLabel = document.getElementById('primaryLabel');
+          const secondaryLabel = document.getElementById('secondaryLabel');
+          const primaryWrapper = document.getElementById('primarySlider') ? document.getElementById('primarySlider').closest('.slider-wrapper') : null;
+          const secondaryWrapper = document.getElementById('secondarySlider') ? document.getElementById('secondarySlider').closest('.slider-wrapper') : null;
+          if(primaryLabel && primaryWrapper){
+            const h = primaryLabel.getBoundingClientRect().height || primaryLabel.offsetHeight || 0;
+            primaryWrapper.style.transform = `translateY(${Math.round(h/2)}px)`;
+          }
+          if(secondaryLabel && secondaryWrapper){
+            const h2 = secondaryLabel.getBoundingClientRect().height || secondaryLabel.offsetHeight || 0;
+            secondaryWrapper.style.transform = `translateY(${Math.round(h2/2)}px)`;
+          }
+        }catch(e){ /* silent */ }
+      }
+
+      document.addEventListener('DOMContentLoaded', ()=>{
+        try{ console.debug('DOMContentLoaded fired - initializing UI'); }catch(e){}
+        document.getElementById('save').addEventListener('click', saveReview);
+        const p = document.getElementById('primarySlider');
+        const s = document.getElementById('secondarySlider');
+        const pBubble = document.getElementById('primarySliderValue');
+        const sBubble = document.getElementById('secondarySliderValue');
+        function placeBubble(slider, bubble){
+          if(!slider || !bubble) return;
+          const min = parseFloat(slider.min) || 1;
+          const max = parseFloat(slider.max) || 5;
+          const val = parseFloat(slider.value);
+          const pct = (val - min) / (max - min);
+          const sliderWidth = slider.getBoundingClientRect().width || 160;
+          const x = pct * sliderWidth;
+          bubble.style.left = `${x}px`;
+          bubble.textContent = slider.value;
+        }
+        if(p && pBubble) p.addEventListener('input', ()=> placeBubble(p, pBubble));
+        if(s && sBubble) s.addEventListener('input', ()=> placeBubble(s, sBubble));
+        // initial placement after layout
+        setTimeout(()=>{ placeBubble(p,pBubble); placeBubble(s,sBubble); }, 50);
+        fetchArticles();
+  // re-align sliders on window resize (debounced)
+  let resizeTimer = null;
+  window.addEventListener('resize', ()=>{ if(resizeTimer) clearTimeout(resizeTimer); resizeTimer = setTimeout(()=>{ alignSliders(); }, 120); });
+
+        // initialize multi-select chip widgets
+        function initMultiSelect(id){
+
+          const sel = document.getElementById(id);
+          const dropdown = document.getElementById(id + '-dropdown');
+          // if required elements aren't present, bail early (prevents runtime errors during registration)
+          if(!sel || !dropdown) return;
+          // single chip container element (acts as portal target). Create if missing.
+          let chipPortal = document.getElementById(id + '-chips');
+          if(!chipPortal){ chipPortal = document.createElement('div'); chipPortal.id = id + '-chips'; chipPortal.className='chip-container'; chipPortal.setAttribute('aria-live','polite'); }
+          // persistent inline anchor that stays in place even when we move the portal into the floating dropdown
+          const parentMulti = dropdown.parentElement;
+          let chipAnchor = parentMulti.querySelector(`#${id}-anchor`);
+          if(!chipAnchor){ chipAnchor = document.createElement('div'); chipAnchor.id = id + '-anchor'; chipAnchor.className = 'chip-anchor'; }
+          // Ensure the anchor exists and is appended to the parentMulti (placed at the end)
+          if(parentMulti && !parentMulti.querySelector(`#${id}-anchor`)) parentMulti.appendChild(chipAnchor);
+          // find legacy toggle UI if present; otherwise use the chipAnchor as the toggle so handlers work
+          let toggle = parentMulti ? parentMulti.querySelector('.multi-toggle') : null;
+          if(!toggle) toggle = chipAnchor;
+          // ensure the portal element is initially placed inside the anchor (visible inline)
+          if(!chipAnchor.contains(chipPortal)) chipAnchor.appendChild(chipPortal);
+          // Wire the chipAnchor as the interactive opener (no legacy .multi-toggle elements used)
+          chipAnchor.setAttribute('role','button');
+          chipAnchor.setAttribute('tabindex','0');
+          chipAnchor.setAttribute('aria-controls', dropdown.id);
+          chipAnchor.setAttribute('aria-expanded', 'false');
+          chipAnchor.onclick = (e)=>{ e.stopPropagation(); if(dropdown.classList.contains('open')) closeDropdown(); else openDropdown(); };
+          chipAnchor.onkeydown = (e)=>{
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if(dropdown.classList.contains('open')) closeDropdown(); else openDropdown(); }
+            else if (e.key === 'ArrowDown') { e.preventDefault(); openDropdown(); const first = dropdown.querySelector('.multi-option'); if(first) first.focus(); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); openDropdown(); const opts = Array.from(dropdown.querySelectorAll('.multi-option')); const last = opts[opts.length-1]; if(last) last.focus(); }
+          };
+          // Replace open/close functions to keep aria-expanded in sync and to move the portal into the dropdown when opened
+          openDropdown = function(){ positionDropdown(); if(!dropdown.contains(chipPortal)) dropdown.insertBefore(chipPortal, optionsContainer); dropdown.classList.add('open'); chipAnchor.setAttribute('aria-expanded','true'); search.focus(); dropdown.querySelectorAll('.multi-option').forEach(o=> o.tabIndex = 0); };
+          closeDropdown = function(){ if(chipAnchor && !chipAnchor.contains(chipPortal)) chipAnchor.appendChild(chipPortal); renderChips(); dropdown.classList.remove('open'); chipAnchor.setAttribute('aria-expanded','false'); dropdown.querySelectorAll('.multi-option').forEach(o=> o.tabIndex = -1); };
+
+          // populate dropdown with a search input + options
+          dropdown.innerHTML = '';
+          const search = document.createElement('input');
+          search.className = 'multi-search'; search.type='search'; search.placeholder='Filter...';
+          search.setAttribute('aria-label', 'Filter options');
+          dropdown.appendChild(search);
+          // dropdown will receive the same chip container when opened (portal)
+          let innerChips = dropdown.querySelector('.chip-container');
+          // do not create an inner copy here; we will move the single chipPortal into dropdown on open
+          const optionsContainer = document.createElement('div'); optionsContainer.className='options-container';
+          Array.from(sel.options).forEach((opt, idx) => {
+            const div = document.createElement('div');
+            div.className = 'multi-option' + (opt.selected ? ' selected' : '');
+            div.tabIndex = -1;
+            div.dataset.value = opt.value;
+            div.setAttribute('role','option');
+            div.setAttribute('aria-selected', opt.selected ? 'true' : 'false');
+            div.dataset.index = idx;
+            const left = document.createElement('div'); left.className='opt-left';
+            const check = document.createElement('div'); check.className='opt-check'; check.innerHTML = '✓';
+            const dot = document.createElement('div'); dot.className='opt-dot';
+            const label = document.createElement('div'); label.className='opt-label'; label.textContent = opt.textContent;
+            left.appendChild(check); left.appendChild(dot); left.appendChild(label);
+            const right = document.createElement('div'); right.className='opt-right'; right.textContent = opt.dataset && opt.dataset.meta ? opt.dataset.meta : '';
+            div.appendChild(left); div.appendChild(right);
+            div.onclick = () => { opt.selected = !opt.selected; div.classList.toggle('selected', opt.selected); div.setAttribute('aria-selected', opt.selected?'true':'false'); renderChips(); };
+            div.onkeydown = (ev)=>{ if(ev.key==='Enter' || ev.key===' '){ ev.preventDefault(); div.click(); } };
+            optionsContainer.appendChild(div);
+          });
+          dropdown.appendChild(optionsContainer);
+          // filter handler
+          function filterOptions(q){
+            const ql = q.trim().toLowerCase();
+            Array.from(optionsContainer.children).forEach(c=>{
+              c.style.display = c.textContent.toLowerCase().includes(ql)?'block':'none';
+            });
+          }
+          search.addEventListener('input', ()=> filterOptions(search.value));
+
+          function renderChips(){
+            const selected = Array.from(sel.selectedOptions).map(o=>({v:o.value,t:o.textContent}));
+            const target = chipPortal;
+            target.innerHTML = '';
+            if(!selected.length){ const p = document.createElement('div'); p.className='chip placeholder'; p.textContent='No selections'; target.appendChild(p); return; }
+            selected.forEach(sopt => {
+              const c = document.createElement('div'); c.className='chip'; c.textContent = sopt.t;
+              const x = document.createElement('span'); x.className='chip-x'; x.textContent='✕';
+              x.onclick = (e)=>{ e.stopPropagation(); // animate removal
+                c.classList.add('removing');
+                setTimeout(()=>{
+                  const o = Array.from(sel.options).find(o=>o.value===sopt.v);
+                  if (o) o.selected = false;
+                  Array.from(optionsContainer.children).forEach(d=> { if (d.dataset.value===sopt.v) { d.classList.remove('selected'); d.setAttribute('aria-selected','false'); } });
+                  renderChips();
+                }, 160);
+              };
+              c.appendChild(x);
+              target.appendChild(c);
+            });
+          }
+
+          // position the dropdown to match the parent right-column width and float above layout
+      function positionDropdown(){
+            try{
+        // anchor dropdown to the chipAnchor (stable inline location) so it opens exactly below the visible chip list
+        const rect = chipAnchor.getBoundingClientRect();
+              // compute viewport coordinates based on the right-column parent width so the dropdown fills the cell
+              const parentRect = dropdown.parentElement.getBoundingClientRect();
+              let left = parentRect.left;
+              let top = rect.bottom + 6; // small gap below chip
+              let width = parentRect.width;
+              // clamp to viewport so dropdown remains visible
+              const maxRight = window.innerWidth - 12; // small margin
+              if (left + width > maxRight) {
+                width = Math.max(160, maxRight - left);
+              }
+              if (left < 8) left = 8;
+              // clamp vertical to viewport
+              const maxBottom = window.innerHeight - 40;
+              if (top > maxBottom) top = rect.top - dropdown.clientHeight - 6;
+              dropdown.style.left = `${left}px`;
+              dropdown.style.top = `${top}px`;
+              dropdown.style.width = `${width}px`;
+              dropdown.style.boxSizing = 'border-box';
+            }catch(e){ /* ignore */ }
+          }
+
+          function openDropdown(){
+            // move portal into dropdown so chips appear inside floating textarea
+            positionDropdown();
+            if(!dropdown.contains(chipPortal)) dropdown.insertBefore(chipPortal, optionsContainer);
+            dropdown.classList.add('open'); toggle.setAttribute('aria-expanded','true'); search.focus(); dropdown.querySelectorAll('.multi-option').forEach(o=> o.tabIndex = 0);
+          }
+          function closeDropdown(){
+            // move portal back to inline location (before toggle)
+            const parentMulti = dropdown.parentElement;
+            // move portal back into the persistent anchor so its inline position is preserved
+            if(chipAnchor && !chipAnchor.contains(chipPortal)) chipAnchor.appendChild(chipPortal);
+            // re-render chips into the inline portal so selections remain visible
+            renderChips();
+            dropdown.classList.remove('open'); toggle.setAttribute('aria-expanded','false'); dropdown.querySelectorAll('.multi-option').forEach(o=> o.tabIndex = -1);
+          }
+
+          toggle.onclick = (e)=>{ e.stopPropagation(); if(dropdown.classList.contains('open')) closeDropdown(); else openDropdown(); };
+          // clicking the chip-container (portal) should also toggle the dropdown (makes the field feel like a select)
+          chipPortal.tabIndex = 0;
+          chipPortal.addEventListener('click', (e)=>{ e.stopPropagation(); if(dropdown.classList.contains('open')) closeDropdown(); else openDropdown(); });
+          // allow keyboard to open via Enter on chip container
+          chipPortal.addEventListener('keydown', (e)=>{ if(e.key==='Enter' || e.key===' ') { e.preventDefault(); if(dropdown.classList.contains('open')) closeDropdown(); else openDropdown(); } });
+          toggle.onkeydown = (e)=>{
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle.click(); }
+            if (e.key === 'ArrowDown') { e.preventDefault(); openDropdown(); const first = dropdown.querySelector('.multi-option'); if(first) first.focus(); }
+            if (e.key === 'ArrowUp') { e.preventDefault(); openDropdown(); const opts = Array.from(dropdown.querySelectorAll('.multi-option')); const last = opts[opts.length-1]; if(last) last.focus(); }
+          };
+
+          // keyboard handling inside dropdown
+          optionsContainer.addEventListener('keydown', (e)=>{
+            const focusable = Array.from(dropdown.querySelectorAll('.multi-option')).filter(n=> n.style.display !== 'none');
+            const idx = focusable.indexOf(document.activeElement);
+            if (e.key === 'ArrowDown') { e.preventDefault(); const next = focusable[idx+1] || focusable[0]; if(next) next.focus(); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); const prev = focusable[idx-1] || focusable[focusable.length-1]; if(prev) prev.focus(); }
+            else if (e.key === 'Home') { e.preventDefault(); if(focusable[0]) focusable[0].focus(); }
+            else if (e.key === 'End') { e.preventDefault(); if(focusable[focusable.length-1]) focusable[focusable.length-1].focus(); }
+            else if (e.key === 'Escape') { e.preventDefault(); closeDropdown(); toggle.focus(); }
+            else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); document.activeElement.click(); }
+          });
+
+          // register this widget for a shared outside-click handler (prevents multiple handlers firing)
+          // Use pointerdown + composedPath so clicks/touches inside shadow DOM or portals are detected correctly.
+          window.__multi_select_instances = window.__multi_select_instances || [];
+          if (!window.__multi_select_doc_listener) {
+            window.__multi_select_doc_listener = true;
+            // use click (bubble phase) so option click handlers run first and we can reliably detect if the click was outside
+            document.addEventListener('click', (e)=>{
+              try{
+                const target = e.target;
+                window.__multi_select_instances.forEach(inst => {
+                  try{
+                    // robust direct containment checks — treat clicks inside the dropdown, the parent wrapper, or the chip portal as internal
+                    const inside = (inst.dropdown && inst.dropdown.contains(target)) || (inst.parent && inst.parent.contains(target)) || (inst.chipPortal && inst.chipPortal.contains(target));
+                    if (!inside) {
+                      try{ console.debug('multi-select outside click closing', inst.id || inst.dropdown && inst.dropdown.id, 'target', target && (target.id || target.className || target.tagName)); }catch(_){ }
+                      inst.closeFn();
+                    }
+                  }catch(_){ }
+                });
+              }catch(_){ }
+            }, false);
+          }
+          // include the chipPortal reference so clicks on the inline portal when moved into the dropdown are respected
+          window.__multi_select_instances.push({ parent: parentMulti, dropdown: dropdown, chipPortal: chipPortal, closeFn: closeDropdown });
+          try{ console.log('multi-select registered', id, { parent: parentMulti, dropdownId: dropdown.id, chipPortalId: chipPortal && chipPortal.id }); }catch(e){}
+
+          // initial render
+          renderChips();
+          // ensure options are not tabbable until opened
+          dropdown.querySelectorAll('.multi-option').forEach(o=> o.tabIndex = -1);
+        }
+
+  try{ console.debug('registering multi-selects'); }catch(e){}
+  ['headlineErrors','bodyErrors','authorErrors'].forEach(id=>{ try{ initMultiSelect(id); console.debug('initMultiSelect called for', id); }catch(e){ console.error('initMultiSelect error for', id, e); } });
+  // article navigation
+  document.getElementById('prev').addEventListener('click', ()=>{ if (articles.length){ const i = Math.max(0,currentIndex-1); loadArticle(i); } });
+  document.getElementById('next').addEventListener('click', ()=>{ if (articles.length){ const i = Math.min(articles.length-1,currentIndex+1); loadArticle(i); } });
+      });
+    </script>
+
+    <!-- Diagnostic script: logs any remaining legacy .multi-toggle nodes and any ::before/::after
+         pseudo-element content inside .tag-select. Runs after DOMContentLoaded. Best-effort hides
+         detected elements to prevent duplicate visual carets. -->
+    <script>
+      document.addEventListener('DOMContentLoaded', function(){
+        try{
+          const legacy = Array.from(document.querySelectorAll('.multi-toggle'));
+          console.log('diagnostic: found .multi-toggle nodes count=', legacy.length, legacy);
+
+          const tagSelects = Array.from(document.querySelectorAll('.tag-select'));
+          tagSelects.forEach((ts, idx)=>{
+            const elems = Array.from(ts.querySelectorAll('*'));
+            const hasPseudo = [];
+            elems.forEach(el=>{
+              const before = window.getComputedStyle(el, '::before').getPropertyValue('content');
+              const after = window.getComputedStyle(el, '::after').getPropertyValue('content');
+              if(before && before !== 'none' && before !== '""' && before !== '') hasPseudo.push({el, pseudo: '::before', content: before});
+              if(after && after !== 'none' && after !== '""' && after !== '') hasPseudo.push({el, pseudo: '::after', content: after});
+            });
+            console.log('diagnostic: tag-select['+idx+'] pseudo-content count=', hasPseudo.length, hasPseudo.map(h=>({selector: h.el.tagName, pseudo: h.pseudo, content: h.content})) );
+            // Best-effort hide
+            hasPseudo.forEach(h=>{ try{ h.el.style.setProperty('display','none','important'); }catch(e){} });
+          });
+        }catch(e){ console.warn('diagnostic script error', e); }
+      });
+    </script>
+
+  </body>
+</html>

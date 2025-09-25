@@ -1,0 +1,207 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Parse Review</title>
+		<style>
+			body { font-family: system-ui, -apple-system, Roboto, 'Segoe UI', Arial; margin:0; padding:0 }
+			header { background:#0b63ce; color:white; padding:12px 16px }
+			.wrap { padding:12px }
+			pre { background:#f6f7f8; padding:8px; border-radius:4px; overflow:auto }
+			.muted { color:#666; font-size:13px }
+			.ok { color: #0a9a2a }
+			.bad { color: #b12b2b }
+			.sample { border-top:1px solid #eee; padding:8px 0 }
+			a { color: #0b63ce }
+		</style>
+	</head>
+	<body>
+		<header>
+			<h3 style="margin:0">Parse Review</h3>
+			<div style="font-size:12px; opacity:0.9">Inspect re-extract validation jobs and sample parses</div>
+		</header>
+		<div class="wrap">
+			<div id="main">Loading...</div>
+		</div>
+
+		<script>
+			const params = new URLSearchParams(window.location.search)
+			const jobId = params.get('job_id')
+			const BACKEND = params.get('backend') || 'http://127.0.0.1:8000'
+
+			function safe(x){ return x===null||x===undefined ? '' : x }
+
+			function renderParsed(container, parsed, snippet, pub){
+				container.innerHTML = ''
+				const rows = []
+				rows.push(['Re-extract Job ID', jobId])
+				rows.push(['Publication', pub || ''])
+				if(parsed){
+					const url = parsed.url || parsed.article_url || parsed.source_url || parsed.link || ''
+					const headline = parsed.headline || parsed.title || ''
+					const author = parsed.author || parsed.byline || parsed.authors || ''
+					const body = parsed.body || parsed.content || parsed.text || ''
+					rows.push(['Article URL', url])
+					rows.push(['Headline', headline])
+					rows.push(['Author', Array.isArray(author)? author.join(', '): author])
+					rows.push(['Body', body])
+				} else {
+					rows.push(['Article URL', ''])
+					rows.push(['Headline', ''])
+					rows.push(['Author', ''])
+					rows.push(['Body', snippet || ''])
+				}
+
+				for(const [label, val] of rows){
+					const row = document.createElement('div')
+					row.style.marginBottom = '6px'
+					if(label === 'Body'){
+						row.innerHTML = `<div style="font-weight:600">${label}</div><pre style="white-space:pre-wrap; background:#fff;padding:8px;border-radius:4px;border:1px solid #eee">${safe(val)}</pre>`
+					}else if(label === 'Article URL' && val){
+						row.innerHTML = `<div style="font-weight:600">${label}</div><div><a target="_blank" href="${val}">${safe(val)}</a></div>`
+					}else{
+						row.innerHTML = `<div style="font-weight:600">${label}</div><div class="muted">${safe(val)}</div>`
+					}
+					container.appendChild(row)
+				}
+			}
+
+			async function render(){
+				const main = document.getElementById('main')
+				if(!jobId){ main.innerHTML = '<div>Please open this page with ?job_id=YOUR_JOB_ID</div>'; return }
+				main.innerHTML = 'Loading job ' + jobId + ' ...'
+				try{
+					const r = await fetch(BACKEND + '/api/reextract_jobs/' + encodeURIComponent(jobId))
+					if(!r.ok) throw new Error('job not found')
+					const j = await r.json()
+					main.innerHTML = ''
+					const hdr = document.createElement('div')
+					hdr.innerHTML = `<div style="margin-bottom:8px"><strong>Job:</strong> ${safe(j.id)} <span class="muted">(host: ${safe(j.host)})</span></div>`
+					main.appendChild(hdr)
+
+					const status = document.createElement('div')
+					status.innerHTML = `<div><strong>Status:</strong> <span>${safe(j.status)}</span></div>`
+					main.appendChild(status)
+
+					if(j.result){
+						const res = j.result
+						const ratio = (res.total && res.total>0) ? (res.matched / res.total) : 0
+						const pass = ratio >= 0.8
+						const verdict = document.createElement('div')
+						verdict.style.marginTop = '8px'
+						verdict.innerHTML = `<div><strong>Validation:</strong> <span class="${pass? 'ok' : 'bad'}">${pass? 'PASS' : 'REVIEW NEEDED'}</span> &nbsp; <span class="muted">matched ${safe(res.matched)} / ${safe(res.total)} (${Math.round(ratio*100)}%)</span></div>`
+						main.appendChild(verdict)
+
+									if(Array.isArray(res.samples) && res.samples.length>0){
+										// Before rendering samples, check whether any sample has structured parsed fields
+										// If none have parsed fields (neither in the job sample nor in snapshot metadata),
+										// redirect the reviewer back to the candidate selector screen so a selector can be chosen.
+										let anyParsed = false
+										const checkPromises = res.samples.map(async (s)=>{
+											if(s.parsed_fields || s.parsed || s.parsedResult || s.parsedFields) return true
+											const path = s.path || ''
+											const snapshotId = path ? path.split('/').slice(-1)[0].replace(/\.html$/, '') : null
+											if(!snapshotId) return false
+											try{
+												const r2 = await fetch(BACKEND + '/api/snapshots/' + encodeURIComponent(snapshotId))
+												if(!r2.ok) return false
+												const rec = await r2.json()
+												const candidateParsed = rec.parsed || rec.parsed_fields || rec.extracted || rec.extraction || null
+												return !!candidateParsed
+											}catch(e){ return false }
+										})
+										try{
+											const results = await Promise.all(checkPromises)
+											anyParsed = results.some(x=>x)
+										}catch(e){ anyParsed = false }
+
+										if(!anyParsed){
+											// No structured parsed fields found — go back to candidate selector for this host
+											const dest = '/domain_reports.html?host=' + encodeURIComponent(j.host)
+											// short notice then redirect
+											main.innerHTML = `<div class="muted">No structured parsed fields were found for this job — returning to candidate selector... <a href="${dest}">Open candidate selector now</a></div>`
+											setTimeout(()=> window.location.href = dest, 1200)
+											return
+										}
+
+										const samplesEl = document.createElement('div')
+										samplesEl.style.marginTop = '12px'
+										samplesEl.innerHTML = '<div style="font-weight:600;margin-bottom:6px">Sample snapshots</div>'
+										// For each sample, attempt to display: job id, publication, article URL, headline, author, body
+										for(const s of res.samples){
+											const sEl = document.createElement('div')
+											sEl.className = 'sample'
+											const path = safe(s.path)
+											const snippet = safe(s.snippet)
+											const snapshotId = path ? path.split('/').slice(-1)[0].replace(/\.html$/, '') : null
+											const snapshotLink = path ? `<a target="_blank" href="${BACKEND}/web/${path}">${snapshotId || 'snapshot'}</a>` : ''
+
+											// placeholder fields
+											const pub = safe(j.host)
+											const articleUrlEl = document.createElement('div')
+											articleUrlEl.innerHTML = `<div style="font-size:13px">${snapshotLink} <span class="muted">${snapshotId ? '' : ''}</span></div>`
+
+											const fieldsTable = document.createElement('div')
+											fieldsTable.style.marginTop = '8px'
+											fieldsTable.innerHTML = `<div style="font-weight:600;margin-bottom:6px">Parsed fields</div><div class="muted">Loading parsed fields...</div>`
+
+											sEl.appendChild(articleUrlEl)
+											sEl.appendChild(fieldsTable)
+
+											// Try to use parsed fields included in the job sample first
+											const parsed = s.parsed_fields || s.parsed || s.parsedResult || s.parsedFields || null
+											if(parsed){
+												renderParsed(fieldsTable, parsed, snippet, pub)
+											} else if(snapshotId){
+												// fetch snapshot metadata to obtain the original URL and any stored extraction
+												(async ()=>{
+													try{
+														const r2 = await fetch(BACKEND + '/api/snapshots/' + encodeURIComponent(snapshotId))
+														if(r2.ok){
+															const rec = await r2.json()
+															// replace link with actual URL if available
+															if(rec.url){
+																articleUrlEl.innerHTML = `<div style="font-size:13px"><a target="_blank" href="${rec.url}">${rec.url}</a> <span class="muted">(${snapshotId})</span></div>`
+															}
+															// look for extraction fields in the snapshot record
+															const candidateParsed = rec.parsed || rec.parsed_fields || rec.extracted || rec.extraction || null
+															if(candidateParsed){
+																renderParsed(fieldsTable, candidateParsed, snippet, pub)
+																return
+															}
+														}
+													}catch(e){ console.error('snapshot fetch failed', e) }
+													// fallback: show snippet only
+													renderParsed(fieldsTable, null, snippet, pub)
+												})()
+											} else {
+												// no snapshot id and no parsed fields — show snippet
+												renderParsed(fieldsTable, null, snippet, pub)
+											}
+
+											samplesEl.appendChild(sEl)
+										}
+										main.appendChild(samplesEl)
+									}
+
+						// raw result for debugging
+						const raw = document.createElement('div')
+						raw.style.marginTop = '12px'
+						raw.innerHTML = '<div style="font-weight:600;margin-bottom:6px">Raw job result</div><pre>' + JSON.stringify(j.result, null, 2) + '</pre>'
+						main.appendChild(raw)
+					}else{
+						const note = document.createElement('div')
+						note.innerHTML = '<div class="muted">No result recorded yet for this job.</div>'
+						main.appendChild(note)
+					}
+				}catch(e){
+					document.getElementById('main').innerHTML = '<div style="color:crimson">Failed to load job: ' + e.message + '</div>'
+					console.error(e)
+				}
+			}
+
+			render()
+		</script>
+	</body>
+</html>

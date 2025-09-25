@@ -17,8 +17,8 @@ This document lists the main modules, responsibilities, and suggested first PRs 
   - Responsibility: High-level DB operations used by CLI/scripts.
 
 - `src/cli/`
-  - `main.py` — CLI entrypoint with commands: `load-sources`, `crawl`, `extract`, `analyze`, `status`.
-  - Responsibility: Orchestrate the pipeline, read/write DB, provide user-facing commands.
+  - `main.py` — CLI entrypoint with commands: `load-sources`, `crawl`, `extract`, `analyze`, `populate-gazetteer`, `status`.
+  - Responsibility: Orchestrate the pipeline, read/write DB, provide user-facing commands. Auto-triggers gazetteer population when new sources are loaded.
 
 - `src/utils/`
   - `telemetry.py` — Operation tracking, `TelemetryReporter`, `OperationTracker` and job tracking helpers.
@@ -26,7 +26,8 @@ This document lists the main modules, responsibilities, and suggested first PRs 
 
 - `scripts/`
   - `crawl.py` — Simple standalone crawling script for quick runs outside the CLI.
-  - Responsibility: Quick runs and demonstrations; useful for integration tests.
+  - `populate_gazetteer.py` — Geographic enhancement script that geocodes publisher locations and discovers nearby entities using OpenStreetMap.
+  - Responsibility: Quick runs and demonstrations; useful for integration tests. Geographic data enrichment.
 
 - `sources/`
   - `mizzou_sites.json`, `publinks.csv` (expected)

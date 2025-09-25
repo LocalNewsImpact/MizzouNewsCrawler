@@ -2,15 +2,38 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "pytest: run all",
+      "label": "Discovery - discover-urls",
       "type": "shell",
-      "command": "pytest -q",
-      "group": "test",
+      "command": "source venv/bin/activate && python -m src.cli.main discover-urls --source-limit 50",
       "presentation": {
+        "echo": true,
         "reveal": "always",
+        "focus": false,
         "panel": "shared"
       },
-      "problemMatcher": []
+      "options": {
+        "shell": {
+          "executable": "/bin/zsh",
+          "args": ["-c"]
+        }
+      }
+    },
+    {
+      "label": "Discovery - discover-urls (force-all)",
+      "type": "shell",
+      "command": "source venv/bin/activate && python -m src.cli.main discover-urls --source-limit 50 --force-all",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "options": {
+        "shell": {
+          "executable": "/bin/zsh",
+          "args": ["-c"]
+        }
+      }
     }
   ]
 }

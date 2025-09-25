@@ -6,12 +6,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-import pytest
+import pytest  # noqa: E402
 
 try:
     from models import versioning
 except Exception as e:  # pragma: no cover - skip in minimal envs
-    pytest.skip(f"Skipping versioning tests; can't import models: {e}", allow_module_level=True)
+    pytest.skip(
+        f"Skipping versioning tests; can't import models: {e}", allow_module_level=True
+    )
 
 
 def _make_db_path(tmpdir_path: str) -> str:
@@ -74,9 +76,7 @@ def test_finalize_updates_metadata_and_status(tmp_path):
     )
 
     # claim then finalize
-    assert versioning.claim_dataset_version(
-        dv.id, claimer="job-a", database_url=db_url
-    )
+    assert versioning.claim_dataset_version(dv.id, claimer="job-a", database_url=db_url)
 
     # create a small temp file to act as snapshot
     fp = Path(tmp_path) / "snap.parquet"

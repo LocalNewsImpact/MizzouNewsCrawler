@@ -1,0 +1,3533 @@
+DETAILED STORYSNIFFER ANALYSIS RESULTS
+============================================================
+
+NON-ARTICLE URLs:
+------------------------------
+URL: https://calendar.417mag.com/lists/1269/4505413
+Source: 417 Magazine
+Domain: calendar.417mag.com
+Path: /lists/1269/4505413
+
+URL: https://calendar.417mag.com/cal/4500147?category=3262
+Source: 417 Magazine
+Domain: calendar.417mag.com
+Path: /cal/4500147
+
+URL: https://calendar.417mag.com/cal/4500153?category=3262
+Source: 417 Magazine
+Domain: calendar.417mag.com
+Path: /cal/4500153
+
+URL: https://calendar.417mag.com/cal/4474473?category=3262
+Source: 417 Magazine
+Domain: calendar.417mag.com
+Path: /cal/4474473
+
+URL: https://calendar.417mag.com/cal/3905197?category=3127
+Source: 417 Magazine
+Domain: calendar.417mag.com
+Path: /cal/3905197
+
+URL: https://calendar.417mag.com/cal/4541599?category=3127
+Source: 417 Magazine
+Domain: calendar.417mag.com
+Path: /cal/4541599
+
+URL: https://calendar.417mag.com/cal/4438497?category=3127
+Source: 417 Magazine
+Domain: calendar.417mag.com
+Path: /cal/4438497
+
+URL: https://calendar.417mag.com/cal/4474470?category=3127
+Source: 417 Magazine
+Domain: calendar.417mag.com
+Path: /cal/4474470
+
+URL: https://www.417mag.com/issues/417-magazine-september-2025/
+Source: 417 Magazine
+Domain: www.417mag.com
+Path: /issues/417-magazine-september-2025/
+
+URL: https://www.417mag.com/people-pics/wish-ball-2025/
+Source: 417 Magazine
+Domain: www.417mag.com
+Path: /people-pics/wish-ball-2025/
+
+URL: https://www.bentoncountyenterprise.com/stories/lakelife,120666
+Source: Benton County Enterprise
+Domain: www.bentoncountyenterprise.com
+Path: /stories/lakelife,120666
+
+URL: https://www.bentoncountyenterprise.com/stories/cabinets,122303
+Source: Benton County Enterprise
+Domain: www.bentoncountyenterprise.com
+Path: /stories/cabinets,122303
+
+URL: https://www.bentoncountyenterprise.com/stories/arrow,104177
+Source: Benton County Enterprise
+Domain: www.bentoncountyenterprise.com
+Path: /stories/arrow,104177
+
+URL: https://www.bentoncountyenterprise.com/stories/bestofbc,104176
+Source: Benton County Enterprise
+Domain: www.bentoncountyenterprise.com
+Path: /stories/bestofbc,104176
+
+URL: https://www.bethanyclipper.com/sports/2nd-place-winners/
+Source: Bethany Republican Clipper
+Domain: www.bethanyclipper.com
+Path: /sports/2nd-place-winners/
+
+URL: https://www.californiademocrat.com/news/sports/
+Source: California Democrat
+Domain: www.californiademocrat.com
+Path: /news/sports/
+
+URL: https://www.californiademocrat.com/news/california/
+Source: California Democrat
+Domain: www.californiademocrat.com
+Path: /news/california/
+
+URL: https://carthagenewsonline.com/obituaries/donna-kay-lambeth/
+Source: Carthage Press
+Domain: carthagenewsonline.com
+Path: /obituaries/donna-kay-lambeth/
+
+URL: https://carthagenewsonline.com/obituaries/alberta-lucille-brust/
+Source: Carthage Press
+Domain: carthagenewsonline.com
+Path: /obituaries/alberta-lucille-brust/
+
+URL: https://www.mycouriertribune.com/blue-jays-sweep-bulldogs-in-girls-tennis/
+Source: Courier Tribune
+Domain: www.mycouriertribune.com
+Path: /blue-jays-sweep-bulldogs-in-girls-tennis/
+
+URL: https://www.darnews.com/news/women-aware-f8a2936a
+Source: Daily American Republic
+Domain: www.darnews.com
+Path: /news/women-aware-f8a2936a
+
+URL: https://www.darnews.com/obituaries/harold-simpson-6c739c9a
+Source: Daily American Republic
+Domain: www.darnews.com
+Path: /obituaries/harold-simpson-6c739c9a
+
+URL: https://www.darnews.com/obituaries/jantha-batton-aa95e6cc
+Source: Daily American Republic
+Domain: www.darnews.com
+Path: /obituaries/jantha-batton-aa95e6cc
+
+URL: https://www.darnews.com/obituaries/mary-rushin-62aeb55a
+Source: Daily American Republic
+Domain: www.darnews.com
+Path: /obituaries/mary-rushin-62aeb55a
+
+URL: https://eldoradospringsmo.com/front-page/elevate-to-rock-bottom/
+Source: El Dorado Springs Sun
+Domain: eldoradospringsmo.com
+Path: /front-page/elevate-to-rock-bottom/
+
+URL: https://eldoradospringsmo.com/community/downtown-laundry-brings-hope/
+Source: El Dorado Springs Sun
+Domain: eldoradospringsmo.com
+Path: /community/downtown-laundry-brings-hope/
+
+URL: https://www.emissourian.com/news/legals/
+Source: Emissourian
+Domain: www.emissourian.com
+Path: /news/legals/
+
+URL: http://www.excelsiorspringsstandard.com/node/8669
+Source: Excelsior Springs Standard
+Domain: www.excelsiorspringsstandard.com
+Path: /node/8669
+
+URL: https://www.excelsiorspringsstandard.com/e-edition/260
+Source: Excelsior Springs Standard
+Domain: www.excelsiorspringsstandard.com
+Path: /e-edition/260
+
+URL: https://www.excelsiorspringsstandard.com/user/145
+Source: Excelsior Springs Standard
+Domain: www.excelsiorspringsstandard.com
+Path: /user/145
+
+URL: https://www.excelsiorspringsstandard.com/news/overlook-leads-city-progress
+Source: Excelsior Springs Standard
+Domain: www.excelsiorspringsstandard.com
+Path: /news/overlook-leads-city-progress
+
+URL: https://www.excelsiorspringsstandard.com/user/608
+Source: Excelsior Springs Standard
+Domain: www.excelsiorspringsstandard.com
+Path: /user/608
+
+URL: https://www.excelsiorspringsstandard.com/news/tigers-battle-bulldogs
+Source: Excelsior Springs Standard
+Domain: www.excelsiorspringsstandard.com
+Path: /news/tigers-battle-bulldogs
+
+URL: https://www.timesnewspapers.com/site/how_does_your_newspaper_get_to_you.html
+Source: Fayette Advertiser
+Domain: www.timesnewspapers.com
+Path: /site/how_does_your_newspaper_get_to_you.html
+
+URL: https://www.gladstonedispatch.com/family-fun-day-saturday-3/
+Source: Gladstone Dispatch
+Domain: www.gladstonedispatch.com
+Path: /family-fun-day-saturday-3/
+
+URL: https://www.gladstonedispatch.com/doris-fern-neagle/
+Source: Gladstone Dispatch
+Domain: www.gladstonedispatch.com
+Path: /doris-fern-neagle/
+
+URL: https://www.greenecountycommonwealth.com/content/ash-grove-considers-trail-system
+Source: Greene County Commonwealth
+Domain: www.greenecountycommonwealth.com
+Path: /content/ash-grove-considers-trail-system
+
+URL: https://www.greenecountycommonwealth.com/content/more-brick-and-mortar-republic
+Source: Greene County Commonwealth
+Domain: www.greenecountycommonwealth.com
+Path: /content/more-brick-and-mortar-republic
+
+URL: https://www.greenecountycommonwealth.com/content/announcements
+Source: Greene County Commonwealth
+Domain: www.greenecountycommonwealth.com
+Path: /content/announcements
+
+URL: https://www.greenecountycommonwealth.com/content/farm-services-0
+Source: Greene County Commonwealth
+Domain: www.greenecountycommonwealth.com
+Path: /content/farm-services-0
+
+URL: https://www.greenecountycommonwealth.com/content/garageyard-sales-0
+Source: Greene County Commonwealth
+Domain: www.greenecountycommonwealth.com
+Path: /content/garageyard-sales-0
+
+URL: https://www.greenecountycommonwealth.com/content/card-thanks
+Source: Greene County Commonwealth
+Domain: www.greenecountycommonwealth.com
+Path: /content/card-thanks
+
+URL: https://www.greenecountycommonwealth.com/content/1286-annx-25-002
+Source: Greene County Commonwealth
+Domain: www.greenecountycommonwealth.com
+Path: /content/1286-annx-25-002
+
+URL: https://www.griffonnews.com/news/local
+Source: Griffon News
+Domain: www.griffonnews.com
+Path: /news/local
+
+URL: https://www.griffonnews.com/news/campus/
+Source: Griffon News
+Domain: www.griffonnews.com
+Path: /news/campus/
+
+URL: https://www.hannibal.net/news/local
+Source: Hannibal Courier-Post
+Domain: www.hannibal.net
+Path: /news/local
+
+URL: https://www.hannibal.net/news/national
+Source: Hannibal Courier-Post
+Domain: www.hannibal.net
+Path: /news/national
+
+URL: https://www.hannibal.net/news/world
+Source: Hannibal Courier-Post
+Domain: www.hannibal.net
+Path: /news/world
+
+URL: https://www.howellcountynews.com/node/30488/results
+Source: Howell County News
+Domain: www.howellcountynews.com
+Path: /node/30488/results
+
+URL: https://www.theijnews.com/editions/320/view
+Source: Independent-Journal
+Domain: www.theijnews.com
+Path: /editions/320/view
+
+URL: https://www.newstribune.com/news/jefferson-city/
+Source: Jefferson City News Tribune/News Tribune
+Domain: www.newstribune.com
+Path: /news/jefferson-city/
+
+URL: https://www.newstribune.com/news/sports/
+Source: Jefferson City News Tribune/News Tribune
+Domain: www.newstribune.com
+Path: /news/sports/
+
+URL: https://www.kctv5.com/news/world-cup-to-kc
+Source: KCTV5
+Domain: www.kctv5.com
+Path: /news/world-cup-to-kc
+
+URL: https://www.kctv5.com/news/investigate
+Source: KCTV5
+Domain: www.kctv5.com
+Path: /news/investigate
+
+URL: https://www.kctv5.com/news/special-reports
+Source: KCTV5
+Domain: www.kctv5.com
+Path: /news/special-reports
+
+URL: https://www.kctv5.com/news/crime
+Source: KCTV5
+Domain: www.kctv5.com
+Path: /news/crime
+
+URL: https://www.kctv5.com/news/fact-check
+Source: KCTV5
+Domain: www.kctv5.com
+Path: /news/fact-check
+
+URL: https://www.kctv5.com/news/national
+Source: KCTV5
+Domain: www.kctv5.com
+Path: /news/national
+
+URL: https://www.kctv5.com/news/elections
+Source: KCTV5
+Domain: www.kctv5.com
+Path: /news/elections
+
+URL: https://www.kctv5.com/news/entertainment
+Source: KCTV5
+Domain: www.kctv5.com
+Path: /news/entertainment
+
+URL: https://www.kctv5.com/news/stadium-development
+Source: KCTV5
+Domain: www.kctv5.com
+Path: /news/stadium-development
+
+URL: https://www.kfvs12.com/news/full-throttle-thursday
+Source: KFVS 12
+Domain: www.kfvs12.com
+Path: /news/full-throttle-thursday
+
+URL: https://www.kfvs12.com/news/education/back-to-school
+Source: KFVS 12
+Domain: www.kfvs12.com
+Path: /news/education/back-to-school
+
+URL: https://www.kfvs12.com/news/digital-desk
+Source: KFVS 12
+Domain: www.kfvs12.com
+Path: /news/digital-desk
+
+URL: https://www.kfvs12.com/news/state/missouri
+Source: KFVS 12
+Domain: www.kfvs12.com
+Path: /news/state/missouri
+
+URL: https://www.kfvs12.com/news/state/illinois
+Source: KFVS 12
+Domain: www.kfvs12.com
+Path: /news/state/illinois
+
+URL: https://www.kfvs12.com/news/state/kentucky-tennessee
+Source: KFVS 12
+Domain: www.kfvs12.com
+Path: /news/state/kentucky-tennessee
+
+URL: https://www.417mag.com/newsletters/
+Source: 417 Magazine
+Domain: www.417mag.com
+Path: /newsletters/
+
+URL: https://www.bentoncountyenterprise.com/news/
+Source: Benton County Enterprise
+Domain: www.bentoncountyenterprise.com
+Path: /news/
+
+URL: https://www.bentoncountyenterprise.com/stories/nbsp,132124
+Source: Benton County Enterprise
+Domain: www.bentoncountyenterprise.com
+Path: /stories/nbsp,132124
+
+URL: https://www.bentoncountyenterprise.com/stories/chamber,104027
+Source: Benton County Enterprise
+Domain: www.bentoncountyenterprise.com
+Path: /stories/chamber,104027
+
+URL: https://bolivarmonews.com/newsletter-signup/index.html
+Source: Bolivar Herald Free Press
+Domain: bolivarmonews.com
+Path: /newsletter-signup/index.html
+
+URL: https://bolivarmonews.com/news/
+Source: Bolivar Herald Free Press
+Domain: bolivarmonews.com
+Path: /news/
+
+URL: https://bolivarmonews.com/calendar/post/
+Source: Bolivar Herald Free Press
+Domain: bolivarmonews.com
+Path: /calendar/post/
+
+URL: https://bolivarmonews.com/newsletter-signup/
+Source: Bolivar Herald Free Press
+Domain: bolivarmonews.com
+Path: /newsletter-signup/
+
+URL: https://bolivarmonews.com/stories/deaths,135814
+Source: Bolivar Herald Free Press
+Domain: bolivarmonews.com
+Path: /stories/deaths,135814
+
+URL: https://bolivarmonews.com/stories/index,135813
+Source: Bolivar Herald Free Press
+Domain: bolivarmonews.com
+Path: /stories/index,135813
+
+URL: https://bocojo.com/category/news/
+Source: Boone County Journal
+Domain: bocojo.com
+Path: /category/news/
+
+URL: https://bocojo.com/category/news/police-fire/
+Source: Boone County Journal
+Domain: bocojo.com
+Path: /category/news/police-fire/
+
+URL: https://www.bransontrilakesnews.com/news
+Source: Branson Tri-Lakes News
+Domain: www.bransontrilakesnews.com
+Path: /news
+
+URL: https://buffaloreflex.com/newsletter-signup/index.html
+Source: Buffalo Reflex
+Domain: buffaloreflex.com
+Path: /newsletter-signup/index.html
+
+URL: https://buffaloreflex.com/news/
+Source: Buffalo Reflex
+Domain: buffaloreflex.com
+Path: /news/
+
+URL: https://buffaloreflex.com/newsletter-signup/
+Source: Buffalo Reflex
+Domain: buffaloreflex.com
+Path: /newsletter-signup/
+
+URL: https://www.californiademocrat.com/news/education/
+Source: California Democrat
+Domain: www.californiademocrat.com
+Path: /news/education/
+
+URL: https://carthagenewsonline.com/wp-content/uploads/2021/04/Carthage-News-Facebook-profile-photo-300x300.png
+Source: Carthage Press
+Domain: carthagenewsonline.com
+Path: /wp-content/uploads/2021/04/Carthage-News-Facebook-profile-photo-300x300.png
+
+URL: https://carthagenewsonline.com/wp-content/themes/Newspaper/style.css?ver=12.7.1
+Source: Carthage Press
+Domain: carthagenewsonline.com
+Path: /wp-content/themes/Newspaper/style.css
+
+URL: https://carthagenewsonline.com/wp-content/plugins/td-composer/legacy/Newspaper/assets/css/td_legacy_main.css?ver=492e3cf54bd42df3b24a3de8e2307cafx
+Source: Carthage Press
+Domain: carthagenewsonline.com
+Path: /wp-content/plugins/td-composer/legacy/Newspaper/assets/css/td_legacy_main.css
+
+URL: https://carthagenewsonline.com/wp-content/plugins/td-standard-pack/Newspaper/assets/css/td_standard_pack_main.css?ver=8ae1459a1d876d507918f73cef68310e
+Source: Carthage Press
+Domain: carthagenewsonline.com
+Path: /wp-content/plugins/td-standard-pack/Newspaper/assets/css/td_standard_pack_main.css
+
+URL: https://carthagenewsonline.com/wp-content/plugins/td-composer/legacy/Newspaper/includes/demos/local_news/demo_style.css?ver=12.7.1
+Source: Carthage Press
+Domain: carthagenewsonline.com
+Path: /wp-content/plugins/td-composer/legacy/Newspaper/includes/demos/local_news/demo_style.css
+
+URL: https://carthagenewsonline.com/wp-content/uploads/2021/04/Carthage-News-Facebook-profile-photo-80x80.png
+Source: Carthage Press
+Domain: carthagenewsonline.com
+Path: /wp-content/uploads/2021/04/Carthage-News-Facebook-profile-photo-80x80.png
+
+URL: https://carthagenewsonline.com/wp-content/uploads/2021/04/Carthage-News-Facebook-profile-photo-200x200.png
+Source: Carthage Press
+Domain: carthagenewsonline.com
+Path: /wp-content/uploads/2021/04/Carthage-News-Facebook-profile-photo-200x200.png
+
+URL: https://carthagenewsonline.com/category/news/
+Source: Carthage Press
+Domain: carthagenewsonline.com
+Path: /category/news/
+
+URL: https://carthagenewsonline.com/category/news/business/
+Source: Carthage Press
+Domain: carthagenewsonline.com
+Path: /category/news/business/
+
+URL: https://carthagenewsonline.com/category/news/education/
+Source: Carthage Press
+Domain: carthagenewsonline.com
+Path: /category/news/education/
+
+URL: https://carthagenewsonline.com/category/news/entertainment/
+Source: Carthage Press
+Domain: carthagenewsonline.com
+Path: /category/news/entertainment/
+
+URL: https://carthagenewsonline.com/category/news/health/
+Source: Carthage Press
+Domain: carthagenewsonline.com
+Path: /category/news/health/
+
+URL: https://carthagenewsonline.com/category/news/lifestyle/
+Source: Carthage Press
+Domain: carthagenewsonline.com
+Path: /category/news/lifestyle/
+
+URL: https://carthagenewsonline.com/category/news/lifestyle/meeting-notes/
+Source: Carthage Press
+Domain: carthagenewsonline.com
+Path: /category/news/lifestyle/meeting-notes/
+
+URL: https://carthagenewsonline.com/category/news/police-fire-ems/
+Source: Carthage Press
+Domain: carthagenewsonline.com
+Path: /category/news/police-fire-ems/
+
+URL: https://carthagenewsonline.com/category/news/politics/
+Source: Carthage Press
+Domain: carthagenewsonline.com
+Path: /category/news/politics/
+
+URL: https://carthagenewsonline.com/category/news/state/
+Source: Carthage Press
+Domain: carthagenewsonline.com
+Path: /category/news/state/
+
+URL: https://carthagenewsonline.com/events/month/2025-08/?shortcode=tribe-widget-events-month-4
+Source: Carthage Press
+Domain: carthagenewsonline.com
+Path: /events/month/2025-08/
+
+URL: https://carthagenewsonline.com/events/month/2025-10/?shortcode=tribe-widget-events-month-4
+Source: Carthage Press
+Domain: carthagenewsonline.com
+Path: /events/month/2025-10/
+
+URL: https://carthagenewsonline.com/events/2025-09-11/?shortcode=tribe-widget-events-month-4
+Source: Carthage Press
+Domain: carthagenewsonline.com
+Path: /events/2025-09-11/
+
+URL: https://www.northcassherald.com/news
+Source: Cass County News/The North Cass Herald
+Domain: www.northcassherald.com
+Path: /news
+
+URL: https://ccheadliner.com/newsletter-signup/index.html
+Source: Christian County Headliner
+Domain: ccheadliner.com
+Path: /newsletter-signup/index.html
+
+URL: https://ccheadliner.com/news/
+Source: Christian County Headliner
+Domain: ccheadliner.com
+Path: /news/
+
+URL: https://ccheadliner.com/newsletter-signup/
+Source: Christian County Headliner
+Domain: ccheadliner.com
+Path: /newsletter-signup/
+
+URL: https://ccheadliner.com/stories/serendipity,108290
+Source: Christian County Headliner
+Domain: ccheadliner.com
+Path: /stories/serendipity,108290
+
+URL: https://ccheadliner.com/stories/jays,108214
+Source: Christian County Headliner
+Domain: ccheadliner.com
+Path: /stories/jays,108214
+
+URL: https://www.clintondailydemocrat.com/news/
+Source: Clinton Daily Democrat
+Domain: www.clintondailydemocrat.com
+Path: /news/
+
+URL: https://www.clintondailydemocrat.com/stories/kustom,122326
+Source: Clinton Daily Democrat
+Domain: www.clintondailydemocrat.com
+Path: /stories/kustom,122326
+
+URL: https://www.clintondailydemocrat.com/stories/hawthorn,94409
+Source: Clinton Daily Democrat
+Domain: www.clintondailydemocrat.com
+Path: /stories/hawthorn,94409
+
+URL: https://www.clintondailydemocrat.com/stories/tsf,52591
+Source: Clinton Daily Democrat
+Domain: www.clintondailydemocrat.com
+Path: /stories/tsf,52591
+
+URL: https://www.clintondailydemocrat.com/stories/nbsp,4891
+Source: Clinton Daily Democrat
+Domain: www.clintondailydemocrat.com
+Path: /stories/nbsp,4891
+
+URL: https://www.columbiamissourian.com/newsletters
+Source: Columbia Missourian
+Domain: www.columbiamissourian.com
+Path: /newsletters
+
+URL: https://www.columbiamissourian.com/news/
+Source: Columbia Missourian
+Domain: www.columbiamissourian.com
+Path: /news/
+
+URL: https://www.columbiamissourian.com/news/covid19
+Source: Columbia Missourian
+Domain: www.columbiamissourian.com
+Path: /news/covid19
+
+URL: https://www.columbiamissourian.com/news/elections
+Source: Columbia Missourian
+Domain: www.columbiamissourian.com
+Path: /news/elections
+
+URL: https://www.columbiamissourian.com/news/local
+Source: Columbia Missourian
+Domain: www.columbiamissourian.com
+Path: /news/local
+
+URL: https://www.columbiamissourian.com/news/higher_education/
+Source: Columbia Missourian
+Domain: www.columbiamissourian.com
+Path: /news/higher_education/
+
+URL: https://www.columbiamissourian.com/news/k12_education/
+Source: Columbia Missourian
+Domain: www.columbiamissourian.com
+Path: /news/k12_education/
+
+URL: https://www.columbiamissourian.com/news/nation_world
+Source: Columbia Missourian
+Domain: www.columbiamissourian.com
+Path: /news/nation_world
+
+URL: https://www.columbiamissourian.com/news/missouri_business/
+Source: Columbia Missourian
+Domain: www.columbiamissourian.com
+Path: /news/missouri_business/
+
+URL: https://www.columbiamissourian.com/news/k12_education
+Source: Columbia Missourian
+Domain: www.columbiamissourian.com
+Path: /news/k12_education
+
+URL: https://www.columbiamissourian.com/news/higher_education
+Source: Columbia Missourian
+Domain: www.columbiamissourian.com
+Path: /news/higher_education
+
+URL: https://www.columbiamissourian.com/news/state_news
+Source: Columbia Missourian
+Domain: www.columbiamissourian.com
+Path: /news/state_news
+
+URL: https://www.chillicothenews.com/wp-content/uploads/sites/94/2022/10/cropped-cropped-cherryroad_logo_compact-150x150.png
+Source: Constitution-Tribune
+Domain: www.chillicothenews.com
+Path: /wp-content/uploads/sites/94/2022/10/cropped-cropped-cherryroad_logo_compact-150x150.png
+
+URL: https://www.chillicothenews.com/wp-content/uploads/sites/94/2022/10/cropped-cropped-cherryroad_logo_compact-300x300.png
+Source: Constitution-Tribune
+Domain: www.chillicothenews.com
+Path: /wp-content/uploads/sites/94/2022/10/cropped-cropped-cherryroad_logo_compact-300x300.png
+
+URL: https://www.chillicothenews.com/category/news/
+Source: Constitution-Tribune
+Domain: www.chillicothenews.com
+Path: /category/news/
+
+URL: https://www.chillicothenews.com/category/news
+Source: Constitution-Tribune
+Domain: www.chillicothenews.com
+Path: /category/news
+
+URL: https://dailyjournalonline.com/wp-content/themes/bb-theme-child/news01.css
+Source: Daily Journal, Park Hills
+Domain: dailyjournalonline.com
+Path: /wp-content/themes/bb-theme-child/news01.css
+
+URL: https://dailyjournalonline.com/wp-content/uploads/2023/07/favicon-16x16-1.png
+Source: Daily Journal, Park Hills
+Domain: dailyjournalonline.com
+Path: /wp-content/uploads/2023/07/favicon-16x16-1.png
+
+URL: https://dailyjournalonline.com/category/news-story-archives/
+Source: Daily Journal, Park Hills
+Domain: dailyjournalonline.com
+Path: /category/news-story-archives/
+
+URL: https://dosmundos.com/wp-content/uploads/elementor/css/post-109198.css?ver=1758255215
+Source: Dos Mundos Bilingual Newspaper
+Domain: dosmundos.com
+Path: /wp-content/uploads/elementor/css/post-109198.css
+
+URL: https://dosmundos.com/wp-content/uploads/elementor/css/post-106734.css?ver=1758255216
+Source: Dos Mundos Bilingual Newspaper
+Domain: dosmundos.com
+Path: /wp-content/uploads/elementor/css/post-106734.css
+
+URL: https://dosmundos.com/wp-content/uploads/elementor/css/post-106801.css?ver=1758255216
+Source: Dos Mundos Bilingual Newspaper
+Domain: dosmundos.com
+Path: /wp-content/uploads/elementor/css/post-106801.css
+
+URL: https://dosmundos.com/wp-content/uploads/elementor/css/post-106804.css?ver=1758255216
+Source: Dos Mundos Bilingual Newspaper
+Domain: dosmundos.com
+Path: /wp-content/uploads/elementor/css/post-106804.css
+
+URL: https://dosmundos.com/wp-content/uploads/elementor/css/post-109364.css?ver=1758255216
+Source: Dos Mundos Bilingual Newspaper
+Domain: dosmundos.com
+Path: /wp-content/uploads/elementor/css/post-109364.css
+
+URL: https://dosmundos.com/wp-content/uploads/2020/04/NewWebIcon57x571.png
+Source: Dos Mundos Bilingual Newspaper
+Domain: dosmundos.com
+Path: /wp-content/uploads/2020/04/NewWebIcon57x571.png
+
+URL: https://dosmundos.com/2021-issues/
+Source: Dos Mundos Bilingual Newspaper
+Domain: dosmundos.com
+Path: /2021-issues/
+
+URL: https://dosmundos.com/2019-issues/
+Source: Dos Mundos Bilingual Newspaper
+Domain: dosmundos.com
+Path: /2019-issues/
+
+URL: https://dosmundos.com/2018-issues/
+Source: Dos Mundos Bilingual Newspaper
+Domain: dosmundos.com
+Path: /2018-issues/
+
+URL: https://dosmundos.com/2017-issues/
+Source: Dos Mundos Bilingual Newspaper
+Domain: dosmundos.com
+Path: /2017-issues/
+
+URL: https://dosmundos.com/2016-issues/
+Source: Dos Mundos Bilingual Newspaper
+Domain: dosmundos.com
+Path: /2016-issues/
+
+URL: https://dosmundos.com/2015-issues/
+Source: Dos Mundos Bilingual Newspaper
+Domain: dosmundos.com
+Path: /2015-issues/
+
+URL: https://eldoradospringsmo.com/category/news/
+Source: El Dorado Springs Sun
+Domain: eldoradospringsmo.com
+Path: /category/news/
+
+URL: https://www.gladstonedispatch.com/wp-content/uploads/sites/152/2022/10/cropped-cropped-cherryroad_logo_compact-150x150.png
+Source: Gladstone Dispatch
+Domain: www.gladstonedispatch.com
+Path: /wp-content/uploads/sites/152/2022/10/cropped-cropped-cherryroad_logo_compact-150x150.png
+
+URL: https://www.gladstonedispatch.com/wp-content/uploads/sites/152/2022/10/cropped-cropped-cherryroad_logo_compact-300x300.png
+Source: Gladstone Dispatch
+Domain: www.gladstonedispatch.com
+Path: /wp-content/uploads/sites/152/2022/10/cropped-cropped-cherryroad_logo_compact-300x300.png
+
+URL: https://www.gladstonedispatch.com/category/news/
+Source: Gladstone Dispatch
+Domain: www.gladstonedispatch.com
+Path: /category/news/
+
+URL: https://www.greenecountycommonwealth.com/content/newsstand-locations
+Source: Greene County Commonwealth
+Domain: www.greenecountycommonwealth.com
+Path: /content/newsstand-locations
+
+URL: https://www.griffonnews.com/news
+Source: Griffon News
+Domain: www.griffonnews.com
+Path: /news
+
+URL: https://www.griffonnews.com/news/
+Source: Griffon News
+Domain: www.griffonnews.com
+Path: /news/
+
+URL: https://www.hannibal.net/news
+Source: Hannibal Courier-Post
+Domain: www.hannibal.net
+Path: /news
+
+URL: https://www.hannibal.net/newsletter/
+Source: Hannibal Courier-Post
+Domain: www.hannibal.net
+Path: /newsletter/
+
+URL: https://www.theijnews.com/articles/3208
+Source: Independent-Journal
+Domain: www.theijnews.com
+Path: /articles/3208
+
+URL: https://www.theijnews.com/articles/3206
+Source: Independent-Journal
+Domain: www.theijnews.com
+Path: /articles/3206
+
+URL: https://www.theijnews.com/articles/3205
+Source: Independent-Journal
+Domain: www.theijnews.com
+Path: /articles/3205
+
+URL: https://www.theijnews.com/articles/3204
+Source: Independent-Journal
+Domain: www.theijnews.com
+Path: /articles/3204
+
+URL: https://www.theijnews.com/articles/3203
+Source: Independent-Journal
+Domain: www.theijnews.com
+Path: /articles/3203
+
+URL: https://www.theijnews.com/articles/3202
+Source: Independent-Journal
+Domain: www.theijnews.com
+Path: /articles/3202
+
+URL: https://www.theijnews.com/articles/3201
+Source: Independent-Journal
+Domain: www.theijnews.com
+Path: /articles/3201
+
+URL: https://www.theijnews.com/articles/3200
+Source: Independent-Journal
+Domain: www.theijnews.com
+Path: /articles/3200
+
+URL: https://www.theijnews.com/articles/3199
+Source: Independent-Journal
+Domain: www.theijnews.com
+Path: /articles/3199
+
+URL: https://www.theijnews.com/articles/3198
+Source: Independent-Journal
+Domain: www.theijnews.com
+Path: /articles/3198
+
+URL: https://www.theijnews.com/articles/3197
+Source: Independent-Journal
+Domain: www.theijnews.com
+Path: /articles/3197
+
+URL: https://www.theijnews.com/articles/3196
+Source: Independent-Journal
+Domain: www.theijnews.com
+Path: /articles/3196
+
+URL: https://www.theijnews.com/articles/3195
+Source: Independent-Journal
+Domain: www.theijnews.com
+Path: /articles/3195
+
+URL: https://www.theijnews.com/articles/3194
+Source: Independent-Journal
+Domain: www.theijnews.com
+Path: /articles/3194
+
+URL: https://www.newstribune.com/news/opinion/
+Source: Jefferson City News Tribune/News Tribune
+Domain: www.newstribune.com
+Path: /news/opinion/
+
+URL: https://www.kbia.org/Newsletter
+Source: KBIA
+Domain: www.kbia.org
+Path: /Newsletter
+
+URL: https://www.949kcmo.com/\/\/x.com\/intent\/post?url=POST_URL&text=POST_TITLE
+Source: KCMO
+Domain: www.949kcmo.com
+Path: /\/\/x.com\/intent\/post
+
+URL: https://www.kctv5.com/news
+Source: KCTV5
+Domain: www.kctv5.com
+Path: /news
+
+URL: https://www.kctv5.com/news/education
+Source: KCTV5
+Domain: www.kctv5.com
+Path: /news/education
+
+URL: https://www.kctv5.com/news/investigate/diluted
+Source: KCTV5
+Domain: www.kctv5.com
+Path: /news/investigate/diluted
+
+URL: https://www.kctv5.com/news/investigate/tax-assessment-trouble
+Source: KCTV5
+Domain: www.kctv5.com
+Path: /news/investigate/tax-assessment-trouble
+
+URL: https://www.kctv5.com/news/investigate/roger-golubski
+Source: KCTV5
+Domain: www.kctv5.com
+Path: /news/investigate/roger-golubski
+
+URL: https://www.kctv5.com/news/investigate/medical
+Source: KCTV5
+Domain: www.kctv5.com
+Path: /news/investigate/medical
+
+URL: https://www.kctv5.com/news/investigate/consumer
+Source: KCTV5
+Domain: www.kctv5.com
+Path: /news/investigate/consumer
+
+URL: https://www.kctv5.com/news/your-money
+Source: KCTV5
+Domain: www.kctv5.com
+Path: /news/your-money
+
+URL: https://www.kfvs12.com/news
+Source: KFVS 12
+Domain: www.kfvs12.com
+Path: /news
+
+URL: https://www.kfvs12.com/news/national
+Source: KFVS 12
+Domain: www.kfvs12.com
+Path: /news/national
+
+URL: https://www.kfvs12.com/news/crime
+Source: KFVS 12
+Domain: www.kfvs12.com
+Path: /news/crime
+
+URL: https://www.kfvs12.com/page/news-team
+Source: KFVS 12
+Domain: www.kfvs12.com
+Path: /page/news-team
+
+URL: https://www.kfvs12.com/newsletter
+Source: KFVS 12
+Domain: www.kfvs12.com
+Path: /newsletter
+
+URL: https://www.kmbc.com/news-we-love
+Source: KMBC News 9
+Domain: www.kmbc.com
+Path: /news-we-love
+
+URL: https://www.kmbc.com/news-team
+Source: KMBC News 9
+Domain: www.kmbc.com
+Path: /news-team
+
+URL: https://bocojo.com/opinion/jesus-set-the-example-of-humility/?utm_source=rss&
+Source: Boone County Journal
+Domain: bocojo.com
+Path: /opinion/jesus-set-the-example-of-humility/
+
+URL: https://bocojo.com/opinion/around-town-july-30th-2025/?utm_source=rss&
+Source: Boone County Journal
+Domain: bocojo.com
+Path: /opinion/around-town-july-30th-2025/
+
+URL: https://bocojo.com/opinion/14890/?utm_source=rss&
+Source: Boone County Journal
+Domain: bocojo.com
+Path: /opinion/14890/
+
+URL: https://bocojo.com/opinion/14890/feed/
+Source: Boone County Journal
+Domain: bocojo.com
+Path: /opinion/14890/feed/
+
+URL: https://www.mycouriertribune.com/lisa-shoemaker/
+Source: Courier Tribune
+Domain: www.mycouriertribune.com
+Path: /lisa-shoemaker/
+
+URL: https://www.darnews.com/sections/news
+Source: Daily American Republic
+Domain: www.darnews.com
+Path: /sections/news
+
+URL: https://www.dddnews.com/sections/news
+Source: Delta Dunklin Democrat
+Domain: www.dddnews.com
+Path: /sections/news
+
+URL: https://www.dddnews.com/sections/posterboard-ads
+Source: Delta Dunklin Democrat
+Domain: www.dddnews.com
+Path: /sections/posterboard-ads
+
+URL: https://www.douglascountyherald.com/wp-content/themes/bb-theme-child/news01.css
+Source: Douglas County Herald
+Domain: www.douglascountyherald.com
+Path: /wp-content/themes/bb-theme-child/news01.css
+
+URL: https://www.douglascountyherald.com/wp-content/uploads/2021/03/favicon-16x16-1.png
+Source: Douglas County Herald
+Domain: www.douglascountyherald.com
+Path: /wp-content/uploads/2021/03/favicon-16x16-1.png
+
+URL: https://www.emissourian.com/news/
+Source: Emissourian
+Domain: www.emissourian.com
+Path: /news/
+
+URL: http://www.excelsiorspringsstandard.com/node/8667
+Source: Excelsior Springs Standard
+Domain: www.excelsiorspringsstandard.com
+Path: /node/8667
+
+URL: https://www.excelsiorspringsstandard.com/themes/newsplus/css/messages.css?t2oy6g
+Source: Excelsior Springs Standard
+Domain: www.excelsiorspringsstandard.com
+Path: /themes/newsplus/css/messages.css
+
+URL: https://www.excelsiorspringsstandard.com/themes/newsplus/css/theme/color-solid-blue.css?t2oy6g
+Source: Excelsior Springs Standard
+Domain: www.excelsiorspringsstandard.com
+Path: /themes/newsplus/css/theme/color-solid-blue.css
+
+URL: https://www.excelsiorspringsstandard.com/news
+Source: Excelsior Springs Standard
+Domain: www.excelsiorspringsstandard.com
+Path: /news
+
+URL: https://www.excelsiorspringsstandard.com/“/news&quot
+Source: Excelsior Springs Standard
+Domain: www.excelsiorspringsstandard.com
+Path: /“/news&quot
+
+URL: https://www.greenecountycommonwealth.com/node/17661/results
+Source: Greene County Commonwealth
+Domain: www.greenecountycommonwealth.com
+Path: /node/17661/results
+
+URL: https://www.newstribune.com/news/features/
+Source: Jefferson City News Tribune/News Tribune
+Domain: www.newstribune.com
+Path: /news/features/
+
+URL: https://www.kbia.org/people/the-associated-press-169
+Source: KBIA
+Domain: www.kbia.org
+Path: /people/the-associated-press-169
+
+URL: http://test-discovery-fix.example.com/test-article-123
+Source: Test Source
+Domain: test-discovery-fix.example.com
+Path: /test-article-123
+
+URL: https://www.kmov.com/news/drone4
+Source: KMOV CBS
+Domain: www.kmov.com
+Path: /news/drone4
+
+URL: https://www.kmov.com/news
+Source: KMOV CBS
+Domain: www.kmov.com
+Path: /news
+
+URL: https://www.kmov.com/news/investigation
+Source: KMOV CBS
+Domain: www.kmov.com
+Path: /news/investigation
+
+URL: https://www.kmov.com/news/local
+Source: KMOV CBS
+Domain: www.kmov.com
+Path: /news/local
+
+URL: https://www.kmov.com/news/crime
+Source: KMOV CBS
+Domain: www.kmov.com
+Path: /news/crime
+
+URL: https://www.kmov.com/news/fat-bear-week
+Source: KMOV CBS
+Domain: www.kmov.com
+Path: /news/fat-bear-week
+
+URL: https://www.kmov.com/news/st-louis-storms
+Source: KMOV CBS
+Domain: www.kmov.com
+Path: /news/st-louis-storms
+
+URL: https://www.kmov.com/news/backstory-stl
+Source: KMOV CBS
+Domain: www.kmov.com
+Path: /news/backstory-stl
+
+URL: https://www.kmov.com/news/black-history
+Source: KMOV CBS
+Domain: www.kmov.com
+Path: /news/black-history
+
+URL: https://www.kmov.com/news/education/back-to-school/ 
+Source: KMOV CBS
+Domain: www.kmov.com
+Path: /news/education/back-to-school/ 
+
+URL: https://www.kmov.com/news/environment
+Source: KMOV CBS
+Domain: www.kmov.com
+Path: /news/environment
+
+URL: https://www.kmov.com/news/national
+Source: KMOV CBS
+Domain: www.kmov.com
+Path: /news/national
+
+URL: https://www.kmov.com/photo-gallery/news/slideshows
+Source: KMOV CBS
+Domain: www.kmov.com
+Path: /photo-gallery/news/slideshows
+
+URL: https://www.kmov.com/newsletter
+Source: KMOV CBS
+Domain: www.kmov.com
+Path: /newsletter
+
+URL: https://www.kmov.com/newsletter/ 
+Source: KMOV CBS
+Domain: www.kmov.com
+Path: /newsletter/ 
+
+URL: https://www.koamnewsnow.com/news/
+Source: KOAM
+Domain: www.koamnewsnow.com
+Path: /news/
+
+URL: https://www.koamnewsnow.com/news/joplin-news-first/
+Source: KOAM
+Domain: www.koamnewsnow.com
+Path: /news/joplin-news-first/
+
+URL: https://www.koamnewsnow.com/news/politics/
+Source: KOAM
+Domain: www.koamnewsnow.com
+Path: /news/politics/
+
+URL: https://www.koamnewsnow.com/news/elections/
+Source: KOAM
+Domain: www.koamnewsnow.com
+Path: /news/elections/
+
+URL: https://www.koamnewsnow.com/news/money/
+Source: KOAM
+Domain: www.koamnewsnow.com
+Path: /news/money/
+
+URL: https://www.koamnewsnow.com/news/health/
+Source: KOAM
+Domain: www.koamnewsnow.com
+Path: /news/health/
+
+URL: https://www.koamnewsnow.com/news/health/medically-speaking/
+Source: KOAM
+Domain: www.koamnewsnow.com
+Path: /news/health/medically-speaking/
+
+URL: https://www.koamnewsnow.com/news/education/
+Source: KOAM
+Domain: www.koamnewsnow.com
+Path: /news/education/
+
+URL: https://www.koamnewsnow.com/news/top-stories/
+Source: KOAM
+Domain: www.koamnewsnow.com
+Path: /news/top-stories/
+
+URL: https://www.ozarksfirst.com/news/storm-debris-cleanup-ozarks/
+Source: KOLR
+Domain: www.ozarksfirst.com
+Path: /news/storm-debris-cleanup-ozarks/
+
+URL: https://www.929thebeat.com/phone-tap-flushphobia/
+Source: KOSP/The Beat
+Domain: www.929thebeat.com
+Path: /phone-tap-flushphobia/
+
+URL: https://www.929thebeat.com/wp-content/uploads/2025/01/Lorenz_Plumbing_Logo_Tagline_Stacked_Blue-750x576.png
+Source: KOSP/The Beat
+Domain: www.929thebeat.com
+Path: /wp-content/uploads/2025/01/Lorenz_Plumbing_Logo_Tagline_Stacked_Blue-750x576.png
+
+URL: https://www.929thebeat.com/wp-content/uploads/2021/06/cropped-92_9-the-beat-512-32x32.png
+Source: KOSP/The Beat
+Domain: www.929thebeat.com
+Path: /wp-content/uploads/2021/06/cropped-92_9-the-beat-512-32x32.png
+
+URL: https://www.929thebeat.com/wp-content/uploads/2021/06/cropped-92_9-the-beat-512-192x192.png
+Source: KOSP/The Beat
+Domain: www.929thebeat.com
+Path: /wp-content/uploads/2021/06/cropped-92_9-the-beat-512-192x192.png
+
+URL: https://www.929thebeat.com/wp-content/uploads/2021/06/cropped-92_9-the-beat-512-180x180.png
+Source: KOSP/The Beat
+Domain: www.929thebeat.com
+Path: /wp-content/uploads/2021/06/cropped-92_9-the-beat-512-180x180.png
+
+URL: https://www.ky3.com/news
+Source: KQTV
+Domain: www.ky3.com
+Path: /news
+
+URL: https://www.ky3.com/news/on-your-side
+Source: KQTV
+Domain: www.ky3.com
+Path: /news/on-your-side
+
+URL: https://www.ky3.com/news/local
+Source: KQTV
+Domain: www.ky3.com
+Path: /news/local
+
+URL: https://www.ky3.com/news/national
+Source: KQTV
+Domain: www.ky3.com
+Path: /news/national
+
+URL: https://www.ky3.com/news/leighs-lost-and-found/
+Source: KQTV
+Domain: www.ky3.com
+Path: /news/leighs-lost-and-found/
+
+URL: https://www.ky3.com/news/fact-finders
+Source: KQTV
+Domain: www.ky3.com
+Path: /news/fact-finders
+
+URL: https://www.ky3.com/news/crime/catch-a-crook
+Source: KQTV
+Domain: www.ky3.com
+Path: /news/crime/catch-a-crook
+
+URL: https://www.ky3.com/news/ozarks-unsolved
+Source: KQTV
+Domain: www.ky3.com
+Path: /news/ozarks-unsolved
+
+URL: https://www.ky3.com/news/springfield-spotlight
+Source: KQTV
+Domain: www.ky3.com
+Path: /news/springfield-spotlight
+
+URL: https://www.ky3.com/news/queen-of-clean
+Source: KQTV
+Domain: www.ky3.com
+Path: /news/queen-of-clean
+
+URL: https://www.ky3.com/news/leighs-lost-and-found
+Source: KQTV
+Domain: www.ky3.com
+Path: /news/leighs-lost-and-found
+
+URL: https://www.ky3.com/news/ozark-life-archives
+Source: KQTV
+Domain: www.ky3.com
+Path: /news/ozark-life-archives
+
+URL: https://www.ky3.com/news/consumer/try-before-you-buy
+Source: KQTV
+Domain: www.ky3.com
+Path: /news/consumer/try-before-you-buy
+
+URL: https://www.ky3.com/newsletter/
+Source: KQTV
+Domain: www.ky3.com
+Path: /newsletter/
+
+URL: https://www.krcu.org/news
+Source: KRCU
+Domain: www.krcu.org
+Path: /news
+
+URL: https://www.legends1063.fm/news-content/
+Source: KRZK
+Domain: www.legends1063.fm
+Path: /news-content/
+
+URL: https://www.legends1063.fm/news-content/obituaries/
+Source: KRZK
+Domain: www.legends1063.fm
+Path: /news-content/obituaries/
+
+URL: https://www.legends1063.fm/news-content/local-sports/
+Source: KRZK
+Domain: www.legends1063.fm
+Path: /news-content/local-sports/
+
+URL: https://www.ksdk.com/feeds/syndication/rss/news
+Source: KSDK NBC
+Domain: www.ksdk.com
+Path: /feeds/syndication/rss/news
+
+URL: https://www.ksdk.com/news
+Source: KSDK NBC
+Domain: www.ksdk.com
+Path: /news
+
+URL: https://www.ksmu.org/news
+Source: KSMU Ozarks Public Radio
+Domain: www.ksmu.org
+Path: /news
+
+URL: https://www.komu.com/newsletter/
+Source: KSPR/KY3
+Domain: www.komu.com
+Path: /newsletter/
+
+URL: https://www.komu.com/site/newsreleases
+Source: KSPR/KY3
+Domain: www.komu.com
+Path: /site/newsreleases
+
+URL: https://www.komu.com/news
+Source: KSPR/KY3
+Domain: www.komu.com
+Path: /news
+
+URL: https://www.komu.com/news/state
+Source: KSPR/KY3
+Domain: www.komu.com
+Path: /news/state
+
+URL: https://www.komu.com/news/nationworld/
+Source: KSPR/KY3
+Domain: www.komu.com
+Path: /news/nationworld/
+
+URL: https://www.komu.com/news/acloserlook/
+Source: KSPR/KY3
+Domain: www.komu.com
+Path: /news/acloserlook/
+
+URL: https://www.komu.com/news/elections
+Source: KSPR/KY3
+Domain: www.komu.com
+Path: /news/elections
+
+URL: https://www.kxcv.org/news
+Source: KXCV
+Domain: www.kxcv.org
+Path: /news
+
+URL: https://www.kxcv.org/news/npr
+Source: KXCV
+Domain: www.kxcv.org
+Path: /news/npr
+
+URL: https://www.kirksvilledailyexpress.com/newsletter-signup/index.html
+Source: Kirksville Daily Express
+Domain: www.kirksvilledailyexpress.com
+Path: /newsletter-signup/index.html
+
+URL: https://www.kirksvilledailyexpress.com/news/
+Source: Kirksville Daily Express
+Domain: www.kirksvilledailyexpress.com
+Path: /news/
+
+URL: https://www.lakegazette.net/wp-content/uploads/sites/172/2022/10/cropped-cropped-cherryroad_logo_compact-150x150.png
+Source: Lake Gazette
+Domain: www.lakegazette.net
+Path: /wp-content/uploads/sites/172/2022/10/cropped-cropped-cherryroad_logo_compact-150x150.png
+
+URL: https://www.lakegazette.net/wp-content/uploads/sites/172/2022/10/cropped-cropped-cherryroad_logo_compact-300x300.png
+Source: Lake Gazette
+Domain: www.lakegazette.net
+Path: /wp-content/uploads/sites/172/2022/10/cropped-cropped-cherryroad_logo_compact-300x300.png
+
+URL: https://www.lakegazette.net/category/news/
+Source: Lake Gazette
+Domain: www.lakegazette.net
+Path: /category/news/
+
+URL: https://www.lakegazette.net/category/news
+Source: Lake Gazette
+Domain: www.lakegazette.net
+Path: /category/news
+
+URL: https://www.lakenewsonline.com/news/
+Source: Lake Sun Leader/Lake News Online
+Domain: www.lakenewsonline.com
+Path: /news/
+
+URL: https://www.lawrencecountyrecord.com/content/pulling-out-stops
+Source: Lawrence County Record
+Domain: www.lawrencecountyrecord.com
+Path: /content/pulling-out-stops
+
+URL: https://www.lawrencecountyrecord.com/content/spooked
+Source: Lawrence County Record
+Domain: www.lawrencecountyrecord.com
+Path: /content/spooked
+
+URL: https://www.lawrencecountyrecord.com/content/announcements
+Source: Lawrence County Record
+Domain: www.lawrencecountyrecord.com
+Path: /content/announcements
+
+URL: https://www.lawrencecountyrecord.com/content/farm-services-0
+Source: Lawrence County Record
+Domain: www.lawrencecountyrecord.com
+Path: /content/farm-services-0
+
+URL: https://www.lawrencecountyrecord.com/content/garageyard-sales-1
+Source: Lawrence County Record
+Domain: www.lawrencecountyrecord.com
+Path: /content/garageyard-sales-1
+
+URL: https://www.lawrencecountyrecord.com/content/card-thanks
+Source: Lawrence County Record
+Domain: www.lawrencecountyrecord.com
+Path: /content/card-thanks
+
+URL: https://www.lawrencecountyrecord.com/content/16054-trustees-sale
+Source: Lawrence County Record
+Domain: www.lawrencecountyrecord.com
+Path: /content/16054-trustees-sale
+
+URL: https://www.lawrencecountyrecord.com/content/16053-notice-creditors
+Source: Lawrence County Record
+Domain: www.lawrencecountyrecord.com
+Path: /content/16053-notice-creditors
+
+URL: https://www.lawrencecountyrecord.com/content/newsstand-locations
+Source: Lawrence County Record
+Domain: www.lawrencecountyrecord.com
+Path: /content/newsstand-locations
+
+URL: https://www.lawrencecountyrecord.com/node/20831/results
+Source: Lawrence County Record
+Domain: www.lawrencecountyrecord.com
+Path: /node/20831/results
+
+URL: https://www.lawrencecountyrecord.com/content/2024-abmd
+Source: Lawrence County Record
+Domain: www.lawrencecountyrecord.com
+Path: /content/2024-abmd
+
+URL: https://lstribune.net/supper-bible-study-at-longview-chapel/
+Source: Lee's Summit Tribune
+Domain: lstribune.net
+Path: /supper-bible-study-at-longview-chapel/
+
+URL: https://lstribune.net/a-e-boots-mallicoat/
+Source: Lee's Summit Tribune
+Domain: lstribune.net
+Path: /a-e-boots-mallicoat/
+
+URL: https://lstribune.net/wp-content/themes/newsmagz_pro/assets/css/bootstrap.min.css?ver=3.3.5
+Source: Lee's Summit Tribune
+Domain: lstribune.net
+Path: /wp-content/themes/newsmagz_pro/assets/css/bootstrap.min.css
+
+URL: https://lstribune.net/wp-content/themes/newsmagz_pro/style.css?ver=6.8.2
+Source: Lee's Summit Tribune
+Domain: lstribune.net
+Path: /wp-content/themes/newsmagz_pro/style.css
+
+URL: https://lstribune.net/wp-content/themes/newsmagz_pro/assets/css/mobile.css?ver=1.0.0
+Source: Lee's Summit Tribune
+Domain: lstribune.net
+Path: /wp-content/themes/newsmagz_pro/assets/css/mobile.css
+
+URL: https://lstribune.net/wp-content/themes/newsmagz_pro/assets/css/font-awesome.min.css?ver=4.4.0
+Source: Lee's Summit Tribune
+Domain: lstribune.net
+Path: /wp-content/themes/newsmagz_pro/assets/css/font-awesome.min.css
+
+URL: https://lstribune.net/wp-content/uploads/2021/05/United-Healthcare-Nick-Swearngin-banner.jpg
+Source: Lee's Summit Tribune
+Domain: lstribune.net
+Path: /wp-content/uploads/2021/05/United-Healthcare-Nick-Swearngin-banner.jpg
+
+URL: https://www.lincolnnewsnow.com/wp-content/uploads/sites/177/2024/12/cropped-CRMtech-Icon-1-32x32.png
+Source: Lincoln News Now
+Domain: www.lincolnnewsnow.com
+Path: /wp-content/uploads/sites/177/2024/12/cropped-CRMtech-Icon-1-32x32.png
+
+URL: https://www.lincolnnewsnow.com/wp-content/uploads/sites/177/2024/12/cropped-CRMtech-Icon-1-192x192.png
+Source: Lincoln News Now
+Domain: www.lincolnnewsnow.com
+Path: /wp-content/uploads/sites/177/2024/12/cropped-CRMtech-Icon-1-192x192.png
+
+URL: https://www.lincolnnewsnow.com/wp-content/uploads/sites/177/2024/12/cropped-CRMtech-Icon-1-180x180.png
+Source: Lincoln News Now
+Domain: www.lincolnnewsnow.com
+Path: /wp-content/uploads/sites/177/2024/12/cropped-CRMtech-Icon-1-180x180.png
+
+URL: https://www.linncountyleader.com/wp-content/uploads/sites/115/2022/10/cropped-cropped-cherryroad_logo_compact-150x150.png
+Source: Linn County Leader
+Domain: www.linncountyleader.com
+Path: /wp-content/uploads/sites/115/2022/10/cropped-cropped-cherryroad_logo_compact-150x150.png
+
+URL: https://www.linncountyleader.com/wp-content/uploads/sites/115/2022/10/cropped-cropped-cherryroad_logo_compact-300x300.png
+Source: Linn County Leader
+Domain: www.linncountyleader.com
+Path: /wp-content/uploads/sites/115/2022/10/cropped-cropped-cherryroad_logo_compact-300x300.png
+
+URL: https://www.linncountyleader.com/category/news/
+Source: Linn County Leader
+Domain: www.linncountyleader.com
+Path: /category/news/
+
+URL: https://www.linncountyleader.com/category/news
+Source: Linn County Leader
+Domain: www.linncountyleader.com
+Path: /category/news
+
+URL: https://mariescountyadvocate.com/news/
+Source: Maries County Advocate
+Domain: mariescountyadvocate.com
+Path: /news/
+
+URL: https://marshfieldmail.com/newsletter-signup/index.html
+Source: Marshfield Mail
+Domain: marshfieldmail.com
+Path: /newsletter-signup/index.html
+
+URL: https://marshfieldmail.com/news/
+Source: Marshfield Mail
+Domain: marshfieldmail.com
+Path: /news/
+
+URL: https://marshfieldmail.com/newsletter-signup/
+Source: Marshfield Mail
+Domain: marshfieldmail.com
+Path: /newsletter-signup/
+
+URL: https://mdcp.nwaonline.com/home/news/
+Source: McDonald County Press
+Domain: mdcp.nwaonline.com
+Path: /home/news/
+
+URL: https://mdcp.nwaonline.com/news/obits/
+Source: McDonald County Press
+Domain: mdcp.nwaonline.com
+Path: /news/obits/
+
+URL: https://mdcp.nwaonline.com/news/sports/
+Source: McDonald County Press
+Domain: mdcp.nwaonline.com
+Path: /news/sports/
+
+URL: https://mdcp.nwaonline.com/news/editorial/
+Source: McDonald County Press
+Domain: mdcp.nwaonline.com
+Path: /news/editorial/
+
+URL: https://www.memphisdemocrat.com/wp-content/themes/bb-theme-child/news01.css
+Source: Memphis Democrat
+Domain: www.memphisdemocrat.com
+Path: /wp-content/themes/bb-theme-child/news01.css
+
+URL: https://www.memphisdemocrat.com/wp-content/uploads/2021/03/favicon-16x16-1.png
+Source: Memphis Democrat
+Domain: www.memphisdemocrat.com
+Path: /wp-content/uploads/2021/03/favicon-16x16-1.png
+
+URL: https://www.memphisdemocrat.com/category/news/
+Source: Memphis Democrat
+Domain: www.memphisdemocrat.com
+Path: /category/news/
+
+URL: https://metrovoicenews.com/wp-content/uploads/2025/06/cropped-MV-site-icon-32x32.png
+Source: Metro Voice Christian Newspaper
+Domain: metrovoicenews.com
+Path: /wp-content/uploads/2025/06/cropped-MV-site-icon-32x32.png
+
+URL: https://metrovoicenews.com/wp-content/uploads/2025/06/cropped-MV-site-icon-192x192.png
+Source: Metro Voice Christian Newspaper
+Domain: metrovoicenews.com
+Path: /wp-content/uploads/2025/06/cropped-MV-site-icon-192x192.png
+
+URL: https://metrovoicenews.com/wp-content/uploads/2025/06/cropped-MV-site-icon-180x180.png
+Source: Metro Voice Christian Newspaper
+Domain: metrovoicenews.com
+Path: /wp-content/uploads/2025/06/cropped-MV-site-icon-180x180.png
+
+URL: https://metrovoicenews.com/wp-content/uploads/2025/08/orhaolamrosh2025560.png
+Source: Metro Voice Christian Newspaper
+Domain: metrovoicenews.com
+Path: /wp-content/uploads/2025/08/orhaolamrosh2025560.png
+
+URL: https://molawyersmedia.com/files/2025/06/U.S.-Supreme-Court-400x305.jpg
+Source: Missouri Lawyers
+Domain: molawyersmedia.com
+Path: /files/2025/06/U.S.-Supreme-Court-400x305.jpg
+
+URL: http://molawyersmedia.com/files/2013/11/molayers57.jpg
+Source: Missouri Lawyers
+Domain: molawyersmedia.com
+Path: /files/2013/11/molayers57.jpg
+
+URL: http://molawyersmedia.com/files/2013/11/molayers72.jpg
+Source: Missouri Lawyers
+Domain: molawyersmedia.com
+Path: /files/2013/11/molayers72.jpg
+
+URL: http://molawyersmedia.com/files/2013/11/molayers114.jpg
+Source: Missouri Lawyers
+Domain: molawyersmedia.com
+Path: /files/2013/11/molayers114.jpg
+
+URL: http://molawyersmedia.com/files/2013/11/molayers144.jpg
+Source: Missouri Lawyers
+Domain: molawyersmedia.com
+Path: /files/2013/11/molayers144.jpg
+
+URL: https://molawyersmedia.com/wp-content/cache/min/1/wp-content/themes/hello-elementor/css/article-page.css?ver=1756807347
+Source: Missouri Lawyers
+Domain: molawyersmedia.com
+Path: /wp-content/cache/min/1/wp-content/themes/hello-elementor/css/article-page.css
+
+URL: https://molawyersmedia.com/files/elementor/css/post-420223.css?ver=1748506039
+Source: Missouri Lawyers
+Domain: molawyersmedia.com
+Path: /files/elementor/css/post-420223.css
+
+URL: https://molawyersmedia.com/files/elementor/css/post-420234.css?ver=1756851014
+Source: Missouri Lawyers
+Domain: molawyersmedia.com
+Path: /files/elementor/css/post-420234.css
+
+URL: https://molawyersmedia.com/files/2023/06/MOLW_favicon_32x32.png
+Source: Missouri Lawyers
+Domain: molawyersmedia.com
+Path: /files/2023/06/MOLW_favicon_32x32.png
+
+URL: https://molawyersmedia.com/category/news/
+Source: Missouri Lawyers
+Domain: molawyersmedia.com
+Path: /category/news/
+
+URL: https://molawyersmedia.com/news/missouri-lawyers-weekly/money/
+Source: Missouri Lawyers
+Domain: molawyersmedia.com
+Path: /news/missouri-lawyers-weekly/money/
+
+URL: https://www.missourinet.com/category/news-3/
+Source: Missouri Net
+Domain: www.missourinet.com
+Path: /category/news-3/
+
+URL: https://moscout.com/2026-watch
+Source: Missouri Scout
+Domain: moscout.com
+Path: /2026-watch
+
+URL: https://moscout.com/2024-watch
+Source: Missouri Scout
+Domain: moscout.com
+Path: /2024-watch
+
+URL: https://www.moberlymonitor.com/glance-at-the-past-33/
+Source: Moberly Monitor
+Domain: www.moberlymonitor.com
+Path: /glance-at-the-past-33/
+
+URL: https://moberlymonitor.com/category/news
+Source: Moberly Monitor
+Domain: moberlymonitor.com
+Path: /category/news
+
+URL: https://www.mystandardnews.com/news/
+Source: Montgomery Standard
+Domain: www.mystandardnews.com
+Path: /news/
+
+URL: https://www.mystandardnews.com/news-gallery/
+Source: Montgomery Standard
+Domain: www.mystandardnews.com
+Path: /news-gallery/
+
+URL: https://www.mystandardnews.com/news
+Source: Montgomery Standard
+Domain: www.mystandardnews.com
+Path: /news
+
+URL: https://northeastnews.net/pages/wp-content/uploads/elementor/css/post-69736.css?ver=1758350275
+Source: North East News
+Domain: northeastnews.net
+Path: /pages/wp-content/uploads/elementor/css/post-69736.css
+
+URL: https://northeastnews.net/pages/wp-content/themes/newsmash/assets/vendors/css/slick.css?ver=6.8.2
+Source: North East News
+Domain: northeastnews.net
+Path: /pages/wp-content/themes/newsmash/assets/vendors/css/slick.css
+
+URL: https://northeastnews.net/pages/wp-content/themes/newsmash/assets/vendors/css/all.min.css?ver=6.8.2
+Source: North East News
+Domain: northeastnews.net
+Path: /pages/wp-content/themes/newsmash/assets/vendors/css/all.min.css
+
+URL: https://northeastnews.net/pages/wp-content/themes/newsmash/assets/vendors/css/animate.min.css?ver=6.8.2
+Source: North East News
+Domain: northeastnews.net
+Path: /pages/wp-content/themes/newsmash/assets/vendors/css/animate.min.css
+
+URL: https://northeastnews.net/pages/wp-content/themes/newsmash/assets/css/core.css?ver=6.8.2
+Source: North East News
+Domain: northeastnews.net
+Path: /pages/wp-content/themes/newsmash/assets/css/core.css
+
+URL: https://northeastnews.net/pages/wp-content/themes/newsmash/assets/css/themes.css?ver=6.8.2
+Source: North East News
+Domain: northeastnews.net
+Path: /pages/wp-content/themes/newsmash/assets/css/themes.css
+
+URL: https://northeastnews.net/pages/wp-content/themes/newsmash/assets/css/woo-styles.css?ver=6.8.2
+Source: North East News
+Domain: northeastnews.net
+Path: /pages/wp-content/themes/newsmash/assets/css/woo-styles.css
+
+URL: https://northeastnews.net/pages/wp-content/themes/newsmash/assets/css/dark.css?ver=6.8.2
+Source: North East News
+Domain: northeastnews.net
+Path: /pages/wp-content/themes/newsmash/assets/css/dark.css
+
+URL: https://northeastnews.net/pages/wp-content/themes/newsmash/assets/css/responsive.css?ver=6.8.2
+Source: North East News
+Domain: northeastnews.net
+Path: /pages/wp-content/themes/newsmash/assets/css/responsive.css
+
+URL: https://northeastnews.net/pages/wp-content/themes/newsdaily/style.css?ver=6.8.2
+Source: North East News
+Domain: northeastnews.net
+Path: /pages/wp-content/themes/newsdaily/style.css
+
+URL: https://northeastnews.net/pages/wp-content/themes/newsmash/style.css?ver=6.8.2
+Source: North East News
+Domain: northeastnews.net
+Path: /pages/wp-content/themes/newsmash/style.css
+
+URL: https://northeastnews.net/pages/wp-content/uploads/2024/01/cropped-cropped-cropped-cropped-Northeast-banner-paper-32x32.png
+Source: North East News
+Domain: northeastnews.net
+Path: /pages/wp-content/uploads/2024/01/cropped-cropped-cropped-cropped-Northeast-banner-paper-32x32.png
+
+URL: https://northeastnews.net/pages/wp-content/uploads/2024/01/cropped-cropped-cropped-cropped-Northeast-banner-paper-192x192.png
+Source: North East News
+Domain: northeastnews.net
+Path: /pages/wp-content/uploads/2024/01/cropped-cropped-cropped-cropped-Northeast-banner-paper-192x192.png
+
+URL: https://northeastnews.net/pages/wp-content/uploads/2024/01/cropped-cropped-cropped-cropped-Northeast-banner-paper-180x180.png
+Source: North East News
+Domain: northeastnews.net
+Path: /pages/wp-content/uploads/2024/01/cropped-cropped-cropped-cropped-Northeast-banner-paper-180x180.png
+
+URL: https://northeastnews.net/pages/category/news/
+Source: North East News
+Domain: northeastnews.net
+Path: /pages/category/news/
+
+URL: https://northeastnews.net/pages/category/news/espanol/
+Source: North East News
+Domain: northeastnews.net
+Path: /pages/category/news/espanol/
+
+URL: https://northeastnews.net/pages/category/history/postcard/
+Source: North East News
+Domain: northeastnews.net
+Path: /pages/category/history/postcard/
+
+URL: https://northeastnews.net/pages/wp-content/uploads/2024/01/Northeast-logo.png
+Source: North East News
+Domain: northeastnews.net
+Path: /pages/wp-content/uploads/2024/01/Northeast-logo.png
+
+URL: https://northeastnews.net/pages/wp-content/uploads/2024/07/Screen-Shot-2024-07-30-at-11.44.09-AM.png
+Source: North East News
+Domain: northeastnews.net
+Path: /pages/wp-content/uploads/2024/07/Screen-Shot-2024-07-30-at-11.44.09-AM.png
+
+URL: https://www.nwmissourinews.com/news/
+Source: North West Missourian
+Domain: www.nwmissourinews.com
+Path: /news/
+
+URL: https://www.nwmissourinews.com/news/campus/
+Source: North West Missourian
+Domain: www.nwmissourinews.com
+Path: /news/campus/
+
+URL: https://www.nwmissourinews.com/news/community/
+Source: North West Missourian
+Domain: www.nwmissourinews.com
+Path: /news/community/
+
+URL: https://www.nwmissourinews.com/news/police_blotter/
+Source: North West Missourian
+Domain: www.nwmissourinews.com
+Path: /news/police_blotter/
+
+URL: https://www.nwmissourinews.com/news/archives/
+Source: North West Missourian
+Domain: www.nwmissourinews.com
+Path: /news/archives/
+
+URL: https://www.nwmissourinews.com/site/newsletter.html
+Source: North West Missourian
+Domain: www.nwmissourinews.com
+Path: /site/newsletter.html
+
+URL: https://www.ozarkcountytimes.com/newsstand-locations
+Source: Ozark County Times
+Domain: www.ozarkcountytimes.com
+Path: /newsstand-locations
+
+URL: https://www.ozarkcountytimes.com/news
+Source: Ozark County Times
+Domain: www.ozarkcountytimes.com
+Path: /news
+
+URL: https://www.palmyra-spectator.com/wp-content/themes/bb-theme-child/news01.css
+Source: Palmyra Spectator
+Domain: www.palmyra-spectator.com
+Path: /wp-content/themes/bb-theme-child/news01.css
+
+URL: https://www.palmyra-spectator.com/wp-content/uploads/2021/03/favicon-16x16-1.png
+Source: Palmyra Spectator
+Domain: www.palmyra-spectator.com
+Path: /wp-content/uploads/2021/03/favicon-16x16-1.png
+
+URL: https://www.palmyra-spectator.com/category/news/
+Source: Palmyra Spectator
+Domain: www.palmyra-spectator.com
+Path: /category/news/
+
+URL: https://republicmonitor.com/news/
+Source: Perryville Republic Monitor
+Domain: republicmonitor.com
+Path: /news/
+
+URL: https://republicmonitor.com/stories/happenings,15034
+Source: Perryville Republic Monitor
+Domain: republicmonitor.com
+Path: /stories/happenings,15034
+
+URL: https://republicmonitor.com/newsletter-signup/
+Source: Perryville Republic Monitor
+Domain: republicmonitor.com
+Path: /newsletter-signup/
+
+URL: https://www.phelpscountyfocus.com/news/
+Source: Phelps County Focus
+Domain: www.phelpscountyfocus.com
+Path: /news/
+
+URL: https://www.phelpscountyfocus.com/news/local
+Source: Phelps County Focus
+Domain: www.phelpscountyfocus.com
+Path: /news/local
+
+URL: https://www.phelpscountyfocus.com/news/crime_accidents/
+Source: Phelps County Focus
+Domain: www.phelpscountyfocus.com
+Path: /news/crime_accidents/
+
+URL: https://www.phelpscountyfocus.com/news/national
+Source: Phelps County Focus
+Domain: www.phelpscountyfocus.com
+Path: /news/national
+
+URL: https://www.phelpscountyfocus.com/news
+Source: Phelps County Focus
+Domain: www.phelpscountyfocus.com
+Path: /news
+
+URL: https://www.pikecountynews.com/wp-content/uploads/sites/167/2022/10/cropped-cropped-cherryroad_logo_compact-150x150.png
+Source: Pike County News/Bowling Green Times
+Domain: www.pikecountynews.com
+Path: /wp-content/uploads/sites/167/2022/10/cropped-cropped-cherryroad_logo_compact-150x150.png
+
+URL: https://www.pikecountynews.com/wp-content/uploads/sites/167/2022/10/cropped-cropped-cherryroad_logo_compact-300x300.png
+Source: Pike County News/Bowling Green Times
+Domain: www.pikecountynews.com
+Path: /wp-content/uploads/sites/167/2022/10/cropped-cropped-cherryroad_logo_compact-300x300.png
+
+URL: https://www.pikecountynews.com/category/news/
+Source: Pike County News/Bowling Green Times
+Domain: www.pikecountynews.com
+Path: /category/news/
+
+URL: https://www.pikecountynews.com/category/news
+Source: Pike County News/Bowling Green Times
+Domain: www.pikecountynews.com
+Path: /category/news
+
+URL: https://www.redlatinastl.com/noticia/salud/1160
+Source: Radio Red Latina
+Domain: www.redlatinastl.com
+Path: /noticia/salud/1160
+
+URL: https://www.redlatinastl.com/noticia/politica/1843
+Source: Radio Red Latina
+Domain: www.redlatinastl.com
+Path: /noticia/politica/1843
+
+URL: https://www.redlatinastl.com/noticia/missouri/921
+Source: Radio Red Latina
+Domain: www.redlatinastl.com
+Path: /noticia/missouri/921
+
+URL: https://www.redlatinastl.com/noticia/tecnologias/524
+Source: Radio Red Latina
+Domain: www.redlatinastl.com
+Path: /noticia/tecnologias/524
+
+URL: https://www.redlatinastl.com/noticia/inmigracion/1370
+Source: Radio Red Latina
+Domain: www.redlatinastl.com
+Path: /noticia/inmigracion/1370
+
+URL: https://www.redlatinastl.com/noticia/dinero/1097
+Source: Radio Red Latina
+Domain: www.redlatinastl.com
+Path: /noticia/dinero/1097
+
+URL: https://www.redlatinastl.com/noticia/st_louis/11533
+Source: Radio Red Latina
+Domain: www.redlatinastl.com
+Path: /noticia/st_louis/11533
+
+URL: https://www.redlatinastl.com/noticia/astrologia/264
+Source: Radio Red Latina
+Domain: www.redlatinastl.com
+Path: /noticia/astrologia/264
+
+URL: https://www.redlatinastl.com/noticia/entretenimiento/1683
+Source: Radio Red Latina
+Domain: www.redlatinastl.com
+Path: /noticia/entretenimiento/1683
+
+URL: https://www.redlatinastl.com/noticia/missouri/920
+Source: Radio Red Latina
+Domain: www.redlatinastl.com
+Path: /noticia/missouri/920
+
+URL: https://www.redlatinastl.com/noticia/missouri/919
+Source: Radio Red Latina
+Domain: www.redlatinastl.com
+Path: /noticia/missouri/919
+
+URL: https://www.redlatinastl.com/noticia/st_louis/11532
+Source: Radio Red Latina
+Domain: www.redlatinastl.com
+Path: /noticia/st_louis/11532
+
+URL: https://www.redlatinastl.com/noticia/st_louis/11531
+Source: Radio Red Latina
+Domain: www.redlatinastl.com
+Path: /noticia/st_louis/11531
+
+URL: https://www.redlatinastl.com/noticia/st_louis/11530
+Source: Radio Red Latina
+Domain: www.redlatinastl.com
+Path: /noticia/st_louis/11530
+
+URL: https://www.redlatinastl.com/noticia/deportes/1450
+Source: Radio Red Latina
+Domain: www.redlatinastl.com
+Path: /noticia/deportes/1450
+
+URL: https://www.redlatinastl.com/noticia/deportes/1449
+Source: Radio Red Latina
+Domain: www.redlatinastl.com
+Path: /noticia/deportes/1449
+
+URL: https://www.redlatinastl.com/noticia/deportes/1448
+Source: Radio Red Latina
+Domain: www.redlatinastl.com
+Path: /noticia/deportes/1448
+
+URL: https://www.redlatinastl.com/noticia/missouri/918
+Source: Radio Red Latina
+Domain: www.redlatinastl.com
+Path: /noticia/missouri/918
+
+URL: https://www.redlatinastl.com/noticia/unidad_mundial/106
+Source: Radio Red Latina
+Domain: www.redlatinastl.com
+Path: /noticia/unidad_mundial/106
+
+URL: https://www.redlatinastl.com/noticia/unidad_mundial/105
+Source: Radio Red Latina
+Domain: www.redlatinastl.com
+Path: /noticia/unidad_mundial/105
+
+URL: https://www.redlatinastl.com/noticia/unidad_mundial/104
+Source: Radio Red Latina
+Domain: www.redlatinastl.com
+Path: /noticia/unidad_mundial/104
+
+URL: https://www.redlatinastl.com/noticia/unidad_mundial/103
+Source: Radio Red Latina
+Domain: www.redlatinastl.com
+Path: /noticia/unidad_mundial/103
+
+URL: https://www.redlatinastl.com/noticia/inmigracion/1369
+Source: Radio Red Latina
+Domain: www.redlatinastl.com
+Path: /noticia/inmigracion/1369
+
+URL: https://www.redlatinastl.com/noticia/inmigracion/1368
+Source: Radio Red Latina
+Domain: www.redlatinastl.com
+Path: /noticia/inmigracion/1368
+
+URL: https://www.redlatinastl.com/noticia/inmigracion/1367
+Source: Radio Red Latina
+Domain: www.redlatinastl.com
+Path: /noticia/inmigracion/1367
+
+URL: https://www.waynecojournalbanner.com/wp-content/themes/bb-theme-child/news01.css
+Source: Reynolds County Courier/WayNe County Journal Banner
+Domain: www.waynecojournalbanner.com
+Path: /wp-content/themes/bb-theme-child/news01.css
+
+URL: https://www.waynecojournalbanner.com/wp-content/uploads/2021/03/favicon-16x16-1.png
+Source: Reynolds County Courier/WayNe County Journal Banner
+Domain: www.waynecojournalbanner.com
+Path: /wp-content/uploads/2021/03/favicon-16x16-1.png
+
+URL: http://www.richmond-dailynews.com/node/8824
+Source: Richmond Daily News
+Domain: www.richmond-dailynews.com
+Path: /node/8824
+
+URL: https://www.richmond-dailynews.com/themes/newsplus9/bootstrap/css/bootstrap.min.css?t1uyqs
+Source: Richmond Daily News
+Domain: www.richmond-dailynews.com
+Path: /themes/newsplus9/bootstrap/css/bootstrap.min.css
+
+URL: https://www.richmond-dailynews.com/themes/newsplus9/dist/base.min.css?t1uyqs
+Source: Richmond Daily News
+Domain: www.richmond-dailynews.com
+Path: /themes/newsplus9/dist/base.min.css
+
+URL: https://www.richmond-dailynews.com/themes/newsplus9/css/fixed-header.css?t1uyqs
+Source: Richmond Daily News
+Domain: www.richmond-dailynews.com
+Path: /themes/newsplus9/css/fixed-header.css
+
+URL: https://www.richmond-dailynews.com/themes/newsplus9/js/magnific-popup/magnific-popup.css?t1uyqs
+Source: Richmond Daily News
+Domain: www.richmond-dailynews.com
+Path: /themes/newsplus9/js/magnific-popup/magnific-popup.css
+
+URL: https://www.richmond-dailynews.com/themes/newsplus9/css/messages.css?t1uyqs
+Source: Richmond Daily News
+Domain: www.richmond-dailynews.com
+Path: /themes/newsplus9/css/messages.css
+
+URL: https://www.richmond-dailynews.com/themes/newsplus9/css/owl-carousel-home.css?t1uyqs
+Source: Richmond Daily News
+Domain: www.richmond-dailynews.com
+Path: /themes/newsplus9/css/owl-carousel-home.css
+
+URL: https://www.richmond-dailynews.com/themes/newsplus9/css/to-top.css?t1uyqs
+Source: Richmond Daily News
+Domain: www.richmond-dailynews.com
+Path: /themes/newsplus9/css/to-top.css
+
+URL: https://www.richmond-dailynews.com/themes/newsplus9/dist/components.min.css?t1uyqs
+Source: Richmond Daily News
+Domain: www.richmond-dailynews.com
+Path: /themes/newsplus9/dist/components.min.css
+
+URL: https://www.richmond-dailynews.com/themes/newsplus9/dist/print.min.css?t1uyqs
+Source: Richmond Daily News
+Domain: www.richmond-dailynews.com
+Path: /themes/newsplus9/dist/print.min.css
+
+URL: https://www.richmond-dailynews.com/themes/newsplus9/css/theme/color-default.css?t1uyqs
+Source: Richmond Daily News
+Domain: www.richmond-dailynews.com
+Path: /themes/newsplus9/css/theme/color-default.css
+
+URL: https://www.richmond-dailynews.com/themes/newsplus9/dist/theme.min.css?t1uyqs
+Source: Richmond Daily News
+Domain: www.richmond-dailynews.com
+Path: /themes/newsplus9/dist/theme.min.css
+
+URL: https://www.richmond-dailynews.com/news
+Source: Richmond Daily News
+Domain: www.richmond-dailynews.com
+Path: /news
+
+URL: https://www.shelbycountyherald.com/wp-content/themes/bb-theme-child/news01.css
+Source: Shelby County Herald
+Domain: www.shelbycountyherald.com
+Path: /wp-content/themes/bb-theme-child/news01.css
+
+URL: https://www.shelbycountyherald.com/wp-content/uploads/2021/03/favicon-16x16-1.png
+Source: Shelby County Herald
+Domain: www.shelbycountyherald.com
+Path: /wp-content/uploads/2021/03/favicon-16x16-1.png
+
+URL: https://www.shelbycountyherald.com/category/news/
+Source: Shelby County Herald
+Domain: www.shelbycountyherald.com
+Path: /category/news/
+
+URL: https://standard-democrat.com/sections/news
+Source: Sikeston Standard Democrat
+Domain: standard-democrat.com
+Path: /sections/news
+
+URL: https://www.southmissouriannews.com/thayer-bobcats-battle-liberty-eagles/
+Source: South Missourian News
+Domain: www.southmissouriannews.com
+Path: /thayer-bobcats-battle-liberty-eagles/
+
+URL: https://www.southmissouriannews.com/tpd-responds-to-semi-rollover/
+Source: South Missourian News
+Domain: www.southmissouriannews.com
+Path: /tpd-responds-to-semi-rollover/
+
+URL: https://www.southmissouriannews.com/wp-content/uploads/sites/130/2022/10/cropped-cropped-cherryroad_logo_compact-150x150.png
+Source: South Missourian News
+Domain: www.southmissouriannews.com
+Path: /wp-content/uploads/sites/130/2022/10/cropped-cropped-cherryroad_logo_compact-150x150.png
+
+URL: https://www.southmissouriannews.com/wp-content/uploads/sites/130/2022/10/cropped-cropped-cherryroad_logo_compact-300x300.png
+Source: South Missourian News
+Domain: www.southmissouriannews.com
+Path: /wp-content/uploads/sites/130/2022/10/cropped-cropped-cherryroad_logo_compact-300x300.png
+
+URL: https://www.southmissouriannews.com/category/news/
+Source: South Missourian News
+Domain: www.southmissouriannews.com
+Path: /category/news/
+
+URL: https://www.southmissouriannews.com/category/news
+Source: South Missourian News
+Domain: www.southmissouriannews.com
+Path: /category/news
+
+URL: https://www.semissourian.com/sections/news
+Source: Southeast Missourian
+Domain: www.semissourian.com
+Path: /sections/news
+
+URL: https://www.semissourian.com/newsletters
+Source: Southeast Missourian
+Domain: www.semissourian.com
+Path: /newsletters
+
+URL: https://www.usatoday.com/news/trending/
+Source: Springfield News-Leader
+Domain: www.usatoday.com
+Path: /news/trending/
+
+URL: https://www.stlamerican.com/sports/prep-football-notebook-8/
+Source: St. Louis American
+Domain: www.stlamerican.com
+Path: /sports/prep-football-notebook-8/
+
+URL: https://www.stlamerican.com/wp-content/plugins/newspack-ads/dist/media-kit-frontend.css?ver=1756402680
+Source: St. Louis American
+Domain: www.stlamerican.com
+Path: /wp-content/plugins/newspack-ads/dist/media-kit-frontend.css
+
+URL: https://www.stlamerican.com/wp-content/plugins/newspack-ads/includes/../dist/frontend.css?ver=c50f134fcaeb042406fb
+Source: St. Louis American
+Domain: www.stlamerican.com
+Path: /wp-content/plugins/newspack-ads/includes/../dist/frontend.css
+
+URL: https://www.stlamerican.com/wp-content/plugins/newspack-blocks/dist/block_styles.css?ver=4.15.1
+Source: St. Louis American
+Domain: www.stlamerican.com
+Path: /wp-content/plugins/newspack-blocks/dist/block_styles.css
+
+URL: https://www.stlamerican.com/wp-content/plugins/newspack-listings/dist/curated-list.css?ver=3.4.0
+Source: St. Louis American
+Domain: www.stlamerican.com
+Path: /wp-content/plugins/newspack-listings/dist/curated-list.css
+
+URL: https://www.stlamerican.com/wp-content/plugins/newspack-manager/includes/foundation/events/styles.css?ver=1756984159
+Source: St. Louis American
+Domain: www.stlamerican.com
+Path: /wp-content/plugins/newspack-manager/includes/foundation/events/styles.css
+
+URL: https://www.stlamerican.com/wp-content/plugins/newspack-manager/includes/foundation/locations/styles.css?ver=1756984159
+Source: St. Louis American
+Domain: www.stlamerican.com
+Path: /wp-content/plugins/newspack-manager/includes/foundation/locations/styles.css
+
+URL: https://www.stlamerican.com/wp-content/plugins/newspack-manager/includes/foundation/movies/styles.css?ver=1756984159
+Source: St. Louis American
+Domain: www.stlamerican.com
+Path: /wp-content/plugins/newspack-manager/includes/foundation/movies/styles.css
+
+URL: https://www.stlamerican.com/wp-content/plugins/newspack-newsletters/includes/../dist/subscriptions.css?ver=1757613987
+Source: St. Louis American
+Domain: www.stlamerican.com
+Path: /wp-content/plugins/newspack-newsletters/includes/../dist/subscriptions.css
+
+URL: https://www.stlamerican.com/wp-content/plugins/newspack-plugin/dist/commons.css?ver=6.18.3
+Source: St. Louis American
+Domain: www.stlamerican.com
+Path: /wp-content/plugins/newspack-plugin/dist/commons.css
+
+URL: https://www.stlamerican.com/wp-content/plugins/newspack-plugin/dist/reader-auth.css?ver=6.18.3
+Source: St. Louis American
+Domain: www.stlamerican.com
+Path: /wp-content/plugins/newspack-plugin/dist/reader-auth.css
+
+URL: https://www.stlamerican.com/wp-content/plugins/newspack-plugin/dist/other-scripts/recaptcha.css?ver=6.18.3
+Source: St. Louis American
+Domain: www.stlamerican.com
+Path: /wp-content/plugins/newspack-plugin/dist/other-scripts/recaptcha.css
+
+URL: https://www.stlamerican.com/wp-content/plugins/newspack-plugin/dist/reader-registration-block.css?ver=6.18.3
+Source: St. Louis American
+Domain: www.stlamerican.com
+Path: /wp-content/plugins/newspack-plugin/dist/reader-registration-block.css
+
+URL: https://www.stlamerican.com/wp-content/plugins/newspack-plugin/dist/other-scripts/corrections.css?ver=6.18.3
+Source: St. Louis American
+Domain: www.stlamerican.com
+Path: /wp-content/plugins/newspack-plugin/dist/other-scripts/corrections.css
+
+URL: https://www.stlamerican.com/wp-content/plugins/newspack-plugin/dist/newspack-ui.css?ver=6.18.3
+Source: St. Louis American
+Domain: www.stlamerican.com
+Path: /wp-content/plugins/newspack-plugin/dist/newspack-ui.css
+
+URL: https://www.stlamerican.com/wp-content/plugins/newspack-popups/includes/../dist/view.css?ver=1757354782
+Source: St. Louis American
+Domain: www.stlamerican.com
+Path: /wp-content/plugins/newspack-popups/includes/../dist/view.css
+
+URL: https://www.stlamerican.com/wp-content/themes/newspack-theme/style.css?ver=2.14.0
+Source: St. Louis American
+Domain: www.stlamerican.com
+Path: /wp-content/themes/newspack-theme/style.css
+
+URL: https://www.stlamerican.com/wp-content/themes/newspack-theme/styles/print.css?ver=2.14.0
+Source: St. Louis American
+Domain: www.stlamerican.com
+Path: /wp-content/themes/newspack-theme/styles/print.css
+
+URL: https://www.stlamerican.com/wp-content/themes/newspack-theme/styles/newspack-sponsors.css?ver=2.14.0
+Source: St. Louis American
+Domain: www.stlamerican.com
+Path: /wp-content/themes/newspack-theme/styles/newspack-sponsors.css
+
+URL: https://www.stlamerican.com/wp-content/uploads/2024/07/cropped-STL2-32x32.png
+Source: St. Louis American
+Domain: www.stlamerican.com
+Path: /wp-content/uploads/2024/07/cropped-STL2-32x32.png
+
+URL: https://www.stlamerican.com/news/
+Source: St. Louis American
+Domain: www.stlamerican.com
+Path: /news/
+
+URL: https://www.stlamerican.com/category/news/local-news/
+Source: St. Louis American
+Domain: www.stlamerican.com
+Path: /category/news/local-news/
+
+URL: https://www.stlamerican.com/category/news/national-news/
+Source: St. Louis American
+Domain: www.stlamerican.com
+Path: /category/news/national-news/
+
+URL: https://www.stlamerican.com/category/news/obituaries/
+Source: St. Louis American
+Domain: www.stlamerican.com
+Path: /category/news/obituaries/
+
+URL: https://www.stlamerican.com/category/news/columnists/
+Source: St. Louis American
+Domain: www.stlamerican.com
+Path: /category/news/columnists/
+
+URL: https://www.stlamerican.com/category/news/editorials/
+Source: St. Louis American
+Domain: www.stlamerican.com
+Path: /category/news/editorials/
+
+URL: https://callnewspapers.com/category/news/
+Source: St. Louis Call Newspapers
+Domain: callnewspapers.com
+Path: /category/news/
+
+URL: https://callnewspapers.com/category/news-by-area/
+Source: St. Louis Call Newspapers
+Domain: callnewspapers.com
+Path: /category/news-by-area/
+
+URL: https://callnewspapers.com/category/news-by-area/affton-news/
+Source: St. Louis Call Newspapers
+Domain: callnewspapers.com
+Path: /category/news-by-area/affton-news/
+
+URL: https://callnewspapers.com/category/news-by-area/arnoldnews/
+Source: St. Louis Call Newspapers
+Domain: callnewspapers.com
+Path: /category/news-by-area/arnoldnews/
+
+URL: https://callnewspapers.com/category/news-by-area/concord-news/
+Source: St. Louis Call Newspapers
+Domain: callnewspapers.com
+Path: /category/news-by-area/concord-news/
+
+URL: https://callnewspapers.com/category/news-by-area/crestwood-news/
+Source: St. Louis Call Newspapers
+Domain: callnewspapers.com
+Path: /category/news-by-area/crestwood-news/
+
+URL: https://callnewspapers.com/category/news-by-area/fenton-news/
+Source: St. Louis Call Newspapers
+Domain: callnewspapers.com
+Path: /category/news-by-area/fenton-news/
+
+URL: https://callnewspapers.com/category/news-by-area/green-park-news-2/
+Source: St. Louis Call Newspapers
+Domain: callnewspapers.com
+Path: /category/news-by-area/green-park-news-2/
+
+URL: https://callnewspapers.com/category/news-by-area/lemay-news/
+Source: St. Louis Call Newspapers
+Domain: callnewspapers.com
+Path: /category/news-by-area/lemay-news/
+
+URL: https://callnewspapers.com/category/news-by-area/mehlvillenews/
+Source: St. Louis Call Newspapers
+Domain: callnewspapers.com
+Path: /category/news-by-area/mehlvillenews/
+
+URL: https://callnewspapers.com/category/news-by-area/missouri-news/
+Source: St. Louis Call Newspapers
+Domain: callnewspapers.com
+Path: /category/news-by-area/missouri-news/
+
+URL: https://callnewspapers.com/category/news-by-area/oakville-news/
+Source: St. Louis Call Newspapers
+Domain: callnewspapers.com
+Path: /category/news-by-area/oakville-news/
+
+URL: https://callnewspapers.com/category/news-by-area/st-louis-county-news/
+Source: St. Louis Call Newspapers
+Domain: callnewspapers.com
+Path: /category/news-by-area/st-louis-county-news/
+
+URL: https://callnewspapers.com/category/news-by-area/sunset-hills-news/
+Source: St. Louis Call Newspapers
+Domain: callnewspapers.com
+Path: /category/news-by-area/sunset-hills-news/
+
+URL: https://callnewspapers.com/newsletter/
+Source: St. Louis Call Newspapers
+Domain: callnewspapers.com
+Path: /newsletter/
+
+URL: https://callnewspapers.com/news-by-area/
+Source: St. Louis Call Newspapers
+Domain: callnewspapers.com
+Path: /news-by-area/
+
+URL: https://stljewishlight.org/obituaries/barry-m-friedman/
+Source: St. Louis Jewish Light
+Domain: stljewishlight.org
+Path: /obituaries/barry-m-friedman/
+
+URL: https://stljewishlight.org/obituaries/arthur-gale/
+Source: St. Louis Jewish Light
+Domain: stljewishlight.org
+Path: /obituaries/arthur-gale/
+
+URL: https://stljewishlight.org/obituaries/marylin-altman-rosen/
+Source: St. Louis Jewish Light
+Domain: stljewishlight.org
+Path: /obituaries/marylin-altman-rosen/
+
+URL: https://stljewishlight.org/obituaries/irwin-b-rosen/
+Source: St. Louis Jewish Light
+Domain: stljewishlight.org
+Path: /obituaries/irwin-b-rosen/
+
+URL: https://stljewishlight.org/wp-content/uploads/2021/04/Jewish-Light-logo-star-128.png
+Source: St. Louis Jewish Light
+Domain: stljewishlight.org
+Path: /wp-content/uploads/2021/04/Jewish-Light-logo-star-128.png
+
+URL: https://stljewishlight.org/wp-content/uploads/2021/02/light-favicon.png
+Source: St. Louis Jewish Light
+Domain: stljewishlight.org
+Path: /wp-content/uploads/2021/02/light-favicon.png
+
+URL: https://stljewishlight.org/category/news/
+Source: St. Louis Jewish Light
+Domain: stljewishlight.org
+Path: /category/news/
+
+URL: https://stljewishlight.org/category/news/news-local/
+Source: St. Louis Jewish Light
+Domain: stljewishlight.org
+Path: /category/news/news-local/
+
+URL: https://stljewishlight.org/category/newsmakers/
+Source: St. Louis Jewish Light
+Domain: stljewishlight.org
+Path: /category/newsmakers/
+
+URL: https://stljewishlight.org/category/news/israel-news/
+Source: St. Louis Jewish Light
+Domain: stljewishlight.org
+Path: /category/news/israel-news/
+
+URL: https://www.stltoday.com/news/local/
+Source: St. Louis Post-Dispatch
+Domain: www.stltoday.com
+Path: /news/local/
+
+URL: https://www.stltoday.com/news/local/metro/
+Source: St. Louis Post-Dispatch
+Domain: www.stltoday.com
+Path: /news/local/metro/
+
+URL: https://www.stltoday.com/news/local/stcharles/
+Source: St. Louis Post-Dispatch
+Domain: www.stltoday.com
+Path: /news/local/stcharles/
+
+URL: https://www.stltoday.com/news/local/illinois/
+Source: St. Louis Post-Dispatch
+Domain: www.stltoday.com
+Path: /news/local/illinois/
+
+URL: https://www.stltoday.com/news/nation-world/
+Source: St. Louis Post-Dispatch
+Domain: www.stltoday.com
+Path: /news/nation-world/
+
+URL: https://www.stltoday.com/news/local/stl-info/
+Source: St. Louis Post-Dispatch
+Domain: www.stltoday.com
+Path: /news/local/stl-info/
+
+URL: https://www.stltoday.com/newsletters/
+Source: St. Louis Post-Dispatch
+Domain: www.stltoday.com
+Path: /newsletters/
+
+URL: https://www.stltoday.com/news/local/business/workplaces/
+Source: St. Louis Post-Dispatch
+Domain: www.stltoday.com
+Path: /news/local/business/workplaces/
+
+URL: https://www.stltoday.com/news/local/column/winning-stl/
+Source: St. Louis Post-Dispatch
+Domain: www.stltoday.com
+Path: /news/local/column/winning-stl/
+
+URL: https://www.stltoday.com/news/local/education/
+Source: St. Louis Post-Dispatch
+Domain: www.stltoday.com
+Path: /news/local/education/
+
+URL: https://www.stltoday.com/news/local/crime-courts/
+Source: St. Louis Post-Dispatch
+Domain: www.stltoday.com
+Path: /news/local/crime-courts/
+
+URL: https://www.stltoday.com/news/local/government-politics/
+Source: St. Louis Post-Dispatch
+Domain: www.stltoday.com
+Path: /news/local/government-politics/
+
+URL: https://www.stltoday.com/news/traffic/
+Source: St. Louis Post-Dispatch
+Domain: www.stltoday.com
+Path: /news/traffic/
+
+URL: https://www.stltoday.com/news/local/column/
+Source: St. Louis Post-Dispatch
+Domain: www.stltoday.com
+Path: /news/local/column/
+
+URL: https://www.stltoday.com/news/local/business/
+Source: St. Louis Post-Dispatch
+Domain: www.stltoday.com
+Path: /news/local/business/
+
+URL: https://www.stltoday.com/news/local/business/health-care/
+Source: St. Louis Post-Dispatch
+Domain: www.stltoday.com
+Path: /news/local/business/health-care/
+
+URL: https://www.stltoday.com/news/local/business/markets-stocks/
+Source: St. Louis Post-Dispatch
+Domain: www.stltoday.com
+Path: /news/local/business/markets-stocks/
+
+URL: https://www.stltoday.com/news/archives/
+Source: St. Louis Post-Dispatch
+Domain: www.stltoday.com
+Path: /news/archives/
+
+URL: https://www.stltoday.com/news/multimedia/pictures/
+Source: St. Louis Post-Dispatch
+Domain: www.stltoday.com
+Path: /news/multimedia/pictures/
+
+URL: https://www.stltoday.com/news-tip/
+Source: St. Louis Post-Dispatch
+Domain: www.stltoday.com
+Path: /news-tip/
+
+URL: https://www.stltoday.com/brandavestudios/stories-of-honor/
+Source: St. Louis Post-Dispatch
+Domain: www.stltoday.com
+Path: /brandavestudios/stories-of-honor/
+
+URL: https://www.archstl.org/nitropack_static/DxcNHnhBmzfQLpAcUWxPymoKzqxLWcIt/assets/images/optimized/rev-8522dfa/www.archstl.org/wp-content/uploads/2024/06/cropped-archdiocese_of_st_louis_crest-32x32.png
+Source: St. Louis Review
+Domain: www.archstl.org
+Path: /nitropack_static/DxcNHnhBmzfQLpAcUWxPymoKzqxLWcIt/assets/images/optimized/rev-8522dfa/www.archstl.org/wp-content/uploads/2024/06/cropped-archdiocese_of_st_louis_crest-32x32.png
+
+URL: https://www.archstl.org/nitropack_static/DxcNHnhBmzfQLpAcUWxPymoKzqxLWcIt/assets/images/optimized/rev-8522dfa/www.archstl.org/wp-content/uploads/2024/06/cropped-archdiocese_of_st_louis_crest-192x192.png
+Source: St. Louis Review
+Domain: www.archstl.org
+Path: /nitropack_static/DxcNHnhBmzfQLpAcUWxPymoKzqxLWcIt/assets/images/optimized/rev-8522dfa/www.archstl.org/wp-content/uploads/2024/06/cropped-archdiocese_of_st_louis_crest-192x192.png
+
+URL: https://www.archstl.org/nitropack_static/DxcNHnhBmzfQLpAcUWxPymoKzqxLWcIt/assets/images/optimized/rev-8522dfa/www.archstl.org/wp-content/uploads/2024/06/cropped-archdiocese_of_st_louis_crest-180x180.png
+Source: St. Louis Review
+Domain: www.archstl.org
+Path: /nitropack_static/DxcNHnhBmzfQLpAcUWxPymoKzqxLWcIt/assets/images/optimized/rev-8522dfa/www.archstl.org/wp-content/uploads/2024/06/cropped-archdiocese_of_st_louis_crest-180x180.png
+
+URL: https://www.archstl.org/about/news-and-media/
+Source: St. Louis Review
+Domain: www.archstl.org
+Path: /about/news-and-media/
+
+URL: https://www.riverfronttimes.com/big-tits-onlyfans/
+Source: St. Louis Riverfront Times
+Domain: www.riverfronttimes.com
+Path: /big-tits-onlyfans/
+
+URL: https://www.riverfronttimes.com/best-hijab-onlyfans/
+Source: St. Louis Riverfront Times
+Domain: www.riverfronttimes.com
+Path: /best-hijab-onlyfans/
+
+URL: https://www.riverfronttimes.com/best-bdsm-onlyfans/
+Source: St. Louis Riverfront Times
+Domain: www.riverfronttimes.com
+Path: /best-bdsm-onlyfans/
+
+URL: https://www.riverfronttimes.com/best-brazilian-onlyfans/
+Source: St. Louis Riverfront Times
+Domain: www.riverfronttimes.com
+Path: /best-brazilian-onlyfans/
+
+URL: https://www.riverfronttimes.com/best-free-couple-onlyfans/
+Source: St. Louis Riverfront Times
+Domain: www.riverfronttimes.com
+Path: /best-free-couple-onlyfans/
+
+URL: https://www.riverfronttimes.com/best-russian-onlyfans/
+Source: St. Louis Riverfront Times
+Domain: www.riverfronttimes.com
+Path: /best-russian-onlyfans/
+
+URL: https://www.riverfronttimes.com/best-chubby-onlyfans/
+Source: St. Louis Riverfront Times
+Domain: www.riverfronttimes.com
+Path: /best-chubby-onlyfans/
+
+URL: https://www.riverfronttimes.com/best-male-onlyfans/
+Source: St. Louis Riverfront Times
+Domain: www.riverfronttimes.com
+Path: /best-male-onlyfans/
+
+URL: https://www.riverfronttimes.com/foot-fetish-onlyfans/
+Source: St. Louis Riverfront Times
+Domain: www.riverfronttimes.com
+Path: /foot-fetish-onlyfans/
+
+URL: https://www.riverfronttimes.com/best-turkish-onlyfans/
+Source: St. Louis Riverfront Times
+Domain: www.riverfronttimes.com
+Path: /best-turkish-onlyfans/
+
+URL: https://www.riverfronttimes.com/best-australian-onlyfans/
+Source: St. Louis Riverfront Times
+Domain: www.riverfronttimes.com
+Path: /best-australian-onlyfans/
+
+URL: https://www.riverfronttimes.com/wp-content/uploads/2025/07/cropped-RFT-favicon-red-32x32.png
+Source: St. Louis Riverfront Times
+Domain: www.riverfronttimes.com
+Path: /wp-content/uploads/2025/07/cropped-RFT-favicon-red-32x32.png
+
+URL: https://www.riverfronttimes.com/wp-content/uploads/2025/07/cropped-RFT-favicon-red-192x192.png
+Source: St. Louis Riverfront Times
+Domain: www.riverfronttimes.com
+Path: /wp-content/uploads/2025/07/cropped-RFT-favicon-red-192x192.png
+
+URL: https://www.riverfronttimes.com/wp-content/uploads/2025/07/cropped-RFT-favicon-red-180x180.png
+Source: St. Louis Riverfront Times
+Domain: www.riverfronttimes.com
+Path: /wp-content/uploads/2025/07/cropped-RFT-favicon-red-180x180.png
+
+URL: https://www.riverfronttimes.com/wp-content/plugins/breakdance/subplugins/breakdance-elements/dependencies-files/breakdance-posts@1/posts.css?bd_ver=2.3.1
+Source: St. Louis Riverfront Times
+Domain: www.riverfronttimes.com
+Path: /wp-content/plugins/breakdance/subplugins/breakdance-elements/dependencies-files/breakdance-posts@1/posts.css
+
+URL: https://www.riverfronttimes.com/wp-content/uploads/breakdance/css/post-8473-defaults.css?v=b1373f5d4c53810484f35d07487148bf
+Source: St. Louis Riverfront Times
+Domain: www.riverfronttimes.com
+Path: /wp-content/uploads/breakdance/css/post-8473-defaults.css
+
+URL: https://www.riverfronttimes.com/wp-content/uploads/breakdance/css/post-90-defaults.css?v=5f820ae3b6ed0f0633203b6b3a1f099c
+Source: St. Louis Riverfront Times
+Domain: www.riverfronttimes.com
+Path: /wp-content/uploads/breakdance/css/post-90-defaults.css
+
+URL: https://www.riverfronttimes.com/wp-content/uploads/breakdance/css/post-72-defaults.css?v=32c1f1fe9f023e39d52015d17fa3493e
+Source: St. Louis Riverfront Times
+Domain: www.riverfronttimes.com
+Path: /wp-content/uploads/breakdance/css/post-72-defaults.css
+
+URL: https://www.riverfronttimes.com/wp-content/uploads/breakdance/css/post-113-defaults.css?v=457a5e5e210e78d1f6306e52dd38eb5e
+Source: St. Louis Riverfront Times
+Domain: www.riverfronttimes.com
+Path: /wp-content/uploads/breakdance/css/post-113-defaults.css
+
+URL: https://www.riverfronttimes.com/wp-content/uploads/breakdance/css/post-156-defaults.css?v=41bb362d9258e49591fdf4fa463b4fb1
+Source: St. Louis Riverfront Times
+Domain: www.riverfronttimes.com
+Path: /wp-content/uploads/breakdance/css/post-156-defaults.css
+
+URL: https://www.riverfronttimes.com/wp-content/uploads/breakdance/css/post-315-defaults.css?v=a9af8b669f1023058112bd2611f8baf5
+Source: St. Louis Riverfront Times
+Domain: www.riverfronttimes.com
+Path: /wp-content/uploads/breakdance/css/post-315-defaults.css
+
+URL: https://www.riverfronttimes.com/wp-content/uploads/breakdance/css/post-13-defaults.css?v=b1373f5d4c53810484f35d07487148bf
+Source: St. Louis Riverfront Times
+Domain: www.riverfronttimes.com
+Path: /wp-content/uploads/breakdance/css/post-13-defaults.css
+
+URL: https://www.riverfronttimes.com/wp-content/uploads/breakdance/css/post-318-defaults.css?v=d28661c9ff10dd0d23eb5fd1c7fc64ea
+Source: St. Louis Riverfront Times
+Domain: www.riverfronttimes.com
+Path: /wp-content/uploads/breakdance/css/post-318-defaults.css
+
+URL: https://www.riverfronttimes.com/wp-content/uploads/breakdance/css/post-8473.css?v=3066b50cb3b16da9be98b68ed50c9ab4
+Source: St. Louis Riverfront Times
+Domain: www.riverfronttimes.com
+Path: /wp-content/uploads/breakdance/css/post-8473.css
+
+URL: https://www.riverfronttimes.com/wp-content/uploads/breakdance/css/post-90.css?v=3bde5d7662d3ea6bdfc3d4117f63bd6f
+Source: St. Louis Riverfront Times
+Domain: www.riverfronttimes.com
+Path: /wp-content/uploads/breakdance/css/post-90.css
+
+URL: https://www.riverfronttimes.com/wp-content/uploads/breakdance/css/post-72.css?v=c18923397e3416d50d11c3cef58f55f1
+Source: St. Louis Riverfront Times
+Domain: www.riverfronttimes.com
+Path: /wp-content/uploads/breakdance/css/post-72.css
+
+URL: https://www.riverfronttimes.com/wp-content/uploads/breakdance/css/post-113.css?v=5eb81aeb7ca766a0e8bf7ba58ad1bb11
+Source: St. Louis Riverfront Times
+Domain: www.riverfronttimes.com
+Path: /wp-content/uploads/breakdance/css/post-113.css
+
+URL: https://www.riverfronttimes.com/wp-content/uploads/breakdance/css/post-156.css?v=b52670322afcf6124a4adecfd23d06c9
+Source: St. Louis Riverfront Times
+Domain: www.riverfronttimes.com
+Path: /wp-content/uploads/breakdance/css/post-156.css
+
+URL: https://www.riverfronttimes.com/wp-content/uploads/breakdance/css/post-315.css?v=80aa613c8d369ebe73808725d800b020
+Source: St. Louis Riverfront Times
+Domain: www.riverfronttimes.com
+Path: /wp-content/uploads/breakdance/css/post-315.css
+
+URL: https://www.riverfronttimes.com/wp-content/uploads/breakdance/css/post-13.css?v=1ff4bc00d055f85b8542c8cb9b24a25f
+Source: St. Louis Riverfront Times
+Domain: www.riverfronttimes.com
+Path: /wp-content/uploads/breakdance/css/post-13.css
+
+URL: https://www.riverfronttimes.com/wp-content/uploads/breakdance/css/post-318.css?v=d8b3c60e2028db51dc0a737f3223a765
+Source: St. Louis Riverfront Times
+Domain: www.riverfronttimes.com
+Path: /wp-content/uploads/breakdance/css/post-318.css
+
+URL: https://www.stegenherald.com/wp-content/themes/bb-theme-child/news01.css
+Source: Ste. Genevieve Herald
+Domain: www.stegenherald.com
+Path: /wp-content/themes/bb-theme-child/news01.css
+
+URL: https://www.stegenherald.com/wp-content/uploads/2021/03/favicon-16x16-1.png
+Source: Ste. Genevieve Herald
+Domain: www.stegenherald.com
+Path: /wp-content/uploads/2021/03/favicon-16x16-1.png
+
+URL: https://www.studlife.com/wp-content/plugins/post-views-counter/css/frontend.min.css?ver=1.5.1
+Source: Student Life
+Domain: www.studlife.com
+Path: /wp-content/plugins/post-views-counter/css/frontend.min.css
+
+URL: https://www.studlife.com/news
+Source: Student Life
+Domain: www.studlife.com
+Path: /news
+
+URL: https://www.mysullivannews.com/news
+Source: Sullivan Independent News
+Domain: www.mysullivannews.com
+Path: /news
+
+URL: https://www.southeastarrow.com/sections/news
+Source: The Arrow
+Domain: www.southeastarrow.com
+Path: /sections/news
+
+URL: https://www.warrensburgstarjournal.com/newsletter-signup/index.html
+Source: The Daily Star-Journal
+Domain: www.warrensburgstarjournal.com
+Path: /newsletter-signup/index.html
+
+URL: https://www.warrensburgstarjournal.com/news/
+Source: The Daily Star-Journal
+Domain: www.warrensburgstarjournal.com
+Path: /news/
+
+URL: https://www.warrensburgstarjournal.com/calendar/post
+Source: The Daily Star-Journal
+Domain: www.warrensburgstarjournal.com
+Path: /calendar/post
+
+URL: https://www.dixonpilot.com/wp-content/themes/bb-theme-child/news01.css
+Source: The Dixon Pilot
+Domain: www.dixonpilot.com
+Path: /wp-content/themes/bb-theme-child/news01.css
+
+URL: https://www.dixonpilot.com/wp-content/uploads/2021/03/favicon-16x16-1.png
+Source: The Dixon Pilot
+Domain: www.dixonpilot.com
+Path: /wp-content/uploads/2021/03/favicon-16x16-1.png
+
+URL: https://www.edinasentinel.com/wp-content/themes/bb-theme-child/news01.css
+Source: The Edina Sentinel
+Domain: www.edinasentinel.com
+Path: /wp-content/themes/bb-theme-child/news01.css
+
+URL: https://www.edinasentinel.com/wp-content/uploads/2021/03/favicon-16x16-1.png
+Source: The Edina Sentinel
+Domain: www.edinasentinel.com
+Path: /wp-content/uploads/2021/03/favicon-16x16-1.png
+
+URL: https://www.edinasentinel.com/category/news/
+Source: The Edina Sentinel
+Domain: www.edinasentinel.com
+Path: /category/news/
+
+URL: https://www.examiner.net/wp-content/uploads/sites/104/2022/10/cropped-cropped-cherryroad_logo_compact-150x150.png
+Source: The Examiner / Examiner Weekend
+Domain: www.examiner.net
+Path: /wp-content/uploads/sites/104/2022/10/cropped-cropped-cherryroad_logo_compact-150x150.png
+
+URL: https://www.examiner.net/wp-content/uploads/sites/104/2022/10/cropped-cropped-cherryroad_logo_compact-300x300.png
+Source: The Examiner / Examiner Weekend
+Domain: www.examiner.net
+Path: /wp-content/uploads/sites/104/2022/10/cropped-cropped-cherryroad_logo_compact-300x300.png
+
+URL: https://www.examiner.net/category/news/
+Source: The Examiner / Examiner Weekend
+Domain: www.examiner.net
+Path: /category/news/
+
+URL: https://www.examiner.net/category/news
+Source: The Examiner / Examiner Weekend
+Domain: www.examiner.net
+Path: /category/news
+
+URL: https://www.fultonsun.com/news/sports/
+Source: The Fulton Sun
+Domain: www.fultonsun.com
+Path: /news/sports/
+
+URL: https://www.fultonsun.com/news/local/
+Source: The Fulton Sun
+Domain: www.fultonsun.com
+Path: /news/local/
+
+URL: https://www.fultonsun.com/news/education/
+Source: The Fulton Sun
+Domain: www.fultonsun.com
+Path: /news/education/
+
+URL: https://www.fultonsun.com/news/features/
+Source: The Fulton Sun
+Domain: www.fultonsun.com
+Path: /news/features/
+
+URL: https://www.hermannadvertisercourier.com/wp-content/uploads/sites/171/2022/10/cropped-cropped-cherryroad_logo_compact-150x150.png
+Source: The Hermann Advertiser Courier
+Domain: www.hermannadvertisercourier.com
+Path: /wp-content/uploads/sites/171/2022/10/cropped-cropped-cherryroad_logo_compact-150x150.png
+
+URL: https://www.hermannadvertisercourier.com/wp-content/uploads/sites/171/2022/10/cropped-cropped-cherryroad_logo_compact-300x300.png
+Source: The Hermann Advertiser Courier
+Domain: www.hermannadvertisercourier.com
+Path: /wp-content/uploads/sites/171/2022/10/cropped-cropped-cherryroad_logo_compact-300x300.png
+
+URL: https://www.hermannadvertisercourier.com/category/news/
+Source: The Hermann Advertiser Courier
+Domain: www.hermannadvertisercourier.com
+Path: /category/news/
+
+URL: https://www.hermannadvertisercourier.com/category/news
+Source: The Hermann Advertiser Courier
+Domain: www.hermannadvertisercourier.com
+Path: /category/news
+
+URL: https://www.joplinglobe.com/news/local_news
+Source: The Joplin Globe
+Domain: www.joplinglobe.com
+Path: /news/local_news
+
+URL: https://www.joplinglobe.com/newsletters/
+Source: The Joplin Globe
+Domain: www.joplinglobe.com
+Path: /newsletters/
+
+URL: https://www.joplinglobe.com/news/
+Source: The Joplin Globe
+Domain: www.joplinglobe.com
+Path: /news/
+
+URL: https://www.joplinglobe.com/news/business
+Source: The Joplin Globe
+Domain: www.joplinglobe.com
+Path: /news/business
+
+URL: https://www.joplinglobe.com/news/crime_and_courts/
+Source: The Joplin Globe
+Domain: www.joplinglobe.com
+Path: /news/crime_and_courts/
+
+URL: https://www.joplinglobe.com/news/lifestyles/
+Source: The Joplin Globe
+Domain: www.joplinglobe.com
+Path: /news/lifestyles/
+
+URL: https://www.joplinglobe.com/news/education/
+Source: The Joplin Globe
+Domain: www.joplinglobe.com
+Path: /news/education/
+
+URL: https://www.joplinglobe.com/newsletters
+Source: The Joplin Globe
+Domain: www.joplinglobe.com
+Path: /newsletters
+
+URL: http://www.joplinglobe.com/news/
+Source: The Joplin Globe
+Domain: www.joplinglobe.com
+Path: /news/
+
+URL: https://www.joplinglobe.com/news
+Source: The Joplin Globe
+Domain: www.joplinglobe.com
+Path: /news
+
+URL: https://www.thekansascityglobe.com/news
+Source: The Kansas City Globe
+Domain: www.thekansascityglobe.com
+Path: /news
+
+URL: https://www.thekansascityglobe.com/news-staff
+Source: The Kansas City Globe
+Domain: www.thekansascityglobe.com
+Path: /news-staff
+
+URL: https://www.thekansascityglobe.com/form/news-tips
+Source: The Kansas City Globe
+Domain: www.thekansascityglobe.com
+Path: /form/news-tips
+
+URL: https://www.thekansascityglobe.com/sites/thekansascityglobe.com/files/2025-08/2025-Hall-of-Game-Square-jpg.jpg
+Source: The Kansas City Globe
+Domain: www.thekansascityglobe.com
+Path: /sites/thekansascityglobe.com/files/2025-08/2025-Hall-of-Game-Square-jpg.jpg
+
+URL: https://www.thekansascityglobe.com/sites/thekansascityglobe.com/files/2025-08/ad-sylvya--2025%20Ebony%20rose%20gala--for%2008-14-25%20issue.png
+Source: The Kansas City Globe
+Domain: www.thekansascityglobe.com
+Path: /sites/thekansascityglobe.com/files/2025-08/ad-sylvya--2025%20Ebony%20rose%20gala--for%2008-14-25%20issue.png
+
+URL: https://www.thekansascityglobe.com/sites/thekansascityglobe.com/files/2025-09/AD--Southland%20Progress%20Recall%205X18%20Ad.jpg
+Source: The Kansas City Globe
+Domain: www.thekansascityglobe.com
+Path: /sites/thekansascityglobe.com/files/2025-09/AD--Southland%20Progress%20Recall%205X18%20Ad.jpg
+
+URL: https://www.thekansascityglobe.com/sites/thekansascityglobe.com/files/2025-08/DR.%20JANICE%20LOVE--FOR%2008-14-25.jpg
+Source: The Kansas City Globe
+Domain: www.thekansascityglobe.com
+Path: /sites/thekansascityglobe.com/files/2025-08/DR.%20JANICE%20LOVE--FOR%2008-14-25.jpg
+
+URL: https://plattecountylandmark.com/wp-content/uploads/elementor/css/post-105.css?ver=1744824822
+Source: The Landmark
+Domain: plattecountylandmark.com
+Path: /wp-content/uploads/elementor/css/post-105.css
+
+URL: https://plattecountylandmark.com/wp-content/uploads/elementor/css/post-65.css?ver=1744824822
+Source: The Landmark
+Domain: plattecountylandmark.com
+Path: /wp-content/uploads/elementor/css/post-65.css
+
+URL: https://plattecountylandmark.com/wp-content/themes/jnews/data/import/newspaper/scheme.css?ver=11.6.11
+Source: The Landmark
+Domain: plattecountylandmark.com
+Path: /wp-content/themes/jnews/data/import/newspaper/scheme.css
+
+URL: https://maconhomepress.com/category/news
+Source: The Macon County Home Press
+Domain: maconhomepress.com
+Path: /category/news
+
+URL: https://maconhomepress.com/articles/4116/view/retraction
+Source: The Macon County Home Press
+Domain: maconhomepress.com
+Path: /articles/4116/view/retraction
+
+URL: https://www.marshallnews.com/marshall-police-reports-123/
+Source: The Marshall Democrat-News
+Domain: www.marshallnews.com
+Path: /marshall-police-reports-123/
+
+URL: https://www.marshallnews.com/wp-content/uploads/sites/116/2022/10/cropped-cropped-cherryroad_logo_compact-150x150.png
+Source: The Marshall Democrat-News
+Domain: www.marshallnews.com
+Path: /wp-content/uploads/sites/116/2022/10/cropped-cropped-cherryroad_logo_compact-150x150.png
+
+URL: https://www.marshallnews.com/wp-content/uploads/sites/116/2022/10/cropped-cropped-cherryroad_logo_compact-300x300.png
+Source: The Marshall Democrat-News
+Domain: www.marshallnews.com
+Path: /wp-content/uploads/sites/116/2022/10/cropped-cropped-cherryroad_logo_compact-300x300.png
+
+URL: https://www.marshallnews.com/category/news/
+Source: The Marshall Democrat-News
+Domain: www.marshallnews.com
+Path: /category/news/
+
+URL: https://www.marshallnews.com/category/news/local/
+Source: The Marshall Democrat-News
+Domain: www.marshallnews.com
+Path: /category/news/local/
+
+URL: https://www.marshallnews.com/category/news/court/
+Source: The Marshall Democrat-News
+Domain: www.marshallnews.com
+Path: /category/news/court/
+
+URL: https://www.marshallnews.com/category/news/reports/
+Source: The Marshall Democrat-News
+Domain: www.marshallnews.com
+Path: /category/news/reports/
+
+URL: https://www.marshallnews.com/category/news/business/
+Source: The Marshall Democrat-News
+Domain: www.marshallnews.com
+Path: /category/news/business/
+
+URL: https://www.marshallnews.com/category/news
+Source: The Marshall Democrat-News
+Domain: www.marshallnews.com
+Path: /category/news
+
+URL: https://www.maryvilleforum.com/post/
+Source: The Maryville Daily Forum
+Domain: www.maryvilleforum.com
+Path: /post/
+
+URL: https://www.maryvilleforum.com/news
+Source: The Maryville Daily Forum
+Domain: www.maryvilleforum.com
+Path: /news
+
+URL: https://www.maryvilleforum.com/news/community/
+Source: The Maryville Daily Forum
+Domain: www.maryvilleforum.com
+Path: /news/community/
+
+URL: https://www.maryvilleforum.com/news/schools/
+Source: The Maryville Daily Forum
+Domain: www.maryvilleforum.com
+Path: /news/schools/
+
+URL: https://www.maryvilleforum.com/news/scams/
+Source: The Maryville Daily Forum
+Domain: www.maryvilleforum.com
+Path: /news/scams/
+
+URL: https://www.maryvilleforum.com/news/government/
+Source: The Maryville Daily Forum
+Domain: www.maryvilleforum.com
+Path: /news/government/
+
+URL: https://www.maryvilleforum.com/news/veterans/
+Source: The Maryville Daily Forum
+Domain: www.maryvilleforum.com
+Path: /news/veterans/
+
+URL: https://www.maryvilleforum.com/news/mozingo/
+Source: The Maryville Daily Forum
+Domain: www.maryvilleforum.com
+Path: /news/mozingo/
+
+URL: https://www.maryvilleforum.com/news/agriculture/
+Source: The Maryville Daily Forum
+Domain: www.maryvilleforum.com
+Path: /news/agriculture/
+
+URL: https://www.maryvilleforum.com/news/waterquality/
+Source: The Maryville Daily Forum
+Domain: www.maryvilleforum.com
+Path: /news/waterquality/
+
+URL: https://www.maryvilleforum.com/times-tribune/news/
+Source: The Maryville Daily Forum
+Domain: www.maryvilleforum.com
+Path: /times-tribune/news/
+
+URL: https://www.maryvilleforum.com/post
+Source: The Maryville Daily Forum
+Domain: www.maryvilleforum.com
+Path: /post
+
+URL: https://www.maryvilleforum.com/news/
+Source: The Maryville Daily Forum
+Domain: www.maryvilleforum.com
+Path: /news/
+
+URL: https://www.kahokamedia.com/wp-content/themes/bb-theme-child/news01.css
+Source: The Media
+Domain: www.kahokamedia.com
+Path: /wp-content/themes/bb-theme-child/news01.css
+
+URL: https://www.kahokamedia.com/wp-content/uploads/2021/03/favicon-16x16-1.png
+Source: The Media
+Domain: www.kahokamedia.com
+Path: /wp-content/uploads/2021/03/favicon-16x16-1.png
+
+URL: https://www.kahokamedia.com/category/news/
+Source: The Media
+Domain: www.kahokamedia.com
+Path: /category/news/
+
+URL: https://mexicoledger.com/news/
+Source: The Mexico Ledger
+Domain: mexicoledger.com
+Path: /news/
+
+URL: https://www.themilanstandard.com/wp-content/themes/bb-theme-child/news01.css
+Source: The Milan Standard
+Domain: www.themilanstandard.com
+Path: /wp-content/themes/bb-theme-child/news01.css
+
+URL: https://www.themilanstandard.com/wp-content/uploads/2021/03/favicon-16x16-1.png
+Source: The Milan Standard
+Domain: www.themilanstandard.com
+Path: /wp-content/uploads/2021/03/favicon-16x16-1.png
+
+URL: https://www.themilanstandard.com/category/news/
+Source: The Milan Standard
+Domain: www.themilanstandard.com
+Path: /category/news/
+
+URL: https://themissouritimes.com/wp-content/uploads/2015/12/cropped-cropped-missouri-state-capitol-e1450739992755-50x50.jpg
+Source: The Missouri Times
+Domain: themissouritimes.com
+Path: /wp-content/uploads/2015/12/cropped-cropped-missouri-state-capitol-e1450739992755-50x50.jpg
+
+URL: https://themissouritimes.com/wp-content/uploads/2015/12/cropped-cropped-missouri-state-capitol-e1450739992755-360x360.jpg
+Source: The Missouri Times
+Domain: themissouritimes.com
+Path: /wp-content/uploads/2015/12/cropped-cropped-missouri-state-capitol-e1450739992755-360x360.jpg
+
+URL: https://themissouritimes.com/category/campaigns/2026-elections/
+Source: The Missouri Times
+Domain: themissouritimes.com
+Path: /category/campaigns/2026-elections/
+
+URL: https://www.nevadadailymail.com/news
+Source: The Nevada Daily Mail
+Domain: www.nevadadailymail.com
+Path: /news
+
+URL: https://www.nevadadailymail.com/reader/newspaper
+Source: The Nevada Daily Mail
+Domain: www.nevadadailymail.com
+Path: /reader/newspaper
+
+URL: https://www.nevadadailymail.com/scripts/classifieds/post.php
+Source: The Nevada Daily Mail
+Domain: www.nevadadailymail.com
+Path: /scripts/classifieds/post.php
+
+URL: https://www.nevadadailymail.com/classifieds/posterboard
+Source: The Nevada Daily Mail
+Domain: www.nevadadailymail.com
+Path: /classifieds/posterboard
+
+URL: https://mbcpathway.com/wp-content/uploads/2025/08/511743797_1051321350506092_5691345512515029352_n-e1756215064325-890x440.jpg
+Source: The Pathway
+Domain: mbcpathway.com
+Path: /wp-content/uploads/2025/08/511743797_1051321350506092_5691345512515029352_n-e1756215064325-890x440.jpg
+
+URL: https://www.thepitchkc.com/news/
+Source: The Pitch/Kansas City Pitch
+Domain: www.thepitchkc.com
+Path: /news/
+
+URL: https://www.thepitchkc.com/newsletters/
+Source: The Pitch/Kansas City Pitch
+Domain: www.thepitchkc.com
+Path: /newsletters/
+
+URL: https://www.thepitchkc.com/category/news-52777/
+Source: The Pitch/Kansas City Pitch
+Domain: www.thepitchkc.com
+Path: /category/news-52777/
+
+URL: https://www.plattecountycitizen.com/news
+Source: The Platte County Citizen
+Domain: www.plattecountycitizen.com
+Path: /news
+
+URL: https://www.plattecountycitizen.com/news-photos
+Source: The Platte County Citizen
+Domain: www.plattecountycitizen.com
+Path: /news-photos
+
+URL: https://www.theprospectnews.com/community/rain-maker-ac538789
+Source: The Prospect News
+Domain: www.theprospectnews.com
+Path: /community/rain-maker-ac538789
+
+URL: https://www.theprospectnews.com/sections/news
+Source: The Prospect News
+Domain: www.theprospectnews.com
+Path: /sections/news
+
+URL: https://www.theprospectnews.com/sections/posterboards-ads
+Source: The Prospect News
+Domain: www.theprospectnews.com
+Path: /sections/posterboards-ads
+
+URL: https://www.sedaliademocrat.com/newsletter_signup/
+Source: The Sedalia Democrat
+Domain: www.sedaliademocrat.com
+Path: /newsletter_signup/
+
+URL: https://www.sedaliademocrat.com/news/
+Source: The Sedalia Democrat
+Domain: www.sedaliademocrat.com
+Path: /news/
+
+URL: https://www.sedaliademocrat.com/newselection/
+Source: The Sedalia Democrat
+Domain: www.sedaliademocrat.com
+Path: /newselection/
+
+URL: https://www.sedaliademocrat.com/newshealth/
+Source: The Sedalia Democrat
+Domain: www.sedaliademocrat.com
+Path: /newshealth/
+
+URL: https://www.sedaliademocrat.com/news20_under_40/
+Source: The Sedalia Democrat
+Domain: www.sedaliademocrat.com
+Path: /news20_under_40/
+
+URL: https://www.the-standard.org/news/
+Source: The Standard
+Domain: www.the-standard.org
+Path: /news/
+
+URL: https://www.the-standard.org/news/campus/
+Source: The Standard
+Domain: www.the-standard.org
+Path: /news/campus/
+
+URL: https://www.the-standard.org/news/springfield/
+Source: The Standard
+Domain: www.the-standard.org
+Path: /news/springfield/
+
+URL: https://www.the-standard.org/news/national_and_global/
+Source: The Standard
+Domain: www.the-standard.org
+Path: /news/national_and_global/
+
+URL: https://www.the-standard.org/news/entertainment/
+Source: The Standard
+Domain: www.the-standard.org
+Path: /news/entertainment/
+
+URL: https://www.the-standard.org/newsletter/
+Source: The Standard
+Domain: www.the-standard.org
+Path: /newsletter/
+
+URL: https://www.the-standard.org/news
+Source: The Standard
+Domain: www.the-standard.org
+Path: /news
+
+URL: http://www.the-standard.org/news/
+Source: The Standard
+Domain: www.the-standard.org
+Path: /news/
+
+URL: https://unewsonline.com/wp-content/uploads/2018/10/Screen-Shot-2018-10-10-at-8.33.10-PM-438x475.png
+Source: The University News
+Domain: unewsonline.com
+Path: /wp-content/uploads/2018/10/Screen-Shot-2018-10-10-at-8.33.10-PM-438x475.png
+
+URL: https://unewsonline.com/category/news/
+Source: The University News
+Domain: unewsonline.com
+Path: /category/news/
+
+URL: https://unewsonline.com/category/news/campus-news/
+Source: The University News
+Domain: unewsonline.com
+Path: /category/news/campus-news/
+
+URL: https://unewsonline.com/category/news/st-louis/
+Source: The University News
+Domain: unewsonline.com
+Path: /category/news/st-louis/
+
+URL: https://www.unterrifieddemocrat.com/news/
+Source: The Unterrified Democrat
+Domain: www.unterrifieddemocrat.com
+Path: /news/
+
+URL: https://kcroonews.com/news-3/
+Source: UMKC Roo News
+Domain: kcroonews.com
+Path: /news-3/
+
+URL: https://kcroonews.com/category/news-2/news-feature/
+Source: UMKC Roo News
+Domain: kcroonews.com
+Path: /category/news-2/news-feature/
+
+URL: https://kcroonews.com/category/news-2/events-2-news-2/
+Source: UMKC Roo News
+Domain: kcroonews.com
+Path: /category/news-2/events-2-news-2/
+
+URL: https://kcroonews.com/category/news-2/kansas-city-news-2/
+Source: UMKC Roo News
+Domain: kcroonews.com
+Path: /category/news-2/kansas-city-news-2/
+
+URL: https://kcroonews.com/category/news-2/news-feature/?draft=1
+Source: UMKC Roo News
+Domain: kcroonews.com
+Path: /category/news-2/news-feature/
+
+URL: https://kcroonews.com/category/news-2/events-2-news-2/?draft=1
+Source: UMKC Roo News
+Domain: kcroonews.com
+Path: /category/news-2/events-2-news-2/
+
+URL: https://kcroonews.com/category/news-2/kansas-city-news-2/?draft=1
+Source: UMKC Roo News
+Domain: kcroonews.com
+Path: /category/news-2/kansas-city-news-2/
+
+URL: https://www.vandalialeader.com/wp-content/uploads/sites/174/2022/10/cropped-cropped-cherryroad_logo_compact-150x150.png
+Source: Vandalia Leader
+Domain: www.vandalialeader.com
+Path: /wp-content/uploads/sites/174/2022/10/cropped-cropped-cherryroad_logo_compact-150x150.png
+
+URL: https://www.vandalialeader.com/wp-content/uploads/sites/174/2022/10/cropped-cropped-cherryroad_logo_compact-300x300.png
+Source: Vandalia Leader
+Domain: www.vandalialeader.com
+Path: /wp-content/uploads/sites/174/2022/10/cropped-cropped-cherryroad_logo_compact-300x300.png
+
+URL: https://www.vandalialeader.com/category/news/
+Source: Vandalia Leader
+Domain: www.vandalialeader.com
+Path: /category/news/
+
+URL: https://www.vandalialeader.com/category/news
+Source: Vandalia Leader
+Domain: www.vandalialeader.com
+Path: /category/news
+
+URL: https://www.warrencountyrecord.com/news/
+Source: Warren County Record
+Domain: www.warrencountyrecord.com
+Path: /news/
+
+URL: https://www.warrencountyrecord.com/news
+Source: Warren County Record
+Domain: www.warrencountyrecord.com
+Path: /news
+
+URL: https://www.webstercountycitizen.com/news/
+Source: Webster County Citizen
+Domain: www.webstercountycitizen.com
+Path: /news/
+
+URL: https://www.fayettenewspapers.com/news/
+Source: Webster Kirkwood News
+Domain: www.fayettenewspapers.com
+Path: /news/
+
+URL: https://www.westplainsdailyquill.net/newsletter-signup/index.html
+Source: West Plains Daily Quill
+Domain: www.westplainsdailyquill.net
+Path: /newsletter-signup/index.html
+
+URL: https://www.westplainsdailyquill.net/news/
+Source: West Plains Daily Quill
+Domain: www.westplainsdailyquill.net
+Path: /news/
+
+URL: https://www.westplainsdailyquill.net/stories/fyi,197087
+Source: West Plains Daily Quill
+Domain: www.westplainsdailyquill.net
+Path: /stories/fyi,197087
+
+
+ARTICLE URLs (Sample):
+------------------------------
+URL: https://www.417mag.com/food-drink/restaurants-in-springfield/best-of-417-2025-editors-picks/
+Source: 417 Magazine
+Domain: www.417mag.com
+
+URL: https://www.417mag.com/food-drink/farm-to-dinner-table-stewart-farm/
+Source: 417 Magazine
+Domain: www.417mag.com
+
+URL: https://www.417mag.com/lifestyle/jeremy-rabe-is-wild-for-wallpaper/
+Source: 417 Magazine
+Domain: www.417mag.com
+
+URL: https://www.417mag.com/things-to-do/daytrip-mill-creek-table-rock-lake-mo/
+Source: 417 Magazine
+Domain: www.417mag.com
+
+URL: https://www.417mag.com/things-to-do/when-to-see-the-springfield-cardinals-play/
+Source: 417 Magazine
+Domain: www.417mag.com
+
+URL: https://www.417mag.com/outdoors/where-to-go-sailing-in-the-ozarks/
+Source: 417 Magazine
+Domain: www.417mag.com
+
+URL: https://www.417mag.com/people-pics/dillards-grand-opening-2025/
+Source: 417 Magazine
+Domain: www.417mag.com
+
+URL: https://www.417mag.com/people-pics/good-samaritan-pickleball-tournament-2025/
+Source: 417 Magazine
+Domain: www.417mag.com
+
+URL: https://www.417mag.com/people-pics/united-way-day-of-caring-2025/
+Source: 417 Magazine
+Domain: www.417mag.com
+
+URL: https://abc17news.com/news/crime/2025/09/19/jury-trial-scheduled-in-2026-for-woman-accused-in-fatal-holts-summit-shooting/
+Source: ABC 17 KMIZ News
+Domain: abc17news.com
+
+URL: https://abc17news.com/politics/national-politics/cnn-us-politics/2025/09/19/trump-asks-supreme-court-to-let-him-deport-300000-venezuelans/
+Source: ABC 17 KMIZ News
+Domain: abc17news.com
+
+URL: https://abc17news.com/cnn-spanish/2025/09/19/el-jefe-de-la-fcc-solia-rechazar-las-presiones-gubernamentales-sobre-los-medios-de-comunicacion-que-paso/
+Source: ABC 17 KMIZ News
+Domain: abc17news.com
+
+URL: https://abc17news.com/cnn-spanish/2025/09/19/trump-impondra-una-tarifa-de-us-100-000-en-visas-h-1b-en-nueva-accion-migratoria/
+Source: ABC 17 KMIZ News
+Domain: abc17news.com
+
+URL: https://abc17news.com/politics/national-politics/cnn-us-politics/2025/09/19/trump-to-impose-100k-fee-on-h-1b-visas-in-new-immigration-action/
+Source: ABC 17 KMIZ News
+Domain: abc17news.com
+
+URL: https://abc17news.com/weather/2025/09/19/tracking-lots-of-rain-and-cooler-weather-in-the-forecast/
+Source: ABC 17 KMIZ News
+Domain: abc17news.com
+
+URL: https://abc17news.com/news/national-world/cnn-world/2025/09/19/irish-rap-group-kneecap-have-been-banned-from-entering-canada/
+Source: ABC 17 KMIZ News
+Domain: abc17news.com
+
+URL: https://abc17news.com/news/transportation/road-construction/2025/09/19/road-work-scheduled-for-several-columbia-streets/
+Source: ABC 17 KMIZ News
+Domain: abc17news.com
+
+URL: https://abc17news.com/news/top-stories/2025/09/19/boone-county-first-quarter-wage-growth-mediocre-among-largest-missouri-counties/
+Source: ABC 17 KMIZ News
+Domain: abc17news.com
+
+URL: https://abc17news.com/news/national-world/cnn-world/2025/09/19/freed-israeli-american-hostage-says-he-will-return-to-military-service/
+Source: ABC 17 KMIZ News
+Domain: abc17news.com
+
+URL: https://abc17news.com/news/crime/2025/09/19/man-charged-with-murder-in-2017-killing-faces-more-gun-charges/
+Source: ABC 17 KMIZ News
+Domain: abc17news.com
+
+URL: https://abc17news.com/cnn-spanish/2025/09/19/trump-pide-a-la-corte-suprema-que-le-permita-deportar-a-300-000-venezolanos/
+Source: ABC 17 KMIZ News
+Domain: abc17news.com
+
+URL: https://www.columbiamissourian.com/boonecountyjournal/news/boone-electric-co-op-members-can-cast-drive-thru-votes-for-directors/article_6c34bdc8-5973-48c1-b24b-c13746fbecb6.html
+Source: Columbia Missourian
+Domain: www.columbiamissourian.com
+
+URL: https://www.columbiamissourian.com/news/local/treece-announces-decision-not-to-run-in-2022/article_768695ae-17eb-11ec-9a5a-07f79124ada7.html
+Source: Columbia Missourian
+Domain: www.columbiamissourian.com
+
+URL: https://www.columbiamissourian.com/news/higher_education/um-curators-vote-to-prevent-mandatory-covid-vaccinations-approve-blunt-building-naming/article_6057ad7e-0c22-11ec-a636-173bb9c3292c.html
+Source: Columbia Missourian
+Domain: www.columbiamissourian.com
+
+URL: https://abc17news.com/news/coronavirus/2022/07/14/thursday-updates-boone-county-reports-68-new-covid-cases/
+Source: ABC 17 KMIZ News
+Domain: abc17news.com
+
+URL: https://abc17news.com/politics/missouri-politics/2022/07/14/as-medical-marijuana-thrives-missourians-could-see-recreational-use-on-november-ballot/
+Source: ABC 17 KMIZ News
+Domain: abc17news.com
+
+URL: https://www.columbiamissourian.com/news/higher_education/missouri-student-association-passes-bill-to-help-legion-of-black-collegians-demands/article_1371ec6a-491f-48fa-8184-72882923cc12.html
+Source: Columbia Missourian
+Domain: www.columbiamissourian.com
+
+URL: https://abc17news.com/weather/insider-blog/2025/09/19/power-outages-and-damage-caused-by-thursdays-severe-storms/
+Source: ABC 17 KMIZ News
+Domain: abc17news.com
+
+URL: https://abc17news.com/weather/insider-blog/2025/09/19/power-outages-and-damage-caused-by-thursdays-severe-storms/feed/
+Source: ABC 17 KMIZ News
+Domain: abc17news.com
+
+URL: https://abc17news.com/politics/2025/09/19/cole-county-judge-strikes-down-abortion-ballot-language-set-for-2026-ballot/
+Source: ABC 17 KMIZ News
+Domain: abc17news.com
+
+URL: https://abc17news.com/cnn-spanish/2025/09/19/trump-presenta-programa-de-tarjeta-dorada-que-acelera-visas-de-inmigrantes-por-una-tarifa-elevada/
+Source: ABC 17 KMIZ News
+Domain: abc17news.com
+
+URL: https://abc17news.com/cnn-spanish/2025/09/19/noboa-convoca-a-consulta-popular-sobre-una-asamblea-constituyente-sin-pedir-antes-el-aval-de-la-corte-constitucional/
+Source: ABC 17 KMIZ News
+Domain: abc17news.com
+
+URL: https://abc17news.com/politics/2025/09/19/cole-county-judge-strikes-down-abortion-ballot-language-set-for-2026-ballot/feed/
+Source: ABC 17 KMIZ News
+Domain: abc17news.com
+
+URL: https://abc17news.com/news/2025/09/19/trump-presenta-programa-de-tarjeta-dorada-que-acelera-visas-de-inmigrantes-por-una-tarifa-elevada/
+Source: ABC 17 KMIZ News
+Domain: abc17news.com
+
+URL: https://abc17news.com/news/2025/09/19/noboa-convoca-a-consulta-popular-sobre-una-asamblea-constituyente-sin-pedir-antes-el-aval-de-la-corte-constitucional/
+Source: ABC 17 KMIZ News
+Domain: abc17news.com
+
+URL: https://farmerpublishing.com/2025/09/17/rock-port-to-celebrate-41st-annual-old-fashioned-saturday-night-sept-20-2/
+Source: Atchinson County Mail
+Domain: farmerpublishing.com
+
+URL: https://farmerpublishing.com/2025/09/16/national-farm-safety-and-health-week-2/
+Source: Atchinson County Mail
+Domain: farmerpublishing.com
+
+URL: https://farmerpublishing.com/2025/09/16/titan-submersible-francis-scott-key-bridge-salvager-to-speak-at-tarkio-tech-2/
+Source: Atchinson County Mail
+Domain: farmerpublishing.com
+
+URL: https://farmerpublishing.com/2025/09/16/ready-set-fafsa-sept-18/
+Source: Atchinson County Mail
+Domain: farmerpublishing.com
+
+URL: https://farmerpublishing.com/2025/09/16/loads-of-fun-with-the-atchison-county-library-3/
+Source: Atchinson County Mail
+Domain: farmerpublishing.com
+
+URL: https://farmerpublishing.com/2025/09/16/tarkio-elementary-book-fair-5/
+Source: Atchinson County Mail
+Domain: farmerpublishing.com
+
+URL: https://farmerpublishing.com/2025/09/16/fairfax-legion-post-284-to-hold-a-cook-out-fundraiser-4/
+Source: Atchinson County Mail
+Domain: farmerpublishing.com
+
+URL: https://farmerpublishing.com/2025/09/16/customer-appreciation-day-sept-25-at-rogers-pharmacy/
+Source: Atchinson County Mail
+Domain: farmerpublishing.com
+
+URL: https://farmerpublishing.com/2025/09/16/retirement-reception-to-honor-ch-f-ceo-julie-jones-2/
+Source: Atchinson County Mail
+Domain: farmerpublishing.com
+
+URL: https://farmerpublishing.com/2025/09/16/customer-appreciation-lunch-8/
+Source: Atchinson County Mail
+Domain: farmerpublishing.com
+
+URL: https://4bcaonline.com/terror-at-michigan-church-thwarted-by-brave-staff-as-gunman-opens-fire/
+Source: Barry County Advertiser
+Domain: 4bcaonline.com
+
+URL: https://4bcaonline.com/heart-stopping-helicopter-crash-caught-on-camera-near-michigan-waterfront/
+Source: Barry County Advertiser
+Domain: 4bcaonline.com
+
+URL: https://4bcaonline.com/michigan-wildlife-officials-rescue-black-bear-after-2-year-struggle-with-plastic-lid/
+Source: Barry County Advertiser
+Domain: 4bcaonline.com
+
+URL: https://4bcaonline.com/experts-examine-michigan-canada-economic-ties-amid-tariff-turbulence/
+Source: Barry County Advertiser
+Domain: 4bcaonline.com
+
+URL: https://4bcaonline.com/michigan-house-approves-budget-cuts-targeting-u-m-and-msu-citing-ideological-concerns/
+Source: Barry County Advertiser
+Domain: 4bcaonline.com
+

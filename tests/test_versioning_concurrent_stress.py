@@ -1,7 +1,8 @@
+import multiprocessing as mp
 import os
 import sys
 from pathlib import Path
-import multiprocessing as mp
+
 import pytest
 
 # Ensure src is importable
@@ -11,7 +12,10 @@ sys.path.insert(0, str(ROOT / "src"))
 try:
     from models import versioning
 except Exception as e:  # pragma: no cover - skip in minimal envs
-    pytest.skip(f"Skipping concurrency stress tests; can't import models: {e}", allow_module_level=True)
+    pytest.skip(
+        f"Skipping concurrency stress tests; can't import models: {e}",
+        allow_module_level=True,
+    )
 
 
 RUN_STRESS = os.getenv("RUN_STRESS_TESTS", "0") == "1"
@@ -25,13 +29,16 @@ def _make_db_path(tmpdir_path: str) -> str:
 def _worker_attempt_claim(db_url: str, dv_id: str, claimer: str, out_q: mp.Queue):
     try:
         from models import versioning as v
+
         ok = v.claim_dataset_version(dv_id, claimer=claimer, database_url=db_url)
         out_q.put((claimer, bool(ok)))
     except Exception as e:
         out_q.put((claimer, False, str(e)))
 
 
-@pytest.mark.skipif(not RUN_STRESS, reason="Stress tests are gated behind RUN_STRESS_TESTS=1")
+@pytest.mark.skipif(
+    not RUN_STRESS, reason="Stress tests are gated behind RUN_STRESS_TESTS=1"
+)
 def test_concurrent_claims_stress(tmp_path):
     db_url = _make_db_path(str(tmp_path))
 
@@ -41,12 +48,16 @@ def test_concurrent_claims_stress(tmp_path):
     procs = 8
 
     for it in range(iterations):
-        dv = versioning.create_dataset_version("stress", f"iter-{it}", created_by_job="init", database_url=db_url)
+        dv = versioning.create_dataset_version(
+            "stress", f"iter-{it}", created_by_job="init", database_url=db_url
+        )
 
         q = mp.Queue()
         workers = []
         for i in range(procs):
-            p = mp.Process(target=_worker_attempt_claim, args=(db_url, dv.id, f"proc-{i}", q))
+            p = mp.Process(
+                target=_worker_attempt_claim, args=(db_url, dv.id, f"proc-{i}", q)
+            )
             workers.append(p)
             p.start()
 
