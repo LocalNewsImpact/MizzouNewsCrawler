@@ -59,6 +59,38 @@ If you use `pipx` or Conda, adapt the environment step accordingly. The repo shi
 
 1. When you're ready to persist cleaning results, rerun without `--dry-run`. The CLI now truncates article IDs in logs, records timing metadata, and writes removal details back into telemetry tables for downstream ML jobs.
 
+### Format requirements for `sources/publinks.csv`
+
+The `load-sources` command expects a UTF-8 CSV whose headers match the schema below. Every row represents a single publication that the crawler can target.
+
+| Column | Required | Purpose | Example |
+| --- | --- | --- | --- |
+| `host_id` | ✅ | Stable identifier from the original dataset. Kept as a string so that legacy numeric IDs survive round-trips. | `163` |
+| `name` | ✅ | Display name of the outlet. Stored as `Source.canonical_name` and pushed into telemetry dashboards. | `Sikeston Standard Democrat` |
+| `city` | ✅ | Primary city for coverage and reporting. Used when summarizing dataset stats. | `Sikeston` |
+| `county` | ✅ | County (no "County" suffix needed). Powers geographic filters and CIN analytics. | `Scott` |
+| `url_news` | ✅ | An HTTPS article URL or homepage for the outlet. The loader normalizes the host and seeds the initial `candidate_links` table from it. | `https://standard-democrat.com/story/2977919.html` |
+
+The following fields are optional but strongly recommended because downstream jobs read them from `Source.meta` or the `candidate_links` table:
+
+- `frequency` – Free-text publishing cadence (`daily`, `weekly`, `bi-weekly`, etc.). Defaults to `unknown` when omitted.
+- `media_type` – One of `print native`, `digital_native`, `audio_broadcast`, `video_broadcast`, or other descriptive tags. The geo filter uses this to tune heuristics (broadcast outlets often contribute fewer URLs).
+- `address1` / `address2`, `State`, `zip` – Mailing address metadata. The loader converts `zip` values to strings and stores them for gazetteer enrichment. Two-letter state abbreviations keep the downstream map clean.
+- `owner` – Parent company or individual owner.
+- `source` – Provenance tag (e.g., `research`, `UNC`, `media cloud`) that helps track how the record entered the dataset.
+
+Cached entity columns capture precomputed coverage areas for the publication. Keep values pipe-delimited (`|`) with plain-text names; the strings are stored verbatim and later reused by the geography-aware filters:
+
+- `cached_geographic_entities`
+- `cached_institutions`
+- `cached_schools`
+- `cached_government`
+- `cached_healthcare`
+- `cached_businesses`
+- `cached_landmarks`
+
+Rows missing any required field are skipped, and duplicate `url_news` hosts collapse into existing `Source` records. When preparing new data drops, validate the header row and run `python -m src.cli.main load-sources --csv <path>` from a virtual environment to confirm the importer accepts your file.
+
 For a fuller walkthrough (including the end-to-end workflow script and advanced tools), see the "Quick local setup and run" section further down in this document.
 
 ## Recent Maintenance (2025-09-26)
