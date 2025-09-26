@@ -3,6 +3,7 @@
 import hashlib
 import logging
 import random
+import re
 import time
 import uuid
 from typing import Any, Dict, List, Literal, Optional
@@ -10,12 +11,22 @@ from urllib.parse import urlparse
 from datetime import datetime
 
 import pandas as pd
-from sqlalchemy import MetaData, Table, create_engine, insert, select, text
+from sqlalchemy import (
+    MetaData,
+    Table,
+    create_engine,
+    event,
+    insert,
+    select,
+    text,
+)
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm.attributes import flag_modified
 
 from . import (
     Article,
+    ArticleEntity,
     ArticleLabel,
     Base,
     CandidateLink,
@@ -28,6 +39,21 @@ from src.utils.url_utils import normalize_url
 import json
 
 logger = logging.getLogger(__name__)
+
+
+def _configure_sqlite_engine(engine, timeout: Optional[float]) -> None:
+    """Enable WAL/unified writer settings for SQLite connections."""
+
+    busy_timeout_ms = int((timeout or 30) * 1000)
+
+    @event.listens_for(engine, "connect")
+    def set_sqlite_pragma(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.execute(f"PRAGMA busy_timeout={busy_timeout_ms}")
+        cursor.execute("PRAGMA wal_autocheckpoint=1000")
+        cursor.close()
 
 
 class DatabaseManager:
@@ -47,6 +73,8 @@ class DatabaseManager:
             connect_args=connect_args,
             echo=False,
         )
+        if "sqlite" in database_url:
+            _configure_sqlite_engine(self.engine, connect_args.get("timeout"))
         Base.metadata.create_all(self.engine)
         Session = sessionmaker(bind=self.engine)
         self.session = Session()
@@ -77,9 +105,12 @@ class DatabaseManager:
             if not isinstance(current, dict):
                 current = {}
 
-            # Merge updates (shallow)
+            # Merge updates (shallow). Assign a new dict instance so
+            # SQLAlchemy detects the change even when the JSON column
+            # isn't using a mutable tracking type.
             current.update(updates)
-            src.meta = current
+            src.meta = dict(current)  # type: ignore[assignment]
+            flag_modified(src, "meta")
             self.session.commit()
             return True
         except Exception:
@@ -158,10 +189,33 @@ def _commit_with_retry(session, retries: int = 4, backoff: float = 0.1):
                 hasattr(e, "orig")
                 and isinstance(getattr(e, "orig"), _sqlite.OperationalError)
             ):
+                logger.warning(
+                    "Commit attempt %d/%d failed with OperationalError: %s",
+                    attempt + 1,
+                    retries,
+                    e,
+                )
+                try:
+                    session.rollback()
+                except Exception as rollback_exc:  # pragma: no cover
+                    logger.error(
+                        "Rollback after failed commit also failed: %s",
+                        rollback_exc,
+                    )
                 time.sleep(backoff)
                 backoff *= 2
                 continue
             else:
+                try:
+                    session.rollback()
+                except Exception as rollback_exc:  # pragma: no cover
+                    logger.error(
+                        (
+                            "Rollback after non-retryable commit failure "
+                            "failed: %s"
+                        ),
+                        rollback_exc,
+                    )
                 # Non-retryable error, re-raise
                 raise
     # Final attempt
@@ -446,6 +500,65 @@ def save_locations(
     return location_records
 
 
+def _normalize_entity_text(value: Optional[str]) -> str:
+    if not value:
+        return ""
+    normalized = value.lower()
+    normalized = normalized.replace("\u2019", "'").replace("\u2018", "'")
+    normalized = normalized.replace("\u2013", "-").replace("\u2014", "-")
+    normalized = re.sub(r"[^a-z0-9\s'-]", " ", normalized)
+    normalized = re.sub(r"\s+", " ", normalized)
+    return normalized.strip()
+
+
+def save_article_entities(
+    session,
+    article_id: str,
+    entities: List[Dict[str, Any]],
+    extractor_version: str,
+    article_text_hash: Optional[str] = None,
+) -> List[ArticleEntity]:
+    """Replace article entities for the given extractor version."""
+
+    session.query(ArticleEntity).filter_by(
+        article_id=article_id,
+        extractor_version=extractor_version,
+    ).delete()
+
+    records: List[ArticleEntity] = []
+    for entity in entities:
+        entity_text = entity.get("entity_text") or entity.get("text")
+        if not entity_text:
+            continue
+
+        entity_norm = entity.get("entity_norm") or _normalize_entity_text(
+            entity_text
+        )
+        record = ArticleEntity(
+            article_id=article_id,
+            article_text_hash=article_text_hash,
+            entity_text=entity_text,
+            entity_norm=entity_norm,
+            entity_label=entity.get("entity_label") or entity.get("label"),
+            osm_category=entity.get("osm_category"),
+            osm_subcategory=entity.get("osm_subcategory"),
+            extractor_version=entity.get(
+                "extractor_version",
+                extractor_version,
+            ),
+            confidence=entity.get("confidence"),
+            matched_gazetteer_id=entity.get("matched_gazetteer_id"),
+            match_score=entity.get("match_score"),
+            match_name=entity.get("match_name"),
+            meta=entity.get("meta"),
+        )
+        session.add(record)
+        records.append(record)
+
+    _commit_with_retry(session)
+    return records
+
+
 def create_job_record(
     session,
     job_type: str,
@@ -511,7 +624,9 @@ def read_candidate_links(
     return pd.read_sql(query, engine)
 
 
-def read_articles(engine, filters: Optional[Dict[str, Any]] = None) -> pd.DataFrame:
+def read_articles(
+    engine, filters: Optional[Dict[str, Any]] = None
+) -> pd.DataFrame:
     """Read articles as DataFrame with optional filters."""
     query = (
         "SELECT a.*, cl.url, cl.source\n"
@@ -604,7 +719,11 @@ def bulk_insert_candidate_links(
             for col in missing:
                 try:
                     # Add as TEXT column; keep it simple and tolerant.
-                    sql = "ALTER TABLE candidate_links ADD COLUMN " + col + " TEXT"
+                    sql = (
+                        "ALTER TABLE candidate_links ADD COLUMN "
+                        + col
+                        + " TEXT"
+                    )
                     conn.execute(text(sql))
                 except Exception:
                     # Ignore if column can't be added. This can happen when
@@ -649,7 +768,10 @@ def bulk_insert_candidate_links(
             df = pd.DataFrame(df.loc[mask.to_numpy(), :].copy())
             dup_dropped = before - len(df)
             if dup_dropped:
-                logger.info(f"Dropped {dup_dropped} rows with URLs already in DB")
+                logger.info(
+                    "Dropped %d rows with URLs already in DB",
+                    dup_dropped,
+                )
     except Exception:
         # Table may not exist yet or the select failed; proceed and let the
         # DB raise if necessary when inserting.
@@ -719,7 +841,10 @@ def bulk_insert_candidate_links(
                     host_map: Dict[str, str] = {}
                     if hosts:
                         # Query existing sources matching these hosts.
-                        sel = select(sources_tbl.c.id, sources_tbl.c.host).where(
+                        sel = select(
+                            sources_tbl.c.id,
+                            sources_tbl.c.host,
+                        ).where(
                             sources_tbl.c.host.in_(list(hosts))
                         )
                         res = conn.execute(sel)
@@ -747,7 +872,7 @@ def bulk_insert_candidate_links(
                                 host_map[(r.host or "").lower()] = r.id
 
                     # Assign source_id for rows where we can resolve a host.
-                    def _resolve_row(row):
+                    def _resolve_row(row: pd.Series) -> Any:
                         host = None
                         if "source_host_id" in row and row["source_host_id"]:
                             host = str(row["source_host_id"]).lower()
@@ -761,7 +886,10 @@ def bulk_insert_candidate_links(
                             return host_map[host]
                         return None
 
-                    df["source_id"] = df.apply(_resolve_row, axis=1)
+                    df["source_id"] = df.apply(
+                        _resolve_row,
+                        axis=1,
+                    )  # type: ignore[call-overload]
 
                     # Build `dataset_sources` rows grouped by legacy id.
                     ds_rows: List[Dict[str, Any]] = []
@@ -908,7 +1036,11 @@ def bulk_insert_articles(
         if inspector_cols and "status" not in inspector_cols:
             with engine.connect() as conn:
                 try:
-                    conn.execute(text("ALTER TABLE articles ADD COLUMN status TEXT"))
+                    conn.execute(
+                        text(
+                            "ALTER TABLE articles ADD COLUMN status TEXT"
+                        )
+                    )
                 except Exception:
                     pass
 

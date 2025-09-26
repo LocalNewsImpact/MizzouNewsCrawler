@@ -340,6 +340,8 @@ def load_sources_command(args):
                 "source_id": source.id,  # Link to source
             }
 
+            candidate_links.append(link_data)
+
         # 5. Commit the normalized data
         session.commit()
         logger.info(
@@ -1482,7 +1484,7 @@ def main():
     )
     
     # Publisher stats subcommand
-    publishers_parser = telemetry_subparsers.add_parser(
+    telemetry_subparsers.add_parser(
         "publishers", help="Show per-publisher performance statistics"
     )
 

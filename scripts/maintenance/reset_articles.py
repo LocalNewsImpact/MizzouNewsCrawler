@@ -85,9 +85,9 @@ def reset_last_articles(count=15):
             cl_placeholders = ','.join([':cl_id' + str(i) for i in range(len(candidate_link_ids))])
             cl_params = {f'cl_id{i}': cl_id for i, cl_id in enumerate(candidate_link_ids)}
             
-            update_result = session.execute(text(f"""
-                UPDATE candidate_links 
-                SET status = 'article' 
+            session.execute(text(f"""
+                UPDATE candidate_links
+                SET status = 'article'
                 WHERE id IN ({cl_placeholders})
             """), cl_params)
             

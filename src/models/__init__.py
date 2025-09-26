@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Optional, cast
 
 from sqlalchemy import (
     JSON,
@@ -24,10 +24,10 @@ Base = declarative_base()
 
 # Import verification models
 from .verification import (  # noqa: E402
-    VerificationJob,
-    URLVerification,
-    VerificationTelemetry,
-    VerificationPattern,
+    VerificationJob as VerificationJob,
+    URLVerification as URLVerification,
+    VerificationTelemetry as VerificationTelemetry,
+    VerificationPattern as VerificationPattern,
 )
 
 
@@ -138,6 +138,11 @@ class Article(Base):
     candidate_link = relationship("CandidateLink", back_populates="articles")
     ml_results = relationship("MLResult", back_populates="article")
     locations = relationship("Location", back_populates="article")
+    entities = relationship(
+        "ArticleEntity",
+        back_populates="article",
+        cascade="all, delete-orphan",
+    )
     labels = relationship(
         "ArticleLabel",
         back_populates="article",
@@ -235,6 +240,52 @@ class Location(Base):
     article = relationship("Article", back_populates="locations")
 
 
+class ArticleEntity(Base):
+    """Structured entity extraction aligned with gazetteer categories."""
+
+    __tablename__ = "article_entities"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    article_id = Column(
+        String,
+        ForeignKey("articles.id"),
+        nullable=False,
+        index=True,
+    )
+    article_text_hash = Column(String, index=True)
+
+    entity_text = Column(String, nullable=False)
+    entity_norm = Column(String, index=True)
+    entity_label = Column(String, index=True)
+    osm_category = Column(String, index=True)
+    osm_subcategory = Column(String)
+
+    extractor_version = Column(String, index=True)
+    confidence = Column(Float)
+    matched_gazetteer_id = Column(
+        String,
+        ForeignKey("gazetteer.id"),
+        index=True,
+    )
+    match_score = Column(Float)
+    match_name = Column(String)
+    meta = Column(JSON)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    article = relationship("Article", back_populates="entities")
+    gazetteer_entry = relationship("Gazetteer")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "article_id",
+            "entity_norm",
+            "entity_label",
+            "extractor_version",
+            name="uq_article_entity",
+        ),
+    )
+
+
 class Job(Base):
     """Job execution metadata and audit trail."""
 
@@ -320,13 +371,27 @@ class DatasetSource(Base):
     __tablename__ = "dataset_sources"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    dataset_id = Column(String, ForeignKey("datasets.id"), nullable=False, index=True)
-    source_id = Column(String, ForeignKey("sources.id"), nullable=False, index=True)
+    dataset_id = Column(
+        String,
+        ForeignKey("datasets.id"),
+        nullable=False,
+        index=True,
+    )
+    source_id = Column(
+        String,
+        ForeignKey("sources.id"),
+        nullable=False,
+        index=True,
+    )
     legacy_host_id = Column(String, nullable=True, index=True)
     legacy_meta = Column(JSON)
 
     __table_args__ = (
-        UniqueConstraint("dataset_id", "legacy_host_id", name="uq_dataset_legacy_host"),
+        UniqueConstraint(
+            "dataset_id",
+            "legacy_host_id",
+            name="uq_dataset_legacy_host",
+        ),
         UniqueConstraint("dataset_id", "source_id", name="uq_dataset_source"),
     )
 
@@ -343,9 +408,19 @@ class Gazetteer(Base):
     __tablename__ = "gazetteer"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    dataset_id = Column(String, ForeignKey("datasets.id"), nullable=True, index=True)
+    dataset_id = Column(
+        String,
+        ForeignKey("datasets.id"),
+        nullable=True,
+        index=True,
+    )
     dataset_label = Column(String, index=True)
-    source_id = Column(String, ForeignKey("sources.id"), nullable=True, index=True)
+    source_id = Column(
+        String,
+        ForeignKey("sources.id"),
+        nullable=True,
+        index=True,
+    )
     # Additional keys linking back to original ingest/data model
     data_id = Column(String, nullable=True, index=True)
     host_id = Column(String, nullable=True, index=True)
@@ -447,7 +522,10 @@ class BackgroundProcess(Base):
     # Timing
     started_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(
-        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
     )
     completed_at = Column(DateTime, nullable=True)
 
@@ -468,9 +546,11 @@ class BackgroundProcess(Base):
     @property
     def progress_percentage(self):
         """Calculate progress as percentage (0-100)."""
-        if not self.progress_total or self.progress_total == 0:
+        total = cast(Optional[int], self.progress_total)
+        if total is None or total == 0:
             return None
-        return min(100, (self.progress_current / self.progress_total) * 100)
+        current = cast(int, self.progress_current or 0)
+        return min(100, (current / total) * 100)
 
     @property
     def duration_seconds(self):
@@ -481,10 +561,14 @@ class BackgroundProcess(Base):
     @property
     def is_active(self):
         """Check if process is still active."""
-        return self.status in ("started", "running")
+        status_value = cast(Optional[str], self.status)
+        return status_value in {"started", "running"}
 
     def update_progress(
-        self, current: int, message: Optional[str] = None, total: Optional[int] = None
+        self,
+        current: int,
+        message: Optional[str] = None,
+        total: Optional[int] = None,
     ):
         """Update progress counters and message."""
         self.progress_current = current
@@ -493,7 +577,8 @@ class BackgroundProcess(Base):
         if message:
             self.progress_message = message
         self.updated_at = datetime.utcnow()
-        if self.status == "started":
+        status_value = cast(Optional[str], self.status)
+        if status_value == "started":
             self.status = "running"
 
 

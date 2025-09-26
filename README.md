@@ -12,6 +12,69 @@ This project converts the original MizzouNewsCrawler into a production-ready scr
 
 - **Phase 2 — Production**: Deploy on GKE with Postgres, orchestrate with Kubernetes jobs
 
+## Getting Started
+
+### Prerequisites
+
+- Python 3.10 or newer (the codebase targets modern typing features and Torch 2.x)
+- `pip` and `virtualenv` tooling
+- SQLite 3 (bundled with Python)
+- Optional: Node.js 18+ if you want to run the markdown lint workflow under `npm`
+
+### Installation
+
+```bash
+git clone https://github.com/LocalNewsImpact/MizzouNewsCrawler-Scripts.git
+cd MizzouNewsCrawler-Scripts
+python -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+If you use `pipx` or Conda, adapt the environment step accordingly. The repo ships a `requirements-dev.txt` with optional lint/test tools; install it via `pip install -r requirements-dev.txt` when you need the full contributor toolchain.
+
+### First Run Checklist
+
+1. Seed the SQLite database with crawler sources:
+
+  ```bash
+  python -m src.cli.main load-sources --csv sources/publinks.csv
+  ```
+
+1. Discover a small batch of URLs to confirm the pipeline wiring:
+
+  ```bash
+  python -m src.cli.main discover-urls --source-limit 10 --dry-run
+  ```
+
+1. Extract content and inspect the new telemetry-rich content cleaner output:
+
+  ```bash
+  python -m src.cli.main content-cleaning analyze-domains \
+    --domain example.com \
+    --dry-run \
+    --verbose
+  ```
+
+1. When you're ready to persist cleaning results, rerun without `--dry-run`. The CLI now truncates article IDs in logs, records timing metadata, and writes removal details back into telemetry tables for downstream ML jobs.
+
+For a fuller walkthrough (including the end-to-end workflow script and advanced tools), see the "Quick local setup and run" section further down in this document.
+
+## Recent Maintenance (2025-09-26)
+
+### Content cleaning telemetry refresh
+
+- `BalancedBoundaryContentCleaner.process_single_article` now returns rich `removal_details`, a `share_header_removed_text` payload, and honors `dry_run` so exploratory runs never mutate the database.
+- Social-share headers are detected as a first-class pattern with telemetry logging, giving the CLI immediate insight into what was stripped before persisting updates.
+- Telemetry sessions capture the full wire-detection story (including local byline overrides), allowing analytics jobs to distinguish suppressed wire content from genuine local stories.
+
+### CLI content-cleaning commands
+
+- Introduced a `_clean_with_balanced` helper in `src/cli/commands/content_cleaning.py` so every subcommand (`analyze-domains`, `apply-cleaning`, `clean-article`, and the new `clean-content`) shares the same telemetry wiring, dry-run guard, and segment metadata.
+- Verbose output is now wrapped to within 79 columns and includes truncated article IDs, pattern classifications, and per-segment confidence/position data for easier triage.
+- CLI dry runs mirror production writes: the helper collects processing time, character deltas, and removal payloads even when no database commit occurs.
+
 ## Recent Maintenance (2025-09-24)
 
 ### Telemetry alignment
@@ -1130,7 +1193,7 @@ pip install -r requirements.txt
 
 1. Open the Test Explorer in VS Code (View → Testing). The workspace is configured to use `pytest` and will discover tests under the `tests/` directory.
 
-1. Run tests using the Test Explorer or run the `pytest: run all` task (Terminal → Run Task...). You can also run `pytest -q` in the integrated terminal.
+1. Run tests using the Test Explorer or run the `pytest: run all` task (Terminal → Run Task...). You can also run `pytest --cov=src --cov-report=term-missing --cov-fail-under=45` (or `make coverage`) in the integrated terminal; the repository enforces a 45% minimum line coverage threshold in CI.
 
 1. To debug a single test, use the Run/Debug gutter controls in the test file or create a debug configuration and point `program` to your `pytest` binary.
 

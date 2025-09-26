@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 # Add the parent directory to the path to import src modules
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.config import DATABASE_URL
+from src.config import DATABASE_URL  # noqa: E402
 
 
 class BylineTelemetryAnalyzer:

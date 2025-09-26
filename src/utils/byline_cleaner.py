@@ -242,7 +242,7 @@ class BylineCleaner:
             downstream article classification.
         """
         # Start telemetry session
-        telemetry_id = self.telemetry.start_cleaning_session(
+        self.telemetry.start_cleaning_session(
             raw_byline=byline,
             article_id=article_id,
             candidate_link_id=candidate_link_id,

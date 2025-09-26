@@ -1,3 +1,5 @@
+# ruff: noqa
+
 """News crawler module for discovering and fetching articles."""
 
 import hashlib
@@ -44,9 +46,6 @@ try:
     from selenium.webdriver.support.ui import WebDriverWait
     from selenium.webdriver.support import expected_conditions as EC
     from selenium.webdriver.chrome.options import Options as ChromeOptions
-    from selenium.webdriver.firefox.options import Options as FirefoxOptions
-    from selenium.webdriver.common.action_chains import ActionChains
-    from selenium.webdriver.common.keys import Keys
     SELENIUM_AVAILABLE = True
 except ImportError:
     SELENIUM_AVAILABLE = False
@@ -1178,8 +1177,6 @@ class ContentExtractor:
 
     def _create_undetected_driver(self):
         """Create undetected-chromedriver instance with maximum stealth."""
-        import random
-        
         # Configure undetected chrome options
         options = uc.ChromeOptions()
         
@@ -1222,8 +1219,6 @@ class ContentExtractor:
 
     def _create_stealth_driver(self):
         """Create regular Selenium driver with stealth enhancements."""
-        import random
-        
         # Configure Chrome options for maximum stealth
         chrome_options = ChromeOptions()
         chrome_options.add_argument("--headless=new")
@@ -1330,9 +1325,6 @@ class ContentExtractor:
 
     def _navigate_with_human_behavior(self, driver, url: str) -> bool:
         """Navigate to URL with minimal delays for faster content extraction."""
-        import time
-        import random
-        
         try:
             # Navigate directly to target URL (no need for about:blank delay)
             driver.get(url)

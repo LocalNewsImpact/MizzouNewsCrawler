@@ -70,22 +70,27 @@ def get_candidates_for_extraction(db: DatabaseManager, limit: int = None,
         candidates = result.fetchall()
     
     return candidates
-def create_article_from_candidate(db: DatabaseManager, candidate: dict,
-                                extraction_result):
+
+
+def create_article_from_candidate(
+    db: DatabaseManager,
+    candidate: dict,
+    extraction_result,
+):
     """Create article record from extraction result."""
-    extracted_content = extraction_result.extracted_content or {}
-    
-    content = extracted_content.get('content', '')
-    title = extracted_content.get('title', '')
-    author = extracted_content.get('author', '')
-    publish_date = extracted_content.get('publish_date', '')
-    
-    # TODO: Persist article data once schema is finalized.
+
+    # TODO: Persist article data using `extraction_result`
+    # once the article persistence schema is finalized.
     return candidate['id']
-    
-def update_candidate_status(db: DatabaseManager, candidate_id: str, status: str,
-                            publish_date: Optional[str] = None,
-                            error_message: Optional[str] = None):
+
+
+def update_candidate_status(
+    db: DatabaseManager,
+    candidate_id: str,
+    status: str,
+    publish_date: Optional[str] = None,
+    error_message: Optional[str] = None,
+):
     """Update candidate_links status after extraction attempt."""
     update_data = {
         'candidate_id': candidate_id,

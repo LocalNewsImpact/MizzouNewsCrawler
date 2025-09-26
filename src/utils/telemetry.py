@@ -554,9 +554,20 @@ class OperationTracker:
             return get_store(database_url)
 
         if hasattr(candidate, "connect") or hasattr(candidate, "execute"):
+            engine_url = getattr(candidate, "url", None)
+            if engine_url is not None:
+                self.logger.debug(
+                    "Received engine; initializing dedicated TelemetryStore "
+                    "from %s",
+                    engine_url,
+                )
+                return TelemetryStore(
+                    database=str(engine_url),
+                    async_writes=False,
+                )
+
             self.logger.debug(
-                "Received legacy engine; building TelemetryStore "
-                "from database_url"
+                "Received connection-like store; falling back to database_url"
             )
             return get_store(database_url)
 

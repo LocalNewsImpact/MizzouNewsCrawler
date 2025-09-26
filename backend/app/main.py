@@ -2198,7 +2198,9 @@ def get_http_errors(
         params = []
         
         if days:
-            conditions.append("created_at >= datetime('now', '-{} days')".format(days))
+            conditions.append(
+                "last_seen >= datetime('now', '-{} days')".format(days)
+            )
         
         if host:
             conditions.append("host = ?")
@@ -2215,12 +2217,12 @@ def get_http_errors(
         
         # Get error counts by status code and host
         query = f"""
-        SELECT 
+        SELECT
             host,
             status_code,
-            COUNT(*) as error_count,
-            MAX(created_at) as last_seen
-        FROM http_error_summary 
+            SUM(count) as error_count,
+            MAX(last_seen) as last_seen
+        FROM http_error_summary
         WHERE {where_clause}
         GROUP BY host, status_code
         ORDER BY error_count DESC
@@ -2242,7 +2244,10 @@ def get_http_errors(
         return {"http_errors": results}
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching HTTP errors: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error fetching HTTP errors: {str(e)}",
+        )
 
 
 @app.get("/api/telemetry/method-performance")
@@ -2260,7 +2265,9 @@ def get_method_performance(
         params = []
         
         if days:
-            conditions.append("created_at >= datetime('now', '-{} days')".format(days))
+            conditions.append(
+                "created_at >= datetime('now', '-{} days')".format(days)
+            )
         
         if method:
             conditions.append("method = ?")
@@ -2277,15 +2284,17 @@ def get_method_performance(
         
         # Get method performance stats
         query = f"""
-        SELECT 
+        SELECT
             COALESCE(successful_method, 'failed') as method,
             host,
             COUNT(*) as total_attempts,
-            SUM(CASE WHEN is_success = 1 THEN 1 ELSE 0 END) as successful_attempts,
+            SUM(
+                CASE WHEN is_success = 1 THEN 1 ELSE 0 END
+            ) as successful_attempts,
             AVG(total_duration_ms) as avg_duration,
             MIN(total_duration_ms) as min_duration,
             MAX(total_duration_ms) as max_duration
-        FROM extraction_telemetry_v2 
+        FROM extraction_telemetry_v2
         WHERE {where_clause}
         GROUP BY COALESCE(successful_method, 'failed'), host
         ORDER BY total_attempts DESC
@@ -2312,7 +2321,10 @@ def get_method_performance(
         return {"method_performance": results}
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching method performance: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error fetching method performance: {str(e)}",
+        )
 
 
 @app.get("/api/telemetry/publisher-stats")
@@ -2331,7 +2343,9 @@ def get_publisher_stats(
         params = []
         
         if days:
-            conditions.append("created_at >= datetime('now', '-{} days')".format(days))
+            conditions.append(
+                "created_at >= datetime('now', '-{} days')".format(days)
+            )
         
         if host:
             conditions.append("host = ?")
@@ -2341,14 +2355,18 @@ def get_publisher_stats(
         
         # Get comprehensive publisher stats
         query = f"""
-        SELECT 
+        SELECT
             host,
             COUNT(*) as total_extractions,
-            SUM(CASE WHEN is_success = 1 THEN 1 ELSE 0 END) as successful_extractions,
+            SUM(
+                CASE WHEN is_success = 1 THEN 1 ELSE 0 END
+            ) as successful_extractions,
             AVG(total_duration_ms) as avg_duration,
-            COUNT(DISTINCT COALESCE(successful_method, 'failed')) as methods_used,
+            COUNT(
+                DISTINCT COALESCE(successful_method, 'failed')
+            ) as methods_used,
             MAX(created_at) as last_attempt
-        FROM extraction_telemetry_v2 
+        FROM extraction_telemetry_v2
         WHERE {where_clause}
         GROUP BY host
         HAVING COUNT(*) >= ?
@@ -2362,6 +2380,13 @@ def get_publisher_stats(
         results = []
         for row in rows:
             success_rate = (row[2] / row[1] * 100) if row[1] > 0 else 0
+            if success_rate < 50:
+                status = "poor"
+            elif success_rate > 80:
+                status = "good"
+            else:
+                status = "fair"
+
             results.append({
                 "host": row[0],
                 "total_extractions": row[1],
@@ -2370,14 +2395,17 @@ def get_publisher_stats(
                 "avg_duration": round(row[3], 2) if row[3] else 0,
                 "methods_used": row[4],
                 "last_attempt": row[5],
-                "status": "poor" if success_rate < 50 else "good" if success_rate > 80 else "fair"
+                "status": status,
             })
         
         conn.close()
         return {"publisher_stats": results}
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching publisher stats: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error fetching publisher stats: {str(e)}",
+        )
 
 
 @app.get("/api/telemetry/field-extraction")
@@ -2391,15 +2419,29 @@ def get_field_extraction_stats(
     try:
         telemetry = ComprehensiveExtractionTelemetry(str(MAIN_DB_PATH))
         stats = telemetry.get_field_extraction_stats(
-            days=days,
-            field_name=field,
+            publisher=host,
             method=method,
-            host=host
         )
+
+        if field:
+            filtered = []
+            for entry in stats:
+                counts = {
+                    "title": entry.get("title_success", 0),
+                    "author": entry.get("author_success", 0),
+                    "content": entry.get("content_success", 0),
+                    "publish_date": entry.get("date_success", 0),
+                }
+                if counts.get(field):
+                    filtered.append(entry)
+            stats = filtered
         return {"field_extraction_stats": stats}
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching field extraction stats: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error fetching field extraction stats: {str(e)}",
+        )
 
 
 @app.get("/api/telemetry/poor-performers")
@@ -2415,15 +2457,22 @@ def get_poor_performing_sites(
         
         # Find sites with low success rates
         query = """
-        SELECT 
+        SELECT
             host,
             COUNT(*) as total_attempts,
-            SUM(CASE WHEN is_success = 1 THEN 1 ELSE 0 END) as successful_attempts,
-            (SUM(CASE WHEN is_success = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) as success_rate,
+            SUM(
+                CASE WHEN is_success = 1 THEN 1 ELSE 0 END
+            ) as successful_attempts,
+            (
+                SUM(CASE WHEN is_success = 1 THEN 1 ELSE 0 END) * 100.0
+                / COUNT(*)
+            ) as success_rate,
             AVG(total_duration_ms) as avg_duration,
             MAX(created_at) as last_attempt,
-            COUNT(DISTINCT COALESCE(successful_method, 'failed')) as methods_tried
-        FROM extraction_telemetry_v2 
+            COUNT(
+                DISTINCT COALESCE(successful_method, 'failed')
+            ) as methods_tried
+        FROM extraction_telemetry_v2
         WHERE created_at >= datetime('now', '-{} days')
         GROUP BY host
         HAVING COUNT(*) >= ? AND success_rate <= ?
@@ -2499,11 +2548,11 @@ def get_telemetry_summary(days: int = 7):
         
         # HTTP error counts
         cur.execute("""
-        SELECT 
+        SELECT
             status_code,
-            COUNT(*) as count
-        FROM http_error_summary 
-        WHERE created_at >= datetime('now', '-{} days')
+            SUM(count) as count
+        FROM http_error_summary
+        WHERE last_seen >= datetime('now', '-{} days')
         GROUP BY status_code
         ORDER BY count DESC
         LIMIT 10
@@ -2616,8 +2665,13 @@ def resume_site(request: SiteManagementRequest):
             "message": f"Site {request.host} has been resumed"
         }
         
+    except HTTPException as exc:
+        raise exc
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error resuming site: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error resuming site: {str(e)}",
+        )
 
 
 @app.get("/api/site-management/paused")

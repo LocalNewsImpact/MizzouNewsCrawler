@@ -45,7 +45,7 @@ def add_telemetry_parser(subparsers):
     )
     
     # Publisher stats
-    publisher_parser = telemetry_subparsers.add_parser(
+    telemetry_subparsers.add_parser(
         "publishers",
         help="Show per-publisher performance statistics"
     )

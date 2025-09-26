@@ -1,3 +1,5 @@
+# ruff: noqa: E501
+
 """
 Content cleaning utilities for removing boilerplate text from articles.
 
@@ -357,6 +359,8 @@ class ContentCleaner:
         Returns dictionary of features that can be used to train
         a classifier to predict whether content should be removed.
         """
+        import numpy as np
+        
         text = match.text_segment.lower()
         
         # Basic statistical features

@@ -1013,8 +1013,13 @@ class BalancedBoundaryContentCleaner:
         removed_text = '\n'.join(removed_segments)
         return {'cleaned_text': cleaned_text, 'removed_text': removed_text}
 
-    def process_single_article(self, text: str, domain: str,
-                               article_id=None) -> Tuple[str, Dict]:
+    def process_single_article(
+        self,
+        text: str,
+        domain: str,
+        article_id=None,
+        dry_run: bool = False,
+    ) -> Tuple[str, Dict]:
         """Process a single article to remove boilerplate."""
         # Start telemetry session
         if self.enable_telemetry:
@@ -1025,6 +1030,8 @@ class BalancedBoundaryContentCleaner:
         # First check persistent patterns for quick matching
         removed_by_persistent = self._remove_persistent_patterns(
             text, domain, article_id)
+
+        removal_details: List[Dict[str, Any]] = []
 
         wire_detected = removed_by_persistent.get('wire_detected')
         locality_assessment = None
@@ -1104,14 +1111,14 @@ class BalancedBoundaryContentCleaner:
             and not suppression_applied
         )
 
-        if should_mark_as_wire:
+        if should_mark_as_wire and not dry_run:
             self._mark_article_as_wire(
                 article_id,
                 wire_detected,
                 locality=locality_assessment,
                 source_context=source_context,
             )
-        elif article_id is not None and suppression_applied:
+        elif article_id is not None and suppression_applied and not dry_run:
             self._clear_wire_classification(article_id)
 
         if wire_detected:
@@ -1134,10 +1141,23 @@ class BalancedBoundaryContentCleaner:
                     f"Wire service detected in article {article_id}: "
                     f"{wire_detected['provider']}")
         
-        if removed_by_persistent['cleaned_text'] != text:
-            # Log persistent pattern removals to telemetry
-            if self.enable_telemetry:
-                for removal in removed_by_persistent['removals']:
+        if removed_by_persistent['removals']:
+            for removal in removed_by_persistent['removals']:
+                detail = {
+                    'pattern_type': removal['pattern_type'],
+                    'pattern_name': removal.get('removal_reason'),
+                    'confidence_score': removal.get('confidence_score', 0.0),
+                    'text': removal['text'],
+                    'position': removal.get('position', -1),
+                    'length': len(removal['text']),
+                    'source': 'persistent_pattern',
+                }
+                removal_details.append(detail)
+
+                if (
+                    self.enable_telemetry
+                    and removed_by_persistent['cleaned_text'] != text
+                ):
                     self.telemetry.log_segment_detection(
                         segment_text=removal['text'],
                         boundary_score=removal['confidence_score'],
@@ -1151,14 +1171,25 @@ class BalancedBoundaryContentCleaner:
                             f"Persistent: {removal['removal_reason']}"
                         ),
                     )
+
+        if removed_by_persistent['cleaned_text'] != text:
             text = removed_by_persistent['cleaned_text']
 
         share_removal = self._remove_social_share_header(text)
         share_header_removed = bool(share_removal['removed_text'])
         if share_header_removed:
             text = share_removal['cleaned_text']
+            removed_text = share_removal['removed_text'] or ''
+            removal_details.append({
+                'pattern_type': 'social_share_header',
+                'pattern_name': 'social_share_header',
+                'confidence_score': 1.0,
+                'text': removed_text,
+                'position': 0,
+                'length': len(removed_text),
+                'source': 'social_share_header',
+            })
             if self.enable_telemetry:
-                removed_text = share_removal['removed_text'] or ''
                 self.telemetry.log_segment_detection(
                     segment_text=removed_text,
                     boundary_score=1.0,
@@ -1183,10 +1214,7 @@ class BalancedBoundaryContentCleaner:
 
             self.telemetry.finalize_cleaning_session(
                 rough_candidates_found=0,
-                segments_detected=(
-                    len(removed_by_persistent['removals']) +
-                    (1 if share_header_removed else 0)
-                ),
+                segments_detected=len(removal_details),
                 total_removable_chars=removed_chars,
                 removal_percentage=removal_percentage
             )
@@ -1205,6 +1233,8 @@ class BalancedBoundaryContentCleaner:
             'social_share_header_removed': share_header_removed,
             'locality_assessment': locality_assessment,
             'wire_suppressed_due_to_local_byline': suppression_applied,
+            'removal_details': removal_details,
+            'share_header_removed_text': share_removal['removed_text'],
         }
 
     def _clear_wire_classification(self, article_id: str) -> None:

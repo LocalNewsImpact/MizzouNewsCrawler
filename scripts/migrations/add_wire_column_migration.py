@@ -1,42 +1,22 @@
 #!/usr/bin/env python3
-"""
-Add Wire column to articles table for tracking wire service content.
-
-This migration adds a new 'wire' column to the articles table to store
-wire service names that were detected and removed from the byline field.
-This enables proper classification and filtering of wire service content.
-"""
+"""Migration to add a ``wire`` column to the ``articles`` table."""
 
 import sqlite3
 import sys
 from pathlib import Path
 
-# Add src directory to path for imports
-src_path = Path(__file__).parent / 'src'
-sys.path.insert(0, str(src_path))
+ROOT_DIR = Path(__file__).resolve().parents[2]
+SRC_PATH = ROOT_DIR / "src"
+if str(SRC_PATH) not in sys.path:
+    sys.path.insert(0, str(SRC_PATH))
 
 try:
     from utils.database import DatabaseManager
-except ImportError:
-    # Fallback: connect directly to database
-    print("⚠️  Could not import DatabaseManager, using direct SQLite connection")
-    DatabaseManager = Nonehon3
-"""
-Add Wire column to articles table for tracking wire service content.
-
-This migration adds a new 'wire' column to the articles table to store
-wire service names that were detected and removed from the byline field.
-This enables proper classification and filtering of wire service content.
-"""
-
-import sys
-from pathlib import Path
-
-# Add src directory to path for imports
-src_path = Path(__file__).parent.parent / 'src'
-sys.path.insert(0, str(src_path))
-
-from utils.database import DatabaseManager
+except ImportError as exc:  # noqa: E402
+    raise SystemExit(
+        "Unable to import DatabaseManager. "
+        "Run this script from the project root."
+    ) from exc
 
 
 def add_wire_column():
@@ -61,16 +41,20 @@ def add_wire_column():
                 return True
             
             # Add the Wire column
-            cursor.execute("""
-                ALTER TABLE articles 
+            cursor.execute(
+                """
+                ALTER TABLE articles
                 ADD COLUMN wire TEXT DEFAULT NULL
-            """)
+                """
+            )
             
             # Create index for efficient querying
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_articles_wire 
+            cursor.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_articles_wire
                 ON articles(wire)
-            """)
+                """
+            )
             
             conn.commit()
             

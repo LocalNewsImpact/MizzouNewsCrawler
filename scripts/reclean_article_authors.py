@@ -37,7 +37,7 @@ from typing import Dict, List, Optional, Tuple
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.utils.byline_cleaner import BylineCleaner
+from src.utils.byline_cleaner import BylineCleaner  # noqa: E402
 
 
 class ArticleAuthorRecleaner:
@@ -246,7 +246,7 @@ class ArticleAuthorRecleaner:
                 else:
                     # Handle legacy format
                     current_authors = [current_author] if current_author else []
-            except:
+            except (json.JSONDecodeError, TypeError):
                 current_authors = [current_author] if current_author else []
             
             analysis = {

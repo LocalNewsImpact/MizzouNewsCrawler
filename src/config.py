@@ -12,11 +12,14 @@ from typing import Optional
 
 try:
     # Optional dependency for local .env files
-    from dotenv import load_dotenv
+    from dotenv import load_dotenv  # pragma: no cover
 
-    _HAVE_DOTENV = True
-except Exception:
-    _HAVE_DOTENV = False
+    _HAVE_DOTENV = True  # pragma: no cover
+except Exception:  # pragma: no cover - optional dependency missing
+    _HAVE_DOTENV = False  # pragma: no cover
+
+    def load_dotenv(*args, **kwargs) -> bool:  # pragma: no cover
+        return False
 
 # If a .env file is present and python-dotenv is installed, load it.
 _env_path = Path(".") / ".env"

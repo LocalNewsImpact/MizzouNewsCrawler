@@ -115,7 +115,6 @@ def re_clean_authors(telemetry_data: List[Tuple],
         
         # Determine if this is an improvement
         is_improvement = False
-        is_degradation = False
         
         if current_count == 0 and new_count > 0:
             # Empty to filled - definitely an improvement
@@ -125,7 +124,6 @@ def re_clean_authors(telemetry_data: List[Tuple],
         elif current_count > 0 and new_count == 0:
             # Filled to empty - likely a degradation
             stats['filled_to_empty'] += 1
-            is_degradation = True
             
         elif new_set != current_set:
             # Different results - need to evaluate quality
@@ -175,7 +173,6 @@ def re_clean_authors(telemetry_data: List[Tuple],
                 # Default to considering it unchanged unless clearly worse
                 if new_count < current_count:
                     stats['degraded'] += 1
-                    is_degradation = True
                     stats['degradations'].append({
                         'article_id': article_id,
                         'title': title,

@@ -8,11 +8,15 @@ import uuid
 import json
 from datetime import datetime
 from collections import defaultdict
+from typing import Iterable, Optional, Set, cast
+
 from sqlalchemy import text
 
+from src.models import Article, CandidateLink
 from src.models.database import (
     DatabaseManager,
     calculate_content_hash,
+    save_article_entities,
     _commit_with_retry,
 )
 from src.crawler import ContentExtractor
@@ -22,8 +26,23 @@ from src.utils.comprehensive_telemetry import (
     ComprehensiveExtractionTelemetry,
     ExtractionMetrics
 )
+from src.pipeline.entity_extraction import (
+    ArticleEntityExtractor,
+    get_gazetteer_rows,
+    attach_gazetteer_matches,
+)
 
 logger = logging.getLogger(__name__)
+
+
+_ENTITY_EXTRACTOR: ArticleEntityExtractor | None = None
+
+
+def _get_entity_extractor() -> ArticleEntityExtractor:
+    global _ENTITY_EXTRACTOR
+    if _ENTITY_EXTRACTOR is None:
+        _ENTITY_EXTRACTOR = ArticleEntityExtractor()
+    return _ENTITY_EXTRACTOR
 
 
 ARTICLE_INSERT_SQL = text(
@@ -455,6 +474,7 @@ def _run_post_extraction_cleaning(domains_to_articles):
     cleaner = BalancedBoundaryContentCleaner(enable_telemetry=True)
     db = DatabaseManager()
     session = db.session
+    articles_for_entities: Set[str] = set()
 
     try:
         for domain, article_ids in domains_to_articles.items():
@@ -574,6 +594,12 @@ def _run_post_extraction_cleaning(domains_to_articles):
                     if article_updated:
                         _commit_with_retry(session)
 
+                    status_for_entities = (new_status or "").lower()
+                    if status_for_entities != "wire":
+                        # Always queue non-wire articles for entity
+                        # extraction so locality comparison data stays fresh
+                        # even when content hashes remain unchanged.
+                        articles_for_entities.add(article_id)
                 except Exception:
                     session.rollback()
                     logger.exception(
@@ -585,5 +611,74 @@ def _run_post_extraction_cleaning(domains_to_articles):
     except Exception:
         session.rollback()
         logger.exception("Failed to complete post-extraction content cleaning")
+    finally:
+        session.close()
+
+    if articles_for_entities:
+        _run_article_entity_extraction(articles_for_entities)
+
+
+def _run_article_entity_extraction(article_ids: Iterable[str]) -> None:
+    ids = {article_id for article_id in article_ids if article_id}
+    if not ids:
+        return
+
+    extractor = _get_entity_extractor()
+    logger.info("Running entity extraction for %d articles", len(ids))
+
+    db = DatabaseManager()
+    session = db.session
+
+    try:
+        articles = (
+            session.query(Article)
+            .join(CandidateLink, Article.candidate_link_id == CandidateLink.id)
+            .filter(Article.id.in_(ids))
+            .all()
+        )
+
+        for article in articles:
+            status_value = (article.status or "").lower()
+            if status_value == "wire":
+                continue
+
+            candidate = article.candidate_link
+            if candidate:
+                source_id = cast(Optional[str], candidate.source_id)
+                dataset_id = cast(Optional[str], candidate.dataset_id)
+            else:
+                source_id = None
+                dataset_id = None
+
+            raw_text = article.text or article.content
+            text_value = (
+                raw_text if isinstance(raw_text, str) else None
+            )
+            gazetteer_rows = get_gazetteer_rows(
+                session,
+                source_id,
+                dataset_id,
+            )
+            entities = extractor.extract(
+                text_value,
+                gazetteer_rows=gazetteer_rows,
+            )
+            entities = attach_gazetteer_matches(
+                session,
+                source_id,
+                dataset_id,
+                entities,
+                gazetteer_rows=gazetteer_rows,
+            )
+            save_article_entities(
+                session,
+                cast(str, article.id),
+                entities,
+                extractor.extractor_version,
+                cast(Optional[str], article.text_hash),
+            )
+    except Exception:
+        session.rollback()
+        logger.exception("Entity extraction pipeline failed")
     finally:
         session.close()

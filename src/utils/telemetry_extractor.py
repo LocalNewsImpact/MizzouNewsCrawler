@@ -458,7 +458,7 @@ class TelemetryContentExtractor:
             
             now = datetime.now(timezone.utc)
             return date_obj > now
-        except:
+        except (ValueError, TypeError):
             return False
     
     def _is_too_old_date(self, date_str: str) -> bool:
@@ -473,5 +473,5 @@ class TelemetryContentExtractor:
             
             ten_years_ago = datetime.now(timezone.utc) - timedelta(days=3650)
             return date_obj < ten_years_ago
-        except:
+        except (ValueError, TypeError):
             return False
