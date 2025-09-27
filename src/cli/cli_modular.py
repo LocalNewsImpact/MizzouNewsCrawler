@@ -19,6 +19,9 @@ from .commands.discovery import (
 from .commands.extraction import (
     add_extraction_parser, handle_extraction_command,
 )
+from .commands.analysis import (
+    add_analysis_parser, handle_analysis_command,
+)
 from .commands.load_sources import (
     add_load_sources_parser, handle_load_sources_command,
 )
@@ -66,6 +69,9 @@ def create_parser() -> argparse.ArgumentParser:
     # Add extraction commands
     add_extraction_parser(subparsers)
 
+    # Add ML analysis commands
+    add_analysis_parser(subparsers)
+
     # Data management commands
     add_load_sources_parser(subparsers)
     add_list_sources_parser(subparsers)
@@ -98,6 +104,8 @@ def main():
         return handle_discovery_command(args)
     elif args.command == "extract":
         return handle_extraction_command(args)
+    elif args.command == "analyze":
+        return handle_analysis_command(args)
     elif args.command == "load-sources":
         return handle_load_sources_command(args)
     elif args.command == "list-sources":

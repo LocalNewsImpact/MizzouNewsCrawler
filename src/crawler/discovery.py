@@ -14,7 +14,7 @@ import logging
 import time
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Set, Tuple
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 import pandas as pd
 import requests
@@ -167,6 +167,85 @@ class NewsDiscovery:
             "Articles published before "
             f"{self.cutoff_date.strftime('%Y-%m-%d')} will be filtered out"
         )
+
+        self._known_hosts_cache: Set[str] | None = None
+
+    @staticmethod
+    def _normalize_host(host: Optional[str]) -> Optional[str]:
+        """Normalize hostnames for comparison."""
+
+        if not host:
+            return None
+
+        value = host.strip()
+        if not value:
+            return None
+
+        if "//" in value and not value.startswith("//"):
+            parsed = urlparse(value)
+            value = parsed.netloc or value
+
+        value = value.split("@").pop()  # Drop credentials if provided
+        value = value.split(":")[0]  # Remove port
+        value = value.lower()
+
+        if value.startswith("www."):
+            value = value[4:]
+
+        return value or None
+
+    def _iter_host_candidates(self, value: Any) -> List[str]:
+        hosts: List[str] = []
+        if isinstance(value, str):
+            parts = [part.strip() for part in value.split(",") if part]
+            hosts.extend(parts)
+        elif isinstance(value, (list, tuple, set)):
+            for item in value:
+                if isinstance(item, str) and item.strip():
+                    hosts.append(item.strip())
+        return hosts
+
+    def _collect_allowed_hosts(
+        self,
+        source_row: pd.Series,
+        source_meta: Optional[dict],
+    ) -> Set[str]:
+        hosts: Set[str] = set()
+
+        primary_candidates = [
+            source_row.get("host"),
+            source_row.get("host_norm"),
+        ]
+
+        source_url = str(source_row.get("url", ""))
+        if source_url:
+            parsed = urlparse(source_url)
+            if parsed.netloc:
+                primary_candidates.append(parsed.netloc)
+
+        for candidate in primary_candidates:
+            normalized = self._normalize_host(candidate)
+            if normalized:
+                hosts.add(normalized)
+
+        if isinstance(source_meta, dict):
+            meta_keys = [
+                "alternate_hosts",
+                "alternate_domains",
+                "allowed_hosts",
+                "allowed_domains",
+                "domains",
+                "hosts",
+                "host_aliases",
+            ]
+            for key in meta_keys:
+                value = source_meta.get(key)
+                for candidate in self._iter_host_candidates(value):
+                    normalized = self._normalize_host(candidate)
+                    if normalized:
+                        hosts.add(normalized)
+
+        return hosts
 
     def _update_source_meta(
         self,
@@ -602,9 +681,6 @@ class NewsDiscovery:
                         r'href=["\']([^"\']+)["\']', html, flags=re.I
                     )
                     candidates = []
-                    parsed_base = None
-                    from urllib.parse import urlparse
-
                     parsed_base = urlparse(source_url)
                     for h in hrefs:
                         # Normalize and skip mailto/tele/JS
@@ -893,8 +969,6 @@ class NewsDiscovery:
         label = f"discovery.{method_val}"
         if details:
             try:
-                from urllib.parse import urlparse
-
                 p = urlparse(details)
                 host = p.netloc or p.path
                 path = p.path or ""
@@ -1454,14 +1528,13 @@ class NewsDiscovery:
             if "metadata" in source_row.index:
                 raw_meta_val = source_row.get("metadata")
                 if raw_meta_val and isinstance(raw_meta_val, str):
-                    try:
-                        source_meta = json.loads(raw_meta_val)
-                    except Exception:
-                        source_meta = None
+                    source_meta = json.loads(raw_meta_val)
                 elif raw_meta_val and isinstance(raw_meta_val, dict):
                     source_meta = raw_meta_val
         except Exception:
             source_meta = None
+
+        allowed_hosts = self._collect_allowed_hosts(source_row, source_meta)
 
         # Whether to skip probing RSS feeds based on recent metadata; set a
         # default here so downstream logic always has the variable.
@@ -1502,30 +1575,21 @@ class NewsDiscovery:
                         elif isinstance(source_row.rss_feeds, list):
                             custom_rss_feeds = source_row.rss_feeds
 
-                    # Extract source metadata if present to allow
-                    # frequency-aware fallback gating inside RSS discovery
-                    # and to check whether RSS was recently marked missing.
-                    source_meta = None
-                    try:
-                        if "metadata" in source_row.index:
-                            raw_meta = source_row.get("metadata")
-                            if raw_meta and isinstance(raw_meta, str):
-                                try:
-                                    source_meta = json.loads(raw_meta)
-                                except Exception:
-                                    source_meta = None
-                            elif raw_meta and isinstance(raw_meta, dict):
-                                source_meta = raw_meta
-                    except Exception:
-                        source_meta = None
+                    # Reuse parsed source metadata for RSS heuristics.
+                    source_meta_local = source_meta
 
                     # Determine if we should skip RSS. If the source was
                     # previously marked missing, we may avoid probing feeds.
                     skip_rss = False
                     try:
                         rss_missing_ts = None
-                        if source_meta and isinstance(source_meta, dict):
-                            rss_missing_ts = source_meta.get("rss_missing")
+                        if (
+                            source_meta_local
+                            and isinstance(source_meta_local, dict)
+                        ):
+                            rss_missing_ts = source_meta_local.get(
+                                "rss_missing"
+                            )
 
                         if rss_missing_ts:
                             try:
@@ -1541,8 +1605,8 @@ class NewsDiscovery:
                             recent_activity_days = 90
                             try:
                                 freq = (
-                                    source_meta.get("frequency")
-                                    if source_meta
+                                    source_meta_local.get("frequency")
+                                    if source_meta_local
                                     else None
                                 )
                                 if freq:
@@ -1892,12 +1956,51 @@ class NewsDiscovery:
         articles_new = 0
         articles_duplicate = 0
         articles_expired = 0
+        articles_out_of_scope = 0
         stored_count = 0
 
         # Store in database and track outcomes
         with DatabaseManager(self.database_url) as db:
-            for url, article_data in unique_articles.items():
+            for raw_url, article_data in unique_articles.items():
+                candidate_url = article_data.get("url") or raw_url
+                url = candidate_url
                 try:
+                    parsed = urlparse(candidate_url)
+                    if not parsed.netloc:
+                        absolute_url = urljoin(source_url, candidate_url)
+                        parsed = urlparse(absolute_url)
+                    else:
+                        absolute_url = candidate_url
+
+                    host_value = parsed.netloc
+                    normalized_host = self._normalize_host(host_value)
+
+                    if (
+                        allowed_hosts
+                        and (
+                            not normalized_host
+                            or normalized_host not in allowed_hosts
+                        )
+                    ):
+                        articles_out_of_scope += 1
+                        logger.debug(
+                            "Skipping out-of-scope URL %s for %s",
+                            absolute_url,
+                            source_name,
+                        )
+                        continue
+
+                    if not host_value:
+                        articles_out_of_scope += 1
+                        logger.debug(
+                            "Skipping URL without host %s for %s",
+                            candidate_url,
+                            source_name,
+                        )
+                        continue
+
+                    url = absolute_url
+
                     # Check if this URL already exists
                     if url in existing_urls:
                         articles_duplicate += 1
@@ -1921,7 +2024,7 @@ class NewsDiscovery:
                             # If we can't parse date, treat as valid
                             pass
 
-                    # This is a new, valid article
+                    # This is a new, valid article scoped to the source
                     articles_new += 1
 
                     # Build a descriptive discovered_by label using helper
@@ -1996,9 +2099,14 @@ class NewsDiscovery:
                     # Use the existing upsert function
                     upsert_candidate_link(db.session, **candidate_data)
                     stored_count += 1
+                    existing_urls.add(url)
 
                 except Exception as e:
-                    logger.error(f"Failed to store candidate URL {url}: {e}")
+                    logger.error(
+                        "Failed to store candidate URL %s: %s",
+                        candidate_url,
+                        e,
+                    )
                     continue
 
         logger.info(f"Stored {stored_count} candidate URLs for {source_name}")
@@ -2033,6 +2141,7 @@ class NewsDiscovery:
                 "discovery_time_ms": (time.time() - start_time) * 1000,
                 "methods_attempted": discovery_methods_attempted,
                 "stored_count": stored_count,
+                "out_of_scope_skipped": articles_out_of_scope,
             }
         )
 

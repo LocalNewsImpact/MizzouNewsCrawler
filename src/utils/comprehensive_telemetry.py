@@ -9,7 +9,7 @@ import json
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 from urllib.parse import urlparse
 
 from src.telemetry.store import TelemetryStore, get_store
@@ -67,6 +67,9 @@ class ExtractionMetrics:
         self.error_message: Optional[str] = None
         self.error_type: Optional[str] = None
 
+        # Content type detection
+        self.content_type_detection: Optional[Dict[str, Any]] = None
+
     def start_method(self, method_name: str):
         """Start timing a specific extraction method."""
         self.methods_attempted.append(method_name)
@@ -123,6 +126,10 @@ class ExtractionMetrics:
             'current_value': current_value[:200],          # Truncate
             'values_differ': alternative_value != current_value
         }
+
+    def set_content_type_detection(self, detection: Optional[Dict[str, Any]]):
+        """Attach content type detection payload for telemetry."""
+        self.content_type_detection = detection
 
     def set_http_metrics(self, status_code: int, response_size: int,
                          response_time_ms: float):
@@ -264,6 +271,35 @@ class ComprehensiveExtractionTelemetry:
                 )
             ''')
 
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS content_type_detection_telemetry (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    article_id TEXT NOT NULL,
+                    operation_id TEXT,
+                    url TEXT NOT NULL,
+                    publisher TEXT,
+                    host TEXT,
+                    status TEXT NOT NULL,
+                    confidence TEXT,
+                    confidence_score REAL,
+                    reason TEXT,
+                    evidence TEXT,
+                    version TEXT,
+                    detected_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
+            try:
+                conn.execute(
+                    '''
+                    ALTER TABLE content_type_detection_telemetry
+                    ADD COLUMN confidence_score REAL
+                    '''
+                )
+            except Exception:
+                pass
+
             conn.commit()
 
     def record_extraction(self, metrics: ExtractionMetrics):
@@ -339,6 +375,35 @@ class ComprehensiveExtractionTelemetry:
                     ),
                 )
 
+            detection = metrics.content_type_detection
+            if detection:
+                evidence_payload = detection.get("evidence")
+                conn.execute(
+                    '''
+                    INSERT INTO content_type_detection_telemetry (
+                        article_id, operation_id, url, publisher, host,
+                        status, confidence, confidence_score, reason,
+                        evidence, version, detected_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''',
+                    (
+                        metrics.article_id,
+                        metrics.operation_id,
+                        metrics.url,
+                        metrics.publisher,
+                        metrics.host,
+                        detection.get("status"),
+                        detection.get("confidence"),
+                        detection.get("confidence_score"),
+                        detection.get("reason"),
+                        json.dumps(evidence_payload)
+                        if evidence_payload is not None
+                        else None,
+                        detection.get("version"),
+                        detection.get("detected_at"),
+                    ),
+                )
+
         self._store.submit(writer)
 
     def get_error_summary(self, days: int = 7) -> list:
@@ -357,6 +422,90 @@ class ComprehensiveExtractionTelemetry:
                 return [dict(zip(columns, row)) for row in cursor.fetchall()]
             finally:
                 cursor.close()
+
+    def get_content_type_detections(
+        self,
+        *,
+        limit: int = 200,
+        statuses: Optional[Sequence[str]] = None,
+        days: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """Return recent content-type detections for review."""
+
+        where_clauses: List[str] = []
+        params: List[Any] = []
+
+        if statuses:
+            placeholders = ",".join("?" for _ in statuses)
+            where_clauses.append(f"status IN ({placeholders})")
+            params.extend(statuses)
+
+        if days is not None:
+            where_clauses.append("created_at >= datetime('now', ?)")
+            params.append(f"-{days} days")
+
+        where_sql = ""
+        if where_clauses:
+            where_sql = " WHERE " + " AND ".join(where_clauses)
+
+        query = (
+            "SELECT article_id, operation_id, url, publisher, host, status, "
+            "confidence, confidence_score, reason, evidence, version, "
+            "detected_at, created_at "
+            "FROM content_type_detection_telemetry"
+            f"{where_sql} "
+            "ORDER BY COALESCE(detected_at, created_at) DESC LIMIT ?"
+        )
+        params.append(limit)
+
+        with self._store.connection() as conn:
+            cursor = conn.execute(query, params)
+            try:
+                rows = cursor.fetchall()
+            finally:
+                cursor.close()
+
+        results: List[Dict[str, Any]] = []
+        for row in rows:
+            (
+                article_id,
+                operation_id,
+                url,
+                publisher,
+                host,
+                status,
+                confidence,
+                confidence_score,
+                reason,
+                evidence_json,
+                version,
+                detected_at,
+                created_at,
+            ) = row
+            try:
+                evidence = json.loads(evidence_json) if evidence_json else None
+            except (json.JSONDecodeError, TypeError):
+                evidence = evidence_json
+
+            results.append(
+                {
+                    "article_id": article_id,
+                    "operation_id": operation_id,
+                    "url": url,
+                    "publisher": publisher,
+                    "host": host,
+                    "status": status,
+                    "confidence": confidence,
+                    "confidence_score": confidence_score,
+                    "reason": reason,
+                    "evidence": evidence,
+                    "version": version,
+                    "detected_at": detected_at,
+                    "created_at": created_at,
+                }
+            )
+
+        return results
 
     def get_method_effectiveness(
         self, publisher: Optional[str] = None

@@ -94,7 +94,19 @@ class ArticleClassificationService:
     ) -> ClassificationStats:
         """Classify eligible articles and persist results."""
 
-        articles = self._select_articles(statuses, label_version, limit)
+        excluded_statuses = {"opinion", "obituary"}
+        effective_statuses = [
+            status for status in statuses if status not in excluded_statuses
+        ]
+        if not effective_statuses:
+            self.logger.info(
+                "No eligible statuses after excluding opinion/obituary content"
+            )
+            return ClassificationStats()
+
+        articles = self._select_articles(
+            effective_statuses, label_version, limit
+        )
         stats = ClassificationStats(processed=len(articles))
 
         if not articles:

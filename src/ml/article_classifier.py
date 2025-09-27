@@ -265,10 +265,9 @@ def _load_pt_classifier(
         problem_type="single_label_classification",
     )
 
-    model = BertForSequenceClassification.from_pretrained(
-        _BASE_MODEL_NAME,
-        config=config,
-    )
+    # Instantiate the classification head directly from the config so the
+    # checkpoint provides every parameter (including the classifier weights).
+    model = BertForSequenceClassification(config)
 
     missing_keys, unexpected_keys = model.load_state_dict(
         normalized_state,

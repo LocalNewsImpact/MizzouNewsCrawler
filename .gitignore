@@ -67,6 +67,7 @@ artifacts/
 # Test files
 test_*.py
 tests/test_*.py.new
+!tests/utils/test_content_type_detector.py
 
 # Project specific
 models/productionmodel.pt

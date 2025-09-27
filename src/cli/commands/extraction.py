@@ -22,6 +22,7 @@ from src.models.database import (
 from src.crawler import ContentExtractor
 from src.utils.byline_cleaner import BylineCleaner
 from src.utils.content_cleaner_balanced import BalancedBoundaryContentCleaner
+from src.utils.content_type_detector import ContentTypeDetector
 from src.utils.comprehensive_telemetry import (
     ComprehensiveExtractionTelemetry,
     ExtractionMetrics
@@ -36,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 
 _ENTITY_EXTRACTOR: ArticleEntityExtractor | None = None
+_CONTENT_TYPE_DETECTOR: ContentTypeDetector | None = None
 
 
 def _get_entity_extractor() -> ArticleEntityExtractor:
@@ -43,6 +45,13 @@ def _get_entity_extractor() -> ArticleEntityExtractor:
     if _ENTITY_EXTRACTOR is None:
         _ENTITY_EXTRACTOR = ArticleEntityExtractor()
     return _ENTITY_EXTRACTOR
+
+
+def _get_content_type_detector() -> ContentTypeDetector:
+    global _CONTENT_TYPE_DETECTOR
+    if _CONTENT_TYPE_DETECTOR is None:
+        _CONTENT_TYPE_DETECTOR = ContentTypeDetector()
+    return _CONTENT_TYPE_DETECTOR
 
 
 ARTICLE_INSERT_SQL = text(
@@ -258,8 +267,7 @@ def _process_batch(
 
             try:
                 content = extractor.extract_content(url, metrics=metrics)
-                metrics.finalize(content or {})
-                telemetry.record_extraction(metrics)
+                detection_payload = None
 
                 if content and content.get("title"):
                     # Reset failure count on success
@@ -271,6 +279,7 @@ def _process_batch(
                     cleaned_author = None
                     wire_service_info = None
                     article_status = "extracted"
+                    byline_result = None
                     
                     if raw_author:
                         # Get full JSON result with wire service detection
@@ -308,12 +317,51 @@ def _process_batch(
                                 raw_author,
                                 cleaned_list,
                             )
+
+                    metadata_value = content.get("metadata") or {}
+                    if not isinstance(metadata_value, dict):
+                        metadata_value = {}
+
+                    if byline_result:
+                        metadata_value["byline"] = byline_result
+
+                    if article_status == "extracted":
+                        detector = _get_content_type_detector()
+                        detection_result = detector.detect(
+                            url=url,
+                            title=content.get("title"),
+                            metadata=metadata_value,
+                            content=content.get("content"),
+                        )
+                        if detection_result:
+                            article_status = detection_result.status
+                            detection_payload = {
+                                "status": detection_result.status,
+                                "confidence": detection_result.confidence,
+                                "confidence_score": (
+                                    detection_result.confidence_score
+                                ),
+                                "reason": detection_result.reason,
+                                "evidence": detection_result.evidence,
+                                "version": detection_result.detector_version,
+                                "detected_at": datetime.utcnow().isoformat(),
+                            }
+                            metadata_value["content_type_detection"] = (
+                                detection_payload
+                            )
+
+                    # Update metadata if we added detection info
+                    if metadata_value:
+                        content["metadata"] = metadata_value
                     
                     now = datetime.utcnow()
                     content_text = content.get("content", "")
                     text_hash = (calculate_content_hash(content_text)
                                  if content_text else None)
-                    
+
+                    metrics.set_content_type_detection(detection_payload)
+                    metrics.finalize(content or {})
+
                     session.execute(
                         ARTICLE_INSERT_SQL,
                         {
@@ -340,6 +388,7 @@ def _process_batch(
                         {"status": article_status, "id": str(url_id)},
                     )
                     session.commit()
+                    telemetry.record_extraction(metrics)
                     domains_for_cleaning[domain].append(article_id)
                     processed += 1
                 else:
@@ -370,6 +419,8 @@ def _process_batch(
                     
                     metrics.error_message = "No title extracted"
                     metrics.error_type = "extraction_failure"
+                    metrics.set_content_type_detection(detection_payload)
+                    metrics.finalize(content or {})
                     telemetry.record_extraction(metrics)
 
             except Exception as e:
@@ -595,7 +646,8 @@ def _run_post_extraction_cleaning(domains_to_articles):
                         _commit_with_retry(session)
 
                     status_for_entities = (new_status or "").lower()
-                    if status_for_entities != "wire":
+                    disallowed_statuses = {"wire", "opinion", "obituary"}
+                    if status_for_entities not in disallowed_statuses:
                         # Always queue non-wire articles for entity
                         # extraction so locality comparison data stays fresh
                         # even when content hashes remain unchanged.
@@ -637,9 +689,11 @@ def _run_article_entity_extraction(article_ids: Iterable[str]) -> None:
             .all()
         )
 
+        skip_statuses = {"wire", "opinion", "obituary"}
+
         for article in articles:
             status_value = (article.status or "").lower()
-            if status_value == "wire":
+            if status_value in skip_statuses:
                 continue
 
             candidate = article.candidate_link
