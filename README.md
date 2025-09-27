@@ -59,6 +59,27 @@ If you use `pipx` or Conda, adapt the environment step accordingly. The repo shi
 
 1. When you're ready to persist cleaning results, rerun without `--dry-run`. The CLI now truncates article IDs in logs, records timing metadata, and writes removal details back into telemetry tables for downstream ML jobs.
 
+### Manual enqueue batches
+
+Use `scripts/manual_enqueue_urls.py` when you need to seed specific URLs directly into `candidate_links` without running discovery. Every upload is now tied to a dataset so the records remain traceable through verification, extraction, and analytics.
+
+1. Populate the template at `reports/manual_enqueue_template.csv`. Leave the `dataset_id` column blank unless you want to attach the batch to an existing dataset UUID—the script will create a new dataset automatically and print its ID/slug after the insert runs.
+1. Run the script from the project root:
+
+   ```bash
+   source venv/bin/activate
+   python scripts/manual_enqueue_urls.py \
+     --input reports/manual_enqueue_template.csv \
+     --discovered-by "community-tip" \
+     --priority 7 \
+     --dataset-label "Community Tip Sheet Sept 2025"
+   ```
+
+   Use `--dataset-id` to reuse an existing dataset and `--dry-run` to preview the rows without touching the database.
+1. Check the console output for the generated dataset ID. The same identifier is written onto each new `candidate_links` row so you can filter processing telemetry or backfills by batch later.
+
+By default the script connects to the repository SQLite database. In tests you can monkeypatch `DatabaseManager` or set up a scratch database to keep local experiments isolated.
+
 ### Format requirements for `sources/publinks.csv`
 
 The `load-sources` command expects a UTF-8 CSV whose headers match the schema below. Every row represents a single publication that the crawler can target.
@@ -92,6 +113,22 @@ Cached entity columns capture precomputed coverage areas for the publication. Ke
 Rows missing any required field are skipped, and duplicate `url_news` hosts collapse into existing `Source` records. When preparing new data drops, validate the header row and run `python -m src.cli.main load-sources --csv <path>` from a virtual environment to confirm the importer accepts your file.
 
 For a fuller walkthrough (including the end-to-end workflow script and advanced tools), see the "Quick local setup and run" section further down in this document.
+
+## Recent Maintenance (2025-09-27)
+
+### Obituary and opinion detection
+
+- The extraction pipeline now tags obituary and opinion pieces during the
+  initial ingest step. Articles matching the new heuristics are stored with
+  `status` values of `obituary` or `opinion`, and their detection metadata is
+  preserved in `articles.metadata.content_type_detection` for review.
+- Tagging these content types ensures they bypass entity extraction and ML
+  classification. Downstream services ignore the new statuses without any
+  additional configuration.
+- Telemetry gains a `content_type_detection_telemetry` table (queried via
+  `ComprehensiveExtractionTelemetry.get_content_type_detections`) so reviewers
+  can audit heuristics and export high-signal samples for future model
+  training.
 
 ## Recent Maintenance (2025-09-26)
 
