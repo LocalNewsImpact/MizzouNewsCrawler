@@ -41,8 +41,8 @@ Operational model
 
 - Creating a new version:
   1. Start job with `OperationTracker` (job created in `jobs` table).
-  2. When loading sources or applying changes, write deltas to `dataset_deltas` with `dataset_version_id` set to new version record (or temp staging id).
-  3. Optionally, after a stable run, export a snapshot to Parquet and record `snapshot_path` on `dataset_versions`.
+  1. When loading sources or applying changes, write deltas to `dataset_deltas` with `dataset_version_id` set to new version record (or temp staging id).
+  1. Optionally, after a stable run, export a snapshot to Parquet and record `snapshot_path` on `dataset_versions`.
 
 - Accessing a version:
   - If snapshot exists, read the Parquet snapshot.
@@ -62,9 +62,9 @@ Edge cases
 
 API / CLI ergonomics
 
-- `python -m src.cli.main create-version --dataset candidate_links --tag v2025-09-18-1 --description "Initial load"`
-- `python -m src.cli.main list-versions --dataset candidate_links`
-- `python -m src.cli.main export-version --dataset candidate_links --version-id <id> --output artifacts/candidate_links_v1.parquet`
+- `python -m src.cli create-version --dataset candidate_links --tag v2025-09-18-1 --description "Initial load"`
+- `python -m src.cli list-versions --dataset candidate_links`
+- `python -m src.cli export-version --dataset candidate_links --version-id <id> --output artifacts/candidate_links_v1.parquet`
 
 Integration with OAuth & Access Control
 

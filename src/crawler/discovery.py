@@ -369,6 +369,22 @@ class NewsDiscovery:
             logger.warning(f"Could not fetch existing URLs: {e}")
             return set()
 
+    @staticmethod
+    def _rss_retry_window_days(freq: Optional[str]) -> int:
+        """Return the number of days before retrying RSS after a miss.
+
+        We interpret the declared publishing frequency into a conservative
+        cooldown and cap it so that we always retry within a week. Missing
+        or malformed frequencies fall back to a 7-day window.
+        """
+
+        try:
+            days = parse_frequency_to_days(freq)
+        except Exception:
+            return 7
+
+        return max(1, min(7, days * 2))
+
     def _is_recent_article(self, publish_date: Optional[datetime]) -> bool:
         """Check if article was published within the date window."""
         if not publish_date:
@@ -588,6 +604,41 @@ class NewsDiscovery:
                 List of discovered article metadata
         """
         discovered_articles = []
+        method_start_time = time.time()
+        homepage_status_code: Optional[int] = None
+
+        def record_newspaper_effectiveness(
+            status: DiscoveryMethodStatus,
+            articles_found: int,
+            *,
+            status_codes: Optional[List[int]] = None,
+            notes: Optional[str] = None,
+        ) -> None:
+            if not (
+                self.telemetry
+                and source_id
+                and operation_id
+            ):
+                return
+
+            elapsed_ms = (time.time() - method_start_time) * 1000
+            codes = status_codes or []
+            try:
+                self.telemetry.update_discovery_method_effectiveness(
+                    source_id=source_id,
+                    source_url=source_url,
+                    discovery_method=DiscoveryMethod.NEWSPAPER4K,
+                    status=status,
+                    articles_found=articles_found,
+                    response_time_ms=elapsed_ms,
+                    status_codes=codes,
+                    notes=notes,
+                )
+            except Exception:
+                logger.debug(
+                    "Failed to record newspaper4k telemetry for %s",
+                    source_url,
+                )
 
         try:
             from newspaper import Config  # type: ignore[import]
@@ -610,8 +661,13 @@ class NewsDiscovery:
             # set, avoid probing for or following RSS/feed-like links here
             # to prevent unnecessary feed fetches that are known to fail.
             try:
+                homepage_request_start = time.time()
                 resp = self.session.get(
                     source_url, timeout=min(5, self.timeout)
+                )
+                homepage_status_code = getattr(resp, "status_code", None)
+                homepage_fetch_ms = (
+                    (time.time() - homepage_request_start) * 1000
                 )
                 html = resp.text or ""
                 # Look for <link ... type="application/rss+xml" href="..."> or
@@ -668,6 +724,16 @@ class NewsDiscovery:
                                     "Homepage RSS discovery returned %d "
                                     "articles, skipping newspaper.build"
                                 ) % (len(rss_results),)
+                            )
+                            record_newspaper_effectiveness(
+                                DiscoveryMethodStatus.SUCCESS,
+                                len(rss_results),
+                                status_codes=(
+                                    [homepage_status_code]
+                                    if homepage_status_code is not None
+                                    else None
+                                ),
+                                notes="homepage RSS link probe",
                             )
                             return rss_results
                 # Quick link-scan fallback: extract anchor hrefs from the
@@ -758,6 +824,20 @@ class NewsDiscovery:
                             )
                             existing_urls.add(u)
                         if out:
+                            record_newspaper_effectiveness(
+                                DiscoveryMethodStatus.SUCCESS,
+                                len(out),
+                                status_codes=(
+                                    [homepage_status_code]
+                                    if homepage_status_code is not None
+                                    else None
+                                ),
+                                notes=(
+                                    "homepage link-scan"
+                                    f" ({len(out)} candidates, "
+                                    f"fetch ~{homepage_fetch_ms:.0f}ms)"
+                                ),
+                            )
                             return out
                 except Exception:
                     pass
@@ -880,6 +960,16 @@ class NewsDiscovery:
                 logger.warning(
                     "No articles found via newspaper4k for %s", source_url
                 )
+                record_newspaper_effectiveness(
+                    DiscoveryMethodStatus.NO_FEED,
+                    0,
+                    status_codes=(
+                        [homepage_status_code]
+                        if homepage_status_code is not None
+                        else None
+                    ),
+                    notes="newspaper.build returned 0 articles",
+                )
                 return discovered_articles
 
             # Get existing URLs to prevent duplicates
@@ -924,9 +1014,25 @@ class NewsDiscovery:
                 len(discovered_articles),
             )
 
+            record_newspaper_effectiveness(
+                DiscoveryMethodStatus.SUCCESS,
+                len(discovered_articles),
+                status_codes=(
+                    [homepage_status_code]
+                    if homepage_status_code is not None
+                    else None
+                ),
+                notes="newspaper.build",
+            )
+
         except Exception as e:
             msg = "Failed to discover articles with newspaper4k"
             logger.error(f"{msg} for {source_url}: {e}")
+            record_newspaper_effectiveness(
+                DiscoveryMethodStatus.SERVER_ERROR,
+                len(discovered_articles),
+                notes=str(e)[:200],
+            )
 
         return discovered_articles
 
@@ -984,7 +1090,12 @@ class NewsDiscovery:
 
         return label
 
-    def discover_with_storysniffer(self, source_url: str) -> List[Dict]:
+    def discover_with_storysniffer(
+        self,
+        source_url: str,
+        source_id: Optional[str] = None,
+        operation_id: Optional[str] = None,
+    ) -> List[Dict]:
         """Use storysniffer to intelligently detect article URLs.
 
         Args:
@@ -994,9 +1105,46 @@ class NewsDiscovery:
             List of discovered article metadata
         """
         discovered_articles = []
+        method_start_time = time.time()
+
+        def record_storysniffer_effectiveness(
+            status: DiscoveryMethodStatus,
+            articles_found: int,
+            *,
+            notes: Optional[str] = None,
+        ) -> None:
+            if not (
+                self.telemetry
+                and source_id
+                and operation_id
+            ):
+                return
+
+            elapsed_ms = (time.time() - method_start_time) * 1000
+            try:
+                self.telemetry.update_discovery_method_effectiveness(
+                    source_id=source_id,
+                    source_url=source_url,
+                    discovery_method=DiscoveryMethod.STORYSNIFFER,
+                    status=status,
+                    articles_found=articles_found,
+                    response_time_ms=elapsed_ms,
+                    status_codes=[],
+                    notes=notes,
+                )
+            except Exception:
+                logger.debug(
+                    "Failed to record storysniffer telemetry for %s",
+                    source_url,
+                )
 
         if not self.storysniffer:
             logger.debug("StorySniffer not available, skipping")
+            record_storysniffer_effectiveness(
+                DiscoveryMethodStatus.SKIPPED,
+                0,
+                notes="storysniffer unavailable",
+            )
             return discovered_articles
 
         try:
@@ -1038,10 +1186,28 @@ class NewsDiscovery:
 
             article_count = len(discovered_articles)
             logger.info(f"StorySniffer found {article_count} articles")
+            status = (
+                DiscoveryMethodStatus.SUCCESS
+                if article_count > 0
+                else DiscoveryMethodStatus.NO_FEED
+            )
+            notes = None
+            if article_count == 0:
+                notes = "storysniffer returned 0 candidates"
+            record_storysniffer_effectiveness(
+                status,
+                article_count,
+                notes=notes,
+            )
 
         except Exception as e:
             msg = "Failed to discover articles with storysniffer"
             logger.error(f"{msg} for {source_url}: {e}")
+            record_storysniffer_effectiveness(
+                DiscoveryMethodStatus.SERVER_ERROR,
+                len(discovered_articles),
+                notes=str(e)[:200],
+            )
 
         return discovered_articles
 
@@ -1180,13 +1346,30 @@ class NewsDiscovery:
                     except Exception:
                         pass
 
-                if response.status_code == 404:
+                # Handle HTTP status codes with special cases so we don't
+                # incorrectly mark feeds as permanently missing when the
+                # site is rate-limiting us or experiencing a transient
+                # outage. Treat throttling (429), authorization blocks
+                # (401/403), and 5xx responses as network-style errors to
+                # avoid incrementing the permanent failure counter.
+                status = response.status_code
+                if status == 404:
                     logger.debug("RSS feed not found (404): %s", feed_url)
                     continue
-                if response.status_code not in (200, 301, 302):
+
+                if status in (401, 403, 429) or status >= 500:
+                    network_error_count += 1
+                    logger.warning(
+                        "Transient RSS error %s for %s",
+                        status,
+                        feed_url,
+                    )
+                    continue
+
+                if status not in (200, 301, 302):
                     logger.debug(
                         "RSS feed returned status %s: %s",
-                        response.status_code,
+                        status,
                         feed_url,
                     )
                     continue
@@ -1601,7 +1784,9 @@ class NewsDiscovery:
                                 missing_dt = None
 
                             # Compute recency window based on declared
-                            # frequency
+                            # frequency. We try a shorter cooldown so that
+                            # sources marked as missing because of temporary
+                            # feed issues recover within a couple of cycles.
                             recent_activity_days = 90
                             try:
                                 freq = (
@@ -1610,8 +1795,11 @@ class NewsDiscovery:
                                     else None
                                 )
                                 if freq:
-                                    parsed = parse_frequency_to_days(freq)
-                                    recent_activity_days = max(1, parsed * 3)
+                                    # Allow re-attempt after roughly two
+                                    # cadence periods, capped at one week.
+                                    recent_activity_days = (
+                                        self._rss_retry_window_days(freq)
+                                    )
                             except Exception:
                                 recent_activity_days = 90
 
@@ -1877,7 +2065,11 @@ class NewsDiscovery:
                     try:
                         discovery_methods_attempted.append("storysniffer")
                         storysniffer_articles = (
-                            self.discover_with_storysniffer(source_url)
+                            self.discover_with_storysniffer(
+                                source_url,
+                                source_id,
+                                operation_id,
+                            )
                         )
                         all_discovered.extend(storysniffer_articles)
                         logger.info(

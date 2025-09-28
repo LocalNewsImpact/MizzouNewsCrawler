@@ -79,6 +79,7 @@ class DiscoveryMethodStatus(str, Enum):
     PARSE_ERROR = "parse_error"
     BLOCKED = "blocked"  # 403, 429, etc.
     SERVER_ERROR = "server_error"  # 5xx errors
+    SKIPPED = "skipped"
 
 
 class FailureType(str, Enum):
@@ -1470,6 +1471,10 @@ class OperationTracker:
             source_id, source_url, discovery_method
         )
 
+        previous_attempts = effectiveness.attempt_count
+        previous_success_rate = effectiveness.success_rate
+        previous_avg_response_time = effectiveness.avg_response_time_ms
+
         # Update statistics
         effectiveness.attempt_count += 1
         effectiveness.last_attempt = datetime.now(timezone.utc)
@@ -1480,13 +1485,10 @@ class OperationTracker:
         )
 
         # Calculate rolling average response time
-        previous_total_time = (
-            effectiveness.avg_response_time_ms
-            * (effectiveness.attempt_count - 1)
-        )
+        previous_total_time = previous_avg_response_time * previous_attempts
         total_time = previous_total_time + response_time_ms
         effectiveness.avg_response_time_ms = (
-            total_time / effectiveness.attempt_count
+            total_time / max(1, effectiveness.attempt_count)
         )
 
         # Update success rate
@@ -1498,6 +1500,8 @@ class OperationTracker:
             effectiveness.success_rate = (
                 success_count / effectiveness.attempt_count
             ) * 100
+        elif status == DiscoveryMethodStatus.SKIPPED:
+            effectiveness.success_rate = previous_success_rate
         else:
             # Decay success rate if this attempt failed
             decay_factor = (

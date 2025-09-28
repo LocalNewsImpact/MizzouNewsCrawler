@@ -125,6 +125,7 @@ def add_discovery_parser(subparsers) -> argparse.ArgumentParser:
         ),
     )
 
+    discover_parser.set_defaults(func=handle_discovery_command)
     return discover_parser
 
 

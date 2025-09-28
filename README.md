@@ -39,19 +39,19 @@ If you use `pipx` or Conda, adapt the environment step accordingly. The repo shi
 1. Seed the SQLite database with crawler sources:
 
   ```bash
-  python -m src.cli.main load-sources --csv sources/publinks.csv
+  python -m src.cli load-sources --csv sources/publinks.csv
   ```
 
 1. Discover a small batch of URLs to confirm the pipeline wiring:
 
   ```bash
-  python -m src.cli.main discover-urls --source-limit 10 --dry-run
+  python -m src.cli discover-urls --source-limit 10 --dry-run
   ```
 
 1. Extract content and inspect the new telemetry-rich content cleaner output:
 
   ```bash
-  python -m src.cli.main content-cleaning analyze-domains \
+  python -m src.cli content-cleaning analyze-domains \
     --domain example.com \
     --dry-run \
     --verbose
@@ -110,7 +110,7 @@ Cached entity columns capture precomputed coverage areas for the publication. Ke
 - `cached_businesses`
 - `cached_landmarks`
 
-Rows missing any required field are skipped, and duplicate `url_news` hosts collapse into existing `Source` records. When preparing new data drops, validate the header row and run `python -m src.cli.main load-sources --csv <path>` from a virtual environment to confirm the importer accepts your file.
+Rows missing any required field are skipped, and duplicate `url_news` hosts collapse into existing `Source` records. When preparing new data drops, validate the header row and run `python -m src.cli load-sources --csv <path>` from a virtual environment to confirm the importer accepts your file.
 
 For a fuller walkthrough (including the end-to-end workflow script and advanced tools), see the "Quick local setup and run" section further down in this document.
 
@@ -187,7 +187,7 @@ For a fuller walkthrough (including the end-to-end workflow script and advanced 
 
   ```bash
   source venv/bin/activate
-  python -m src.cli.main analyze \
+  python -m src.cli analyze \
     --model-path models/productionmodel.pt \
     --label-version cin-2024q4 \
     --statuses cleaned local \
@@ -797,16 +797,16 @@ curl http://localhost:8000/api/telemetry/poor-performers?max_success_rate=50
 pip install -r requirements.txt
 
 # Load sources into database (one-time setup)
-python -m src.cli.main load-sources --csv sources/publinks.csv
+python -m src.cli load-sources --csv sources/publinks.csv
 
 # Discover article URLs (smart scheduling)
-python -m src.cli.main discover-urls --source-limit 10
+python -m src.cli discover-urls --source-limit 10
 
 # Extract content from discovered articles
-python -m src.cli.main extract --limit 20
+python -m src.cli extract --limit 20
 
 # Check status and results
-python -m src.cli.main status
+python -m src.cli status
 
 # Or run complete example workflow
 python example_workflow.py
@@ -814,7 +814,7 @@ python example_workflow.py
 
 ## CLI Usage
 
-The project provides a comprehensive command-line interface through `python -m src.cli.main` with the following commands:
+The project provides a comprehensive command-line interface through `python -m src.cli` (with `python -m src.cli.main` retained for backward compatibility) with the following commands:
 
 ### Core Workflow Commands
 
@@ -822,10 +822,10 @@ The project provides a comprehensive command-line interface through `python -m s
 
 ```bash
 # Load publinks.csv into database
-python -m src.cli.main load-sources --csv sources/publinks.csv
+python -m src.cli load-sources --csv sources/publinks.csv
 
 # Load with specific dataset label
-python -m src.cli.main load-sources --csv sources/publinks.csv --dataset "publinks-2025-09"
+python -m src.cli load-sources --csv sources/publinks.csv --dataset "publinks-2025-09"
 ```
 
 #### URL Discovery
@@ -834,28 +834,28 @@ Discover article URLs using newspaper4k and storysniffer with intelligent schedu
 
 ```bash
 # Discover URLs for sources due for collection (default behavior)
-python -m src.cli.main discover-urls --source-limit 50
+python -m src.cli discover-urls --source-limit 50
 
 # Force discovery for all sources (ignore publication frequency)
-python -m src.cli.main discover-urls --source-limit 10 --force-all
+python -m src.cli discover-urls --source-limit 10 --force-all
 
 # Discover for specific source
-python -m src.cli.main discover-urls --source-uuid 12345678-1234-1234-1234-123456789abc
+python -m src.cli discover-urls --source-uuid 12345678-1234-1234-1234-123456789abc
 
 # Discover with custom article limits and time range
-python -m src.cli.main discover-urls --max-articles 100 --days-back 14 --source-limit 25
+python -m src.cli discover-urls --max-articles 100 --days-back 14 --source-limit 25
 
 # Filter sources by name/URL pattern
-python -m src.cli.main discover-urls --source-filter "missouri" --source-limit 20
+python -m src.cli discover-urls --source-filter "missouri" --source-limit 20
 
 # Target a single host (exact match on candidate host)
-python -m src.cli.main discover-urls --host "standard-democrat.com" --max-articles 40
+python -m src.cli discover-urls --host "standard-democrat.com" --max-articles 40
 
 # Filter by location metadata
-python -m src.cli.main discover-urls --county "St. Louis" --city "Ferguson" --host-limit 5
+python -m src.cli discover-urls --county "St. Louis" --city "Ferguson" --host-limit 5
 
 # Skip saturated sources that already have enough extracted articles
-python -m src.cli.main discover-urls --existing-article-limit 75 --source-limit 30
+python -m src.cli discover-urls --existing-article-limit 75 --source-limit 30
 ```
 
 **Key Options:**
@@ -875,13 +875,13 @@ Extract article content from discovered URLs:
 
 ```bash
 # Extract content from articles (default: 10 articles, 1 batch)
-python -m src.cli.main extract
+python -m src.cli extract
 
 # Extract larger batches
-python -m src.cli.main extract --limit 50 --batches 5
+python -m src.cli extract --limit 50 --batches 5
 
 # Extract from specific source only
-python -m src.cli.main extract --source "Columbia Missourian" --limit 25
+python -m src.cli extract --source "Columbia Missourian" --limit 25
 ```
 
 ### Deprecated Crawl Alias
@@ -890,8 +890,8 @@ The legacy `crawl` command now emits a deprecation warning and forwards all
 arguments to `discover-urls`. Prefer running `discover-urls` directly so you get
 access to the richer filtering options above. Example translation:
 
-- Legacy: `python -m src.cli.main crawl --filter HOST --host standard-democrat.com --article-limit 10`
-- Modern: `python -m src.cli.main discover-urls --host standard-democrat.com --article-limit 10`
+- Legacy: `python -m src.cli crawl --filter HOST --host standard-democrat.com --article-limit 10`
+- Modern: `python -m src.cli discover-urls --host standard-democrat.com --article-limit 10`
 
 All existing automation that still invokes `crawl` will continue to work, but
 please plan to migrate scripts to `discover-urls` to avoid the warning and stay
@@ -905,16 +905,16 @@ Populate gazetteer table with geographic entities near publisher locations:
 
 ```bash
 # Populate gazetteer for all datasets
-python -m src.cli.main populate-gazetteer
+python -m src.cli populate-gazetteer
 
 # Populate gazetteer for specific dataset
-python -m src.cli.main populate-gazetteer --dataset "publinks-2025-09"
+python -m src.cli populate-gazetteer --dataset "publinks-2025-09"
 
 # Test with specific address
-python -m src.cli.main populate-gazetteer --address "Columbia, MO" --radius 25
+python -m src.cli populate-gazetteer --address "Columbia, MO" --radius 25
 
 # Dry run (no database writes)
-python -m src.cli.main populate-gazetteer --dry-run --address "Columbia, MO"
+python -m src.cli populate-gazetteer --dry-run --address "Columbia, MO"
 ```
 
 ### Monitoring and Analysis
@@ -923,16 +923,16 @@ python -m src.cli.main populate-gazetteer --dry-run --address "Columbia, MO"
 
 ```bash
 # Show crawling statistics
-python -m src.cli.main status
+python -m src.cli status
 
 # Show background processes
-python -m src.cli.main status --processes
+python -m src.cli status --processes
 
 # Show detailed status for specific process
-python -m src.cli.main status --process abc123
+python -m src.cli status --process abc123
 
 # Show active background processes queue
-python -m src.cli.main queue
+python -m src.cli queue
 ```
 
 #### Discovery Reporting
@@ -941,29 +941,29 @@ Generate detailed reports on URL discovery outcomes:
 
 ```bash
 # Generate summary discovery report (last 24 hours)
-python -m src.cli.main discovery-report
+python -m src.cli discovery-report
 
 # Generate detailed report for last 48 hours
-python -m src.cli.main discovery-report --hours-back 48 --format detailed
+python -m src.cli discovery-report --hours-back 48 --format detailed
 
 # Report for specific operation
-python -m src.cli.main discovery-report --operation-id abc123 --format json
+python -m src.cli discovery-report --operation-id abc123 --format json
 
 # Export report in JSON format
-python -m src.cli.main discovery-report --format json --hours-back 72
+python -m src.cli discovery-report --format json --hours-back 72
 ```
 
 #### Source Management
 
 ```bash
 # List all sources with UUIDs and details
-python -m src.cli.main list-sources
+python -m src.cli list-sources
 
 # Filter sources by dataset
-python -m src.cli.main list-sources --dataset "publinks-2025-09"
+python -m src.cli list-sources --dataset "publinks-2025-09"
 
 # Show HTTP status tracking for specific source
-python -m src.cli.main dump-http-status --source-uuid 12345678-1234-1234-1234-123456789abc
+python -m src.cli dump-http-status --source-uuid 12345678-1234-1234-1234-123456789abc
 ```
 
 ### Data Versioning and Export
@@ -972,16 +972,16 @@ python -m src.cli.main dump-http-status --source-uuid 12345678-1234-1234-1234-12
 
 ```bash
 # Create a new dataset version
-python -m src.cli.main create-version --dataset candidate_links --tag v2025-09-21-1 --description "Updated source list"
+python -m src.cli create-version --dataset candidate_links --tag v2025-09-21-1 --description "Updated source list"
 
 # List all dataset versions
-python -m src.cli.main list-versions
+python -m src.cli list-versions
 
 # List versions for specific dataset
-python -m src.cli.main list-versions --dataset candidate_links
+python -m src.cli list-versions --dataset candidate_links
 
 # Export a dataset version
-python -m src.cli.main export-version --version-id 12345678-1234-1234-1234-123456789abc --output exports/candidate_links_v1.parquet
+python -m src.cli export-version --version-id 12345678-1234-1234-1234-123456789abc --output exports/candidate_links_v1.parquet
 ```
 
 #### Snapshot Export
@@ -990,20 +990,20 @@ Create Parquet snapshots from database tables:
 
 ```bash
 # Basic snapshot export
-python -m src.cli.main export-snapshot \
+python -m src.cli export-snapshot \
   --version-id 12345678-1234-1234-1234-123456789abc \
   --table articles \
   --output artifacts/snapshots/articles_20250921.parquet
 
 # Export with compression
-python -m src.cli.main export-snapshot \
+python -m src.cli export-snapshot \
   --version-id 12345678-1234-1234-1234-123456789abc \
   --table candidate_links \
   --output artifacts/snapshots/sources_compressed.parquet \
   --snapshot-compression snappy
 
 # Export with custom chunk size for large tables
-python -m src.cli.main export-snapshot \
+python -m src.cli export-snapshot \
   --version-id 12345678-1234-1234-1234-123456789abc \
   --table articles \
   --output artifacts/snapshots/articles_large.parquet \
@@ -1017,24 +1017,24 @@ python -m src.cli.main export-snapshot \
 
 ```bash
 # Run ML analysis on extracted content
-python -m src.cli.main analyze
+python -m src.cli analyze
 ```
 
 ### Common CLI Patterns
 
 ```bash
 # Complete discovery and extraction workflow
-python -m src.cli.main discover-urls --source-limit 20 --max-articles 50
-python -m src.cli.main extract --limit 100 --batches 3
-python -m src.cli.main status
+python -m src.cli discover-urls --source-limit 20 --max-articles 50
+python -m src.cli extract --limit 100 --batches 3
+python -m src.cli status
 
 # Targeted source processing
-python -m src.cli.main discover-urls --source-filter "columbia" --force-all
-python -m src.cli.main extract --source "Columbia Missourian"
+python -m src.cli discover-urls --source-filter "columbia" --force-all
+python -m src.cli extract --source "Columbia Missourian"
 
 # Create and export versioned snapshot
-python -m src.cli.main create-version --dataset articles --tag v2025-09-21-final
-python -m src.cli.main export-snapshot --version-id <VERSION_ID> --table articles --output final_articles.parquet
+python -m src.cli create-version --dataset articles --tag v2025-09-21-final
+python -m src.cli export-snapshot --version-id <VERSION_ID> --table articles --output final_articles.parquet
 ```
 
 **Note**: All commands support `--log-level {DEBUG,INFO,WARNING,ERROR}` for controlling output verbosity.
@@ -1045,16 +1045,16 @@ Populate gazetteer table with geographic entities (schools, businesses, landmark
 
 ```bash
 # Populate gazetteer for all datasets
-python -m src.cli.main populate-gazetteer
+python -m src.cli populate-gazetteer
 
 # Populate gazetteer for specific dataset
-python -m src.cli.main populate-gazetteer --dataset "publinks-2025-09"
+python -m src.cli populate-gazetteer --dataset "publinks-2025-09"
 
 # Test with specific address
-python -m src.cli.main populate-gazetteer --address "Columbia, MO" --radius 25
+python -m src.cli populate-gazetteer --address "Columbia, MO" --radius 25
 
 # Dry run (no database writes)
-python -m src.cli.main populate-gazetteer --dry-run --address "Columbia, MO"
+python -m src.cli populate-gazetteer --dry-run --address "Columbia, MO"
 ```
 
 **Note**: Gazetteer population is automatically triggered in the background when new publisher/host records are loaded via `load-sources`. The process uses OpenStreetMap APIs and includes respectful rate limiting.
@@ -1137,7 +1137,7 @@ Usage:
 
 ```bash
 # Basic: export the `articles` table for an existing version to a file
-python -m src.cli.main export-snapshot \
+python -m src.cli export-snapshot \
   --version-id <VERSION_UUID> \
   --table articles \
   --output artifacts/snapshots/articles_<VERSION_UUID>.parquet
@@ -1166,7 +1166,7 @@ Notes:
 Example with compression:
 
 ```bash
-python -m src.cli.main export-snapshot \
+python -m src.cli export-snapshot \
   --version-id 01234567-89ab-cdef-0123-456789abcdef \
   --table articles \
   --output artifacts/snapshots/articles_0123.parquet \
@@ -1325,7 +1325,7 @@ pip install -r requirements.txt
 1. Run the example workflow (ensure `sources/publinks.csv` exists or use the included `sources/mizzou_sites.json` for a simple crawl):
 
 ```bash
-# Run the full example workflow (uses `src.cli.main` commands)
+# Run the full example workflow (uses the modular `src.cli` commands)
 python example_workflow.py
 
 # Or run a single script to crawl sample sites.json into SQLite

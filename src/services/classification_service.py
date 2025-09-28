@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Iterable, List, Optional, Protocol, Sequence
 
@@ -40,6 +40,7 @@ class ClassificationStats:
     labeled: int = 0
     skipped: int = 0
     errors: int = 0
+    proposed_labels: list[dict[str, object]] = field(default_factory=list)
 
 
 class ArticleClassificationService:
@@ -51,21 +52,30 @@ class ArticleClassificationService:
 
     def _select_articles(
         self,
-        statuses: Sequence[str],
+        statuses: Optional[Sequence[str]],
         label_version: str,
         limit: Optional[int],
+        include_existing: bool,
+        excluded_statuses: Optional[Sequence[str]] = None,
     ) -> List[Article]:
-        stmt = select(Article).where(Article.status.in_(list(statuses)))
+        stmt = select(Article)
 
-        label_exists = (
-            select(ArticleLabel.id)
-            .where(
-                ArticleLabel.article_id == Article.id,
-                ArticleLabel.label_version == label_version,
+        if statuses:
+            stmt = stmt.where(Article.status.in_(list(statuses)))
+
+        if excluded_statuses:
+            stmt = stmt.where(Article.status.notin_(list(excluded_statuses)))
+
+        if not include_existing:
+            label_exists = (
+                select(ArticleLabel.id)
+                .where(
+                    ArticleLabel.article_id == Article.id,
+                    ArticleLabel.label_version == label_version,
+                )
+                .exists()
             )
-            .exists()
-        )
-        stmt = stmt.where(~label_exists)
+            stmt = stmt.where(~label_exists)
         stmt = stmt.order_by(Article.created_at.desc())
         if limit:
             stmt = stmt.limit(limit)
@@ -86,26 +96,43 @@ class ArticleClassificationService:
         label_version: str,
         model_version: Optional[str] = None,
         model_path: Optional[str] = None,
-        statuses: Sequence[str] = ("cleaned", "local"),
+        statuses: Optional[Sequence[str]] = ("cleaned", "local"),
         limit: Optional[int] = None,
         batch_size: int = 16,
         top_k: int = 2,
         dry_run: bool = False,
+        include_existing: bool = False,
     ) -> ClassificationStats:
         """Classify eligible articles and persist results."""
 
-        excluded_statuses = {"opinion", "obituary"}
-        effective_statuses = [
-            status for status in statuses if status not in excluded_statuses
-        ]
-        if not effective_statuses:
-            self.logger.info(
-                "No eligible statuses after excluding opinion/obituary content"
-            )
-            return ClassificationStats()
+        excluded_statuses = {
+            "opinion",
+            "opinions",
+            "obituary",
+            "obits",
+            "wire",
+        }
+        if statuses is None:
+            effective_statuses: Optional[List[str]] = None
+        else:
+            effective_statuses = [
+                status
+                for status in statuses
+                if status not in excluded_statuses
+            ]
+            if not effective_statuses:
+                self.logger.info(
+                    "No eligible statuses after excluding %s content",
+                    ", ".join(sorted(excluded_statuses)),
+                )
+                return ClassificationStats()
 
         articles = self._select_articles(
-            effective_statuses, label_version, limit
+            effective_statuses,
+            label_version,
+            limit,
+            include_existing,
+            list(excluded_statuses),
         )
         stats = ClassificationStats(processed=len(articles))
 
@@ -169,9 +196,27 @@ class ArticleClassificationService:
 
                 if dry_run:
                     stats.labeled += 1
+                    article_id_value = getattr(article, "id", None)
+                    stats.proposed_labels.append(
+                        {
+                            "article_id": (
+                                str(article_id_value)
+                                if article_id_value is not None
+                                else ""
+                            ),
+                            "url": getattr(article, "url", ""),
+                            "primary": primary.label,
+                            "alternate": (
+                                alternate.label if alternate else ""
+                            ),
+                            "top_k": [
+                                pred.as_dict() for pred in predictions
+                            ],
+                        }
+                    )
                     self.logger.info(
                         "[dry-run] %s -> %s (alt=%s)",
-                        getattr(article, "id", "<unknown>"),
+                        article_id_value or "<unknown>",
                         primary.label,
                         alternate.label if alternate else None,
                     )

@@ -52,6 +52,7 @@ def add_verification_parser(subparsers) -> argparse.ArgumentParser:
         help="Run continuously until stopped (default behavior)"
     )
     
+    verify_parser.set_defaults(func=handle_verification_command)
     return verify_parser
 
 
@@ -105,7 +106,7 @@ def show_verification_status(service: URLVerificationService) -> int:
 
 def run_verification_service(
     service: URLVerificationService,
-    max_batches: int = None
+    max_batches: int | None = None
 ) -> int:
     """Run the verification service."""
     try:

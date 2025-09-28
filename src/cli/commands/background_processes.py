@@ -30,7 +30,7 @@ def add_status_parser(subparsers) -> argparse.ArgumentParser:
         type=str,
         help="Show details for a specific background process ID",
     )
-
+    parser.set_defaults(func=handle_status_command)
     return parser
 
 
@@ -40,6 +40,7 @@ def add_queue_parser(subparsers) -> argparse.ArgumentParser:
         "queue",
         help="Show active background processes queue",
     )
+    parser.set_defaults(func=handle_queue_command)
     return parser
 
 

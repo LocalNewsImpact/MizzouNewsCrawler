@@ -9,6 +9,7 @@ from typing import Any, Dict, List
 import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
+from urllib.parse import urlparse
 
 from src.cli.context import trigger_gazetteer_population_background
 from src.models import Dataset, DatasetSource, Source
@@ -32,7 +33,7 @@ def add_load_sources_parser(subparsers) -> argparse.ArgumentParser:
         required=True,
         help="Path to the publinks.csv file",
     )
-
+    parser.set_defaults(func=handle_load_sources_command)
     return parser
 
 
@@ -93,6 +94,71 @@ def _validate_columns(df: pd.DataFrame) -> List[str]:
     return missing
 
 
+def _parse_host_components(url: str) -> tuple[str, str]:
+    """Return the raw and normalized host for the provided URL.
+
+    Raises:
+        ValueError: If the URL does not contain a hostname.
+    """
+
+    parsed = urlparse(url)
+    host = parsed.netloc.strip()
+    if not host:
+        raise ValueError(f"Missing host in URL: {url}")
+
+    host_norm = host.lower().strip()
+    return host, host_norm
+
+
+def _detect_duplicate_urls(df: pd.DataFrame) -> List[str]:
+    """Identify duplicate URL strings or hosts within the CSV."""
+
+    messages: List[str] = []
+
+    duplicate_urls = df[df["url_news"].duplicated(keep=False)]
+    if not duplicate_urls.empty:
+        details = duplicate_urls[
+            ["host_id", "name", "url_news"]
+        ].to_dict("records")
+        formatted = "; ".join(
+            "host_id={host_id} name={name} url={url}".format(
+                host_id=row["host_id"],
+                name=row["name"],
+                url=row["url_news"],
+            )
+            for row in details
+        )
+        messages.append(
+            "Duplicate url_news entries detected: "
+            f"{formatted}. Remove duplicates before retrying."
+        )
+
+    duplicate_hosts = df[df["_parsed_host_norm"].duplicated(keep=False)]
+    if not duplicate_hosts.empty:
+        grouped = duplicate_hosts.groupby("_parsed_host_norm")
+        host_messages = []
+        for host_norm, rows in grouped:
+            entries = ", ".join(
+                "host_id={host_id} name={name} url={url}".format(
+                    host_id=row["host_id"],
+                    name=row["name"],
+                    url=row["url_news"],
+                )
+                for row in rows.to_dict("records")
+            )
+            host_messages.append(f"{host_norm}: {entries}")
+
+        messages.append(
+            (
+                "Duplicate host values detected "
+                "(same domain appears multiple times): "
+            )
+            + "; ".join(host_messages)
+        )
+
+    return messages
+
+
 def handle_load_sources_command(args) -> int:
     """Execute the load-sources command."""
     csv_path = args.csv
@@ -107,6 +173,33 @@ def handle_load_sources_command(args) -> int:
     missing = _validate_columns(df)
     if missing:
         logger.error("Missing required columns: %s", missing)
+        return 1
+
+    # Pre-compute host components and validate duplicates prior to DB access.
+    parsed_hosts: List[str] = []
+    parsed_host_norms: List[str] = []
+
+    for idx, url in enumerate(df["url_news"], start=1):
+        try:
+            raw_host, host_norm = _parse_host_components(url)
+        except ValueError as exc:
+            logger.error(
+                "Row %s contains an invalid url_news value: %s",
+                idx,
+                exc,
+            )
+            return 1
+
+        parsed_hosts.append(raw_host)
+        parsed_host_norms.append(host_norm)
+
+    df["_parsed_host"] = parsed_hosts
+    df["_parsed_host_norm"] = parsed_host_norms
+
+    duplicate_messages = _detect_duplicate_urls(df)
+    if duplicate_messages:
+        for message in duplicate_messages:
+            logger.error(message)
         return 1
 
     db = DatabaseManager()
@@ -144,14 +237,8 @@ def handle_load_sources_command(args) -> int:
 
         for _, row in df.iterrows():
             url = row["url_news"]
-            try:
-                from urllib.parse import urlparse
-
-                host = urlparse(url).netloc
-                host_norm = host.lower().strip()
-            except Exception as exc:
-                logger.warning("Failed to parse URL %s: %s", url, exc)
-                continue
+            host = row["_parsed_host"]
+            host_norm = row["_parsed_host_norm"]
 
             existing_source = session.execute(
                 select(Source).where(Source.host_norm == host_norm)
@@ -222,11 +309,15 @@ def handle_load_sources_command(args) -> int:
             ).scalar_one_or_none()
 
             if not mapping:
+                original_csv_row = row.drop(
+                    labels=["_parsed_host", "_parsed_host_norm"],
+                    errors="ignore",
+                ).to_dict()
                 dataset_source = DatasetSource(
                     dataset_id=dataset.id,
                     source_id=source.id,
                     legacy_host_id=str(row["host_id"]),
-                    legacy_meta={"original_csv_row": row.to_dict()},
+                    legacy_meta={"original_csv_row": original_csv_row},
                 )
                 session.add(dataset_source)
                 dataset_sources_created += 1

@@ -52,7 +52,7 @@ def add_http_status_parser(subparsers) -> argparse.ArgumentParser:
         default="table",
         help="Output format",
     )
-
+    parser.set_defaults(func=handle_http_status_command)
     return parser
 
 

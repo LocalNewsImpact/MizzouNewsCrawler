@@ -123,6 +123,8 @@ def add_extraction_parser(subparsers):
         help="Limit to a specific source"
     )
 
+    extract_parser.set_defaults(func=handle_extraction_command)
+
 
 def handle_extraction_command(args) -> int:
     """Execute extraction command logic."""

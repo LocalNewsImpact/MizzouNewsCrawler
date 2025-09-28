@@ -41,6 +41,7 @@ def add_crawl_parser(subparsers) -> argparse.ArgumentParser:
             "--max-articles and existing-article limit"
         ),
     )
+    parser.set_defaults(func=handle_crawl_command)
     return parser
 
 

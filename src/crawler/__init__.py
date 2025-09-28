@@ -6,9 +6,11 @@ import hashlib
 import json
 import logging
 import random
+import re
 import time
 from datetime import datetime
-from typing import Dict, List, Optional, Set, Tuple
+from copy import deepcopy
+from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.parse import urljoin, urlparse
 
 import requests
@@ -67,6 +69,62 @@ except ImportError:
     logging.warning("selenium-stealth not available, using basic stealth mode")
 
 logger = logging.getLogger(__name__)
+
+
+URL_DATE_FALLBACK_HOSTS = {
+    "columbiatribune.com",
+    "kbia.org",
+    "unterrifieddemocrat.com",
+    "mexicoledger.com",
+}
+
+
+URL_DATE_REGEX_PATTERNS = [
+    (
+        "slash_year_month_day",
+        r"/(?P<year>20\d{2})/(?P<month>\d{1,2})/(?P<day>\d{1,2})(?:/|$)",
+    ),
+    (
+        "dash_year_month_day",
+        r"(?<!\d)(?P<year>20\d{2})-(?P<month>\d{1,2})-(?P<day>\d{1,2})(?!\d)",
+    ),
+    (
+        "underscore_year_month_day",
+        r"(?<!\d)(?P<year>20\d{2})_(?P<month>\d{1,2})_(?P<day>\d{1,2})(?!\d)",
+    ),
+    (
+        "compact_year_month_day",
+        r"/(?P<year>20\d{2})(?P<month>\d{2})(?P<day>\d{2})(?:/|$)",
+    ),
+]
+
+PUBLISH_DATE_KEYWORD_REGEX = re.compile(
+    r"\b(?P<keyword>published|posted|updated|last\s+updated|modified|"
+    r"date\s+published|first\s+published)\b",
+    re.IGNORECASE,
+)
+
+MAX_TEXT_BLOCK_LENGTH = 240
+
+DATE_ONLY_REGEX_PATTERNS = [
+    re.compile(
+        r"^(?:"  # Optional day of week prefix
+        r"(?:Mon(?:day)?|Tue(?:sday)?|Wed(?:nesday)?|Thu(?:rsday)?|"
+        r"Fri(?:day)?|Sat(?:urday)?|Sun(?:day)?)[,\s]+)?"
+        r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|"
+        r"Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|"
+        r"Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)(?:\.)?\s+"
+        r"\d{1,2}(?:st|nd|rd|th)?(?:,)?\s+20\d{2}"
+        r"(?:\s+\d{1,2}:\d{2}(?:\s*[ap]m)?)?$",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"^20\d{2}-\d{1,2}-\d{1,2}(?:[ T]\d{1,2}:\d{2}(?::\d{2})?)?$",
+    ),
+    re.compile(
+        r"^\d{1,2}/\d{1,2}/20\d{2}(?:\s+\d{1,2}:\d{2}(?:\s*[ap]m)?)?$",
+    ),
+]
 
 
 class NewsCrawler:
@@ -291,8 +349,13 @@ class ContentExtractor:
         
         # Initialize primary session
         self._create_new_session()
-        
-        logger.info("ContentExtractor initialized with user agent rotation enabled")
+
+        # Track metadata about publish date extraction source
+        self._publish_date_details: Optional[Dict[str, any]] = None
+
+        logger.info(
+            "ContentExtractor initialized with user agent rotation enabled"
+        )
 
     def _create_new_session(self):
         """Create a new session with current user agent and clear cookies."""
@@ -632,6 +695,9 @@ class ContentExtractor:
         """
         logger.debug(f"Starting content extraction for {url}")
 
+        # Reset publish-date detail tracking for this article
+        self._publish_date_details = None
+
         # Initialize result structure
         result = {
             "url": url,
@@ -767,11 +833,36 @@ class ContentExtractor:
                 if metrics:
                     metrics.end_method("selenium", False, str(e), {})
 
+        # Apply URL-based publish date fallback when all methods fail
+        if not result.get("publish_date"):
+            url_fallback = self._extract_publish_date_from_url(url)
+            if url_fallback:
+                publish_date, pattern_name = url_fallback
+                result["publish_date"] = publish_date
+                result["extraction_methods"]["publish_date"] = "url_fallback"
+                timestamp = datetime.utcnow().isoformat()
+                self._record_publish_date_details(
+                    "url_path",
+                    {
+                        "strategy": "url_pattern",
+                        "pattern": pattern_name,
+                        "applied_at": timestamp,
+                    },
+                )
+                self._attach_publish_date_fallback_metadata(result)
+                logger.info(
+                    "Publish date derived from URL for %s using pattern %s",
+                    url,
+                    pattern_name,
+                )
+
         # Log final extraction summary
         final_missing = self._get_missing_fields(result)
         if final_missing:
-            logger.warning(f"Could not extract fields {final_missing} "
-                          f"for {url} with any method")
+            logger.warning(
+                f"Could not extract fields {final_missing} "
+                f"for {url} with any method"
+            )
         else:
             logger.info(f"Successfully extracted all fields for {url}")
 
@@ -823,6 +914,46 @@ class ContentExtractor:
         
         return missing
 
+    def _extract_publish_date_from_url(
+        self, url: str
+    ) -> Optional[Tuple[str, str]]:
+        """Attempt to derive publish date directly from URL path."""
+        parsed = urlparse(url)
+        host = parsed.netloc.lower().split(":")[0]
+
+        if not any(
+            host.endswith(allowed) for allowed in URL_DATE_FALLBACK_HOSTS
+        ):
+            return None
+
+        slug = parsed.path.lower()
+        if parsed.query:
+            slug = f"{slug}?{parsed.query.lower()}"
+
+        for pattern_name, pattern in URL_DATE_REGEX_PATTERNS:
+            match = re.search(pattern, slug)
+            if not match:
+                continue
+
+            try:
+                year = int(match.group("year"))
+                month = int(match.group("month"))
+                day = int(match.group("day"))
+            except (ValueError, KeyError):
+                continue
+
+            try:
+                current_year = datetime.utcnow().year
+                if not (2000 <= year <= current_year + 1):
+                    continue
+
+                publish_date = datetime(year, month, day).isoformat()
+                return publish_date, pattern_name
+            except ValueError:
+                continue
+
+        return None
+
     def _merge_extraction_results(
         self,
         target: Dict[str, any],
@@ -859,6 +990,10 @@ class ContentExtractor:
                 if not self._is_field_value_meaningful(field, current_value):
                     target[field] = source_value
                     target["extraction_methods"][field] = method
+                    if field == "publish_date":
+                        self._merge_publish_date_fallback_metadata(
+                            target, source
+                        )
                     logger.debug(
                         f"Copied {field} from {method} for extraction"
                     )
@@ -1129,6 +1264,8 @@ class ContentExtractor:
             },
             "extracted_at": raw.get("extracted_at"),
         }
+
+        self._attach_publish_date_fallback_metadata(result)
         
         return result
 
@@ -1150,7 +1287,7 @@ class ContentExtractor:
             html = driver.page_source
             soup = BeautifulSoup(html, "html.parser")
             
-            return {
+            result = {
                 "url": url,
                 "title": self._extract_title(soup),
                 "author": self._extract_author(soup),
@@ -1166,6 +1303,10 @@ class ContentExtractor:
                 },
                 "extracted_at": datetime.utcnow().isoformat(),
             }
+
+            self._attach_publish_date_fallback_metadata(result)
+
+            return result
             
         except Exception as e:
             logger.error(f"Selenium extraction failed for {url}: {e}")
@@ -1521,10 +1662,107 @@ class ContentExtractor:
 
         return None
 
+    def _record_publish_date_details(
+        self, source: str, details: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """Record metadata about how the publish date was extracted."""
+        info = {"source": source}
+        if details:
+            try:
+                info.update(details)
+            except Exception:
+                # Best-effort merge; fallback to basic info on failure
+                info["details_error"] = str(details)
+        self._publish_date_details = info
+
+    def _attach_publish_date_fallback_metadata(
+        self,
+        result: Dict[str, Any],
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Copy recorded publish-date details into result metadata."""
+        if not isinstance(result, dict) or not self._publish_date_details:
+            return
+
+        try:
+            details: Dict[str, Any] = deepcopy(self._publish_date_details)
+        except Exception:
+            details = dict(self._publish_date_details)
+
+        if extra:
+            try:
+                details.update(extra)
+            except Exception:
+                details["extra_error"] = str(extra)
+
+        metadata = result.get("metadata")
+        if not isinstance(metadata, dict):
+            metadata = {}
+            result["metadata"] = metadata
+
+        fallbacks = metadata.setdefault("fallbacks", {})
+        if isinstance(fallbacks, dict):
+            existing = fallbacks.get("publish_date")
+            if isinstance(existing, dict):
+                try:
+                    existing.update(details)
+                    details = existing
+                except Exception:
+                    details["merge_error"] = str(existing)
+            fallbacks["publish_date"] = details
+        else:
+            metadata["fallbacks"] = {"publish_date": details}
+
+        self._publish_date_details = None
+
+    def _merge_publish_date_fallback_metadata(
+        self,
+        target: Dict[str, Any],
+        source: Dict[str, Any],
+    ) -> None:
+        """Ensure fallback metadata from source is preserved in target."""
+        source_metadata = source.get("metadata")
+        if not isinstance(source_metadata, dict):
+            return
+
+        fallbacks = source_metadata.get("fallbacks")
+        if not isinstance(fallbacks, dict):
+            return
+
+        fallback_details = fallbacks.get("publish_date")
+        if not isinstance(fallback_details, dict):
+            return
+
+        try:
+            details_copy = deepcopy(fallback_details)
+        except Exception:
+            details_copy = dict(fallback_details)
+
+        target_metadata = target.get("metadata")
+        if not isinstance(target_metadata, dict):
+            target_metadata = {}
+            target["metadata"] = target_metadata
+
+        target_fallbacks = target_metadata.setdefault("fallbacks", {})
+
+        if isinstance(target_fallbacks, dict):
+            existing = target_fallbacks.get("publish_date")
+            if isinstance(existing, dict):
+                try:
+                    existing.update(details_copy)
+                    details_copy = existing
+                except Exception:
+                    details_copy["merge_error"] = str(existing)
+            target_fallbacks["publish_date"] = details_copy
+        else:
+            target_metadata["fallbacks"] = {"publish_date": details_copy}
+
     def _extract_published_date(
         self, soup: BeautifulSoup, html: str
     ) -> Optional[str]:
         """Extract publication date using multiple heuristics."""
+        self._publish_date_details = None
+
         # Try JSON-LD first
         try:
             for script in soup.find_all("script", type="application/ld+json"):
@@ -1564,6 +1802,13 @@ class ContentExtractor:
                                         parsed_date.isoformat() if parsed_date else None
                                     )
                                 except Exception:
+                                    self._record_publish_date_details(
+                                        "json_ld",
+                                        {
+                                            "strategy": "script",
+                                            "error": "parse_failed",
+                                        },
+                                    )
                                     continue
 
                 except json.JSONDecodeError:
@@ -1589,7 +1834,20 @@ class ContentExtractor:
                 if content:
                     try:
                         parsed_date = dateparser.parse(str(content))
-                        return parsed_date.isoformat() if parsed_date else None
+                        if parsed_date:
+                            self._record_publish_date_details(
+                                "meta_tag",
+                                {"attribute": attr, "value": value},
+                            )
+                            return parsed_date.isoformat()
+                        self._record_publish_date_details(
+                            "meta_tag",
+                            {
+                                "attribute": attr,
+                                "value": value,
+                                "error": "parse_failed",
+                            },
+                        )
                     except Exception:
                         continue
 
@@ -1600,7 +1858,12 @@ class ContentExtractor:
             if datetime_attr:
                 try:
                     parsed_date = dateparser.parse(str(datetime_attr))
-                    return parsed_date.isoformat() if parsed_date else None
+                    if parsed_date:
+                        self._record_publish_date_details(
+                            "time_tag",
+                            {"attribute": "datetime"},
+                        )
+                        return parsed_date.isoformat()
                 except Exception:
                     pass
 
@@ -1609,11 +1872,17 @@ class ContentExtractor:
             if time_text:
                 try:
                     parsed_date = dateparser.parse(time_text)
-                    return parsed_date.isoformat() if parsed_date else None
+                    if parsed_date:
+                        self._record_publish_date_details(
+                            "time_tag",
+                            {"attribute": "text"},
+                        )
+                        return parsed_date.isoformat()
                 except Exception:
                     pass
 
-        return None
+        # Fallback: scan text near bylines or keyworded blocks
+        return self._extract_publish_date_from_text_blocks(soup)
 
     def _extract_content(self, soup: BeautifulSoup) -> Optional[str]:
         """Extract main article content."""
@@ -1650,24 +1919,266 @@ class ContentExtractor:
 
         return None
 
-    def _extract_meta_description(self, soup: BeautifulSoup) -> Optional[str]:
-        """Extract meta description."""
-        try:
-            meta_desc = soup.find("meta", attrs={"name": "description"})
-            if meta_desc:
-                content = meta_desc.get("content")
-                if content:
-                    return str(content).strip()
-        except (AttributeError, TypeError):
-            pass
+    def _extract_publish_date_from_text_blocks(
+        self, soup: BeautifulSoup
+    ) -> Optional[str]:
+        """Identify publish date strings near bylines or keyworded text."""
+        stripped_strings = [
+            s.strip()
+            for s in soup.stripped_strings
+            if s and s.strip() and len(s.strip()) <= MAX_TEXT_BLOCK_LENGTH
+        ]
+
+        if not stripped_strings:
+            return None
+
+        seen_candidates: Set[str] = set()
+
+        def try_candidate(
+            value: str,
+            *,
+            strategy: str,
+            block_index: int,
+            neighbor_index: Optional[int] = None,
+        ) -> Optional[str]:
+            candidate = " ".join(value.split())
+            if not candidate or candidate in seen_candidates:
+                return None
+            seen_candidates.add(candidate)
+            parsed_value = self._parse_publish_date_candidate(candidate)
+            if parsed_value:
+                details: Dict[str, Any] = {
+                    "strategy": strategy,
+                    "matched_text": candidate[:160],
+                    "block_index": block_index,
+                }
+                if neighbor_index is not None:
+                    details["neighbor_index"] = neighbor_index
+                self._record_publish_date_details("text_block", details)
+                return parsed_value
+            return None
+
+        for idx, text in enumerate(stripped_strings):
+            parsed = try_candidate(
+                text, strategy="direct", block_index=idx
+            )
+            if parsed:
+                return parsed
+
+            if self._contains_publish_keyword(text):
+                upper_bound = min(len(stripped_strings), idx + 3)
+                for neighbor_idx in range(idx + 1, upper_bound):
+                    neighbor = stripped_strings[neighbor_idx]
+                    combined = " ".join([text, neighbor])
+                    parsed = try_candidate(
+                        combined,
+                        strategy="keyword_neighbor",
+                        block_index=idx,
+                        neighbor_index=neighbor_idx,
+                    )
+                    if parsed:
+                        return parsed
+
+            if self._looks_like_byline(text):
+                before_start = max(0, idx - 2)
+                for neighbor_idx in range(before_start, idx):
+                    neighbor = stripped_strings[neighbor_idx]
+                    combined = f"{text} {neighbor}"
+                    parsed = try_candidate(
+                        combined,
+                        strategy="byline_combined_before",
+                        block_index=idx,
+                        neighbor_index=neighbor_idx,
+                    )
+                    if parsed:
+                        return parsed
+
+                after_end = min(len(stripped_strings), idx + 3)
+                for neighbor_idx in range(idx + 1, after_end):
+                    neighbor = stripped_strings[neighbor_idx]
+                    combined = f"{text} {neighbor}"
+                    parsed = try_candidate(
+                        combined,
+                        strategy="byline_combined_after",
+                        block_index=idx,
+                        neighbor_index=neighbor_idx,
+                    )
+                    if parsed:
+                        return parsed
+
+        loose_parsed = self._extract_publish_date_without_keywords(
+            stripped_strings
+        )
+        if loose_parsed:
+            return loose_parsed
+
+        return None
+
+    def _parse_publish_date_candidate(self, text: str) -> Optional[str]:
+        """Parse an ISO timestamp from a candidate text fragment."""
+        if not text:
+            return None
+
+        match = PUBLISH_DATE_KEYWORD_REGEX.search(text)
+        if not match:
+            return None
+
+        tail = text[match.end():].strip(" |:\u2013-•")
+        if not tail:
+            return None
+
+        tail = re.split(r"\bby\b", tail, flags=re.IGNORECASE)[0]
+        tail = tail.strip(" |:\u2013-•")
+
+        if not tail:
+            return None
 
         try:
-            og_desc = soup.find("meta", property="og:description")
-            if og_desc:
-                content = og_desc.get("content")
-                if content:
-                    return str(content).strip()
-        except (AttributeError, TypeError):
-            pass
+            parsed_date = dateparser.parse(tail)
+            if parsed_date:
+                return parsed_date.isoformat()
+        except Exception:
+            return None
+
+        return None
+
+    def _contains_publish_keyword(self, text: str) -> bool:
+        if not text:
+            return False
+        return bool(PUBLISH_DATE_KEYWORD_REGEX.search(text))
+
+    def _looks_like_byline(self, text: str) -> bool:
+        if not text:
+            return False
+
+        stripped = text.strip()
+        if not stripped:
+            return False
+
+        lower = stripped.lower()
+        if lower in {"by", "by:"}:
+            return True
+
+        if (
+            lower.startswith("by ")
+            or lower.startswith("by:")
+            or " by " in lower
+            or " | by " in lower
+            or lower.endswith(" by")
+        ):
+            return True
+
+        words = [word for word in re.split(r"[\s|,]+", stripped) if word]
+        if not words:
+            return False
+
+        if any(char.isdigit() for char in stripped):
+            return False
+
+        if 1 < len(words) <= 4 and all(
+            word[0].isupper() for word in words if word[0].isalpha()
+        ):
+            return True
+
+        role_keywords = {
+            "editor",
+            "reporter",
+            "writer",
+            "correspondent",
+            "publisher",
+            "staff",
+            "photographer",
+            "columnist",
+            "producer",
+        }
+
+        return any(word.lower() in role_keywords for word in words)
+
+    def _looks_like_date_only_line(self, text: str) -> bool:
+        if not text:
+            return False
+
+        candidate = " ".join(text.split())
+        if not candidate or len(candidate) > 80:
+            return False
+
+        if self._contains_publish_keyword(candidate):
+            return False
+
+        for pattern in DATE_ONLY_REGEX_PATTERNS:
+            if pattern.match(candidate):
+                return True
+
+        return False
+
+    def _has_byline_context(self, blocks: List[str], index: int) -> bool:
+        radius = 4
+        start = max(0, index - radius)
+        end = min(len(blocks), index + radius + 1)
+        for idx in range(start, end):
+            if idx == index:
+                continue
+            neighbor = blocks[idx].strip()
+            if not neighbor:
+                continue
+
+            lower = neighbor.lower()
+            if lower in {"by", "by:"}:
+                return True
+
+            if self._looks_like_byline(neighbor):
+                return True
+
+        return False
+
+    def _extract_publish_date_without_keywords(
+        self, blocks: List[str]
+    ) -> Optional[str]:
+        if not blocks:
+            return None
+
+        search_limit = min(len(blocks), 150)
+        for idx in range(search_limit):
+            candidate = blocks[idx].strip()
+            if not candidate or not self._looks_like_date_only_line(candidate):
+                continue
+
+            if idx > 30 and not self._has_byline_context(blocks, idx):
+                continue
+
+            try:
+                parsed_date = dateparser.parse(candidate)
+            except Exception:
+                continue
+
+            if not parsed_date:
+                continue
+
+            iso_value = parsed_date.isoformat()
+            self._record_publish_date_details(
+                "text_block_loose",
+                {
+                    "strategy": "standalone_date",
+                    "matched_text": candidate[:160],
+                    "block_index": idx,
+                },
+            )
+            return iso_value
+
+        return None
+
+    def _extract_meta_description(self, soup: BeautifulSoup) -> Optional[str]:
+        """Extract meta description."""
+        meta_desc = soup.find("meta", attrs={"name": "description"})
+        if isinstance(meta_desc, Tag):
+            content = meta_desc.get("content")
+            if content:
+                return str(content).strip()
+
+        og_desc = soup.find("meta", property="og:description")
+        if isinstance(og_desc, Tag):
+            content = og_desc.get("content")
+            if content:
+                return str(content).strip()
 
         return None

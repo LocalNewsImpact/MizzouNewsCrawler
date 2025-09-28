@@ -214,13 +214,28 @@ class URLVerificationService:
 
         try:
             while self.running:
+                # Respect explicit batch caps before polling for new work.
+                if max_batches and batch_count >= max_batches:
+                    self.logger.info(
+                        "Reached configured max_batches=%s; exiting.",
+                        max_batches,
+                    )
+                    break
+
                 # Get unverified URLs
                 candidates = self.get_unverified_urls(self.batch_size)
 
                 if not candidates:
+                    if max_batches and batch_count >= max_batches:
+                        self.logger.info(
+                            "No URLs remaining and max_batches reached; "
+                            "stopping verification loop."
+                        )
+                        break
+
                     self.logger.info(
-                        "No URLs to verify, sleeping for "
-                        f"{self.sleep_interval} seconds..."
+                        "No URLs to verify, sleeping for %s seconds...",
+                        self.sleep_interval,
                     )
                     time.sleep(self.sleep_interval)
                     continue
@@ -249,7 +264,7 @@ class URLVerificationService:
 
                 batch_count += 1
                 if max_batches and batch_count >= max_batches:
-                    self.logger.info(f"Reached max batches: {max_batches}")
+                    self.logger.info("Reached max batches: %s", max_batches)
                     break
 
                 # Brief pause between batches

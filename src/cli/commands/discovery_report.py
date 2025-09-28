@@ -37,7 +37,7 @@ def add_discovery_report_parser(subparsers) -> argparse.ArgumentParser:
         default="summary",
         help="Report format (default: summary)",
     )
-
+    parser.set_defaults(func=handle_discovery_report_command)
     return parser
 
 

@@ -28,6 +28,7 @@ def add_list_sources_parser(subparsers) -> argparse.ArgumentParser:
         default="table",
         help="Output format (default: table)",
     )
+    parser.set_defaults(func=handle_list_sources_command)
     return parser
 
 

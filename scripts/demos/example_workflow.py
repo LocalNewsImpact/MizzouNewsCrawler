@@ -52,14 +52,22 @@ def main():
 
     # 1. Load sources from CSV into database
     if not run_command(
-        [sys.executable, "-m", "src.cli.main", "load-sources", "--csv", str(csv_path)],
+        [
+            sys.executable,
+            "-m",
+            "src.cli",
+            "load-sources",
+            "--csv",
+            str(csv_path),
+        ],
         "Load sources from CSV into database",
     ):
         return 1
 
     # 2. Show initial status
     if not run_command(
-        [sys.executable, "-m", "src.cli.main", "status"], "Show initial database status"
+        [sys.executable, "-m", "src.cli", "status"],
+        "Show initial database status",
     ):
         return 1
 
@@ -68,7 +76,7 @@ def main():
         [
             sys.executable,
             "-m",
-            "src.cli.main",
+            "src.cli",
             "crawl",
             "--filter",
             "COUNTY",
@@ -85,20 +93,22 @@ def main():
 
     # 4. Show status after crawling
     if not run_command(
-        [sys.executable, "-m", "src.cli.main", "status"], "Show status after crawling"
+        [sys.executable, "-m", "src.cli", "status"],
+        "Show status after crawling",
     ):
         return 1
 
     # 5. Extract content from discovered articles
     if not run_command(
-        [sys.executable, "-m", "src.cli.main", "extract", "--limit", "5"],
+        [sys.executable, "-m", "src.cli", "extract", "--limit", "5"],
         "Extract content from 5 articles",
     ):
         return 1
 
     # 6. Final status
     if not run_command(
-        [sys.executable, "-m", "src.cli.main", "status"], "Show final status"
+        [sys.executable, "-m", "src.cli", "status"],
+        "Show final status",
     ):
         return 1
 
@@ -107,11 +117,13 @@ def main():
     print("=" * 60)
     print("\nNext steps you can try:")
     print("1. Crawl more sources:")
-    print("   python -m src.cli.main crawl --filter ALL --host-limit 10")
+    print("   python -m src.cli crawl --filter ALL --host-limit 10")
     print("\n2. Crawl specific host:")
-    print("   python -m src.cli.main crawl --filter HOST --host 'standard-democrat'")
+    print(
+        "   python -m src.cli crawl --filter HOST --host 'standard-democrat'"
+    )
     print("\n3. Extract more content:")
-    print("   python -m src.cli.main extract --limit 20")
+    print("   python -m src.cli extract --limit 20")
 
     return 0
 
