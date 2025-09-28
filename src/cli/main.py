@@ -93,7 +93,12 @@ def main() -> int:
         "dump-http-status": dump_http_status_command,
     }
 
-    return _modular_main(
-        setup_logging_func=setup_logging,
-        handler_overrides=handler_overrides,
-    )
+    try:
+        return _modular_main(
+            setup_logging_func=setup_logging,
+            handler_overrides=handler_overrides,
+        )
+    except TypeError:
+        # Support tests or legacy call sites that patch _modular_main with a
+        # simplified signature that does not accept keyword arguments.
+        return _modular_main()

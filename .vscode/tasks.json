@@ -34,6 +34,23 @@
           "args": ["-c"]
         }
       }
+    },
+    {
+      "label": "Orchestration - three counties",
+      "type": "shell",
+      "command": "source venv/bin/activate && python orchestration/county_pipeline.py --counties Boone Osage Audrain --source-limit 50 --max-articles 40 --days-back 7 --verification-sleep 5 --extraction-limit 10 --extraction-batches 3 --analysis-batch-size 16 --analysis-top-k 2 --analysis-label-version default --cli-module src.cli.cli_modular --log-level INFO",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "options": {
+        "shell": {
+          "executable": "/bin/zsh",
+          "args": ["-c"]
+        }
+      }
     }
   ]
 }

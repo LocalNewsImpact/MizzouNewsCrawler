@@ -20,16 +20,18 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Optional
 
+from sqlalchemy import text
+
 from ..models.database import DatabaseManager
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-def parse_frequency_to_days(freq: Optional[str]) -> int:
-    """Convert a human frequency string to an approximate number of days.
+def parse_frequency_to_days(freq: Optional[str]) -> float:
+    """Convert a human frequency string to an approximate cadence in days.
 
-    Returns an integer number of days to use as a cadence. Conservative
+    Returns a floating point number of days to use as a cadence. Conservative
     defaults are used for ambiguous inputs.
     """
     if not freq:
@@ -37,10 +39,11 @@ def parse_frequency_to_days(freq: Optional[str]) -> int:
 
     f = str(freq).lower()
     if "daily" in f or f == "day":
-        return 1
+        # Daily outlets publish throughout the day; treat cadence as 12 hours
+        return 0.5
     if "broadcast" in f:
-        # Broadcast often indicates frequent publishing; treat as daily
-        return 1
+        # Broadcast stations (radio/TV) operate continuously; treat as 12 hours
+        return 0.5
     # Detect bi-weekly patterns before generic weekly
     if "bi-week" in f or "biweekly" in f or "every 2" in f:
         return 14
@@ -57,7 +60,10 @@ def parse_frequency_to_days(freq: Optional[str]) -> int:
     return 7
 
 
-def _get_last_processed_date(db: DatabaseManager, source_id: str) -> Optional[datetime]:
+def _get_last_processed_date(
+    db: DatabaseManager,
+    source_id: str,
+) -> Optional[datetime]:
     """Query candidate_links for the most recent processed_at for a source.
 
     Returns None if no processed_at rows exist for this source.
@@ -68,7 +74,7 @@ def _get_last_processed_date(db: DatabaseManager, source_id: str) -> Optional[da
                 "SELECT MAX(processed_at) as last FROM candidate_links "
                 "WHERE source_id = :sid"
             )
-            res = conn.execute(sql, {"sid": source_id}).fetchone()
+            res = conn.execute(text(sql), {"sid": source_id}).fetchone()
             if not res:
                 return None
             last = res[0]
@@ -81,8 +87,12 @@ def _get_last_processed_date(db: DatabaseManager, source_id: str) -> Optional[da
                 except Exception:
                     return None
             return last
-    except Exception as e:
-        logger.debug(f"Could not query last processed date for {source_id}: {e}")
+    except Exception as exc:
+        logger.debug(
+            "Could not query last processed date for %s: %s",
+            source_id,
+            exc,
+        )
         return None
 
 

@@ -136,15 +136,16 @@ def _resolve_handler(
     overrides: Optional[Dict[str, CommandHandler]] = None,
 ) -> Optional[CommandHandler]:
     func = getattr(args, "func", None)
+    command = getattr(args, "command", None)
+    if overrides and command and command in overrides:
+        return overrides[command]
+
+    func = getattr(args, "func", None)
     if callable(func):
         return cast(CommandHandler, func)
 
-    command = getattr(args, "command", None)
     if command is None:
         return None
-
-    if overrides and command in overrides:
-        return overrides[command]
 
     attr_name = COMMAND_HANDLER_ATTRS.get(command)
     if not attr_name:

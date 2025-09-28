@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import math
 import shlex
 import subprocess
 import sys
@@ -31,6 +32,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_COUNTIES = ("Boone", "Osage", "Audrain")
 DEFAULT_CLI_MODULE = "src.cli.cli_modular"
 LEGACY_CLI_MODULE = "src.cli.main"
+FORCED_VERIFICATION_BATCH_SIZE = 1
 
 
 class PipelineError(RuntimeError):
@@ -167,7 +169,37 @@ def orchestrate_pipeline(
 
     run_verification = not skip_verification and discovered_pending > 0
 
+    forced_batch_size = FORCED_VERIFICATION_BATCH_SIZE
+    if verification_batch_size != forced_batch_size:
+        logging.warning(
+            (
+                "Overriding verification batch size from %s to %s to ensure "
+                "sequential processing."
+            ),
+            verification_batch_size,
+            forced_batch_size,
+        )
+    verification_batch_size = forced_batch_size
+
     if run_verification:
+        batches_needed = math.ceil(
+            discovered_pending / verification_batch_size
+        )
+
+        if verification_batches is None:
+            verification_batches = batches_needed
+            logging.info(
+                "Configuring verification to process up to %s batch(es) "
+                "based on %s discovered link(s).",
+                verification_batches,
+                discovered_pending,
+            )
+        else:
+            logging.info(
+                "Using user-supplied verification batch limit: %s",
+                verification_batches,
+            )
+
         verify_args: list[str] = [
             "verify-urls",
             "--batch-size",
@@ -296,8 +328,11 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--verification-batch-size",
         type=int,
-        default=75,
-        help="URLs per verification batch (default: 75)",
+        default=FORCED_VERIFICATION_BATCH_SIZE,
+        help=(
+            "Deprecated: verification runs sequentially with batch size 1; "
+            "this flag is ignored"
+        ),
     )
     parser.add_argument(
         "--verification-batches",
