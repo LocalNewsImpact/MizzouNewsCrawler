@@ -117,6 +117,8 @@ class Article(Base):
     # `metadata` is a reserved attribute name on Declarative classes; expose
     # it on the DB row as the column name but use the attribute `meta` here.
     meta = Column("metadata", JSON)
+    # Wire service attribution payload stored as JSON for downstream reports
+    wire = Column(JSON)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     # Storage references

@@ -48,6 +48,7 @@ from src.utils.telemetry import (
     create_telemetry_system,
 )
 from src.utils.discovery_outcomes import DiscoveryOutcome, DiscoveryResult
+from src.utils.url_utils import normalize_url
 
 logger = logging.getLogger(__name__)
 
@@ -247,6 +248,154 @@ class NewsDiscovery:
 
         return hosts
 
+    @classmethod
+    def _should_skip_rss_from_meta(
+        cls,
+        source_meta: Optional[dict],
+    ) -> Tuple[bool, Optional[str], Optional[int]]:
+        """Determine whether RSS probing should be skipped.
+
+        Returns a tuple ``(skip, reason, failure_count)`` where ``skip`` is a
+        boolean indicating if homepage RSS probing should be avoided,``reason``
+        is a short string describing why, and ``failure_count`` is the current
+        consecutive failure counter, if available.
+        """
+
+        if not isinstance(source_meta, dict):
+            return False, None, None
+
+        # rss_missing may be either a timestamp or a boolean flag.
+        rss_missing = source_meta.get("rss_missing")
+        rss_failed_at: Optional[str]
+        if isinstance(rss_missing, str):
+            rss_failed_at = rss_missing
+        elif rss_missing:
+            rss_failed_at = datetime.utcnow().isoformat()
+        else:
+            rss_failed_at = None
+
+        consecutive_failures = source_meta.get("rss_consecutive_failures")
+        failure_count: Optional[int] = None
+        if consecutive_failures is not None:
+            try:
+                failure_count = int(consecutive_failures)
+            except Exception:
+                failure_count = None
+
+        skip = bool(rss_failed_at)
+        reason = None
+        if skip:
+            reason = "rss_missing"
+
+        return skip, reason, failure_count
+
+    @staticmethod
+    def _extract_homepage_feed_urls(
+        html: str,
+        base_url: str,
+    ) -> List[str]:
+        """Extract RSS/Atom feed URLs from a homepage."""
+
+        if not html:
+            return []
+
+        import re
+
+        rss_type = (
+            r"(?:application/rss\+xml|application/atom\+xml|text/xml)"
+        )
+        pattern = (
+            r'<link[^>]+type=["\']'
+            + rss_type
+            + r'["\'][^>]*href=["\']([^"\']+)["\']'
+        )
+
+        matches = re.findall(pattern, html, flags=re.I)
+        if not matches:
+            return []
+
+        feeds = [urljoin(base_url, m) for m in matches]
+        seen: Set[str] = set()
+        deduped: List[str] = []
+        for feed in feeds:
+            if feed in seen:
+                continue
+            seen.add(feed)
+            deduped.append(feed)
+        return deduped
+
+    @staticmethod
+    def _extract_homepage_article_candidates(
+        html: str,
+        base_url: str,
+        *,
+        rss_missing: bool = False,
+        max_candidates: int = 25,
+    ) -> List[str]:
+        if not html:
+            return []
+
+        import re
+
+        hrefs = re.findall(
+            r'href=["\']([^"\']+)["\']', html, flags=re.I
+        )
+        if not hrefs:
+            return []
+
+        parsed_base = urlparse(base_url)
+        candidates: List[str] = []
+        seen: Set[str] = set()
+
+        for href in hrefs:
+            href = href.strip()
+            if not href:
+                continue
+            prefix = href.split(":", 1)[0].lower()
+            if prefix in {"mailto", "tel", "javascript"}:
+                continue
+
+            absolute = urljoin(base_url, href)
+            parsed = urlparse(absolute)
+            if parsed_base.netloc and parsed.netloc != parsed_base.netloc:
+                continue
+
+            path = parsed.path.lower()
+            if rss_missing and ("/feed" in path or "/rss" in path):
+                continue
+
+            if not any(
+                key in path
+                for key in (
+                    "/news",
+                    "/article",
+                    "/stories",
+                    "/story",
+                    "/post",
+                    "/202",
+                    "/20",
+                )
+            ):
+                continue
+
+            if absolute in seen:
+                continue
+
+            seen.add(absolute)
+            candidates.append(absolute)
+
+            if len(candidates) >= max_candidates:
+                break
+
+        return candidates
+
+    @staticmethod
+    def _normalize_candidate_url(url: str) -> str:
+        try:
+            return normalize_url(url)
+        except Exception:
+            return url
+
     def _update_source_meta(
         self,
         source_id: Optional[str],
@@ -363,7 +512,13 @@ class NewsDiscovery:
 
             with db_manager.engine.connect() as conn:
                 result = conn.execute(text("SELECT url FROM candidate_links"))
-                return {row[0] for row in result.fetchall()}
+                urls: Set[str] = set()
+                for row in result.fetchall():
+                    raw = row[0]
+                    if not raw:
+                        continue
+                    urls.add(self._normalize_candidate_url(raw))
+                return urls
 
         except Exception as e:
             logger.warning(f"Could not fetch existing URLs: {e}")
@@ -383,7 +538,8 @@ class NewsDiscovery:
         except Exception:
             return 7
 
-        return max(1, min(7, days * 2))
+        window = int(round(days * 2))
+        return max(2, min(7, window))
 
     def _is_recent_article(self, publish_date: Optional[datetime]) -> bool:
         """Check if article was published within the date window."""
@@ -404,7 +560,13 @@ class NewsDiscovery:
                     ),
                     {"source_id": source_id},
                 )
-                return {row[0] for row in result.fetchall()}
+                urls: Set[str] = set()
+                for row in result.fetchall():
+                    raw = row[0]
+                    if not raw:
+                        continue
+                    urls.add(self._normalize_candidate_url(raw))
+                return urls
         except Exception:
             logger.debug(f"Failed to get existing URLs for source {source_id}")
             return set()
@@ -670,177 +832,131 @@ class NewsDiscovery:
                     (time.time() - homepage_request_start) * 1000
                 )
                 html = resp.text or ""
-                # Look for <link ... type="application/rss+xml" href="..."> or
-                # atom
-                import re
 
-                # If rss_missing is set in the source metadata, or if the
-                # caller already attempted RSS discovery for this source in
-                # this run, skip probing for feed <link> tags to avoid
-                # duplicate feed fetches.
+                source_meta_dict = (
+                    source_meta if isinstance(source_meta, dict) else None
+                )
+
                 skip_internal_feed_probe = False
-                try:
-                    if source_meta and isinstance(source_meta, dict):
-                        if source_meta.get("rss_missing"):
-                            skip_internal_feed_probe = True
-                except Exception:
-                    skip_internal_feed_probe = False
+                rss_missing_active = False
+                if source_meta_dict:
+                    rss_missing_active = bool(
+                        source_meta_dict.get("rss_missing")
+                    )
+                    try:
+                        skip_internal_feed_probe, _, _ = (
+                            self._should_skip_rss_from_meta(
+                                source_meta_dict
+                            )
+                        )
+                    except Exception:
+                        skip_internal_feed_probe = rss_missing_active
 
-                # If the caller already tried RSS feeds, avoid re-trying
                 if rss_already_attempted:
                     skip_internal_feed_probe = True
 
+                feeds: List[str] = []
                 if not skip_internal_feed_probe:
-                    rss_type = (
-                        r"(?:application/rss\+xml|application/atom\+xml)"
+                    try:
+                        feeds = self._extract_homepage_feed_urls(
+                            html,
+                            source_url,
+                        )
+                    except Exception:
+                        feeds = []
+
+                if feeds:
+                    logger.info(
+                        (
+                            "Found %d feed(s) on homepage; "
+                            "trying those first"
+                        ) % (len(feeds),)
                     )
-                    pattern = (
-                        r'<link[^>]+type=["\']' + rss_type + r'["\'][^>]*'
-                        r"href=[\"']([^\"']+)[\"']"
+                    _rss_ret = self.discover_with_rss_feeds(
+                        source_url,
+                        source_id,
+                        operation_id,
+                        custom_rss_feeds=feeds,
                     )
-                    matches = re.findall(pattern, html, flags=re.I)
-                    if matches:
-                        feeds = [urljoin(source_url, m) for m in matches]
+                    if isinstance(_rss_ret, tuple) and len(_rss_ret) == 2:
+                        rss_results, rss_summary = _rss_ret
+                    else:
+                        rss_results = _rss_ret or []
+
+                    if rss_results:
                         logger.info(
                             (
-                                "Found %d feed(s) on homepage; "
-                                "trying those first"
-                            ) % (len(feeds),)
+                                "Homepage RSS discovery returned %d "
+                                "articles, skipping newspaper.build"
+                            ) % (len(rss_results),)
                         )
-                        _rss_ret = self.discover_with_rss_feeds(
-                            source_url,
-                            source_id,
-                            operation_id,
-                            custom_rss_feeds=feeds,
+                        record_newspaper_effectiveness(
+                            DiscoveryMethodStatus.SUCCESS,
+                            len(rss_results),
+                            status_codes=(
+                                [homepage_status_code]
+                                if homepage_status_code is not None
+                                else None
+                            ),
+                            notes="homepage RSS link probe",
                         )
-                        if isinstance(_rss_ret, tuple) and len(_rss_ret) == 2:
-                            rss_results, rss_summary = _rss_ret
-                        else:
-                            rss_results = _rss_ret or []
+                        return rss_results
 
-                        if rss_results:
-                            logger.info(
-                                (
-                                    "Homepage RSS discovery returned %d "
-                                    "articles, skipping newspaper.build"
-                                ) % (len(rss_results),)
-                            )
-                            record_newspaper_effectiveness(
-                                DiscoveryMethodStatus.SUCCESS,
-                                len(rss_results),
-                                status_codes=(
-                                    [homepage_status_code]
-                                    if homepage_status_code is not None
-                                    else None
-                                ),
-                                notes="homepage RSS link probe",
-                            )
-                            return rss_results
-                # Quick link-scan fallback: extract anchor hrefs from the
-                # homepage and look for article-like paths. This is much
-                # cheaper than running `newspaper.build` for sites that do
-                # not have RSS feeds.
                 try:
-                    import re
-
-                    hrefs = re.findall(
-                        r'href=["\']([^"\']+)["\']', html, flags=re.I
-                    )
-                    candidates = []
-                    parsed_base = urlparse(source_url)
-                    for h in hrefs:
-                        # Normalize and skip mailto/tele/JS
-                        if (
-                            h.startswith("mailto:")
-                            or h.startswith("tel:")
-                            or h.startswith("javascript:")
-                        ):
-                            continue
-                        full = urljoin(source_url, h)
-                        p = urlparse(full)
-                        # Only same-host links
-                        if p.netloc != parsed_base.netloc:
-                            continue
-                        # Heuristic: path contains keywords indicating articles
-                        path = p.path.lower()
-                        # If source has an active rss_missing flag, avoid
-                        # treating feed-like URLs as candidates to prevent
-                        # downstream feed fetch attempts (e.g. '/feed',
-                        # '/rss').
-                        if source_meta and isinstance(source_meta, dict):
-                            try:
-                                if source_meta.get("rss_missing") and (
-                                    "feed" in path or "rss" in path
-                                ):
-                                    continue
-                            except Exception:
-                                pass
-                        if any(
-                            k in path
-                            for k in (
-                                "/news",
-                                "/article",
-                                "/stories",
-                                "/story",
-                                "/post",
-                                "/202",
-                                "/20",
-                            )
-                        ):
-                            candidates.append(full)
-                    # Deduplicate and limit
-                    unique = []
-                    seen = set()
-                    for u in candidates:
-                        if u in seen:
-                            continue
-                        seen.add(u)
-                        unique.append(u)
-                        if len(unique) >= min(
-                            self.max_articles_per_source, 25
-                        ):
-                            break
-                    if unique:
-                        logger.info(
-                            "Homepage link-scan found %d candidate URLs; "
-                            "returning those instead of building",
-                            len(unique),
+                    homepage_candidates = (
+                        self._extract_homepage_article_candidates(
+                            html,
+                            source_url,
+                            rss_missing=rss_missing_active,
+                            max_candidates=min(
+                                self.max_articles_per_source,
+                                25,
+                            ),
                         )
-                        # Convert to discovery records
-                        existing_urls = self._get_existing_urls()
-                        out = []
-                        discovered_at = datetime.utcnow().isoformat()
-                        for u in unique:
-                            if u in existing_urls:
-                                continue
-                            out.append(
-                                {
-                                    "url": u,
-                                    "source_url": source_url,
-                                    "discovery_method": "homepage_links",
-                                    "discovered_at": discovered_at,
-                                    "metadata": {"homepage_sniff": True},
-                                }
-                            )
-                            existing_urls.add(u)
-                        if out:
-                            record_newspaper_effectiveness(
-                                DiscoveryMethodStatus.SUCCESS,
-                                len(out),
-                                status_codes=(
-                                    [homepage_status_code]
-                                    if homepage_status_code is not None
-                                    else None
-                                ),
-                                notes=(
-                                    "homepage link-scan"
-                                    f" ({len(out)} candidates, "
-                                    f"fetch ~{homepage_fetch_ms:.0f}ms)"
-                                ),
-                            )
-                            return out
+                    )
                 except Exception:
-                    pass
+                    homepage_candidates = []
+
+                if homepage_candidates:
+                    logger.info(
+                        "Homepage link-scan found %d candidate URLs; "
+                        "returning those instead of building",
+                        len(homepage_candidates),
+                    )
+                    existing_urls = self._get_existing_urls()
+                    out = []
+                    discovered_at = datetime.utcnow().isoformat()
+                    for u in homepage_candidates:
+                        normalized_candidate = self._normalize_candidate_url(u)
+                        if normalized_candidate in existing_urls:
+                            continue
+
+                        out.append(
+                            {
+                                "url": u,
+                                "source_url": source_url,
+                                "discovery_method": "homepage_links",
+                                "discovered_at": discovered_at,
+                                "metadata": {"homepage_sniff": True},
+                            }
+                        )
+                        existing_urls.add(normalized_candidate)
+                    if out:
+                        record_newspaper_effectiveness(
+                            DiscoveryMethodStatus.SUCCESS,
+                            len(out),
+                            status_codes=(
+                                [homepage_status_code]
+                                if homepage_status_code is not None
+                                else None
+                            ),
+                            notes=(
+                                "homepage link-scan"
+                                f" ({len(out)} candidates, "
+                                f"fetch ~{homepage_fetch_ms:.0f}ms)"
+                            ),
+                        )
+                        return out
             except Exception:
                 # Non-fatal — if homepage sniff fails, fall back to build
                 pass
@@ -982,8 +1098,12 @@ class NewsDiscovery:
 
             for article in articles_to_process:
                 try:
+                    normalized_article_url = self._normalize_candidate_url(
+                        article.url
+                    )
+
                     # Skip if URL already exists
-                    if article.url in existing_urls:
+                    if normalized_article_url in existing_urls:
                         logger.debug(f"Skipping duplicate URL: {article.url}")
                         continue
 
@@ -1002,7 +1122,7 @@ class NewsDiscovery:
                     # Skip individual article downloads for speed
                     # Just collect URLs for now - content can be fetched later
                     discovered_articles.append(article_data)
-                    existing_urls.add(article.url)  # Track newly added URLs
+                    existing_urls.add(normalized_article_url)
 
                 except Exception as article_error:
                     msg = f"Error processing article from {source_url}"
@@ -1399,7 +1519,13 @@ class NewsDiscovery:
                         if not entry.get("link"):
                             continue
                         article_url = entry.get("link")
-                        if article_url in existing_urls:
+                        normalized_article_url = (
+                            self._normalize_candidate_url(article_url)
+                            if article_url
+                            else None
+                        )
+
+                        if normalized_article_url in existing_urls:
                             duplicate_count += 1
                             continue
 
@@ -1439,7 +1565,8 @@ class NewsDiscovery:
                             )
 
                         discovered_articles.append(article_data)
-                        existing_urls.add(article_url)
+                        if normalized_article_url:
+                            existing_urls.add(normalized_article_url)
 
                     # Fallback: if feed had entries but all filtered out,
                     # optionally include a small recent set
@@ -1496,11 +1623,18 @@ class NewsDiscovery:
                             )
                             for entry in feed.entries[:fallback_count]:
                                 article_url = entry.get("link")
+                                normalized_article_url = (
+                                    self._normalize_candidate_url(
+                                        article_url
+                                    )
+                                    if article_url
+                                    else None
+                                )
+
                                 if (
                                     not article_url
-                                    or article_url in existing_urls
+                                    or normalized_article_url in existing_urls
                                 ):
-                                    continue
                                     continue
                                 article_data = {
                                     "url": article_url,
@@ -1529,7 +1663,10 @@ class NewsDiscovery:
                                     except Exception:
                                         pass
                                 discovered_articles.append(article_data)
-                                existing_urls.add(article_url)
+                                if normalized_article_url:
+                                    existing_urls.add(
+                                        normalized_article_url
+                                    )
 
                     logger.info(
                         "RSS discovery found %d articles",
@@ -2136,11 +2273,14 @@ class NewsDiscovery:
         articles_found_total = len(all_discovered)
 
         # Deduplicate by URL and categorize
-        unique_articles = {}
+        unique_articles: Dict[str, Dict[str, Any]] = {}
         for article in all_discovered:
             url = article.get("url")
-            if url and url not in unique_articles:
-                unique_articles[url] = article
+            if not url:
+                continue
+            normalized_url = self._normalize_candidate_url(url)
+            if normalized_url not in unique_articles:
+                unique_articles[normalized_url] = article
 
         logger.info(f"Total unique articles found: {len(unique_articles)}")
 
@@ -2194,7 +2334,9 @@ class NewsDiscovery:
                     url = absolute_url
 
                     # Check if this URL already exists
-                    if url in existing_urls:
+                    normalized_candidate = self._normalize_candidate_url(url)
+
+                    if normalized_candidate in existing_urls:
                         articles_duplicate += 1
                         continue
 
@@ -2291,7 +2433,7 @@ class NewsDiscovery:
                     # Use the existing upsert function
                     upsert_candidate_link(db.session, **candidate_data)
                     stored_count += 1
-                    existing_urls.add(url)
+                    existing_urls.add(normalized_candidate)
 
                 except Exception as e:
                     logger.error(

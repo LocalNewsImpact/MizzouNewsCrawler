@@ -12,9 +12,13 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy import text
+
+import requests
+from requests import Session
+from requests.exceptions import RequestException, Timeout
 
 # Add the src directory to the path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -32,7 +36,16 @@ from src.models.database import DatabaseManager
 class URLVerificationService:
     """Service to verify URLs with StorySniffer and update their status."""
 
-    def __init__(self, batch_size: int = 100, sleep_interval: int = 30):
+    def __init__(
+        self,
+        batch_size: int = 100,
+        sleep_interval: int = 30,
+        *,
+        http_session: Optional[Session] = None,
+        http_timeout: float = 5.0,
+        http_retry_attempts: int = 3,
+        http_backoff_seconds: float = 0.5,
+    ):
         """Initialize the verification service.
 
         Args:
@@ -44,6 +57,10 @@ class URLVerificationService:
         self.db = DatabaseManager()
         self.sniffer = storysniffer.StorySniffer()
         self.logger = logging.getLogger(__name__)
+        self.http_session = http_session or requests.Session()
+        self.http_timeout = http_timeout
+        self.http_retry_attempts = max(1, http_retry_attempts)
+        self.http_backoff_seconds = max(0.0, http_backoff_seconds)
         self.running = False
 
     def get_unverified_urls(self, limit: Optional[int] = None) -> List[Dict]:
@@ -62,6 +79,59 @@ class URLVerificationService:
             result = conn.execute(text(query))
             return [dict(row._mapping) for row in result.fetchall()]
 
+    def _check_http_health(
+        self, url: str
+    ) -> Tuple[bool, Optional[int], Optional[str], int]:
+        """Perform a lightweight HTTP check with retries.
+
+        Returns a tuple of (is_successful, status_code, error_message, attempts).
+        """
+
+        attempts = 0
+        last_error: Optional[str] = None
+        status_code: Optional[int] = None
+
+        while attempts < self.http_retry_attempts:
+            attempts += 1
+
+            try:
+                response = self.http_session.head(
+                    url,
+                    allow_redirects=True,
+                    timeout=self.http_timeout,
+                )
+                status_code = getattr(response, "status_code", None)
+
+                if status_code is None:
+                    last_error = "missing status code"
+                elif 500 <= status_code < 600:
+                    last_error = f"HTTP {status_code}"
+                elif status_code >= 400:
+                    return False, status_code, f"HTTP {status_code}", attempts
+                else:
+                    return True, status_code, None, attempts
+
+            except Timeout:
+                last_error = f"timeout after {self.http_timeout}s"
+            except RequestException as exc:
+                status_code = getattr(
+                    getattr(exc, "response", None),
+                    "status_code",
+                    None,
+                )
+                last_error = str(exc)
+
+            if attempts < self.http_retry_attempts:
+                time.sleep(self.http_backoff_seconds)
+                continue
+
+            break
+
+        if last_error is None:
+            last_error = "HTTP check failed"
+
+        return False, status_code, last_error, attempts
+
     def verify_url(self, url: str) -> Dict:
         """Verify a single URL with StorySniffer.
 
@@ -74,7 +144,29 @@ class URLVerificationService:
             'storysniffer_result': None,
             'verification_time_ms': 0,
             'error': None,
+            'http_status': None,
+            'http_attempts': 0,
         }
+
+        http_ok, http_status, http_error, http_attempts = self._check_http_health(url)
+        result['http_status'] = http_status
+        result['http_attempts'] = http_attempts
+
+        if not http_ok:
+            result['error'] = http_error
+            result['verification_time_ms'] = (time.time() - start_time) * 1000
+            self.logger.warning(
+                f"HTTP verification failed for {url}: {http_error}"
+            )
+            return result
+
+        if http_status is not None:
+            self.logger.debug(
+                "HTTP check for %s returned %s after %s attempt(s)",
+                url,
+                http_status,
+                http_attempts,
+            )
 
         try:
             # Run StorySniffer verification
