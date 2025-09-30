@@ -37,6 +37,7 @@ from .commands.list_sources import (
 from .commands.load_sources import (
     handle_load_sources_command as load_sources_command,
 )
+from .commands.llm import handle_llm_command as llm_command
 from .commands.telemetry import (
     handle_telemetry_command as telemetry_command,
 )
@@ -63,6 +64,7 @@ __all__ = [
     "queue_command",
     "status_command",
     "dump_http_status_command",
+    "llm_command",
     "create_dataset_version",
     "export_dataset_version",
     "export_snapshot_for_version",
@@ -91,6 +93,7 @@ def main() -> int:
         "queue": queue_command,
         "status": status_command,
         "dump-http-status": dump_http_status_command,
+        "llm": llm_command,
     }
 
     try:

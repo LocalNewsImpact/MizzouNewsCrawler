@@ -1,10 +1,10 @@
-# Test Coverage Roadmap (Baseline 2025-09-29)
+# Test Coverage Roadmap (Baseline 2025-09-30)
 
 ## 1. Baseline metrics
 
-Command: `pytest --cov=src --cov-report=term --cov-report=xml --cov-fail-under=0`
+Command: `pytest --cov=src --cov-report=term --cov-report=xml --cov-fail-under=70`
 
-- Total line coverage: **69.4%** (451 passed, 2 skipped). Default CI runs now use `--cov-fail-under=70`; the above command was re-run locally with the threshold disabled to capture metrics.
+- Total line coverage: **69.97%** (477 passed, 2 skipped). The gate remains at `--cov-fail-under=70`, so the most recent full-suite run tripped the threshold by **0.03 percentage points**; follow-up work below targets low-coverage modules to clear the bar.
 - Coverage strengths: CLI surface area, telemetry store, and most utility packages continue to exceed 85% line coverage thanks to the existing unit suites.
 - Immediate gaps remain in discovery edge cases (homepage/storysniffer fallbacks), scheduling heuristics, and portions of the crawler orchestration glue code.
 
@@ -14,13 +14,14 @@ Command: `pytest --cov=src --cov-report=term --cov-report=xml --cov-fail-under=0
 
 | Module | Coverage | Notes |
 | --- | --- | --- |
-| `src/crawler/discovery.py` | 59% | Happy-path, mixed, duplicate-only, and RSS outage E2E tests now land; homepage/storysniffer fallbacks still sparse. |
-| `src/crawler/__init__.py` | 70% | Shared crawler helpers inching toward the 75% gate; driver lifecycle paths remain uncovered. |
-| `src/crawler/scheduling.py` | 64% | Frequency matrix, metadata fallbacks, host-limit pruning, and existing-article thresholds now exercised by unit + due-only E2E suites; telemetry failure-path drills remain. |
-| `src/services/url_verification.py` | 70% | Timeout/backoff and GET fallback flows covered; long-lived load-shedding remains in backlog. |
-| `src/services/url_verification_worker.py` | 90% | Async worker load-shedding + recovery scenarios covered via service-level tests. |
+| `src/crawler/discovery.py` | 61% | Happy-path, mixed, duplicate-only, and RSS outage E2E tests now land; homepage/storysniffer fallbacks still sparse. |
+| `src/crawler/__init__.py` | 71% | Shared crawler helpers inching toward the 75% gate; driver lifecycle paths remain uncovered. |
+| `src/crawler/scheduling.py` | 74% | Frequency matrix, metadata fallbacks, host-limit pruning, and existing-article thresholds now exercised by unit + due-only E2E suites; telemetry failure-path drills remain. |
+| `src/services/url_verification.py` | 71% | Timeout/backoff and GET fallback flows covered; long-lived load-shedding remains in backlog. |
+| `src/services/url_verification_worker.py` | 94% | Async worker load-shedding + recovery scenarios covered via service-level tests. |
 | `src/models/database.py` | 66% | Upsert/lock regression suite landed; schema drift helpers remain untested. |
 | `src/reporting/county_report.py` | 97% | County report coverage now guards CSV export + wire attribution joins. |
+| `src/cli/commands/gazetteer.py` | 68% | New geocode cache throttling tests cover wait/backoff; request failure/backfill flow still pending. |
 | `src/cli/commands/content_cleaning.py` | 79% | CLI flag permutations largely covered; streaming-mode regressions outstanding. |
 | `src/cli/commands/extraction.py` | 85% | Failure fallbacks + batch controls validated via CLI and E2E harnesses. |
 | `src/cli/commands/extraction_backup.py` | 93% | Backup command now tied into shared fixtures. |
@@ -36,7 +37,7 @@ Command: `pytest --cov=src --cov-report=term --cov-report=xml --cov-fail-under=0
 
 - ✅ 2025-09-28: Upload `coverage.xml` to CI artifact store via GitHub Actions `coverage-<python>` artifact.
 - ✅ 2025-09-28: Emit `coverage-summary.md` per run for module-level review in pull requests.
-- ✅ 2025-10-05: Full-suite coverage run (433 passed, 2 skipped) archived to `coverage.xml` and dashboard.
+- ✅ 2025-09-30: Full-suite coverage run (477 passed, 2 skipped, 69.97% total) archived to `coverage.xml`; next delta focuses on `src/cli/commands/gazetteer.py` and `src/models/database.py` hot spots to clear the 70% gate in CI.
 
 ## 2. Golden-path audit (must hit 100% via smoke/E2E)
 
@@ -68,6 +69,7 @@ Status key: ✅ completed · ⏳ in progress · 🔜 planned
 - ✅ Completed
   - Partial coverage via extraction command tests and county pipeline smoke runs.
   - 2025-09-30: Added `tests/e2e/test_extraction_analysis_pipeline.py` to seed SQLite, stub extraction/cleaning/entity services, run `handle_extraction_command`, apply ML labels, and assert county report output with telemetry + gazetteer matches.
+  - 2025-09-30: Added cached HTML offline regressions in `tests/test_extraction_methods.py` to assert we honor stored snapshots without falling back to network fetches and record method attribution correctly.
   - 2025-10-02: Added extractor failure/gazetteer-miss regression coverage and aligned the ORM `Article.wire` column with reporting SQL usage via reusable E2E harness helpers.
 
 ### County orchestration task
@@ -103,7 +105,7 @@ _Outcome goal:_ introduce pytest E2E suites (`tests/e2e/test_pipeline_xxx.py`) w
 | HTTP RSS feeds (`requests`, `feedparser`) | Fetch & parse feeds; handle 3xx/4xx/5xx, timeouts. | Unit tests mostly mock happy path. | Need contract tests for status codes, slow responses, malformed XML, retries/skip logic. |
 | `newspaper4k` subprocess | CPU-heavy article discovery via multiprocessing. | Limited unit coverage (stubbed). | Add tests for timeouts, build-disabled branches, temporary file cleanup. |
 | StorySniffer | ML prediction for homepage scraping. | Minimal coverage through unit mocks. | Add integration test with sample HTML + failure prediction to assert filtering. |
-| Gazetteer service | HTTP API for geographic enrichment. | `tests/test_gazetteer_integration.py` uses local fixtures. | Expand to cover rate limiting, 5xx, and schema drift. |
+| Gazetteer service | HTTP API for geographic enrichment. | `tests/test_gazetteer_integration.py` uses local fixtures; `tests/test_geocode_cache.py` covers throttling waits/backoff. | Extend to 5xx handling and schema drift scenarios. |
 | Verification service | External HTTP call for URL health. | Unit tests now cover batching, timeout/backoff, 403 fallback, and simulated 429/5xx responses. | Extend coverage to async worker load-shedding once the refactor lands. |
 | SQLite/Postgres access (`sqlalchemy`) | Upserts, retries, lock handling. | Some unit coverage in `tests/models/test_database_manager.py`. | Add tests simulating lock contention & transaction rollbacks. |
 | NLP/Extraction (`spacy`, custom models) | Content extraction + labeling. | Real-world extraction tests exist but rely on live network for some URLs. | Introduce cached HTML fixtures + offline model invocation to ensure determinism. |

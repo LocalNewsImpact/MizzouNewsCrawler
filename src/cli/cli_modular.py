@@ -45,6 +45,8 @@ from .commands.load_sources import add_load_sources_parser
 from .commands.load_sources import (  # noqa: F401
     handle_load_sources_command,
 )
+from .commands.llm import add_llm_parser
+from .commands.llm import handle_llm_command  # noqa: F401
 from .commands.reports import add_reports_parser
 from .commands.reports import (  # noqa: F401
     handle_county_report_command,
@@ -90,6 +92,7 @@ COMMAND_HANDLER_ATTRS: Dict[str, str] = {
     "status": "handle_status_command",
     "queue": "handle_queue_command",
     "dump-http-status": "handle_http_status_command",
+    "llm": "handle_llm_command",
 }
 
 
@@ -127,6 +130,7 @@ def create_parser() -> argparse.ArgumentParser:
     add_versioning_parsers(subparsers)
     add_status_parser(subparsers)
     add_queue_parser(subparsers)
+    add_llm_parser(subparsers)
 
     return parser
 

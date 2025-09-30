@@ -198,6 +198,48 @@ For a fuller walkthrough (including the end-to-end workflow script and advanced 
 - The latest classification export lives in `reports/cin_labels_last14days_with_sources.csv`. It excludes wire stories, joins publication name/city/county metadata, and is written with UTF-8 encoding for compatibility with downstream analytics notebooks.
 - When adding new CIN labels, continue filtering on `articles.source_is_wire = 0` and persist the joined dataset via pandas’ `to_csv(..., encoding="utf-8", index=False)` to match the sanitized export format.
 
+## LLM summarization pipeline
+
+### Why we summarize articles
+
+- **Editorial context**: Each run yields a few sentences that restate the article’s subject, the main action, plus the provider metadata saved in `Article.meta["llm"].summary`. The pipeline does not emit CIN predictions or other structured outputs on its own.
+- **Metadata smoke test**: The prompt template composes each request from the article title, author/byline, publish date, URL, and cleaned body text. If any of those fields are missing, the summary run highlights the gap (`unknown` placeholders surface immediately), making this an ideal checkpoint for validating DOM extraction rules.
+- **Model comparison**: Because the summarisation run captures the same article metadata used by the CIN classifier, you can compare LLM-derived interpretations with the classifier’s Critical Information Needs output or the predictions from other providers when you need a sanity check.
+
+### Configuration
+
+Populate the relevant environment variables (see `.env.example` for a full list):
+
+- `LLM_PROVIDER_SEQUENCE`: Comma-separated provider slugs in fallback order (default: `openai-gpt4.1,openai-gpt4.1-mini,claude-3.5-sonnet,gemini-1.5-flash`).
+- `OPENAI_API_KEY`, `OPENAI_ORGANIZATION`: Credentials for GPT‑4.1 models.
+- `ANTHROPIC_API_KEY`: Enables Claude 3.5 Sonnet.
+- `GOOGLE_API_KEY`: Enables Gemini 1.5 Flash.
+- `LLM_REQUEST_TIMEOUT`, `LLM_MAX_RETRIES`, `LLM_DEFAULT_MAX_OUTPUT_TOKENS`, `LLM_DEFAULT_TEMPERATURE`: Optional overrides for orchestration behavior.
+- `VECTOR_STORE_PROVIDER` (plus provider-specific keys like `PINECONE_API_KEY`, `WEAVIATE_URL`, etc.): Turns on embedding/vector storage when available; the factory falls back to a no-op when unset.
+
+### CLI usage
+
+```bash
+source venv/bin/activate
+python -m src.cli llm status
+
+# Generate summaries for the most recent "cleaned" articles without committing results
+python -m src.cli llm run --statuses cleaned local --limit 10 --dry-run --show-failures
+
+# Persist summaries for everything in "cleaned" status (omit --dry-run)
+python -m src.cli llm run --statuses cleaned local --limit 50
+```
+
+- `llm status` prints the active provider order, which API keys are configured, and any vector-store integration that will be used.
+- `llm run` orchestrates the provider sequence, writing summary metadata (or failure details) back to each article. Use `--dry-run` while tuning selectors and `--show-failures` to inspect per-provider errors.
+- `--prompt-template` accepts a custom prompt file if you need domain-specific instructions for QA runs.
+
+### Suggested QA workflow
+
+1. Run your usual discovery/extraction path to populate `Article` rows with CIN predictions and cleaned content.
+1. Execute `python -m src.cli llm run --statuses cleaned --limit 20 --dry-run --show-failures` to exercise the prompt template without committing results.
+1. Inspect the console output (or the `Article.meta["llm"]` payload when not in dry-run mode) and confirm that the title/byline/publish date fields look correct, the summary echoes the Critical Information Needs classification already applied by the CIN model, and provider failures (if any) call out missing credentials or rate limits before you scale up batches.
+
 ## Architecture
 
 **CSV-to-Database-Driven Design:**
@@ -339,7 +381,7 @@ The `BylineCleaner` system provides intelligent author name extraction with adva
 
 **Advanced Name Processing:**
 
-- **Comma Detection**: Handles comma-separated content like "Ava Gorton, Campus Activities" → ["Ava Gorton"]
+- **Comma Detection**: Handles comma-separated content like "Ava Gorton, Campus Activities" → returns "Ava Gorton"
 
 - **First Name Protection**: Maintains common US English first names (60+ entries) to prevent removal by organization filtering
 
