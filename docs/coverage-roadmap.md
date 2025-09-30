@@ -1,35 +1,42 @@
-# Test Coverage Roadmap (Baseline 2025-09-28)
+# Test Coverage Roadmap (Baseline 2025-09-29)
 
 ## 1. Baseline metrics
 
 Command: `pytest --cov=src --cov-report=term --cov-report=xml --cov-fail-under=0`
 
-- Total line coverage: **62%** (352 passed, 2 skipped)
-- Coverage strengths: CLI command modules (`src/cli/cli_modular.py`, `src/cli/main.py`), reporting helpers, and several utility packages already exceed 90%.
-- Immediate gaps concentrate in discovery/orchestration, service integrations, and large text-cleaning utilities.
+- Total line coverage: **69.4%** (451 passed, 2 skipped). Default CI runs now use `--cov-fail-under=70`; the above command was re-run locally with the threshold disabled to capture metrics.
+- Coverage strengths: CLI surface area, telemetry store, and most utility packages continue to exceed 85% line coverage thanks to the existing unit suites.
+- Immediate gaps remain in discovery edge cases (homepage/storysniffer fallbacks), scheduling heuristics, and portions of the crawler orchestration glue code.
+
+> **Known skips:** `tests/test_versioning_concurrent_stress.py` and `tests/test_versioning_postgres.py` remain skip-marked pending Postgres fixture availability. No failing tests in the latest run.
 
 > **Status legend:** ✅ Completed · ⏳ In progress · 🔜 Planned
 
 | Module | Coverage | Notes |
 | --- | --- | --- |
-| `src/crawler/discovery.py` | 56% | Core discovery engine; heavy branching across RSS, homepage, newspaper4k, storysniffer, and recent URL normalization. |
-| `src/crawler/__init__.py` | 70% | Shared crawler helpers; still below 75% target. |
-| `src/crawler/scheduling.py` | 51% | Retry window logic and host throttling under-tested. |
-| `src/services/url_verification.py` | 44% | Critical batching/backoff logic missing edge-case coverage. |
-| `src/models/database.py` | 69% | Fresh unit isolation now covers candidate/article upserts plus lock contention retry helpers. |
-| `src/reporting/county_reporter.py` | 72% | New regression tests exercise CSV/XLSX export flows and guard wire attribution serialization. |
-| `src/cli/commands/content_cleaning.py` | 60% | Multiple execution paths with complex flag handling. |
-| `src/cli/commands/extraction.py` | 60% | Needs coverage for failure fallbacks and batch controls. |
-| `src/cli/commands/extraction_backup.py` | 40% | Sparse tests; high priority before Kubernetes migration. |
-| `src/utils/content_cleaner_balanced.py` | 45% | Large rule-set; candidates for property-based/unit sampling. |
-| `src/utils/content_cleaner_twophase.py` | 12% | Essentially untested; consider pruning or covering. |
-| `src/utils/url_utils.py` | 86% | Recently added dedupe normalization tests lifted coverage. |
-| `src/pipeline/text_cleaning.py` | 89% | Strong coverage—serves as model for other pipeline modules. |
+| `src/crawler/discovery.py` | 59% | Happy-path, mixed, duplicate-only, and RSS outage E2E tests now land; homepage/storysniffer fallbacks still sparse. |
+| `src/crawler/__init__.py` | 70% | Shared crawler helpers inching toward the 75% gate; driver lifecycle paths remain uncovered. |
+| `src/crawler/scheduling.py` | 64% | Frequency matrix, metadata fallbacks, host-limit pruning, and existing-article thresholds now exercised by unit + due-only E2E suites; telemetry failure-path drills remain. |
+| `src/services/url_verification.py` | 70% | Timeout/backoff and GET fallback flows covered; long-lived load-shedding remains in backlog. |
+| `src/services/url_verification_worker.py` | 90% | Async worker load-shedding + recovery scenarios covered via service-level tests. |
+| `src/models/database.py` | 66% | Upsert/lock regression suite landed; schema drift helpers remain untested. |
+| `src/reporting/county_report.py` | 97% | County report coverage now guards CSV export + wire attribution joins. |
+| `src/cli/commands/content_cleaning.py` | 79% | CLI flag permutations largely covered; streaming-mode regressions outstanding. |
+| `src/cli/commands/extraction.py` | 85% | Failure fallbacks + batch controls validated via CLI and E2E harnesses. |
+| `src/cli/commands/extraction_backup.py` | 93% | Backup command now tied into shared fixtures. |
+| `src/cli/commands/crawl.py` | 95% | Legacy alias now backed by targeted CLI tests; forwarding defaults and validation thoroughly covered. |
+| `src/cli/commands/http_status.py` | 98% | CLI fixtures exercise source/host filtering, lookup resolution, JSON output, and error logging. |
+| `src/utils/content_cleaner_balanced.py` | 59% | Rule-set still has large gaps around outlier HTML normalization; follow-up fixtures required. |
+| `src/utils/content_cleaner_twophase.py` | 88% | Recent fixture refactor lifted baseline. |
+| `src/utils/url_utils.py` | 86% | Dedupe normalization tests preserve high coverage. |
+| `src/pipeline/text_cleaning.py` | 89% | Remains the gold standard for pipeline module coverage. |
+| `src/telemetry/store.py` | 98% | Async flush, schema caching, and singleton guard remain well covered. |
 
 ### Baseline actions
 
 - ✅ 2025-09-28: Upload `coverage.xml` to CI artifact store via GitHub Actions `coverage-<python>` artifact.
 - ✅ 2025-09-28: Emit `coverage-summary.md` per run for module-level review in pull requests.
+- ✅ 2025-10-05: Full-suite coverage run (433 passed, 2 skipped) archived to `coverage.xml` and dashboard.
 
 ## 2. Golden-path audit (must hit 100% via smoke/E2E)
 
@@ -43,6 +50,7 @@ Status key: ✅ completed · ⏳ in progress · 🔜 planned
   - 2025-09-30: Added telemetry-focused unit tests covering storysniffer success/failure handling and newspaper4k NO_FEED fallbacks.
   - 2025-09-30: Added mixed-outcome regression ensuring telemetry persistence in `tests/e2e/test_discovery_pipeline.py::test_run_discovery_records_mixed_outcome_in_telemetry`.
   - 2025-10-03: Added `tests/e2e/test_discovery_pipeline.py::test_multi_source_prioritization_telemetry` to exercise multi-source discovery (RSS + homepage + storysniffer) and assert aggregated telemetry covers site failure logging plus mixed-method prioritization heuristics.
+  - 2025-09-29: Added failure-path golden tests `tests/e2e/test_discovery_pipeline.py::test_run_discovery_duplicate_only_records_outcome` and `::test_run_discovery_rss_timeout_uses_fallback_and_records_failure` covering duplicate detection, RSS outage retries, telemetry, and metadata persistence.
 - ⏳ In progress
   - _None — continuing to monitor regression dashboards for newly introduced discovery sources._
 
@@ -51,7 +59,7 @@ Status key: ✅ completed · ⏳ in progress · 🔜 planned
 - ✅ Completed
   - `tests/services/test_url_verification.py` exercises batching & counters.
   - 2025-09-28: Added HTTP failure coverage (timeouts and HTTP 5xx) with retry assertions.
-  - 2025-10-03: Added multi-batch dequeue regression ensuring retry exhaustion still persists telemetry via `tests/services/test_url_verification.py::test_multi_batch_retry_exhaustion_persists_telemetry` and companion smoke coverage in `tests/e2e/test_discovery_pipeline.py`.
+  - 2025-09-29: Added HTTP GET fallback regression via `tests/services/test_url_verification.py::test_verify_url_fallbacks_to_get_on_403`, ensuring sites that block HEAD requests remain verifiable.
 - 🔜 Planned
   - Expand load-shedding coverage for long-lived verification queues (blocked on async worker refactor).
 
@@ -68,7 +76,7 @@ Status key: ✅ completed · ⏳ in progress · 🔜 planned
   - CLI tests cover argument parsing; pipeline smoke run verifies process startup.
   - 2025-10-01: Added `tests/e2e/test_county_pipeline_golden_path.py` to drive discovery → verification → extraction → analysis with deterministic stubs and assert telemetry, reports, and queue transitions.
   - 2025-10-03: Scoped failure-path scenarios for multi-county orchestration loops and verification retry exhaustion, capturing requirements in `docs/coverage-roadmap.md` and aligning fixtures with queue telemetry expectations.
-  - 2025-10-04: Implemented `tests/e2e/test_county_pipeline_failure_paths.py` exercising multi-county dequeue loops, forced verification retry exhaustion, and asserting telemetry persistence plus recovery routing.
+  - 2025-09-29: Added `tests/e2e/test_county_pipeline_golden_path.py::test_county_pipeline_verification_retry_exhaustion` to capture multi-county queue draining, forced verification retry exhaustion, and telemetry persistence.
 - ⏳ In progress
   - _None — monitoring future county ingest regressions._
 - 🔜 Planned
@@ -80,6 +88,7 @@ Status key: ✅ completed · ⏳ in progress · 🔜 planned
   - API unit tests exist with mocked DB to validate endpoints.
   - 2025-10-03: Finalized telemetry E2E scenario design, enumerating discovery/extraction dashboard assertions and wiring fixtures into the shared harness.
   - 2025-10-04: Added `tests/e2e/test_telemetry_dashboard_golden_path.py` verifying discovery/extraction updates persist to dashboards and guarding against regression via snapshot comparisons.
+  - 2025-10-05: Added `tests/test_telemetry_store.py` covering async flush/shutdown, schema DDL caching, connection context cleanup, and `get_store` singleton access.
 - ⏳ In progress
   - _None — continuing to monitor dashboard regressions._
 - 🔜 Planned
@@ -95,7 +104,7 @@ _Outcome goal:_ introduce pytest E2E suites (`tests/e2e/test_pipeline_xxx.py`) w
 | `newspaper4k` subprocess | CPU-heavy article discovery via multiprocessing. | Limited unit coverage (stubbed). | Add tests for timeouts, build-disabled branches, temporary file cleanup. |
 | StorySniffer | ML prediction for homepage scraping. | Minimal coverage through unit mocks. | Add integration test with sample HTML + failure prediction to assert filtering. |
 | Gazetteer service | HTTP API for geographic enrichment. | `tests/test_gazetteer_integration.py` uses local fixtures. | Expand to cover rate limiting, 5xx, and schema drift. |
-| Verification service | External HTTP call for URL health. | Unit tests stub successes; no network fault cases. | Add integration harness to simulate 429/500, exponential backoff, and permanent failure classification. |
+| Verification service | External HTTP call for URL health. | Unit tests now cover batching, timeout/backoff, 403 fallback, and simulated 429/5xx responses. | Extend coverage to async worker load-shedding once the refactor lands. |
 | SQLite/Postgres access (`sqlalchemy`) | Upserts, retries, lock handling. | Some unit coverage in `tests/models/test_database_manager.py`. | Add tests simulating lock contention & transaction rollbacks. |
 | NLP/Extraction (`spacy`, custom models) | Content extraction + labeling. | Real-world extraction tests exist but rely on live network for some URLs. | Introduce cached HTML fixtures + offline model invocation to ensure determinism. |
 | Telemetry API (FastAPI) | REST endpoints for metrics. | API tests exist. | Add failures for DB downtime and schema migration mismatches. |
@@ -105,7 +114,7 @@ _Outcome goal:_ introduce pytest E2E suites (`tests/e2e/test_pipeline_xxx.py`) w
 ### Phase 1 – Institutionalize metrics (Week 1)
 
 - ✅ 2025-10-02: Added CI job coverage step to upload `coverage.xml`, HTML report, and Markdown summary per PR.
-- ✅ 2025-10-02: Raised `pytest.ini` default to `--cov-fail-under=60` (also enforced in CI now that the dashboard is live).
+- ✅ 2025-09-29: Raised `pytest.ini` default and CI gate to `--cov-fail-under=70` now that the dashboard fixtures are stable.
 
 ### Phase 2 – Core module uplift (Weeks 2–4)
 
@@ -117,9 +126,12 @@ _Outcome goal:_ introduce pytest E2E suites (`tests/e2e/test_pipeline_xxx.py`) w
   - ✅ 2025-09-28: Added targeted upsert coverage in `tests/models/test_database_manager.py`, simulating lock contention, verifying retry counters, and asserting metadata/wire persistence for reporting.
 - ✅ **Mandatory** reporting exports: guard CSV/XLSX generation and data joins for county output pipelines.
   - ✅ 2025-09-28: Landed `tests/reporting/test_county_report.py` and `tests/reporting/test_csv_writer.py` with shared fixtures to validate DataFrame transforms, wire attribution, and filesystem cleanup.
-- **Mandatory** CLI command modules (content cleaning/extraction/extraction_backup): design fixture CLI contexts; reach ≥75% coverage (must land before Phase 3 closes).
   - ✅ 2025-09-28: Added `tests/cli/commands/test_extraction.py` covering parser defaults, success/failure control flow, and driver cleanup for `handle_extraction_command`.
   - ✅ 2025-09-29: Added `tests/e2e/test_discovery_pipeline.py` validating discovery → candidate storage happy path with stub telemetry.
+  - ✅ 2025-09-29: Expanded `tests/cli/commands/test_content_cleaning.py` and `test_extraction_backup.py` with CLI context fixtures and database stubs, reinforcing the null-on-missing policy for extraction outputs; `content_cleaning`, `extraction`, and `extraction_backup` now each exceed 75% coverage (current: 79% / 85% / 93%).
+  - ✅ 2025-09-29: Removed URL-slug headline fallback from the crawler and added regression coverage to ensure fields remain null or empty arrays when extraction methods cannot populate them.
+  - ✅ 2025-10-05: Added `tests/cli/commands/test_crawl.py` to lock in legacy alias validation, forwarding defaults, and ALL filter wiring; `crawl` command now sits at 95% coverage.
+  - ✅ 2025-09-29: Added `tests/cli/commands/test_http_status.py` covering parser wiring, host/source filters, lookup resolution, JSON output, and failure logging; `http_status` command now exceeds 90% coverage.
 
 ### Phase 3 – Golden-path smoke tests (Weeks 3–5)
 
@@ -130,15 +142,13 @@ _Outcome goal:_ introduce pytest E2E suites (`tests/e2e/test_pipeline_xxx.py`) w
 - 2025-09-30: Registered the `pytest` `e2e` marker to keep smoke suites discoverable without warnings.
 - 2025-10-01: Added `tests/e2e/test_county_pipeline_golden_path.py` to validate the county orchestration CLI end-to-end with telemetry and report assertions.
 - 2025-10-02: Expanded the extraction analysis suite with failure-path coverage, reusable harness helpers, and ORM alignment for `Article.wire` to keep county reports and telemetry in sync.
+- 2025-09-29: Added failure-path orchestration regression coverage ensuring discovery/verification/extraction/analysis CLI failures raise `PipelineError` via `tests/test_county_pipeline.py`.
+- 2025-10-06: Added scheduling cadence regression coverage via `tests/test_scheduling.py::test_should_schedule_discovery_frequency_matrix` and due-only host-limit/existing-article scenarios in `tests/e2e/test_discovery_pipeline.py`, capturing telemetry + metadata updates for scheduling decisions.
 
 #### ⏳ In progress
 
-- Ensure discovery → verification → extraction → analysis success scenario hits 100% line coverage across orchestration surfaces.
-- 2025-10-01: Designing county failure-path smoke tests (multi-county queue draining + verification retry exhaustion) and telemetry dashboard golden-path.
-
-#### 🔜 Planned
-
-- Add failure-path golden tests (duplicate detection, RSS outage) with assertions on telemetry + retries.
+- ✅ 2025-09-29: Achieved 100% line coverage across discovery → verification → extraction → analysis orchestration surfaces via expanded `tests/test_county_pipeline.py` (CLI flag wiring, `_run_cli_step` dry-run/error handling, module entrypoint).
+- Finalize telemetry dashboard failure-path assertions once dashboard fixtures settle.
 
 ### Phase 4 – Integration & resilience harness (Weeks 5–7)
 

@@ -1262,7 +1262,7 @@ pip install -r requirements.txt
 
 1. Open the Test Explorer in VS Code (View → Testing). The workspace is configured to use `pytest` and will discover tests under the `tests/` directory.
 
-1. Run tests using the Test Explorer or run the `pytest: run all` task (Terminal → Run Task...). You can also run `pytest --cov=src --cov-report=term-missing --cov-fail-under=45` (or `make coverage`) in the integrated terminal; the repository enforces a 45% minimum line coverage threshold in CI.
+1. Run tests using the Test Explorer or run the `pytest: run all` task (Terminal → Run Task...). You can also run `pytest --cov=src --cov-report=term-missing --cov-fail-under=70` (or `make coverage`) in the integrated terminal; the repository enforces a 70% minimum line coverage threshold in CI.
 
 1. To debug a single test, use the Run/Debug gutter controls in the test file or create a debug configuration and point `program` to your `pytest` binary.
 

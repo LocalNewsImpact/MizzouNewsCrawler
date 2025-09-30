@@ -12,7 +12,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Mapping, Optional, Tuple
 
 from sqlalchemy import text
 
@@ -32,6 +32,19 @@ except ImportError:
 
 from src.models.database import DatabaseManager
 
+_DEFAULT_HTTP_HEADERS: Dict[str, str] = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/128.0.0.0 Safari/537.36"
+    ),
+    "Accept": "*/*",
+    "Accept-Language": "en-US,en;q=0.9",
+}
+
+_FALLBACK_GET_STATUSES = {403, 405}
+_RETRYABLE_STATUS_CODES = {429}
+
 
 class URLVerificationService:
     """Service to verify URLs with StorySniffer and update their status."""
@@ -45,6 +58,7 @@ class URLVerificationService:
         http_timeout: float = 5.0,
         http_retry_attempts: int = 3,
         http_backoff_seconds: float = 0.5,
+        http_headers: Optional[Mapping[str, str]] = None,
     ):
         """Initialize the verification service.
 
@@ -61,6 +75,10 @@ class URLVerificationService:
         self.http_timeout = http_timeout
         self.http_retry_attempts = max(1, http_retry_attempts)
         self.http_backoff_seconds = max(0.0, http_backoff_seconds)
+        self.http_headers = dict(_DEFAULT_HTTP_HEADERS)
+        if http_headers:
+            self.http_headers.update(http_headers)
+        self._prepare_http_session()
         self.running = False
 
     def get_unverified_urls(self, limit: Optional[int] = None) -> List[Dict]:
@@ -79,12 +97,30 @@ class URLVerificationService:
             result = conn.execute(text(query))
             return [dict(row._mapping) for row in result.fetchall()]
 
+    def _prepare_http_session(self) -> None:
+        """Ensure the HTTP session advertises browser-like headers."""
+
+        session_headers = getattr(self.http_session, "headers", None)
+        if session_headers is None:
+            setattr(self.http_session, "headers", dict(self.http_headers))
+            return
+
+        if not hasattr(session_headers, "setdefault"):
+            # Unexpected type; fall back to a fresh mapping.
+            setattr(self.http_session, "headers", dict(self.http_headers))
+            return
+
+        for key, value in self.http_headers.items():
+            if key not in session_headers:
+                session_headers[key] = value
+
     def _check_http_health(
         self, url: str
     ) -> Tuple[bool, Optional[int], Optional[str], int]:
         """Perform a lightweight HTTP check with retries.
 
-        Returns a tuple of (is_successful, status_code, error_message, attempts).
+        Returns a tuple of (is_successful, status_code, error_message,
+        attempts).
         """
 
         attempts = 0
@@ -106,8 +142,25 @@ class URLVerificationService:
                     last_error = "missing status code"
                 elif 500 <= status_code < 600:
                     last_error = f"HTTP {status_code}"
+                elif status_code in _RETRYABLE_STATUS_CODES:
+                    last_error = f"HTTP {status_code} (rate limited)"
                 elif status_code >= 400:
-                    return False, status_code, f"HTTP {status_code}", attempts
+                    if self._should_attempt_get_fallback(status_code):
+                        fallback_ok, fallback_status, fallback_error = (
+                            self._attempt_get_fallback(url)
+                        )
+                        status_code = fallback_status or status_code
+                        if fallback_ok:
+                            return True, status_code, None, attempts
+
+                        last_error = fallback_error or f"HTTP {status_code}"
+                    else:
+                        return (
+                            False,
+                            status_code,
+                            f"HTTP {status_code}",
+                            attempts,
+                        )
                 else:
                     return True, status_code, None, attempts
 
@@ -132,6 +185,46 @@ class URLVerificationService:
 
         return False, status_code, last_error, attempts
 
+    @staticmethod
+    def _should_attempt_get_fallback(status_code: Optional[int]) -> bool:
+        return bool(status_code) and status_code in _FALLBACK_GET_STATUSES
+
+    def _attempt_get_fallback(
+        self, url: str
+    ) -> Tuple[bool, Optional[int], Optional[str]]:
+        """Attempt a GET request when HEAD is blocked by the origin."""
+
+        response = None
+        try:
+            response = self.http_session.get(  # type: ignore[attr-defined]
+                url,
+                allow_redirects=True,
+                timeout=self.http_timeout,
+                stream=True,
+            )
+            status_code = getattr(response, "status_code", None)
+            if status_code is None:
+                return False, None, "missing status code from GET"
+            if status_code < 400:
+                return True, status_code, None
+            return False, status_code, f"HTTP {status_code}"
+        except Timeout:
+            return False, None, (
+                f"timeout after {self.http_timeout}s during GET fallback"
+            )
+        except RequestException as exc:
+            status_code = getattr(
+                getattr(exc, "response", None),
+                "status_code",
+                None,
+            )
+            return False, status_code, str(exc)
+        finally:
+            if response is not None:
+                close_fn = getattr(response, "close", None)
+                if callable(close_fn):
+                    close_fn()
+
     def verify_url(self, url: str) -> Dict:
         """Verify a single URL with StorySniffer.
 
@@ -148,7 +241,8 @@ class URLVerificationService:
             'http_attempts': 0,
         }
 
-        http_ok, http_status, http_error, http_attempts = self._check_http_health(url)
+        health = self._check_http_health(url)
+        http_ok, http_status, http_error, http_attempts = health
         result['http_status'] = http_status
         result['http_attempts'] = http_attempts
 
