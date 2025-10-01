@@ -71,6 +71,8 @@ tests/test_*.py.new
 !tests/cli/commands/test_crawl.py
 !tests/test_telemetry_store.py
 !tests/utils/test_content_type_detector.py
+!tests/services/llm/test_providers.py
+!tests/utils/test_content_cleaning_telemetry.py
 
 # Project specific
 models/productionmodel.pt
