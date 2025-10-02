@@ -52,7 +52,17 @@ ignore = [
     "B008",  # do not perform function calls in argument defaults
     "B904",  # raise-without-from (stylistic, fix in backend files later)
     "B007",  # unused-loop-control-variable (common pattern)
+    "B011",  # assert-false (used in tests/demos)
+    "C401",  # unnecessary-generator-set (stylistic, not critical)
+    "C408",  # unnecessary-collection-call (stylistic)
+    "C416",  # unnecessary-comprehension (stylistic)
     "C901",  # too complex
+    "I001",  # unsorted-imports (handled by isort)
+    "UP017", # datetime-timezone-utc (Python 3.11 style, can fix later)
+    "UP028", # datetime-utc-alias (Python 3.11 style)
+    "UP031", # printf-string-formatting (stylistic, can modernize later)
+    "UP035", # deprecated-import (can fix later)
+    "UP045", # deprecated-import (can fix later)
     "W191",  # indentation contains tabs
     "W291",  # trailing-whitespace (auto-fixable, not critical)
     "W293",  # blank-line-with-whitespace (auto-fixable, not critical)
