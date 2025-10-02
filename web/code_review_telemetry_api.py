@@ -99,7 +99,9 @@ def get_pending_code_reviews(limit: int = 50) -> List[CodeReviewItem]:
     """Get code review items that need human review."""
     try:
         import os
-        db_path = os.path.join(os.path.dirname(__file__), "..", "data", "mizzou.db")
+        db_path = os.path.join(
+            os.path.dirname(__file__), "..", "data", "mizzou.db"
+        )
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
@@ -133,13 +135,19 @@ def get_pending_code_reviews(limit: int = 50) -> List[CodeReviewItem]:
                 code_diff=row['code_diff'],
                 change_type=row['change_type'],
                 priority=row['priority'],
-                created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else datetime.now(),
+                created_at=(
+                    datetime.fromisoformat(row['created_at'])
+                    if row['created_at'] else datetime.now()
+                ),
                 source_branch=row['source_branch'],
                 target_branch=row['target_branch'],
                 human_label=row['human_label'],
                 human_notes=row['human_notes'],
                 reviewed_by=row['reviewed_by'],
-                reviewed_at=datetime.fromisoformat(row['reviewed_at']) if row['reviewed_at'] else None
+                reviewed_at=(
+                    datetime.fromisoformat(row['reviewed_at'])
+                    if row['reviewed_at'] else None
+                )
             )
             items.append(item)
 
@@ -154,7 +162,9 @@ def submit_code_review_feedback(feedback: CodeReviewFeedback) -> bool:
     """Submit human feedback for a code review item."""
     try:
         import os
-        db_path = os.path.join(os.path.dirname(__file__), "..", "data", "mizzou.db")
+        db_path = os.path.join(
+            os.path.dirname(__file__), "..", "data", "mizzou.db"
+        )
         conn = sqlite3.connect(db_path)
         cur = conn.cursor()
 
@@ -185,7 +195,9 @@ def get_code_review_stats() -> CodeReviewStats:
     """Get summary statistics for code review telemetry."""
     try:
         import os
-        db_path = os.path.join(os.path.dirname(__file__), "..", "data", "mizzou.db")
+        db_path = os.path.join(
+            os.path.dirname(__file__), "..", "data", "mizzou.db"
+        )
         conn = sqlite3.connect(db_path)
         cur = conn.cursor()
 
@@ -193,16 +205,28 @@ def get_code_review_stats() -> CodeReviewStats:
         cur.execute("SELECT COUNT(*) FROM code_review_telemetry")
         total_reviews = cur.fetchone()[0]
 
-        cur.execute("SELECT COUNT(*) FROM code_review_telemetry WHERE human_label IS NULL")
+        cur.execute(
+            "SELECT COUNT(*) FROM code_review_telemetry "
+            "WHERE human_label IS NULL"
+        )
         pending_review = cur.fetchone()[0]
 
-        cur.execute("SELECT COUNT(*) FROM code_review_telemetry WHERE human_label = 'approved'")
+        cur.execute(
+            "SELECT COUNT(*) FROM code_review_telemetry "
+            "WHERE human_label = 'approved'"
+        )
         approved = cur.fetchone()[0]
 
-        cur.execute("SELECT COUNT(*) FROM code_review_telemetry WHERE human_label = 'rejected'")
+        cur.execute(
+            "SELECT COUNT(*) FROM code_review_telemetry "
+            "WHERE human_label = 'rejected'"
+        )
         rejected = cur.fetchone()[0]
 
-        cur.execute("SELECT COUNT(*) FROM code_review_telemetry WHERE human_label = 'needs_changes'")
+        cur.execute(
+            "SELECT COUNT(*) FROM code_review_telemetry "
+            "WHERE human_label = 'needs_changes'"
+        )
         needs_changes = cur.fetchone()[0]
 
         # Get average review time (in hours)
@@ -253,7 +277,9 @@ def add_code_review_item(item: CodeReviewItem) -> bool:
     """Add a new code review item to the database."""
     try:
         import os
-        db_path = os.path.join(os.path.dirname(__file__), "..", "data", "mizzou.db")
+        db_path = os.path.join(
+            os.path.dirname(__file__), "..", "data", "mizzou.db"
+        )
         conn = sqlite3.connect(db_path)
         cur = conn.cursor()
 
@@ -271,7 +297,10 @@ def add_code_review_item(item: CodeReviewItem) -> bool:
             item.code_diff,
             item.change_type,
             item.priority,
-            item.created_at.isoformat() if item.created_at else datetime.utcnow().isoformat(),
+            (
+                item.created_at.isoformat()
+                if item.created_at else datetime.utcnow().isoformat()
+            ),
             item.source_branch,
             item.target_branch
         ))

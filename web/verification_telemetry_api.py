@@ -59,7 +59,9 @@ def get_db_connection():
     return sqlite3.connect(db_path)
 
 
-def get_pending_verification_reviews(limit: int = 50) -> List[URLVerificationItem]:
+def get_pending_verification_reviews(
+    limit: int = 50
+) -> List[URLVerificationItem]:
     """Get URL verifications that need human review."""
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -67,9 +69,12 @@ def get_pending_verification_reviews(limit: int = 50) -> List[URLVerificationIte
     # Get items without human feedback, ordered by verification time
     cursor.execute("""
         SELECT
-            v.id, v.url, v.storysniffer_result, v.verification_confidence,
-            v.article_headline, v.article_excerpt, v.verification_time_ms,
-            v.verified_at, v.human_label, v.human_notes, v.reviewed_by, v.reviewed_at,
+            v.id, v.url, v.storysniffer_result,
+            v.verification_confidence,
+            v.article_headline, v.article_excerpt,
+            v.verification_time_ms,
+            v.verified_at, v.human_label, v.human_notes,
+            v.reviewed_by, v.reviewed_at,
             COALESCE(cl.source_name, 'Unknown') as source_name
         FROM url_verifications v
         LEFT JOIN candidate_links cl ON v.candidate_link_id = cl.id
