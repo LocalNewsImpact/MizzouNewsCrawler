@@ -94,7 +94,10 @@ def get_pending_verification_reviews(
             article_headline=row[4],
             article_excerpt=row[5],
             verification_time_ms=row[6],
-            verified_at=datetime.fromisoformat(row[7]) if row[7] else datetime.now(),
+            verified_at=(
+                datetime.fromisoformat(row[7])
+                if row[7] else datetime.now()
+            ),
             human_label=row[8],
             human_notes=row[9],
             reviewed_by=row[10],
@@ -115,7 +118,8 @@ def submit_verification_feedback(feedback: VerificationFeedback) -> bool:
     try:
         cursor.execute("""
             UPDATE url_verifications
-            SET human_label = ?, human_notes = ?, reviewed_by = ?, reviewed_at = ?
+            SET human_label = ?, human_notes = ?,
+                reviewed_by = ?, reviewed_at = ?
             WHERE id = ?
         """, (
             feedback.human_label,
@@ -148,9 +152,11 @@ def get_verification_telemetry_stats() -> VerificationTelemetryStats:
             COUNT(*) as total,
             COUNT(CASE WHEN human_label IS NULL THEN 1 END) as pending,
             COUNT(CASE WHEN human_label = 'correct' THEN 1 END) as correct,
-            COUNT(CASE WHEN human_label = 'incorrect' THEN 1 END) as incorrect,
+            COUNT(CASE WHEN human_label = 'incorrect' THEN 1 END)
+                as incorrect,
             AVG(verification_time_ms) as avg_time,
-            COUNT(CASE WHEN storysniffer_result = 1 THEN 1 END) * 1.0 / COUNT(*) as article_rate
+            COUNT(CASE WHEN storysniffer_result = 1 THEN 1 END) * 1.0
+                / COUNT(*) as article_rate
         FROM url_verifications
         WHERE storysniffer_result IS NOT NULL
     """)
@@ -185,9 +191,15 @@ def get_verification_telemetry_stats() -> VerificationTelemetryStats:
         pending_review=row[1] or 0,
         reviewed_correct=row[2] or 0,
         reviewed_incorrect=row[3] or 0,
-        storysniffer_accuracy=accuracy_row[0] if accuracy_row[0] is not None else None,
-        avg_verification_time_ms=round(row[4], 2) if row[4] else None,
-        article_rate=round(row[5], 3) if row[5] else 0.0,
+        storysniffer_accuracy=(
+            accuracy_row[0] if accuracy_row[0] is not None else None
+        ),
+        avg_verification_time_ms=(
+            round(row[4], 2) if row[4] else None
+        ),
+        article_rate=(
+            round(row[5], 3) if row[5] else 0.0
+        ),
         sources_represented=source_row[0] or 0
     )
 
@@ -195,20 +207,26 @@ def get_verification_telemetry_stats() -> VerificationTelemetryStats:
     return stats
 
 
-def get_labeled_verification_training_data(min_confidence: float = 0.0) -> List[dict]:
+def get_labeled_verification_training_data(
+    min_confidence: float = 0.0
+) -> List[dict]:
     """Export labeled verification data for ML training."""
     conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
         SELECT
-            v.url, v.storysniffer_result, v.verification_confidence,
-            v.verification_time_ms, v.article_headline, v.article_excerpt,
+            v.url, v.storysniffer_result,
+            v.verification_confidence,
+            v.verification_time_ms, v.article_headline,
+            v.article_excerpt,
             v.human_label, cl.source_name,
             LENGTH(v.url) as url_length,
-            CASE WHEN v.url LIKE '%/%/%/%/%' THEN 1 ELSE 0 END as has_deep_path,
-            CASE WHEN v.url LIKE '%.pdf%' OR v.url LIKE '%.doc%' OR v.url LIKE '%.jpg%'
-                 THEN 1 ELSE 0 END as is_file_url,
+            CASE WHEN v.url LIKE '%/%/%/%/%'
+                THEN 1 ELSE 0 END as has_deep_path,
+            CASE WHEN v.url LIKE '%.pdf%' OR v.url LIKE '%.doc%'
+                    OR v.url LIKE '%.jpg%'
+                THEN 1 ELSE 0 END as is_file_url,
             CASE WHEN v.url LIKE '%calendar%' OR v.url LIKE '%event%'
                  THEN 1 ELSE 0 END as is_event_url
         FROM url_verifications v
@@ -230,7 +248,8 @@ def get_labeled_verification_training_data(min_confidence: float = 0.0) -> List[
     for row in cursor.fetchall():
         item = dict(zip(columns, row))
         # Add engineered features
-        item['url_segments'] = len(item['url'].split('/')) - 3  # Subtract protocol and domain
+        # Subtract protocol and domain
+        item['url_segments'] = len(item['url'].split('/')) - 3
         item['has_headline'] = 1 if item['article_headline'] else 0
         item['headline_length'] = len(item['article_headline'] or '')
         item['excerpt_length'] = len(item['article_excerpt'] or '')
@@ -240,7 +259,9 @@ def get_labeled_verification_training_data(min_confidence: float = 0.0) -> List[
     return training_data
 
 
-def enhance_verification_with_content(verification_id: str, headline: str, excerpt: str) -> bool:
+def enhance_verification_with_content(
+    verification_id: str, headline: str, excerpt: str
+) -> bool:
     """Add article content to verification record for human review."""
     conn = get_db_connection()
     cursor = conn.cursor()
