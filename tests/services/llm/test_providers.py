@@ -107,8 +107,8 @@ class TestGPT41Provider:
             timeout=30.0,
         )
         assert client == mock_openai_cls.return_value
-        assert error_cls == Exception
-        assert rate_cls == Exception
+        assert error_cls is Exception
+        assert rate_cls is Exception
 
     @patch('src.services.llm.providers._import_module')
     def test_generate_raises_config_error_no_client(
