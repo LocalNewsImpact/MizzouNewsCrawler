@@ -18,15 +18,19 @@ class TwoPhaseContentCleaner:
         self.db_path = db_path
         self.logger = logging.getLogger(__name__)
 
-    def analyze_domain(self, domain: str, sample_size: int = None,
-                      min_occurrences: int = 3) -> Dict:
+    def analyze_domain(
+        self, domain: str, sample_size: int = None,
+        min_occurrences: int = 3
+    ) -> Dict:
         """Analyze domain using two-phase approach."""
         self.logger.info(f"Analyzing domain: {domain}")
 
         articles = self._get_articles_for_domain(domain, sample_size)
         if len(articles) < min_occurrences:
-            return {"domain": domain, "article_count": len(articles),
-                   "segments": []}
+            return {
+                "domain": domain, "article_count": len(articles),
+                "segments": []
+            }
 
         # Phase 1: Find rough candidate segments
         self.logger.info("Phase 1: Finding rough candidate segments...")
@@ -34,8 +38,9 @@ class TwoPhaseContentCleaner:
 
         # Phase 2: Refine boundaries for exact matching
         self.logger.info("Phase 2: Refining boundaries for exact matching...")
-        exact_segments = self._refine_boundaries(articles, rough_candidates,
-                                                min_occurrences)
+        exact_segments = self._refine_boundaries(
+            articles, rough_candidates, min_occurrences
+        )
 
         # Calculate statistics
         stats = self._calculate_domain_stats(articles, exact_segments)
@@ -46,6 +51,7 @@ class TwoPhaseContentCleaner:
             "segments": exact_segments,
             "stats": stats
         }
+
 
     def _get_articles_for_domain(self, domain: str,
                                 sample_size: int = None) -> List[Dict]:
