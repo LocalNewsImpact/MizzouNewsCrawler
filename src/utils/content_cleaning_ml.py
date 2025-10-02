@@ -33,11 +33,25 @@ class ContentCleaningMLFeatureExtractor:
     def __init__(self):
         """Initialize the feature extractor."""
         self.boilerplate_terms = [
-            "subscribe", "newsletter", "premium", "login", "register", "sign up",
-            "advertisement", "sponsored", "copyright", "privacy", "cookie",
-            "follow us", "share", "like", "social", "related articles",
-            "terms of service", "privacy policy", "all rights reserved"
-        ]
+            "subscribe",
+            "newsletter",
+            "premium",
+            "login",
+            "register",
+            "sign up",
+            "advertisement",
+            "sponsored",
+            "copyright",
+            "privacy",
+            "cookie",
+            "follow us",
+            "share",
+            "like",
+            "social",
+            "related articles",
+            "terms of service",
+            "privacy policy",
+            "all rights reserved"]
 
         self.navigation_terms = [
             "menu", "navigation", "home", "contact", "about", "sitemap"
@@ -156,7 +170,13 @@ class ContentCleaningMLFeatureExtractor:
         """Categorize domain type based on common patterns."""
         domain_lower = domain.lower()
 
-        if any(term in domain_lower for term in ["news", "times", "post", "herald", "gazette"]):
+        if any(
+            term in domain_lower for term in [
+                "news",
+                "times",
+                "post",
+                "herald",
+                "gazette"]):
             return "news"
         elif any(term in domain_lower for term in ["blog", "wordpress", "medium"]):
             return "blog"
@@ -172,24 +192,39 @@ class ContentCleaningMLFeatureExtractor:
         features = {}
 
         # Boilerplate term counts and presence
-        boilerplate_count = sum(1 for term in self.boilerplate_terms if term in text)
+        boilerplate_count = sum(
+            1 for term in self.boilerplate_terms if term in text)
         features["boilerplate_term_count"] = boilerplate_count
         features["has_boilerplate_terms"] = boilerplate_count > 0
-        features["boilerplate_term_density"] = boilerplate_count / max(len(text.split()), 1)
+        features["boilerplate_term_density"] = boilerplate_count / \
+            max(len(text.split()), 1)
 
         # Specific pattern categories
-        features["has_subscription_terms"] = any(term in text for term in self.subscription_terms)
-        features["has_navigation_terms"] = any(term in text for term in self.navigation_terms)
+        features["has_subscription_terms"] = any(
+            term in text for term in self.subscription_terms)
+        features["has_navigation_terms"] = any(
+            term in text for term in self.navigation_terms)
 
         # Email and URL patterns
-        features["has_email"] = bool(re.search(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', text))
-        features["has_url"] = bool(re.search(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', text))
-        features["has_phone"] = bool(re.search(r'\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}', text))
+        features["has_email"] = bool(
+            re.search(
+                r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',
+                text))
+        features["has_url"] = bool(
+            re.search(
+                r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+',
+                text))
+        features["has_phone"] = bool(
+            re.search(
+                r'\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}',
+                text))
 
         # Copyright and legal patterns
         features["has_copyright"] = "copyright" in text or "©" in text
         features["has_rights_reserved"] = "rights reserved" in text
-        features["has_legal_language"] = any(term in text for term in ["terms", "policy", "legal", "disclaimer"])
+        features["has_legal_language"] = any(
+            term in text for term in [
+                "terms", "policy", "legal", "disclaimer"])
 
         return features
 
@@ -202,16 +237,26 @@ class ContentCleaningMLFeatureExtractor:
 
         if words:
             # Word-level features
-            features["avg_word_length"] = np.mean([len(word) for word in words])
+            features["avg_word_length"] = np.mean(
+                [len(word) for word in words])
             features["max_word_length"] = max(len(word) for word in words)
-            features["short_word_ratio"] = len([w for w in words if len(w) <= 3]) / len(words)
-            features["long_word_ratio"] = len([w for w in words if len(w) >= 8]) / len(words)
+            features["short_word_ratio"] = len(
+                [w for w in words if len(w) <= 3]) / len(words)
+            features["long_word_ratio"] = len(
+                [w for w in words if len(w) >= 8]) / len(words)
 
             # Common word patterns
-            features["has_common_stopwords"] = any(word in text for word in
-                                                 ["the", "and", "or", "but", "in", "on", "at", "to", "for"])
-            features["has_imperatives"] = any(word in text for word in
-                                            ["click", "visit", "follow", "subscribe", "join", "sign"])
+            features["has_common_stopwords"] = any(
+                word in text for word in [
+                    "the", "and", "or", "but", "in", "on", "at", "to", "for"])
+            features["has_imperatives"] = any(
+                word in text for word in [
+                    "click",
+                    "visit",
+                    "follow",
+                    "subscribe",
+                    "join",
+                    "sign"])
 
         if sentences:
             # Sentence-level features
@@ -221,8 +266,10 @@ class ContentCleaningMLFeatureExtractor:
                 features["sentence_length_std"] = np.std(sentence_lengths)
 
         # Repetition features
-        features["repeated_words"] = len(words) - len(set(words)) if words else 0
-        features["repetition_ratio"] = features["repeated_words"] / max(len(words), 1)
+        features["repeated_words"] = len(
+            words) - len(set(words)) if words else 0
+        features["repetition_ratio"] = features["repeated_words"] / \
+            max(len(words), 1)
 
         return features
 
@@ -236,18 +283,24 @@ class ContentCleaningMLFeatureExtractor:
         features["has_parentheses"] = '(' in text or ')' in text
 
         # List-like structures
-        features["has_bullet_points"] = bool(re.search(r'^\s*[-•*]\s+', text, re.MULTILINE))
-        features["has_numbered_list"] = bool(re.search(r'^\s*\d+\.\s+', text, re.MULTILINE))
+        features["has_bullet_points"] = bool(
+            re.search(r'^\s*[-•*]\s+', text, re.MULTILINE))
+        features["has_numbered_list"] = bool(
+            re.search(r'^\s*\d+\.\s+', text, re.MULTILINE))
 
         # Formatting indicators
-        features["has_all_caps_words"] = bool(re.search(r'\b[A-Z]{3,}\b', text))
-        features["has_excessive_punctuation"] = bool(re.search(r'[!?]{2,}', text))
+        features["has_all_caps_words"] = bool(
+            re.search(r'\b[A-Z]{3,}\b', text))
+        features["has_excessive_punctuation"] = bool(
+            re.search(r'[!?]{2,}', text))
 
         # Line break patterns
         lines = text.split('\n')
         features["line_count"] = len(lines)
-        features["avg_line_length"] = np.mean([len(line) for line in lines]) if lines else 0
-        features["has_short_lines"] = any(len(line.strip()) < 20 for line in lines)
+        features["avg_line_length"] = np.mean(
+            [len(line) for line in lines]) if lines else 0
+        features["has_short_lines"] = any(
+            len(line.strip()) < 20 for line in lines)
 
         return features
 

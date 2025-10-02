@@ -26,11 +26,16 @@ def _make_db_path(tmpdir_path: str) -> str:
     return f"sqlite:///{path}"
 
 
-def _worker_attempt_claim(db_url: str, dv_id: str, claimer: str, out_q: mp.Queue):
+def _worker_attempt_claim(
+    db_url: str,
+    dv_id: str,
+    claimer: str,
+     out_q: mp.Queue):
     try:
         from models import versioning as v
 
-        ok = v.claim_dataset_version(dv_id, claimer=claimer, database_url=db_url)
+        ok = v.claim_dataset_version(
+            dv_id, claimer=claimer, database_url=db_url)
         out_q.put((claimer, bool(ok)))
     except Exception as e:
         out_q.put((claimer, False, str(e)))
@@ -56,8 +61,8 @@ def test_concurrent_claims_stress(tmp_path):
         workers = []
         for i in range(procs):
             p = mp.Process(
-                target=_worker_attempt_claim, args=(db_url, dv.id, f"proc-{i}", q)
-            )
+                target=_worker_attempt_claim, args=(
+                    db_url, dv.id, f"proc-{i}", q))
             workers.append(p)
             p.start()
 
@@ -67,4 +72,5 @@ def test_concurrent_claims_stress(tmp_path):
             p.join(timeout=1)
 
         successes = [r for r in results if len(r) >= 2 and r[1] is True]
-        assert len(successes) == 1, f"Expected exactly one success, got: {results}"
+        assert len(
+            successes) == 1, f"Expected exactly one success, got: {results}"

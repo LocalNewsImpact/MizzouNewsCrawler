@@ -50,7 +50,10 @@ class PublisherGeoFilter:
 
         # Define OSM queries for different entity types
         self.osm_queries = {
-            "schools": ["amenity=school", "amenity=university", "amenity=college"],
+            "schools": [
+                "amenity=school",
+                "amenity=university",
+                "amenity=college"],
             "government": [
                 "amenity=townhall",
                 "amenity=courthouse",
@@ -62,20 +65,20 @@ class PublisherGeoFilter:
                 "amenity=clinic",
                 "amenity=doctors",
                 "amenity=pharmacy",
-            ],
-            "businesses": [
-                "shop=supermarket",
-                "shop=department_store",
-                "amenity=restaurant",
-                "amenity=bank",
-            ],
-            "landmarks": [
-                "amenity=library",
-                "leisure=park",
-                "tourism=attraction",
-                "amenity=community_centre",
-            ],
-        }
+                ],
+                "businesses": [
+                    "shop=supermarket",
+                    "shop=department_store",
+                    "amenity=restaurant",
+                    "amenity=bank",
+                    ],
+                    "landmarks": [
+                        "amenity=library",
+                        "leisure=park",
+                        "tourism=attraction",
+                        "amenity=community_centre",
+                        ],
+                         }
 
     def _normalize_name(self, s: str) -> str:
         """Normalize a place or institution name for matching.
@@ -334,7 +337,8 @@ class PublisherGeoFilter:
                 df.to_csv(self.publinks_path, index=False)
                 print(f"Updated cached gazetteer for {host_id}")
         except Exception as e:
-            print(f"Warning: Could not save gazetteer cache for " f"{host_id}: {e}")
+            print(
+                f"Warning: Could not save gazetteer cache for " f"{host_id}: {e}")
 
     def _query_osm_entities(
         self,
@@ -382,13 +386,15 @@ class PublisherGeoFilter:
                 if attempt > 0:
                     # Exponential backoff + jitter
                     delay = base_delay * (2**attempt) + 1
-                    print("    Retrying " f"{entity_type} after {delay:.1f}s delay...")
+                    print(
+                        "    Retrying " f"{entity_type} after {
+                            delay:.1f}s delay...")
                     time.sleep(delay)
 
                 # Make API request with longer timeout
                 response = requests.post(
-                    self.overpass_url, data={"data": overpass_query}, timeout=60
-                )
+                    self.overpass_url, data={
+                        "data": overpass_query}, timeout=60)
 
                 if response.status_code == 200:
                     data = response.json()
@@ -466,7 +472,11 @@ class PublisherGeoFilter:
         city = str(publisher_row.get("city", "")).lower()
 
         # Determine if it's a metro market
-        metro_cities = {"kansas city", "st. louis", "saint louis", "springfield"}
+        metro_cities = {
+            "kansas city",
+            "st. louis",
+            "saint louis",
+            "springfield"}
         is_metro = any(metro in city for metro in metro_cities)
 
         # Calculate radius based on media type
@@ -517,7 +527,8 @@ class PublisherGeoFilter:
             zip5 = clean_zip[:5]
 
             # Use the free zippopotam.us API for zipcode lookup
-            response = requests.get(f"http://api.zippopotam.us/us/{zip5}", timeout=5)
+            response = requests.get(
+                f"http://api.zippopotam.us/us/{zip5}", timeout=5)
             if response.status_code == 200:
                 data = response.json()
                 lat = float(data["places"][0]["latitude"])
@@ -525,7 +536,8 @@ class PublisherGeoFilter:
                 print(f"Found coordinates for zipcode {zip5}: ({lat}, {lon})")
                 return (lat, lon)
         except Exception as e:
-            print("Warning: Could not get coordinates for zipcode " f"{zipcode}: {e}")
+            print(
+                "Warning: Could not get coordinates for zipcode " f"{zipcode}: {e}")
         return None
 
     def build_publisher_gazetteer(self, host_id: str) -> Set[str]:
@@ -576,7 +588,8 @@ class PublisherGeoFilter:
         coverage_radius = publisher["coverage_radius"]
 
         # Load publisher-specific geography
-        self._load_publisher_local_geography(host_id, pub_city, pub_county, pub_state)
+        self._load_publisher_local_geography(
+            host_id, pub_city, pub_county, pub_state)
 
         gazetteer = set()
         geographic_entities = set()
@@ -721,8 +734,10 @@ class PublisherGeoFilter:
         }
 
         self.save_gazetteer_cache(
-            host_id, list(geographic_entities), list(institutions), osm_cache_data
-        )
+            host_id,
+            list(geographic_entities),
+            list(institutions),
+            osm_cache_data)
 
         # Cache the gazetteer
         self.publisher_gazetteers[host_id] = gazetteer
@@ -931,8 +946,10 @@ class PublisherGeoFilter:
         if pub_city_norm:
             compact_pub = re.sub(r"[^a-z0-9]", "", pub_city_norm)
             if pub_city_norm in unique_locations or any(
-                compact_pub == re.sub(r"[^a-z0-9]", "", ul) for ul in unique_locations
-            ):
+                compact_pub == re.sub(
+                    r"[^a-z0-9]",
+                    "",
+                    ul) for ul in unique_locations):
                 signal_strength = max(signal_strength, 0.7)
 
         # Boost signal if locations appear early in title/headline
@@ -951,7 +968,9 @@ class PublisherGeoFilter:
         # (AP, Reuters, Associated Press, etc.). If the byline or explicit
         # authors are present and there are no nearby wire markers, boost.
         byline_signal = 0.0
-        byline_match = re.search(r"\bBy[:\s]+([A-Z][a-zA-Z.'\- ]{1,80})", text_original)
+        byline_match = re.search(
+            r"\bBy[:\s]+([A-Z][a-zA-Z.'\- ]{1,80})",
+            text_original)
         if authors and isinstance(authors, str) and authors.strip():
             # Base strong signal for an explicit author
             byline_signal = max(byline_signal, 0.95)
@@ -1022,13 +1041,15 @@ class PublisherGeoFilter:
                 # are present in the byline (e.g., 'carthage news')
                 elif pub_name:
                     pub_tokens = [t for t in re.split(r"\W+", pub_name) if t]
-                    if pub_tokens and all(tok in cand for tok in pub_tokens[:2]):
+                    if pub_tokens and all(
+                            tok in cand for tok in pub_tokens[:2]):
                         # strong boost for a match to publisher name
                         byline_signal = max(byline_signal, 0.995)
         except Exception:
             pass
 
-        # wire indicators to penalize - be more specific to avoid false positives
+        # wire indicators to penalize - be more specific to avoid false
+        # positives
         wire_indicators = [
             " ap ",
             "(ap)",
@@ -1049,7 +1070,12 @@ class PublisherGeoFilter:
         # team/institution signal
         team_signal = 0.0
         if unique_locations:
-            insts = set(self.publishers.get(host_id, {}).get("cached_institutions", []))
+            insts = set(
+                self.publishers.get(
+                    host_id,
+                    {}).get(
+                    "cached_institutions",
+                    []))
             inst_matches = sum(1 for ul in unique_locations if ul in insts)
             if inst_matches > 0:
                 team_signal = min(0.6, 0.25 * inst_matches)
@@ -1064,7 +1090,8 @@ class PublisherGeoFilter:
                     "panther",
                     "diamond",
                 ]
-                if any(any(k in ul for k in team_keywords) for ul in unique_locations):
+                if any(any(k in ul for k in team_keywords)
+                       for ul in unique_locations):
                     team_signal = 0.25
 
         # county signal
@@ -1082,7 +1109,8 @@ class PublisherGeoFilter:
             + team_signal * 0.1
             + county_signal * 0.2
         )
-        local_probability = max(0.0, min(1.0, local_probability + wire_penalty))
+        local_probability = max(
+            0.0, min(1.0, local_probability + wire_penalty))
 
         return {
             "has_geographic_signals": location_count > 0,
@@ -1097,7 +1125,8 @@ class PublisherGeoFilter:
             ),
         }
 
-    def enhance_local_wire_classification(self, df: pd.DataFrame) -> pd.DataFrame:
+    def enhance_local_wire_classification(
+            self, df: pd.DataFrame) -> pd.DataFrame:
         """Enhance local_wire classification using publisher-specific
         geographic signals.
         """
@@ -1178,7 +1207,8 @@ class PublisherGeoFilter:
             # compute authors_count for this host/author
             auth_count = 0
             if authors_lower and host_id in authors_count_by_host:
-                auth_count = authors_count_by_host[host_id].get(authors_lower, 0)
+                auth_count = authors_count_by_host[host_id].get(
+                    authors_lower, 0)
 
             result = self.detect_geographic_signals(
                 text,
@@ -1193,15 +1223,18 @@ class PublisherGeoFilter:
         df["has_geographic_signals"] = [
             r["has_geographic_signals"] for r in geo_results
         ]
-        df["detected_locations"] = [r["detected_locations"] for r in geo_results]
+        df["detected_locations"] = [r["detected_locations"]
+            for r in geo_results]
         df["location_count"] = [r["location_count"] for r in geo_results]
-        df["geographic_signal_strength"] = [r["signal_strength"] for r in geo_results]
+        df["geographic_signal_strength"] = [r["signal_strength"]
+            for r in geo_results]
         # local_probability from detector
         df["local_probability"] = [
             r.get("local_probability", None) for r in geo_results
         ]
         # include whether a wire indicator was detected near byline/text
-        df["wire_present"] = [r.get("wire_present", False) for r in geo_results]
+        df["wire_present"] = [r.get("wire_present", False)
+                                    for r in geo_results]
         df["coverage_radius"] = [r["coverage_radius"] for r in geo_results]
 
         # Initialize wire and local_wire columns if they don't exist
@@ -1312,14 +1345,12 @@ class PublisherGeoFilter:
             if detected_locations and all_local_places:
                 # Check if any detected location is in this publisher's area
                 local_matches = [
-                    loc for loc in detected_locations if loc and loc in all_local_places
-                ]
+                    loc for loc in detected_locations if loc and loc in all_local_places]
                 has_local_locations = bool(local_matches)
 
             # Determine whether we consider the article to have a local signal
             local_signal = (
-                local_prob >= LOCAL_PROB_THRESHOLD or has_inst or has_local_locations
-            )
+                local_prob >= LOCAL_PROB_THRESHOLD or has_inst or has_local_locations)
 
             # Final classification logic
             if wire_indicated:
@@ -1388,7 +1419,8 @@ if __name__ == "__main__":
     for host_id in ["163", "203", "220"]:  # Examples from the CSV
         if host_id in geo_filter.publishers:
             pub = geo_filter.publishers[host_id]
-            print(f"\nPublisher: {pub['name']} " f"({pub['city']}, {pub['county']})")
+            print(
+                f"\nPublisher: {pub['name']} " f"({pub['city']}, {pub['county']})")
             print(
                 f"Media type: {pub['media_type']}, "
                 f"Coverage radius: {pub['coverage_radius']} miles"

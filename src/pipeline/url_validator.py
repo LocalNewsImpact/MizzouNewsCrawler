@@ -37,7 +37,8 @@ class URLValidator:
             with open(config_path, "r") as f:
                 return json.load(f)
         except FileNotFoundError:
-            raise FileNotFoundError(f"Configuration file not found: {config_path}")
+            raise FileNotFoundError(
+                f"Configuration file not found: {config_path}")
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON in configuration file: {e}")
 
@@ -158,8 +159,7 @@ class URLValidator:
                     "no_trailing_slash",
                 ]:
                     issues.append(
-                        f"Unknown validation rule '{rule}' in outlet '{hostname}'"
-                    )
+                        f"Unknown validation rule '{rule}' in outlet '{hostname}'")
 
         return issues
 
@@ -209,8 +209,10 @@ if __name__ == "__main__":
     # Test URLs
     test_urls = [
         "https://www.columbiamissourian.com/news/article123",
-        "https://www.columbiamissourian.com/news/",  # Should be excluded (trailing slash)
-        "https://www.stltoday.com/news/local",  # Should be excluded (no /article)
+        # Should be excluded (trailing slash)
+        "https://www.columbiamissourian.com/news/",
+        # Should be excluded (no /article)
+        "https://www.stltoday.com/news/local",
         "https://www.stltoday.com/news/article/story123",  # Should be included
         "https://example.com/document.pdf",  # Should be excluded (PDF)
         "https://example.com/events/calendar",  # Should be excluded (event)

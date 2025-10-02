@@ -13,8 +13,8 @@ try:
     from models import versioning
 except Exception as e:  # pragma: no cover - skip in minimal envs
     pytest.skip(
-        f"Skipping concurrency tests; can't import models: {e}", allow_module_level=True
-    )
+        f"Skipping concurrency tests; can't import models: {e}",
+     allow_module_level=True)
 
 
 def _make_db_path(tmpdir_path: str) -> str:
@@ -22,13 +22,18 @@ def _make_db_path(tmpdir_path: str) -> str:
     return f"sqlite:///{path}"
 
 
-def _worker_attempt_claim(db_url: str, dv_id: str, claimer: str, out_q: mp.Queue):
+def _worker_attempt_claim(
+    db_url: str,
+    dv_id: str,
+    claimer: str,
+     out_q: mp.Queue):
     # Each worker gets its own import & DB session
     try:
         # Re-import inside child process to ensure fresh engine/session
         from models import versioning as v
 
-        ok = v.claim_dataset_version(dv_id, claimer=claimer, database_url=db_url)
+        ok = v.claim_dataset_version(
+            dv_id, claimer=claimer, database_url=db_url)
         out_q.put((claimer, bool(ok)))
     except Exception as e:
         out_q.put((claimer, False, str(e)))

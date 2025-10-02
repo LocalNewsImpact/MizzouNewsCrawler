@@ -278,7 +278,8 @@ class SourceProcessor:
             skip_rss = True
             return articles, summary, attempted, skip_rss
 
-        rss_meta = self.source_meta if isinstance(self.source_meta, dict) else None
+        rss_meta = self.source_meta if isinstance(
+            self.source_meta, dict) else None
 
         try:
             attempted = True
@@ -552,8 +553,7 @@ class SourceProcessor:
                     url = absolute_url
 
                     normalized_candidate = self.discovery._normalize_candidate_url(
-                        url
-                    )
+                        url)
 
                     if normalized_candidate in self.existing_urls:
                         articles_duplicate += 1

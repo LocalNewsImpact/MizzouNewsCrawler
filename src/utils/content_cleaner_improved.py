@@ -248,22 +248,35 @@ class ImprovedContentCleaner:
 
             # Strategy 2: Paragraph-level segments
             paragraphs = self._extract_paragraphs(content)
-            self._process_segments(paragraphs, "paragraph", segment_occurrences,
-                                 content, article_id)
+            self._process_segments(
+                paragraphs,
+                "paragraph",
+                segment_occurrences,
+                content,
+                article_id)
 
             # Strategy 3: Navigation-like patterns
             nav_patterns = self._extract_navigation_patterns(content)
-            self._process_segments(nav_patterns, "navigation", segment_occurrences,
-                                 content, article_id)
+            self._process_segments(
+                nav_patterns,
+                "navigation",
+                segment_occurrences,
+                content,
+                article_id)
 
             # Strategy 4: Footer-like patterns
             footer_patterns = self._extract_footer_patterns(content)
-            self._process_segments(footer_patterns, "footer", segment_occurrences,
-                                 content, article_id)
+            self._process_segments(
+                footer_patterns,
+                "footer",
+                segment_occurrences,
+                content,
+                article_id)
 
         return segment_occurrences
 
-    def _extract_large_blocks(self, content: str) -> List[Tuple[str, int, int]]:
+    def _extract_large_blocks(
+            self, content: str) -> List[Tuple[str, int, int]]:
         """Extract large text blocks that might be navigation or headers."""
         blocks = []
 
@@ -306,7 +319,8 @@ class ImprovedContentCleaner:
 
         return segments
 
-    def _extract_navigation_patterns(self, content: str) -> List[Tuple[str, int, int]]:
+    def _extract_navigation_patterns(
+            self, content: str) -> List[Tuple[str, int, int]]:
         """Extract patterns that look like navigation menus."""
         patterns = []
 
@@ -319,7 +333,8 @@ class ImprovedContentCleaner:
 
         # Find text that contains multiple navigation keywords
         words = content.lower().split()
-        nav_word_count = sum(1 for word in words if any(keyword in word for keyword in nav_keywords))
+        nav_word_count = sum(1 for word in words if any(
+            keyword in word for keyword in nav_keywords))
 
         # If high density of nav words, look for the containing block
         if nav_word_count >= 5:
@@ -328,15 +343,18 @@ class ImprovedContentCleaner:
             for i in range(0, min(len(content), 1000), 50):
                 block = content[i:i + block_size]
                 block_words = block.lower().split()
-                block_nav_count = sum(1 for word in block_words
-                                    if any(keyword in word for keyword in nav_keywords))
+                block_nav_count = sum(
+                    1 for word in block_words if any(
+                        keyword in word for keyword in nav_keywords))
 
-                if len(block_words) > 0 and block_nav_count / len(block_words) > 0.3:
+                if len(block_words) > 0 and block_nav_count / \
+                       len(block_words) > 0.3:
                     patterns.append((block.strip(), i, i + len(block)))
 
         return patterns
 
-    def _extract_footer_patterns(self, content: str) -> List[Tuple[str, int, int]]:
+    def _extract_footer_patterns(
+            self, content: str) -> List[Tuple[str, int, int]]:
         """Extract patterns that look like footers."""
         patterns = []
 
@@ -349,12 +367,14 @@ class ImprovedContentCleaner:
         if len(content) > 200:
             footer_section = content[-500:]
             footer_words = footer_section.lower().split()
-            footer_keyword_count = sum(1 for word in footer_words
-                                     if any(keyword in word for keyword in footer_keywords))
+            footer_keyword_count = sum(
+                1 for word in footer_words if any(
+                    keyword in word for keyword in footer_keywords))
 
             if footer_keyword_count >= 2:
                 start_pos = len(content) - 500
-                patterns.append((footer_section.strip(), start_pos, len(content)))
+                patterns.append(
+                    (footer_section.strip(), start_pos, len(content)))
 
         return patterns
 
@@ -372,12 +392,15 @@ class ImprovedContentCleaner:
 
             # Calculate position percentages
             content_length = len(content)
-            start_pct = (start_pos / content_length if content_length > 0 else 0)
+            start_pct = (
+                start_pos /
+                content_length if content_length > 0 else 0)
             end_pct = (end_pos / content_length if content_length > 0 else 0)
 
             segment_occurrences[segment_hash]["count"] += 1
             segment_occurrences[segment_hash]["text"] = segment_text.strip()
-            segment_occurrences[segment_hash]["positions"].append((start_pct, end_pct))
+            segment_occurrences[segment_hash]["positions"].append(
+                (start_pct, end_pct))
             segment_occurrences[segment_hash]["article_ids"].append(article_id)
             segment_occurrences[segment_hash]["pattern_type"] = pattern_type
 
@@ -459,7 +482,8 @@ class ImprovedContentCleaner:
         )
         confidence += pattern_score * 0.2
 
-        # Position bias - beginning/end content more likely boilerplate (0-0.1 points)
+        # Position bias - beginning/end content more likely boilerplate (0-0.1
+        # points)
         if positions:
             avg_start = sum(pos[0] for pos in positions) / len(positions)
             avg_end = sum(pos[1] for pos in positions) / len(positions)

@@ -82,7 +82,8 @@ class ProperBoundaryContentCleaner:
         conn.close()
         return articles
 
-    def _extract_proper_boundary_segments(self, articles: List[Dict]) -> Dict[str, Set[str]]:
+    def _extract_proper_boundary_segments(
+            self, articles: List[Dict]) -> Dict[str, Set[str]]:
         """
         Extract segments with proper boundaries:
         1. Complete sentences (ending with punctuation)
@@ -123,7 +124,9 @@ class ProperBoundaryContentCleaner:
             if len(article_ids) >= 2
         }
 
-        self.logger.info(f"Found {len(filtered_segments)} properly bounded candidates")
+        self.logger.info(
+            f"Found {
+                len(filtered_segments)} properly bounded candidates")
         return filtered_segments
 
     def _extract_complete_sentences(self, content: str) -> List[str]:
@@ -137,7 +140,8 @@ class ProperBoundaryContentCleaner:
             # Must end with proper punctuation
             if sentence and sentence[-1] in '.!?':
                 # Must start with capital letter or quote
-                if sentence and (sentence[0].isupper() or sentence[0] in '"\''):
+                if sentence and (
+                        sentence[0].isupper() or sentence[0] in '"\''):
                     complete_sentences.append(sentence)
 
         return complete_sentences
@@ -248,7 +252,8 @@ class ProperBoundaryContentCleaner:
                             pos = content.find(segment_text, start)
                             if pos == -1:
                                 break
-                            article_positions.append((pos, pos + len(segment_text)))
+                            article_positions.append(
+                                (pos, pos + len(segment_text)))
                             start = pos + 1
 
                         if article_positions:
@@ -257,26 +262,27 @@ class ProperBoundaryContentCleaner:
                 if len(positions) >= min_occurrences:
                     # Calculate position consistency
                     position_consistency = self._calculate_position_consistency(
-                        positions, articles_by_id
-                    )
+                        positions, articles_by_id)
 
                     if position_consistency > 0.2:
                         segment = {
                             "text": segment_text,
                             "length": len(segment_text),
                             "occurrences": len(positions),
-                            "article_ids": list(positions.keys()),
+                            "article_ids": list(
+                                positions.keys()),
                             "positions": positions,
                             "position_consistency": position_consistency,
-                            "pattern_type": self._classify_pattern(segment_text)
-                        }
+                            "pattern_type": self._classify_pattern(segment_text)}
                         duplicate_segments.append(segment)
 
         # Sort by occurrences and length
         duplicate_segments.sort(key=lambda x: (x["occurrences"], x["length"]),
                                reverse=True)
 
-        self.logger.info(f"Found {len(duplicate_segments)} properly bounded duplicates")
+        self.logger.info(
+            f"Found {
+                len(duplicate_segments)} properly bounded duplicates")
         return duplicate_segments
 
     def _calculate_position_consistency(self, positions: Dict[str, List[Tuple[int, int]]],
@@ -314,8 +320,18 @@ class ProperBoundaryContentCleaner:
         text_lower = text.lower()
 
         # Navigation patterns
-        nav_keywords = ['news', 'sports', 'obituaries', 'contact', 'subscribe',
-                       'home', 'about', 'business', 'opinion', 'world', 'local']
+        nav_keywords = [
+            'news',
+            'sports',
+            'obituaries',
+            'contact',
+            'subscribe',
+            'home',
+            'about',
+            'business',
+            'opinion',
+            'world',
+            'local']
         nav_count = sum(1 for keyword in nav_keywords
                        if keyword in text_lower)
 

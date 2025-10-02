@@ -195,7 +195,8 @@ def append_feedback(row: Dict[str, Any]):
     conn.close()
 
 
-def get_articles(limit: Optional[int] = None, offset: int = 0) -> List[Dict[str, Any]]:
+def get_articles(limit: Optional[int] = None,
+                 offset: int = 0) -> List[Dict[str, Any]]:
     conn = get_conn()
     sql = "SELECT * FROM articleslabelled"
     params = []

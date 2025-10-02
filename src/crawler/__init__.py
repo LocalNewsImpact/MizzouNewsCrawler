@@ -684,7 +684,9 @@ class ContentExtractor:
                 raise
         else:
             self._driver_reuse_count += 1
-            logger.debug(f"Reusing persistent driver (reuse count: {self._driver_reuse_count})")
+            logger.debug(
+                f"Reusing persistent driver (reuse count: {
+                    self._driver_reuse_count})")
 
         return self._persistent_driver
 
@@ -692,8 +694,11 @@ class ContentExtractor:
         """Close the persistent driver and clean up resources."""
         if self._persistent_driver is not None:
             try:
-                logger.info(f"Closing persistent driver after {self._driver_reuse_count + 1} uses "
-                           f"(created {self._driver_creation_count} times)")
+                logger.info(
+                    f"Closing persistent driver after {
+                        self._driver_reuse_count +
+                        1} uses " f"(created {
+                        self._driver_creation_count} times)")
                 self._persistent_driver.quit()
             except Exception as e:
                 logger.warning(f"Error closing persistent driver: {e}")
@@ -806,13 +811,17 @@ class ContentExtractor:
 
             except Exception as e:
                 logger.info(f"newspaper4k extraction failed for {url}: {e}")
-                # Try to get any partial result with metadata (including HTTP status)
+                # Try to get any partial result with metadata (including HTTP
+                # status)
                 partial_result = {}
-                if hasattr(e, '__context__') and hasattr(e.__context__, 'response'):
+                if hasattr(
+                        e, '__context__') and hasattr(
+                        e.__context__, 'response'):
                     # Some HTTP errors might have response info
                     pass
 
-                # Check if this is an HTTP error with status code in the message
+                # Check if this is an HTTP error with status code in the
+                # message
                 error_str = str(e)
                 if "Status code" in error_str:
                     import re
@@ -827,7 +836,8 @@ class ContentExtractor:
                         }
 
                 if metrics:
-                    metrics.end_method("newspaper4k", False, str(e), partial_result)
+                    metrics.end_method(
+                        "newspaper4k", False, str(e), partial_result)
 
         # Check what fields are still missing
         missing_fields = self._get_missing_fields(result)
@@ -1154,7 +1164,8 @@ class ContentExtractor:
 
         return bool(title) or (bool(content) and len(content) > 100)
 
-    def _extract_with_newspaper(self, url: str, html: str = None) -> Dict[str, any]:
+    def _extract_with_newspaper(
+            self, url: str, html: str = None) -> Dict[str, any]:
         """Extract content using newspaper4k library with cloudscraper support."""
         article = NewspaperArticle(url)
         http_status = None
@@ -1181,8 +1192,9 @@ class ContentExtractor:
                     )
                 elif response.status_code in [403, 503, 502, 504]:
                     # Possible rate limiting or bot detection
-                    logger.warning(f"Possible bot detection ({response.status_code}) "
-                                 f"by {domain}")
+                    logger.warning(
+                        f"Possible bot detection ({
+                            response.status_code}) " f"by {domain}")
                     self._handle_rate_limit_error(domain, response)
                     return self._create_error_result(
                         url, f"Bot detection ({response.status_code})",
@@ -1200,26 +1212,30 @@ class ContentExtractor:
                     logger.debug(f"Successfully fetched content for {url} with "
                                f"UA: {ua[:30]}...")
                 else:
-                    logger.warning(f"Session returned status {response.status_code} "
-                                 f"for {url}")
+                    logger.warning(
+                        f"Session returned status {
+                            response.status_code} " f"for {url}")
                     # Fallback to newspaper4k's built-in download
                     try:
                         article.download()
                     except Exception as download_e:
-                        # Try to extract HTTP status from newspaper4k error message
+                        # Try to extract HTTP status from newspaper4k error
+                        # message
                         error_str = str(download_e)
                         if "Status code" in error_str:
                             import re
-                            status_match = re.search(r'Status code (\d+)', error_str)
+                            status_match = re.search(
+                                r'Status code (\d+)', error_str)
                             if status_match:
                                 http_status = int(status_match.group(1))
-                                logger.warning(f"Newspaper4k download failed with "
-                                             f"status {http_status}: {error_str}")
+                                logger.warning(
+                                    f"Newspaper4k download failed with " f"status {http_status}: {error_str}")
                         raise download_e
 
             except RateLimitError as e:
                 logger.warning(f"Domain rate limited, skipping: {e}")
-                return self._create_error_result(url, str(e), {"rate_limited": True})
+                return self._create_error_result(
+                    url, str(e), {"rate_limited": True})
             except Exception as e:
                 logger.warning(f"Session fetch failed for {url}: {e}, "
                              f"falling back to newspaper download")
@@ -1231,10 +1247,12 @@ class ContentExtractor:
                     error_str = str(download_e)
                     if "Status code" in error_str:
                         import re
-                        status_match = re.search(r'Status code (\d+)', error_str)
+                        status_match = re.search(
+                            r'Status code (\d+)', error_str)
                         if status_match:
                             http_status = int(status_match.group(1))
-                            logger.warning(f"Newspaper4k download failed with status {http_status}: {error_str}")
+                            logger.warning(
+                                f"Newspaper4k download failed with status {http_status}: {error_str}")
                     raise download_e
 
         article.parse()
@@ -1247,7 +1265,8 @@ class ContentExtractor:
         return {
             "url": url,
             "title": article.title,
-            "author": ", ".join(article.authors) if article.authors else None,
+            "author": ", ".join(
+                article.authors) if article.authors else None,
             "publish_date": publish_date,
             "content": article.text,
             "metadata": {
@@ -1255,12 +1274,12 @@ class ContentExtractor:
                 "keywords": article.keywords,
                 "extraction_method": "newspaper4k",
                 "cloudscraper_used": CLOUDSCRAPER_AVAILABLE and cloudscraper is not None,
-                "http_status": http_status
-            },
+                "http_status": http_status},
             "extracted_at": datetime.utcnow().isoformat(),
-        }
+             }
 
-    def _extract_with_beautifulsoup(self, url: str, html: str = None) -> Dict[str, any]:
+    def _extract_with_beautifulsoup(
+            self, url: str, html: str = None) -> Dict[str, any]:
         """Extract content using BeautifulSoup with bot-avoidance."""
         # Lazily fetch HTML if not provided
         page_html = html
@@ -1380,9 +1399,11 @@ class ContentExtractor:
 
         except Exception as e:
             logger.error(f"Selenium extraction failed for {url}: {e}")
-            # If the driver fails, close it so a new one will be created next time
+            # If the driver fails, close it so a new one will be created next
+            # time
             if "driver" in str(e).lower() or "session" in str(e).lower():
-                logger.warning("Driver error detected, closing persistent driver")
+                logger.warning(
+                    "Driver error detected, closing persistent driver")
                 self.close_persistent_driver()
             return {}
 
@@ -1856,8 +1877,7 @@ class ContentExtractor:
                         if date_published:
                             if isinstance(date_published, (list, tuple)):
                                 date_published = (
-                                    date_published[0] if date_published else None
-                                )
+                                    date_published[0] if date_published else None)
                             if isinstance(date_published, dict):
                                 date_published = (
                                     date_published.get("@value")
@@ -1867,10 +1887,10 @@ class ContentExtractor:
 
                             if date_published:
                                 try:
-                                    parsed_date = dateparser.parse(str(date_published))
+                                    parsed_date = dateparser.parse(
+                                        str(date_published))
                                     return (
-                                        parsed_date.isoformat() if parsed_date else None
-                                    )
+                                        parsed_date.isoformat() if parsed_date else None)
                                 except Exception:
                                     self._record_publish_date_details(
                                         "json_ld",
@@ -1957,7 +1977,8 @@ class ContentExtractor:
     def _extract_content(self, soup: BeautifulSoup) -> Optional[str]:
         """Extract main article content."""
         # Remove unwanted elements
-        for element in soup(["script", "style", "nav", "header", "footer", "aside"]):
+        for element in soup(
+                ["script", "style", "nav", "header", "footer", "aside"]):
             element.decompose()
 
         # Try common content selectors

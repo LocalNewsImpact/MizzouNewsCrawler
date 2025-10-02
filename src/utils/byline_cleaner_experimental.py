@@ -147,7 +147,8 @@ class ExperimentalBylineCleaner:
         source_name: Optional[str] = None
     ) -> Optional[ExtractionResult]:
         """Strategy: Extract special contributor patterns."""
-        special_extracted = self.base_cleaner._extract_special_contributor(byline)
+        special_extracted = self.base_cleaner._extract_special_contributor(
+            byline)
 
         if not special_extracted:
             return None
@@ -163,7 +164,8 @@ class ExperimentalBylineCleaner:
         confidence = 0.9
         quality_score = self._calculate_quality_score(authors)
         strategy_weight = self.strategy_weights['special_contributor']
-        overall_score = (confidence * 0.6 + quality_score * 0.4) * strategy_weight
+        overall_score = (confidence * 0.6 + quality_score *
+                         0.4) * strategy_weight
 
         return ExtractionResult(
             authors=authors,
@@ -187,7 +189,8 @@ class ExperimentalBylineCleaner:
             confidence = 0.8  # High confidence for wire service detection
             quality_score = 0.5  # Lower quality since it's not a personal name
             strategy_weight = self.strategy_weights['wire_service']
-            overall_score = (confidence * 0.6 + quality_score * 0.4) * strategy_weight
+            overall_score = (
+                confidence * 0.6 + quality_score * 0.4) * strategy_weight
 
             return ExtractionResult(
                 authors=authors,
@@ -195,8 +198,8 @@ class ExperimentalBylineCleaner:
                 confidence=confidence,
                 quality_score=quality_score,
                 overall_score=overall_score,
-                metadata={'wire_services': self.base_cleaner._detected_wire_services}
-            )
+                metadata={
+                    'wire_services': self.base_cleaner._detected_wire_services})
 
         return None
 
@@ -245,7 +248,8 @@ class ExperimentalBylineCleaner:
         confidence = 0.7 if pattern_used != "no_pattern" else 0.4
         quality_score = self._calculate_quality_score(cleaned_authors)
         strategy_weight = self.strategy_weights['standard_original']
-        overall_score = (confidence * 0.6 + quality_score * 0.4) * strategy_weight
+        overall_score = (confidence * 0.6 + quality_score *
+                         0.4) * strategy_weight
 
         return ExtractionResult(
             authors=cleaned_authors,
@@ -253,8 +257,9 @@ class ExperimentalBylineCleaner:
             confidence=confidence,
             quality_score=quality_score,
             overall_score=overall_score,
-            metadata={'pattern_used': pattern_used, 'raw_extracted': extracted_text}
-        )
+            metadata={
+                'pattern_used': pattern_used,
+                'raw_extracted': extracted_text})
 
     def _strategy_standard_source_removed(
         self,
@@ -266,7 +271,8 @@ class ExperimentalBylineCleaner:
             return None
 
         # Remove source name first
-        cleaned_byline = self.base_cleaner._remove_source_name(byline, source_name)
+        cleaned_byline = self.base_cleaner._remove_source_name(
+            byline, source_name)
 
         if not cleaned_byline or cleaned_byline == byline:
             return None  # No source removal happened
@@ -311,7 +317,8 @@ class ExperimentalBylineCleaner:
         confidence = 0.6 if pattern_used != "no_pattern" else 0.3
         quality_score = self._calculate_quality_score(cleaned_authors)
         strategy_weight = self.strategy_weights['standard_source_removed']
-        overall_score = (confidence * 0.6 + quality_score * 0.4) * strategy_weight
+        overall_score = (confidence * 0.6 + quality_score *
+                         0.4) * strategy_weight
 
         return ExtractionResult(
             authors=cleaned_authors,
@@ -344,7 +351,8 @@ class ExperimentalBylineCleaner:
             if sep in cleaned.lower():
                 parts = cleaned.split(sep)
                 for part in parts:
-                    cleaned_part = self.base_cleaner._clean_author_name(part.strip())
+                    cleaned_part = self.base_cleaner._clean_author_name(
+                        part.strip())
                     if cleaned_part and len(cleaned_part.split()) >= 2:
                         possible_authors.append(cleaned_part)
 
@@ -364,7 +372,8 @@ class ExperimentalBylineCleaner:
         confidence = 0.5  # Lower confidence for smart parsing
         quality_score = self._calculate_quality_score(unique_authors)
         strategy_weight = self.strategy_weights['smart_parsing']
-        overall_score = (confidence * 0.6 + quality_score * 0.4) * strategy_weight
+        overall_score = (confidence * 0.6 + quality_score *
+                         0.4) * strategy_weight
 
         return ExtractionResult(
             authors=unique_authors,
@@ -372,8 +381,9 @@ class ExperimentalBylineCleaner:
             confidence=confidence,
             quality_score=quality_score,
             overall_score=overall_score,
-            metadata={'separators_found': [sep for sep in separators if sep in cleaned.lower()]}
-        )
+            metadata={
+                'separators_found': [
+                    sep for sep in separators if sep in cleaned.lower()]})
 
     def _strategy_fallback(
         self,
@@ -398,7 +408,8 @@ class ExperimentalBylineCleaner:
         confidence = 0.2
         quality_score = self._calculate_quality_score(authors)
         strategy_weight = self.strategy_weights['fallback']
-        overall_score = (confidence * 0.6 + quality_score * 0.4) * strategy_weight
+        overall_score = (confidence * 0.6 + quality_score *
+                         0.4) * strategy_weight
 
         return ExtractionResult(
             authors=authors,
@@ -444,7 +455,13 @@ class ExperimentalBylineCleaner:
 
             # No organizational terms
             author_lower = author.lower()
-            org_terms = ['news', 'press', 'media', 'staff', 'reporter', 'editor']
+            org_terms = [
+                'news',
+                'press',
+                'media',
+                'staff',
+                'reporter',
+                'editor']
             if not any(term in author_lower for term in org_terms):
                 score += 0.2
 
@@ -480,7 +497,8 @@ def compare_cleaning_methods(
         source_name = source_names[i] if i < len(source_names) else None
 
         # Current method
-        current_result = current_cleaner.clean_byline(byline, source_name=source_name)
+        current_result = current_cleaner.clean_byline(
+            byline, source_name=source_name)
 
         # Experimental method with detailed comparison
         experimental_result = experimental_cleaner.clean_byline_multi_strategy(

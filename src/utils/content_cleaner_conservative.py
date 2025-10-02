@@ -32,7 +32,8 @@ class ConservativeContentCleaner(ImprovedContentCleaner):
         )
 
         # Apply conservative penalties
-        confidence = self._apply_conservative_penalties(text, confidence, pattern_type)
+        confidence = self._apply_conservative_penalties(
+            text, confidence, pattern_type)
 
         return confidence
 
@@ -134,15 +135,23 @@ class ConservativeContentCleaner(ImprovedContentCleaner):
         # Skip if contains multiple location names
         # Simple heuristic: multiple capitalized words
         words = text.split()
-        capitalized_words = [w for w in words if w and w[0].isupper() and w.isalpha()]
+        capitalized_words = [
+            w for w in words if w and w[0].isupper() and w.isalpha()]
         if len(capitalized_words) >= 4:
             return True
 
         # Skip if looks like a news headline structure
-        if (len(text) < 200 and
-            not any(term in text_lower for term in ["subscribe", "login", "contact", "privacy"])):
-            # If it's short and doesn't contain clear boilerplate terms, be very careful
-            journalism_terms = ["county", "school", "community", "wins", "defeats", "injury"]
+        if (len(text) < 200 and not any(term in text_lower for term in [
+            "subscribe", "login", "contact", "privacy"])):
+            # If it's short and doesn't contain clear boilerplate terms, be
+            # very careful
+            journalism_terms = [
+                "county",
+                "school",
+                "community",
+                "wins",
+                "defeats",
+                "injury"]
             if sum(1 for term in journalism_terms if term in text_lower) >= 1:
                 return True
 
@@ -178,6 +187,8 @@ class ConservativeContentCleaner(ImprovedContentCleaner):
         return cleaned_content, telemetry
 
 
-def create_conservative_cleaner(db_path: str = 'data/mitzou.db') -> ConservativeContentCleaner:
+def create_conservative_cleaner(
+        db_path: str = 'data/mitzou.db') -> ConservativeContentCleaner:
     """Factory function to create a conservative content cleaner."""
-    return ConservativeContentCleaner(db_path=db_path, confidence_threshold=0.85)
+    return ConservativeContentCleaner(
+        db_path=db_path, confidence_threshold=0.85)

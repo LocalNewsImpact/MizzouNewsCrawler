@@ -34,9 +34,11 @@ def test_export_snapshot_postgres(tmp_path):
         )
         # clear and insert sample rows
         conn.execute("TRUNCATE TABLE test_articles")
-        conn.execute("INSERT INTO test_articles (title) VALUES ('a'), ('b'), ('c')")
+        conn.execute(
+            "INSERT INTO test_articles (title) VALUES ('a'), ('b'), ('c')")
 
-    dv = create_dataset_version("test", "v-postgres", database_url=POSTGRES_DSN)
+    dv = create_dataset_version(
+        "test", "v-postgres", database_url=POSTGRES_DSN)
 
     out = tmp_path / "snapshot.parquet"
     dv2 = export_snapshot_for_version(

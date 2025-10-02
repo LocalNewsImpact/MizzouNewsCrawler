@@ -67,9 +67,8 @@ def load_site_specs(
         with open(path, newline="", encoding="utf-8") as fh:
             reader = csv.DictReader(fh)
             for row in reader:
-                host = (
-                    row.get("hostname") or row.get("host") or row.get("name") or ""
-                ).strip()
+                host = (row.get("hostname") or row.get("host")
+                        or row.get("name") or "").strip()
                 if not host:
                     continue
                 skip_raw = row.get("skip_patterns", "") or ""

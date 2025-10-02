@@ -285,7 +285,8 @@ class BylineCleaner:
                 )
                 return self._format_result([], return_json)
 
-            # Step 1: Wire service detection (BEFORE source removal to avoid corruption)
+            # Step 1: Wire service detection (BEFORE source removal to avoid
+            # corruption)
             detected_wire_service = None
             if self._is_wire_service(byline):
                 # Get the detected wire service name
@@ -360,8 +361,7 @@ class BylineCleaner:
                         output_text=special_extracted,
                         transformation_type="special_pattern_extraction",
                         confidence_delta=0.8,
-                        notes="Extracted special contributor and skipped standard processing"
-                    )
+                        notes="Extracted special contributor and skipped standard processing")
 
                     self.telemetry.finalize_cleaning_session(
                         final_authors=final_authors,
@@ -386,13 +386,14 @@ class BylineCleaner:
                     input_text=original_byline,
                     output_text=cleaned_byline,
                     transformation_type="source_filtering",
-                    removed_content=(original_byline if cleaned_byline != original_byline else None),
+                    removed_content=(
+                        original_byline if cleaned_byline != original_byline else None),
                     confidence_delta=0.1 if cleaned_byline != original_byline else 0.0,
-                    notes=f"Removed source name: {source_name}"
-                )
+                    notes=f"Removed source name: {source_name}")
 
                 if cleaned_byline != byline:
-                    logger.debug(f"Source removed: '{byline}' -> '{cleaned_byline}'")
+                    logger.debug(
+                        f"Source removed: '{byline}' -> '{cleaned_byline}'")
 
             # Step 3.5: Dynamic publication name filtering
             if self._is_publication_name(cleaned_byline):
@@ -458,10 +459,12 @@ class BylineCleaner:
                     input_text=before_pattern_removal,
                     output_text=cleaned_text,
                     transformation_type="noise_removal",
-                    removed_content=f"Removed: {before_pattern_removal.replace(cleaned_text, '').strip()}",
+                    removed_content=f"Removed: {
+                        before_pattern_removal.replace(
+                            cleaned_text,
+                            '').strip()}",
                     confidence_delta=0.1,
-                    notes="Removed emails, phones, and other patterns"
-                )
+                    notes="Removed emails, phones, and other patterns")
 
             logger.debug(f"After removing patterns: {cleaned_text}")
 
@@ -526,8 +529,10 @@ class BylineCleaner:
 
             # Step 6: Clean each author name individually
             before_name_cleaning = authors
-            cleaned_authors = [self._clean_author_name(author) for author in authors]
-            cleaned_authors = [author for author in cleaned_authors if author.strip()]
+            cleaned_authors = [
+                self._clean_author_name(author) for author in authors]
+            cleaned_authors = [
+                author for author in cleaned_authors if author.strip()]
 
             self.telemetry.log_transformation_step(
                 step_name="name_cleaning",
@@ -535,8 +540,9 @@ class BylineCleaner:
                 output_text=str(cleaned_authors),
                 transformation_type="individual_name_cleaning",
                 confidence_delta=0.1,
-                notes=f"Cleaned {len(before_name_cleaning)} names to {len(cleaned_authors)}"
-            )
+                notes=f"Cleaned {
+                    len(before_name_cleaning)} names to {
+                    len(cleaned_authors)}")
 
             # Step 7: Remove duplicates and validate
             before_dedup = cleaned_authors
@@ -602,7 +608,8 @@ class BylineCleaner:
             logger.error(f"Error cleaning byline '{byline}': {e}")
             return self._format_result([], return_json)
 
-    def _process_single_name(self, name_text: str, return_json: bool) -> Union[str, Dict]:
+    def _process_single_name(self, name_text: str,
+                             return_json: bool) -> Union[str, Dict]:
         """Process a single name that's already been identified as a clean name."""
         # Clean the individual name
         cleaned_name = self._clean_author_name(name_text)
@@ -688,12 +695,14 @@ class BylineCleaner:
 
         # Check for common wire service patterns
         wire_patterns = [
-            (r'^(ap|reuters|bloomberg|cnn|npr|pbs)$', 'AP/Reuters/Bloomberg/CNN/NPR/PBS'),
+            (r'^(ap|reuters|bloomberg|cnn|npr|pbs)$',
+    'AP/Reuters/Bloomberg/CNN/NPR/PBS'),
             (r'^(the\s+)?(associated\s+press|new\s+york\s+times|'
-             r'washington\s+post)$', 'Major Publication'),
+    r'washington\s+post)$',
+    'Major Publication'),
             (r'^(usa\s+today|wall\s+street\s+journal|'
-             r'los\s+angeles\s+times)$', 'National Publication')
-        ]
+    r'los\s+angeles\s+times)$',
+     'National Publication')]
 
         for pattern, service_category in wire_patterns:
             if re.match(pattern, byline_lower):
@@ -701,7 +710,8 @@ class BylineCleaner:
                 match = re.match(pattern, byline_lower)
                 if match:
                     matched_service = match.group(0)
-                    normalized_service = self._normalize_wire_service(matched_service)
+                    normalized_service = self._normalize_wire_service(
+                        matched_service)
                     self._detected_wire_services.append(normalized_service)
                 else:
                     self._detected_wire_services.append(service_category)
@@ -729,7 +739,8 @@ class BylineCleaner:
 
         return cleaned
 
-    def _is_wire_service_from_own_source(self, wire_service: str, source_name: str) -> bool:
+    def _is_wire_service_from_own_source(
+            self, wire_service: str, source_name: str) -> bool:
         """
         Check if detected wire service is from the publication's own source.
 
@@ -747,7 +758,10 @@ class BylineCleaner:
             import re
             text = text.lower().strip()
             # Remove articles and common publication words
-            text = re.sub(r'\b(the|a|an|news|press|daily|weekly|times|post|gazette|herald|tribune|journal)\b', '', text)
+            text = re.sub(
+                r'\b(the|a|an|news|press|daily|weekly|times|post|gazette|herald|tribune|journal)\b',
+                '',
+                text)
             # Remove extra whitespace and punctuation
             text = re.sub(r'[^\w\s]', '', text)
             text = re.sub(r'\s+', ' ', text).strip()
@@ -854,14 +868,16 @@ class BylineCleaner:
             # words
             if match_ratio > 0.6:  # 60% of source words found in text
                 # Remove the matching words from the text, but be smarter about it
-                # First, let's work with the original text to preserve formatting
+                # First, let's work with the original text to preserve
+                # formatting
                 original_words = text.split()
                 remaining_words = []
 
                 for word in original_words:
                     word_normalized = re.sub(r'[^\w\s]', '', word.lower())
                     # Skip this word if it matches any source word
-                    if word_normalized not in [w.lower() for w in source_words]:
+                    if word_normalized not in [w.lower()
+                                                       for w in source_words]:
                         remaining_words.append(word)
 
                 # Only return the remaining words if we have something left
@@ -870,7 +886,8 @@ class BylineCleaner:
                     result = ' '.join(remaining_words).strip()
 
                     # Clean up any remaining email addresses
-                    result = re.sub(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', '', result)
+                    result = re.sub(
+                        r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', '', result)
                     result = re.sub(r'\s+', ' ', result).strip()
 
                     if result:
@@ -948,12 +965,18 @@ class BylineCleaner:
             text = pattern.sub('', text)
 
         # Remove domain suffixes (e.g., "• @domain.com", "• .com")
-        text = re.sub(r'\s*[•·]\s*@?\w*\.com\b.*$', '', text, flags=re.IGNORECASE)
-        text = re.sub(r'\s*[•·]\s*@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}.*$', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'\s*[•·]\s*@?\w*\.com\b.*$',
+                      '', text, flags=re.IGNORECASE)
+        text = re.sub(
+            r'\s*[•·]\s*@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}.*$',
+            '',
+            text,
+            flags=re.IGNORECASE)
 
         # Remove trailing email domains and handles
         text = re.sub(r'\s*@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}.*$', '', text)
-        text = re.sub(r'\s*\.\s*(com|org|net|edu|gov).*$', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'\s*\.\s*(com|org|net|edu|gov).*$',
+                      '', text, flags=re.IGNORECASE)
 
         # Remove parenthetical information
         text = re.sub(r'\([^)]*\)', '', text)
@@ -975,7 +998,8 @@ class BylineCleaner:
         if not part:
             return 'empty'
 
-        # Check for photo credits (e.g., "Photos Jeremy Jacob", "Photo by John Doe")
+        # Check for photo credits (e.g., "Photos Jeremy Jacob", "Photo by John
+        # Doe")
         part_lower = part.lower()
         if (part_lower.startswith('photo ') or
             part_lower.startswith('photos ') or
@@ -1060,7 +1084,8 @@ class BylineCleaner:
         if title_word_count > 0:
             return 'mixed'
 
-        # Check if it looks like a name (2-3 capitalized words, no special chars)
+        # Check if it looks like a name (2-3 capitalized words, no special
+        # chars)
         if (len(part_words) <= 3 and
             all(word.replace('.', '').replace("'", '').replace('-', '')
                 .isalpha() for word in part_words) and
@@ -1147,7 +1172,8 @@ class BylineCleaner:
                 part_type = self._identify_part_type(part)
                 part_types.append((part.strip(), part_type))
 
-            # Special case: "Last, First" name format detection (only for comma-separated)
+            # Special case: "Last, First" name format detection (only for
+            # comma-separated)
             if (separator == ',' and len(parts) == 2 and
                 len(part_types) == 2 and
                 all(ptype == 'name' for _, ptype in part_types)):
@@ -1169,8 +1195,9 @@ class BylineCleaner:
                     return [reordered_name]
 
             # Count different types
-            non_name_count = sum(1 for _, ptype in part_types
-                                 if ptype in ['email', 'title', 'photo_credit'])
+            non_name_count = sum(
+                1 for _, ptype in part_types if ptype in [
+                    'email', 'title', 'photo_credit'])
 
             # Smart processing: if we have multiple non-name parts,
             # extract just the name part(s)
@@ -1188,11 +1215,13 @@ class BylineCleaner:
                     # If no clear names, take the first part that's not
                     # email/title/photo_credit
                     for part, ptype in part_types:
-                        if ptype not in ['email', 'title', 'photo_credit'] and part:
+                        if ptype not in [
+                                'email', 'title', 'photo_credit'] and part:
                             return ["__SMART_PROCESSED__", part]
 
                     # If all parts are email/title/photo_credit, return empty list
-                    # This handles cases like "Senior Editor II, Managing Director III"
+                    # This handles cases like "Senior Editor II, Managing
+                    # Director III"
                     return ["__SMART_PROCESSED__"]
 
             # If not using smart processing, handle normally
@@ -1213,7 +1242,8 @@ class BylineCleaner:
                 # Apply deduplication to all comma-separated results
                 return self._deduplicate_authors(authors)
 
-        # Default: return as single author, but only if it's not a title or photo credit
+        # Default: return as single author, but only if it's not a title or
+        # photo credit
         if text.strip():
             # Check if the entire text is just a title or photo credit
             text_type = self._identify_part_type(text)
@@ -1269,7 +1299,8 @@ class BylineCleaner:
         spans_to_remove = []
 
         # Check for multi-word organization matches ONLY (minimum 2 words)
-        # Single-word matches will be handled in STEP 3 after person name protection
+        # Single-word matches will be handled in STEP 3 after person name
+        # protection
         for org_name in org_names_lower:
             org_words = org_name.split()
             if len(org_words) >= 2:  # Require at least 2 words
@@ -1291,12 +1322,16 @@ class BylineCleaner:
                         spans_to_remove.append((char_start, char_end))
 
                         # Track if this was a wire service
-                        if org_name in {ws.lower() for ws in self.WIRE_SERVICES}:
-                            # Find the original wire service name and normalize it
+                        if org_name in {ws.lower()
+                                                 for ws in self.WIRE_SERVICES}:
+                            # Find the original wire service name and normalize
+                            # it
                             for service in self.WIRE_SERVICES:
                                 if service.lower() == org_name:
-                                    normalized_service = self._normalize_wire_service(service)
-                                    self._detected_wire_services.append(normalized_service)
+                                    normalized_service = self._normalize_wire_service(
+                                        service)
+                                    self._detected_wire_services.append(
+                                        normalized_service)
                                     break
 
                 # Strategy 2: Check if text contains a subsequence of org words
@@ -1413,7 +1448,8 @@ class BylineCleaner:
                 # Find the original service name from WIRE_SERVICES
                 for service in self.WIRE_SERVICES:
                     if service.lower() == word_lower:
-                        normalized_service = self._normalize_wire_service(service)
+                        normalized_service = self._normalize_wire_service(
+                            service)
                         self._detected_wire_services.append(normalized_service)
                         break
                 continue  # Skip this word
@@ -1574,7 +1610,8 @@ class BylineCleaner:
             main_name = comma_split[0].strip()
             title_part = comma_split[1].strip()
 
-            # Check if the title part contains only title words or journalism nouns
+            # Check if the title part contains only title words or journalism
+            # nouns
             title_words = title_part.lower().split()
             is_all_titles = True
             for word in title_words:
@@ -1621,7 +1658,17 @@ class BylineCleaner:
 
         for word in words:
             # Handle prefixes like 'de', 'von', 'van', etc.
-            if word.lower() in ['de', 'da', 'del', 'della', 'von', 'van', 'der', 'le', 'la', 'du']:
+            if word.lower() in [
+                'de',
+                'da',
+                'del',
+                'della',
+                'von',
+                'van',
+                'der',
+                'le',
+                'la',
+                'du']:
                 normalized.append(word.lower())
             # Handle suffixes like Jr., Sr., III - always normalize these
             elif word.lower().rstrip('.') in ['jr', 'sr', 'ii', 'iii', 'iv']:
@@ -1705,7 +1752,8 @@ class BylineCleaner:
             if not re.search(r'[a-zA-Z]', author):
                 continue
 
-            # Reject if it's just a single word that looks like a title or journalism term
+            # Reject if it's just a single word that looks like a title or
+            # journalism term
             words = author.split()
             if len(words) == 1:
                 word_lower = words[0].lower()
@@ -1713,7 +1761,9 @@ class BylineCleaner:
                     continue
 
             # Reject common non-name patterns
-            if re.match(r'^(staff|the|by|and|with|for|at|of)$', author.lower()):
+            if re.match(
+                r'^(staff|the|by|and|with|for|at|of)$',
+                author.lower()):
                 continue
 
             # Reject if it's too long (likely not a name)
@@ -1724,7 +1774,10 @@ class BylineCleaner:
 
         return valid_authors
 
-    def _format_result(self, authors: List[str], return_json: bool) -> Union[List[str], Dict]:
+    def _format_result(self,
+    authors: List[str],
+        return_json: bool) -> Union[List[str],
+     Dict]:
         """Format the final result as array or JSON."""
         # FINAL STEP: Remove any duplicates that made it through
         if authors:
@@ -1744,16 +1797,21 @@ class BylineCleaner:
         for service in self._detected_wire_services:
             service_normalized = service.lower().strip()
             if service_normalized not in seen_services:
-                # Check if this wire service matches the source name (indicating local content)
-                if hasattr(self, '_current_source_name') and self._current_source_name:
-                    if self._is_wire_service_from_own_source(service, self._current_source_name):
+                # Check if this wire service matches the source name
+                # (indicating local content)
+                if hasattr(
+                        self,
+                        '_current_source_name') and self._current_source_name:
+                    if self._is_wire_service_from_own_source(
+                            service, self._current_source_name):
                         # This is local content, not wire content - skip it
                         continue
 
                 seen_services.add(service_normalized)
                 unique_wire_services.append(service)
 
-        # CRITICAL FIX: Remove wire service names from authors when wire content is detected
+        # CRITICAL FIX: Remove wire service names from authors when wire
+        # content is detected
         if unique_wire_services:
             # Create a set of all wire service variations for filtering
             wire_service_names = set()
@@ -1784,10 +1842,10 @@ class BylineCleaner:
                 "has_multiple_authors": len(authors) > 1,
                 "wire_services": unique_wire_services,
                 "is_wire_content": len(unique_wire_services) > 0,
-                "primary_wire_service": unique_wire_services[0] if unique_wire_services else None
-            }
+                "primary_wire_service": unique_wire_services[0] if unique_wire_services else None}
         else:
-            # Return array for normalized individual names (better for DB operations)
+            # Return array for normalized individual names (better for DB
+            # operations)
             return authors
 
     def get_detected_wire_services(self) -> List[str]:
@@ -1808,7 +1866,8 @@ class BylineCleaner:
         """
         return self._detected_wire_services[0] if self._detected_wire_services else None
 
-    def clean_bulk_bylines(self, bylines: List[str], return_json: bool = False) -> List[Union[str, Dict]]:
+    def clean_bulk_bylines(
+            self, bylines: List[str], return_json: bool = False) -> List[Union[str, Dict]]:
         """
         Clean multiple bylines in bulk.
 
@@ -2193,8 +2252,7 @@ if __name__ == "__main__":  # pragma: no cover
         "By the Associated Press",
         "John O'Connor Jr., Business Editor (555) 123-4567",
         "Maria de la Cruz and James van der Berg III",
-        "By Alex Thompson, alex.thompson@news.com, Twitter: @alexnews"
-    ]
+     "By Alex Thompson, alex.thompson@news.com, Twitter: @alexnews"]
 
     cleaner = BylineCleaner()
 

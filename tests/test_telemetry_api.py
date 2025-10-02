@@ -141,9 +141,19 @@ class TestTelemetryAPIEndpoints:
 
         # Insert test sources
         sources = [
-            ("good-site.com", "good-site.com", "good-site.com", "active", None, None),
-            ("blocked-site.com", "blocked-site.com", "blocked-site.com", "paused", now, "Poor performance"),
-        ]
+            ("good-site.com",
+    "good-site.com",
+    "good-site.com",
+    "active",
+    None,
+    None),
+            ("blocked-site.com",
+    "blocked-site.com",
+    "blocked-site.com",
+    "paused",
+    now,
+    "Poor performance"),
+            ]
 
         for source_id, host, host_norm, status, paused_at, reason in sources:
             cur.execute("""
@@ -206,14 +216,16 @@ class TestTelemetryAPIEndpoints:
         assert len(errors) >= 2
 
         # Check for specific error
-        blocked_site_errors = [e for e in errors if e["host"] == "blocked-site.com" and e["status_code"] == 403]
+        blocked_site_errors = [e for e in errors if e["host"]
+            == "blocked-site.com" and e["status_code"] == 403]
         assert len(blocked_site_errors) == 1
         assert blocked_site_errors[0]["error_count"] == 2
 
     def test_http_errors_endpoint_with_filters(self, api_client):
         """Test HTTP errors endpoint with host and status filters."""
         # Filter by host
-        response = api_client.get("/api/telemetry/http-errors?host=blocked-site.com")
+        response = api_client.get(
+            "/api/telemetry/http-errors?host=blocked-site.com")
         assert response.status_code == 200
 
         data = response.json()
@@ -245,7 +257,8 @@ class TestTelemetryAPIEndpoints:
         assert len(performance) > 0
 
         # Check for newspaper4k method
-        newspaper_methods = [p for p in performance if p["method"] == "newspaper4k"]
+        newspaper_methods = [
+            p for p in performance if p["method"] == "newspaper4k"]
         assert len(newspaper_methods) > 0
 
         newspaper_perf = newspaper_methods[0]
@@ -255,7 +268,8 @@ class TestTelemetryAPIEndpoints:
 
     def test_publisher_stats_endpoint(self, api_client):
         """Test the publisher stats endpoint."""
-        response = api_client.get("/api/telemetry/publisher-stats?days=7&min_attempts=1")
+        response = api_client.get(
+            "/api/telemetry/publisher-stats?days=7&min_attempts=1")
         assert response.status_code == 200
 
         data = response.json()
@@ -270,7 +284,8 @@ class TestTelemetryAPIEndpoints:
         assert good_site["success_rate"] == 100.0
         assert good_site["status"] == "good"
 
-        blocked_site = [p for p in publishers if p["host"] == "blocked-site.com"][0]
+        blocked_site = [
+            p for p in publishers if p["host"] == "blocked-site.com"][0]
         assert blocked_site["total_extractions"] == 2
         assert blocked_site["successful_extractions"] == 0
         assert blocked_site["success_rate"] == 0.0
@@ -278,7 +293,8 @@ class TestTelemetryAPIEndpoints:
 
     def test_poor_performers_endpoint(self, api_client):
         """Test the poor performers endpoint."""
-        response = api_client.get("/api/telemetry/poor-performers?days=7&min_attempts=1&max_success_rate=50")
+        response = api_client.get(
+            "/api/telemetry/poor-performers?days=7&min_attempts=1&max_success_rate=50")
         assert response.status_code == 200
 
         data = response.json()
@@ -341,9 +357,19 @@ class TestSiteManagementAPI:
         # Insert test sources
         now = datetime.utcnow()
         test_sources = [
-            ("test-site.com", "test-site.com", "test-site.com", "active", None, None),
-            ("paused-site.com", "paused-site.com", "paused-site.com", "paused", now, "Manual pause for testing"),
-        ]
+            ("test-site.com",
+    "test-site.com",
+    "test-site.com",
+    "active",
+    None,
+    None),
+            ("paused-site.com",
+    "paused-site.com",
+    "paused-site.com",
+    "paused",
+    now,
+    "Manual pause for testing"),
+            ]
 
         for source_id, host, host_norm, status, paused_at, reason in test_sources:
             cur.execute("""
@@ -372,7 +398,9 @@ class TestSiteManagementAPI:
             "reason": "Testing pause functionality"
         }
 
-        response = api_client.post("/api/site-management/pause", json=request_data)
+        response = api_client.post(
+            "/api/site-management/pause",
+            json=request_data)
         assert response.status_code == 200
 
         data = response.json()
@@ -387,7 +415,9 @@ class TestSiteManagementAPI:
             "reason": "Poor performance detected"
         }
 
-        response = api_client.post("/api/site-management/pause", json=request_data)
+        response = api_client.post(
+            "/api/site-management/pause",
+            json=request_data)
         assert response.status_code == 200
 
         data = response.json()
@@ -400,7 +430,9 @@ class TestSiteManagementAPI:
             "host": "paused-site.com"
         }
 
-        response = api_client.post("/api/site-management/resume", json=request_data)
+        response = api_client.post(
+            "/api/site-management/resume",
+            json=request_data)
         assert response.status_code == 200
 
         data = response.json()
@@ -413,7 +445,9 @@ class TestSiteManagementAPI:
             "host": "nonexistent-site.com"
         }
 
-        response = api_client.post("/api/site-management/resume", json=request_data)
+        response = api_client.post(
+            "/api/site-management/resume",
+            json=request_data)
         assert response.status_code == 404
         assert "not found" in response.json()["detail"]
 
@@ -428,7 +462,8 @@ class TestSiteManagementAPI:
         assert len(paused_sites) >= 1
 
         # Check for the paused site we inserted
-        paused_site = [s for s in paused_sites if s["host"] == "paused-site.com"][0]
+        paused_site = [
+            s for s in paused_sites if s["host"] == "paused-site.com"][0]
         assert paused_site["reason"] == "Manual pause for testing"
         assert paused_site["paused_at"] is not None
 
@@ -444,7 +479,8 @@ class TestSiteManagementAPI:
         assert data["paused_at"] is None
 
         # Test paused site
-        response = api_client.get("/api/site-management/status/paused-site.com")
+        response = api_client.get(
+            "/api/site-management/status/paused-site.com")
         assert response.status_code == 200
 
         data = response.json()
@@ -453,7 +489,8 @@ class TestSiteManagementAPI:
         assert data["paused_at"] is not None
 
         # Test nonexistent site (should return active by default)
-        response = api_client.get("/api/site-management/status/unknown-site.com")
+        response = api_client.get(
+            "/api/site-management/status/unknown-site.com")
         assert response.status_code == 200
 
         data = response.json()
@@ -473,7 +510,8 @@ class TestAPIErrorHandling:
 
             response = client.get("/api/telemetry/summary")
             assert response.status_code == 500
-            assert "Error fetching telemetry summary" in response.json()["detail"]
+            assert "Error fetching telemetry summary" in response.json()[
+                                                                       "detail"]
 
     def test_site_management_with_invalid_data(self):
         """Test site management endpoints with invalid request data."""
@@ -506,9 +544,11 @@ class TestAPIErrorHandling:
                 assert response.status_code == 422  # Validation error
 
                 # Test pause with invalid JSON
-                response = client.post("/api/site-management/pause",
-                                     data="invalid json",
-                                     headers={"Content-Type": "application/json"})
+                response = client.post(
+                    "/api/site-management/pause",
+                    data="invalid json",
+                    headers={
+                        "Content-Type": "application/json"})
                 assert response.status_code == 422
 
         finally:
@@ -565,14 +605,25 @@ class TestCompleteAPIWorkflow:
             # Insert a problematic site with many failures
             now = datetime.utcnow()
             for i in range(10):
-                cur.execute("""
+                cur.execute(
+                    """
                 INSERT INTO extraction_telemetry_v2
                 (operation_id, article_id, url, publisher, host, http_status_code,
                  http_error_type, is_success, total_duration_ms, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (f"op{i}", f"art{i}", f"https://problem-site.com/article{i}",
-                      "problem-site.com", "problem-site.com", 403, "4xx_client_error",
-                      0, 5000, now - timedelta(hours=i)))
+                """,
+                    (f"op{i}",
+    f"art{i}",
+                        f"https://problem-site.com/article{i}",
+                        "problem-site.com",
+                        "problem-site.com",
+                        403,
+                        "4xx_client_error",
+                        0,
+                        5000,
+                        now -
+                        timedelta(
+        hours=i)))
 
             # Add HTTP error summary
             cur.execute("""
@@ -588,44 +639,52 @@ class TestCompleteAPIWorkflow:
                 client = TestClient(app)
 
                 # 1. Check poor performers
-                response = client.get("/api/telemetry/poor-performers?min_attempts=5&max_success_rate=25")
+                response = client.get(
+                    "/api/telemetry/poor-performers?min_attempts=5&max_success_rate=25")
                 assert response.status_code == 200
 
                 poor_performers = response.json()["poor_performers"]
-                problem_site = [p for p in poor_performers if p["host"] == "problem-site.com"][0]
+                problem_site = [
+                    p for p in poor_performers if p["host"] == "problem-site.com"][0]
                 assert problem_site["success_rate"] == 0.0
                 assert problem_site["recommendation"] == "pause"
 
                 # 2. Pause the problematic site
-                pause_response = client.post("/api/site-management/pause", json={
-                    "host": "problem-site.com",
-                    "reason": "Automatic pause due to poor performance: 0% success rate with 10 attempts"
-                })
+                pause_response = client.post(
+                    "/api/site-management/pause",
+                    json={
+                        "host": "problem-site.com",
+                        "reason": "Automatic pause due to poor performance: 0% success rate with 10 attempts"})
                 assert pause_response.status_code == 200
 
                 # 3. Verify site is paused
-                status_response = client.get("/api/site-management/status/problem-site.com")
+                status_response = client.get(
+                    "/api/site-management/status/problem-site.com")
                 assert status_response.status_code == 200
 
                 site_status = status_response.json()
                 assert site_status["status"] == "paused"
-                assert "poor performance" in site_status["paused_reason"].lower()
+                assert "poor performance" in site_status["paused_reason"].lower(
+                )
 
                 # 4. Check paused sites list
                 paused_response = client.get("/api/site-management/paused")
                 assert paused_response.status_code == 200
 
                 paused_sites = paused_response.json()["paused_sites"]
-                assert any(site["host"] == "problem-site.com" for site in paused_sites)
+                assert any(
+                    site["host"] == "problem-site.com" for site in paused_sites)
 
                 # 5. Resume the site (e.g., after manual review)
-                resume_response = client.post("/api/site-management/resume", json={
-                    "host": "problem-site.com"
-                })
+                resume_response = client.post(
+                    "/api/site-management/resume",
+                    json={
+                        "host": "problem-site.com"})
                 assert resume_response.status_code == 200
 
                 # 6. Verify site is active again
-                final_status = client.get("/api/site-management/status/problem-site.com")
+                final_status = client.get(
+                    "/api/site-management/status/problem-site.com")
                 assert final_status.status_code == 200
                 assert final_status.json()["status"] == "active"
 

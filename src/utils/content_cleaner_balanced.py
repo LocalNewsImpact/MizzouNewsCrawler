@@ -578,7 +578,9 @@ class BalancedBoundaryContentCleaner:
             reverse=True
         )
 
-        self.logger.info(f"Filtered to {len(balanced_segments)} balanced segments")
+        self.logger.info(
+            f"Filtered to {
+                len(balanced_segments)} balanced segments")
         return balanced_segments
 
     def _assess_boundary_quality(self, text: str) -> float:
@@ -614,7 +616,8 @@ class BalancedBoundaryContentCleaner:
         ]):
             score -= 0.5
 
-        # HIGH PRIORITY: Sidebar content and promotional content (should be removed)
+        # HIGH PRIORITY: Sidebar content and promotional content (should be
+        # removed)
         sidebar_indicators = [
             'watch this discussion',
             'post a comment',
@@ -633,13 +636,17 @@ class BalancedBoundaryContentCleaner:
 
         # Check for headline list patterns (multiple titles concatenated)
         headline_indicators = [
-            r'\w+ \w+ \w+ (defeats?|beats?|wins?|loses?) \w+ \w+',  # Sports results
-            r'\w+ (strikes?|place[sd]?|has) .+ (defeat|win|place)',  # More sports
+            # Sports results
+            r'\w+ \w+ \w+ (defeats?|beats?|wins?|loses?) \w+ \w+',
+            # More sports
+            r'\w+ (strikes?|place[sd]?|has) .+ (defeat|win|place)',
             r'[A-Z][a-z]+ [A-Z][a-z]+ [A-Z][a-z]+',  # Multiple proper names
         ]
 
-        is_sidebar_content = any(pattern in text.lower() for pattern in sidebar_indicators)
-        has_headline_pattern = any(re.search(pattern, text) for pattern in headline_indicators)
+        is_sidebar_content = any(pattern in text.lower()
+                                 for pattern in sidebar_indicators)
+        has_headline_pattern = any(re.search(pattern, text)
+                                   for pattern in headline_indicators)
 
         # Check for multiple headlines concatenated (common in right-rail)
         proper_name_matches = re.findall(r'[A-Z][a-z]+ [A-Z][a-z]+', text)
@@ -679,14 +686,19 @@ class BalancedBoundaryContentCleaner:
             'researches and writes'
         ]
 
-        is_author_bio = any(pattern in text.lower() for pattern in bio_patterns)
+        is_author_bio = any(pattern in text.lower()
+                            for pattern in bio_patterns)
         if is_author_bio:
             score -= 0.2  # Slight penalty - less likely to remove
 
         return max(0.0, min(1.0, score))
 
-    def _calculate_position_consistency(self, exact_matches: Dict[str, List[Tuple[int, int]]],
-                                       articles_by_id: Dict[str, Dict]) -> float:
+    def _calculate_position_consistency(self,
+    exact_matches: Dict[str,
+    List[Tuple[int,
+    int]]],
+        articles_by_id: Dict[str,
+     Dict]) -> float:
         """Calculate position consistency (0.0 to 1.0)."""
         if len(exact_matches) < 2:
             return 0.0
@@ -728,24 +740,41 @@ class BalancedBoundaryContentCleaner:
         ]
 
         # Multiple headline pattern (common in right-rail)
-        # Look for patterns like "Team A defeats Team B" followed by other headlines
+        # Look for patterns like "Team A defeats Team B" followed by other
+        # headlines
         headline_patterns = [
             r'[A-Z][a-z]+ (defeats?|beats?|wins?|loses?) [A-Z][a-z]+',
-            r'[A-Z][a-z]+ [A-Z][a-z]+ [A-Z][a-z]+ [A-Z][a-z]+',  # Multiple proper names
+            # Multiple proper names
+            r'[A-Z][a-z]+ [A-Z][a-z]+ [A-Z][a-z]+ [A-Z][a-z]+',
             r'\w+ (at|vs|versus) \w+',  # Sports matchups
-            r'[A-Z][a-z]+ \w+ \w+ (in|at|from|over) [A-Z][a-z]+',  # Location-based headlines
+            # Location-based headlines
+            r'[A-Z][a-z]+ \w+ \w+ (in|at|from|over) [A-Z][a-z]+',
         ]
 
         # Check for sidebar content
-        is_sidebar_content = any(pattern in text_lower for pattern in sidebar_patterns)
-        has_multiple_headlines = len(re.findall(r'[A-Z][a-z]+ [A-Z][a-z]+', text)) > 3
+        is_sidebar_content = any(
+            pattern in text_lower for pattern in sidebar_patterns)
+        has_multiple_headlines = len(
+            re.findall(
+                r'[A-Z][a-z]+ [A-Z][a-z]+',
+                text)) > 3
 
         if is_sidebar_content or has_multiple_headlines:
             return "sidebar"
 
         # Navigation keywords
-        nav_keywords = ['news', 'sports', 'obituaries', 'contact', 'subscribe',
-                       'home', 'about', 'business', 'opinion', 'world', 'local']
+        nav_keywords = [
+            'news',
+            'sports',
+            'obituaries',
+            'contact',
+            'subscribe',
+            'home',
+            'about',
+            'business',
+            'opinion',
+            'world',
+            'local']
         nav_count = sum(1 for keyword in nav_keywords
                        if keyword in text_lower)
 
@@ -777,15 +806,22 @@ class BalancedBoundaryContentCleaner:
         else:
             return "other"
 
-    def _generate_removal_reason(self, text: str, pattern_type: str,
-                                boundary_score: float, occurrences: int) -> str:
+    def _generate_removal_reason(
+        self,
+        text: str,
+        pattern_type: str,
+        boundary_score: float,
+     occurrences: int) -> str:
         """Generate detailed removal reason based on pattern analysis."""
         text_lower = text.lower()
         reasons = []
 
         # Pattern-specific reasoning
         if pattern_type == "sidebar":
-            if any(p in text_lower for p in ['watch this discussion', 'post a comment']):
+            if any(
+                p in text_lower for p in [
+                    'watch this discussion',
+                    'post a comment']):
                 reasons.append("Discussion prompts in sidebar")
             elif any(p in text_lower for p in ['news updates', 'daily headlines', 'sign up']):
                 reasons.append("Newsletter signup prompts")
@@ -815,7 +851,12 @@ class BalancedBoundaryContentCleaner:
 
         else:  # "other"
             # Analyze content for more specific categorization
-            if any(p in text_lower for p in ['defeated', 'beats', 'wins', 'loses']):
+            if any(
+                p in text_lower for p in [
+                    'defeated',
+                    'beats',
+                    'wins',
+                    'loses']):
                 reasons.append("Sports results headline list")
             elif len(text.split('\n')) > 1:
                 reasons.append("Multi-line content block")
@@ -859,7 +900,8 @@ class BalancedBoundaryContentCleaner:
             total_removable_chars += segment_length * occurrences
 
             article_ids = segment.get("article_ids") or []
-            affected_articles.update(str(article_id) for article_id in article_ids)
+            affected_articles.update(str(article_id)
+                                     for article_id in article_ids)
 
         total_content_chars = sum(len(article["content"])
                                  for article in articles)

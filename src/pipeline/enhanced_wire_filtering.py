@@ -63,7 +63,9 @@ class PublisherGeoFilter:
         doc = self.nlp(text.lower())
 
         # Extract named entities (locations, organizations)
-        entities = [ent.text for ent in doc.ents if ent.label_ in ["GPE", "LOC", "ORG"]]
+        entities = [
+            ent.text for ent in doc.ents if ent.label_ in [
+                "GPE", "LOC", "ORG"]]
 
         # Check for matches with publisher's coverage area
         local_matches = []
@@ -109,12 +111,15 @@ def enhanced_local_wire_classification(
         )
 
         # Enhanced local_wire: original logic OR geographic signals
-        enhanced_local_wire = max(existing_local_wire, 1 if has_geo_signals else 0)
+        enhanced_local_wire = max(
+            existing_local_wire,
+            1 if has_geo_signals else 0)
 
         # Update row with enhanced data
         df.at[idx, "local_wire"] = enhanced_local_wire
         df.at[idx, "has_geographic_signals"] = has_geo_signals
-        df.at[idx, "detected_locations"] = "; ".join(locations) if locations else ""
+        df.at[idx, "detected_locations"] = "; ".join(
+            locations) if locations else ""
 
         # Add reasoning for local_wire classification
         reasons = []
@@ -147,7 +152,8 @@ def integrate_with_existing_pipeline():
             df = enhanced_local_wire_classification(df, geo_filter)
             logger.info("Enhanced geographic filtering applied successfully")
         except Exception as e:
-            logger.warning(f"Geographic filtering failed, using basic logic: {e}")
+            logger.warning(
+                f"Geographic filtering failed, using basic logic: {e}")
 
         return df
 
@@ -186,7 +192,8 @@ if __name__ == "__main__":
                 "The Kansas City area team defeated their rivals in the championship game...",
             ],
             "wire": [0, 1, 0],
-            "local_wire": [0, 0, 0],  # Original logic didn't detect local relevance
+            # Original logic didn't detect local relevance
+            "local_wire": [0, 0, 0],
         }
     )
 

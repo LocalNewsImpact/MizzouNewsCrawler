@@ -79,7 +79,8 @@ class StrictBoundaryContentCleaner:
         conn.close()
         return articles
 
-    def _find_rough_candidates(self, articles: List[Dict]) -> Dict[str, Set[str]]:
+    def _find_rough_candidates(
+            self, articles: List[Dict]) -> Dict[str, Set[str]]:
         """Phase 1: Find rough candidates using complete structures only."""
         candidates = defaultdict(set)
 
@@ -131,8 +132,8 @@ class StrictBoundaryContentCleaner:
         text = text.strip()
 
         # Must start with capital letter or common sentence starters
-        if not (text[0].isupper() or
-                text.lower().startswith(('the ', 'a ', 'an ', 'to ', 'if ', 'we '))):
+        if not (text[0].isupper() or text.lower().startswith(
+                ('the ', 'a ', 'an ', 'to ', 'if ', 'we '))):
             return False
 
         # Must end with proper punctuation
@@ -159,7 +160,8 @@ class StrictBoundaryContentCleaner:
             return False
 
         # Skip if it starts mid-sentence (lowercase, no capital)
-        if text[0].islower() and not text.lower().startswith(('the ', 'a ', 'an ')):
+        if text[0].islower() and not text.lower(
+        ).startswith(('the ', 'a ', 'an ')):
             return False
 
         return True
@@ -202,7 +204,8 @@ class StrictBoundaryContentCleaner:
                 if positions:
                     boundary_valid_matches[article_id] = positions
 
-            # Only keep if still meets minimum occurrence after boundary validation
+            # Only keep if still meets minimum occurrence after boundary
+            # validation
             if len(boundary_valid_matches) >= min_occurrences:
                 # Calculate position consistency
                 position_consistency = self._calculate_position_consistency(
@@ -226,10 +229,16 @@ class StrictBoundaryContentCleaner:
         strict_segments.sort(key=lambda x: (x["occurrences"], x["length"]),
                             reverse=True)
 
-        self.logger.info(f"Validated {len(strict_segments)} strict boundary segments")
+        self.logger.info(
+            f"Validated {
+                len(strict_segments)} strict boundary segments")
         return strict_segments
 
-    def _has_proper_boundaries(self, content: str, start_pos: int, end_pos: int) -> bool:
+    def _has_proper_boundaries(
+        self,
+        content: str,
+        start_pos: int,
+     end_pos: int) -> bool:
         """Check if a text segment has proper start and end boundaries."""
         text = content[start_pos:end_pos]
 
@@ -238,8 +247,8 @@ class StrictBoundaryContentCleaner:
         if start_pos > 0:
             char_before = content[start_pos - 1]
             # Should be preceded by sentence boundary or paragraph boundary
-            if not (char_before in '.!?\n' or
-                   (char_before == ' ' and start_pos > 1 and content[start_pos - 2] in '.!?\n')):
+            if not (char_before in '.!?\n' or (
+                    char_before == ' ' and start_pos > 1 and content[start_pos - 2] in '.!?\n')):
                 proper_start = False
 
         # Check character after end position
@@ -295,8 +304,12 @@ class StrictBoundaryContentCleaner:
 
         return False
 
-    def _calculate_position_consistency(self, exact_matches: Dict[str, List[Tuple[int, int]]],
-                                       articles_by_id: Dict[str, Dict]) -> float:
+    def _calculate_position_consistency(self,
+    exact_matches: Dict[str,
+    List[Tuple[int,
+    int]]],
+        articles_by_id: Dict[str,
+     Dict]) -> float:
         """Calculate position consistency (0.0 to 1.0)."""
         if len(exact_matches) < 2:
             return 0.0
@@ -329,8 +342,18 @@ class StrictBoundaryContentCleaner:
         text_lower = text.lower()
 
         # Navigation patterns
-        nav_keywords = ['news', 'sports', 'obituaries', 'contact', 'subscribe',
-                       'home', 'about', 'business', 'opinion', 'world', 'local']
+        nav_keywords = [
+            'news',
+            'sports',
+            'obituaries',
+            'contact',
+            'subscribe',
+            'home',
+            'about',
+            'business',
+            'opinion',
+            'world',
+            'local']
         nav_count = sum(1 for keyword in nav_keywords
                        if keyword in text_lower)
 

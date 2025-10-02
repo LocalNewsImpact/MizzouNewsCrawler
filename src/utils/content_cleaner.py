@@ -67,8 +67,8 @@ class ContentCleaningTelemetry:
             "boilerplate_patterns_found": self.boilerplate_patterns_found,
             "articles_modified": self.articles_modified,
             "total_characters_removed": self.total_characters_removed,
-            "decisions_count": len(self.decisions)
-        }
+            "decisions_count": len(
+                self.decisions)}
 
 
 class ContentCleaner:
@@ -111,7 +111,9 @@ class ContentCleaner:
         """Finish telemetry tracking."""
         if self.telemetry:
             self.telemetry.finished_at = datetime.utcnow()
-            logger.info(f"Finished content cleaning operation: {self.telemetry.operation_id}")
+            logger.info(
+                f"Finished content cleaning operation: {
+                    self.telemetry.operation_id}")
             logger.info(f"Telemetry: {self.telemetry.to_dict()}")
 
     def extract_domain(self, url: str) -> str:
@@ -121,7 +123,8 @@ class ContentCleaner:
         except Exception:
             return "unknown"
 
-    def generate_text_segments(self, content: str, min_length: int = None) -> List[Tuple[str, int, int]]:
+    def generate_text_segments(
+            self, content: str, min_length: int = None) -> List[Tuple[str, int, int]]:
         """
         Generate overlapping text segments from content.
 
@@ -141,7 +144,8 @@ class ContentCleaner:
             for window_size in [1, 2, 3, 4, 5]:  # 1-5 sentence windows
                 if i + window_size <= len(sentences):
                     segment_sentences = sentences[i:i + window_size]
-                    segment_text = '. '.join(s.strip() for s in segment_sentences if s.strip())
+                    segment_text = '. '.join(
+                        s.strip() for s in segment_sentences if s.strip())
 
                     if len(segment_text) >= min_length:
                         # Find position in original content
@@ -154,12 +158,15 @@ class ContentCleaner:
 
     def calculate_segment_hash(self, text: str) -> str:
         """Calculate normalized hash for text segment."""
-        # Normalize text: lowercase, remove extra whitespace, punctuation normalization
+        # Normalize text: lowercase, remove extra whitespace, punctuation
+        # normalization
         normalized = re.sub(r'\s+', ' ', text.lower().strip())
         normalized = re.sub(r'[^\w\s]', '', normalized)  # Remove punctuation
         return hashlib.md5(normalized.encode('utf-8')).hexdigest()
 
-    def analyze_domain_content(self, articles: List[Dict]) -> List[BoilerplateMatch]:
+    def analyze_domain_content(
+        self,
+     articles: List[Dict]) -> List[BoilerplateMatch]:
         """
         Analyze articles from a single domain to find repeated content.
 
@@ -172,11 +179,15 @@ class ContentCleaner:
         if len(articles) < self.min_occurrence_count:
             return []
 
-        domain = self.extract_domain(articles[0]['url']) if articles else "unknown"
-        logger.debug(f"Analyzing {len(articles)} articles from domain: {domain}")
+        domain = self.extract_domain(
+            articles[0]['url']) if articles else "unknown"
+        logger.debug(
+            f"Analyzing {
+                len(articles)} articles from domain: {domain}")
 
         # Track segments across all articles
-        segment_occurrences = defaultdict(list)  # hash -> [(article_id, text, start_pos, end_pos)]
+        # hash -> [(article_id, text, start_pos, end_pos)]
+        segment_occurrences = defaultdict(list)
 
         for article in articles:
             content = article.get('content', '') or ''
@@ -187,9 +198,8 @@ class ContentCleaner:
 
             for segment_text, start_pos, end_pos in segments:
                 segment_hash = self.calculate_segment_hash(segment_text)
-                segment_occurrences[segment_hash].append((
-                    article['id'], segment_text, start_pos, end_pos, len(content)
-                ))
+                segment_occurrences[segment_hash].append(
+                    (article['id'], segment_text, start_pos, end_pos, len(content)))
 
         # Identify potential boilerplate
         boilerplate_matches = []
@@ -199,26 +209,33 @@ class ContentCleaner:
                 # Calculate statistics
                 article_ids = [occ[0] for occ in occurrences]
                 text_samples = [occ[1] for occ in occurrences]
-                positions = [(occ[2], occ[3], occ[4]) for occ in occurrences]  # start, end, content_length
+                positions = [(occ[2], occ[3], occ[4])
+                              for occ in occurrences]  # start, end, content_length
 
                 # Use the longest version of the text
                 representative_text = max(text_samples, key=len)
 
                 # Calculate position statistics
-                start_percentages = [start / content_len for start, end, content_len in positions if content_len > 0]
-                end_percentages = [end / content_len for start, end, content_len in positions if content_len > 0]
+                start_percentages = [
+                    start / content_len for start,
+                    end,
+                    content_len in positions if content_len > 0]
+                end_percentages = [
+                    end / content_len for start,
+                    end,
+                    content_len in positions if content_len > 0]
 
                 position_stats = {
-                    "avg_start_percentage": sum(start_percentages) / len(start_percentages) if start_percentages else 0,
-                    "avg_end_percentage": sum(end_percentages) / len(end_percentages) if end_percentages else 0,
+                    "avg_start_percentage": sum(start_percentages) /
+                    len(start_percentages) if start_percentages else 0,
+                    "avg_end_percentage": sum(end_percentages) /
+                    len(end_percentages) if end_percentages else 0,
                     "start_std": self._calculate_std(start_percentages),
-                    "end_std": self._calculate_std(end_percentages)
-                }
+                    "end_std": self._calculate_std(end_percentages)}
 
                 # Calculate confidence score
                 confidence = self._calculate_confidence_score(
-                    len(occurrences), len(articles), len(representative_text), position_stats
-                )
+                    len(occurrences), len(articles), len(representative_text), position_stats)
 
                 match = BoilerplateMatch(
                     text_segment=representative_text,
@@ -234,12 +251,16 @@ class ContentCleaner:
                 boilerplate_matches.append(match)
 
                 # Log the match
-                logger.debug(f"Found potential boilerplate in {domain}: "
-                           f"{len(occurrences)} occurrences, confidence={confidence:.3f}, "
-                           f"length={len(representative_text)}")
+                logger.debug(
+                    f"Found potential boilerplate in {domain}: " f"{
+                        len(occurrences)} occurrences, confidence={
+                        confidence:.3f}, " f"length={
+                        len(representative_text)}")
 
         # Sort by confidence score (highest first)
-        boilerplate_matches.sort(key=lambda x: x.confidence_score, reverse=True)
+        boilerplate_matches.sort(
+            key=lambda x: x.confidence_score,
+            reverse=True)
 
         return boilerplate_matches
 
@@ -251,8 +272,12 @@ class ContentCleaner:
         variance = sum((x - mean) ** 2 for x in values) / len(values)
         return variance ** 0.5
 
-    def _calculate_confidence_score(self, occurrences: int, total_articles: int,
-                                  text_length: int, position_stats: Dict) -> float:
+    def _calculate_confidence_score(
+        self,
+        occurrences: int,
+        total_articles: int,
+        text_length: int,
+     position_stats: Dict) -> float:
         """
         Calculate confidence score for boilerplate detection.
 
@@ -262,7 +287,8 @@ class ContentCleaner:
         frequency_factor = min(occurrences / total_articles, 1.0)
 
         # Length factor (moderate length text is more likely to be boilerplate)
-        # Very short text might be too generic, very long text might be actual content
+        # Very short text might be too generic, very long text might be actual
+        # content
         if text_length < 100:
             length_factor = 0.5  # Too short
         elif text_length > 1000:
@@ -270,11 +296,14 @@ class ContentCleaner:
         else:
             length_factor = 1.0  # Good length for boilerplate
 
-        # Position consistency factor (boilerplate often appears in consistent positions)
-        position_consistency = 1.0 - (position_stats.get("start_std", 1.0) + position_stats.get("end_std", 1.0)) / 2
+        # Position consistency factor (boilerplate often appears in consistent
+        # positions)
+        position_consistency = 1.0 - \
+            (position_stats.get("start_std", 1.0) + position_stats.get("end_std", 1.0)) / 2
         position_consistency = max(0.0, position_consistency)
 
-        # Position location factor (content at very beginning or end is more likely boilerplate)
+        # Position location factor (content at very beginning or end is more
+        # likely boilerplate)
         avg_start = position_stats.get("avg_start_percentage", 0.5)
         avg_end = position_stats.get("avg_end_percentage", 0.5)
 
@@ -293,7 +322,8 @@ class ContentCleaner:
 
         return min(confidence, 1.0)
 
-    def should_remove_segment(self, match: BoilerplateMatch) -> Tuple[bool, str]:
+    def should_remove_segment(
+            self, match: BoilerplateMatch) -> Tuple[bool, str]:
         """
         Decide whether a segment should be removed.
 
@@ -302,14 +332,19 @@ class ContentCleaner:
         """
         # Check confidence threshold
         if match.confidence_score < self.min_confidence_threshold:
-            return False, f"Low confidence: {match.confidence_score:.3f} < {self.min_confidence_threshold}"
+            return False, f"Low confidence: {
+                match.confidence_score:.3f} < {
+                self.min_confidence_threshold}"
 
         # Additional safety checks
         if match.segment_length > 2000:
-            return False, f"Segment too long: {match.segment_length} characters"
+            return False, f"Segment too long: {
+                match.segment_length} characters"
 
         if match.article_count < self.min_occurrence_count:
-            return False, f"Insufficient occurrences: {match.article_count} < {self.min_occurrence_count}"
+            return False, f"Insufficient occurrences: {
+                match.article_count} < {
+                self.min_occurrence_count}"
 
         # Check for common boilerplate patterns
         text_lower = match.text_segment.lower()
@@ -322,7 +357,8 @@ class ContentCleaner:
             "follow us", "social media", "share this", "related articles"
         ]
 
-        indicator_count = sum(1 for indicator in boilerplate_indicators if indicator in text_lower)
+        indicator_count = sum(
+            1 for indicator in boilerplate_indicators if indicator in text_lower)
 
         if indicator_count >= 2:
             return True, f"High boilerplate indicators: {indicator_count} matches"
@@ -330,9 +366,14 @@ class ContentCleaner:
         if match.confidence_score > 0.85:
             return True, f"Very high confidence: {match.confidence_score:.3f}"
 
-        return True, f"Passed threshold: confidence={match.confidence_score:.3f}"
+        return True, f"Passed threshold: confidence={
+            match.confidence_score:.3f}"
 
-    def log_decision(self, match: BoilerplateMatch, should_remove: bool, reason: str):
+    def log_decision(
+        self,
+        match: BoilerplateMatch,
+        should_remove: bool,
+     reason: str):
         """Log a removal decision for telemetry."""
         if self.telemetry:
             decision = {
@@ -418,10 +459,22 @@ class ContentCleaner:
 
         # Add TF-IDF-like features for common boilerplate terms
         boilerplate_terms = [
-            "subscribe", "newsletter", "premium", "login", "register", "sign up",
-            "advertisement", "sponsored", "copyright", "privacy", "cookie",
-            "follow us", "share", "like", "social", "related articles"
-        ]
+            "subscribe",
+            "newsletter",
+            "premium",
+            "login",
+            "register",
+            "sign up",
+            "advertisement",
+            "sponsored",
+            "copyright",
+            "privacy",
+            "cookie",
+            "follow us",
+            "share",
+            "like",
+            "social",
+            "related articles"]
 
         for term in boilerplate_terms:
             features[f"contains_{term.replace(' ', '_')}"] = term in text
@@ -446,7 +499,13 @@ class ContentCleaner:
         """Categorize domain type based on common patterns."""
         domain_lower = domain.lower()
 
-        if any(term in domain_lower for term in ["news", "times", "post", "herald", "gazette"]):
+        if any(
+            term in domain_lower for term in [
+                "news",
+                "times",
+                "post",
+                "herald",
+                "gazette"]):
             return "news"
         elif any(term in domain_lower for term in ["blog", "wordpress", "medium"]):
             return "blog"

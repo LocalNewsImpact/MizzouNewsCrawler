@@ -136,7 +136,8 @@ class TelemetryContentExtractor:
         # Finalize timing
         end_time = datetime.now()
         result_data['end_time'] = end_time
-        result_data['extraction_time_ms'] = int((time.time() * 1000) - start_ms)
+        result_data['extraction_time_ms'] = int(
+            (time.time() * 1000) - start_ms)
 
         return ExtractionResult(**result_data)
 
@@ -332,7 +333,8 @@ class TelemetryContentExtractor:
 
         return analysis
 
-    def _analyze_field_quality(self, content_data: Dict[str, Any]) -> Dict[str, Any]:
+    def _analyze_field_quality(
+            self, content_data: Dict[str, Any]) -> Dict[str, Any]:
         """Perform detailed quality analysis for each extracted field."""
         quality_analysis = {
             'title_quality_issues': [],
@@ -350,11 +352,13 @@ class TelemetryContentExtractor:
             if len(title) > 200:
                 quality_analysis['title_quality_issues'].append('too_long')
             if self._contains_html_tags(title):
-                quality_analysis['title_quality_issues'].append('contains_html')
+                quality_analysis['title_quality_issues'].append(
+                    'contains_html')
             if self._contains_js_artifacts(title):
                 quality_analysis['title_quality_issues'].append('contains_js')
             if title.lower() in ['untitled', 'no title', 'title', '']:
-                quality_analysis['title_quality_issues'].append('placeholder_text')
+                quality_analysis['title_quality_issues'].append(
+                    'placeholder_text')
         else:
             quality_analysis['title_quality_issues'].append('missing')
 
@@ -364,13 +368,17 @@ class TelemetryContentExtractor:
             if len(content) < 100:
                 quality_analysis['content_quality_issues'].append('too_short')
             if self._contains_html_tags(content):
-                quality_analysis['content_quality_issues'].append('contains_html')
+                quality_analysis['content_quality_issues'].append(
+                    'contains_html')
             if self._contains_js_artifacts(content):
-                quality_analysis['content_quality_issues'].append('contains_js')
+                quality_analysis['content_quality_issues'].append(
+                    'contains_js')
             if self._is_mostly_navigation(content):
-                quality_analysis['content_quality_issues'].append('navigation_text')
+                quality_analysis['content_quality_issues'].append(
+                    'navigation_text')
             if self._contains_error_messages(content):
-                quality_analysis['content_quality_issues'].append('error_messages')
+                quality_analysis['content_quality_issues'].append(
+                    'error_messages')
         else:
             quality_analysis['content_quality_issues'].append('missing')
 
@@ -382,21 +390,27 @@ class TelemetryContentExtractor:
             if len(author) > 100:
                 quality_analysis['author_quality_issues'].append('too_long')
             if self._contains_html_tags(author):
-                quality_analysis['author_quality_issues'].append('contains_html')
+                quality_analysis['author_quality_issues'].append(
+                    'contains_html')
             if author.lower() in ['author', 'staff', 'unknown', 'anonymous']:
-                quality_analysis['author_quality_issues'].append('placeholder_text')
+                quality_analysis['author_quality_issues'].append(
+                    'placeholder_text')
         else:
             quality_analysis['author_quality_issues'].append('missing')
 
         # Analyze publish date quality
-        publish_date = content_data.get('publish_date') or content_data.get('published_date')
+        publish_date = content_data.get(
+            'publish_date') or content_data.get('published_date')
         if publish_date:
             if not self._is_valid_date_format(publish_date):
-                quality_analysis['publish_date_quality_issues'].append('invalid_format')
+                quality_analysis['publish_date_quality_issues'].append(
+                    'invalid_format')
             if self._is_future_date(publish_date):
-                quality_analysis['publish_date_quality_issues'].append('future_date')
+                quality_analysis['publish_date_quality_issues'].append(
+                    'future_date')
             if self._is_too_old_date(publish_date):
-                quality_analysis['publish_date_quality_issues'].append('suspiciously_old')
+                quality_analysis['publish_date_quality_issues'].append(
+                    'suspiciously_old')
         else:
             quality_analysis['publish_date_quality_issues'].append('missing')
 
@@ -407,7 +421,8 @@ class TelemetryContentExtractor:
                        len(quality_analysis['publish_date_quality_issues']))
 
         # Score: 1.0 (perfect) down to 0.0 (many issues)
-        quality_analysis['overall_quality_score'] = max(0.0, 1.0 - (total_issues * 0.1))
+        quality_analysis['overall_quality_score'] = max(
+            0.0, 1.0 - (total_issues * 0.1))
 
         return quality_analysis
 
@@ -418,7 +433,8 @@ class TelemetryContentExtractor:
 
     def _contains_js_artifacts(self, text: str) -> bool:
         """Check if text contains JavaScript artifacts."""
-        # More specific JS patterns to avoid false positives with natural language
+        # More specific JS patterns to avoid false positives with natural
+        # language
         import re
 
         # Look for specific JS function/method patterns
@@ -463,16 +479,23 @@ class TelemetryContentExtractor:
             'skip to content', 'main menu', 'search', 'login', 'register'
         ]
         text_lower = text.lower()
-        nav_count = sum(1 for indicator in nav_indicators if indicator in text_lower)
+        nav_count = sum(
+            1 for indicator in nav_indicators if indicator in text_lower)
         words = len(text.split())
         return nav_count > 3 and words < 50
 
     def _contains_error_messages(self, text: str) -> bool:
         """Check if content contains error messages."""
         error_indicators = [
-            '404', 'not found', 'page not found', 'error', 'something went wrong',
-            'access denied', 'forbidden', 'server error', 'maintenance'
-        ]
+            '404',
+            'not found',
+            'page not found',
+            'error',
+            'something went wrong',
+            'access denied',
+            'forbidden',
+            'server error',
+            'maintenance']
         text_lower = text.lower()
         return any(indicator in text_lower for indicator in error_indicators)
 
@@ -492,7 +515,13 @@ class TelemetryContentExtractor:
 
         for fmt in formats:
             try:
-                datetime.strptime(date_str.replace('+00:00', ''), fmt.replace('%z', ''))
+                datetime.strptime(
+                    date_str.replace(
+                        '+00:00',
+                        ''),
+                    fmt.replace(
+                        '%z',
+                        ''))
                 return True
             except ValueError:
                 continue
@@ -505,7 +534,8 @@ class TelemetryContentExtractor:
             # Parse the date and compare with current time
             if 'T' in date_str:
                 # ISO format
-                date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                date_obj = datetime.fromisoformat(
+                    date_str.replace('Z', '+00:00'))
             else:
                 # Simple date
                 date_obj = datetime.strptime(date_str, '%Y-%m-%d')
@@ -521,7 +551,8 @@ class TelemetryContentExtractor:
         from datetime import datetime, timezone, timedelta
         try:
             if 'T' in date_str:
-                date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                date_obj = datetime.fromisoformat(
+                    date_str.replace('Z', '+00:00'))
             else:
                 date_obj = datetime.strptime(date_str, '%Y-%m-%d')
                 date_obj = date_obj.replace(tzinfo=timezone.utc)

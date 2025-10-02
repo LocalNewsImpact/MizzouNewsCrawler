@@ -87,7 +87,8 @@ class TwoPhaseContentCleaner:
         conn.close()
         return articles
 
-    def _find_rough_candidates(self, articles: List[Dict]) -> Dict[str, Set[str]]:
+    def _find_rough_candidates(
+            self, articles: List[Dict]) -> Dict[str, Set[str]]:
         """
         Phase 1: Find rough candidate segments using simple methods.
         Returns: {candidate_text: {article_ids that contain it}}
@@ -177,9 +178,13 @@ class TwoPhaseContentCleaner:
         self.logger.info(f"Refined to {len(exact_segments)} exact segments")
         return exact_segments
 
-    def _find_exact_boundaries(self, candidate_text: str,
-                              candidate_article_ids: Set[str],
-                              articles_by_id: Dict[str, Dict]) -> Dict[str, List[Tuple[int, int]]]:
+    def _find_exact_boundaries(self,
+    candidate_text: str,
+    candidate_article_ids: Set[str],
+    articles_by_id: Dict[str,
+    Dict]) -> Dict[str,
+    List[Tuple[int,
+     int]]]:
         """
         Find exact boundaries where candidate_text appears in each article.
         Returns: {article_id: [(start, end), ...]}
@@ -210,8 +215,12 @@ class TwoPhaseContentCleaner:
 
         return exact_matches
 
-    def _calculate_position_consistency(self, exact_matches: Dict[str, List[Tuple[int, int]]],
-                                       articles_by_id: Dict[str, Dict]) -> float:
+    def _calculate_position_consistency(self,
+    exact_matches: Dict[str,
+    List[Tuple[int,
+    int]]],
+        articles_by_id: Dict[str,
+     Dict]) -> float:
         """Calculate position consistency (0.0 to 1.0)."""
         if len(exact_matches) < 2:
             return 0.0
@@ -245,8 +254,18 @@ class TwoPhaseContentCleaner:
         text_lower = text.lower()
 
         # Navigation patterns
-        nav_keywords = ['news', 'sports', 'obituaries', 'contact', 'subscribe',
-                       'home', 'about', 'business', 'opinion', 'world', 'local']
+        nav_keywords = [
+            'news',
+            'sports',
+            'obituaries',
+            'contact',
+            'subscribe',
+            'home',
+            'about',
+            'business',
+            'opinion',
+            'world',
+            'local']
         nav_count = sum(1 for keyword in nav_keywords
                        if keyword in text_lower)
 

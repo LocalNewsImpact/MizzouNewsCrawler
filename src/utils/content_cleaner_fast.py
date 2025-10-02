@@ -214,8 +214,18 @@ class FastExactContentCleaner:
         text_lower = text.lower()
 
         # Navigation patterns
-        nav_keywords = ['news', 'sports', 'obituaries', 'contact', 'subscribe',
-                       'home', 'about', 'business', 'opinion', 'world', 'local']
+        nav_keywords = [
+            'news',
+            'sports',
+            'obituaries',
+            'contact',
+            'subscribe',
+            'home',
+            'about',
+            'business',
+            'opinion',
+            'world',
+            'local']
         nav_count = sum(1 for keyword in nav_keywords
                        if keyword in text_lower)
 

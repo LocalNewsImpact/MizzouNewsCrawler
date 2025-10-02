@@ -20,20 +20,25 @@ except Exception:
     Article = None
 
 DEFAULT_CONFIG_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(__file__)), "sources", "host_selectors.json"
-)
+    os.path.dirname(
+        os.path.dirname(__file__)),
+        "sources",
+         "host_selectors.json")
 
 
 class HostSelector:
     def __init__(self, cfg: Dict[str, Any]):
         self.host = cfg.get("host")
         self.selectors = cfg.get("selectors", {})
-        # selectors may be a comma-separated string in config; normalize to list
+        # selectors may be a comma-separated string in config; normalize to
+        # list
         for k, v in list(self.selectors.items()):
             if isinstance(v, str) and "," in v:
-                self.selectors[k] = [s.strip() for s in v.split(",") if s.strip()]
+                self.selectors[k] = [s.strip()
+                                             for s in v.split(",") if s.strip()]
 
-    def extract_with_selectors(self, soup: BeautifulSoup) -> Dict[str, Optional[str]]:
+    def extract_with_selectors(
+            self, soup: BeautifulSoup) -> Dict[str, Optional[str]]:
         out = {
             "title": None,
             "byline": None,
@@ -85,7 +90,8 @@ class HostSelector:
                 node = soup.select_one(sel)
                 if not node:
                     continue
-                # common patterns: <img src=> or <meta property="og:image" content=>
+                # common patterns: <img src=> or <meta property="og:image"
+                # content=>
                 if node.get("src"):
                     out["lead_image"] = node.get("src")
                     break
@@ -125,7 +131,8 @@ def extract_schemaorg(soup: BeautifulSoup) -> Optional[Dict[str, Any]]:
         try:
             payload = json.loads(s.string or "{}")
         except Exception:
-            # sometimes multiple JSON objects or leading/trailing text; try to salvage
+            # sometimes multiple JSON objects or leading/trailing text; try to
+            # salvage
             txt = (s.string or "").strip()
             try:
                 # find first { ... }
@@ -180,12 +187,16 @@ def newspaper_fallback(url: str) -> Optional[Dict[str, Any]]:
         a.parse()
         return {
             "title": a.title or None,
-            "byline": getattr(a, "authors", None) and ", ".join(a.authors) or None,
+            "byline": getattr(
+                a,
+                "authors",
+                None) and ", ".join(
+                a.authors) or None,
             "date": a.publish_date and a.publish_date.isoformat() or None,
             "text": a.text or None,
             "html": a.html or None,
             "lead_image": a.top_image or None,
-        }
+             }
     except Exception:
         return None
 
@@ -229,9 +240,10 @@ DEFAULT_SELECTORS = [
 ]
 
 
-def extract(
-    html: str, url: Optional[str] = None, registry: Optional[ExtractorRegistry] = None
-) -> Dict[str, Optional[str]]:
+def extract(html: str,
+    url: Optional[str] = None,
+    registry: Optional[ExtractorRegistry] = None) -> Dict[str,
+     Optional[str]]:
     soup = BeautifulSoup(html, "html.parser")
     hostname = None
     if url:
@@ -242,9 +254,8 @@ def extract(
     # 1) schema.org
     schema = extract_schemaorg(soup)
     if schema and schema.get("text"):
-        return {
-            k: normalize_text(v) if isinstance(v, str) else v for k, v in schema.items()
-        }
+        return {k: normalize_text(v) if isinstance(
+            v, str) else v for k, v in schema.items()}
     # 2) host-specific selectors
     if registry and hostname:
         hs = registry.get(hostname)
@@ -259,9 +270,8 @@ def extract(
     if url:
         nw = newspaper_fallback(url)
         if nw and nw.get("text"):
-            return {
-                k: normalize_text(v) if isinstance(v, str) else v for k, v in nw.items()
-            }
+            return {k: normalize_text(v) if isinstance(
+                v, str) else v for k, v in nw.items()}
     # 4) generic selectors
     for sel in DEFAULT_SELECTORS:
         node = soup.select_one(sel)
