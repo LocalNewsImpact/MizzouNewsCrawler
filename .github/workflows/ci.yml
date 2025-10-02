@@ -42,13 +42,13 @@ jobs:
           python -m pip install -r requirements-dev.txt
 
       - name: Run ruff
-        run: ruff check .
+        run: python -m ruff check .
 
       - name: Check code formatting with black
-        run: black --check src/ tests/ web/
+        run: python -m black --check src/ tests/ web/
 
       - name: Check import sorting with isort
-        run: isort --check-only --profile black src/ tests/ web/
+        run: python -m isort --check-only --profile black src/ tests/ web/
 
   security:
     name: Security Scan
@@ -79,12 +79,12 @@ jobs:
 
       - name: Run bandit security scan
         run: |
-          bandit -r src/ -ll -f txt || true
+          python -m bandit -r src/ -ll -f txt || true
           echo "Bandit found issues but not failing build (review recommended)"
 
       - name: Check dependency vulnerabilities with safety
         run: |
-          safety check --json || true
+          python -m safety check --json || true
           echo "Safety check completed (review recommended)"
         continue-on-error: true
 
