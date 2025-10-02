@@ -16,6 +16,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          df -h
+
       - uses: actions/checkout@v4
 
       - name: Set up Python
@@ -29,9 +37,9 @@ jobs:
           path: |
             ~/.cache/pip
             venv
-          key: ${{ runner.os }}-py311-lint-${{ hashFiles('requirements*.txt') }}
+          key: ${{ runner.os }}-py311-venv-${{ hashFiles('requirements*.txt') }}
           restore-keys: |
-            ${{ runner.os }}-py311-lint-
+            ${{ runner.os }}-py311-venv-
 
       - name: Install dependencies
         run: |
@@ -74,9 +82,9 @@ jobs:
           path: |
             ~/.cache/pip
             venv
-          key: ${{ runner.os }}-py311-security-${{ hashFiles('requirements*.txt') }}
+          key: ${{ runner.os }}-py311-venv-${{ hashFiles('requirements*.txt') }}
           restore-keys: |
-            ${{ runner.os }}-py311-security-
+            ${{ runner.os }}-py311-venv-
 
       - name: Install dependencies
         run: |
@@ -118,9 +126,9 @@ jobs:
           path: |
             ~/.cache/pip
             venv
-          key: ${{ runner.os }}-py311-test-${{ hashFiles('requirements*.txt') }}
+          key: ${{ runner.os }}-py311-venv-${{ hashFiles('requirements*.txt') }}
           restore-keys: |
-            ${{ runner.os }}-py311-test-
+            ${{ runner.os }}-py311-venv-
 
       - name: Install dependencies
         run: |
@@ -170,9 +178,9 @@ jobs:
           path: |
             ~/.cache/pip
             venv
-          key: ${{ runner.os }}-py311-stress-${{ hashFiles('requirements*.txt') }}
+          key: ${{ runner.os }}-py311-venv-${{ hashFiles('requirements*.txt') }}
           restore-keys: |
-            ${{ runner.os }}-py311-stress-
+            ${{ runner.os }}-py311-venv-
 
       - name: Install dependencies (includes extras for stress)
         run: |
