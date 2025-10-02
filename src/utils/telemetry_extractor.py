@@ -25,17 +25,23 @@ class TelemetryContentExtractor:
         """Initialize the telemetry-enabled content extractor."""
         self.extractor = ContentExtractor()
         self.timeout = timeout
-        self.user_agent = user_agent or "Mozilla/5.0 (compatible; MizzouNewsCrawler/1.0)"
+        self.user_agent = (
+            user_agent or
+            "Mozilla/5.0 (compatible; MizzouNewsCrawler/1.0)"
+        )
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": self.user_agent})
 
-    def extract_content_with_telemetry(self, url: str, article_id: int,
-                                       operation_id: str,
-                                       html: Optional[str] = None) -> ExtractionResult:
+    def extract_content_with_telemetry(
+        self, url: str, article_id: int,
+        operation_id: str,
+        html: Optional[str] = None
+    ) -> ExtractionResult:
         """
         Extract content with comprehensive telemetry tracking.
 
-        Returns ExtractionResult with detailed metrics and error categorization.
+        Returns ExtractionResult with detailed metrics and error
+        categorization.
         """
         start_time = datetime.now()
         start_ms = time.time() * 1000
@@ -66,15 +72,20 @@ class TelemetryContentExtractor:
         try:
             # Fetch HTML if not provided
             if html is None:
-                html, http_status, response_size = self._fetch_with_telemetry(url)
+                html, http_status, response_size = (
+                    self._fetch_with_telemetry(url)
+                )
                 result_data['http_status_code'] = http_status
                 result_data['response_size_bytes'] = response_size
 
                 if html is None:
-                    # Fetch failed - outcome already set by _fetch_with_telemetry
+                    # Fetch failed - outcome already set by
+                    # _fetch_with_telemetry
                     end_time = datetime.now()
                     result_data['end_time'] = end_time
-                    result_data['extraction_time_ms'] = (time.time() * 1000) - start_ms
+                    result_data['extraction_time_ms'] = (
+                        (time.time() * 1000) - start_ms
+                    )
                     return ExtractionResult(**result_data)
 
             # Extract content using enhanced extraction methods
@@ -82,20 +93,34 @@ class TelemetryContentExtractor:
                 content_data = self.extractor.extract_content(url, html)
 
                 if not content_data:
-                    result_data['outcome'] = ExtractionOutcome.NO_CONTENT_FOUND
-                    result_data['error_message'] = "No content extracted from HTML"
+                    result_data['outcome'] = (
+                        ExtractionOutcome.NO_CONTENT_FOUND
+                    )
+                    result_data['error_message'] = (
+                        "No content extracted from HTML"
+                    )
                 else:
                     # Analyze extracted content quality
-                    result_data.update(self._analyze_content_quality(content_data))
+                    result_data.update(
+                        self._analyze_content_quality(content_data)
+                    )
                     result_data['extracted_content'] = content_data
 
                     # Determine outcome based on content quality
-                    if result_data['has_content'] and result_data['has_title']:
-                        result_data['outcome'] = ExtractionOutcome.CONTENT_EXTRACTED
-                    elif result_data['has_title'] or result_data['has_content']:
-                        result_data['outcome'] = ExtractionOutcome.PARTIAL_CONTENT
+                    if (result_data['has_content'] and
+                            result_data['has_title']):
+                        result_data['outcome'] = (
+                            ExtractionOutcome.CONTENT_EXTRACTED
+                        )
+                    elif (result_data['has_title'] or
+                          result_data['has_content']):
+                        result_data['outcome'] = (
+                            ExtractionOutcome.PARTIAL_CONTENT
+                        )
                     else:
-                        result_data['outcome'] = ExtractionOutcome.NO_CONTENT_FOUND
+                        result_data['outcome'] = (
+                            ExtractionOutcome.NO_CONTENT_FOUND
+                        )
 
             except Exception as e:
                 result_data['outcome'] = ExtractionOutcome.PARSING_ERROR
@@ -115,7 +140,9 @@ class TelemetryContentExtractor:
 
         return ExtractionResult(**result_data)
 
-    def _determine_outcome_from_error(self, error_message: str) -> ExtractionOutcome:
+    def _determine_outcome_from_error(
+        self, error_message: str
+    ) -> ExtractionOutcome:
         """Map error message to appropriate extraction outcome."""
         error_msg = error_message.upper()
 
@@ -123,9 +150,11 @@ class TelemetryContentExtractor:
             return ExtractionOutcome.CLOUDFLARE_BLOCKED
         elif "CAPTCHA" in error_msg:
             return ExtractionOutcome.CAPTCHA_REQUIRED
-        elif "BOT_PROTECTION" in error_msg or "BOT_DETECTED" in error_msg:
+        elif ("BOT_PROTECTION" in error_msg or
+              "BOT_DETECTED" in error_msg):
             return ExtractionOutcome.BOT_PROTECTION
-        elif "RATE_LIMITED" in error_msg or "TOO_MANY_REQUESTS" in error_msg:
+        elif ("RATE_LIMITED" in error_msg or
+              "TOO_MANY_REQUESTS" in error_msg):
             return ExtractionOutcome.RATE_LIMITED
         elif "PAYWALL" in error_msg:
             return ExtractionOutcome.PAYWALL_DETECTED
@@ -151,7 +180,9 @@ class TelemetryContentExtractor:
         else:
             return ExtractionOutcome.UNKNOWN_ERROR
 
-    def _fetch_with_telemetry(self, url: str) -> tuple[Optional[str], Optional[int], Optional[int]]:
+    def _fetch_with_telemetry(
+        self, url: str
+    ) -> tuple[Optional[str], Optional[int], Optional[int]]:
         """
         Fetch HTML with detailed error categorization.
 
@@ -174,11 +205,19 @@ class TelemetryContentExtractor:
                 raise Exception("RATE_LIMITED")
             elif 400 <= response.status_code < 500:
                 if response.status_code == 404:
-                    raise Exception(f"HTTP_ERROR: Page not found ({response.status_code})")
+                    raise Exception(
+                        f"HTTP_ERROR: Page not found "
+                        f"({response.status_code})"
+                    )
                 else:
-                    raise Exception(f"HTTP_ERROR: Client error ({response.status_code})")
+                    raise Exception(
+                        f"HTTP_ERROR: Client error "
+                        f"({response.status_code})"
+                    )
             elif response.status_code >= 500:
-                raise Exception(f"HTTP_ERROR: Server error ({response.status_code})")
+                raise Exception(
+                    f"HTTP_ERROR: Server error ({response.status_code})"
+                )
 
             response.raise_for_status()
 
@@ -205,14 +244,18 @@ class TelemetryContentExtractor:
                 raise Exception(f"HTTP_ERROR: {str(e)}")
         except Exception as e:
             # Re-raise our custom exceptions
-            if str(e).startswith(("CLOUDFLARE_", "CAPTCHA_", "BOT_", "RATE_", "HTTP_", "EMPTY_", "PAYWALL_")):
+            if str(e).startswith((
+                "CLOUDFLARE_", "CAPTCHA_", "BOT_", "RATE_",
+                "HTTP_", "EMPTY_", "PAYWALL_"
+            )):
                 raise
             else:
                 raise Exception(f"CONNECTION_ERROR: {str(e)}")
 
     def _is_bot_protection(self, response) -> bool:
         """Check if response indicates bot protection."""
-        # More specific indicators of actual blocking, not just presence of services
+        # More specific indicators of actual blocking, not just
+        # presence of services
         blocking_indicators = [
             "checking your browser",
             "cloudflare ray id",
@@ -230,7 +273,9 @@ class TelemetryContentExtractor:
 
         text = response.text.lower()
         # Only trigger if we see actual blocking indicators
-        return any(indicator in text for indicator in blocking_indicators)
+        return any(
+            indicator in text for indicator in blocking_indicators
+        )
 
     def _is_paywall(self, html: str) -> bool:
         """Check if content appears to be behind a paywall."""
@@ -247,13 +292,21 @@ class TelemetryContentExtractor:
         text = html.lower()
         return any(indicator in text for indicator in paywall_indicators)
 
-    def _analyze_content_quality(self, content_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Analyze the quality and completeness of extracted content."""
+    def _analyze_content_quality(
+        self, content_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Analyze the quality and completeness of extracted
+        content."""
         analysis = {
             'has_title': bool(content_data.get('title', '').strip()),
-            'has_content': bool(content_data.get('content', '').strip()),
+            'has_content': bool(
+                content_data.get('content', '').strip()
+            ),
             'has_author': bool(content_data.get('author', '').strip()),
-            'has_publish_date': bool(content_data.get('published_date') or content_data.get('publish_date')),
+            'has_publish_date': bool(
+                content_data.get('published_date') or
+                content_data.get('publish_date')
+            ),
             'content_length': None,
             'title_length': None,
             'author_count': None
@@ -269,7 +322,9 @@ class TelemetryContentExtractor:
         if analysis['has_author']:
             # Count number of authors (simple comma-based split)
             authors = content_data['author'].strip()
-            analysis['author_count'] = len([a.strip() for a in authors.split(',') if a.strip()])
+            analysis['author_count'] = len([
+                a.strip() for a in authors.split(',') if a.strip()
+            ])
 
         # Add detailed field quality analysis
         field_quality = self._analyze_field_quality(content_data)
