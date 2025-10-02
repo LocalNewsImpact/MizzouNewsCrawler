@@ -332,8 +332,8 @@ def export_snapshot_for_version(
     )
     if not claimed:
         raise RuntimeError(
-            f"Failed to claim DatasetVersion {
-                dv.id}; another process may be working on it")
+            f"Failed to claim DatasetVersion {dv.id}; "
+            f"another process may be working on it")
 
     pg_lock_acquired = False
     lock_id = None
@@ -361,8 +361,8 @@ def export_snapshot_for_version(
                 pass
 
             raise RuntimeError(
-                f"Failed to acquire Postgres advisory lock for DatasetVersion {
-                    dv.id}")
+                f"Failed to acquire Postgres advisory lock "
+                f"for DatasetVersion {dv.id}")
 
     total_rows = 0
     try:

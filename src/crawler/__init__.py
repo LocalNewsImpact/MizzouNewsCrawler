@@ -685,8 +685,8 @@ class ContentExtractor:
         else:
             self._driver_reuse_count += 1
             logger.debug(
-                f"Reusing persistent driver (reuse count: {
-                    self._driver_reuse_count})")
+                f"Reusing persistent driver "
+                f"(reuse count: {self._driver_reuse_count})")
 
         return self._persistent_driver
 
@@ -695,10 +695,9 @@ class ContentExtractor:
         if self._persistent_driver is not None:
             try:
                 logger.info(
-                    f"Closing persistent driver after {
-                        self._driver_reuse_count +
-                        1} uses " f"(created {
-                        self._driver_creation_count} times)")
+                    f"Closing persistent driver after "
+                    f"{self._driver_reuse_count + 1} uses "
+                    f"(created {self._driver_creation_count} times)")
                 self._persistent_driver.quit()
             except Exception as e:
                 logger.warning(f"Error closing persistent driver: {e}")
@@ -1193,8 +1192,8 @@ class ContentExtractor:
                 elif response.status_code in [403, 503, 502, 504]:
                     # Possible rate limiting or bot detection
                     logger.warning(
-                        f"Possible bot detection ({
-                            response.status_code}) " f"by {domain}")
+                        f"Possible bot detection "
+                        f"({response.status_code}) by {domain}")
                     self._handle_rate_limit_error(domain, response)
                     return self._create_error_result(
                         url, f"Bot detection ({response.status_code})",
@@ -1213,8 +1212,8 @@ class ContentExtractor:
                                  f"UA: {ua[:30]}...")
                 else:
                     logger.warning(
-                        f"Session returned status {
-                            response.status_code} " f"for {url}")
+                        f"Session returned status "
+                        f"{response.status_code} for {url}")
                     # Fallback to newspaper4k's built-in download
                     try:
                         article.download()

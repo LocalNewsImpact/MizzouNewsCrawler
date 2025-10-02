@@ -112,8 +112,8 @@ class ContentCleaner:
         if self.telemetry:
             self.telemetry.finished_at = datetime.utcnow()
             logger.info(
-                f"Finished content cleaning operation: {
-                    self.telemetry.operation_id}")
+                f"Finished content cleaning operation: "
+                f"{self.telemetry.operation_id}")
             logger.info(f"Telemetry: {self.telemetry.to_dict()}")
 
     def extract_domain(self, url: str) -> str:
@@ -182,8 +182,7 @@ class ContentCleaner:
         domain = self.extract_domain(
             articles[0]['url']) if articles else "unknown"
         logger.debug(
-            f"Analyzing {
-                len(articles)} articles from domain: {domain}")
+            f"Analyzing {len(articles)} articles from domain: {domain}")
 
         # Track segments across all articles
         # hash -> [(article_id, text, start_pos, end_pos)]
@@ -252,10 +251,9 @@ class ContentCleaner:
 
                 # Log the match
                 logger.debug(
-                    f"Found potential boilerplate in {domain}: " f"{
-                        len(occurrences)} occurrences, confidence={
-                        confidence:.3f}, " f"length={
-                        len(representative_text)}")
+                    f"Found potential boilerplate in {domain}: "
+                    f"{len(occurrences)} occurrences, confidence="
+                    f"{confidence:.3f}, length={len(representative_text)}")
 
         # Sort by confidence score (highest first)
         boilerplate_matches.sort(
@@ -332,19 +330,18 @@ class ContentCleaner:
         """
         # Check confidence threshold
         if match.confidence_score < self.min_confidence_threshold:
-            return False, f"Low confidence: {
-                match.confidence_score:.3f} < {
-                self.min_confidence_threshold}"
+            return False, (
+                f"Low confidence: {match.confidence_score:.3f} < "
+                f"{self.min_confidence_threshold}")
 
         # Additional safety checks
         if match.segment_length > 2000:
-            return False, f"Segment too long: {
-                match.segment_length} characters"
+            return False, f"Segment too long: {match.segment_length} characters"
 
         if match.article_count < self.min_occurrence_count:
-            return False, f"Insufficient occurrences: {
-                match.article_count} < {
-                self.min_occurrence_count}"
+            return False, (
+                f"Insufficient occurrences: {match.article_count} < "
+                f"{self.min_occurrence_count}")
 
         # Check for common boilerplate patterns
         text_lower = match.text_segment.lower()
@@ -366,8 +363,7 @@ class ContentCleaner:
         if match.confidence_score > 0.85:
             return True, f"Very high confidence: {match.confidence_score:.3f}"
 
-        return True, f"Passed threshold: confidence={
-            match.confidence_score:.3f}"
+        return True, f"Passed threshold: confidence={match.confidence_score:.3f}"
 
     def log_decision(
             self,

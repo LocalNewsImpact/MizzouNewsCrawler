@@ -230,8 +230,7 @@ class StrictBoundaryContentCleaner:
                              reverse=True)
 
         self.logger.info(
-            f"Validated {
-                len(strict_segments)} strict boundary segments")
+            f"Validated {len(strict_segments)} strict boundary segments")
         return strict_segments
 
     def _has_proper_boundaries(

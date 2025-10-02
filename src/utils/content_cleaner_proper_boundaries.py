@@ -125,8 +125,7 @@ class ProperBoundaryContentCleaner:
         }
 
         self.logger.info(
-            f"Found {
-                len(filtered_segments)} properly bounded candidates")
+            f"Found {len(filtered_segments)} properly bounded candidates")
         return filtered_segments
 
     def _extract_complete_sentences(self, content: str) -> List[str]:
@@ -281,8 +280,7 @@ class ProperBoundaryContentCleaner:
                                 reverse=True)
 
         self.logger.info(
-            f"Found {
-                len(duplicate_segments)} properly bounded duplicates")
+            f"Found {len(duplicate_segments)} properly bounded duplicates")
         return duplicate_segments
 
     def _calculate_position_consistency(self, positions: Dict[str, List[Tuple[int, int]]],

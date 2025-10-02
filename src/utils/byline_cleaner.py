@@ -459,10 +459,9 @@ class BylineCleaner:
                     input_text=before_pattern_removal,
                     output_text=cleaned_text,
                     transformation_type="noise_removal",
-                    removed_content=f"Removed: {
-                        before_pattern_removal.replace(
-                            cleaned_text,
-                            '').strip()}",
+                    removed_content=(
+                        f"Removed: "
+                        f"{before_pattern_removal.replace(cleaned_text, '').strip()}"),
                     confidence_delta=0.1,
                     notes="Removed emails, phones, and other patterns")
 
@@ -540,9 +539,9 @@ class BylineCleaner:
                 output_text=str(cleaned_authors),
                 transformation_type="individual_name_cleaning",
                 confidence_delta=0.1,
-                notes=f"Cleaned {
-                    len(before_name_cleaning)} names to {
-                    len(cleaned_authors)}")
+                notes=(
+                    f"Cleaned {len(before_name_cleaning)} names to "
+                    f"{len(cleaned_authors)}"))
 
             # Step 7: Remove duplicates and validate
             before_dedup = cleaned_authors

@@ -346,8 +346,7 @@ class URLVerificationService:
                     continue
 
                 self.logger.info(
-                    f"Processing batch of {
-                        len(candidates)} URLs...")
+                    f"Processing batch of {len(candidates)} URLs...")
 
                 # Process batch
                 batch_metrics = self.process_batch(candidates)

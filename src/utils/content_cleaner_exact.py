@@ -31,8 +31,7 @@ class ExactContentCleaner:
         articles = self._get_articles_for_domain(domain, sample_size)
         if len(articles) < min_occurrences:
             self.logger.warning(
-                f"Not enough articles ({
-                    len(articles)}) for domain {domain}")
+                f"Not enough articles ({len(articles)}) for domain {domain}")
             return {
                 "domain": domain,
                 "article_count": len(articles),

@@ -387,8 +387,8 @@ class PublisherGeoFilter:
                     # Exponential backoff + jitter
                     delay = base_delay * (2**attempt) + 1
                     print(
-                        "    Retrying " f"{entity_type} after {
-                            delay:.1f}s delay...")
+                        f"    Retrying {entity_type} after "
+                        f"{delay:.1f}s delay...")
                     time.sleep(delay)
 
                 # Make API request with longer timeout

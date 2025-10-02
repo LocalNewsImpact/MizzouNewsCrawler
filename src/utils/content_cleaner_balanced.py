@@ -579,8 +579,7 @@ class BalancedBoundaryContentCleaner:
         )
 
         self.logger.info(
-            f"Filtered to {
-                len(balanced_segments)} balanced segments")
+            f"Filtered to {len(balanced_segments)} balanced segments")
         return balanced_segments
 
     def _assess_boundary_quality(self, text: str) -> float:
