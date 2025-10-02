@@ -16,7 +16,7 @@ This project converts the original MizzouNewsCrawler into a production-ready scr
 
 ### Prerequisites
 
-- Python 3.10 or newer (the codebase targets modern typing features and Torch 2.x)
+- Python 3.11 or newer (the codebase targets modern typing features, numpy 2.x, and Torch 2.x)
 - `pip` and `virtualenv` tooling
 - SQLite 3 (bundled with Python)
 - Optional: Node.js 18+ if you want to run the markdown lint workflow under `npm`
