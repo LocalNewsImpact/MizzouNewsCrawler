@@ -47,8 +47,9 @@ class ProcessTracker:
             session.refresh(process)
 
             logger.info(
-                f"Registered {process_type} process {process.id} (PID: {process.pid})"
-            )
+                f"Registered {process_type} process {
+                    process.id} (PID: {
+                    process.pid})")
             return process
 
     def update_progress(
@@ -89,7 +90,8 @@ class ProcessTracker:
                 if error_message:
                     process.error_message = error_message
                 session.commit()
-                logger.info(f"Process {process_id} completed with status: {status}")
+                logger.info(
+                    f"Process {process_id} completed with status: {status}")
 
     def get_active_processes(self) -> List[BackgroundProcess]:
         """Get all active (running) processes."""
@@ -101,7 +103,9 @@ class ProcessTracker:
             )
             return [p for p in processes]  # Detach from session
 
-    def get_process_by_id(self, process_id: str) -> Optional[BackgroundProcess]:
+    def get_process_by_id(
+            self,
+            process_id: str) -> Optional[BackgroundProcess]:
         """Get a specific process by ID."""
         with self.Session() as session:
             process = session.get(BackgroundProcess, process_id)
@@ -110,7 +114,9 @@ class ProcessTracker:
                 session.expunge(process)
             return process
 
-    def get_processes_by_type(self, process_type: str) -> List[BackgroundProcess]:
+    def get_processes_by_type(
+            self,
+            process_type: str) -> List[BackgroundProcess]:
         """Get all processes of a specific type."""
         with self.Session() as session:
             processes = (

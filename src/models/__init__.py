@@ -22,14 +22,6 @@ from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
 Base = declarative_base()
 
-# Import verification models
-from .verification import (  # noqa: E402
-    VerificationJob as VerificationJob,
-    URLVerification as URLVerification,
-    VerificationTelemetry as VerificationTelemetry,
-    VerificationPattern as VerificationPattern,
-)
-
 
 class CandidateLink(Base):
     """Links discovered during crawling with fetch status tracking."""

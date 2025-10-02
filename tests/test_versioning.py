@@ -21,8 +21,8 @@ except Exception as e:
     import pytest
 
     pytest.skip(
-        f"Skipping versioning test due to import error: {e}", allow_module_level=True
-    )
+        f"Skipping versioning test due to import error: {e}",
+        allow_module_level=True)
 
 
 def test_export_snapshot_chunked():
@@ -32,7 +32,7 @@ def test_export_snapshot_chunked():
     db_url = f"sqlite:///{db_path}"
 
     # Create tables
-    _engine = create_versioning_tables(database_url=db_url)
+    create_versioning_tables(database_url=db_url)
 
     # Create a dummy candidate_links table and insert multiple rows
     conn = sqlite3.connect(db_path)
@@ -40,17 +40,19 @@ def test_export_snapshot_chunked():
     cur.execute(
         "CREATE TABLE candidate_links (id TEXT PRIMARY KEY, url TEXT, source_name TEXT)"
     )
-    rows = [
-        (f"id-{i}", f"http://example.com/{i}", f"source-{i%10}") for i in range(5000)
-    ]
+    rows = [(f"id-{i}", f"http://example.com/{i}", f"source-{i % 10}")
+            for i in range(5000)]
     cur.executemany(
-        "INSERT INTO candidate_links (id, url, source_name) VALUES (?, ?, ?)", rows
-    )
+        "INSERT INTO candidate_links (id, url, source_name) VALUES (?, ?, ?)",
+        rows)
     conn.commit()
     conn.close()
 
     # Create a dataset version record
-    dv = create_dataset_version("candidate_links", "test-v1", database_url=db_url)
+    dv = create_dataset_version(
+        "candidate_links",
+        "test-v1",
+        database_url=db_url)
 
     # Export snapshot to a temp file
     out_dir = tempfile.mkdtemp()

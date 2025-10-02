@@ -1,7 +1,8 @@
 import sys
 from pathlib import Path
 
-# Ensure project root is on sys.path so tests can import `src` as a top-level package
+# Ensure project root is on sys.path so tests can import `src` as a
+# top-level package
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
@@ -30,4 +31,5 @@ def test_is_likely_article():
         "exclude_patterns": ["/weather/"],
     }
     assert nc._is_likely_article("https://example.com/news/interesting", rules)
-    assert not nc._is_likely_article("https://example.com/weather/today", rules)
+    assert not nc._is_likely_article(
+        "https://example.com/weather/today", rules)

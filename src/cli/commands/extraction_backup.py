@@ -51,14 +51,14 @@ def handle_extraction_command(args) -> int:
         batches = getattr(args, 'batches', 1)
         per_batch = args.limit
         total_articles = batches * per_batch
-        
+
         logger.info(
             "Starting extraction: %s batches of %s articles each (total: %s)",
             batches,
             per_batch,
             total_articles,
         )
-        
+
         # Overall statistics tracking
         overall_stats = {
             'total_processed': 0,
@@ -66,25 +66,25 @@ def handle_extraction_command(args) -> int:
             'total_failed': 0,
             'batches_completed': 0
         }
-        
+
         db = DatabaseManager()
-        
+
         # Initialize extractor and byline cleaner once for all batches
         extractor = ContentExtractor()
         byline_cleaner = BylineCleaner()
-        
+
         print(
             "\n🚀 Starting batch extraction: "
             f"{batches} batches × {per_batch} articles"
         )
         print("=" * 60)
-        
+
         for batch_num in range(1, batches + 1):
             print(f"\n📦 BATCH {batch_num}/{batches}")
             print("-" * 30)
-            
+
             session = db.session
-            
+
             # Build query for articles to extract
             query = text(
                 """
@@ -98,37 +98,37 @@ def handle_extraction_command(args) -> int:
                 )
                 """
             )
-            
+
             if hasattr(args, 'source') and args.source:
                 query = text(f"{query.text} AND source = '{args.source}'")
-                
+
             query = text(
                 f"{query.text} ORDER BY created_at DESC LIMIT {per_batch}"
             )
-            
+
             result = session.execute(query)
             articles = result.fetchall()
-            
+
             if not articles:
                 print(f"No articles found for batch {batch_num}")
                 session.close()
                 break
-                
+
             print(f"Found {len(articles)} articles for batch {batch_num}")
-            
+
             # Process this batch
             batch_stats = _process_batch(
                 articles, extractor, byline_cleaner, session, batch_num
             )
-            
+
             # Update overall statistics
             overall_stats['total_processed'] += batch_stats['processed']
             overall_stats['total_successful'] += batch_stats['successful']
             overall_stats['total_failed'] += batch_stats['failed']
             overall_stats['batches_completed'] += 1
-            
+
             session.close()
-            
+
             # Show batch summary
             success_rate = (
                 (batch_stats['successful'] / batch_stats['processed']) * 100
@@ -140,19 +140,19 @@ def handle_extraction_command(args) -> int:
             print(f"   Successful: {batch_stats['successful']}")
             print(f"   Failed: {batch_stats['failed']}")
             print(f"   Success Rate: {success_rate:.1f}%")
-            
+
             # Show user agent rotation stats
             rotation_stats = extractor.get_rotation_stats()
             print(
                 "   Domains accessed: "
                 f"{rotation_stats['total_domains_accessed']}"
             )
-            
+
             # Brief pause between batches
             if batch_num < batches:
                 print(f"\n⏳ Pausing briefly before batch {batch_num + 1}...")
                 time.sleep(2)
-        
+
         # Final summary
         print("\n🎯 EXTRACTION COMPLETE")
         print("=" * 60)
@@ -184,9 +184,9 @@ def handle_extraction_command(args) -> int:
         print(f"  Active sessions: {rotation_stats['active_sessions']}")
         for domain, count in rotation_stats['request_counts'].items():
             print(f"  {domain}: {count} requests")
-        
+
         return 0
-        
+
     except Exception as e:
         logger.error(f"Extraction failed: {e}")
         return 1

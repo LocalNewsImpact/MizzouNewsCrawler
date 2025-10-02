@@ -88,10 +88,10 @@ def parse_telemetry_log() -> List[TelemetryLogEntry]:
     """Parse gazetteer_telemetry.log JSON entries."""
     base_dir = Path(__file__).resolve().parents[2]
     log_path = base_dir / "gazetteer_telemetry.log"
-    
+
     if not log_path.exists():
         return []
-    
+
     entries = []
     try:
         with open(log_path, 'r') as f:
@@ -114,14 +114,14 @@ def parse_telemetry_log() -> List[TelemetryLogEntry]:
                         continue
     except FileNotFoundError:
         pass
-    
+
     return entries
 
 
 def get_gazetteer_stats() -> GazetteerStats:
     """Calculate overall gazetteer telemetry statistics."""
     entries = parse_telemetry_log()
-    
+
     # Group entries by source_id and event
     by_source = {}
     for entry in entries:
@@ -129,7 +129,7 @@ def get_gazetteer_stats() -> GazetteerStats:
         if source_id not in by_source:
             by_source[source_id] = {}
         by_source[source_id][entry.event] = entry.data
-    
+
     # Calculate statistics
     total_attempts = len([s for s in by_source.values()
                          if "enrichment_attempt" in s])
@@ -160,7 +160,7 @@ def get_gazetteer_stats() -> GazetteerStats:
                 geocoding_methods[method] = (
                     geocoding_methods.get(method, 0) + 1
                 )
-    
+
     # OSM statistics
     total_osm_elements = 0
     all_categories = {}
@@ -171,7 +171,7 @@ def get_gazetteer_stats() -> GazetteerStats:
             categories = osm_data.get("categories", {})
             for cat, count in categories.items():
                 all_categories[cat] = all_categories.get(cat, 0) + count
-    
+
     # Top 10 categories
     sorted_categories = sorted(
         all_categories.items(), key=lambda x: x[1], reverse=True
@@ -181,7 +181,7 @@ def get_gazetteer_stats() -> GazetteerStats:
     avg_elements = (
         total_osm_elements / total_attempts if total_attempts > 0 else 0
     )
-    
+
     return GazetteerStats(
         total_enrichment_attempts=total_attempts,
         successful_geocoding=successful_geocoding,
@@ -198,7 +198,7 @@ def get_gazetteer_stats() -> GazetteerStats:
 def get_publisher_telemetry() -> List[PublisherTelemetry]:
     """Get per-publisher telemetry breakdown."""
     entries = parse_telemetry_log()
-    
+
     # Group entries by source_id
     by_source = {}
     for entry in entries:
@@ -206,16 +206,16 @@ def get_publisher_telemetry() -> List[PublisherTelemetry]:
         if source_id not in by_source:
             by_source[source_id] = {}
         by_source[source_id][entry.event] = entry.data
-    
+
     publishers = []
     for source_id, events in by_source.items():
         # Base data from enrichment_attempt
         if "enrichment_attempt" not in events:
             continue
-            
+
         attempt_data = events["enrichment_attempt"]
         location_data = attempt_data.get("location_data", {})
-        
+
         publisher = PublisherTelemetry(
             source_id=source_id,
             source_name=attempt_data.get("source_name", "Unknown"),
@@ -223,7 +223,7 @@ def get_publisher_telemetry() -> List[PublisherTelemetry]:
             county=location_data.get("county", ""),
             state=location_data.get("state", "")
         )
-        
+
         # Add geocoding data
         if "geocoding_result" in events:
             geocoding_data = events["geocoding_result"].get("geocoding", {})
@@ -231,13 +231,13 @@ def get_publisher_telemetry() -> List[PublisherTelemetry]:
             publisher.geocoding_success = geocoding_data.get("success")
             publisher.address_used = geocoding_data.get("address_used")
             publisher.coordinates = geocoding_data.get("coordinates")
-        
+
         # Add OSM data
         if "osm_query_result" in events:
             osm_data = events["osm_query_result"].get("osm_data", {})
             publisher.total_osm_elements = osm_data.get("total_elements")
             publisher.osm_categories = osm_data.get("categories", {})
-        
+
         # Add enrichment results
         if "enrichment_result" in events:
             result_data = events["enrichment_result"].get("result", {})
@@ -285,33 +285,33 @@ def update_publisher_address(
     """Update address information for a publisher in the database."""
     conn = get_db_connection()
     cursor = conn.cursor()
-    
+
     try:
         # Update candidate_links table with new address information
         update_fields = []
         params = []
-        
+
         if address_data.new_address:
             update_fields.append("address = ?")
             params.append(address_data.new_address)
-        
+
         if address_data.new_city:
             update_fields.append("city = ?")
             params.append(address_data.new_city)
-            
+
         if address_data.new_county:
             update_fields.append("county = ?")
             params.append(address_data.new_county)
-            
+
         if address_data.new_state:
             update_fields.append("state = ?")
             params.append(address_data.new_state)
-        
+
         if not update_fields:
             return False
-            
+
         params.append(source_id)
-        
+
         query = f"""
             UPDATE candidate_links
             SET {', '.join(update_fields)}, last_modified = CURRENT_TIMESTAMP
@@ -327,10 +327,10 @@ def update_publisher_address(
                 (source_id, old_address, new_address, notes, updated_at)
                 VALUES (?, '', ?, ?, CURRENT_TIMESTAMP)
             """, (source_id, address_data.new_address, address_data.notes))
-        
+
         conn.commit()
         return cursor.rowcount > 0
-        
+
     except sqlite3.Error:
         conn.rollback()
         return False
@@ -362,7 +362,7 @@ def ensure_address_updates_table():
     """Ensure the gazetteer_address_updates table exists."""
     conn = get_db_connection()
     cursor = conn.cursor()
-    
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS gazetteer_address_updates (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -374,7 +374,7 @@ def ensure_address_updates_table():
             FOREIGN KEY (source_id) REFERENCES candidate_links (id)
         )
     """)
-    
+
     conn.commit()
     conn.close()
 

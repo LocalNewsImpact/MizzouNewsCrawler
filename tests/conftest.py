@@ -10,6 +10,11 @@ import pytest
 from coverage import Coverage
 from coverage.exceptions import CoverageException
 
+pytest_plugins = [
+    "tests.helpers.sqlite",
+    "tests.helpers.filesystem",
+]
+
 # Module-level coverage thresholds expressed as percentages. The paths are
 # relative to the project root (session.config.rootpath) so the check works
 # both locally and in CI environments.

@@ -139,17 +139,16 @@ def claim_dataset_version(
 
     # Only transition from pending -> in_progress
     rows = (
-        session.query(DatasetVersion)
-        .filter(DatasetVersion.id == version_id, DatasetVersion.status == "pending")
-        .update(
+        session.query(DatasetVersion) .filter(
+            DatasetVersion.id == version_id,
+            DatasetVersion.status == "pending") .update(
             {
                 "status": "in_progress",
                 "claimed_by": claimer,
                 "claimed_at": datetime.utcnow(),
-            },
-            synchronize_session=False,
-        )
-    )
+                },
+                synchronize_session=False,
+                 ))
 
     session.commit()
     return bool(rows)
@@ -333,8 +332,8 @@ def export_snapshot_for_version(
     )
     if not claimed:
         raise RuntimeError(
-            f"Failed to claim DatasetVersion {dv.id}; another process may be working on it"
-        )
+            f"Failed to claim DatasetVersion {
+                dv.id}; another process may be working on it")
 
     pg_lock_acquired = False
     lock_id = None
@@ -362,8 +361,8 @@ def export_snapshot_for_version(
                 pass
 
             raise RuntimeError(
-                f"Failed to acquire Postgres advisory lock for DatasetVersion {dv.id}"
-            )
+                f"Failed to acquire Postgres advisory lock for DatasetVersion {
+                    dv.id}")
 
     total_rows = 0
     try:
@@ -374,15 +373,14 @@ def export_snapshot_for_version(
             select_sql = text(f"SELECT * FROM {table_name}")
 
             if pg_lock_acquired and _is_postgres_engine(engine):
-                # Export inside a REPEATABLE READ transaction for consistent snapshot
+                # Export inside a REPEATABLE READ transaction for consistent
+                # snapshot
                 with engine.connect() as conn:
                     with conn.begin():
                         conn.execute(
-                            text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
-                        )
-                        result = conn.execution_options(stream_results=True).execute(
-                            select_sql
-                        )
+                            text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ"))
+                        result = conn.execution_options(
+                            stream_results=True).execute(select_sql)
                         cols = result.keys()
 
                         while True:
@@ -407,16 +405,16 @@ def export_snapshot_for_version(
                                         compression=compression,
                                     )
                                 else:
-                                    writer = pq.ParquetWriter(temp_path, table.schema)
+                                    writer = pq.ParquetWriter(
+                                        temp_path, table.schema)
                                 writer.write_table(table)
                                 first = False
                             else:
                                 writer.write_table(table)
             else:
                 with engine.connect() as conn:
-                    result = conn.execution_options(stream_results=True).execute(
-                        select_sql
-                    )
+                    result = conn.execution_options(
+                        stream_results=True).execute(select_sql)
                     cols = result.keys()
 
                     while True:
@@ -440,7 +438,8 @@ def export_snapshot_for_version(
                                     compression=compression,
                                 )
                             else:
-                                writer = pq.ParquetWriter(temp_path, table.schema)
+                                writer = pq.ParquetWriter(
+                                    temp_path, table.schema)
                             writer.write_table(table)
                             first = False
                         else:
@@ -486,13 +485,14 @@ def export_snapshot_for_version(
         )
 
         # release advisory lock if we held it
-        if pg_lock_acquired and lock_id is not None and _is_postgres_engine(engine):
+        if pg_lock_acquired and lock_id is not None and _is_postgres_engine(
+                engine):
             try:
                 with engine.connect() as conn:
                     conn.execute(
                         text("SELECT pg_advisory_unlock(:id)"), {"id": lock_id}
                     )
-            except Exception as _err:
+            except Exception:
                 # ignore unlock errors
                 pass
 
@@ -505,13 +505,14 @@ def export_snapshot_for_version(
                 pass
 
         # release advisory lock if held
-        if pg_lock_acquired and lock_id is not None and _is_postgres_engine(engine):
+        if pg_lock_acquired and lock_id is not None and _is_postgres_engine(
+                engine):
             try:
                 with engine.connect() as conn:
                     conn.execute(
                         text("SELECT pg_advisory_unlock(:id)"), {"id": lock_id}
                     )
-            except Exception as _err:
+            except Exception:
                 # ignore unlock errors
                 pass
 
@@ -528,7 +529,8 @@ def export_snapshot_for_version(
 
         # finalize as failed in DB
         try:
-            finalize_dataset_version(dv.id, succeeded=False, database_url=database_url)
+            finalize_dataset_version(
+                dv.id, succeeded=False, database_url=database_url)
         except Exception:
             pass
 

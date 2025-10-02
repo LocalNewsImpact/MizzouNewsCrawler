@@ -54,7 +54,7 @@ def sqlite_builder(tmp_path):
         name: str = "test.db",
         schema: SchemaInput = None,
         seed: SeedCallback = None,
-    isolation_level: IsolationLevel = None,
+        isolation_level: IsolationLevel = None,
         pragmas: Iterable[str] | None = None,
     ) -> tuple[Path, sqlite3.Connection]:
         db_path = tmp_path / name

@@ -236,7 +236,8 @@ def save_df_to_sql(
 
         first = rows[0]
         if not isinstance(first, dict):
-            raise RuntimeError("save_df_to_sql expects rows as dict-like objects")
+            raise RuntimeError(
+                "save_df_to_sql expects rows as dict-like objects")
 
         def _sqlite_type(pyval):
             if isinstance(pyval, int) and not isinstance(pyval, bool):

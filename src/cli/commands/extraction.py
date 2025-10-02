@@ -134,7 +134,7 @@ def handle_extraction_command(args) -> int:
     extractor = ContentExtractor()
     byline_cleaner = BylineCleaner()
     telemetry = ComprehensiveExtractionTelemetry()
-    
+
     # Track hosts that return 403 responses within this run
     host_403_tracker = {}
 
@@ -154,7 +154,7 @@ def handle_extraction_command(args) -> int:
             logger.info(f"Batch {batch_num}: {result}")
             if batch_num < batches:
                 time.sleep(0.1)
-        
+
         if domains_for_cleaning:
             _run_post_extraction_cleaning(domains_for_cleaning)
 
@@ -166,7 +166,7 @@ def handle_extraction_command(args) -> int:
                 driver_stats['driver_reuse_count'],
                 driver_stats['driver_creation_count'],
             )
-        
+
         return 0
     except Exception:
         logger.exception("Extraction failed")
@@ -193,7 +193,7 @@ def _process_batch(
     # Track domain failures in this batch
     domain_failures = {}  # domain -> consecutive_failures
     max_failures_per_domain = 2
-    
+
     try:
         # Get articles with domain diversity to avoid rate-limit lockups
         q = """
@@ -226,18 +226,18 @@ def _process_batch(
 
         processed = 0
         skipped_domains = set()
-        
+
         for row in rows:
             # Stop if we've processed enough articles
             if processed >= per_batch:
                 break
-                
+
             url_id, url, source, status, canonical_name = row
-            
+
             # Extract domain for failure tracking
             from urllib.parse import urlparse
             domain = urlparse(url).netloc
-            
+
             # Skip domains that have failed too many times
             if domain in skipped_domains:
                 logger.debug(
@@ -246,7 +246,7 @@ def _process_batch(
                     domain,
                 )
                 continue
-                
+
             # Check if domain is currently rate limited by extractor
             if extractor._check_rate_limit(domain):
                 logger.info(
@@ -256,7 +256,7 @@ def _process_batch(
                 )
                 skipped_domains.add(domain)
                 continue
-            
+
             operation_id = f"ex_{batch_num}_{url_id}"
             article_id = str(uuid.uuid4())
             publisher = canonical_name or source
@@ -282,7 +282,7 @@ def _process_batch(
                     wire_service_info = None
                     article_status = "extracted"
                     byline_result = None
-                    
+
                     if raw_author:
                         # Get full JSON result with wire service detection
                         byline_result = byline_cleaner.clean_byline(
@@ -355,7 +355,7 @@ def _process_batch(
                     # Update metadata if we added detection info
                     if metadata_value:
                         content["metadata"] = metadata_value
-                    
+
                     now = datetime.utcnow()
                     content_text = content.get("content", "")
                     text_hash = (calculate_content_hash(content_text)
@@ -398,7 +398,7 @@ def _process_batch(
                     domain_failures[domain] = (
                         domain_failures.get(domain, 0) + 1
                     )
-                    
+
                     # If domain has failed too many times,
                     # skip it for rest of batch
                     if domain_failures[domain] >= max_failures_per_domain:
@@ -408,7 +408,7 @@ def _process_batch(
                             domain_failures[domain],
                         )
                         skipped_domains.add(domain)
-                    
+
                     # For rate limit errors, also add to skipped domains
                     # immediately
                     error_msg = content.get("error", "") if content else ""
@@ -418,7 +418,7 @@ def _process_batch(
                             domain,
                         )
                         skipped_domains.add(domain)
-                    
+
                     metrics.error_message = "No title extracted"
                     metrics.error_type = "extraction_failure"
                     metrics.set_content_type_detection(detection_payload)
@@ -448,22 +448,22 @@ def _process_batch(
                             domain_failures[domain],
                         )
                         skipped_domains.add(domain)
-                
+
                 metrics.error_message = str(e)
                 metrics.error_type = "exception"
                 metrics.finalize({})
                 telemetry.record_extraction(metrics)
                 session.rollback()
-                
+
                 # Check if this was a 403 response and track it
                 status_code = getattr(metrics, "http_status_code", None)
                 host = getattr(metrics, "host", None)
-                
+
                 if status_code == 403 and host:
                     # Track this host's 403 errors
                     seen = host_403_tracker.setdefault(host, set())
                     seen.add(str(url_id))
-                    
+
                     # If we've seen multiple 403s from this host in this run,
                     # mark all candidate links from this host as paused
                     if len(seen) >= 2:
@@ -499,7 +499,7 @@ def _process_batch(
                 batch_num,
                 skipped_list,
             )
-        
+
         if domain_failures:
             failure_summary = {
                 key: value

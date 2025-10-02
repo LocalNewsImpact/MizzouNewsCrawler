@@ -26,7 +26,7 @@ class ContentCleaningTelemetry:
     ):
         """
         Initialize telemetry collector.
-        
+
         Args:
             enable_telemetry: Whether to actually collect and store telemetry
         """
@@ -34,14 +34,14 @@ class ContentCleaningTelemetry:
         self.session_id = str(uuid.uuid4())
         self.detection_counter = 0
         self._store: TelemetryStore = store or get_store(database_url)
-        
+
         # Current cleaning session data
         self.current_session: Optional[Dict[str, Any]] = None
         self.detected_segments: List[Dict[str, Any]] = []
         self.wire_detection_events: List[Dict[str, Any]] = []
         self.locality_detection_events: List[Dict[str, Any]] = []
         self._last_boundary_assessment: Optional[Dict[str, Any]] = None
-        
+
     def start_cleaning_session(
         self,
         domain: str,
@@ -51,15 +51,15 @@ class ContentCleaningTelemetry:
     ) -> str:
         """
         Start a new content cleaning session.
-        
+
         Returns:
             telemetry_id: Unique identifier for this cleaning session
         """
         if not self.enable_telemetry:
             return ""
-        
+
         telemetry_id = str(uuid.uuid4())
-        
+
         self.current_session = {
             'telemetry_id': telemetry_id,
             'session_id': self.session_id,
@@ -74,13 +74,13 @@ class ContentCleaningTelemetry:
             'total_removable_chars': None,
             'removal_percentage': None
         }
-        
+
         # Reset counters and state
         self.detection_counter = 0
         self.detected_segments = []
         self.wire_detection_events = []
         self.locality_detection_events = []
-        
+
         return telemetry_id
 
     def log_wire_detection(
@@ -115,7 +115,7 @@ class ContentCleaningTelemetry:
         }
 
         self.wire_detection_events.append(event)
-    
+
     def log_locality_detection(
         self,
         provider: Optional[str],
@@ -167,9 +167,9 @@ class ContentCleaningTelemetry:
         """Log detection of a potential content segment."""
         if not self.enable_telemetry or not self.current_session:
             return
-            
+
         self.detection_counter += 1
-        
+
         segment_data = {
             'id': str(uuid.uuid4()),
             'telemetry_id': self.current_session['telemetry_id'],
@@ -187,7 +187,7 @@ class ContentCleaningTelemetry:
             'timestamp': datetime.now(),
             'article_ids_json': json.dumps(article_ids)
         }
-        
+
         self.detected_segments.append(segment_data)
 
     def log_boundary_assessment(
@@ -200,7 +200,7 @@ class ContentCleaningTelemetry:
         """Log detailed boundary assessment for analysis."""
         if not self.enable_telemetry or not self.current_session:
             return
-        
+
         # Store boundary assessment data (could be used for ML training)
         self._last_boundary_assessment = {
             'text': text,
@@ -213,10 +213,10 @@ class ContentCleaningTelemetry:
                 text.endswith(('.', '!', '?')) if text else False
             ),
         }
-        
+
         # For now, just add to current segment if being tracked
         # In a full implementation, this could be stored separately
-    
+
     def finalize_cleaning_session(
         self,
         rough_candidates_found: int,
@@ -228,7 +228,7 @@ class ContentCleaningTelemetry:
         """Finalize and save the cleaning session."""
         if not self.enable_telemetry or not self.current_session:
             return
-            
+
         # Update session with final metrics
         self.current_session.update({
             'end_time': datetime.now(),
@@ -238,7 +238,7 @@ class ContentCleaningTelemetry:
             'total_removable_chars': total_removable_chars,
             'removal_percentage': removal_percentage
         })
-        
+
         payload = self._build_payload_snapshot()
 
         # Save asynchronously (or synchronously if queue is disabled)
@@ -589,7 +589,7 @@ class ContentCleaningTelemetry:
         except Exception as e:
             print(f"Error retrieving telemetry patterns: {e}")
             return []
-    
+
     def _write_payload_to_database(
         self,
         conn: sqlite3.Connection,
@@ -727,7 +727,7 @@ class ContentCleaningTelemetry:
             print(f"Error saving content cleaning telemetry: {exc}")
         finally:
             cursor.close()
-    
+
     def _ensure_tables_exist(self, conn: sqlite3.Connection) -> None:
         """Create telemetry tables if they don't exist."""
 
@@ -850,7 +850,7 @@ class ContentCleaningTelemetry:
         """Get telemetry summary for a specific domain."""
         if not self.enable_telemetry:
             return {}
-            
+
         try:
             with self._store.connection() as conn:
                 self._ensure_tables_exist(conn)
@@ -903,7 +903,7 @@ class ContentCleaningTelemetry:
                 'session_summary': session_summary,
                 'pattern_breakdown': pattern_breakdown
             }
-            
+
         except Exception as e:
             print(f"Error retrieving telemetry summary: {e}")
             return {}

@@ -151,7 +151,7 @@ class BalancedBoundaryContentCleaner:
             timeout=10,
             check_same_thread=False,
         )
-    
+
     def analyze_domain(
         self,
         domain: str,
@@ -160,12 +160,12 @@ class BalancedBoundaryContentCleaner:
     ) -> Dict:  # pragma: no cover
         """Analyze domain with balanced boundary requirements."""
         self.logger.info(f"Analyzing domain: {domain}")
-        
+
         articles = self._get_articles_for_domain(domain, sample_size)
-        
+
         # Check if we have persistent patterns for this domain first
         persistent_segments = self._get_persistent_patterns_for_domain(domain)
-        
+
         # If we have persistent patterns, use them regardless of article count
         if persistent_segments:
             self.logger.info(
@@ -181,7 +181,7 @@ class BalancedBoundaryContentCleaner:
                 "segments": persistent_segments,
                 "stats": stats
             }
-        
+
         # Otherwise, use the minimum article threshold (now 3 instead of 5)
         if len(articles) < min_occurrences:
             return {
@@ -189,7 +189,7 @@ class BalancedBoundaryContentCleaner:
                 "article_count": len(articles),
                 "segments": [],
             }
-        
+
         # Start telemetry session
         telemetry_id = self.telemetry.start_cleaning_session(
             domain=domain,
@@ -197,23 +197,23 @@ class BalancedBoundaryContentCleaner:
             min_occurrences=min_occurrences,
             min_boundary_score=0.3
         )
-        
+
         # Phase 1: Find candidates (same as before)
         rough_candidates = self._find_rough_candidates(articles)
-        
+
         # Phase 2: Balanced boundary filtering
         balanced_segments = self._filter_with_balanced_boundaries(
             articles, rough_candidates, min_occurrences, telemetry_id
         )
-        
+
         # Filter segments by minimum length (150 characters)
         # unless high-confidence, and detect wire services
         length_filtered_segments = []
         wire_detected = None
-        
+
         for seg in balanced_segments:
             text = seg.get('text', '')
-            
+
             # Check for wire service detection in any segment
             if not wire_detected:
                 wire_service_info = self._detect_wire_service_in_pattern(
@@ -241,15 +241,15 @@ class BalancedBoundaryContentCleaner:
                     self.logger.info(
                         f"Wire service detected in {domain} segment: "
                         f"{wire_detected['provider']}")
-            
+
             if (len(text) >= 150 or
                     self._is_high_confidence_boilerplate(text)):
                 length_filtered_segments.append(seg)
-        
+
         # Calculate statistics
         stats = self._calculate_domain_stats(articles,
                                              length_filtered_segments)
-        
+
         # Finalize telemetry
         self.telemetry.finalize_cleaning_session(
             rough_candidates_found=len(rough_candidates),
@@ -257,14 +257,14 @@ class BalancedBoundaryContentCleaner:
             total_removable_chars=stats['total_removable_chars'],
             removal_percentage=stats['removal_percentage']
         )
-        
+
         return {
             "domain": domain,
             "article_count": len(articles),
             "segments": length_filtered_segments,
             "stats": stats
         }
-    
+
     def _get_persistent_patterns_for_domain(
         self,
         domain: str,
@@ -272,13 +272,13 @@ class BalancedBoundaryContentCleaner:
         """Get stored persistent patterns for a domain."""
         conn = self._connect_to_db()
         cursor = conn.cursor()
-        
+
         cursor.execute("""
             SELECT text_content, pattern_type, confidence_score
             FROM persistent_boilerplate_patterns
             WHERE domain = ?
         """, (domain,))
-        
+
         patterns = []
         for row in cursor.fetchall():
             patterns.append({
@@ -292,10 +292,10 @@ class BalancedBoundaryContentCleaner:
                 "position_consistency": 1.0,  # Perfect for stored patterns
                 "removal_reason": f"Persistent {row[1]} pattern"
             })
-        
+
         conn.close()
         return patterns
-    
+
     def _get_articles_for_domain(
         self,
         domain: str,
@@ -304,7 +304,7 @@ class BalancedBoundaryContentCleaner:
         """Get articles for a specific domain."""
         conn = self._connect_to_db()
         cursor = conn.cursor()
-        
+
         query = """
         SELECT id, url, content, text_hash
         FROM articles
@@ -313,12 +313,12 @@ class BalancedBoundaryContentCleaner:
         AND content != ''
         ORDER BY id DESC
         """
-        
+
         params = [f"%{domain}%"]
         if sample_size:
             query += " LIMIT ?"
             params.append(sample_size)
-        
+
         cursor.execute(query, params)
         articles = [
             {
@@ -329,21 +329,21 @@ class BalancedBoundaryContentCleaner:
             }
             for row in cursor.fetchall()
         ]
-        
+
         conn.close()
         return articles
-    
+
     def _find_rough_candidates(
         self,
         articles: List[Dict],
     ) -> Dict[str, Set[str]]:  # pragma: no cover
         """Find rough candidates using multiple methods."""
         candidates = defaultdict(set)
-        
+
         for article in articles:
             content = article["content"]
             article_id = str(article["id"])
-            
+
             # Method 1: Sentences
             sentences = re.split(r'[.!?]+\s+', content)
             for sentence in sentences:
@@ -351,7 +351,7 @@ class BalancedBoundaryContentCleaner:
                 if 30 <= len(sentence) <= 600:
                     normalized = re.sub(r'\s+', ' ', sentence)
                     candidates[normalized].add(article_id)
-            
+
             # Method 2: Paragraphs
             paragraphs = re.split(r'\n\s*\n', content)
             for paragraph in paragraphs:
@@ -359,7 +359,7 @@ class BalancedBoundaryContentCleaner:
                 if 40 <= len(paragraph) <= 1200:
                     normalized = re.sub(r'\s+', ' ', paragraph)
                     candidates[normalized].add(article_id)
-            
+
             # Method 3: Lines (for navigation)
             lines = content.split('\n')
             for line in lines:
@@ -374,14 +374,14 @@ class BalancedBoundaryContentCleaner:
                 normalized = re.sub(r'\s+', ' ', nav_prefix.strip())
                 if 50 <= len(normalized) <= 400:
                     candidates[normalized].add(article_id)
-        
+
         # Filter candidates
         filtered_candidates = {
             text: article_ids
             for text, article_ids in candidates.items()
             if len(article_ids) >= 2
         }
-        
+
         self.logger.info(f"Found {len(filtered_candidates)} rough candidates")
         return filtered_candidates
 
@@ -475,7 +475,7 @@ class BalancedBoundaryContentCleaner:
             return None
 
         return snippet[:end_index].strip()
-    
+
     def _filter_with_balanced_boundaries(
         self,
         articles: List[Dict],
@@ -486,14 +486,14 @@ class BalancedBoundaryContentCleaner:
         """Filter candidates using balanced boundary rules."""
         balanced_segments = []
         articles_by_id = {str(article["id"]): article for article in articles}
-        
+
         for candidate_text, candidate_article_ids in rough_candidates.items():
             if len(candidate_article_ids) < min_occurrences:
                 continue
-            
+
             # Check if this candidate has reasonable boundaries
             boundary_score = self._assess_boundary_quality(candidate_text)
-            
+
             # Skip obvious partial sentences
             if boundary_score < 0.3:
                 # Log rejected segment
@@ -509,34 +509,34 @@ class BalancedBoundaryContentCleaner:
                     removal_reason=f"Low boundary score: {boundary_score:.2f}"
                 )
                 continue
-            
+
             # Find exact matches
             exact_matches = {}
             for article_id in candidate_article_ids:
                 article = articles_by_id[article_id]
                 content = article["content"]
-                
+
                 positions = []
                 search_start = 0
-                
+
                 while True:
                     pos = content.find(candidate_text, search_start)
                     if pos == -1:
                         break
-                    
+
                     end_pos = pos + len(candidate_text)
                     positions.append((pos, end_pos))
                     search_start = pos + 1
-                
+
                 if positions:
                     exact_matches[article_id] = positions
-            
+
             # Keep if still meets minimum after filtering
             if len(exact_matches) >= min_occurrences:
                 position_consistency = self._calculate_position_consistency(
                     exact_matches, articles_by_id
                 )
-                
+
                 if position_consistency > 0.2:
                     pattern_type = self._classify_pattern(candidate_text)
                     removal_reason = self._generate_removal_reason(
@@ -545,7 +545,7 @@ class BalancedBoundaryContentCleaner:
                         boundary_score,
                         len(exact_matches),
                     )
-                    
+
                     segment = {
                         "text": candidate_text,
                         "length": len(candidate_text),
@@ -558,7 +558,7 @@ class BalancedBoundaryContentCleaner:
                         "removal_reason": removal_reason
                     }
                     balanced_segments.append(segment)
-                    
+
                     # Log accepted segment with detailed reasoning
                     self.telemetry.log_segment_detection(
                         segment_text=candidate_text,
@@ -571,16 +571,18 @@ class BalancedBoundaryContentCleaner:
                         was_removed=True,
                         removal_reason=removal_reason
                     )
-        
+
         # Sort by occurrences and boundary score
         balanced_segments.sort(
-            key=lambda x: (x["occurrences"], x["boundary_score"], x["length"]), 
+            key=lambda x: (x["occurrences"], x["boundary_score"], x["length"]),
             reverse=True
         )
-        
-        self.logger.info(f"Filtered to {len(balanced_segments)} balanced segments")
+
+        self.logger.info(
+            f"Filtered to {
+                len(balanced_segments)} balanced segments")
         return balanced_segments
-    
+
     def _assess_boundary_quality(self, text: str) -> float:
         """
         Assess boundary quality of text (0.0 to 1.0).
@@ -588,7 +590,7 @@ class BalancedBoundaryContentCleaner:
         """
         text = text.strip()
         score = 0.0
-        
+
         # Check start boundary
         if text[0].isupper():
             score += 0.3
@@ -596,7 +598,7 @@ class BalancedBoundaryContentCleaner:
             score += 0.2
         elif text[0].islower():
             score -= 0.3  # Penalty for lowercase start
-        
+
         # Check end boundary
         if text.endswith(('.', '!', '?')):
             score += 0.3
@@ -604,7 +606,7 @@ class BalancedBoundaryContentCleaner:
             score += 0.2
         elif text.endswith((',', '...', ' and', ' or', ' but')):
             score -= 0.3  # Penalty for obvious fragments
-        
+
         # Check for obvious mid-sentence fragments
         if any(fragment in text.lower() for fragment in [
             'each comment to let us know',
@@ -613,8 +615,9 @@ class BalancedBoundaryContentCleaner:
             'racist or sexually-oriented'
         ]):
             score -= 0.5
-        
-        # HIGH PRIORITY: Sidebar content and promotional content (should be removed)
+
+        # HIGH PRIORITY: Sidebar content and promotional content (should be
+        # removed)
         sidebar_indicators = [
             'watch this discussion',
             'post a comment',
@@ -630,25 +633,29 @@ class BalancedBoundaryContentCleaner:
             'you may also like',
             'recommended for you'
         ]
-        
+
         # Check for headline list patterns (multiple titles concatenated)
         headline_indicators = [
-            r'\w+ \w+ \w+ (defeats?|beats?|wins?|loses?) \w+ \w+',  # Sports results
-            r'\w+ (strikes?|place[sd]?|has) .+ (defeat|win|place)',  # More sports  
+            # Sports results
+            r'\w+ \w+ \w+ (defeats?|beats?|wins?|loses?) \w+ \w+',
+            # More sports
+            r'\w+ (strikes?|place[sd]?|has) .+ (defeat|win|place)',
             r'[A-Z][a-z]+ [A-Z][a-z]+ [A-Z][a-z]+',  # Multiple proper names
         ]
-        
-        is_sidebar_content = any(pattern in text.lower() for pattern in sidebar_indicators)
-        has_headline_pattern = any(re.search(pattern, text) for pattern in headline_indicators)
-        
+
+        is_sidebar_content = any(pattern in text.lower()
+                                 for pattern in sidebar_indicators)
+        has_headline_pattern = any(re.search(pattern, text)
+                                   for pattern in headline_indicators)
+
         # Check for multiple headlines concatenated (common in right-rail)
         proper_name_matches = re.findall(r'[A-Z][a-z]+ [A-Z][a-z]+', text)
         has_multiple_headlines = len(proper_name_matches) > 3
-        
+
         # Boost score for sidebar/headline content - we want to remove it
         if is_sidebar_content or has_headline_pattern or has_multiple_headlines:
             score += 0.4  # Strong boost for removal
-        
+
         # Bonus for complete-looking phrases
         if any(pattern in text.lower() for pattern in [
             'watch this discussion',
@@ -658,19 +665,19 @@ class BalancedBoundaryContentCleaner:
             'stop watching'
         ]):
             score += 0.3
-        
+
         # Bonus for navigation/UI patterns
         nav_patterns = [
             r'^\w+ \w+ \w+$',  # Three words (often navigation)
             r'^(Start|Stop|Watch|Post|Cancel)',  # Action words
             r'(discussion|comment|notification)$',  # UI endings
         ]
-        
+
         for pattern in nav_patterns:
             if re.search(pattern, text):
                 score += 0.2
                 break
-        
+
         # LOWER PRIORITY: Author bio patterns (less aggressive removal)
         bio_patterns = [
             'retired as editor',
@@ -678,44 +685,49 @@ class BalancedBoundaryContentCleaner:
             'her collective works',
             'researches and writes'
         ]
-        
-        is_author_bio = any(pattern in text.lower() for pattern in bio_patterns)
+
+        is_author_bio = any(pattern in text.lower()
+                            for pattern in bio_patterns)
         if is_author_bio:
             score -= 0.2  # Slight penalty - less likely to remove
-        
+
         return max(0.0, min(1.0, score))
-    
-    def _calculate_position_consistency(self, exact_matches: Dict[str, List[Tuple[int, int]]], 
-                                       articles_by_id: Dict[str, Dict]) -> float:
+
+    def _calculate_position_consistency(self,
+                                        exact_matches: Dict[str,
+                                                            List[Tuple[int,
+                                                                       int]]],
+                                        articles_by_id: Dict[str,
+                                                             Dict]) -> float:
         """Calculate position consistency (0.0 to 1.0)."""
         if len(exact_matches) < 2:
             return 0.0
-        
+
         relative_positions = []
-        
+
         for article_id, positions in exact_matches.items():
             article = articles_by_id[article_id]
             content_length = len(article["content"])
-            
+
             for start_pos, end_pos in positions:
                 if content_length > 0:
                     rel_pos = start_pos / content_length
                     relative_positions.append(rel_pos)
-        
+
         if len(relative_positions) < 2:
             return 0.0
-        
+
         mean_pos = sum(relative_positions) / len(relative_positions)
-        variance = sum((pos - mean_pos) ** 2 
-                      for pos in relative_positions) / len(relative_positions)
-        
+        variance = sum((pos - mean_pos) ** 2
+                       for pos in relative_positions) / len(relative_positions)
+
         consistency = max(0.0, 1.0 - (variance * 5))
         return min(1.0, consistency)
-    
+
     def _classify_pattern(self, text: str) -> str:
         """Classify the type of pattern based on content."""
         text_lower = text.lower()
-        
+
         # Sidebar/headline list indicators
         sidebar_patterns = [
             'watch this discussion',
@@ -726,46 +738,64 @@ class BalancedBoundaryContentCleaner:
             'sign up today',
             'related posts'
         ]
-        
+
         # Multiple headline pattern (common in right-rail)
-        # Look for patterns like "Team A defeats Team B" followed by other headlines
-        headline_patterns = [
+        # Look for patterns like "Team A defeats Team B" followed by other
+        # headlines
+        # NOTE: headline_patterns is defined but not used in current version
+        _headline_patterns = [  # noqa: F841
             r'[A-Z][a-z]+ (defeats?|beats?|wins?|loses?) [A-Z][a-z]+',
-            r'[A-Z][a-z]+ [A-Z][a-z]+ [A-Z][a-z]+ [A-Z][a-z]+',  # Multiple proper names
+            # Multiple proper names
+            r'[A-Z][a-z]+ [A-Z][a-z]+ [A-Z][a-z]+ [A-Z][a-z]+',
             r'\w+ (at|vs|versus) \w+',  # Sports matchups
-            r'[A-Z][a-z]+ \w+ \w+ (in|at|from|over) [A-Z][a-z]+',  # Location-based headlines
+            # Location-based headlines
+            r'[A-Z][a-z]+ \w+ \w+ (in|at|from|over) [A-Z][a-z]+',
         ]
-        
+
         # Check for sidebar content
-        is_sidebar_content = any(pattern in text_lower for pattern in sidebar_patterns)
-        has_multiple_headlines = len(re.findall(r'[A-Z][a-z]+ [A-Z][a-z]+', text)) > 3
-        
+        is_sidebar_content = any(
+            pattern in text_lower for pattern in sidebar_patterns)
+        has_multiple_headlines = len(
+            re.findall(
+                r'[A-Z][a-z]+ [A-Z][a-z]+',
+                text)) > 3
+
         if is_sidebar_content or has_multiple_headlines:
             return "sidebar"
-        
+
         # Navigation keywords
-        nav_keywords = ['news', 'sports', 'obituaries', 'contact', 'subscribe', 
-                       'home', 'about', 'business', 'opinion', 'world', 'local']
-        nav_count = sum(1 for keyword in nav_keywords 
-                       if keyword in text_lower)
-        
+        nav_keywords = [
+            'news',
+            'sports',
+            'obituaries',
+            'contact',
+            'subscribe',
+            'home',
+            'about',
+            'business',
+            'opinion',
+            'world',
+            'local']
+        nav_count = sum(1 for keyword in nav_keywords
+                        if keyword in text_lower)
+
         # Footer keywords
         footer_keywords = ['copyright', 'rights reserved', 'privacy', 'terms']
-        footer_count = sum(1 for keyword in footer_keywords 
-                          if keyword in text_lower)
-        
-        # Subscription keywords
-        sub_keywords = ['subscribe', 'subscription', 'paywall', 'premium', 
-                       'member account', 'print subscriber', 'website account']
-        sub_count = sum(1 for keyword in sub_keywords 
-                       if keyword in text_lower)
-        
-        # Trending content
-        trending_keywords = ['trending', 'most read', 'popular stories', 
-                           'recommended for you', 'you may also like']
-        trending_count = sum(1 for keyword in trending_keywords 
+        footer_count = sum(1 for keyword in footer_keywords
                            if keyword in text_lower)
-        
+
+        # Subscription keywords
+        sub_keywords = ['subscribe', 'subscription', 'paywall', 'premium',
+                        'member account', 'print subscriber', 'website account']
+        sub_count = sum(1 for keyword in sub_keywords
+                        if keyword in text_lower)
+
+        # Trending content
+        trending_keywords = ['trending', 'most read', 'popular stories',
+                             'recommended for you', 'you may also like']
+        trending_count = sum(1 for keyword in trending_keywords
+                             if keyword in text_lower)
+
         if nav_count >= 2:
             return "navigation"
         elif footer_count >= 1:
@@ -776,16 +806,23 @@ class BalancedBoundaryContentCleaner:
             return "trending"
         else:
             return "other"
-    
-    def _generate_removal_reason(self, text: str, pattern_type: str, 
-                                boundary_score: float, occurrences: int) -> str:
+
+    def _generate_removal_reason(
+            self,
+            text: str,
+            pattern_type: str,
+            boundary_score: float,
+            occurrences: int) -> str:
         """Generate detailed removal reason based on pattern analysis."""
         text_lower = text.lower()
         reasons = []
-        
+
         # Pattern-specific reasoning
         if pattern_type == "sidebar":
-            if any(p in text_lower for p in ['watch this discussion', 'post a comment']):
+            if any(
+                p in text_lower for p in [
+                    'watch this discussion',
+                    'post a comment']):
                 reasons.append("Discussion prompts in sidebar")
             elif any(p in text_lower for p in ['news updates', 'daily headlines', 'sign up']):
                 reasons.append("Newsletter signup prompts")
@@ -793,7 +830,7 @@ class BalancedBoundaryContentCleaner:
                 reasons.append("Multi-headline sidebar content")
             else:
                 reasons.append("Sidebar navigation element")
-                
+
         elif pattern_type == "subscription":
             if "print subscriber" in text_lower:
                 reasons.append("Print subscriber account setup")
@@ -803,19 +840,24 @@ class BalancedBoundaryContentCleaner:
                 reasons.append("Paywall content restriction")
             else:
                 reasons.append("Subscription requirement notice")
-                
+
         elif pattern_type == "navigation":
             reasons.append("Site navigation menu")
-            
+
         elif pattern_type == "footer":
             reasons.append("Page footer content")
-            
+
         elif pattern_type == "trending":
             reasons.append("Trending/recommended articles section")
-            
+
         else:  # "other"
             # Analyze content for more specific categorization
-            if any(p in text_lower for p in ['defeated', 'beats', 'wins', 'loses']):
+            if any(
+                p in text_lower for p in [
+                    'defeated',
+                    'beats',
+                    'wins',
+                    'loses']):
                 reasons.append("Sports results headline list")
             elif len(text.split('\n')) > 1:
                 reasons.append("Multi-line content block")
@@ -823,7 +865,7 @@ class BalancedBoundaryContentCleaner:
                 reasons.append("Comma-separated list content")
             else:
                 reasons.append("Repeated content segment")
-        
+
         # Add confidence indicators
         confidence_desc = ""
         if boundary_score >= 0.8:
@@ -832,22 +874,22 @@ class BalancedBoundaryContentCleaner:
             confidence_desc = "medium confidence"
         else:
             confidence_desc = "low confidence"
-            
+
         # Add occurrence context
         occurrence_desc = f"appears {occurrences}x across articles"
-        
+
         # Combine reasons
         reason_text = "; ".join(reasons)
         full_reason = f"{reason_text} ({confidence_desc}, {occurrence_desc})"
-        
+
         return full_reason
-    
-    def _calculate_domain_stats(self, articles: List[Dict], 
-                               segments: List[Dict]) -> Dict:
+
+    def _calculate_domain_stats(self, articles: List[Dict],
+                                segments: List[Dict]) -> Dict:
         """Calculate statistics for the domain analysis."""
         total_removable_chars = 0
         affected_articles = set()
-        
+
         for segment in segments:
             text_content = segment.get("text_content", "")
             segment_length = segment.get("length")
@@ -859,11 +901,12 @@ class BalancedBoundaryContentCleaner:
             total_removable_chars += segment_length * occurrences
 
             article_ids = segment.get("article_ids") or []
-            affected_articles.update(str(article_id) for article_id in article_ids)
-        
-        total_content_chars = sum(len(article["content"]) 
-                                 for article in articles)
-        
+            affected_articles.update(str(article_id)
+                                     for article_id in article_ids)
+
+        total_content_chars = sum(len(article["content"])
+                                  for article in articles)
+
         return {
             "total_articles": len(articles),
             "affected_articles": len(affected_articles),
@@ -871,28 +914,28 @@ class BalancedBoundaryContentCleaner:
             "total_removable_chars": total_removable_chars,
             "total_content_chars": total_content_chars,
             "removal_percentage": (total_removable_chars / total_content_chars
-                                 * 100) if total_content_chars > 0 else 0
+                                   * 100) if total_content_chars > 0 else 0
         }
-    
+
     def _remove_persistent_patterns(self, text: str, domain: str,
                                     article_id: Optional[str] = None) -> Dict:
         """Check text against persistent patterns for quick removal."""
         if not self.enable_telemetry:
             return {'cleaned_text': text, 'removals': [],
                     'wire_detected': None}
-        
+
         patterns = self.telemetry.get_persistent_patterns(domain)
         if not patterns:
             return {'cleaned_text': text, 'removals': [],
                     'wire_detected': None}
-        
+
         cleaned_text = text
         removals = []
         wire_detected = None
-        
+
         for pattern in patterns:
             pattern_text = pattern['text_content']
-            
+
             # WIRE SERVICE DETECTION: Check pattern before removal
             if not wire_detected:
                 wire_service_info = self._detect_wire_service_in_pattern(
@@ -920,22 +963,22 @@ class BalancedBoundaryContentCleaner:
                                 ],
                             },
                         )
-            
+
             # Check if this is a high-confidence boilerplate pattern
             # that overrides length
             is_high_confidence = self._is_high_confidence_boilerplate(
                 pattern_text)
-            
+
             # Apply minimum length filter (150 characters) unless
             # it's high-confidence boilerplate
             if len(pattern_text) < 150 and not is_high_confidence:
                 continue
-                
+
             if pattern_text in cleaned_text:
                 # Calculate position before removal
                 position = cleaned_text.find(pattern_text)
                 cleaned_text = cleaned_text.replace(pattern_text, '')
-                
+
                 removals.append({
                     'text': pattern_text,
                     'position': position,
@@ -944,10 +987,10 @@ class BalancedBoundaryContentCleaner:
                     'pattern_type': pattern['pattern_type'],
                     'removal_reason': pattern['removal_reason']
                 })
-        
+
         return {'cleaned_text': cleaned_text, 'removals': removals,
                 'wire_detected': wire_detected}
-    
+
     def _detect_social_share_prefix_end(self, text: str) -> Optional[int]:
         """Return index after leading social-share keywords, if present."""
         if not text:
@@ -1191,7 +1234,7 @@ class BalancedBoundaryContentCleaner:
                 self.logger.info(
                     f"Wire service detected in article {article_id}: "
                     f"{wire_detected['provider']}")
-        
+
         if removed_by_persistent['removals']:
             for removal in removed_by_persistent['removals']:
                 detail = {
@@ -1447,14 +1490,14 @@ class BalancedBoundaryContentCleaner:
         """
         Identify high-confidence boilerplate patterns that should override
         the minimum length threshold.
-        
+
         These patterns are obvious boilerplate regardless of length.
         """
         if self._is_social_share_cluster(text):
             return True
 
         text_cleaned = ' '.join(text.split()).strip().lower()
-        
+
         # Social media sharing button patterns
         social_sharing_patterns = [
             'facebook twitter whatsapp sms email',
@@ -1471,7 +1514,7 @@ class BalancedBoundaryContentCleaner:
             'share this article',
             'share this story',
         ]
-        
+
         # Navigation and UI element patterns
         navigation_patterns = [
             'home about contact us',
@@ -1483,7 +1526,7 @@ class BalancedBoundaryContentCleaner:
             'menu toggle',
             'search site',
         ]
-        
+
         # Subscription and newsletter patterns
         subscription_patterns = [
             'subscribe to our newsletter',
@@ -1500,7 +1543,7 @@ class BalancedBoundaryContentCleaner:
             'please login to continue reading',
             'need an account print subscribers',
         ]
-        
+
         # Copyright and legal patterns
         copyright_patterns = [
             'all rights reserved',
@@ -1509,15 +1552,15 @@ class BalancedBoundaryContentCleaner:
             'privacy policy',
             'cookie policy',
         ]
-        
+
         # Check all pattern categories
         all_patterns = (social_sharing_patterns + navigation_patterns +
                         subscription_patterns + copyright_patterns)
-        
+
         for pattern in all_patterns:
             if pattern in text_cleaned:
                 return True
-                
+
         # Check for repetitive patterns that suggest boilerplate
         words = text_cleaned.split()
         if len(words) <= 10:  # Only for short segments
@@ -1528,14 +1571,14 @@ class BalancedBoundaryContentCleaner:
                     word_counts[word] = word_counts.get(word, 0) + 1
                     if word_counts[word] >= 3:
                         return True
-        
+
         return False
 
     def _detect_wire_service_in_pattern(self, pattern_text: str,
                                         domain: str) -> Optional[Dict]:
         """
         Detect if a pattern contains wire service syndication evidence.
-        
+
         Returns dict with wire service info if detected, None otherwise.
         """
         # Reset detector state before each check
@@ -1549,12 +1592,12 @@ class BalancedBoundaryContentCleaner:
             detected_services = self.wire_detector._detected_wire_services
             if detected_services:
                 wire_service_name = detected_services[-1]  # Latest detected
-                
+
                 # Check if this is from the publication's own source
                 is_own_source = (
                     self.wire_detector._is_wire_service_from_own_source(
                         wire_service_name, domain))
-                
+
                 if not is_own_source:  # Only mark as wire if syndicated
                     return {
                         'provider': wire_service_name,
@@ -1563,23 +1606,23 @@ class BalancedBoundaryContentCleaner:
                         'detection_method': 'pattern_analysis'
                     }
                 blocked_providers.add(wire_service_name.lower())
-        
+
         # Check for common wire service patterns in the text
         wire_patterns = [
             # AP patterns
             (r'\b(AP|Associated Press)\b', 'Associated Press'),
             (r'\bAP News\b', 'Associated Press'),
             (r'\bThe Associated Press\b', 'Associated Press'),
-            
+
             # Reuters patterns
             (r'\bReuters\b', 'Reuters'),
             (r'\bThomson Reuters\b', 'Reuters'),
-            
+
             # CNN patterns
             (r'\bCNN\b(?!\s+News)', 'CNN'),
             (r'\bCNN NewsSource\b', 'CNN NewsSource'),
             (r'\bCable\s+News\s+Network\b', 'CNN NewsSource'),
-            
+
             # Other major wire services
             (r'\bBloomberg\b', 'Bloomberg'),
             (r'\bNPR\b', 'NPR'),
@@ -1588,13 +1631,13 @@ class BalancedBoundaryContentCleaner:
             (r'\bWashington Post\b', 'Washington Post'),
             (r'\bNew York Times\b', 'New York Times'),
             (r'\bWall Street Journal\b', 'Wall Street Journal'),
-            
+
             # Wire service indicators
             (r'\bwire service\b', 'Wire Service'),
             (r'\bsyndicated\b', 'Syndicated Content'),
             (r'\b(from|source|via)\s+wire\b', 'Wire Service'),
         ]
-        
+
         domain_normalized = (
             re.sub(r'[^a-z0-9]', '', domain.lower()) if domain else ''
         )
@@ -1627,7 +1670,7 @@ class BalancedBoundaryContentCleaner:
                     'confidence': 0.8,
                     'detection_method': 'regex_pattern'
                 }
-        
+
         return None
 
     def _get_article_source_context(
@@ -1872,7 +1915,7 @@ class BalancedBoundaryContentCleaner:
                 }
 
         return None
-    
+
     def _mark_article_as_wire(
         self,
         article_id: str,
@@ -1901,7 +1944,7 @@ class BalancedBoundaryContentCleaner:
                     existing_payload = {}
             if not isinstance(existing_payload, dict):
                 existing_payload = {}
-            
+
             # Update the wire column with JSON info about the wire service
             wire_payload: Dict[str, Any] = existing_payload.copy()
             wire_payload.update({
@@ -1944,18 +1987,18 @@ class BalancedBoundaryContentCleaner:
                     wire_payload['source_context'] = sanitized_source
 
             wire_data = json.dumps(wire_payload)
-            
+
             cursor.execute(
                 "UPDATE articles SET wire = ? WHERE id = ?",
                 (wire_data, article_id)
             )
-            
+
             conn.commit()
-            
+
             self.logger.info(
                 f"Marked article {article_id} as wire service: "
                 f"{wire_info['provider']}")
-            
+
         except Exception as e:
             self.logger.error(
                 f"Failed to mark article {article_id} as wire: {e}")

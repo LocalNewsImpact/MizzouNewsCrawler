@@ -19,11 +19,11 @@ from typing import Dict, List, Optional
 # Add the src directory to the path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import storysniffer
-from sqlalchemy import text
+import storysniffer  # noqa: E402
+from sqlalchemy import text  # noqa: E402
 
-from src.models.database import DatabaseManager
-from src.models.verification import (
+from src.models.database import DatabaseManager  # noqa: E402
+from src.models.verification import (  # noqa: E402
     URLVerification,
     VerificationJob,
     VerificationTelemetry,
@@ -144,7 +144,8 @@ class URLVerificationService:
             )
             conn.commit()
 
-        self.logger.debug(f"Updated candidate {candidate_id} to status: {new_status}")
+        self.logger.debug(
+            f"Updated candidate {candidate_id} to status: {new_status}")
 
     def save_verification_result(
         self, candidate: Dict, verification_result: Dict
@@ -271,7 +272,7 @@ class URLVerificationService:
         # Update source metrics based on verification results
         # Use existing session from DatabaseManager
         session = self.db.session
-        
+
         # Get verification results for this batch
         verification_query = text("""
             SELECT v.url, v.storysniffer_result, v.verification_error, cl.source_name
@@ -344,7 +345,9 @@ class URLVerificationService:
                     time.sleep(self.sleep_interval)
                     continue
 
-                self.logger.info(f"Processing batch of {len(candidates)} URLs...")
+                self.logger.info(
+                    f"Processing batch of {
+                        len(candidates)} URLs...")
 
                 # Process batch
                 batch_metrics = self.process_batch(candidates)
@@ -365,7 +368,8 @@ class URLVerificationService:
 
                 batch_count += 1
                 if max_batches and batch_count >= max_batches:
-                    self.logger.info(f"Reached max batches limit: {max_batches}")
+                    self.logger.info(
+                        f"Reached max batches limit: {max_batches}")
                     break
 
                 # Brief pause between batches
@@ -406,14 +410,12 @@ class URLVerificationService:
                 WHERE id = :job_id
             """
 
-            conn.execute(
-                text(update_query),
-                {
-                    'job_id': self.current_job.id,
-                    'status': 'completed' if remaining_discovered == 0 else 'paused',
-                    'completed_at': datetime.now(),
-                },
-            )
+            conn.execute(text(update_query),
+                         {'job_id': self.current_job.id,
+                          'status': 'completed' if remaining_discovered == 0 else 'paused',
+                          'completed_at': datetime.now(),
+                          },
+                         )
             conn.commit()
 
         self.logger.info(

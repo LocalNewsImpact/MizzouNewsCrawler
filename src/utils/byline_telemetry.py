@@ -26,7 +26,7 @@ class BylineCleaningTelemetry:
     ) -> None:
         """
         Initialize telemetry collector.
-        
+
         Args:
             enable_telemetry: Whether to actually collect and store telemetry
         """
@@ -34,7 +34,7 @@ class BylineCleaningTelemetry:
         self.session_id = str(uuid.uuid4())
         self.step_counter = 0
         self._store: TelemetryStore = store or get_store(database_url)
-        
+
         # Current cleaning session data
         self.current_session: Optional[Dict[str, Any]] = None
         self.transformation_steps: List[Dict[str, Any]] = []
@@ -109,7 +109,7 @@ class BylineCleaningTelemetry:
             )
 
             conn.commit()
-        
+
     def start_cleaning_session(
         self,
         raw_byline: str,
@@ -121,16 +121,16 @@ class BylineCleaningTelemetry:
     ) -> str:
         """
         Start a new byline cleaning session.
-        
+
         Returns:
             telemetry_id: Unique identifier for this cleaning session
         """
         if not self.enable_telemetry:
             return str(uuid.uuid4())
-            
+
         telemetry_id = str(uuid.uuid4())
         start_time = time.time()
-        
+
         self.current_session = {
             'telemetry_id': telemetry_id,
             'article_id': article_id,
@@ -153,12 +153,12 @@ class BylineCleaningTelemetry:
             'parsing_warnings': [],
             'confidence_score': 0.0
         }
-        
+
         self.transformation_steps = []
         self.step_counter = 0
-        
+
         return telemetry_id
-        
+
     def log_transformation_step(
         self,
         step_name: str,
@@ -173,10 +173,10 @@ class BylineCleaningTelemetry:
         """Log a single transformation step in the cleaning process."""
         if not self.enable_telemetry or not self.current_session:
             return
-            
+
         self.step_counter += 1
         step_start_time = time.time()
-        
+
         step_data = {
             'id': str(uuid.uuid4()),
             'telemetry_id': self.current_session['telemetry_id'],
@@ -192,22 +192,22 @@ class BylineCleaningTelemetry:
             'notes': notes,
             'timestamp': datetime.now()
         }
-        
+
         self.transformation_steps.append(step_data)
-        
+
         # Update session metadata based on transformation
         if step_name == "email_removal" and removed_content:
             self.current_session['has_email'] = True
-            
+
         if step_name == "source_removal" and removed_content:
             self.current_session['source_name_removed'] = True
-            
+
         if (
             step_name == "wire_service_detection"
             and "wire service" in str(notes).lower()
         ):
             self.current_session['has_wire_service'] = True
-            
+
         if step_name == "duplicate_removal" and removed_content:
             # Count removed duplicates
             if removed_content:
@@ -219,38 +219,38 @@ class BylineCleaningTelemetry:
                 self.current_session['duplicates_removed_count'] += (
                     removed_count
                 )
-                
+
         # Update running confidence score
         self.current_session['confidence_score'] += confidence_delta
-        
+
     def log_error(self, error_message: str, error_type: str = "processing"):
         """Log an error during cleaning."""
         if not self.enable_telemetry or not self.current_session:
             return
-            
+
         error_data = {
             'type': error_type,
             'message': error_message,
             'timestamp': datetime.now().isoformat(),
             'step': self.step_counter
         }
-        
+
         self.current_session['cleaning_errors'].append(error_data)
-        
+
     def log_warning(self, warning_message: str, warning_type: str = "parsing"):
         """Log a warning during cleaning."""
         if not self.enable_telemetry or not self.current_session:
             return
-            
+
         warning_data = {
             'type': warning_type,
             'message': warning_message,
             'timestamp': datetime.now().isoformat(),
             'step': self.step_counter
         }
-        
+
         self.current_session['parsing_warnings'].append(warning_data)
-        
+
     def finalize_cleaning_session(
         self,
         final_authors: List[str],
@@ -261,7 +261,7 @@ class BylineCleaningTelemetry:
     ):
         """
         Finalize the cleaning session and store telemetry data.
-        
+
         Args:
             final_authors: List of final cleaned author names
             cleaning_method: Method used for cleaning
@@ -271,10 +271,10 @@ class BylineCleaningTelemetry:
         """
         if not self.enable_telemetry or not self.current_session:
             return
-            
+
         # Calculate final metrics
         total_time = (time.time() - self.current_session['start_time']) * 1000
-        
+
         # Update session with final data
         self.current_session.update({
             'cleaning_method': cleaning_method,
@@ -292,15 +292,15 @@ class BylineCleaningTelemetry:
                 self.current_session['parsing_warnings']
             )
         })
-        
+
         # Store the session data
         self._store_telemetry_data()
-        
+
         # Reset for next session
         self.current_session = None
         self.transformation_steps = []
         self.step_counter = 0
-        
+
     def _store_telemetry_data(self):
         """Store the current session telemetry data to database."""
         if not self.current_session:
@@ -399,12 +399,12 @@ class BylineCleaningTelemetry:
     def flush(self) -> None:
         if self.enable_telemetry:
             self._store.flush()
-            
+
     def get_session_summary(self) -> Optional[Dict[str, Any]]:
         """Get a summary of the current cleaning session."""
         if not self.current_session:
             return None
-            
+
         return {
             'telemetry_id': self.current_session['telemetry_id'],
             'raw_byline': self.current_session['raw_byline'],

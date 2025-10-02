@@ -39,7 +39,7 @@ try:
 except Exception:
     _parse_date = None
 
-from ..models.database import DatabaseManager, upsert_candidate_link
+from ..models.database import DatabaseManager
 from src.utils.telemetry import (
     OperationType,
     OperationMetrics,
@@ -47,7 +47,7 @@ from src.utils.telemetry import (
     DiscoveryMethodStatus,
     create_telemetry_system,
 )
-from src.utils.discovery_outcomes import DiscoveryOutcome, DiscoveryResult
+from src.utils.discovery_outcomes import DiscoveryResult
 from src.utils.url_utils import normalize_url
 
 logger = logging.getLogger(__name__)

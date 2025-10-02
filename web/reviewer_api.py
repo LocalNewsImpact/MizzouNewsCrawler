@@ -40,7 +40,6 @@ from web.code_review_telemetry_api import (
     add_code_review_item,
     init_code_review_tables,
     CodeReviewFeedback,
-    CodeReviewStats,
     CodeReviewItem
 )
 
@@ -48,7 +47,8 @@ ROOT = Path(__file__).resolve().parents[1]
 # Prefer pipeline/processed when running from project root.
 # Fall back to `processed/` in the repository root.
 PIPELINE_PROCESSED = Path(ROOT) / "pipeline" / "processed"
-PROCESSED = PIPELINE_PROCESSED if PIPELINE_PROCESSED.exists() else (ROOT / "processed")
+PROCESSED = PIPELINE_PROCESSED if PIPELINE_PROCESSED.exists() else (ROOT /
+                                                                    "processed")
 ARTICLES_CSV = PROCESSED / "articleslabelled_7.csv"
 FEEDBACK_CSV = PROCESSED / "feedback.csv"
 
@@ -116,7 +116,7 @@ def read_articles(limit: Optional[int] = None, offset: int = 0):
             raise RuntimeError(f"Failed to parse CSV: {e}")
         if limit is None:
             return rows[offset:]
-        return rows[offset : offset + limit]
+        return rows[offset: offset + limit]
 
 
 @app.get("/api/articles", response_model=List[dict])
@@ -186,7 +186,8 @@ def get_articles(
             text = tag_re.sub(" ", text)
             text = " ".join(text.split())
         except Exception:
-            text = (news[:preview_chars] + "...") if len(news) > preview_chars else news
+            text = (news[:preview_chars] +
+                    "...") if len(news) > preview_chars else news
         preview = text[:preview_chars]
         row["news_preview"] = preview
         row["news_truncated"] = len(news) > len(preview)
@@ -247,7 +248,9 @@ def _write_csv_rows(path: Path, rows, fieldnames):
 
     def _atomic_replace(target: Path, write_rows, flds):
         # write to temporary file in same directory then fsync+replace
-        fd, tmp_path = tempfile.mkstemp(prefix=target.name, dir=str(target.parent))
+        fd, tmp_path = tempfile.mkstemp(
+            prefix=target.name, dir=str(
+                target.parent))
         try:
             with os.fdopen(fd, "w", newline="", encoding="utf8") as fh:
                 writer = csv.DictWriter(fh, fieldnames=flds)
@@ -350,7 +353,9 @@ def api_domain_issues():
     p = PROCESSED / "domain_issues.json"
     data = _load_json(p)
     if data is None:
-        raise HTTPException(status_code=404, detail="domain_issues.json not found")
+        raise HTTPException(
+            status_code=404,
+            detail="domain_issues.json not found")
     return data
 
 
@@ -367,7 +372,9 @@ def api_domain_review(host: str):
     p = PROCESSED / "domain_flags" / f"{host}.json"
     data = _load_json(p)
     if data is None:
-        raise HTTPException(status_code=404, detail="domain artifact not found")
+        raise HTTPException(
+            status_code=404,
+            detail="domain artifact not found")
     return data
 
 
@@ -556,7 +563,13 @@ def post_feedback(f: Feedback):
         sqlite_store.append_feedback(row)
     except Exception:
         # fallback: append to CSV for portability
-        header = ["id", "field", "old_value", "new_value", "comment", "reviewer"]
+        header = [
+            "id",
+            "field",
+            "old_value",
+            "new_value",
+            "comment",
+            "reviewer"]
         write_header = not FEEDBACK_CSV.exists()
         with open(FEEDBACK_CSV, "a", newline="", encoding="utf-8") as fh:
             writer = csv.writer(fh)
@@ -599,7 +612,9 @@ def api_submit_byline_feedback(feedback: BylineFeedback):
         if success:
             return {"status": "ok", "telemetry_id": feedback.telemetry_id}
         else:
-            raise HTTPException(status_code=404, detail="Telemetry record not found")
+            raise HTTPException(
+                status_code=404,
+                detail="Telemetry record not found")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -655,8 +670,10 @@ def api_telemetry_queue():
             "worker_alive": True,  # Assume worker is alive if API is responding
             "total_processed": stats.total_extractions,
             "accuracy_rate": (
-                stats.reviewed_correct / 
-                max(stats.reviewed_correct + stats.reviewed_incorrect + stats.reviewed_partial, 1)
+                stats.reviewed_correct /
+                max(stats.reviewed_correct +
+                    stats.reviewed_incorrect +
+                    stats.reviewed_partial, 1)
             ) if (stats.reviewed_correct + stats.reviewed_incorrect + stats.reviewed_partial) > 0 else 0
         }
     except Exception:
@@ -690,9 +707,13 @@ def api_submit_verification_feedback(feedback: VerificationFeedback):
     try:
         success = submit_verification_feedback(feedback)
         if success:
-            return {"status": "ok", "verification_id": feedback.verification_id}
+            return {
+                "status": "ok",
+                "verification_id": feedback.verification_id}
         else:
-            raise HTTPException(status_code=404, detail="Verification record not found")
+            raise HTTPException(
+                status_code=404,
+                detail="Verification record not found")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -708,10 +729,13 @@ def api_get_verification_stats():
 
 
 @app.get("/api/verification_telemetry/training_data")
-def api_get_verification_training_data(min_confidence: float = 0.0, format: str = "json"):
+def api_get_verification_training_data(
+        min_confidence: float = 0.0,
+        format: str = "json"):
     """Export labeled verification training data for ML."""
     try:
-        data = get_labeled_verification_training_data(min_confidence=min_confidence)
+        data = get_labeled_verification_training_data(
+            min_confidence=min_confidence)
         if format == "csv":
             # Return CSV format for download
             import io
@@ -739,14 +763,20 @@ def api_get_verification_training_data(min_confidence: float = 0.0, format: str 
 
 
 @app.post("/api/verification_telemetry/enhance")
-def api_enhance_verification(verification_id: str, headline: str = "", excerpt: str = ""):
+def api_enhance_verification(
+        verification_id: str,
+        headline: str = "",
+        excerpt: str = ""):
     """Add article content to verification for human review."""
     try:
-        success = enhance_verification_with_content(verification_id, headline, excerpt)
+        success = enhance_verification_with_content(
+            verification_id, headline, excerpt)
         if success:
             return {"status": "ok", "verification_id": verification_id}
         else:
-            raise HTTPException(status_code=404, detail="Verification record not found")
+            raise HTTPException(
+                status_code=404,
+                detail="Verification record not found")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -759,7 +789,7 @@ def api_get_pending_code_reviews(limit: int = 50):
     try:
         # Initialize tables if they don't exist
         init_code_review_tables()
-        
+
         items = get_pending_code_reviews(limit=limit)
         return {
             "status": "ok",
@@ -778,7 +808,9 @@ def api_submit_code_review_feedback(feedback: CodeReviewFeedback):
         if success:
             return {"status": "ok", "review_id": feedback.review_id}
         else:
-            raise HTTPException(status_code=404, detail="Code review record not found")
+            raise HTTPException(
+                status_code=404,
+                detail="Code review record not found")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -799,12 +831,14 @@ def api_add_code_review_item(item: CodeReviewItem):
     try:
         # Initialize tables if they don't exist
         init_code_review_tables()
-        
+
         success = add_code_review_item(item)
         if success:
             return {"status": "ok", "review_id": item.review_id}
         else:
-            raise HTTPException(status_code=500, detail="Failed to add code review item")
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to add code review item")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

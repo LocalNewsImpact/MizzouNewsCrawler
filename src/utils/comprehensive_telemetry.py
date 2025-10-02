@@ -46,10 +46,10 @@ class ExtractionMetrics:
 
         # Field extraction tracking
         self.field_extraction = {}
-        
+
         # Final field attribution (which method provided each field)
         self.final_field_attribution = {}
-        
+
         # Track alternative extractions (later methods vs. current fields)
         self.alternative_extractions = {}
 
@@ -98,7 +98,7 @@ class ExtractionMetrics:
                 'content': bool(extracted_fields.get('content')),
                 'publish_date': bool(extracted_fields.get('publish_date'))
             }
-            
+
             # Extract HTTP status from metadata if available
             metadata = extracted_fields.get('metadata', {})
             http_status = metadata.get('http_status')
@@ -111,7 +111,7 @@ class ExtractionMetrics:
                                       alternative_value: str,
                                       current_value: str):
         """Record when a later method extracts an alternative for filled field.
-        
+
         Args:
             method_name: The method that found the alternative
             field_name: The field that was extracted alternatively
@@ -120,7 +120,7 @@ class ExtractionMetrics:
         """
         if method_name not in self.alternative_extractions:
             self.alternative_extractions[method_name] = {}
-        
+
         self.alternative_extractions[method_name][field_name] = {
             'alternative_value': alternative_value[:200],  # Truncate
             'current_value': current_value[:200],          # Truncate

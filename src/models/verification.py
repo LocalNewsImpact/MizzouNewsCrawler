@@ -107,9 +107,9 @@ class URLVerification(Base):
 
 class VerificationTelemetry(Base):
     """Aggregated telemetry data for verification jobs."""
-    
+
     __tablename__ = "verification_telemetry"
-    
+
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     verification_job_id = Column(
         String,
@@ -117,21 +117,21 @@ class VerificationTelemetry(Base):
         nullable=False,
         index=True
     )
-    
+
     # Source-level breakdown
     source_name = Column(String, index=True)
     source_county = Column(String, index=True)
-    
+
     # Metrics for this source in this job
     total_urls = Column(Integer, default=0)
     verified_articles = Column(Integer, default=0)
     verified_non_articles = Column(Integer, default=0)
     verification_errors = Column(Integer, default=0)
-    
+
     # Quality metrics
     article_rate = Column(Float)  # Percentage of URLs that are articles
     avg_verification_time_ms = Column(Float)
-    
+
     # Pattern analysis
     # Most common non-article URL patterns
     top_non_article_patterns = Column(JSON)
