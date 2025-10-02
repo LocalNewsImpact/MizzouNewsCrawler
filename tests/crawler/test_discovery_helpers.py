@@ -985,11 +985,6 @@ def test_process_source_stores_and_classifies_articles(
             _session.commit()
 
     monkeypatch.setattr(
-        discovery_module,
-        "upsert_candidate_link",
-        _capture_upsert,
-    )
-    monkeypatch.setattr(
         "src.models.database.upsert_candidate_link",
         _capture_upsert,
     )
@@ -1179,11 +1174,6 @@ def test_source_processor_skips_rss_when_recently_missing(
             _session.commit()
 
     monkeypatch.setattr(discovery_module, "DatabaseManager", FakeDBManager)
-    monkeypatch.setattr(
-        discovery_module,
-        "upsert_candidate_link",
-        _capture_upsert,
-    )
     monkeypatch.setattr(
         "src.models.database.upsert_candidate_link",
         _capture_upsert,
@@ -1769,11 +1759,6 @@ def test_source_processor_skips_out_of_scope_urls(
             _session.commit()
 
     monkeypatch.setattr(
-        discovery_module,
-        "upsert_candidate_link",
-        _capture_upsert,
-    )
-    monkeypatch.setattr(
         "src.models.database.upsert_candidate_link",
         _capture_upsert,
     )
@@ -1947,11 +1932,6 @@ def test_source_processor_stores_when_publish_date_parse_fails(
             _session.commit()
 
     monkeypatch.setattr(
-        discovery_module,
-        "upsert_candidate_link",
-        _capture_upsert,
-    )
-    monkeypatch.setattr(
         "src.models.database.upsert_candidate_link",
         _capture_upsert,
     )
@@ -2100,11 +2080,6 @@ def test_source_processor_continues_when_upsert_raises(
             _session.add(types.SimpleNamespace(**data))
             _session.commit()
 
-    monkeypatch.setattr(
-        discovery_module,
-        "upsert_candidate_link",
-        _capture_upsert,
-    )
     monkeypatch.setattr(
         "src.models.database.upsert_candidate_link",
         _capture_upsert,
