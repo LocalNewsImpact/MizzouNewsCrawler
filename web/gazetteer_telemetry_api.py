@@ -386,7 +386,3 @@ def ensure_address_updates_table():
 
     conn.commit()
     conn.close()
-
-
-# Initialize database table on import
-ensure_address_updates_table()

@@ -29,6 +29,7 @@ from src.utils.comprehensive_telemetry import (  # noqa: E402
 from web.gazetteer_telemetry_api import (  # noqa: E402
     AddressEditRequest,
     ReprocessRequest,
+    ensure_address_updates_table,
     get_failed_publishers,
     get_gazetteer_stats,
     get_publisher_telemetry,
@@ -510,6 +511,12 @@ def startup_snap_tables():
 @app.on_event("startup")
 def startup():
     init_db()
+
+
+@app.on_event("startup")
+def startup_gazetteer_tables():
+    """Initialize gazetteer telemetry tables on startup."""
+    ensure_address_updates_table()
 
 
 @app.get("/api/articles")
