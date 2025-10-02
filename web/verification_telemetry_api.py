@@ -1,7 +1,8 @@
 """
 API endpoints for URL verification telemetry and human feedback.
 
-Provides human review interface for StorySniffer article/not-article classifications.
+Provides human review interface for StorySniffer
+article/not-article classifications.
 """
 
 from datetime import datetime

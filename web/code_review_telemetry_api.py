@@ -8,7 +8,6 @@ from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel
 import sqlite3
-import json
 
 # Use absolute path for database when running from web directory
 DATABASE_URL = "sqlite:///../data/mizzou.db"
@@ -29,7 +28,8 @@ class CodeReviewItem(BaseModel):
     target_branch: Optional[str]
 
     # Human feedback fields (initially null)
-    human_label: Optional[str] = None  # "approved", "rejected", "needs_changes"
+    # "approved", "rejected", "needs_changes"
+    human_label: Optional[str] = None
     human_notes: Optional[str] = None
     reviewed_by: Optional[str] = None
     reviewed_at: Optional[datetime] = None
@@ -59,7 +59,9 @@ def init_code_review_tables():
     try:
         # Use absolute path to database file
         import os
-        db_path = os.path.join(os.path.dirname(__file__), "..", "data", "mizzou.db")
+        db_path = os.path.join(
+            os.path.dirname(__file__), "..", "data", "mizzou.db"
+        )
         conn = sqlite3.connect(db_path)
         cur = conn.cursor()
 

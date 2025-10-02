@@ -31,7 +31,8 @@ class BylineCleaner:
         'news', 'sports', 'politics', 'business', 'entertainment', 'lifestyle',
         'health', 'science', 'technology', 'education', 'crime', 'courts',
         'government', 'city', 'county', 'state', 'national', 'international',
-        'investigative', 'feature', 'opinion', 'editorial', 'column', 'columnist',
+        'investigative', 'feature', 'opinion', 'editorial', 'column',
+        'columnist',
 
         # Organization roles
         'director', 'manager', 'coordinator', 'specialist', 'analyst',
@@ -54,7 +55,8 @@ class BylineCleaner:
         'phd', 'md', 'jd', 'mba', 'ma', 'ms', 'bs', 'ba'
     }
 
-    # Wire services and syndicated content sources (preserve these for later filtering)
+    # Wire services and syndicated content sources
+    # (preserve these for later filtering)
     WIRE_SERVICES = {
         'associated press', 'ap', 'reuters', 'bloomberg', 'cnn',
         'cnn newssource', 'fox news', 'fox', 'nbc', 'abc', 'abc news',
@@ -79,36 +81,44 @@ class BylineCleaner:
         'bloomberg': 'Bloomberg',
         'npr': 'NPR',
         'pbs': 'PBS'
-    }    # Journalism-specific nouns that are never names
+    }
+    # Journalism-specific nouns that are never names
     JOURNALISM_NOUNS = {
         # Core journalism terms
-        'news', 'editor', 'editors', 'reporter', 'reporters', 'staff', 'writer', 'writers',
-        'journalist', 'journalists', 'correspondent', 'correspondents', 'columnist', 'columnists',
-        'publisher', 'publishers', 'producer', 'producers', 'anchor', 'anchors',
+        'news', 'editor', 'editors', 'reporter', 'reporters', 'staff',
+        'writer', 'writers', 'journalist', 'journalists', 'correspondent',
+        'correspondents', 'columnist', 'columnists', 'publisher',
+        'publishers', 'producer', 'producers', 'anchor', 'anchors',
 
         # Job functions
-        'investigator', 'investigators', 'photographer', 'photographers', 'videographer', 'videographers',
-        'analyst', 'analysts', 'critic', 'critics', 'reviewer', 'reviewers',
-        'contributor', 'contributors', 'freelancer', 'freelancers', 'intern', 'interns',
+        'investigator', 'investigators', 'photographer', 'photographers',
+        'videographer', 'videographers', 'analyst', 'analysts', 'critic',
+        'critics', 'reviewer', 'reviewers', 'contributor', 'contributors',
+        'freelancer', 'freelancers', 'intern', 'interns',
 
         # Editorial roles
-        'editorial', 'editorials', 'opinion', 'opinions', 'commentary', 'commentaries',
-        'column', 'columns', 'feature', 'features', 'blog', 'blogs', 'blogger', 'bloggers',
+        'editorial', 'editorials', 'opinion', 'opinions', 'commentary',
+        'commentaries', 'column', 'columns', 'feature', 'features',
+        'blog', 'blogs', 'blogger', 'bloggers',
 
         # Publication terms
-        'publication', 'publications', 'newspaper', 'newspapers', 'magazine', 'magazines',
-        'journal', 'journals', 'press', 'media', 'newsroom', 'newsrooms',
-        'bureau', 'bureaus', 'desk', 'desks', 'beat', 'beats',
+        'publication', 'publications', 'newspaper', 'newspapers',
+        'magazine', 'magazines', 'journal', 'journals', 'press', 'media',
+        'newsroom', 'newsrooms', 'bureau', 'bureaus', 'desk', 'desks',
+        'beat', 'beats',
 
         # Content types
-        'article', 'articles', 'story', 'stories', 'report', 'reports', 'piece', 'pieces',
-        'coverage', 'interview', 'interviews', 'profile', 'profiles',
+        'article', 'articles', 'story', 'stories', 'report', 'reports',
+        'piece', 'pieces', 'coverage', 'interview', 'interviews',
+        'profile', 'profiles',
 
         # Time/status indicators
-        'former', 'current', 'retired', 'emeritus', 'acting', 'interim', 'temporary',
+        'former', 'current', 'retired', 'emeritus', 'acting', 'interim',
+        'temporary',
 
         # Organizational
-        'team', 'teams', 'crew', 'crews', 'department', 'departments', 'division', 'divisions',
+        'team', 'teams', 'crew', 'crews', 'department', 'departments',
+        'division', 'divisions',
         'section', 'sections', 'unit', 'units', 'group', 'groups', 'name', 'names'
     }
 

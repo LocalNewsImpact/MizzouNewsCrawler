@@ -106,7 +106,8 @@ def submit_byline_feedback(feedback: BylineFeedback) -> bool:
     try:
         cursor.execute("""
             UPDATE byline_cleaning_telemetry
-            SET human_label = ?, human_notes = ?, reviewed_by = ?, reviewed_at = ?
+            SET human_label = ?, human_notes = ?,
+                reviewed_by = ?, reviewed_at = ?
             WHERE id = ?
         """, (
             feedback.human_label,
@@ -192,8 +193,12 @@ def get_labeled_training_data(min_confidence: float = 0.0) -> List[dict]:
     for row in cursor.fetchall():
         item = dict(zip(columns, row))
         # Add engineered features
-        item['complexity_score'] = (item['raw_byline_length'] / max(item['raw_byline_words'], 1))
-        item['words_per_author'] = (item['raw_byline_words'] / max(item['final_authors_count'], 1))
+        item['complexity_score'] = (
+            item['raw_byline_length'] / max(item['raw_byline_words'], 1)
+        )
+        item['words_per_author'] = (
+            item['raw_byline_words'] / max(item['final_authors_count'], 1)
+        )
         training_data.append(item)
 
     conn.close()
