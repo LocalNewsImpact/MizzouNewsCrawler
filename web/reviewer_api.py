@@ -40,7 +40,6 @@ from web.code_review_telemetry_api import (
     add_code_review_item,
     init_code_review_tables,
     CodeReviewFeedback,
-    CodeReviewStats,
     CodeReviewItem
 )
 

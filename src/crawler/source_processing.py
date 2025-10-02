@@ -12,7 +12,7 @@ import pandas as pd
 import requests
 
 from src.utils.discovery_outcomes import DiscoveryOutcome, DiscoveryResult
-from src.utils.telemetry import DiscoveryMethod, DiscoveryMethodStatus
+from src.utils.telemetry import DiscoveryMethod
 
 logger = logging.getLogger(__name__)
 

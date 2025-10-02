@@ -30,7 +30,7 @@ except ImportError:
     print("Error: storysniffer not installed. Run: pip install storysniffer")
     sys.exit(1)
 
-from src.models.database import DatabaseManager
+from src.models.database import DatabaseManager  # noqa: E402
 
 _DEFAULT_HTTP_HEADERS: Dict[str, str] = {
     "User-Agent": (

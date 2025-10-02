@@ -19,11 +19,11 @@ from typing import Dict, List, Optional
 # Add the src directory to the path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import storysniffer
-from sqlalchemy import text
+import storysniffer  # noqa: E402
+from sqlalchemy import text  # noqa: E402
 
-from src.models.database import DatabaseManager
-from src.models.verification import (
+from src.models.database import DatabaseManager  # noqa: E402
+from src.models.verification import (  # noqa: E402
     URLVerification,
     VerificationJob,
     VerificationTelemetry,
