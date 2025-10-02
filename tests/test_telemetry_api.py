@@ -17,13 +17,12 @@ class TestTelemetryAPIEndpoints:
     """Test the telemetry API endpoints."""
 
     @pytest.fixture
-    def temp_db(self):
+    def temp_db(self, tmp_path):
         """Create a temporary database with test data."""
-        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
-            db_path = f.name
+        db_path = tmp_path / "test_telemetry.db"
 
         # Set up test database with schema
-        conn = sqlite3.connect(db_path)
+        conn = sqlite3.connect(str(db_path))
         cur = conn.cursor()
 
         # Create extraction_telemetry_v2 table
@@ -165,10 +164,10 @@ class TestTelemetryAPIEndpoints:
         conn.commit()
         conn.close()
 
-        yield db_path
+        yield str(db_path)
 
-        # Cleanup
-        Path(db_path).unlink(missing_ok=True)
+        # Cleanup (tmp_path handles cleanup automatically, but being explicit doesn't hurt)
+        db_path.unlink(missing_ok=True)
 
     @pytest.fixture
     def api_client(self, temp_db):
@@ -328,12 +327,11 @@ class TestSiteManagementAPI:
     """Test the site management API endpoints."""
 
     @pytest.fixture
-    def temp_db(self):
+    def temp_db(self, tmp_path):
         """Create a temporary database for site management tests."""
-        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
-            db_path = f.name
+        db_path = tmp_path / "test_site_mgmt.db"
 
-        conn = sqlite3.connect(db_path)
+        conn = sqlite3.connect(str(db_path))
         cur = conn.cursor()
 
         # Create sources table
@@ -381,8 +379,9 @@ class TestSiteManagementAPI:
         conn.commit()
         conn.close()
 
-        yield db_path
-        Path(db_path).unlink(missing_ok=True)
+        yield str(db_path)
+        # Cleanup (tmp_path handles cleanup automatically)
+        db_path.unlink(missing_ok=True)
 
     @pytest.fixture
     def api_client(self, temp_db):
