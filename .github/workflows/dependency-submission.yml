@@ -1,0 +1,47 @@
+name: Dependency Submission
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'requirements.txt'
+      - 'requirements-dev.txt'
+      - 'pyproject.toml'
+      - 'setup.py'
+      - 'setup.cfg'
+      - 'Pipfile'
+      - 'Pipfile.lock'
+  schedule:
+    # Run weekly on Monday at 3am UTC to catch new vulnerabilities
+    - cron: '0 3 * * 1'
+  workflow_dispatch: {}  # Allow manual trigger
+
+jobs:
+  submit-dependencies:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required for dependency submission
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Generate dependency snapshot
+        run: |
+          pip install pip-licenses
+          pip list --format=freeze > installed-dependencies.txt
+
+      - name: Submit dependencies to GitHub
+        uses: advanced-security/component-detection-dependency-submission-action@v0.0.4
