@@ -742,7 +742,8 @@ class BalancedBoundaryContentCleaner:
         # Multiple headline pattern (common in right-rail)
         # Look for patterns like "Team A defeats Team B" followed by other
         # headlines
-        headline_patterns = [
+        # NOTE: headline_patterns is defined but not used in current version
+        _headline_patterns = [  # noqa: F841
             r'[A-Z][a-z]+ (defeats?|beats?|wins?|loses?) [A-Z][a-z]+',
             # Multiple proper names
             r'[A-Z][a-z]+ [A-Z][a-z]+ [A-Z][a-z]+ [A-Z][a-z]+',

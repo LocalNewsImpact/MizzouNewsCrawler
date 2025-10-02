@@ -116,7 +116,7 @@ def read_articles(limit: Optional[int] = None, offset: int = 0):
             raise RuntimeError(f"Failed to parse CSV: {e}")
         if limit is None:
             return rows[offset:]
-        return rows[offset : offset + limit]
+        return rows[offset: offset + limit]
 
 
 @app.get("/api/articles", response_model=List[dict])

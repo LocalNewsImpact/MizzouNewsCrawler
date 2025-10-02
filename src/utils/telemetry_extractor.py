@@ -470,7 +470,7 @@ class TelemetryContentExtractor:
         # Require multiple indicators or very specific patterns
         return pattern_matches >= 2 or keyword_matches >= 2 or \
             any(re.search(pattern, text, re.IGNORECASE)
-            for pattern in js_patterns[:3])  # Strong indicators
+                for pattern in js_patterns[:3])  # Strong indicators
 
     def _is_mostly_navigation(self, text: str) -> bool:
         """Check if content is mostly navigation/menu text."""

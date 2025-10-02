@@ -52,7 +52,6 @@ class TwoPhaseContentCleaner:
             "stats": stats
         }
 
-
     def _get_articles_for_domain(self, domain: str,
                                  sample_size: int = None) -> List[Dict]:
         """Get articles for a specific domain."""

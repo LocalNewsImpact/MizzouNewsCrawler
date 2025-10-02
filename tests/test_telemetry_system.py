@@ -432,7 +432,7 @@ class TestContentExtractorIntegration:
                 "forbidden.com")
 
             # Extract content (should fail but capture HTTP status)
-            result = extractor.extract_content(
+            _ = extractor.extract_content(
                 "https://forbidden.com/article", metrics=metrics)
 
             # Verify HTTP error was captured

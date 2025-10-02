@@ -998,7 +998,7 @@ class PublisherGeoFilter:
             if byline_match:
                 start, end = byline_match.span()
                 snippet = text_original[
-                    max(0, start - 80) : min(len(text_original), end + 80)
+                    max(0, start - 80): min(len(text_original), end + 80)
                 ].lower()
                 if not any(w in snippet for w in near_indicators):
                     byline_signal = max(byline_signal, 0.9)
@@ -1006,7 +1006,7 @@ class PublisherGeoFilter:
                 idx = text_original.lower().find(authors.strip().lower())
                 if idx >= 0:
                     snippet = text_original[
-                        max(0, idx - 80) : min(
+                        max(0, idx - 80): min(
                             len(text_original), idx + len(authors) + 80
                         )
                     ].lower()

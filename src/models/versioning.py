@@ -492,7 +492,7 @@ def export_snapshot_for_version(
                     conn.execute(
                         text("SELECT pg_advisory_unlock(:id)"), {"id": lock_id}
                     )
-            except Exception as _err:
+            except Exception:
                 # ignore unlock errors
                 pass
 
@@ -512,7 +512,7 @@ def export_snapshot_for_version(
                     conn.execute(
                         text("SELECT pg_advisory_unlock(:id)"), {"id": lock_id}
                     )
-            except Exception as _err:
+            except Exception:
                 # ignore unlock errors
                 pass
 
