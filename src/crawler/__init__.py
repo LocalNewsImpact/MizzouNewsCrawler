@@ -254,7 +254,9 @@ class NewsCrawler:
         )
         return sorted(article_urls)
 
-    def _is_likely_article(self, url: str, site_rules: Dict[str, any] = None) -> bool:
+    def _is_likely_article(
+        self, url: str, site_rules: Dict[str, any] = None
+    ) -> bool:
         """Determine if a URL is likely an article page."""
         # Default filters - skip known non-article paths
         skip_patterns = [
@@ -390,7 +392,9 @@ class ContentExtractor:
         self.max_backoff = 300         # Maximum backoff time (5 minutes)
 
         # Set initial user agent
-        self.current_user_agent = user_agent or random.choice(self.user_agent_pool)
+        self.current_user_agent = (
+            user_agent or random.choice(self.user_agent_pool)
+        )
 
         # Initialize primary session
         self._create_new_session()
@@ -419,7 +423,10 @@ class ContentExtractor:
         """Set randomized headers for the current session."""
         headers = {
             "User-Agent": self.current_user_agent,
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept": (
+                "text/html,application/xhtml+xml,application/xml;"
+                "q=0.9,image/webp,*/*;q=0.8"
+            ),
             "Accept-Language": random.choice(self.accept_language_pool),
             "Accept-Encoding": random.choice(self.accept_encoding_pool),
             "Connection": "keep-alive",
@@ -432,7 +439,10 @@ class ContentExtractor:
         }
 
         self.session.headers.update(headers)
-        logger.debug(f"Updated session headers with UA: {self.current_user_agent[:50]}...")
+        logger.debug(
+            f"Updated session headers with UA: "
+            f"{self.current_user_agent[:50]}..."
+        )
 
     def _get_domain_session(self, url: str):
         """Get or create a domain-specific session with user agent rotation."""
@@ -472,8 +482,10 @@ class ContentExtractor:
 
         if should_rotate:
             # Select new user agent (avoid repeating the same one)
-            available_agents = [ua for ua in self.user_agent_pool
-                             if ua != self.domain_user_agents.get(domain)]
+            available_agents = [
+                ua for ua in self.user_agent_pool
+                if ua != self.domain_user_agents.get(domain)
+            ]
             new_user_agent = random.choice(available_agents)
 
             # Create new session with clean cookies
@@ -502,12 +514,16 @@ class ContentExtractor:
             self.domain_sessions[domain] = new_session
             self.domain_user_agents[domain] = new_user_agent
 
-            logger.info(f"Created new session for {domain} with UA: "
-                       f"{new_user_agent[:50]}...")
+            logger.info(
+                f"Created new session for {domain} with UA: "
+                f"{new_user_agent[:50]}..."
+            )
             logger.debug(f"Cleared cookies for domain {domain}")
 
         # Apply rate limiting delay before returning session
-        self._apply_rate_limit(domain)
+        self._apply_rate_limit(
+            domain
+        )
 
         return self.domain_sessions[domain]
 
@@ -633,7 +649,9 @@ class ContentExtractor:
         self.domain_user_agents.clear()
         self.request_counts.clear()
         self.last_request_times.clear()
-        logger.info("Cleared all domain sessions and rotation state")
+        logger.info(
+            "Cleared all domain sessions and rotation state"
+        )
 
     def get_persistent_driver(self):
         """Get or create a persistent Selenium driver for reuse."""
@@ -642,16 +660,23 @@ class ContentExtractor:
             try:
                 # Try undetected-chromedriver first (most advanced)
                 if UNDETECTED_CHROME_AVAILABLE:
-                    self._persistent_driver = self._create_undetected_driver()
+                    self._persistent_driver = (
+                        self._create_undetected_driver()
+                    )
                     self._driver_method = "undetected-chromedriver"
                 elif SELENIUM_AVAILABLE:
-                    self._persistent_driver = self._create_stealth_driver()
+                    self._persistent_driver = (
+                        self._create_stealth_driver()
+                    )
                     self._driver_method = "selenium-stealth"
                 else:
                     raise Exception("No Selenium implementation available")
 
                 self._driver_creation_count += 1
-                logger.info(f"Created persistent driver using {self._driver_method}")
+                logger.info(
+                    f"Created persistent driver using "
+                    f"{self._driver_method}"
+                )
 
             except Exception as e:
                 logger.error(f"Failed to create persistent driver: {e}")
