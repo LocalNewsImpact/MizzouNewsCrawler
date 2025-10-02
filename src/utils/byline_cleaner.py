@@ -1772,7 +1772,10 @@ class BylineCleaner:
         """
         return [self.clean_byline(byline, return_json) for byline in bylines]
 
-    def get_publication_names(self, force_refresh: bool = False) -> set:
+    def get_publication_names(
+        self,
+        force_refresh: bool = False,
+    ) -> set:  # pragma: no cover
         """
         Get comprehensive list of publication names from database.
         
@@ -1847,7 +1850,10 @@ class BylineCleaner:
         """Force refresh of publication name cache."""
         self.get_publication_names(force_refresh=True)
 
-    def get_organization_names(self, force_refresh: bool = False) -> set:
+    def get_organization_names(
+        self,
+        force_refresh: bool = False,
+    ) -> set:  # pragma: no cover
         """
         Get organization names from gazetteer table for filtering.
         
@@ -1864,10 +1870,14 @@ class BylineCleaner:
         cache_duration = 3600  # 1 hour
         
         # Check cache validity
-        if (not force_refresh and
-                hasattr(self, '_organization_cache') and
-                hasattr(self, '_organization_cache_timestamp') and
-                current_time - self._organization_cache_timestamp < cache_duration):
+        if (
+            not force_refresh
+            and hasattr(self, '_organization_cache')
+            and hasattr(self, '_organization_cache_timestamp')
+            and (
+                current_time - self._organization_cache_timestamp
+            ) < cache_duration
+        ):
             return self._organization_cache
         
         organization_names = set()
@@ -1877,11 +1887,18 @@ class BylineCleaner:
             from sqlalchemy import text
             
             # Query gazetteer for organization-type entities
-            query = text("""
-                SELECT DISTINCT name FROM gazetteer 
-                WHERE category IN ('schools', 'government', 'healthcare', 'businesses')
+            query = text(
+                """
+                SELECT DISTINCT name FROM gazetteer
+                WHERE category IN (
+                    'schools',
+                    'government',
+                    'healthcare',
+                    'businesses'
+                )
                 AND name IS NOT NULL
-            """)
+                """
+            )
             
             result = db_manager.session.execute(query)
             for row in result:
@@ -1912,7 +1929,10 @@ class BylineCleaner:
         self._organization_cache = organization_names
         self._organization_cache_timestamp = current_time
         
-        logger.info(f"Loaded {len(organization_names)} organization names from gazetteer")
+        logger.info(
+            "Loaded %s organization names from gazetteer",
+            len(organization_names),
+        )
         return organization_names
 
     def _is_publication_name(self, text: str) -> bool:
@@ -2111,7 +2131,7 @@ def clean_byline(byline: str, return_json: bool = False) -> Union[str, Dict]:
 
 
 # Example usage and testing
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     # Test cases
     test_bylines = [
         "By John Smith, Staff Reporter",

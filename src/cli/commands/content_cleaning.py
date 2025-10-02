@@ -185,13 +185,13 @@ def analyze_domains(
     output_json,
 ):
     """Analyze domains for boilerplate content patterns."""
-    
+
     db_path = 'data/mizzou.db'
     cleaner = ImprovedContentCleaner(db_path=db_path)
-    
+
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
-    
+
     # Get domain statistics
     if domain:
         cursor.execute(
@@ -211,9 +211,9 @@ def analyze_domains(
             ORDER BY url
             '''
         )
-    
+
     articles = cursor.fetchall()
-    
+
     # Group by domain
     domain_articles = defaultdict(list)
     for url, article_id, content, content_length in articles:
@@ -224,19 +224,19 @@ def analyze_domains(
             'content': content,
             'length': content_length
         })
-    
+
     # Filter domains with minimum articles
     filtered_domains = {
         domain_name: articles_for_domain
         for domain_name, articles_for_domain in domain_articles.items()
         if len(articles_for_domain) >= min_articles
     }
-    
+
     if not filtered_domains:
         click.echo(f"No domains found with at least {min_articles} articles")
         conn.close()
         return
-    
+
     click.echo(
         "Analyzing "
         f"{len(filtered_domains)} domains with "
@@ -244,7 +244,7 @@ def analyze_domains(
     )
     click.echo(f"Dry run: {'Yes' if dry_run else 'No'}")
     click.echo()
-    
+
     total_stats = {
         'domains_analyzed': 0,
         'articles_analyzed': 0,
@@ -252,17 +252,17 @@ def analyze_domains(
         'total_characters_removed': 0,
         'processing_time': 0
     }
-    
+
     detailed_results = {}
-    
+
     for domain_name, domain_articles_list in sorted(filtered_domains.items()):
         total_stats['domains_analyzed'] += 1
-        
+
         click.echo(
             "📊 Domain: "
             f"{domain_name} ({len(domain_articles_list)} articles)"
         )
-        
+
         domain_stats = {
             'articles_total': len(domain_articles_list),
             'articles_with_boilerplate': 0,
@@ -271,25 +271,25 @@ def analyze_domains(
             'pattern_types': Counter(),
             'articles': []
         }
-        
+
         confidences = []
-        
+
         for article in domain_articles_list:
             total_stats['articles_analyzed'] += 1
-            
+
             # Skip articles with no content
             if not article['content']:
                 continue
-            
+
             cleaned_content, telemetry = cleaner.clean_content(
                 content=article['content'],
                 domain=domain_name,
                 article_id=str(article['id']) if article['id'] else None,
                 dry_run=dry_run,
             )
-            
+
             total_stats['processing_time'] += telemetry.processing_time
-            
+
             article_result = {
                 'id': article['id'],
                 'url': article['url'],
@@ -303,7 +303,7 @@ def analyze_domains(
                 'processing_time': telemetry.processing_time,
                 'metadata': getattr(telemetry, 'metadata', {}),
             }
-            
+
             article_id_display = (article['id'] or 'unknown')[:8]
 
             if telemetry.segments_removed > 0:
@@ -314,13 +314,13 @@ def analyze_domains(
                 )
                 domain_stats['total_chars_removed'] += chars_removed
                 total_stats['total_characters_removed'] += chars_removed
-                
+
                 # Track pattern types and confidences
                 for segment in telemetry.removed_segments:
                     pattern_type = segment.get('pattern_type', 'unknown')
                     domain_stats['pattern_types'][pattern_type] += 1
                     confidences.append(segment['confidence'])
-                
+
                 if verbose:
                     click.echo(
                         "  ✅ "
@@ -340,14 +340,14 @@ def analyze_domains(
                     "  ⚪ "
                     f"{article_id_display}... - No boilerplate detected"
                 )
-            
+
             domain_stats['articles'].append(article_result)
-        
+
         if confidences:
             domain_stats['avg_confidence'] = (
                 sum(confidences) / len(confidences)
             )
-        
+
         # Summary for this domain
         if domain_stats['articles_with_boilerplate'] > 0:
             percentage = (
@@ -370,7 +370,7 @@ def analyze_domains(
                 "   🎯 Average confidence: "
                 f"{domain_stats['avg_confidence']:.3f}"
             )
-            
+
             if domain_stats['pattern_types']:
                 patterns = ', '.join(
                     f"{k}({v})"
@@ -379,10 +379,10 @@ def analyze_domains(
                 click.echo(f"   🔍 Patterns: {patterns}")
         else:
             click.echo("   ⚪ No boilerplate detected")
-        
+
         click.echo()
         detailed_results[domain_name] = domain_stats
-    
+
     # Overall summary
     click.echo("=" * 60)
     click.echo("📊 OVERALL SUMMARY")
@@ -392,7 +392,7 @@ def analyze_domains(
         "Articles with boilerplate: "
         f"{total_stats['articles_with_boilerplate']}"
     )
-    
+
     if total_stats['articles_analyzed'] > 0:
         overall_percentage = (
             total_stats['articles_with_boilerplate']
@@ -406,7 +406,7 @@ def analyze_domains(
         f"{total_stats['total_characters_removed']:,}"
     )
     click.echo(f"Total processing time: {total_stats['processing_time']:.2f}s")
-    
+
     # Save detailed results if requested
     if output_json:
         output_data = {
@@ -420,11 +420,11 @@ def analyze_domains(
             'summary': total_stats,
             'domains': detailed_results
         }
-        
+
         with open(output_json, 'w') as f:
             json.dump(output_data, f, indent=2)
         click.echo(f"📄 Detailed results saved to: {output_json}")
-    
+
     conn.close()
 
 
@@ -447,27 +447,27 @@ def analyze_domains(
 )
 def clean_article(article_id, confidence_threshold, dry_run, show_content):
     """Clean a specific article by ID."""
-    
+
     db_path = 'data/mizzou.db'
     cleaner = ImprovedContentCleaner(db_path=db_path)
-    
+
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
-    
+
     cursor.execute(
         'SELECT url, content FROM articles WHERE id = ?',
         (article_id,),
     )
     result = cursor.fetchone()
-    
+
     if not result:
         click.echo(f"❌ Article not found: {article_id}")
         conn.close()
         return
-    
+
     url, content = result
     domain = urlparse(url).netloc
-    
+
     click.echo(f"🔍 Analyzing article: {article_id}")
     click.echo(f"📡 Domain: {domain}")
     click.echo(f"📏 Original length: {len(content):,} characters")
@@ -477,12 +477,12 @@ def clean_article(article_id, confidence_threshold, dry_run, show_content):
     )
     click.echo(f"🧪 Dry run: {'Yes' if dry_run else 'No'}")
     click.echo()
-    
+
     if show_content:
         click.echo("📖 Original content (first 300 chars):")
         click.echo(repr(content[:300]))
         click.echo()
-    
+
     # Clean the content
     cleaned_content, telemetry = cleaner.clean_content(
         content=content,
@@ -490,7 +490,7 @@ def clean_article(article_id, confidence_threshold, dry_run, show_content):
         article_id=str(article_id),
         dry_run=dry_run,
     )
-    
+
     # Show results
     if telemetry.segments_removed > 0:
         chars_removed = telemetry.original_length - telemetry.cleaned_length
@@ -502,7 +502,7 @@ def clean_article(article_id, confidence_threshold, dry_run, show_content):
         click.echo(f"🧹 Characters removed: {chars_removed:,}")
         click.echo(f"⏱️  Processing time: {telemetry.processing_time:.3f}s")
         click.echo()
-        
+
         for i, segment in enumerate(telemetry.removed_segments, 1):
             pattern_type = segment.get('pattern_type', 'unknown')
             click.echo(f"{i}. Pattern: {pattern_type}")
@@ -513,12 +513,12 @@ def clean_article(article_id, confidence_threshold, dry_run, show_content):
             suffix = '...' if len(segment['text']) > 100 else ''
             click.echo(f"   Text: {truncated_text}{suffix}")
             click.echo()
-        
+
         if show_content and not dry_run:
             click.echo("📖 Cleaned content (first 300 chars):")
             click.echo(repr(cleaned_content[:300]))
             click.echo()
-        
+
         # Update database if not dry run
         if not dry_run:
             cursor.execute(
@@ -530,7 +530,7 @@ def clean_article(article_id, confidence_threshold, dry_run, show_content):
     else:
         click.echo("⚪ No boilerplate detected")
         click.echo(f"⏱️  Processing time: {telemetry.processing_time:.3f}s")
-    
+
     conn.close()
 
 
@@ -550,35 +550,35 @@ def clean_article(article_id, confidence_threshold, dry_run, show_content):
 @click.option('--verbose', is_flag=True, help='Show progress for each article')
 def apply_cleaning(domain, confidence_threshold, limit, dry_run, verbose):
     """Apply content cleaning to articles in the database."""
-    
+
     db_path = 'data/mizzou.db'
     cleaner = ImprovedContentCleaner(db_path=db_path)
-    
+
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
-    
+
     # Build query
     query = 'SELECT id, url, content FROM articles'
     params = []
-    
+
     if domain:
         query += ' WHERE url LIKE ?'
         params.append(f'%{domain}%')
-    
+
     query += ' ORDER BY url'
-    
+
     if limit:
         query += ' LIMIT ?'
         params.append(limit)
-    
+
     cursor.execute(query, params)
     articles = cursor.fetchall()
-    
+
     if not articles:
         click.echo("No articles found matching criteria")
         conn.close()
         return
-    
+
     click.echo(f"🚀 Processing {len(articles)} articles...")
     click.echo(
         "🎯 Confidence threshold (legacy): "
@@ -586,39 +586,39 @@ def apply_cleaning(domain, confidence_threshold, limit, dry_run, verbose):
     )
     click.echo(f"🧪 Dry run: {'Yes' if dry_run else 'No'}")
     click.echo()
-    
+
     stats = {
         'processed': 0,
         'cleaned': 0,
         'chars_removed': 0,
         'processing_time': 0
     }
-    
+
     updates = []
-    
+
     for article_id, url, content in articles:
         stats['processed'] += 1
         domain_name = urlparse(url).netloc
-        
+
         cleaned_content, telemetry = cleaner.clean_content(
             content=content,
             domain=domain_name,
             article_id=str(article_id),
             dry_run=dry_run,
         )
-        
+
         stats['processing_time'] += telemetry.processing_time
-        
+
         if telemetry.segments_removed > 0:
             stats['cleaned'] += 1
             chars_removed = (
                 telemetry.original_length - telemetry.cleaned_length
             )
             stats['chars_removed'] += chars_removed
-            
+
             if not dry_run:
                 updates.append((cleaned_content, article_id))
-            
+
             if verbose:
                 click.echo("✅ ")
                 click.echo(
@@ -627,7 +627,7 @@ def apply_cleaning(domain, confidence_threshold, limit, dry_run, verbose):
                 )
         elif verbose:
             click.echo(f"⚪ {article_id[:8]}... ({domain_name}) - No changes")
-        
+
         # Progress indicator for large batches
         if stats['processed'] % 100 == 0:
             percentage = (stats['processed'] / len(articles)) * 100
@@ -635,7 +635,7 @@ def apply_cleaning(domain, confidence_threshold, limit, dry_run, verbose):
                 "📊 Progress: "
                 f"{stats['processed']}/{len(articles)} ({percentage:.1f}%)"
             )
-    
+
     # Apply updates if not dry run
     if updates and not dry_run:
         cursor.executemany(
@@ -644,25 +644,25 @@ def apply_cleaning(domain, confidence_threshold, limit, dry_run, verbose):
         )
         conn.commit()
         click.echo(f"💾 Updated {len(updates)} articles in database")
-    
+
     # Final summary
     click.echo()
     click.echo("=" * 50)
     click.echo("📊 CLEANING SUMMARY")
     click.echo(f"Articles processed: {stats['processed']}")
     click.echo(f"Articles cleaned: {stats['cleaned']}")
-    
+
     if stats['processed'] > 0:
         percentage = (stats['cleaned'] / stats['processed']) * 100
         click.echo(f"Cleaning rate: {percentage:.1f}%")
-    
+
     removal_status = 'would be' if dry_run else 'were'
     click.echo(
         f"Characters {removal_status} removed: "
         f"{stats['chars_removed']:,}"
     )
     click.echo(f"Total processing time: {stats['processing_time']:.2f}s")
-    
+
     conn.close()
 
 
@@ -758,7 +758,7 @@ def list_domains_command(min_articles: int):
     try:
         conn = sqlite3.connect("mizzou.db")
         cursor = conn.cursor()
-        
+
         cursor.execute(
             """
             SELECT
@@ -779,21 +779,21 @@ def list_domains_command(min_articles: int):
             """,
             (min_articles,),
         )
-        
+
         results = cursor.fetchall()
         conn.close()
-        
+
         click.echo("Domains with sufficient articles for analysis:")
         click.echo("-" * 50)
-        
+
         for domain, count in results:
             click.echo(f"{domain:<40} {count:>8} articles")
-        
+
         click.echo(
             f"\nFound {len(results)} domains with "
             f"{min_articles}+ articles"
         )
-        
+
     except Exception as e:
         logger.error(f"Error listing domains: {e}")
         click.echo(f"Error: {e}", err=True)
@@ -805,16 +805,16 @@ def _display_analysis_results(results: dict):
     click.echo("=" * 60)
     click.echo(f"DOMAIN ANALYSIS: {results['domain']}")
     click.echo("=" * 60)
-    
+
     click.echo(f"Articles analyzed: {results['articles']}")
     click.echo(
         f"Boilerplate segments found: {results['boilerplate_segments']}"
     )
-    
+
     if results['segments']:
         click.echo("\nTop boilerplate patterns:")
         click.echo("-" * 40)
-        
+
         for i, segment in enumerate(results['segments'][:10], 1):
             click.echo(f"\n{i}. Confidence: {segment['confidence_score']:.3f}")
             click.echo(f"   Occurrences: {segment['occurrence_count']}")
@@ -843,21 +843,21 @@ def _display_analysis_results(results: dict):
 )
 def analyze_exact(domain, sample_size, min_occurrences, dry_run):
     """Analyze domain for exact duplicate segments."""
-    
+
     db_path = 'data/mizzou.db'
     cleaner = TwoPhaseContentCleaner(db_path=db_path)
-    
+
     click.echo(f"Analyzing {domain} for exact duplicate segments...")
     click.echo(
         f"Sample size: {sample_size}, Min occurrences: {min_occurrences}"
     )
-    
+
     results = cleaner.analyze_domain(domain, sample_size, min_occurrences)
-    
+
     if not results['segments']:
         click.echo("No exact duplicate segments found.")
         return
-    
+
     stats = results['stats']
     click.echo("\n=== ANALYSIS RESULTS ===")
     click.echo(f"Articles analyzed: {results['article_count']}")
@@ -867,7 +867,7 @@ def analyze_exact(domain, sample_size, min_occurrences, dry_run):
         f"Total removable characters: {stats['total_removable_chars']:,}"
     )
     click.echo(f"Removal percentage: {stats['removal_percentage']:.1f}%")
-    
+
     click.echo("\n=== EXACT DUPLICATE SEGMENTS ===")
     for i, segment in enumerate(results['segments'], 1):
         click.echo(f"\n--- Segment {i} ---")
@@ -878,7 +878,7 @@ def analyze_exact(domain, sample_size, min_occurrences, dry_run):
             f"Position consistency: {segment['position_consistency']:.3f}"
         )
         click.echo(f"Article IDs: {', '.join(segment['article_ids'][:5])}...")
-        
+
         # Show text preview
         preview = segment['text'][:200].replace('\n', '\\n')
         preview_suffix = '...' if len(segment['text']) > 200 else ''
@@ -903,10 +903,10 @@ def analyze_exact(domain, sample_size, min_occurrences, dry_run):
 )
 def analyze_balanced(domain, sample_size, min_occurrences, show_text):
     """Analyze domain using balanced boundary content cleaner."""
-    
+
     cleaner = BalancedBoundaryContentCleaner()
     result = cleaner.analyze_domain(domain, sample_size, min_occurrences)
-    
+
     click.echo(f"Domain: {result['domain']}")
     click.echo(f"Articles analyzed: {result['article_count']}")
     click.echo(f"Segments found: {len(result['segments'])}")
@@ -917,24 +917,24 @@ def analyze_balanced(domain, sample_size, min_occurrences, show_text):
             f"Total removable characters: {stats['total_removable_chars']:,}"
         )
         click.echo(f"Removal percentage: {stats['removal_percentage']:.1f}%")
-    
+
     if result['segments']:
         click.echo("\nDetected segments:")
         click.echo("=" * 60)
-        
+
         for i, segment in enumerate(result['segments'], 1):
             click.echo(f"{i}. Pattern: {segment['pattern_type']}")
             click.echo(f"   Occurrences: {segment['occurrences']}")
             click.echo(f"   Length: {segment['length']} chars")
             click.echo(f"   Boundary score: {segment['boundary_score']:.2f}")
-            
+
             if show_text:
                 click.echo(f"   Text: \"{segment['text']}\"")
             else:
                 preview = segment['text'][:100]
                 suffix = '...' if len(segment['text']) > 100 else ''
                 click.echo(f"   Preview: \"{preview}{suffix}\"")
-            
+
             click.echo()
     else:
         click.echo("No boilerplate segments detected.")
