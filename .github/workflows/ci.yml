@@ -14,9 +14,6 @@ jobs:
   lint:
     name: Lint & Format Check
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ['3.10', '3.11']
 
     steps:
       - uses: actions/checkout@v4
@@ -24,31 +21,40 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: '3.11'
 
-      - name: Cache pip wheels
+      - name: Cache Python environment
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cache/pip/wheels
-          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('requirements.txt','requirements-dev.txt') }}
+            ~/.cache/pip
+            venv
+          key: ${{ runner.os }}-py311-lint-${{ hashFiles('requirements*.txt') }}
           restore-keys: |
-            ${{ runner.os }}-pip-${{ matrix.python-version }}-
+            ${{ runner.os }}-py311-lint-
 
       - name: Install dependencies
         run: |
+          python -m venv venv
+          source venv/bin/activate
           python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
-          python -m pip install -r requirements-dev.txt
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
       - name: Run ruff
-        run: python -m ruff check .
+        run: |
+          source venv/bin/activate
+          python -m ruff check .
 
       - name: Check code formatting with black
-        run: python -m black --check src/ tests/ web/
+        run: |
+          source venv/bin/activate
+          python -m black --check src/ tests/ web/
 
       - name: Check import sorting with isort
-        run: python -m isort --check-only --profile black src/ tests/ web/
+        run: |
+          source venv/bin/activate
+          python -m isort --check-only --profile black src/ tests/ web/
 
   security:
     name: Security Scan
@@ -62,28 +68,33 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Cache pip wheels
+      - name: Cache Python environment
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cache/pip/wheels
-          key: ${{ runner.os }}-pip-security-${{ hashFiles('requirements.txt','requirements-dev.txt') }}
+            ~/.cache/pip
+            venv
+          key: ${{ runner.os }}-py311-security-${{ hashFiles('requirements*.txt') }}
           restore-keys: |
-            ${{ runner.os }}-pip-security-
+            ${{ runner.os }}-py311-security-
 
       - name: Install dependencies
         run: |
+          python -m venv venv
+          source venv/bin/activate
           python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
-          python -m pip install -r requirements-dev.txt
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
       - name: Run bandit security scan
         run: |
+          source venv/bin/activate
           python -m bandit -r src/ -ll -f txt || true
           echo "Bandit found issues but not failing build (review recommended)"
 
       - name: Check dependency vulnerabilities with safety
         run: |
+          source venv/bin/activate
           python -m safety check --json || true
           echo "Safety check completed (review recommended)"
         continue-on-error: true
@@ -92,9 +103,6 @@ jobs:
     name: Tests
     runs-on: ubuntu-latest
     needs: [lint, security]
-    strategy:
-      matrix:
-        python-version: ['3.10', '3.11']
 
     steps:
       - uses: actions/checkout@v4
@@ -102,37 +110,42 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: '3.11'
 
-      - name: Cache pip wheels
+      - name: Cache Python environment
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cache/pip/wheels
-          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('requirements.txt','requirements-dev.txt') }}
+            ~/.cache/pip
+            venv
+          key: ${{ runner.os }}-py311-test-${{ hashFiles('requirements*.txt') }}
           restore-keys: |
-            ${{ runner.os }}-pip-${{ matrix.python-version }}-
+            ${{ runner.os }}-py311-test-
 
       - name: Install dependencies
         run: |
+          python -m venv venv
+          source venv/bin/activate
           python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
-          python -m pip install -r requirements-dev.txt
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
       - name: Run tests with coverage
         run: |
+          source venv/bin/activate
           pytest --cov=src --cov-report=xml --cov-report=html --cov-report=term-missing --cov-fail-under=70
 
       - name: Generate coverage summary
         if: success()
         run: |
+          source venv/bin/activate
           python tools/generate_coverage_summary.py coverage.xml coverage-summary.md
 
       - name: Upload coverage artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-${{ matrix.python-version }}
+          name: coverage-py311
           path: |
             coverage.xml
             coverage-summary.md
@@ -149,24 +162,28 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: 3.11
+          python-version: '3.11'
 
-      - name: Cache pip wheels
+      - name: Cache Python environment
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cache/pip/wheels
-          key: ${{ runner.os }}-pip-3.11-${{ hashFiles('requirements.txt','requirements-dev.txt') }}
+            ~/.cache/pip
+            venv
+          key: ${{ runner.os }}-py311-stress-${{ hashFiles('requirements*.txt') }}
           restore-keys: |
-            ${{ runner.os }}-pip-3.11-
+            ${{ runner.os }}-py311-stress-
 
       - name: Install dependencies (includes extras for stress)
         run: |
+          python -m venv venv
+          source venv/bin/activate
           python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
+          pip install -r requirements.txt
 
       - name: Run stress tests with RUN_STRESS_TESTS=1
         env:
           RUN_STRESS_TESTS: '1'
         run: |
+          source venv/bin/activate
           pytest --override-ini addopts="-q" tests/test_versioning_concurrent_stress.py
