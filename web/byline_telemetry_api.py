@@ -23,7 +23,7 @@ class BylineTelemetryItem(BaseModel):
     has_wire_service: bool
     source_name_removed: bool
     cleaning_method: str
-    
+
     # Human feedback fields (initially null)
     human_label: Optional[str] = None  # "correct", "incorrect", "partial"
     human_notes: Optional[str] = None
@@ -60,20 +60,20 @@ def get_pending_byline_reviews(limit: int = 50) -> List[BylineTelemetryItem]:
     """Get byline extractions that need human review."""
     conn = get_db_connection()
     cursor = conn.cursor()
-    
+
     # Get items without human feedback, ordered by extraction time
     cursor.execute("""
-        SELECT 
+        SELECT
             id, raw_byline, final_authors_display, confidence_score,
             source_name, processing_time_ms, extraction_timestamp,
             has_wire_service, source_name_removed, cleaning_method,
             human_label, human_notes, reviewed_by, reviewed_at
-        FROM byline_cleaning_telemetry 
+        FROM byline_cleaning_telemetry
         WHERE human_label IS NULL
         ORDER BY extraction_timestamp DESC
         LIMIT ?
     """, (limit,))
-    
+
     items = []
     for row in cursor.fetchall():
         item = BylineTelemetryItem(
@@ -93,7 +93,7 @@ def get_pending_byline_reviews(limit: int = 50) -> List[BylineTelemetryItem]:
             reviewed_at=datetime.fromisoformat(row[13]) if row[13] else None
         )
         items.append(item)
-    
+
     conn.close()
     return items
 
@@ -102,10 +102,10 @@ def submit_byline_feedback(feedback: BylineFeedback) -> bool:
     """Store human feedback for a byline cleaning result."""
     conn = get_db_connection()
     cursor = conn.cursor()
-    
+
     try:
         cursor.execute("""
-            UPDATE byline_cleaning_telemetry 
+            UPDATE byline_cleaning_telemetry
             SET human_label = ?, human_notes = ?, reviewed_by = ?, reviewed_at = ?
             WHERE id = ?
         """, (
@@ -115,16 +115,16 @@ def submit_byline_feedback(feedback: BylineFeedback) -> bool:
             datetime.now().isoformat(),
             feedback.telemetry_id
         ))
-        
+
         conn.commit()
         success = cursor.rowcount > 0
-        
+
     except Exception as e:
         conn.rollback()
         raise e
     finally:
         conn.close()
-    
+
     return success
 
 
@@ -132,10 +132,10 @@ def get_byline_telemetry_stats() -> BylineTelemetryStats:
     """Get summary statistics for byline telemetry."""
     conn = get_db_connection()
     cursor = conn.cursor()
-    
+
     # Get overall counts
     cursor.execute("""
-        SELECT 
+        SELECT
             COUNT(*) as total,
             COUNT(CASE WHEN human_label IS NULL THEN 1 END) as pending,
             COUNT(CASE WHEN human_label = 'correct' THEN 1 END) as correct,
@@ -145,9 +145,9 @@ def get_byline_telemetry_stats() -> BylineTelemetryStats:
             COUNT(DISTINCT source_name) as sources
         FROM byline_cleaning_telemetry
     """)
-    
+
     row = cursor.fetchone()
-    
+
     stats = BylineTelemetryStats(
         total_extractions=row[0],
         pending_review=row[1],
@@ -157,7 +157,7 @@ def get_byline_telemetry_stats() -> BylineTelemetryStats:
         avg_confidence_score=round(row[5] or 0, 3),
         sources_represented=row[6]
     )
-    
+
     conn.close()
     return stats
 
@@ -166,20 +166,20 @@ def get_labeled_training_data(min_confidence: float = 0.0) -> List[dict]:
     """Export labeled data for ML training."""
     conn = get_db_connection()
     cursor = conn.cursor()
-    
+
     cursor.execute("""
-        SELECT 
+        SELECT
             raw_byline, final_authors_display, confidence_score,
             source_name, processing_time_ms, has_wire_service,
             source_name_removed, duplicates_removed_count,
             human_label, cleaning_method,
             raw_byline_length, raw_byline_words, final_authors_count
-        FROM byline_cleaning_telemetry 
-        WHERE human_label IS NOT NULL 
+        FROM byline_cleaning_telemetry
+        WHERE human_label IS NOT NULL
         AND confidence_score >= ?
         ORDER BY extraction_timestamp DESC
     """, (min_confidence,))
-    
+
     columns = [
         'raw_byline', 'final_authors_display', 'confidence_score',
         'source_name', 'processing_time_ms', 'has_wire_service',
@@ -187,7 +187,7 @@ def get_labeled_training_data(min_confidence: float = 0.0) -> List[dict]:
         'human_label', 'cleaning_method',
         'raw_byline_length', 'raw_byline_words', 'final_authors_count'
     ]
-    
+
     training_data = []
     for row in cursor.fetchall():
         item = dict(zip(columns, row))
@@ -195,6 +195,6 @@ def get_labeled_training_data(min_confidence: float = 0.0) -> List[dict]:
         item['complexity_score'] = (item['raw_byline_length'] / max(item['raw_byline_words'], 1))
         item['words_per_author'] = (item['raw_byline_words'] / max(item['final_authors_count'], 1))
         training_data.append(item)
-    
+
     conn.close()
     return training_data

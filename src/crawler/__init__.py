@@ -30,7 +30,9 @@ try:
     NEWSPAPER_AVAILABLE = True
 except ImportError:
     NEWSPAPER_AVAILABLE = False
-    logging.warning("newspaper4k not available, falling back to BeautifulSoup only")
+    logging.warning(
+        "newspaper4k not available, falling back to BeautifulSoup only"
+    )
 
 # Cloudscraper for Cloudflare bypass
 try:
@@ -59,7 +61,9 @@ try:
     UNDETECTED_CHROME_AVAILABLE = True
 except ImportError:
     UNDETECTED_CHROME_AVAILABLE = False
-    logging.warning("undetected-chromedriver not available, using standard Selenium")
+    logging.warning(
+        "undetected-chromedriver not available, using standard Selenium"
+    )
 
 try:
     from selenium_stealth import stealth
@@ -130,8 +134,12 @@ DATE_ONLY_REGEX_PATTERNS = [
 class NewsCrawler:
     """Main crawler class for discovering and fetching news articles."""
 
-    def __init__(self, user_agent: str = None, timeout: int = 20, delay: float = 1.0):
-        self.user_agent = user_agent or "Mozilla/5.0 (compatible; MizzouCrawler/1.0)"
+    def __init__(
+        self, user_agent: str = None, timeout: int = 20, delay: float = 1.0
+    ):
+        self.user_agent = (
+            user_agent or "Mozilla/5.0 (compatible; MizzouCrawler/1.0)"
+        )
         self.timeout = timeout
         self.delay = delay
         self.session = requests.Session()
@@ -174,9 +182,11 @@ class NewsCrawler:
                 href = urljoin(seed_url, href)
                 parsed_href = urlparse(href)
 
-                # Normalize URL (remove fragment, query params for deduplication)
+                # Normalize URL (remove fragment, query params
+                # for deduplication)
                 normalized_url = (
-                    f"{parsed_href.scheme}://{parsed_href.netloc}{parsed_href.path}"
+                    f"{parsed_href.scheme}://"
+                    f"{parsed_href.netloc}{parsed_href.path}"
                 )
 
                 if not self.is_valid_url(normalized_url):
@@ -188,7 +198,8 @@ class NewsCrawler:
                     external_urls.add(normalized_url)
 
             logger.info(
-                f"Found {len(internal_urls)} internal, {len(external_urls)} external links"
+                f"Found {len(internal_urls)} internal, "
+                f"{len(external_urls)} external links"
             )
 
         except Exception as e:
@@ -238,7 +249,8 @@ class NewsCrawler:
                 article_urls.append(url)
 
         logger.info(
-            f"Filtered {len(urls)} URLs to {len(article_urls)} article candidates"
+            f"Filtered {len(urls)} URLs to "
+            f"{len(article_urls)} article candidates"
         )
         return sorted(article_urls)
 
@@ -288,65 +300,98 @@ class NewsCrawler:
 
 class ContentExtractor:
     """Extracts structured content from HTML pages."""
-    
+
     def __init__(self, user_agent: str = None, timeout: int = 10):
         """Initialize ContentExtractor with anti-detection capabilities."""
         self.timeout = timeout  # Reduced from 20 for faster requests
-        
+
         # Persistent driver for reuse across multiple extractions
         self._persistent_driver = None
         self._driver_creation_count = 0
         self._driver_reuse_count = 0
-        
+
         # User agent pool for rotation
         self.user_agent_pool = [
             # Chrome on Windows
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+            (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+            (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/119.0.0.0 Safari/537.36"
+            ),
             # Chrome on macOS
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+            (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+            (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/119.0.0.0 Safari/537.36"
+            ),
             # Firefox on Windows
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0",
+            (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) "
+                "Gecko/20100101 Firefox/121.0"
+            ),
+            (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) "
+                "Gecko/20100101 Firefox/120.0"
+            ),
             # Firefox on macOS
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0",
+            (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) "
+                "Gecko/20100101 Firefox/121.0"
+            ),
             # Safari on macOS
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+            (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/605.1.15 (KHTML, like Gecko) "
+                "Version/17.1 Safari/605.1.15"
+            ),
+            (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/605.1.15 (KHTML, like Gecko) "
+                "Version/17.0 Safari/605.1.15"
+            ),
         ]
-        
+
         # Header variation pools
         self.accept_language_pool = [
             'en-US,en;q=0.9',
-            'en-GB,en;q=0.9', 
+            'en-GB,en;q=0.9',
             'en;q=0.9',
             'en-US,en;q=0.8,fr;q=0.6',
             'en-US,en;q=0.5'
         ]
-        
+
         self.accept_encoding_pool = [
             'gzip, deflate, br',
-            'gzip, deflate', 
+            'gzip, deflate',
             'gzip, deflate, br, zstd'
         ]
-        
+
         # Track domain-specific sessions and user agents
         self.domain_sessions = {}
         self.domain_user_agents = {}
         self.request_counts = {}
         self.last_request_times = {}
-        
+
         # Rate limiting and backoff management
         self.domain_request_times = {}  # Track request timestamps per domain
         self.domain_backoff_until = {}  # Track when domain is available again
         self.domain_error_counts = {}   # Track consecutive errors per domain
         self.base_delay = 1.0          # Base delay between requests (seconds)
         self.max_backoff = 300         # Maximum backoff time (5 minutes)
-        
+
         # Set initial user agent
         self.current_user_agent = user_agent or random.choice(self.user_agent_pool)
-        
+
         # Initialize primary session
         self._create_new_session()
 
@@ -366,10 +411,10 @@ class ContentExtractor:
         else:
             self.session = requests.Session()
             logger.debug("Created new requests session")
-        
+
         # Set headers with some randomization
         self._set_session_headers()
-        
+
     def _set_session_headers(self):
         """Set randomized headers for the current session."""
         headers = {
@@ -380,29 +425,29 @@ class ContentExtractor:
             "Connection": "keep-alive",
             "Upgrade-Insecure-Requests": "1",
             "Sec-Fetch-Dest": "document",
-            "Sec-Fetch-Mode": "navigate", 
+            "Sec-Fetch-Mode": "navigate",
             "Sec-Fetch-Site": "none",
             "Cache-Control": "max-age=0",
             "DNT": "1"
         }
-        
+
         self.session.headers.update(headers)
         logger.debug(f"Updated session headers with UA: {self.current_user_agent[:50]}...")
-        
+
     def _get_domain_session(self, url: str):
         """Get or create a domain-specific session with user agent rotation."""
         domain = urlparse(url).netloc
-        
+
         # Check if domain is rate limited
         if self._check_rate_limit(domain):
             backoff_time = self.domain_backoff_until[domain] - time.time()
             logger.info(f"Domain {domain} is rate limited, backing off for "
                        f"{backoff_time:.0f} more seconds")
             raise RateLimitError(f"Domain {domain} is rate limited")
-        
+
         # Check if we need to rotate user agent for this domain
         should_rotate = False
-        
+
         if domain not in self.domain_sessions:
             # First request to this domain
             should_rotate = True
@@ -410,7 +455,7 @@ class ContentExtractor:
         else:
             # Check rotation conditions
             self.request_counts[domain] += 1
-            
+
             # Rotate every 5 article calls with 20% jitter (4-6 requests)
             base_threshold = 5
             jitter = int(base_threshold * 0.2)  # 20% jitter = 1 request
@@ -424,19 +469,19 @@ class ContentExtractor:
                     f"Rotating user agent for {domain} after "
                     f"{rotation_threshold} article calls (5±20% jitter)"
                 )
-        
+
         if should_rotate:
             # Select new user agent (avoid repeating the same one)
-            available_agents = [ua for ua in self.user_agent_pool 
+            available_agents = [ua for ua in self.user_agent_pool
                              if ua != self.domain_user_agents.get(domain)]
             new_user_agent = random.choice(available_agents)
-            
+
             # Create new session with clean cookies
             if CLOUDSCRAPER_AVAILABLE and cloudscraper is not None:
                 new_session = cloudscraper.create_scraper()
             else:
                 new_session = requests.Session()
-            
+
             # Set randomized headers
             headers = {
                 "User-Agent": new_user_agent,
@@ -447,23 +492,23 @@ class ContentExtractor:
                 "Upgrade-Insecure-Requests": "1",
                 "Sec-Fetch-Dest": "document",
                 "Sec-Fetch-Mode": "navigate",
-                "Sec-Fetch-Site": "none", 
+                "Sec-Fetch-Site": "none",
                 "Cache-Control": "max-age=0",
                 "DNT": "1"
             }
             new_session.headers.update(headers)
-            
+
             # Store new session and user agent for this domain
             self.domain_sessions[domain] = new_session
             self.domain_user_agents[domain] = new_user_agent
-            
+
             logger.info(f"Created new session for {domain} with UA: "
                        f"{new_user_agent[:50]}...")
             logger.debug(f"Cleared cookies for domain {domain}")
-        
+
         # Apply rate limiting delay before returning session
         self._apply_rate_limit(domain)
-        
+
         return self.domain_sessions[domain]
 
     def get_rotation_stats(self) -> Dict[str, any]:
@@ -471,7 +516,7 @@ class ContentExtractor:
         return {
             "total_domains_accessed": len(self.domain_sessions),
             "active_sessions": len(self.domain_sessions),
-            "domain_user_agents": {domain: ua[:50] + "..." if len(ua) > 50 else ua 
+            "domain_user_agents": {domain: ua[:50] + "..." if len(ua) > 50 else ua
                                  for domain, ua in self.domain_user_agents.items()},
             "request_counts": self.request_counts.copy(),
             "user_agent_pool_size": len(self.user_agent_pool)
@@ -480,7 +525,7 @@ class ContentExtractor:
     def _check_rate_limit(self, domain: str) -> bool:
         """Check if domain is currently rate limited."""
         current_time = time.time()
-        
+
         # Check if domain is in backoff period
         if domain in self.domain_backoff_until:
             if current_time < self.domain_backoff_until[domain]:
@@ -488,17 +533,17 @@ class ContentExtractor:
             else:
                 # Backoff period expired, clear it
                 del self.domain_backoff_until[domain]
-        
+
         return False
 
     def _apply_rate_limit(self, domain: str, delay: float = None) -> None:
         """Apply rate limiting delay for a domain."""
         current_time = time.time()
-        
+
         if delay is None:
             # Standard inter-request delay
             delay = random.uniform(1.0, 2.5)
-        
+
         # Apply delay if needed
         if domain in self.domain_request_times:
             time_since_last = current_time - self.domain_request_times[domain]
@@ -508,7 +553,7 @@ class ContentExtractor:
                     f"Rate limiting: sleeping {sleep_time:.2f}s for {domain}"
                 )
                 time.sleep(sleep_time)
-        
+
         # Update last request time
         self.domain_request_times[domain] = time.time()
 
@@ -517,27 +562,27 @@ class ContentExtractor:
     ) -> None:
         """Handle rate limit errors with exponential backoff."""
         current_time = time.time()
-        
+
         # Initialize error count if needed
         if domain not in self.domain_error_counts:
             self.domain_error_counts[domain] = 0
-        
+
         # Increment error count
         self.domain_error_counts[domain] += 1
         error_count = self.domain_error_counts[domain]
-        
+
         # Calculate exponential backoff
         base_delay = 60  # 1 minute base delay
         max_delay = 3600  # 1 hour maximum delay
         backoff_delay = min(base_delay * (2 ** (error_count - 1)), max_delay)
-        
+
         # Add some randomness to avoid thundering herd
         jitter = random.uniform(0.8, 1.2)
         final_delay = backoff_delay * jitter
-        
+
         # Set backoff period
         self.domain_backoff_until[domain] = current_time + final_delay
-        
+
         # Log the rate limit
         retry_after = response.headers.get('retry-after') if response else None
         if retry_after:
@@ -566,7 +611,7 @@ class ContentExtractor:
         if domain in self.domain_error_counts:
             self.domain_error_counts[domain] = 0
 
-    def _create_error_result(self, url: str, error_msg: str, 
+    def _create_error_result(self, url: str, error_msg: str,
                            metadata: Dict = None) -> Dict[str, any]:
         """Create a standardized error result."""
         return {
@@ -581,7 +626,7 @@ class ContentExtractor:
             "error": error_msg,
             "metadata": metadata or {}
         }
-    
+
     def clear_all_sessions(self):
         """Clear all domain sessions and reset rotation state."""
         self.domain_sessions.clear()
@@ -604,10 +649,10 @@ class ContentExtractor:
                     self._driver_method = "selenium-stealth"
                 else:
                     raise Exception("No Selenium implementation available")
-                
+
                 self._driver_creation_count += 1
                 logger.info(f"Created persistent driver using {self._driver_method}")
-                
+
             except Exception as e:
                 logger.error(f"Failed to create persistent driver: {e}")
                 self._persistent_driver = None
@@ -615,7 +660,7 @@ class ContentExtractor:
         else:
             self._driver_reuse_count += 1
             logger.debug(f"Reusing persistent driver (reuse count: {self._driver_reuse_count})")
-        
+
         return self._persistent_driver
 
     def close_persistent_driver(self):
@@ -741,7 +786,7 @@ class ContentExtractor:
                 if hasattr(e, '__context__') and hasattr(e.__context__, 'response'):
                     # Some HTTP errors might have response info
                     pass
-                
+
                 # Check if this is an HTTP error with status code in the message
                 error_str = str(e)
                 if "Status code" in error_str:
@@ -755,7 +800,7 @@ class ContentExtractor:
                                 "http_status": http_status
                             }
                         }
-                
+
                 if metrics:
                     metrics.end_method("newspaper4k", False, str(e), partial_result)
 
@@ -868,11 +913,11 @@ class ContentExtractor:
 
         # Complete extraction methods tracking for all fields
         self._complete_extraction_methods_tracking(result)
-        
+
         # Determine the primary extraction method based on which extracted
         # the core content
         primary_method = self._determine_primary_extraction_method(result)
-        
+
         # Clean up the metadata to remove internal tracking
         result_copy = result.copy()
         result_copy["metadata"]["extraction_methods"] = result[
@@ -885,33 +930,33 @@ class ContentExtractor:
     def _get_missing_fields(self, result: Dict[str, any]) -> List[str]:
         """Identify which fields are missing or empty in extraction result."""
         missing = []
-        
+
         # Check title
         title = result.get("title")
         if not title or not str(title).strip():
             missing.append("title")
-        
+
         # Check content (must have meaningful content, not just whitespace)
         content = result.get("content") or ""
         content = str(content).strip()
         if not content or len(content) < 50:  # Minimum content length
             missing.append("content")
-        
+
         # Check author
         author = result.get("author")
         if not author or not str(author).strip():
             missing.append("author")
-        
+
         # Check publish_date
         if not result.get("publish_date"):
             missing.append("publish_date")
-        
+
         # Check metadata (should have some meaningful metadata)
         metadata = result.get("metadata", {})
         if not metadata or (isinstance(metadata, dict) and len(metadata) <= 1):
             # Empty or only has extraction_method
             missing.append("metadata")
-        
+
         return missing
 
     def _extract_publish_date_from_url(
@@ -963,7 +1008,7 @@ class ContentExtractor:
         metrics: Optional[object] = None
     ) -> None:
         """Merge source extraction results into target, tracking methods.
-        
+
         Args:
             target: The target result dictionary to update
             source: The source result dictionary to copy from
@@ -974,16 +1019,16 @@ class ContentExtractor:
         """
         if not source:
             return
-            
+
         # Define all possible fields
         all_fields = ["title", "author", "content", "publish_date", "metadata"]
-        
+
         # Determine which fields to process
         fields = fields_to_copy if fields_to_copy else all_fields
-        
+
         for field in fields:
             source_value = source.get(field)
-            
+
             # Only copy if source has a meaningful value and target doesn't
             if self._is_field_value_meaningful(field, source_value):
                 current_value = target.get(field)
@@ -1012,7 +1057,7 @@ class ContentExtractor:
         """Check if a field value is meaningful (not empty/null/trivial)."""
         if value is None:
             return False
-            
+
         if field == "title":
             title_str = str(value).strip() if value else ""
             return bool(title_str and not self._is_title_suspicious(title_str))
@@ -1032,42 +1077,42 @@ class ContentExtractor:
                 ]
                 return len(non_tracking_keys) > 0
             return bool(value)
-        
+
         return bool(value)
 
     def _complete_extraction_methods_tracking(self, result: Dict[str, any]):
         """Complete extraction methods tracking, mark missing as 'none'."""
         all_fields = ["title", "author", "content", "publish_date", "metadata"]
         extraction_methods = result.get("extraction_methods", {})
-        
+
         for field in all_fields:
             if field not in extraction_methods:
                 # Check if field has meaningful value
                 field_value = result.get(field)
                 if not self._is_field_value_meaningful(field, field_value):
                     extraction_methods[field] = "none"
-        
+
         result["extraction_methods"] = extraction_methods
 
     def _determine_primary_extraction_method(
             self, result: Dict[str, any]) -> str:
         """Determine primary extraction method based on core content.
-        
+
         Priority: content > title > author > publish_date > metadata
         """
         extraction_methods = result.get("extraction_methods", {})
-        
+
         # Priority order - most important fields first
         priority_fields = [
             "content", "title", "author", "publish_date", "metadata"]
-        
+
         for field in priority_fields:
             method = extraction_methods.get(field)
             if method and method != "none":
                 logger.debug(
                     f"Primary extraction method: {method} (based on {field})")
                 return method
-        
+
         # Fallback to newspaper4k if no methods tracked
         logger.warning(
             "No extraction methods tracked, defaulting to newspaper4k")
@@ -1077,18 +1122,18 @@ class ContentExtractor:
         """Check if extraction result contains meaningful content."""
         if not result:
             return False
-        
+
         # Must have at least title OR content
         title = result.get("title", "").strip()
         content = result.get("content", "").strip()
-        
+
         return bool(title) or (bool(content) and len(content) > 100)
 
     def _extract_with_newspaper(self, url: str, html: str = None) -> Dict[str, any]:
         """Extract content using newspaper4k library with cloudscraper support."""
         article = NewspaperArticle(url)
         http_status = None
-        
+
         if html:
             # Use provided HTML
             article.html = html
@@ -1099,7 +1144,7 @@ class ContentExtractor:
                 response = session.get(url, timeout=self.timeout)
                 http_status = response.status_code
                 domain = urlparse(url).netloc
-                
+
                 # Check for rate limiting
                 if response.status_code == 429:
                     logger.warning(f"Rate limited (429) by {domain}")
@@ -1115,15 +1160,15 @@ class ContentExtractor:
                                  f"by {domain}")
                     self._handle_rate_limit_error(domain, response)
                     return self._create_error_result(
-                        url, f"Bot detection ({response.status_code})", 
+                        url, f"Bot detection ({response.status_code})",
                         {"status": response.status_code}
                     )
-                
+
                 # Check if request was successful
                 if response.status_code == 200:
                     # Reset error count on successful request
                     self._reset_error_count(domain)
-                    
+
                     # Use the downloaded HTML content to parse the article
                     article.html = response.text
                     ua = self.domain_user_agents.get(domain, "Unknown")
@@ -1146,7 +1191,7 @@ class ContentExtractor:
                                 logger.warning(f"Newspaper4k download failed with "
                                              f"status {http_status}: {error_str}")
                         raise download_e
-                    
+
             except RateLimitError as e:
                 logger.warning(f"Domain rate limited, skipping: {e}")
                 return self._create_error_result(url, str(e), {"rate_limited": True})
@@ -1166,14 +1211,14 @@ class ContentExtractor:
                             http_status = int(status_match.group(1))
                             logger.warning(f"Newspaper4k download failed with status {http_status}: {error_str}")
                     raise download_e
-        
+
         article.parse()
-        
+
         # Extract publish date if available
         publish_date = None
         if hasattr(article, 'publish_date') and article.publish_date:
             publish_date = article.publish_date.isoformat()
-        
+
         return {
             "url": url,
             "title": article.title,
@@ -1198,7 +1243,7 @@ class ContentExtractor:
             try:
                 # Get domain-specific session with rotated user agent
                 session = self._get_domain_session(url)
-                
+
                 # Additional headers for better bot-avoidance
                 headers = {
                     'Accept': ('text/html,application/xhtml+xml,'
@@ -1212,16 +1257,16 @@ class ContentExtractor:
                     'Sec-Fetch-Site': 'none',
                     'Cache-Control': 'max-age=0',
                 }
-                
+
                 # Temporarily update session headers (preserve existing)
                 original_headers = session.headers.copy()
                 session.headers.update(headers)
-                
+
                 try:
                     resp = session.get(url, timeout=self.timeout)
                     resp.raise_for_status()
                     page_html = resp.text
-                    
+
                     domain = urlparse(url).netloc
                     ua = self.domain_user_agents.get(domain, "Unknown")
                     is_cloudscraper = (
@@ -1232,11 +1277,11 @@ class ContentExtractor:
                         f"from {url} (cloudscraper: {is_cloudscraper}, "
                         f"UA: {ua[:20]}...)"
                     )
-                    
+
                 finally:
                     # Restore original headers
                     session.headers = original_headers
-                    
+
             except Exception as e:
                 logger.warning(
                     f"Failed to fetch page for extraction {url}: {e}"
@@ -1266,7 +1311,7 @@ class ContentExtractor:
         }
 
         self._attach_publish_date_fallback_metadata(result)
-        
+
         return result
 
     def _extract_with_selenium(self, url: str) -> Dict[str, any]:
@@ -1275,18 +1320,18 @@ class ContentExtractor:
             # Get the persistent driver (creates one if needed)
             driver = self.get_persistent_driver()
             stealth_method = getattr(self, '_driver_method', 'unknown')
-            
+
             logger.debug(f"Using persistent {stealth_method} driver for {url}")
-            
+
             # Navigate with human-like behavior
             success = self._navigate_with_human_behavior(driver, url)
             if not success:
                 return {}
-            
+
             # Extract content after ensuring page is loaded
             html = driver.page_source
             soup = BeautifulSoup(html, "html.parser")
-            
+
             result = {
                 "url": url,
                 "title": self._extract_title(soup),
@@ -1307,7 +1352,7 @@ class ContentExtractor:
             self._attach_publish_date_fallback_metadata(result)
 
             return result
-            
+
         except Exception as e:
             logger.error(f"Selenium extraction failed for {url}: {e}")
             # If the driver fails, close it so a new one will be created next time
@@ -1320,7 +1365,7 @@ class ContentExtractor:
         """Create undetected-chromedriver instance with maximum stealth."""
         # Configure undetected chrome options
         options = uc.ChromeOptions()
-        
+
         # Basic stealth options
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
@@ -1331,14 +1376,14 @@ class ContentExtractor:
         options.add_argument("--disable-extensions")
         options.add_argument("--disable-plugins")
         # Note: JavaScript and images enabled for modern news sites
-        
+
         # Random viewport size (within realistic range)
         width = random.randint(1366, 1920)
         height = random.randint(768, 1080)
         options.add_argument(f"--window-size={width},{height}")
-        
+
         # Realistic user agent (automatically handled by undetected-chrome)
-        
+
         # Create driver with version management
         try:
             driver = uc.Chrome(
@@ -1351,11 +1396,11 @@ class ContentExtractor:
         except Exception as e:
             logger.warning(f"Failed to create undetected driver: {e}")
             raise
-        
+
         # Set timeouts - reduced for faster extraction
         driver.set_page_load_timeout(15)  # Reduced from 30
         driver.implicitly_wait(5)  # Reduced from 10
-        
+
         return driver
 
     def _create_stealth_driver(self):
@@ -1381,12 +1426,12 @@ class ContentExtractor:
             "--disable-backgrounding-occluded-windows"
         )
         chrome_options.add_argument("--disable-renderer-backgrounding")
-        
+
         # Random realistic viewport
         width = random.randint(1366, 1920)
         height = random.randint(768, 1080)
         chrome_options.add_argument(f"--window-size={width},{height}")
-        
+
         # Realistic user agent
         realistic_ua = (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -1394,7 +1439,7 @@ class ContentExtractor:
             "Chrome/120.0.0.0 Safari/537.36"
         )
         chrome_options.add_argument(f"--user-agent={realistic_ua}")
-        
+
         # Exclude automation switches
         chrome_options.add_experimental_option(
             "excludeSwitches", ["enable-automation"]
@@ -1402,8 +1447,8 @@ class ContentExtractor:
         chrome_options.add_experimental_option(
             'useAutomationExtension', False
         )
-        
-        # Additional prefs  
+
+        # Additional prefs
         prefs = {
             "profile.default_content_setting_values": {
                 "notifications": 2,
@@ -1414,10 +1459,10 @@ class ContentExtractor:
             # Some sites check image loading as bot detection
         }
         chrome_options.add_experimental_option("prefs", prefs)
-        
+
         # Create driver
         driver = webdriver.Chrome(options=chrome_options)
-        
+
         # Apply selenium-stealth if available
         if SELENIUM_STEALTH_AVAILABLE:
             stealth(
@@ -1429,39 +1474,39 @@ class ContentExtractor:
                 renderer="Intel Iris OpenGL Engine",
                 fix_hairline=True,
             )
-        
+
         # Manual stealth enhancements
         driver.execute_script(
             "Object.defineProperty(navigator, 'webdriver', "
             "{get: () => undefined})"
         )
-        
+
         driver.execute_script("""
             // Override plugins
             Object.defineProperty(navigator, 'plugins', {
                 get: () => [1, 2, 3, 4, 5]
             });
-            
+
             // Override languages
             Object.defineProperty(navigator, 'languages', {
                 get: () => ['en-US', 'en']
             });
-            
+
             // Override platform
             Object.defineProperty(navigator, 'platform', {
                 get: () => 'Win32'
             });
-            
+
             // Override permission API
             Object.defineProperty(navigator, 'permissions', {
                 get: () => undefined
             });
         """)
-        
+
         # Set timeouts - reduced for faster extraction
         driver.set_page_load_timeout(15)  # Reduced from 30
         driver.implicitly_wait(5)  # Reduced from 10
-        
+
         return driver
 
     def _navigate_with_human_behavior(self, driver, url: str) -> bool:
@@ -1469,22 +1514,22 @@ class ContentExtractor:
         try:
             # Navigate directly to target URL (no need for about:blank delay)
             driver.get(url)
-            
+
             # Wait for basic page load with shorter timeout
             WebDriverWait(driver, 5).until(  # Reduced from 10
                 EC.presence_of_element_located((By.TAG_NAME, "body"))
             )
-            
+
             # Quick wait for page to stabilize
             time.sleep(0.5)  # Reduced from 1.0-2.0 seconds
-            
+
             # Check for CAPTCHA or other challenges
             if self._detect_captcha_or_challenge(driver):
                 logger.warning(f"CAPTCHA or challenge detected on {url}")
                 return False
-            
+
             return True
-            
+
         except Exception as e:
             logger.error(f"Navigation failed for {url}: {e}")
             return False
@@ -1493,11 +1538,11 @@ class ContentExtractor:
         """Simulate realistic human reading and browsing behavior."""
         import random
         import time
-        
+
         try:
             # Quick processing pause
             time.sleep(0.3)  # Reduced from 1.0-3.0 seconds
-            
+
             # Get page dimensions for realistic scrolling
             page_height = driver.execute_script(
                 "return document.body.scrollHeight"
@@ -1505,12 +1550,12 @@ class ContentExtractor:
             viewport_height = driver.execute_script(
                 "return window.innerHeight"
             )
-            
+
             if page_height > viewport_height:
                 # Simulate reading pattern: scroll down in chunks
                 scroll_positions = []
                 current_pos = 0
-                
+
                 while current_pos < page_height:
                     # Random scroll distance (realistic reading chunks)
                     scroll_distance = random.randint(200, 500)
@@ -1518,17 +1563,17 @@ class ContentExtractor:
                         current_pos + scroll_distance, page_height
                     )
                     scroll_positions.append(current_pos)
-                
+
                 # Limit scrolling to avoid timeout - faster scrolling
                 for pos in scroll_positions[:3]:  # Reduced from 5 positions
                     driver.execute_script(f"window.scrollTo(0, {pos});")
                     # Quick pause between scrolls
                     time.sleep(0.2)  # Reduced from 0.8-2.0 seconds
-                
+
                 # Scroll back to top (common human behavior)
                 driver.execute_script("window.scrollTo(0, 0);")
                 time.sleep(0.2)  # Reduced from 0.5-1.0 seconds
-            
+
             # Simulate mouse movement (if ActionChains available)
             if hasattr(driver, 'execute_script'):
                 # Move mouse to random positions - faster
@@ -1543,7 +1588,7 @@ class ContentExtractor:
                         document.dispatchEvent(event);
                     """)
                     time.sleep(0.1)  # Reduced from 0.1-0.3 seconds
-                    
+
         except Exception as e:
             logger.debug(f"Human behavior simulation failed: {e}")
 
@@ -1556,15 +1601,15 @@ class ContentExtractor:
                 "challenge", "verify", "robot",
                 "cloudflare", "access denied", "blocked"
             ]
-            
+
             page_text = driver.page_source.lower()
             page_title = driver.title.lower()
-            
+
             # Check page content for CAPTCHA keywords
             for indicator in captcha_indicators:
                 if indicator in page_text or indicator in page_title:
                     return True
-            
+
             # Check for common CAPTCHA elements
             captcha_selectors = [
                 "[class*='captcha']",
@@ -1575,16 +1620,16 @@ class ContentExtractor:
                 ".cf-challenge-form",  # Cloudflare
                 "#challenge-form"
             ]
-            
+
             for selector in captcha_selectors:
                 try:
                     if driver.find_elements(By.CSS_SELECTOR, selector):
                         return True
                 except Exception:
                     continue
-                    
+
             return False
-            
+
         except Exception:
             return False
 
@@ -1592,9 +1637,9 @@ class ContentExtractor:
         """Detect potentially truncated or malformed titles."""
         if not title:
             return True
-            
+
         title = title.strip()
-        
+
         # Check for obvious truncation patterns
         suspicious_patterns = [
             # Starts with lowercase (likely truncated from middle of sentence)
@@ -1606,7 +1651,7 @@ class ContentExtractor:
             # Contains only numbers/punctuation
             r'^[\d\s\-.,;:!?]+$'
         ]
-        
+
         import re
         for i, pattern in enumerate(suspicious_patterns):
             # Apply IGNORECASE only to specific patterns, not the first one
@@ -1615,7 +1660,7 @@ class ContentExtractor:
                 logger.debug(f"Title flagged as suspicious: '{title}' "
                              f"(matched pattern: {pattern})")
                 return True
-                
+
         return False
 
     def _extract_title(self, soup: BeautifulSoup) -> Optional[str]:

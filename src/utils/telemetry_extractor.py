@@ -20,7 +20,7 @@ from crawler import ContentExtractor
 
 class TelemetryContentExtractor:
     """Enhanced ContentExtractor with comprehensive telemetry tracking."""
-    
+
     def __init__(self, timeout: int = 20, user_agent: Optional[str] = None):
         """Initialize the telemetry-enabled content extractor."""
         self.extractor = ContentExtractor()
@@ -28,18 +28,18 @@ class TelemetryContentExtractor:
         self.user_agent = user_agent or "Mozilla/5.0 (compatible; MizzouNewsCrawler/1.0)"
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": self.user_agent})
-    
-    def extract_content_with_telemetry(self, url: str, article_id: int, 
-                                       operation_id: str, 
+
+    def extract_content_with_telemetry(self, url: str, article_id: int,
+                                       operation_id: str,
                                        html: Optional[str] = None) -> ExtractionResult:
         """
         Extract content with comprehensive telemetry tracking.
-        
+
         Returns ExtractionResult with detailed metrics and error categorization.
         """
         start_time = datetime.now()
         start_ms = time.time() * 1000
-        
+
         # Initialize result with default values
         result_data = {
             'url': url,
@@ -62,25 +62,25 @@ class TelemetryContentExtractor:
             'error_type': None,
             'extracted_content': None
         }
-        
+
         try:
             # Fetch HTML if not provided
             if html is None:
                 html, http_status, response_size = self._fetch_with_telemetry(url)
                 result_data['http_status_code'] = http_status
                 result_data['response_size_bytes'] = response_size
-                
+
                 if html is None:
                     # Fetch failed - outcome already set by _fetch_with_telemetry
                     end_time = datetime.now()
                     result_data['end_time'] = end_time
                     result_data['extraction_time_ms'] = (time.time() * 1000) - start_ms
                     return ExtractionResult(**result_data)
-            
+
             # Extract content using enhanced extraction methods
             try:
                 content_data = self.extractor.extract_content(url, html)
-                
+
                 if not content_data:
                     result_data['outcome'] = ExtractionOutcome.NO_CONTENT_FOUND
                     result_data['error_message'] = "No content extracted from HTML"
@@ -88,7 +88,7 @@ class TelemetryContentExtractor:
                     # Analyze extracted content quality
                     result_data.update(self._analyze_content_quality(content_data))
                     result_data['extracted_content'] = content_data
-                    
+
                     # Determine outcome based on content quality
                     if result_data['has_content'] and result_data['has_title']:
                         result_data['outcome'] = ExtractionOutcome.CONTENT_EXTRACTED
@@ -96,29 +96,29 @@ class TelemetryContentExtractor:
                         result_data['outcome'] = ExtractionOutcome.PARTIAL_CONTENT
                     else:
                         result_data['outcome'] = ExtractionOutcome.NO_CONTENT_FOUND
-                        
+
             except Exception as e:
                 result_data['outcome'] = ExtractionOutcome.PARSING_ERROR
                 result_data['error_message'] = str(e)
                 result_data['error_type'] = type(e).__name__
-        
+
         except Exception as e:
             # Map error messages to appropriate outcomes
             result_data['outcome'] = self._determine_outcome_from_error(str(e))
             result_data['error_message'] = str(e)
             result_data['error_type'] = type(e).__name__
-        
+
         # Finalize timing
         end_time = datetime.now()
         result_data['end_time'] = end_time
         result_data['extraction_time_ms'] = int((time.time() * 1000) - start_ms)
-        
+
         return ExtractionResult(**result_data)
-    
+
     def _determine_outcome_from_error(self, error_message: str) -> ExtractionOutcome:
         """Map error message to appropriate extraction outcome."""
         error_msg = error_message.upper()
-        
+
         if "CLOUDFLARE" in error_msg:
             return ExtractionOutcome.CLOUDFLARE_BLOCKED
         elif "CAPTCHA" in error_msg:
@@ -150,16 +150,16 @@ class TelemetryContentExtractor:
             return ExtractionOutcome.NO_CONTENT_FOUND
         else:
             return ExtractionOutcome.UNKNOWN_ERROR
-    
+
     def _fetch_with_telemetry(self, url: str) -> tuple[Optional[str], Optional[int], Optional[int]]:
         """
         Fetch HTML with detailed error categorization.
-        
+
         Returns (html, http_status_code, response_size_bytes)
         """
         try:
             response = self.session.get(url, timeout=self.timeout)
-            
+
             # Check for bot protection indicators
             if self._is_bot_protection(response):
                 if "cloudflare" in response.text.lower():
@@ -168,7 +168,7 @@ class TelemetryContentExtractor:
                     raise Exception("CAPTCHA_REQUIRED")
                 else:
                     raise Exception("BOT_PROTECTION")
-            
+
             # Check HTTP status
             if response.status_code == 429:
                 raise Exception("RATE_LIMITED")
@@ -179,19 +179,19 @@ class TelemetryContentExtractor:
                     raise Exception(f"HTTP_ERROR: Client error ({response.status_code})")
             elif response.status_code >= 500:
                 raise Exception(f"HTTP_ERROR: Server error ({response.status_code})")
-            
+
             response.raise_for_status()
-            
+
             # Check for empty response
             if not response.text.strip():
                 raise Exception("EMPTY_RESPONSE")
-            
+
             # Check for paywall indicators
             if self._is_paywall(response.text):
                 raise Exception("PAYWALL_DETECTED")
-            
+
             return response.text, response.status_code, len(response.content)
-            
+
         except Timeout:
             raise Exception("TIMEOUT")
         except ConnectionError:
@@ -209,7 +209,7 @@ class TelemetryContentExtractor:
                 raise
             else:
                 raise Exception(f"CONNECTION_ERROR: {str(e)}")
-    
+
     def _is_bot_protection(self, response) -> bool:
         """Check if response indicates bot protection."""
         # More specific indicators of actual blocking, not just presence of services
@@ -227,11 +227,11 @@ class TelemetryContentExtractor:
             "under attack mode",
             "browser check"
         ]
-        
+
         text = response.text.lower()
         # Only trigger if we see actual blocking indicators
         return any(indicator in text for indicator in blocking_indicators)
-    
+
     def _is_paywall(self, html: str) -> bool:
         """Check if content appears to be behind a paywall."""
         paywall_indicators = [
@@ -243,10 +243,10 @@ class TelemetryContentExtractor:
             "login to continue",
             "this article is for subscribers"
         ]
-        
+
         text = html.lower()
         return any(indicator in text for indicator in paywall_indicators)
-    
+
     def _analyze_content_quality(self, content_data: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze the quality and completeness of extracted content."""
         analysis = {
@@ -258,25 +258,25 @@ class TelemetryContentExtractor:
             'title_length': None,
             'author_count': None
         }
-        
+
         # Calculate lengths
         if analysis['has_title']:
             analysis['title_length'] = len(content_data['title'].strip())
-        
+
         if analysis['has_content']:
             analysis['content_length'] = len(content_data['content'].strip())
-        
+
         if analysis['has_author']:
             # Count number of authors (simple comma-based split)
             authors = content_data['author'].strip()
             analysis['author_count'] = len([a.strip() for a in authors.split(',') if a.strip()])
-        
+
         # Add detailed field quality analysis
         field_quality = self._analyze_field_quality(content_data)
         analysis.update(field_quality)
-        
+
         return analysis
-    
+
     def _analyze_field_quality(self, content_data: Dict[str, Any]) -> Dict[str, Any]:
         """Perform detailed quality analysis for each extracted field."""
         quality_analysis = {
@@ -286,7 +286,7 @@ class TelemetryContentExtractor:
             'publish_date_quality_issues': [],
             'overall_quality_score': 1.0
         }
-        
+
         # Analyze title quality
         title = content_data.get('title', '').strip()
         if title:
@@ -302,7 +302,7 @@ class TelemetryContentExtractor:
                 quality_analysis['title_quality_issues'].append('placeholder_text')
         else:
             quality_analysis['title_quality_issues'].append('missing')
-        
+
         # Analyze content quality
         content = content_data.get('content', '').strip()
         if content:
@@ -318,7 +318,7 @@ class TelemetryContentExtractor:
                 quality_analysis['content_quality_issues'].append('error_messages')
         else:
             quality_analysis['content_quality_issues'].append('missing')
-        
+
         # Analyze author quality
         author = content_data.get('author', '').strip()
         if author:
@@ -332,7 +332,7 @@ class TelemetryContentExtractor:
                 quality_analysis['author_quality_issues'].append('placeholder_text')
         else:
             quality_analysis['author_quality_issues'].append('missing')
-        
+
         # Analyze publish date quality
         publish_date = content_data.get('publish_date') or content_data.get('published_date')
         if publish_date:
@@ -344,35 +344,35 @@ class TelemetryContentExtractor:
                 quality_analysis['publish_date_quality_issues'].append('suspiciously_old')
         else:
             quality_analysis['publish_date_quality_issues'].append('missing')
-        
+
         # Calculate overall quality score
         total_issues = (len(quality_analysis['title_quality_issues']) +
                        len(quality_analysis['content_quality_issues']) +
                        len(quality_analysis['author_quality_issues']) +
                        len(quality_analysis['publish_date_quality_issues']))
-        
+
         # Score: 1.0 (perfect) down to 0.0 (many issues)
         quality_analysis['overall_quality_score'] = max(0.0, 1.0 - (total_issues * 0.1))
-        
+
         return quality_analysis
-    
+
     def _contains_html_tags(self, text: str) -> bool:
         """Check if text contains HTML tags."""
         import re
         return bool(re.search(r'<[^>]+>', text))
-    
+
     def _contains_js_artifacts(self, text: str) -> bool:
         """Check if text contains JavaScript artifacts."""
         # More specific JS patterns to avoid false positives with natural language
         import re
-        
+
         # Look for specific JS function/method patterns
         js_patterns = [
             r'function\s*\(',              # function declarations
             r'document\.[a-zA-Z]',          # document.method calls
             r'window\.[a-zA-Z]',            # window.property access
             r'var\s+[a-zA-Z]',              # variable declarations
-            r'const\s+[a-zA-Z]',            # const declarations  
+            r'const\s+[a-zA-Z]',            # const declarations
             r'let\s+[a-zA-Z]',              # let declarations
             r'addEventListener\s*\(',       # event listeners
             r'getElementById\s*\(',         # DOM methods
@@ -383,24 +383,24 @@ class TelemetryContentExtractor:
             r'\.catch\s*\(',                # error handling
             r'JSON\.[a-zA-Z]',              # JSON methods
         ]
-        
+
         # Also check for combinations of JS-specific terms
         js_keywords = ['undefined', 'typeof', 'instanceof', 'prototype']
         text_lower = text.lower()
-        
+
         # Count JS pattern matches
-        pattern_matches = sum(1 for pattern in js_patterns 
+        pattern_matches = sum(1 for pattern in js_patterns
                              if re.search(pattern, text, re.IGNORECASE))
-        
-        # Count JS keyword matches  
-        keyword_matches = sum(1 for keyword in js_keywords 
+
+        # Count JS keyword matches
+        keyword_matches = sum(1 for keyword in js_keywords
                              if keyword in text_lower)
-        
+
         # Require multiple indicators or very specific patterns
         return pattern_matches >= 2 or keyword_matches >= 2 or \
-               any(re.search(pattern, text, re.IGNORECASE) 
+               any(re.search(pattern, text, re.IGNORECASE)
                    for pattern in js_patterns[:3])  # Strong indicators
-    
+
     def _is_mostly_navigation(self, text: str) -> bool:
         """Check if content is mostly navigation/menu text."""
         nav_indicators = [
@@ -411,7 +411,7 @@ class TelemetryContentExtractor:
         nav_count = sum(1 for indicator in nav_indicators if indicator in text_lower)
         words = len(text.split())
         return nav_count > 3 and words < 50
-    
+
     def _contains_error_messages(self, text: str) -> bool:
         """Check if content contains error messages."""
         error_indicators = [
@@ -420,11 +420,11 @@ class TelemetryContentExtractor:
         ]
         text_lower = text.lower()
         return any(indicator in text_lower for indicator in error_indicators)
-    
+
     def _is_valid_date_format(self, date_str: str) -> bool:
         """Check if date string is in a valid format."""
         from datetime import datetime
-        
+
         # Common date formats
         formats = [
             '%Y-%m-%dT%H:%M:%S%z',     # ISO format with timezone
@@ -434,7 +434,7 @@ class TelemetryContentExtractor:
             '%d/%m/%Y',                # DD/MM/YYYY
             '%B %d, %Y',               # Month DD, YYYY
         ]
-        
+
         for fmt in formats:
             try:
                 datetime.strptime(date_str.replace('+00:00', ''), fmt.replace('%z', ''))
@@ -442,7 +442,7 @@ class TelemetryContentExtractor:
             except ValueError:
                 continue
         return False
-    
+
     def _is_future_date(self, date_str: str) -> bool:
         """Check if date is in the future (suspicious)."""
         from datetime import datetime, timezone
@@ -455,12 +455,12 @@ class TelemetryContentExtractor:
                 # Simple date
                 date_obj = datetime.strptime(date_str, '%Y-%m-%d')
                 date_obj = date_obj.replace(tzinfo=timezone.utc)
-            
+
             now = datetime.now(timezone.utc)
             return date_obj > now
         except (ValueError, TypeError):
             return False
-    
+
     def _is_too_old_date(self, date_str: str) -> bool:
         """Check if date is suspiciously old (> 10 years)."""
         from datetime import datetime, timezone, timedelta
@@ -470,7 +470,7 @@ class TelemetryContentExtractor:
             else:
                 date_obj = datetime.strptime(date_str, '%Y-%m-%d')
                 date_obj = date_obj.replace(tzinfo=timezone.utc)
-            
+
             ten_years_ago = datetime.now(timezone.utc) - timedelta(days=3650)
             return date_obj < ten_years_ago
         except (ValueError, TypeError):
