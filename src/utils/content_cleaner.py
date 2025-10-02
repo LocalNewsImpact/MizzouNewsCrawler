@@ -165,8 +165,8 @@ class ContentCleaner:
         return hashlib.md5(normalized.encode('utf-8')).hexdigest()
 
     def analyze_domain_content(
-        self,
-     articles: List[Dict]) -> List[BoilerplateMatch]:
+            self,
+            articles: List[Dict]) -> List[BoilerplateMatch]:
         """
         Analyze articles from a single domain to find repeated content.
 
@@ -210,7 +210,7 @@ class ContentCleaner:
                 article_ids = [occ[0] for occ in occurrences]
                 text_samples = [occ[1] for occ in occurrences]
                 positions = [(occ[2], occ[3], occ[4])
-                              for occ in occurrences]  # start, end, content_length
+                             for occ in occurrences]  # start, end, content_length
 
                 # Use the longest version of the text
                 representative_text = max(text_samples, key=len)
@@ -273,11 +273,11 @@ class ContentCleaner:
         return variance ** 0.5
 
     def _calculate_confidence_score(
-        self,
-        occurrences: int,
-        total_articles: int,
-        text_length: int,
-     position_stats: Dict) -> float:
+            self,
+            occurrences: int,
+            total_articles: int,
+            text_length: int,
+            position_stats: Dict) -> float:
         """
         Calculate confidence score for boilerplate detection.
 
@@ -316,9 +316,9 @@ class ContentCleaner:
 
         # Combine factors
         confidence = (frequency_factor * 0.4 +
-                     length_factor * 0.2 +
-                     position_consistency * 0.2 +
-                     position_location_factor * 0.2)
+                      length_factor * 0.2 +
+                      position_consistency * 0.2 +
+                      position_location_factor * 0.2)
 
         return min(confidence, 1.0)
 
@@ -370,10 +370,10 @@ class ContentCleaner:
             match.confidence_score:.3f}"
 
     def log_decision(
-        self,
-        match: BoilerplateMatch,
-        should_remove: bool,
-     reason: str):
+            self,
+            match: BoilerplateMatch,
+            should_remove: bool,
+            reason: str):
         """Log a removal decision for telemetry."""
         if self.telemetry:
             decision = {
@@ -390,10 +390,10 @@ class ContentCleaner:
             self.telemetry.decisions.append(decision)
 
         logger.info(f"Decision for {match.domain} segment (hash={match.segment_hash[:8]}): "
-                   f"{'REMOVE' if should_remove else 'KEEP'} - {reason}")
+                    f"{'REMOVE' if should_remove else 'KEEP'} - {reason}")
 
     def extract_ml_features(self, match: BoilerplateMatch,
-                           total_articles_in_domain: int) -> Dict:
+                            total_articles_in_domain: int) -> Dict:
         """
         Extract features for machine learning model training.
 
@@ -420,7 +420,7 @@ class ContentCleaner:
             "avg_start_position": match.position_stats.get("avg_start_percentage", 0),
             "avg_end_position": match.position_stats.get("avg_end_percentage", 0),
             "position_consistency": 1.0 - (match.position_stats.get("start_std", 1.0) +
-                                         match.position_stats.get("end_std", 1.0)) / 2,
+                                           match.position_stats.get("end_std", 1.0)) / 2,
             "is_at_beginning": match.position_stats.get("avg_start_percentage", 0) < 0.1,
             "is_at_end": match.position_stats.get("avg_end_percentage", 0) > 0.9,
 

@@ -694,11 +694,11 @@ class BalancedBoundaryContentCleaner:
         return max(0.0, min(1.0, score))
 
     def _calculate_position_consistency(self,
-    exact_matches: Dict[str,
-    List[Tuple[int,
-    int]]],
-        articles_by_id: Dict[str,
-     Dict]) -> float:
+                                        exact_matches: Dict[str,
+                                                            List[Tuple[int,
+                                                                       int]]],
+                                        articles_by_id: Dict[str,
+                                                             Dict]) -> float:
         """Calculate position consistency (0.0 to 1.0)."""
         if len(exact_matches) < 2:
             return 0.0
@@ -719,7 +719,7 @@ class BalancedBoundaryContentCleaner:
 
         mean_pos = sum(relative_positions) / len(relative_positions)
         variance = sum((pos - mean_pos) ** 2
-                      for pos in relative_positions) / len(relative_positions)
+                       for pos in relative_positions) / len(relative_positions)
 
         consistency = max(0.0, 1.0 - (variance * 5))
         return min(1.0, consistency)
@@ -776,24 +776,24 @@ class BalancedBoundaryContentCleaner:
             'world',
             'local']
         nav_count = sum(1 for keyword in nav_keywords
-                       if keyword in text_lower)
+                        if keyword in text_lower)
 
         # Footer keywords
         footer_keywords = ['copyright', 'rights reserved', 'privacy', 'terms']
         footer_count = sum(1 for keyword in footer_keywords
-                          if keyword in text_lower)
+                           if keyword in text_lower)
 
         # Subscription keywords
         sub_keywords = ['subscribe', 'subscription', 'paywall', 'premium',
-                       'member account', 'print subscriber', 'website account']
+                        'member account', 'print subscriber', 'website account']
         sub_count = sum(1 for keyword in sub_keywords
-                       if keyword in text_lower)
+                        if keyword in text_lower)
 
         # Trending content
         trending_keywords = ['trending', 'most read', 'popular stories',
-                           'recommended for you', 'you may also like']
+                             'recommended for you', 'you may also like']
         trending_count = sum(1 for keyword in trending_keywords
-                           if keyword in text_lower)
+                             if keyword in text_lower)
 
         if nav_count >= 2:
             return "navigation"
@@ -807,11 +807,11 @@ class BalancedBoundaryContentCleaner:
             return "other"
 
     def _generate_removal_reason(
-        self,
-        text: str,
-        pattern_type: str,
-        boundary_score: float,
-     occurrences: int) -> str:
+            self,
+            text: str,
+            pattern_type: str,
+            boundary_score: float,
+            occurrences: int) -> str:
         """Generate detailed removal reason based on pattern analysis."""
         text_lower = text.lower()
         reasons = []
@@ -884,7 +884,7 @@ class BalancedBoundaryContentCleaner:
         return full_reason
 
     def _calculate_domain_stats(self, articles: List[Dict],
-                               segments: List[Dict]) -> Dict:
+                                segments: List[Dict]) -> Dict:
         """Calculate statistics for the domain analysis."""
         total_removable_chars = 0
         affected_articles = set()
@@ -904,7 +904,7 @@ class BalancedBoundaryContentCleaner:
                                      for article_id in article_ids)
 
         total_content_chars = sum(len(article["content"])
-                                 for article in articles)
+                                  for article in articles)
 
         return {
             "total_articles": len(articles),
@@ -913,7 +913,7 @@ class BalancedBoundaryContentCleaner:
             "total_removable_chars": total_removable_chars,
             "total_content_chars": total_content_chars,
             "removal_percentage": (total_removable_chars / total_content_chars
-                                 * 100) if total_content_chars > 0 else 0
+                                   * 100) if total_content_chars > 0 else 0
         }
 
     def _remove_persistent_patterns(self, text: str, domain: str,

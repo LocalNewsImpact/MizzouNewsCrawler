@@ -14,7 +14,7 @@ try:
 except Exception as e:  # pragma: no cover - skip in minimal envs
     pytest.skip(
         f"Skipping concurrency tests; can't import models: {e}",
-     allow_module_level=True)
+        allow_module_level=True)
 
 
 def _make_db_path(tmpdir_path: str) -> str:
@@ -23,10 +23,10 @@ def _make_db_path(tmpdir_path: str) -> str:
 
 
 def _worker_attempt_claim(
-    db_url: str,
-    dv_id: str,
-    claimer: str,
-     out_q: mp.Queue):
+        db_url: str,
+        dv_id: str,
+        claimer: str,
+        out_q: mp.Queue):
     # Each worker gets its own import & DB session
     try:
         # Re-import inside child process to ensure fresh engine/session

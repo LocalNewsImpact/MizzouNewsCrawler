@@ -21,9 +21,9 @@ class ConservativeContentCleaner(ImprovedContentCleaner):
         super().__init__(db_path, confidence_threshold)
 
     def _calculate_improved_confidence(self, text: str, occurrence_count: int,
-                                     total_articles: int,
-                                     positions: List[Tuple[float, float]],
-                                     pattern_type: str) -> float:
+                                       total_articles: int,
+                                       positions: List[Tuple[float, float]],
+                                       pattern_type: str) -> float:
         """Calculate confidence with additional conservative checks."""
 
         # Start with base confidence
@@ -38,7 +38,7 @@ class ConservativeContentCleaner(ImprovedContentCleaner):
         return confidence
 
     def _apply_conservative_penalties(self, text: str, base_confidence: float,
-                                    pattern_type: str) -> float:
+                                      pattern_type: str) -> float:
         """Apply penalties to reduce confidence for potentially legitimate content."""
         confidence = base_confidence
         text_lower = text.lower()
@@ -53,7 +53,7 @@ class ConservativeContentCleaner(ImprovedContentCleaner):
         ]
 
         journalism_count = sum(1 for term in journalism_terms
-                             if term in text_lower)
+                               if term in text_lower)
         if journalism_count >= 2:
             confidence *= 0.6  # Significant penalty
 
@@ -76,7 +76,7 @@ class ConservativeContentCleaner(ImprovedContentCleaner):
         ]
 
         news_pattern_matches = sum(1 for pattern in news_patterns
-                                 if re.search(pattern, text_lower))
+                                   if re.search(pattern, text_lower))
         if news_pattern_matches >= 2:
             confidence *= 0.5  # Strong penalty
 
@@ -98,7 +98,7 @@ class ConservativeContentCleaner(ImprovedContentCleaner):
         ]
 
         strong_boilerplate_count = sum(1 for term in strong_boilerplate_terms
-                                     if term in text_lower)
+                                       if term in text_lower)
         if strong_boilerplate_count >= 2:
             confidence = min(confidence * 1.2, 1.0)  # Boost confidence
 
@@ -142,7 +142,7 @@ class ConservativeContentCleaner(ImprovedContentCleaner):
 
         # Skip if looks like a news headline structure
         if (len(text) < 200 and not any(term in text_lower for term in [
-            "subscribe", "login", "contact", "privacy"])):
+                "subscribe", "login", "contact", "privacy"])):
             # If it's short and doesn't contain clear boilerplate terms, be
             # very careful
             journalism_terms = [
@@ -158,8 +158,8 @@ class ConservativeContentCleaner(ImprovedContentCleaner):
         return False
 
     def clean_content(self, content: str, domain: str,
-                     article_id: Optional[str] = None,
-                     dry_run: bool = True) -> Tuple[str, any]:
+                      article_id: Optional[str] = None,
+                      dry_run: bool = True) -> Tuple[str, any]:
         """Clean content with conservative approach."""
 
         # Get the base results

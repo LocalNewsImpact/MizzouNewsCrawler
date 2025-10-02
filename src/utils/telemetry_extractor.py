@@ -416,9 +416,9 @@ class TelemetryContentExtractor:
 
         # Calculate overall quality score
         total_issues = (len(quality_analysis['title_quality_issues']) +
-                       len(quality_analysis['content_quality_issues']) +
-                       len(quality_analysis['author_quality_issues']) +
-                       len(quality_analysis['publish_date_quality_issues']))
+                        len(quality_analysis['content_quality_issues']) +
+                        len(quality_analysis['author_quality_issues']) +
+                        len(quality_analysis['publish_date_quality_issues']))
 
         # Score: 1.0 (perfect) down to 0.0 (many issues)
         quality_analysis['overall_quality_score'] = max(
@@ -461,16 +461,16 @@ class TelemetryContentExtractor:
 
         # Count JS pattern matches
         pattern_matches = sum(1 for pattern in js_patterns
-                             if re.search(pattern, text, re.IGNORECASE))
+                              if re.search(pattern, text, re.IGNORECASE))
 
         # Count JS keyword matches
         keyword_matches = sum(1 for keyword in js_keywords
-                             if keyword in text_lower)
+                              if keyword in text_lower)
 
         # Require multiple indicators or very specific patterns
         return pattern_matches >= 2 or keyword_matches >= 2 or \
-               any(re.search(pattern, text, re.IGNORECASE)
-                   for pattern in js_patterns[:3])  # Strong indicators
+            any(re.search(pattern, text, re.IGNORECASE)
+            for pattern in js_patterns[:3])  # Strong indicators
 
     def _is_mostly_navigation(self, text: str) -> bool:
         """Check if content is mostly navigation/menu text."""

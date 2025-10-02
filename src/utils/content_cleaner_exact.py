@@ -18,10 +18,10 @@ class ExactContentCleaner:
         self.logger = logging.getLogger(__name__)
 
     def analyze_domain(
-        self,
-        domain: str,
-        sample_size: int = None,
-     min_occurrences: int = 3) -> Dict:
+            self,
+            domain: str,
+            sample_size: int = None,
+            min_occurrences: int = 3) -> Dict:
         """
         Analyze a domain for exact duplicate text segments.
         Only segments with identical boundaries across articles are considered.
@@ -53,9 +53,9 @@ class ExactContentCleaner:
         }
 
     def _get_articles_for_domain(
-        self,
-        domain: str,
-     sample_size: int = None) -> List[Dict]:
+            self,
+            domain: str,
+            sample_size: int = None) -> List[Dict]:
         """Get articles for a specific domain."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -89,9 +89,9 @@ class ExactContentCleaner:
         return articles
 
     def _find_exact_duplicate_segments(
-        self,
-        articles: List[Dict],
-     min_occurrences: int) -> List[Dict]:
+            self,
+            articles: List[Dict],
+            min_occurrences: int) -> List[Dict]:
         """
         Find text segments that appear with EXACTLY the same boundaries
         across multiple articles.
@@ -144,7 +144,7 @@ class ExactContentCleaner:
 
                 # Only keep segments with reasonable length and consistency
                 if (match_info["length"] >= 30 and
-                    match_info["position_consistency"] > 0.3):
+                        match_info["position_consistency"] > 0.3):
 
                     segment = {
                         "text": match_info["text"],
@@ -165,7 +165,7 @@ class ExactContentCleaner:
             key=lambda x: (
                 x["occurrences"],
                 x["length"]),
-         reverse=True)
+            reverse=True)
 
         return valid_segments
 
@@ -219,15 +219,15 @@ class ExactContentCleaner:
         return matches
 
     def _remove_overlapping_matches(self,
-    matches: List[Tuple[str,
-    List[Tuple[int,
-    int]],
-        List[Tuple[int,
-    int]]]]) -> List[Tuple[str,
-    List[Tuple[int,
-    int]],
-        List[Tuple[int,
-     int]]]]:
+                                    matches: List[Tuple[str,
+                                                        List[Tuple[int,
+                                                                   int]],
+                                                        List[Tuple[int,
+                                                                   int]]]]) -> List[Tuple[str,
+                                                                                          List[Tuple[int,
+                                                                                                     int]],
+                                                                                          List[Tuple[int,
+                                                                                                     int]]]]:
         """Remove overlapping matches, keeping the longest ones."""
         if not matches:
             return matches
@@ -347,9 +347,9 @@ class ExactContentCleaner:
             return "other"
 
     def _calculate_domain_stats(
-        self,
-        articles: List[Dict],
-     segments: List[Dict]) -> Dict:
+            self,
+            articles: List[Dict],
+            segments: List[Dict]) -> Dict:
         """Calculate statistics for the domain analysis."""
         total_removable_chars = 0
         affected_articles = set()
@@ -373,9 +373,9 @@ class ExactContentCleaner:
                 100) if total_content_chars > 0 else 0}
 
     def clean_article_content(
-        self,
-        content: str,
-     segments_to_remove: List[Dict]) -> str:
+            self,
+            content: str,
+            segments_to_remove: List[Dict]) -> str:
         """Remove exact duplicate segments from article content."""
         cleaned_content = content
 

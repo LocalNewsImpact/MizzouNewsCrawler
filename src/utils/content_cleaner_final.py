@@ -53,7 +53,7 @@ class ContentCleaner:
         self._boilerplate_cache = {}
 
     def analyze_domain(self, domain: str,
-                      sample_size: Optional[int] = None) -> Dict:
+                       sample_size: Optional[int] = None) -> Dict:
         """Analyze content from a domain to identify boilerplate."""
         articles = self._get_domain_articles(domain, sample_size)
 
@@ -88,7 +88,7 @@ class ContentCleaner:
             "segments": [
                 {
                     "text": (match.text[:200] + "..."
-                            if len(match.text) > 200 else match.text),
+                             if len(match.text) > 200 else match.text),
                     "hash": match.hash_value,
                     "occurrence_count": match.occurrence_count,
                     "confidence_score": match.confidence_score,
@@ -99,8 +99,8 @@ class ContentCleaner:
         }
 
     def clean_content(self, content: str, domain: str,
-                     article_id: Optional[int] = None,
-                     dry_run: bool = True) -> Tuple[str, CleaningTelemetry]:
+                      article_id: Optional[int] = None,
+                      dry_run: bool = True) -> Tuple[str, CleaningTelemetry]:
         """Clean content by removing detected boilerplate segments."""
         start_time = datetime.utcnow()
         original_length = len(content)
@@ -138,7 +138,7 @@ class ContentCleaner:
         return cleaned_content, telemetry
 
     def _get_domain_articles(self, domain: str,
-                           sample_size: Optional[int] = None) -> List[Dict]:
+                             sample_size: Optional[int] = None) -> List[Dict]:
         """Get articles from a specific domain."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -197,9 +197,9 @@ class ContentCleaner:
                 # Calculate position percentages
                 content_length = len(content)
                 start_pct = (start_pos / content_length
-                           if content_length > 0 else 0)
+                             if content_length > 0 else 0)
                 end_pct = (end_pos / content_length
-                         if content_length > 0 else 0)
+                           if content_length > 0 else 0)
 
                 segment_occurrences[segment_hash]["count"] += 1
                 segment_occurrences[segment_hash]["text"] = (
@@ -245,7 +245,7 @@ class ContentCleaner:
         return segments
 
     def _score_segment(self, segment_data: Dict, domain: str,
-                      total_articles: int) -> BoilerplateMatch:
+                       total_articles: int) -> BoilerplateMatch:
         """Score a segment for boilerplate likelihood."""
         text = segment_data["text"]
         occurrence_count = segment_data["count"]
@@ -268,8 +268,8 @@ class ContentCleaner:
         )
 
     def _calculate_confidence(self, text: str, occurrence_count: int,
-                            total_articles: int,
-                            positions: List[Tuple[float, float]]) -> float:
+                              total_articles: int,
+                              positions: List[Tuple[float, float]]) -> float:
         """Calculate confidence score using rule-based approach."""
         text_lower = text.lower()
         confidence = 0.0

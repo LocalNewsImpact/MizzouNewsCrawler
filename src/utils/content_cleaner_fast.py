@@ -19,21 +19,21 @@ class FastExactContentCleaner:
         self.logger = logging.getLogger(__name__)
 
     def analyze_domain(self, domain: str, sample_size: int = None,
-                      min_occurrences: int = 3) -> Dict:
+                       min_occurrences: int = 3) -> Dict:
         """Analyze a domain for exact duplicate text segments."""
         self.logger.info(f"Analyzing domain: {domain}")
 
         articles = self._get_articles_for_domain(domain, sample_size)
         if len(articles) < min_occurrences:
             return {"domain": domain, "article_count": len(articles),
-                   "segments": []}
+                    "segments": []}
 
         # Extract blocks from all articles
         all_blocks = self._extract_blocks_from_articles(articles)
 
         # Find blocks that appear in multiple articles
         duplicate_blocks = self._find_duplicate_blocks(all_blocks,
-                                                      min_occurrences)
+                                                       min_occurrences)
 
         # Calculate statistics
         stats = self._calculate_domain_stats(articles, duplicate_blocks)
@@ -46,7 +46,7 @@ class FastExactContentCleaner:
         }
 
     def _get_articles_for_domain(self, domain: str,
-                                sample_size: int = None) -> List[Dict]:
+                                 sample_size: int = None) -> List[Dict]:
         """Get articles for a specific domain."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -139,7 +139,7 @@ class FastExactContentCleaner:
         return all_blocks
 
     def _find_duplicate_blocks(self, all_blocks: Dict,
-                              min_occurrences: int) -> List[Dict]:
+                               min_occurrences: int) -> List[Dict]:
         """Find blocks that appear in multiple articles."""
         duplicate_blocks = []
 
@@ -166,12 +166,12 @@ class FastExactContentCleaner:
 
         # Sort by occurrences and length
         duplicate_blocks.sort(key=lambda x: (x["occurrences"], x["length"]),
-                             reverse=True)
+                              reverse=True)
 
         return duplicate_blocks
 
     def _calculate_position_consistency(self, block_text: str,
-                                       article_positions: Dict) -> float:
+                                        article_positions: Dict) -> float:
         """Calculate position consistency (0.0 to 1.0)."""
         if len(article_positions) < 2:
             return 0.0
@@ -203,7 +203,7 @@ class FastExactContentCleaner:
         # Calculate variance in relative positions
         mean_pos = sum(relative_positions) / len(relative_positions)
         variance = sum((pos - mean_pos) ** 2
-                      for pos in relative_positions) / len(relative_positions)
+                       for pos in relative_positions) / len(relative_positions)
 
         # Convert to consistency score (lower variance = higher consistency)
         consistency = max(0.0, 1.0 - (variance * 5))
@@ -227,17 +227,17 @@ class FastExactContentCleaner:
             'world',
             'local']
         nav_count = sum(1 for keyword in nav_keywords
-                       if keyword in text_lower)
+                        if keyword in text_lower)
 
         # Footer patterns
         footer_keywords = ['copyright', 'rights reserved', 'privacy', 'terms']
         footer_count = sum(1 for keyword in footer_keywords
-                          if keyword in text_lower)
+                           if keyword in text_lower)
 
         # Subscription patterns
         sub_keywords = ['subscribe', 'subscription', 'paywall', 'premium']
         sub_count = sum(1 for keyword in sub_keywords
-                       if keyword in text_lower)
+                        if keyword in text_lower)
 
         if nav_count >= 2:
             return "navigation"
@@ -249,7 +249,7 @@ class FastExactContentCleaner:
             return "other"
 
     def _calculate_domain_stats(self, articles: List[Dict],
-                               segments: List[Dict]) -> Dict:
+                                segments: List[Dict]) -> Dict:
         """Calculate statistics for the domain analysis."""
         total_removable_chars = 0
         affected_articles = set()
@@ -260,7 +260,7 @@ class FastExactContentCleaner:
             affected_articles.update(segment["article_ids"])
 
         total_content_chars = sum(len(article["content"])
-                                 for article in articles)
+                                  for article in articles)
 
         return {
             "total_articles": len(articles),
@@ -269,5 +269,5 @@ class FastExactContentCleaner:
             "total_removable_chars": total_removable_chars,
             "total_content_chars": total_content_chars,
             "removal_percentage": (total_removable_chars / total_content_chars
-                                 * 100) if total_content_chars > 0 else 0
+                                   * 100) if total_content_chars > 0 else 0
         }

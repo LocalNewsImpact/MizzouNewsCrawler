@@ -13,7 +13,7 @@ try:
 except Exception as e:  # pragma: no cover - skip in minimal envs
     pytest.skip(
         f"Skipping versioning tests; can't import models: {e}",
-     allow_module_level=True)
+        allow_module_level=True)
 
 
 def _make_db_path(tmpdir_path: str) -> str:

@@ -508,7 +508,7 @@ class TestContentExtractorIntegration:
 
         # Verify blocked.com has 2 403 errors
         blocked_errors = [r for r in error_results if r[0]
-            == 'blocked.com' and r[1] == 403]
+                          == 'blocked.com' and r[1] == 403]
         assert len(blocked_errors) == 1
         assert blocked_errors[0][2] == 2  # count should be 2
 

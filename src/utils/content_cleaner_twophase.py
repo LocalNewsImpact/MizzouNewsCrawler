@@ -54,7 +54,7 @@ class TwoPhaseContentCleaner:
 
 
     def _get_articles_for_domain(self, domain: str,
-                                sample_size: int = None) -> List[Dict]:
+                                 sample_size: int = None) -> List[Dict]:
         """Get articles for a specific domain."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -135,8 +135,8 @@ class TwoPhaseContentCleaner:
         return filtered_candidates
 
     def _refine_boundaries(self, articles: List[Dict],
-                          rough_candidates: Dict[str, Set[str]],
-                          min_occurrences: int) -> List[Dict]:
+                           rough_candidates: Dict[str, Set[str]],
+                           min_occurrences: int) -> List[Dict]:
         """
         Phase 2: Refine boundaries to find exact duplicate segments.
         """
@@ -173,18 +173,18 @@ class TwoPhaseContentCleaner:
 
         # Sort by occurrences and length
         exact_segments.sort(key=lambda x: (x["occurrences"], x["length"]),
-                           reverse=True)
+                            reverse=True)
 
         self.logger.info(f"Refined to {len(exact_segments)} exact segments")
         return exact_segments
 
     def _find_exact_boundaries(self,
-    candidate_text: str,
-    candidate_article_ids: Set[str],
-    articles_by_id: Dict[str,
-    Dict]) -> Dict[str,
-    List[Tuple[int,
-     int]]]:
+                               candidate_text: str,
+                               candidate_article_ids: Set[str],
+                               articles_by_id: Dict[str,
+                                                    Dict]) -> Dict[str,
+                                                                   List[Tuple[int,
+                                                                              int]]]:
         """
         Find exact boundaries where candidate_text appears in each article.
         Returns: {article_id: [(start, end), ...]}
@@ -216,11 +216,11 @@ class TwoPhaseContentCleaner:
         return exact_matches
 
     def _calculate_position_consistency(self,
-    exact_matches: Dict[str,
-    List[Tuple[int,
-    int]]],
-        articles_by_id: Dict[str,
-     Dict]) -> float:
+                                        exact_matches: Dict[str,
+                                                            List[Tuple[int,
+                                                                       int]]],
+                                        articles_by_id: Dict[str,
+                                                             Dict]) -> float:
         """Calculate position consistency (0.0 to 1.0)."""
         if len(exact_matches) < 2:
             return 0.0
@@ -243,7 +243,7 @@ class TwoPhaseContentCleaner:
         # Calculate variance in relative positions
         mean_pos = sum(relative_positions) / len(relative_positions)
         variance = sum((pos - mean_pos) ** 2
-                      for pos in relative_positions) / len(relative_positions)
+                       for pos in relative_positions) / len(relative_positions)
 
         # Convert to consistency score (lower variance = higher consistency)
         consistency = max(0.0, 1.0 - (variance * 5))
@@ -267,17 +267,17 @@ class TwoPhaseContentCleaner:
             'world',
             'local']
         nav_count = sum(1 for keyword in nav_keywords
-                       if keyword in text_lower)
+                        if keyword in text_lower)
 
         # Footer patterns
         footer_keywords = ['copyright', 'rights reserved', 'privacy', 'terms']
         footer_count = sum(1 for keyword in footer_keywords
-                          if keyword in text_lower)
+                           if keyword in text_lower)
 
         # Subscription patterns
         sub_keywords = ['subscribe', 'subscription', 'paywall', 'premium']
         sub_count = sum(1 for keyword in sub_keywords
-                       if keyword in text_lower)
+                        if keyword in text_lower)
 
         if nav_count >= 2:
             return "navigation"
@@ -289,7 +289,7 @@ class TwoPhaseContentCleaner:
             return "other"
 
     def _calculate_domain_stats(self, articles: List[Dict],
-                               segments: List[Dict]) -> Dict:
+                                segments: List[Dict]) -> Dict:
         """Calculate statistics for the domain analysis."""
         total_removable_chars = 0
         affected_articles = set()
@@ -300,7 +300,7 @@ class TwoPhaseContentCleaner:
             affected_articles.update(segment["article_ids"])
 
         total_content_chars = sum(len(article["content"])
-                                 for article in articles)
+                                  for article in articles)
 
         return {
             "total_articles": len(articles),
@@ -309,17 +309,17 @@ class TwoPhaseContentCleaner:
             "total_removable_chars": total_removable_chars,
             "total_content_chars": total_content_chars,
             "removal_percentage": (total_removable_chars / total_content_chars
-                                 * 100) if total_content_chars > 0 else 0
+                                   * 100) if total_content_chars > 0 else 0
         }
 
     def clean_article_content(self, content: str,
-                             segments_to_remove: List[Dict]) -> str:
+                              segments_to_remove: List[Dict]) -> str:
         """Remove exact duplicate segments from article content."""
         cleaned_content = content
 
         # Sort segments by length (longest first) to avoid partial removals
         segments_sorted = sorted(segments_to_remove,
-                               key=lambda x: x["length"], reverse=True)
+                                 key=lambda x: x["length"], reverse=True)
 
         for segment in segments_sorted:
             segment_text = segment["text"]

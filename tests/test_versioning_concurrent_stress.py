@@ -27,10 +27,10 @@ def _make_db_path(tmpdir_path: str) -> str:
 
 
 def _worker_attempt_claim(
-    db_url: str,
-    dv_id: str,
-    claimer: str,
-     out_q: mp.Queue):
+        db_url: str,
+        dv_id: str,
+        claimer: str,
+        out_q: mp.Queue):
     try:
         from models import versioning as v
 

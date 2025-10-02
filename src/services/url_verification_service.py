@@ -411,11 +411,11 @@ class URLVerificationService:
             """
 
             conn.execute(text(update_query),
-    {'job_id': self.current_job.id,
-    'status': 'completed' if remaining_discovered == 0 else 'paused',
-    'completed_at': datetime.now(),
-     },
-                )
+                         {'job_id': self.current_job.id,
+                          'status': 'completed' if remaining_discovered == 0 else 'paused',
+                          'completed_at': datetime.now(),
+                          },
+                         )
             conn.commit()
 
         self.logger.info(

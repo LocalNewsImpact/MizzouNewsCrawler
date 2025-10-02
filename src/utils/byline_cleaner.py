@@ -498,7 +498,7 @@ class BylineCleaner:
 
             # Check if smart processing was used
             if (isinstance(authors, list) and len(authors) >= 1 and
-                authors[0] == "__SMART_PROCESSED__"):
+                    authors[0] == "__SMART_PROCESSED__"):
                 smart_names = authors[1:]
                 cleaned_names = []
 
@@ -696,13 +696,13 @@ class BylineCleaner:
         # Check for common wire service patterns
         wire_patterns = [
             (r'^(ap|reuters|bloomberg|cnn|npr|pbs)$',
-    'AP/Reuters/Bloomberg/CNN/NPR/PBS'),
+             'AP/Reuters/Bloomberg/CNN/NPR/PBS'),
             (r'^(the\s+)?(associated\s+press|new\s+york\s+times|'
-    r'washington\s+post)$',
-    'Major Publication'),
+             r'washington\s+post)$',
+             'Major Publication'),
             (r'^(usa\s+today|wall\s+street\s+journal|'
-    r'los\s+angeles\s+times)$',
-     'National Publication')]
+             r'los\s+angeles\s+times)$',
+             'National Publication')]
 
         for pattern, service_category in wire_patterns:
             if re.match(pattern, byline_lower):
@@ -877,7 +877,7 @@ class BylineCleaner:
                     word_normalized = re.sub(r'[^\w\s]', '', word.lower())
                     # Skip this word if it matches any source word
                     if word_normalized not in [w.lower()
-                                                       for w in source_words]:
+                                               for w in source_words]:
                         remaining_words.append(word)
 
                 # Only return the remaining words if we have something left
@@ -1006,7 +1006,7 @@ class BylineCleaner:
             'photo by' in part_lower or
             'photos by' in part_lower or
             part_lower == 'photo' or
-            part_lower == 'photos'):
+                part_lower == 'photos'):
             return 'photo_credit'
 
         # Check for email
@@ -1070,7 +1070,7 @@ class BylineCleaner:
             word_lower = word.lower()
             # If we find a clear title word, check surrounding context
             if (word_lower in self.TITLES_TO_REMOVE or
-                word_lower in self.JOURNALISM_NOUNS):
+                    word_lower in self.JOURNALISM_NOUNS):
                 has_title_pattern = True
                 break
 
@@ -1176,7 +1176,7 @@ class BylineCleaner:
             # comma-separated)
             if (separator == ',' and len(parts) == 2 and
                 len(part_types) == 2 and
-                all(ptype == 'name' for _, ptype in part_types)):
+                    all(ptype == 'name' for _, ptype in part_types)):
 
                 first_part = part_types[0][0]  # Potential last name
                 second_part = part_types[1][0]  # Potential first name(s)
@@ -1187,7 +1187,7 @@ class BylineCleaner:
 
                 # Last name should be 1 word, first name(s) should be 1-2 words
                 if (len(first_part_words) == 1 and
-                    1 <= len(second_part_words) <= 2):
+                        1 <= len(second_part_words) <= 2):
                     # This looks like "Last, First" - reorder to "First Last"
                     reordered_name = f"{second_part} {first_part}"
                     logger.debug(f"Detected 'Last, First' format: "
@@ -1323,7 +1323,7 @@ class BylineCleaner:
 
                         # Track if this was a wire service
                         if org_name in {ws.lower()
-                                                 for ws in self.WIRE_SERVICES}:
+                                        for ws in self.WIRE_SERVICES}:
                             # Find the original wire service name and normalize
                             # it
                             for service in self.WIRE_SERVICES:
@@ -1668,7 +1668,7 @@ class BylineCleaner:
                 'der',
                 'le',
                 'la',
-                'du']:
+                    'du']:
                 normalized.append(word.lower())
             # Handle suffixes like Jr., Sr., III - always normalize these
             elif word.lower().rstrip('.') in ['jr', 'sr', 'ii', 'iii', 'iv']:
@@ -1763,7 +1763,7 @@ class BylineCleaner:
             # Reject common non-name patterns
             if re.match(
                 r'^(staff|the|by|and|with|for|at|of)$',
-                author.lower()):
+                    author.lower()):
                 continue
 
             # Reject if it's too long (likely not a name)
@@ -1775,9 +1775,9 @@ class BylineCleaner:
         return valid_authors
 
     def _format_result(self,
-    authors: List[str],
-        return_json: bool) -> Union[List[str],
-     Dict]:
+                       authors: List[str],
+                       return_json: bool) -> Union[List[str],
+                                                   Dict]:
         """Format the final result as array or JSON."""
         # FINAL STEP: Remove any duplicates that made it through
         if authors:
@@ -2252,7 +2252,7 @@ if __name__ == "__main__":  # pragma: no cover
         "By the Associated Press",
         "John O'Connor Jr., Business Editor (555) 123-4567",
         "Maria de la Cruz and James van der Berg III",
-     "By Alex Thompson, alex.thompson@news.com, Twitter: @alexnews"]
+        "By Alex Thompson, alex.thompson@news.com, Twitter: @alexnews"]
 
     cleaner = BylineCleaner()
 

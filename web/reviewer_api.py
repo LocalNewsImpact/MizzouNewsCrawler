@@ -48,7 +48,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # Fall back to `processed/` in the repository root.
 PIPELINE_PROCESSED = Path(ROOT) / "pipeline" / "processed"
 PROCESSED = PIPELINE_PROCESSED if PIPELINE_PROCESSED.exists() else (ROOT /
-                                                            "processed")
+                                                                    "processed")
 ARTICLES_CSV = PROCESSED / "articleslabelled_7.csv"
 FEEDBACK_CSV = PROCESSED / "feedback.csv"
 
@@ -187,7 +187,7 @@ def get_articles(
             text = " ".join(text.split())
         except Exception:
             text = (news[:preview_chars] +
-     "...") if len(news) > preview_chars else news
+                    "...") if len(news) > preview_chars else news
         preview = text[:preview_chars]
         row["news_preview"] = preview
         row["news_truncated"] = len(news) > len(preview)
@@ -672,8 +672,8 @@ def api_telemetry_queue():
             "accuracy_rate": (
                 stats.reviewed_correct /
                 max(stats.reviewed_correct +
-    stats.reviewed_incorrect +
-     stats.reviewed_partial, 1)
+                    stats.reviewed_incorrect +
+                    stats.reviewed_partial, 1)
             ) if (stats.reviewed_correct + stats.reviewed_incorrect + stats.reviewed_partial) > 0 else 0
         }
     except Exception:
@@ -730,8 +730,8 @@ def api_get_verification_stats():
 
 @app.get("/api/verification_telemetry/training_data")
 def api_get_verification_training_data(
-    min_confidence: float = 0.0,
-     format: str = "json"):
+        min_confidence: float = 0.0,
+        format: str = "json"):
     """Export labeled verification training data for ML."""
     try:
         data = get_labeled_verification_training_data(
@@ -764,9 +764,9 @@ def api_get_verification_training_data(
 
 @app.post("/api/verification_telemetry/enhance")
 def api_enhance_verification(
-    verification_id: str,
-    headline: str = "",
-     excerpt: str = ""):
+        verification_id: str,
+        headline: str = "",
+        excerpt: str = ""):
     """Add article content to verification for human review."""
     try:
         success = enhance_verification_with_content(

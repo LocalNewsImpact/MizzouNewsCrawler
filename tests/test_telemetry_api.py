@@ -142,17 +142,17 @@ class TestTelemetryAPIEndpoints:
         # Insert test sources
         sources = [
             ("good-site.com",
-    "good-site.com",
-    "good-site.com",
-    "active",
-    None,
-    None),
+             "good-site.com",
+             "good-site.com",
+             "active",
+             None,
+             None),
             ("blocked-site.com",
-    "blocked-site.com",
-    "blocked-site.com",
-    "paused",
-    now,
-    "Poor performance"),
+             "blocked-site.com",
+             "blocked-site.com",
+             "paused",
+             now,
+             "Poor performance"),
             ]
 
         for source_id, host, host_norm, status, paused_at, reason in sources:
@@ -217,7 +217,7 @@ class TestTelemetryAPIEndpoints:
 
         # Check for specific error
         blocked_site_errors = [e for e in errors if e["host"]
-            == "blocked-site.com" and e["status_code"] == 403]
+                               == "blocked-site.com" and e["status_code"] == 403]
         assert len(blocked_site_errors) == 1
         assert blocked_site_errors[0]["error_count"] == 2
 
@@ -358,17 +358,17 @@ class TestSiteManagementAPI:
         now = datetime.utcnow()
         test_sources = [
             ("test-site.com",
-    "test-site.com",
-    "test-site.com",
-    "active",
-    None,
-    None),
+             "test-site.com",
+             "test-site.com",
+             "active",
+             None,
+             None),
             ("paused-site.com",
-    "paused-site.com",
-    "paused-site.com",
-    "paused",
-    now,
-    "Manual pause for testing"),
+             "paused-site.com",
+             "paused-site.com",
+             "paused",
+             now,
+             "Manual pause for testing"),
             ]
 
         for source_id, host, host_norm, status, paused_at, reason in test_sources:
@@ -613,7 +613,7 @@ class TestCompleteAPIWorkflow:
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                     (f"op{i}",
-    f"art{i}",
+                     f"art{i}",
                         f"https://problem-site.com/article{i}",
                         "problem-site.com",
                         "problem-site.com",
@@ -623,7 +623,7 @@ class TestCompleteAPIWorkflow:
                         5000,
                         now -
                         timedelta(
-        hours=i)))
+                        hours=i)))
 
             # Add HTTP error summary
             cur.execute("""

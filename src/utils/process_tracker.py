@@ -104,8 +104,8 @@ class ProcessTracker:
             return [p for p in processes]  # Detach from session
 
     def get_process_by_id(
-        self,
-     process_id: str) -> Optional[BackgroundProcess]:
+            self,
+            process_id: str) -> Optional[BackgroundProcess]:
         """Get a specific process by ID."""
         with self.Session() as session:
             process = session.get(BackgroundProcess, process_id)
@@ -115,8 +115,8 @@ class ProcessTracker:
             return process
 
     def get_processes_by_type(
-        self,
-     process_type: str) -> List[BackgroundProcess]:
+            self,
+            process_type: str) -> List[BackgroundProcess]:
         """Get all processes of a specific type."""
         with self.Session() as session:
             processes = (

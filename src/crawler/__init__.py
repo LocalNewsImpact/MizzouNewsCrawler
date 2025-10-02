@@ -452,7 +452,7 @@ class ContentExtractor:
         if self._check_rate_limit(domain):
             backoff_time = self.domain_backoff_until[domain] - time.time()
             logger.info(f"Domain {domain} is rate limited, backing off for "
-                       f"{backoff_time:.0f} more seconds")
+                        f"{backoff_time:.0f} more seconds")
             raise RateLimitError(f"Domain {domain} is rate limited")
 
         # Check if we need to rotate user agent for this domain
@@ -533,7 +533,7 @@ class ContentExtractor:
             "total_domains_accessed": len(self.domain_sessions),
             "active_sessions": len(self.domain_sessions),
             "domain_user_agents": {domain: ua[:50] + "..." if len(ua) > 50 else ua
-                                 for domain, ua in self.domain_user_agents.items()},
+                                   for domain, ua in self.domain_user_agents.items()},
             "request_counts": self.request_counts.copy(),
             "user_agent_pool_size": len(self.user_agent_pool)
         }
@@ -628,7 +628,7 @@ class ContentExtractor:
             self.domain_error_counts[domain] = 0
 
     def _create_error_result(self, url: str, error_msg: str,
-                           metadata: Dict = None) -> Dict[str, any]:
+                             metadata: Dict = None) -> Dict[str, any]:
         """Create a standardized error result."""
         return {
             "url": url,
@@ -802,12 +802,12 @@ class ContentExtractor:
                     logger.info(f"newspaper4k extraction completed for {url}")
                     if metrics:
                         metrics.end_method("newspaper4k", True, None,
-                                          newspaper_result)
+                                           newspaper_result)
                 else:
                     if metrics:
                         metrics.end_method("newspaper4k", False,
-                                          "No content extracted",
-                                          newspaper_result or {})
+                                           "No content extracted",
+                                           newspaper_result or {})
 
             except Exception as e:
                 logger.info(f"newspaper4k extraction failed for {url}: {e}")
@@ -865,12 +865,12 @@ class ContentExtractor:
                     )
                     if metrics:
                         metrics.end_method("beautifulsoup", True, None,
-                                          bs_result)
+                                           bs_result)
                 else:
                     if metrics:
                         metrics.end_method("beautifulsoup", False,
-                                          "No content extracted",
-                                          bs_result or {})
+                                           "No content extracted",
+                                           bs_result or {})
 
             except Exception as e:
                 logger.info(f"BeautifulSoup extraction failed for {url}: {e}")
@@ -901,12 +901,12 @@ class ContentExtractor:
                     logger.info(f"Selenium extraction completed for {url}")
                     if metrics:
                         metrics.end_method("selenium", True, None,
-                                          selenium_result)
+                                           selenium_result)
                 else:
                     if metrics:
                         metrics.end_method("selenium", False,
-                                          "No content extracted",
-                                          selenium_result or {})
+                                           "No content extracted",
+                                           selenium_result or {})
 
             except Exception as e:
                 logger.info(f"Selenium extraction failed for {url}: {e}")
@@ -1210,7 +1210,7 @@ class ContentExtractor:
                     article.html = response.text
                     ua = self.domain_user_agents.get(domain, "Unknown")
                     logger.debug(f"Successfully fetched content for {url} with "
-                               f"UA: {ua[:30]}...")
+                                 f"UA: {ua[:30]}...")
                 else:
                     logger.warning(
                         f"Session returned status {
@@ -1238,7 +1238,7 @@ class ContentExtractor:
                     url, str(e), {"rate_limited": True})
             except Exception as e:
                 logger.warning(f"Session fetch failed for {url}: {e}, "
-                             f"falling back to newspaper download")
+                               f"falling back to newspaper download")
                 # Fallback to newspaper4k's built-in download
                 try:
                     article.download()

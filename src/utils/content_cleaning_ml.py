@@ -62,9 +62,9 @@ class ContentCleaningMLFeatureExtractor:
         ]
 
     def extract_features(self, segment_text: str, segment_hash: str,
-                        domain: str, occurrence_count: int,
-                        total_articles_in_domain: int,
-                        position_stats: Dict, confidence_score: float) -> Dict:
+                         domain: str, occurrence_count: int,
+                         total_articles_in_domain: int,
+                         position_stats: Dict, confidence_score: float) -> Dict:
         """
         Extract comprehensive features for ML model training.
 
@@ -95,7 +95,7 @@ class ContentCleaningMLFeatureExtractor:
             "word_count": len(segment_text.split()),
             "sentence_count": len(re.split(r'[.!?]+', segment_text)),
             "avg_word_length": np.mean([len(w) for w in segment_text.split()])
-                              if segment_text.split() else 0,
+            if segment_text.split() else 0,
 
             # Position features
             "avg_start_position": position_stats.get("avg_start_percentage", 0),
@@ -103,7 +103,7 @@ class ContentCleaningMLFeatureExtractor:
             "start_std": position_stats.get("start_std", 0),
             "end_std": position_stats.get("end_std", 0),
             "position_consistency": 1.0 - (position_stats.get("start_std", 1.0) +
-                                         position_stats.get("end_std", 1.0)) / 2,
+                                           position_stats.get("end_std", 1.0)) / 2,
 
             # Binary position features
             "is_at_very_beginning": position_stats.get("avg_start_percentage", 0) < 0.05,
@@ -305,9 +305,9 @@ class ContentCleaningMLFeatureExtractor:
         return features
 
     def create_training_example(self, features: Dict, should_remove: bool,
-                               segment_hash: str, domain: str,
-                               human_decision: bool = False,
-                               confidence: float = 1.0) -> MLTrainingExample:
+                                segment_hash: str, domain: str,
+                                human_decision: bool = False,
+                                confidence: float = 1.0) -> MLTrainingExample:
         """Create a training example for the ML model."""
         return MLTrainingExample(
             features=features,

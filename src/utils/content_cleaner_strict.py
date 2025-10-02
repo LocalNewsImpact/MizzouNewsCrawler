@@ -18,14 +18,14 @@ class StrictBoundaryContentCleaner:
         self.logger = logging.getLogger(__name__)
 
     def analyze_domain(self, domain: str, sample_size: int = None,
-                      min_occurrences: int = 3) -> Dict:
+                       min_occurrences: int = 3) -> Dict:
         """Analyze domain with strict boundary requirements."""
         self.logger.info(f"Analyzing domain: {domain}")
 
         articles = self._get_articles_for_domain(domain, sample_size)
         if len(articles) < min_occurrences:
             return {"domain": domain, "article_count": len(articles),
-                   "segments": []}
+                    "segments": []}
 
         # Phase 1: Find rough candidates
         rough_candidates = self._find_rough_candidates(articles)
@@ -46,7 +46,7 @@ class StrictBoundaryContentCleaner:
         }
 
     def _get_articles_for_domain(self, domain: str,
-                                sample_size: int = None) -> List[Dict]:
+                                 sample_size: int = None) -> List[Dict]:
         """Get articles for a specific domain."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -167,8 +167,8 @@ class StrictBoundaryContentCleaner:
         return True
 
     def _validate_strict_boundaries(self, articles: List[Dict],
-                                   rough_candidates: Dict[str, Set[str]],
-                                   min_occurrences: int) -> List[Dict]:
+                                    rough_candidates: Dict[str, Set[str]],
+                                    min_occurrences: int) -> List[Dict]:
         """Phase 2: Validate candidates have strict proper boundaries."""
         strict_segments = []
         articles_by_id = {str(article["id"]): article for article in articles}
@@ -227,7 +227,7 @@ class StrictBoundaryContentCleaner:
 
         # Sort by occurrences and length
         strict_segments.sort(key=lambda x: (x["occurrences"], x["length"]),
-                            reverse=True)
+                             reverse=True)
 
         self.logger.info(
             f"Validated {
@@ -235,10 +235,10 @@ class StrictBoundaryContentCleaner:
         return strict_segments
 
     def _has_proper_boundaries(
-        self,
-        content: str,
-        start_pos: int,
-     end_pos: int) -> bool:
+            self,
+            content: str,
+            start_pos: int,
+            end_pos: int) -> bool:
         """Check if a text segment has proper start and end boundaries."""
         text = content[start_pos:end_pos]
 
@@ -305,11 +305,11 @@ class StrictBoundaryContentCleaner:
         return False
 
     def _calculate_position_consistency(self,
-    exact_matches: Dict[str,
-    List[Tuple[int,
-    int]]],
-        articles_by_id: Dict[str,
-     Dict]) -> float:
+                                        exact_matches: Dict[str,
+                                                            List[Tuple[int,
+                                                                       int]]],
+                                        articles_by_id: Dict[str,
+                                                             Dict]) -> float:
         """Calculate position consistency (0.0 to 1.0)."""
         if len(exact_matches) < 2:
             return 0.0
@@ -331,7 +331,7 @@ class StrictBoundaryContentCleaner:
         # Calculate variance in relative positions
         mean_pos = sum(relative_positions) / len(relative_positions)
         variance = sum((pos - mean_pos) ** 2
-                      for pos in relative_positions) / len(relative_positions)
+                       for pos in relative_positions) / len(relative_positions)
 
         # Convert to consistency score
         consistency = max(0.0, 1.0 - (variance * 5))
@@ -355,17 +355,17 @@ class StrictBoundaryContentCleaner:
             'world',
             'local']
         nav_count = sum(1 for keyword in nav_keywords
-                       if keyword in text_lower)
+                        if keyword in text_lower)
 
         # Footer patterns
         footer_keywords = ['copyright', 'rights reserved', 'privacy', 'terms']
         footer_count = sum(1 for keyword in footer_keywords
-                          if keyword in text_lower)
+                           if keyword in text_lower)
 
         # Subscription patterns
         sub_keywords = ['subscribe', 'subscription', 'paywall', 'premium']
         sub_count = sum(1 for keyword in sub_keywords
-                       if keyword in text_lower)
+                        if keyword in text_lower)
 
         if nav_count >= 2:
             return "navigation"
@@ -377,7 +377,7 @@ class StrictBoundaryContentCleaner:
             return "other"
 
     def _calculate_domain_stats(self, articles: List[Dict],
-                               segments: List[Dict]) -> Dict:
+                                segments: List[Dict]) -> Dict:
         """Calculate statistics for the domain analysis."""
         total_removable_chars = 0
         affected_articles = set()
@@ -387,7 +387,7 @@ class StrictBoundaryContentCleaner:
             affected_articles.update(segment["article_ids"])
 
         total_content_chars = sum(len(article["content"])
-                                 for article in articles)
+                                  for article in articles)
 
         return {
             "total_articles": len(articles),
@@ -396,5 +396,5 @@ class StrictBoundaryContentCleaner:
             "total_removable_chars": total_removable_chars,
             "total_content_chars": total_content_chars,
             "removal_percentage": (total_removable_chars / total_content_chars
-                                 * 100) if total_content_chars > 0 else 0
+                                   * 100) if total_content_chars > 0 else 0
         }

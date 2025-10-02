@@ -50,7 +50,7 @@ class ImprovedContentCleaner:
         self._boilerplate_cache = {}
 
     def analyze_domain(self, domain: str,
-                      sample_size: Optional[int] = None) -> Dict:
+                       sample_size: Optional[int] = None) -> Dict:
         """Analyze content from a domain to identify boilerplate."""
         articles = self._get_domain_articles(domain, sample_size)
 
@@ -85,7 +85,7 @@ class ImprovedContentCleaner:
             "segments": [
                 {
                     "text": (match.text[:200] + "..."
-                            if len(match.text) > 200 else match.text),
+                             if len(match.text) > 200 else match.text),
                     "hash": match.hash_value,
                     "occurrence_count": match.occurrence_count,
                     "confidence_score": match.confidence_score,
@@ -97,8 +97,8 @@ class ImprovedContentCleaner:
         }
 
     def clean_content(self, content: str, domain: str,
-                     article_id: Optional[int] = None,
-                     dry_run: bool = True) -> Tuple[str, CleaningTelemetry]:
+                      article_id: Optional[int] = None,
+                      dry_run: bool = True) -> Tuple[str, CleaningTelemetry]:
         """Clean content by removing detected boilerplate segments."""
         start_time = datetime.utcnow()
         original_length = len(content)
@@ -157,19 +157,19 @@ class ImprovedContentCleaner:
                 unique_segments[key] = (start_pos, segment_text, segment_info)
 
         sorted_segments = sorted(unique_segments.values(),
-                               key=lambda x: x[0], reverse=True)
+                                 key=lambda x: x[0], reverse=True)
 
         # Apply removal
         for start_pos, segment_text, segment_info in sorted_segments:
             if not dry_run:
                 # Remove the segment
                 cleaned_content = (cleaned_content[:start_pos] +
-                                 cleaned_content[start_pos + len(segment_text):])
+                                   cleaned_content[start_pos + len(segment_text):])
 
             removed_segments.append({
                 "hash": segment_info["hash"],
                 "text": segment_text[:100] + "..."
-                       if len(segment_text) > 100 else segment_text,
+                if len(segment_text) > 100 else segment_text,
                 "confidence": segment_info["confidence_score"],
                 "length": len(segment_text),
                 "position": start_pos,
@@ -194,7 +194,7 @@ class ImprovedContentCleaner:
         return cleaned_content, telemetry
 
     def _get_domain_articles(self, domain: str,
-                           sample_size: Optional[int] = None) -> List[Dict]:
+                             sample_size: Optional[int] = None) -> List[Dict]:
         """Get articles from a specific domain."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -244,7 +244,7 @@ class ImprovedContentCleaner:
             # Strategy 1: Large blocks (navigation menus, headers)
             blocks = self._extract_large_blocks(content)
             self._process_segments(blocks, "large_block", segment_occurrences,
-                                 content, article_id)
+                                   content, article_id)
 
             # Strategy 2: Paragraph-level segments
             paragraphs = self._extract_paragraphs(content)
@@ -348,7 +348,7 @@ class ImprovedContentCleaner:
                         keyword in word for keyword in nav_keywords))
 
                 if len(block_words) > 0 and block_nav_count / \
-                       len(block_words) > 0.3:
+                        len(block_words) > 0.3:
                     patterns.append((block.strip(), i, i + len(block)))
 
         return patterns
@@ -379,8 +379,8 @@ class ImprovedContentCleaner:
         return patterns
 
     def _process_segments(self, segments: List[Tuple[str, int, int]],
-                         pattern_type: str, segment_occurrences: Dict,
-                         content: str, article_id: str):
+                          pattern_type: str, segment_occurrences: Dict,
+                          content: str, article_id: str):
         """Process extracted segments and add to occurrences."""
         for segment_text, start_pos, end_pos in segments:
             if len(segment_text.strip()) < 30:  # Skip very short segments
@@ -405,7 +405,7 @@ class ImprovedContentCleaner:
             segment_occurrences[segment_hash]["pattern_type"] = pattern_type
 
     def _score_segment(self, segment_data: Dict, domain: str,
-                      total_articles: int) -> BoilerplateMatch:
+                       total_articles: int) -> BoilerplateMatch:
         """Score a segment for boilerplate likelihood."""
         text = segment_data["text"]
         occurrence_count = segment_data["count"]
@@ -430,9 +430,9 @@ class ImprovedContentCleaner:
         )
 
     def _calculate_improved_confidence(self, text: str, occurrence_count: int,
-                                     total_articles: int,
-                                     positions: List[Tuple[float, float]],
-                                     pattern_type: str) -> float:
+                                       total_articles: int,
+                                       positions: List[Tuple[float, float]],
+                                       pattern_type: str) -> float:
         """Calculate confidence score with improved logic."""
         text_lower = text.lower()
         confidence = 0.0

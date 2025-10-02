@@ -66,13 +66,13 @@ class PublisherGeoFilter:
                 "amenity=doctors",
                 "amenity=pharmacy",
                 ],
-                "businesses": [
+            "businesses": [
                     "shop=supermarket",
                     "shop=department_store",
                     "amenity=restaurant",
                     "amenity=bank",
                     ],
-                    "landmarks": [
+            "landmarks": [
                         "amenity=library",
                         "leisure=park",
                         "tourism=attraction",
@@ -1224,17 +1224,17 @@ class PublisherGeoFilter:
             r["has_geographic_signals"] for r in geo_results
         ]
         df["detected_locations"] = [r["detected_locations"]
-            for r in geo_results]
+                                    for r in geo_results]
         df["location_count"] = [r["location_count"] for r in geo_results]
         df["geographic_signal_strength"] = [r["signal_strength"]
-            for r in geo_results]
+                                            for r in geo_results]
         # local_probability from detector
         df["local_probability"] = [
             r.get("local_probability", None) for r in geo_results
         ]
         # include whether a wire indicator was detected near byline/text
         df["wire_present"] = [r.get("wire_present", False)
-                                    for r in geo_results]
+                              for r in geo_results]
         df["coverage_radius"] = [r["coverage_radius"] for r in geo_results]
 
         # Initialize wire and local_wire columns if they don't exist

@@ -22,7 +22,7 @@ except Exception as e:
 
     pytest.skip(
         f"Skipping versioning test due to import error: {e}",
-     allow_module_level=True)
+        allow_module_level=True)
 
 
 def test_export_snapshot_chunked():
@@ -41,10 +41,10 @@ def test_export_snapshot_chunked():
         "CREATE TABLE candidate_links (id TEXT PRIMARY KEY, url TEXT, source_name TEXT)"
     )
     rows = [(f"id-{i}", f"http://example.com/{i}", f"source-{i%10}")
-              for i in range(5000)]
+            for i in range(5000)]
     cur.executemany(
         "INSERT INTO candidate_links (id, url, source_name) VALUES (?, ?, ?)",
-     rows)
+        rows)
     conn.commit()
     conn.close()
 
@@ -52,7 +52,7 @@ def test_export_snapshot_chunked():
     dv = create_dataset_version(
         "candidate_links",
         "test-v1",
-     database_url=db_url)
+        database_url=db_url)
 
     # Export snapshot to a temp file
     out_dir = tempfile.mkdtemp()

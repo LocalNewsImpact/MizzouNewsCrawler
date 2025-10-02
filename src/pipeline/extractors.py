@@ -22,8 +22,8 @@ except Exception:
 DEFAULT_CONFIG_PATH = os.path.join(
     os.path.dirname(
         os.path.dirname(__file__)),
-        "sources",
-         "host_selectors.json")
+    "sources",
+    "host_selectors.json")
 
 
 class HostSelector:
@@ -35,7 +35,7 @@ class HostSelector:
         for k, v in list(self.selectors.items()):
             if isinstance(v, str) and "," in v:
                 self.selectors[k] = [s.strip()
-                                             for s in v.split(",") if s.strip()]
+                                     for s in v.split(",") if s.strip()]
 
     def extract_with_selectors(
             self, soup: BeautifulSoup) -> Dict[str, Optional[str]]:
@@ -241,9 +241,9 @@ DEFAULT_SELECTORS = [
 
 
 def extract(html: str,
-    url: Optional[str] = None,
-    registry: Optional[ExtractorRegistry] = None) -> Dict[str,
-     Optional[str]]:
+            url: Optional[str] = None,
+            registry: Optional[ExtractorRegistry] = None) -> Dict[str,
+                                                                  Optional[str]]:
     soup = BeautifulSoup(html, "html.parser")
     hostname = None
     if url:
