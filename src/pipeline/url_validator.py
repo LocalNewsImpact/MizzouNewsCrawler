@@ -13,7 +13,7 @@ Usage:
 
 import json
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 
@@ -31,14 +31,13 @@ class URLValidator:
         self.outlets = self.config.get("outlets", {})
         self.validation_rules = self.config.get("validation_rules", {})
 
-    def _load_config(self, config_path: str) -> Dict[str, Any]:
+    def _load_config(self, config_path: str) -> dict[str, Any]:
         """Load configuration from JSON file."""
         try:
-            with open(config_path, "r") as f:
+            with open(config_path) as f:
                 return json.load(f)
         except FileNotFoundError:
-            raise FileNotFoundError(
-                f"Configuration file not found: {config_path}")
+            raise FileNotFoundError(f"Configuration file not found: {config_path}")
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON in configuration file: {e}")
 
@@ -83,19 +82,19 @@ class URLValidator:
         """Check if URL matches any general exclusion pattern."""
         return any(exclusion in url for exclusion in self.general_exclusions)
 
-    def _has_outlet_exclusion(self, url: str, outlet_config: Dict) -> bool:
+    def _has_outlet_exclusion(self, url: str, outlet_config: dict) -> bool:
         """Check if URL matches any outlet-specific exclusion pattern."""
         exclusions = outlet_config.get("exclusions", [])
         return any(exclusion in url for exclusion in exclusions)
 
-    def _meets_required_patterns(self, url: str, outlet_config: Dict) -> bool:
+    def _meets_required_patterns(self, url: str, outlet_config: dict) -> bool:
         """Check if URL contains all required patterns."""
         required_patterns = outlet_config.get("required_patterns", [])
         if not required_patterns:
             return True
         return all(pattern in url for pattern in required_patterns)
 
-    def _passes_validation_rules(self, url: str, outlet_config: Dict) -> bool:
+    def _passes_validation_rules(self, url: str, outlet_config: dict) -> bool:
         """Apply custom validation rules for the outlet."""
         rules = outlet_config.get("validation_rules", [])
         if not rules:
@@ -132,15 +131,15 @@ class URLValidator:
             print(f"Warning: Unknown validation rule '{rule}' for URL: {url}")
             return True
 
-    def get_outlet_config(self, hostname: str) -> Optional[Dict]:
+    def get_outlet_config(self, hostname: str) -> dict | None:
         """Get configuration for a specific outlet."""
         return self.outlets.get(hostname)
 
-    def add_outlet_config(self, hostname: str, config: Dict):
+    def add_outlet_config(self, hostname: str, config: dict):
         """Add or update configuration for an outlet."""
         self.outlets[hostname] = config
 
-    def validate_config(self) -> List[str]:
+    def validate_config(self) -> list[str]:
         """Validate the configuration and return list of issues."""
         issues = []
 
@@ -159,7 +158,8 @@ class URLValidator:
                     "no_trailing_slash",
                 ]:
                     issues.append(
-                        f"Unknown validation rule '{rule}' in outlet '{hostname}'")
+                        f"Unknown validation rule '{rule}' in outlet '{hostname}'"
+                    )
 
         return issues
 
@@ -183,7 +183,7 @@ def refactor_crawler_validation(crawler_notebook_path: str, config_path: str):
     validator = URLValidator(config_path)
 
     # Example of how to replace the existing validation loop
-    def filter_urls(internal_urls: List[str]) -> List[str]:
+    def filter_urls(internal_urls: list[str]) -> list[str]:
         """Replace the massive if/then chain with clean validation."""
         valid_urls = []
 

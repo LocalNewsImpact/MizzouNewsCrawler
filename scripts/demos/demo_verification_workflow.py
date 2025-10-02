@@ -17,6 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from sqlalchemy import text
+
 from models.database import DatabaseManager
 from services.url_verification import URLVerificationService
 
@@ -26,10 +27,10 @@ def show_verification_status():
     print("\n" + "="*60)
     print("VERIFICATION STATUS CHECK")
     print("="*60)
-    
+
     db = DatabaseManager()
     session = db.session
-    
+
     # Get status counts
     result = session.execute(text("""
         SELECT status, COUNT(*) as count
@@ -37,23 +38,23 @@ def show_verification_status():
         GROUP BY status
         ORDER BY count DESC
     """))
-    
+
     total = 0
     status_counts = {}
     for row in result:
         status_counts[row[0]] = row[1]
         total += row[1]
-    
+
     print(f"Total URLs: {total}")
     print(f"Pending verification: {status_counts.get('discovered', 0)}")
     print(f"Verified articles: {status_counts.get('article', 0)}")
     print(f"Verified non-articles: {status_counts.get('not_article', 0)}")
     print(f"Verification failures: {status_counts.get('verification_failed', 0)}")
-    
+
     print("\nStatus breakdown:")
     for status, count in status_counts.items():
         print(f"  {status}: {count}")
-    
+
     session.close()
     return status_counts
 
@@ -63,13 +64,13 @@ def run_verification_demo(batch_size=10):
     print("\n" + "="*60)
     print(f"RUNNING VERIFICATION DEMO (batch_size={batch_size})")
     print("="*60)
-    
+
     service = URLVerificationService(batch_size=batch_size, sleep_interval=1)
-    
+
     # Get a small batch to process
     db = service.db
     session = db.session
-    
+
     candidates = session.execute(text("""
         SELECT id, url, source
         FROM candidate_links
@@ -77,29 +78,29 @@ def run_verification_demo(batch_size=10):
         ORDER BY created_at DESC
         LIMIT :batch_size
     """), {"batch_size": batch_size}).fetchall()
-    
+
     if not candidates:
         print("No URLs with 'discovered' status found!")
         session.close()
         return
-    
+
     print(f"Found {len(candidates)} URLs to verify:")
     for i, candidate in enumerate(candidates[:3], 1):
         print(f"  {i}. {candidate[1]} (source: {candidate[2]})")
     if len(candidates) > 3:
         print(f"  ... and {len(candidates) - 3} more")
-    
+
     session.close()
-    
+
     # Process the batch
     print(f"\nProcessing {len(candidates)} URLs with StorySniffer...")
     candidates_dict = [
-        {"id": c[0], "url": c[1], "source": c[2]} 
+        {"id": c[0], "url": c[1], "source": c[2]}
         for c in candidates
     ]
-    
+
     metrics = service.process_batch(candidates_dict)
-    
+
     print("✅ Verification complete!")
     print(f"   Articles found: {metrics['verified_articles']}")
     print(f"   Non-articles: {metrics['verified_non_articles']}")
@@ -112,10 +113,10 @@ def show_article_extraction_simulation():
     print("\n" + "="*60)
     print("ARTICLE EXTRACTION SIMULATION")
     print("="*60)
-    
+
     db = DatabaseManager()
     session = db.session
-    
+
     # Show URLs that would be processed by extraction
     result = session.execute(text("""
         SELECT url, source, created_at
@@ -124,9 +125,9 @@ def show_article_extraction_simulation():
         ORDER BY created_at DESC
         LIMIT 5
     """))
-    
+
     articles = result.fetchall()
-    
+
     if articles:
         print(f"URLs ready for article extraction ({len(articles)} shown):")
         for i, article in enumerate(articles, 1):
@@ -134,18 +135,18 @@ def show_article_extraction_simulation():
     else:
         print("No verified articles found yet.")
         print("Run verification on more URLs to find actual articles.")
-    
+
     # Show URLs that would be skipped
     result = session.execute(text("""
         SELECT COUNT(*)
         FROM candidate_links
         WHERE status = 'not_article'
     """))
-    
+
     not_articles = result.fetchone()[0]
     print(f"\nURLs that would be SKIPPED by extraction: {not_articles}")
     print("(These were verified as non-articles by StorySniffer)")
-    
+
     session.close()
 
 
@@ -154,9 +155,9 @@ def show_telemetry_data():
     print("\n" + "="*60)
     print("VERIFICATION TELEMETRY")
     print("="*60)
-    
+
     try:
-        with open("verification_telemetry.log", "r") as f:
+        with open("verification_telemetry.log") as f:
             content = f.read().strip()
             if content:
                 import json
@@ -188,30 +189,30 @@ def main():
     print("="*60)
     print("This demo shows the complete background verification system:")
     print("1. URLs start with 'discovered' status")
-    print("2. StorySniffer verifies each URL") 
+    print("2. StorySniffer verifies each URL")
     print("3. Status changes to 'article' or 'not_article'")
     print("4. Telemetry tracks the verification job")
     print("5. Extraction processes only 'article' status URLs")
-    
+
     # Show initial status
     initial_status = show_verification_status()
-    
+
     # If we have URLs to verify, run a demo batch
     if initial_status.get('discovered', 0) > 0:
         run_verification_demo(batch_size=min(10, initial_status['discovered']))
-        
+
         # Show updated status
         show_verification_status()
     else:
         print("\nNo URLs with 'discovered' status found.")
         print("Run URL discovery first to populate URLs for verification.")
-    
+
     # Show extraction simulation
     show_article_extraction_simulation()
-    
+
     # Show telemetry
     show_telemetry_data()
-    
+
     print("\n" + "="*60)
     print("WORKFLOW COMPLETE")
     print("="*60)
@@ -221,7 +222,7 @@ def main():
     print("✅ Updates status to 'article' or 'not_article'")
     print("✅ Logs comprehensive telemetry by job")
     print("✅ Enables extraction to process only verified articles")
-    
+
     print("\nTo run ongoing verification:")
     print("  python -m src.services.url_verification")
     print("\nTo check verification status:")

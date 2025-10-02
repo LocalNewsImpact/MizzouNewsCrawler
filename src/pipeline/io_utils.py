@@ -18,7 +18,6 @@ import tempfile
 import threading
 import time
 from datetime import datetime
-from typing import Optional
 
 try:
     import pandas as pd  # optional dependency used when available
@@ -44,7 +43,7 @@ def build_output_path(
     processed_dir: str,
     phase: int,
     name: str,
-    host: Optional[str] = None,
+    host: str | None = None,
     ext: str = "csv",
 ) -> str:
     """Build a semantic output filename in `processed/phase_{phase}`.
@@ -236,8 +235,7 @@ def save_df_to_sql(
 
         first = rows[0]
         if not isinstance(first, dict):
-            raise RuntimeError(
-                "save_df_to_sql expects rows as dict-like objects")
+            raise RuntimeError("save_df_to_sql expects rows as dict-like objects")
 
         def _sqlite_type(pyval):
             if isinstance(pyval, int) and not isinstance(pyval, bool):
@@ -277,7 +275,7 @@ def save_df_to_sql(
 # locked" errors when multiple threads/processes attempt concurrent writes.
 
 _db_write_queue: "queue.Queue[tuple]" = queue.Queue()
-_db_writer_thread: Optional[threading.Thread] = None
+_db_writer_thread: threading.Thread | None = None
 _db_writer_stop = threading.Event()
 
 
@@ -311,7 +309,7 @@ def start_db_writer_thread():
 
 def stop_db_writer_thread(
     wait: bool = True,
-    timeout: Optional[float] = None,
+    timeout: float | None = None,
 ) -> None:
     """Signal the writer thread to stop and optionally wait for queue flush."""
     _db_writer_stop.set()
@@ -339,7 +337,7 @@ def enqueue_df_save(
     _db_write_queue.put((df, db_path, table_name, if_exists))
 
 
-def wait_for_db_writes(timeout: Optional[float] = None) -> bool:
+def wait_for_db_writes(timeout: float | None = None) -> bool:
     """Block until the DB write queue is empty or until `timeout` seconds.
 
     Returns True if queue drained, False if timed out.

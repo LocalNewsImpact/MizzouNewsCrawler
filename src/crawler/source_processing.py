@@ -5,7 +5,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 from urllib.parse import urljoin, urlparse
 
 import pandas as pd
@@ -23,20 +23,20 @@ class SourceProcessor:
 
     discovery: Any
     source_row: pd.Series
-    dataset_label: Optional[str] = None
-    operation_id: Optional[str] = None
-    date_parser: Optional[Any] = None
+    dataset_label: str | None = None
+    operation_id: str | None = None
+    date_parser: Any | None = None
 
     source_url: str = field(init=False)
     source_name: str = field(init=False)
     source_id: str = field(init=False)
     start_time: float = field(init=False)
-    existing_urls: Set[str] = field(init=False)
-    source_meta: Optional[dict] = field(init=False)
-    allowed_hosts: Set[str] = field(init=False)
-    effective_methods: List[DiscoveryMethod] = field(init=False)
-    discovery_methods_attempted: List[str] = field(init=False)
-    rss_summary: Dict[str, int] = field(default_factory=dict, init=False)
+    existing_urls: set[str] = field(init=False)
+    source_meta: dict | None = field(init=False)
+    allowed_hosts: set[str] = field(init=False)
+    effective_methods: list[DiscoveryMethod] = field(init=False)
+    discovery_methods_attempted: list[str] = field(init=False)
+    rss_summary: dict[str, int] = field(default_factory=dict, init=False)
 
     def process(self) -> DiscoveryResult:
         self._initialize_context()
@@ -78,7 +78,7 @@ class SourceProcessor:
         self.discovery_methods_attempted = []
         self.effective_methods = self._determine_effective_methods()
 
-    def _parse_source_meta(self) -> Optional[dict]:
+    def _parse_source_meta(self) -> dict | None:
         if "metadata" not in self.source_row.index:
             return None
         raw_meta = self.source_row.get("metadata")
@@ -93,14 +93,14 @@ class SourceProcessor:
                 return None
         return None
 
-    def _determine_effective_methods(self) -> List[DiscoveryMethod]:
+    def _determine_effective_methods(self) -> list[DiscoveryMethod]:
         telemetry = getattr(self.discovery, "telemetry", None)
-        methods: List[DiscoveryMethod] = []
+        methods: list[DiscoveryMethod] = []
         if telemetry:
             try:
-                methods = telemetry.get_effective_discovery_methods(
-                    self.source_id
-                ) or []
+                methods = (
+                    telemetry.get_effective_discovery_methods(self.source_id) or []
+                )
             except Exception:
                 methods = []
 
@@ -125,8 +125,8 @@ class SourceProcessor:
 
     def _prioritize_last_success(
         self,
-        methods: List[DiscoveryMethod],
-    ) -> List[DiscoveryMethod]:
+        methods: list[DiscoveryMethod],
+    ) -> list[DiscoveryMethod]:
         if not isinstance(self.source_meta, dict):
             return list(methods)
         last_success = self.source_meta.get("last_successful_method")
@@ -160,8 +160,8 @@ class SourceProcessor:
     # ------------------------------------------------------------------
     # Discovery method orchestration
     # ------------------------------------------------------------------
-    def _run_discovery_methods(self) -> List[Dict[str, Any]]:
-        all_discovered: List[Dict[str, Any]] = []
+    def _run_discovery_methods(self) -> list[dict[str, Any]]:
+        all_discovered: list[dict[str, Any]] = []
         rss_attempted = False
         skip_rss = False
 
@@ -211,10 +211,10 @@ class SourceProcessor:
 
         return all_discovered
 
-    def _extract_custom_rss_feeds(self) -> Optional[List[str]]:
+    def _extract_custom_rss_feeds(self) -> list[str] | None:
         if not hasattr(self.source_row, "rss_feeds"):
             return None
-        feeds = getattr(self.source_row, "rss_feeds")
+        feeds = self.source_row.rss_feeds
         if not feeds:
             return None
         if isinstance(feeds, str):
@@ -259,8 +259,8 @@ class SourceProcessor:
 
     def _try_rss(
         self,
-    ) -> Tuple[List[Dict[str, Any]], Dict[str, int], bool, bool]:
-        articles: List[Dict[str, Any]] = []
+    ) -> tuple[list[dict[str, Any]], dict[str, int], bool, bool]:
+        articles: list[dict[str, Any]] = []
         summary = {
             "feeds_tried": 0,
             "feeds_successful": 0,
@@ -278,8 +278,7 @@ class SourceProcessor:
             skip_rss = True
             return articles, summary, attempted, skip_rss
 
-        rss_meta = self.source_meta if isinstance(
-            self.source_meta, dict) else None
+        rss_meta = self.source_meta if isinstance(self.source_meta, dict) else None
 
         try:
             attempted = True
@@ -308,8 +307,8 @@ class SourceProcessor:
 
     def _persist_rss_metadata(
         self,
-        articles: List[Dict[str, Any]],
-        summary: Dict[str, int],
+        articles: list[dict[str, Any]],
+        summary: dict[str, int],
     ) -> None:
         if not self.source_id:
             return
@@ -370,11 +369,7 @@ class SourceProcessor:
                 is_network_error = True
         except Exception:
             msg = str(rss_error).lower()
-            if (
-                "timeout" in msg
-                or "timed out" in msg
-                or "connection" in msg
-            ):
+            if "timeout" in msg or "timed out" in msg or "connection" in msg:
                 is_network_error = True
 
         try:
@@ -402,8 +397,8 @@ class SourceProcessor:
         self,
         skip_rss: bool,
         rss_attempted: bool,
-    ) -> List[Dict[str, Any]]:
-        articles: List[Dict[str, Any]] = []
+    ) -> list[dict[str, Any]]:
+        articles: list[dict[str, Any]] = []
         try:
             self.discovery_methods_attempted.append("newspaper4k")
             articles = self.discovery.discover_with_newspaper4k(
@@ -433,17 +428,14 @@ class SourceProcessor:
                         error=newspaper_error,
                         site_name=self.source_name,
                         discovery_method="newspaper4k",
-                        response_time_ms=(
-                            time.time() - self.start_time
-                        )
-                        * 1000,
+                        response_time_ms=(time.time() - self.start_time) * 1000,
                     )
                 except Exception:
                     pass
         return articles or []
 
-    def _try_storysniffer(self) -> List[Dict[str, Any]]:
-        articles: List[Dict[str, Any]] = []
+    def _try_storysniffer(self) -> list[dict[str, Any]]:
+        articles: list[dict[str, Any]] = []
         if not getattr(self.discovery, "storysniffer", None):
             return articles
         try:
@@ -472,10 +464,7 @@ class SourceProcessor:
                         error=story_error,
                         site_name=self.source_name,
                         discovery_method="storysniffer",
-                        response_time_ms=(
-                            time.time() - self.start_time
-                        )
-                        * 1000,
+                        response_time_ms=(time.time() - self.start_time) * 1000,
                     )
                 except Exception:
                     pass
@@ -486,10 +475,10 @@ class SourceProcessor:
     # ------------------------------------------------------------------
     def _store_candidates(
         self,
-        all_discovered: List[Dict[str, Any]],
-    ) -> Dict[str, int]:
+        all_discovered: list[dict[str, Any]],
+    ) -> dict[str, int]:
         articles_found_total = len(all_discovered)
-        unique_articles: Dict[str, Dict[str, Any]] = {}
+        unique_articles: dict[str, dict[str, Any]] = {}
         for article in all_discovered:
             url = article.get("url")
             if not url:
@@ -526,12 +515,8 @@ class SourceProcessor:
                         host_value,
                     )
 
-                    if (
-                        self.allowed_hosts
-                        and (
-                            not normalized_host
-                            or normalized_host not in self.allowed_hosts
-                        )
+                    if self.allowed_hosts and (
+                        not normalized_host or normalized_host not in self.allowed_hosts
                     ):
                         articles_out_of_scope += 1
                         logger.debug(
@@ -552,8 +537,7 @@ class SourceProcessor:
 
                     url = absolute_url
 
-                    normalized_candidate = self.discovery._normalize_candidate_url(
-                        url)
+                    normalized_candidate = self.discovery._normalize_candidate_url(url)
 
                     if normalized_candidate in self.existing_urls:
                         articles_duplicate += 1
@@ -565,8 +549,11 @@ class SourceProcessor:
                             typed_publish_date = self._coerce_publish_date(
                                 discovered_publish_date
                             )
-                            if typed_publish_date and not self.discovery._is_recent_article(  # noqa: E501
+                            if (
                                 typed_publish_date
+                                and not self.discovery._is_recent_article(  # noqa: E501
+                                    typed_publish_date
+                                )
                             ):
                                 articles_expired += 1
                                 continue
@@ -576,9 +563,7 @@ class SourceProcessor:
                         typed_publish_date = None
 
                     articles_new += 1
-                    discovered_by_label = self._format_discovered_by(
-                        article_data
-                    )
+                    discovered_by_label = self._format_discovered_by(article_data)
 
                     candidate_data = {
                         "url": url,
@@ -601,9 +586,7 @@ class SourceProcessor:
                         "source_name": self.source_name,
                         "source_city": self.source_row.get("city"),
                         "source_county": self.source_row.get("county"),
-                        "source_type": self.source_row.get(
-                            "type_classification"
-                        ),
+                        "source_type": self.source_row.get("type_classification"),
                     }
 
                     from ..models.database import upsert_candidate_link  # lazy
@@ -632,7 +615,7 @@ class SourceProcessor:
     def _coerce_publish_date(
         self,
         value: Any,
-    ) -> Optional[datetime]:
+    ) -> datetime | None:
         if isinstance(value, datetime):
             return value
         try:
@@ -647,7 +630,7 @@ class SourceProcessor:
                     return None
         return None
 
-    def _format_discovered_by(self, article_data: Dict[str, Any]) -> str:
+    def _format_discovered_by(self, article_data: dict[str, Any]) -> str:
         try:
             return self.discovery._format_discovered_by(article_data)
         except Exception:
@@ -660,9 +643,7 @@ class SourceProcessor:
     def _record_no_articles(self) -> None:
         telemetry = getattr(self.discovery, "telemetry", None)
         if telemetry and self.operation_id:
-            content_error = Exception(
-                "No articles discovered from any method"
-            )
+            content_error = Exception("No articles discovered from any method")
             try:
                 telemetry.record_site_failure(
                     operation_id=self.operation_id,
@@ -705,8 +686,8 @@ class SourceProcessor:
 
     def _build_result(
         self,
-        all_discovered: List[Dict[str, Any]],
-        stats: Dict[str, int],
+        all_discovered: list[dict[str, Any]],
+        stats: dict[str, int],
     ) -> DiscoveryResult:
         outcome = self._determine_outcome(stats)
         return DiscoveryResult(
@@ -729,13 +710,10 @@ class SourceProcessor:
             },
         )
 
-    def _determine_outcome(self, stats: Dict[str, int]) -> DiscoveryOutcome:
+    def _determine_outcome(self, stats: dict[str, int]) -> DiscoveryOutcome:
         if stats["articles_new"] > 0:
             return DiscoveryOutcome.NEW_ARTICLES_FOUND
-        if (
-            stats["articles_duplicate"] > 0
-            and stats["articles_expired"] > 0
-        ):
+        if stats["articles_duplicate"] > 0 and stats["articles_expired"] > 0:
             return DiscoveryOutcome.MIXED_RESULTS
         if stats["articles_duplicate"] > 0:
             return DiscoveryOutcome.DUPLICATES_ONLY

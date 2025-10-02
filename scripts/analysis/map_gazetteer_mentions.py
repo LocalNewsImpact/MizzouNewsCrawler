@@ -15,10 +15,11 @@ import re
 import sqlite3
 import sys
 from collections import defaultdict
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Pattern, Sequence, Tuple
+from re import Pattern
 
-CATEGORIES: Tuple[str, ...] = (
+CATEGORIES: tuple[str, ...] = (
     "businesses",
     "economic",
     "government",
@@ -31,7 +32,7 @@ CATEGORIES: Tuple[str, ...] = (
 TOKEN_CHARS = "A-Za-z0-9&'"  # hyphen handled via pattern replacement
 
 
-def build_pattern(name: str) -> Optional[Pattern[str]]:
+def build_pattern(name: str) -> Pattern[str] | None:
     """Build a compiled regex that matches an entity name within article text.
 
     The pattern enforces loose word boundaries and collapses stretches of
@@ -66,7 +67,7 @@ def build_pattern(name: str) -> Optional[Pattern[str]]:
 
 def fetch_entities_by_source(
     conn: sqlite3.Connection,
-) -> Dict[str, List[Tuple[str, str, Pattern[str]]]]:
+) -> dict[str, list[tuple[str, str, Pattern[str]]]]:
     """Return relevant gazetteer entities organized by source_id."""
 
     query = """
@@ -76,7 +77,7 @@ def fetch_entities_by_source(
           AND name IS NOT NULL
           AND source_id IS NOT NULL
     """
-    entities: Dict[str, List[Tuple[str, str, Pattern[str]]]] = (
+    entities: dict[str, list[tuple[str, str, Pattern[str]]]] = (
         defaultdict(list)
     )
     for source_id, category, name in conn.execute(query, CATEGORIES):
@@ -107,11 +108,11 @@ def iterate_articles(
 
 def map_mentions(
     conn: sqlite3.Connection,
-    entities_by_source: Dict[str, List[Tuple[str, str, Pattern[str]]]],
-) -> Dict[Tuple[str, str, str, str], set]:
+    entities_by_source: dict[str, list[tuple[str, str, Pattern[str]]]],
+) -> dict[tuple[str, str, str, str], set]:
     """Return mapping of (county, outlet, category, entity) -> article IDs."""
 
-    mentions: Dict[Tuple[str, str, str, str], set] = defaultdict(set)
+    mentions: dict[tuple[str, str, str, str], set] = defaultdict(set)
 
     for row in iterate_articles(conn):
         article_id = row["article_id"]
@@ -134,7 +135,7 @@ def map_mentions(
 
 def write_results(
     output_path: Path,
-    mentions: Dict[Tuple[str, str, str, str], set],
+    mentions: dict[tuple[str, str, str, str], set],
 ) -> None:
     """Persist mention counts to CSV sorted by county/outlet/category."""
 

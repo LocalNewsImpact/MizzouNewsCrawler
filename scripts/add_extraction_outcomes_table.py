@@ -17,12 +17,12 @@ def get_db_path():
 
 def create_extraction_outcomes_table():
     """Create the extraction_outcomes table for extraction telemetry."""
-    
+
     db_path = get_db_path()
     if not db_path.exists():
         print(f"Error: Database not found at {db_path}")
         return 1
-    
+
     create_table_sql = """
     CREATE TABLE IF NOT EXISTS extraction_outcomes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,7 +53,7 @@ def create_extraction_outcomes_table():
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """
-    
+
     # Create indexes for efficient querying
     indexes = [
         ("CREATE INDEX IF NOT EXISTS idx_extraction_operation "
@@ -73,23 +73,23 @@ def create_extraction_outcomes_table():
         ("CREATE INDEX IF NOT EXISTS idx_extraction_quality "
          "ON extraction_outcomes (content_quality_score)"),
     ]
-    
+
     try:
         with sqlite3.connect(db_path) as conn:
             print("Creating extraction_outcomes table...")
             conn.execute(create_table_sql)
-            
+
             print("Creating indexes...")
             for index_sql in indexes:
                 conn.execute(index_sql)
-            
+
             conn.commit()
             print("✓ extraction_outcomes table created successfully!")
-            
+
     except Exception as e:
         print(f"Error creating extraction_outcomes table: {e}")
         return 1
-    
+
     return 0
 
 

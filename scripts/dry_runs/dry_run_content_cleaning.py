@@ -3,11 +3,11 @@
 Dry run analysis of content cleaning across all domains in the database.
 Shows removal statistics and examples without making any changes.
 """
-import sys
-import sqlite3
 import argparse
-from urllib.parse import urlparse
+import sqlite3
+import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 # Add the src directory to Python path
 sys.path.insert(0, str(Path(__file__).parent / "src"))

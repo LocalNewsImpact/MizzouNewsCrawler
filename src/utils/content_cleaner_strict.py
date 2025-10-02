@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 
-import sqlite3
-import re
-from typing import List, Dict, Tuple, Set
-from collections import defaultdict
 import logging
+import re
+import sqlite3
+from collections import defaultdict
 
 
 class StrictBoundaryContentCleaner:
@@ -17,15 +16,15 @@ class StrictBoundaryContentCleaner:
         self.db_path = db_path
         self.logger = logging.getLogger(__name__)
 
-    def analyze_domain(self, domain: str, sample_size: int = None,
-                       min_occurrences: int = 3) -> Dict:
+    def analyze_domain(
+        self, domain: str, sample_size: int = None, min_occurrences: int = 3
+    ) -> dict:
         """Analyze domain with strict boundary requirements."""
         self.logger.info(f"Analyzing domain: {domain}")
 
         articles = self._get_articles_for_domain(domain, sample_size)
         if len(articles) < min_occurrences:
-            return {"domain": domain, "article_count": len(articles),
-                    "segments": []}
+            return {"domain": domain, "article_count": len(articles), "segments": []}
 
         # Phase 1: Find rough candidates
         rough_candidates = self._find_rough_candidates(articles)
@@ -42,11 +41,12 @@ class StrictBoundaryContentCleaner:
             "domain": domain,
             "article_count": len(articles),
             "segments": strict_segments,
-            "stats": stats
+            "stats": stats,
         }
 
-    def _get_articles_for_domain(self, domain: str,
-                                 sample_size: int = None) -> List[Dict]:
+    def _get_articles_for_domain(
+        self, domain: str, sample_size: int = None
+    ) -> list[dict]:
         """Get articles for a specific domain."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -67,20 +67,14 @@ class StrictBoundaryContentCleaner:
 
         cursor.execute(query, params)
         articles = [
-            {
-                "id": row[0],
-                "url": row[1],
-                "content": row[2],
-                "text_hash": row[3]
-            }
+            {"id": row[0], "url": row[1], "content": row[2], "text_hash": row[3]}
             for row in cursor.fetchall()
         ]
 
         conn.close()
         return articles
 
-    def _find_rough_candidates(
-            self, articles: List[Dict]) -> Dict[str, Set[str]]:
+    def _find_rough_candidates(self, articles: list[dict]) -> dict[str, set[str]]:
         """Phase 1: Find rough candidates using complete structures only."""
         candidates = defaultdict(set)
 
@@ -89,32 +83,32 @@ class StrictBoundaryContentCleaner:
             article_id = str(article["id"])
 
             # Method 1: Complete sentences (end with proper punctuation)
-            sentences = re.split(r'[.!?]+\s+', content)
+            sentences = re.split(r"[.!?]+\s+", content)
             for sentence in sentences:
                 sentence = sentence.strip()
                 if 30 <= len(sentence) <= 400:
                     # Only include if it looks like a complete sentence
                     if self._is_complete_sentence(sentence):
-                        normalized = re.sub(r'\s+', ' ', sentence)
+                        normalized = re.sub(r"\s+", " ", sentence)
                         candidates[normalized].add(article_id)
 
             # Method 2: Complete paragraphs (bounded by double newlines)
-            paragraphs = re.split(r'\n\s*\n', content)
+            paragraphs = re.split(r"\n\s*\n", content)
             for paragraph in paragraphs:
                 paragraph = paragraph.strip()
                 if 40 <= len(paragraph) <= 600:
                     # Clean up internal whitespace but keep structure
-                    normalized = re.sub(r'\s+', ' ', paragraph)
+                    normalized = re.sub(r"\s+", " ", paragraph)
                     candidates[normalized].add(article_id)
 
             # Method 3: Complete lines (for navigation/headers)
-            lines = content.split('\n')
+            lines = content.split("\n")
             for line in lines:
                 line = line.strip()
                 if 20 <= len(line) <= 300:
                     # Only include lines that look complete
                     if self._is_complete_line(line):
-                        normalized = re.sub(r'\s+', ' ', line)
+                        normalized = re.sub(r"\s+", " ", line)
                         candidates[normalized].add(article_id)
 
         # Filter candidates that appear in multiple articles
@@ -132,12 +126,14 @@ class StrictBoundaryContentCleaner:
         text = text.strip()
 
         # Must start with capital letter or common sentence starters
-        if not (text[0].isupper() or text.lower().startswith(
-                ('the ', 'a ', 'an ', 'to ', 'if ', 'we '))):
+        if not (
+            text[0].isupper()
+            or text.lower().startswith(("the ", "a ", "an ", "to ", "if ", "we "))
+        ):
             return False
 
         # Must end with proper punctuation
-        if not text.endswith(('.', '!', '?', ':', ';')):
+        if not text.endswith((".", "!", "?", ":", ";")):
             return False
 
         # Should have reasonable word count
@@ -156,19 +152,21 @@ class StrictBoundaryContentCleaner:
             return False
 
         # Skip if it looks like a fragment (ends mid-word or with comma)
-        if text.endswith((',', '...', ' and', ' or', ' but')):
+        if text.endswith((",", "...", " and", " or", " but")):
             return False
 
         # Skip if it starts mid-sentence (lowercase, no capital)
-        if text[0].islower() and not text.lower(
-        ).startswith(('the ', 'a ', 'an ')):
+        if text[0].islower() and not text.lower().startswith(("the ", "a ", "an ")):
             return False
 
         return True
 
-    def _validate_strict_boundaries(self, articles: List[Dict],
-                                    rough_candidates: Dict[str, Set[str]],
-                                    min_occurrences: int) -> List[Dict]:
+    def _validate_strict_boundaries(
+        self,
+        articles: list[dict],
+        rough_candidates: dict[str, set[str]],
+        min_occurrences: int,
+    ) -> list[dict]:
         """Phase 2: Validate candidates have strict proper boundaries."""
         strict_segments = []
         articles_by_id = {str(article["id"]): article for article in articles}
@@ -221,23 +219,21 @@ class StrictBoundaryContentCleaner:
                         "positions": boundary_valid_matches,
                         "position_consistency": position_consistency,
                         "pattern_type": self._classify_pattern(candidate_text),
-                        "boundary_validated": True
+                        "boundary_validated": True,
                     }
                     strict_segments.append(segment)
 
         # Sort by occurrences and length
-        strict_segments.sort(key=lambda x: (x["occurrences"], x["length"]),
-                             reverse=True)
+        strict_segments.sort(
+            key=lambda x: (x["occurrences"], x["length"]), reverse=True
+        )
 
-        self.logger.info(
-            f"Validated {len(strict_segments)} strict boundary segments")
+        self.logger.info(f"Validated {len(strict_segments)} strict boundary segments")
         return strict_segments
 
     def _has_proper_boundaries(
-            self,
-            content: str,
-            start_pos: int,
-            end_pos: int) -> bool:
+        self, content: str, start_pos: int, end_pos: int
+    ) -> bool:
         """Check if a text segment has proper start and end boundaries."""
         text = content[start_pos:end_pos]
 
@@ -246,8 +242,14 @@ class StrictBoundaryContentCleaner:
         if start_pos > 0:
             char_before = content[start_pos - 1]
             # Should be preceded by sentence boundary or paragraph boundary
-            if not (char_before in '.!?\n' or (
-                    char_before == ' ' and start_pos > 1 and content[start_pos - 2] in '.!?\n')):
+            if not (
+                char_before in ".!?\n"
+                or (
+                    char_before == " "
+                    and start_pos > 1
+                    and content[start_pos - 2] in ".!?\n"
+                )
+            ):
                 proper_start = False
 
         # Check character after end position
@@ -255,14 +257,14 @@ class StrictBoundaryContentCleaner:
         if end_pos < len(content):
             char_after = content[end_pos]
             # Should be followed by sentence boundary or paragraph boundary
-            if not (char_after in '.!?\n ' or end_pos == len(content) - 1):
+            if not (char_after in ".!?\n " or end_pos == len(content) - 1):
                 proper_end = False
 
         # Text itself should look complete
         text_complete = (
-            self._is_complete_sentence(text) or
-            self._is_complete_paragraph(text) or
-            self._is_complete_phrase(text)
+            self._is_complete_sentence(text)
+            or self._is_complete_paragraph(text)
+            or self._is_complete_phrase(text)
         )
 
         return proper_start and proper_end and text_complete
@@ -276,11 +278,11 @@ class StrictBoundaryContentCleaner:
             return False
 
         # Should end properly
-        if not text.endswith(('.', '!', '?', ':', ';', '"', "'")):
+        if not text.endswith((".", "!", "?", ":", ";", '"', "'")):
             return False
 
         # Should start properly (capital letter or quote)
-        if not (text[0].isupper() or text[0] in '"\''):
+        if not (text[0].isupper() or text[0] in "\"'"):
             return False
 
         return True
@@ -291,10 +293,10 @@ class StrictBoundaryContentCleaner:
 
         # Navigation or UI phrases
         nav_patterns = [
-            r'^(Watch|Post|Start|Stop|Cancel|Subscribe|Login|Register)',
-            r'(discussion|comment|notification|subscription)$',
-            r'^(Click here|Learn more|Read more|Continue reading)',
-            r'(terms|privacy|policy|guidelines)$'
+            r"^(Watch|Post|Start|Stop|Cancel|Subscribe|Login|Register)",
+            r"(discussion|comment|notification|subscription)$",
+            r"^(Click here|Learn more|Read more|Continue reading)",
+            r"(terms|privacy|policy|guidelines)$",
         ]
 
         for pattern in nav_patterns:
@@ -303,12 +305,11 @@ class StrictBoundaryContentCleaner:
 
         return False
 
-    def _calculate_position_consistency(self,
-                                        exact_matches: Dict[str,
-                                                            List[Tuple[int,
-                                                                       int]]],
-                                        articles_by_id: Dict[str,
-                                                             Dict]) -> float:
+    def _calculate_position_consistency(
+        self,
+        exact_matches: dict[str, list[tuple[int, int]]],
+        articles_by_id: dict[str, dict],
+    ) -> float:
         """Calculate position consistency (0.0 to 1.0)."""
         if len(exact_matches) < 2:
             return 0.0
@@ -329,8 +330,9 @@ class StrictBoundaryContentCleaner:
 
         # Calculate variance in relative positions
         mean_pos = sum(relative_positions) / len(relative_positions)
-        variance = sum((pos - mean_pos) ** 2
-                       for pos in relative_positions) / len(relative_positions)
+        variance = sum((pos - mean_pos) ** 2 for pos in relative_positions) / len(
+            relative_positions
+        )
 
         # Convert to consistency score
         consistency = max(0.0, 1.0 - (variance * 5))
@@ -342,29 +344,27 @@ class StrictBoundaryContentCleaner:
 
         # Navigation patterns
         nav_keywords = [
-            'news',
-            'sports',
-            'obituaries',
-            'contact',
-            'subscribe',
-            'home',
-            'about',
-            'business',
-            'opinion',
-            'world',
-            'local']
-        nav_count = sum(1 for keyword in nav_keywords
-                        if keyword in text_lower)
+            "news",
+            "sports",
+            "obituaries",
+            "contact",
+            "subscribe",
+            "home",
+            "about",
+            "business",
+            "opinion",
+            "world",
+            "local",
+        ]
+        nav_count = sum(1 for keyword in nav_keywords if keyword in text_lower)
 
         # Footer patterns
-        footer_keywords = ['copyright', 'rights reserved', 'privacy', 'terms']
-        footer_count = sum(1 for keyword in footer_keywords
-                           if keyword in text_lower)
+        footer_keywords = ["copyright", "rights reserved", "privacy", "terms"]
+        footer_count = sum(1 for keyword in footer_keywords if keyword in text_lower)
 
         # Subscription patterns
-        sub_keywords = ['subscribe', 'subscription', 'paywall', 'premium']
-        sub_count = sum(1 for keyword in sub_keywords
-                        if keyword in text_lower)
+        sub_keywords = ["subscribe", "subscription", "paywall", "premium"]
+        sub_count = sum(1 for keyword in sub_keywords if keyword in text_lower)
 
         if nav_count >= 2:
             return "navigation"
@@ -375,8 +375,9 @@ class StrictBoundaryContentCleaner:
         else:
             return "other"
 
-    def _calculate_domain_stats(self, articles: List[Dict],
-                                segments: List[Dict]) -> Dict:
+    def _calculate_domain_stats(
+        self, articles: list[dict], segments: list[dict]
+    ) -> dict:
         """Calculate statistics for the domain analysis."""
         total_removable_chars = 0
         affected_articles = set()
@@ -385,8 +386,7 @@ class StrictBoundaryContentCleaner:
             total_removable_chars += segment["length"] * segment["occurrences"]
             affected_articles.update(segment["article_ids"])
 
-        total_content_chars = sum(len(article["content"])
-                                  for article in articles)
+        total_content_chars = sum(len(article["content"]) for article in articles)
 
         return {
             "total_articles": len(articles),
@@ -394,6 +394,9 @@ class StrictBoundaryContentCleaner:
             "total_segments": len(segments),
             "total_removable_chars": total_removable_chars,
             "total_content_chars": total_content_chars,
-            "removal_percentage": (total_removable_chars / total_content_chars
-                                   * 100) if total_content_chars > 0 else 0
+            "removal_percentage": (
+                (total_removable_chars / total_content_chars * 100)
+                if total_content_chars > 0
+                else 0
+            ),
         }

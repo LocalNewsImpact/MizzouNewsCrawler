@@ -12,8 +12,9 @@ import asyncio
 import inspect
 import logging
 from collections import deque
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Deque, Optional
+from typing import Any
 
 __all__ = ["WorkerStats", "AsyncVerificationWorker"]
 
@@ -27,9 +28,9 @@ class WorkerStats:
     accepted: int = 0
     shed: int = 0
     max_backlog: int = 0
-    last_shed_reason: Optional[str] = None
+    last_shed_reason: str | None = None
     sample_limit: int = 25
-    shed_samples: Deque[Any] = field(init=False)
+    shed_samples: deque[Any] = field(init=False)
 
     def __post_init__(self) -> None:  # pragma: no cover - trivial
         self.shed_samples = deque(maxlen=self.sample_limit)
@@ -49,10 +50,10 @@ class AsyncVerificationWorker:
         processor: Processor,
         *,
         max_queue_size: int = 128,
-        shed_threshold: Optional[int] = None,
+        shed_threshold: int | None = None,
         concurrency: int = 4,
         stats_history: int = 25,
-        logger: Optional[logging.Logger] = None,
+        logger: logging.Logger | None = None,
     ) -> None:
         if max_queue_size < 1:
             raise ValueError("max_queue_size must be at least 1")
@@ -78,7 +79,7 @@ class AsyncVerificationWorker:
         self._running = False
         self._workers: list[asyncio.Task[None]] = []
         self._sentinel = object()
-        self._last_exception: Optional[BaseException] = None
+        self._last_exception: BaseException | None = None
 
         self.stats = WorkerStats(sample_limit=stats_history)
 
@@ -89,7 +90,7 @@ class AsyncVerificationWorker:
         return self._shed_threshold
 
     @property
-    def last_exception(self) -> Optional[BaseException]:
+    def last_exception(self) -> BaseException | None:
         """Return the most recent processor exception, if any."""
 
         return self._last_exception
@@ -124,9 +125,7 @@ class AsyncVerificationWorker:
 
         await self._queue.join()
 
-    async def submit(
-        self, item: Any, *, shed_reason: Optional[str] = None
-    ) -> bool:
+    async def submit(self, item: Any, *, shed_reason: str | None = None) -> bool:
         """Attempt to queue an item for processing.
 
         Returns ``True`` when the item is accepted.  When backlog pressure
@@ -194,8 +193,8 @@ class AsyncVerificationWorker:
             await self._processor(item)  # type: ignore[arg-type]
             return
 
-    # Run synchronous processor in a worker thread to avoid blocking
-    # the event loop.
+        # Run synchronous processor in a worker thread to avoid blocking
+        # the event loop.
         await asyncio.to_thread(self._processor, item)
 
     def _record_shed(self, item: Any, reason: str) -> None:

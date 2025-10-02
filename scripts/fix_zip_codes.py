@@ -6,9 +6,9 @@ This script converts ZIP codes from float format (e.g., 64108.0)
 to proper string format (e.g., "64108") in Source metadata.
 """
 
+import json
 import logging
 import sys
-import json
 
 from sqlalchemy import create_engine, text
 

@@ -12,8 +12,9 @@ from __future__ import annotations
 import argparse
 import json
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 from sqlalchemy import text
@@ -27,11 +28,11 @@ from src.utils.content_cleaning_telemetry import ContentCleaningTelemetry
 class ArticleRecord:
     id: str
     url: str
-    title: Optional[str]
-    author: Optional[str]
-    content: Optional[str]
-    wire_raw: Optional[str]
-    status: Optional[str]
+    title: str | None
+    author: str | None
+    content: str | None
+    wire_raw: str | None
+    status: str | None
 
     @property
     def domain(self) -> str:
@@ -41,12 +42,12 @@ class ArticleRecord:
 @dataclass
 class AuditResult:
     article: ArticleRecord
-    provider: Optional[str]
-    detected_provider: Optional[str]
-    existing_provider: Optional[str]
-    detection_methods: List[str]
-    locality: Optional[Dict[str, Any]]
-    source_context: Dict[str, Any]
+    provider: str | None
+    detected_provider: str | None
+    existing_provider: str | None
+    detection_methods: list[str]
+    locality: dict[str, Any] | None
+    source_context: dict[str, Any]
 
     @property
     def is_wire(self) -> bool:
@@ -57,7 +58,7 @@ class AuditResult:
         return bool(self.locality and self.locality.get('is_local'))
 
 
-def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Dry-run wire detection audit"
     )
@@ -91,7 +92,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def extract_provider_from_wire(wire_value: Optional[str]) -> Optional[str]:
+def extract_provider_from_wire(wire_value: str | None) -> str | None:
     if not wire_value:
         return None
 
@@ -116,16 +117,16 @@ def extract_provider_from_wire(wire_value: Optional[str]) -> Optional[str]:
 
 def fetch_articles(
     db: DatabaseManager,
-    domains: Optional[Iterable[str]],
+    domains: Iterable[str] | None,
     statuses: Iterable[str],
     limit: int,
-) -> List[ArticleRecord]:
-    filters: List[str] = []
+) -> list[ArticleRecord]:
+    filters: list[str] = []
     if domains:
         filters.append(
             "("
             + " OR ".join(
-                "url LIKE :domain_{}".format(i) for i, _ in enumerate(domains)
+                f"url LIKE :domain_{i}" for i, _ in enumerate(domains)
             )
             + ")"
         )
@@ -133,7 +134,7 @@ def fetch_articles(
         filters.append(
             "status IN ("
             + ",".join(
-                ":status_{}".format(i) for i, _ in enumerate(statuses)
+                f":status_{i}" for i, _ in enumerate(statuses)
             )
             + ")"
         )
@@ -141,20 +142,20 @@ def fetch_articles(
     where_clause = " AND ".join(filters) if filters else "1=1"
 
     base_query = (
-        """
+        f"""
         SELECT id, url, title, author, content, wire, status
         FROM articles
         WHERE {where_clause}
         ORDER BY created_at DESC
         """
-    ).format(where_clause=where_clause)
+    )
 
     if limit and limit > 0:
         base_query += " LIMIT :limit"
 
     query = text(base_query)
 
-    params: Dict[str, object] = {}
+    params: dict[str, object] = {}
     if limit and limit > 0:
         params["limit"] = limit
     if domains:
@@ -184,9 +185,9 @@ class WireAuditEngine:
             enable_telemetry=False,
         )
         self.telemetry = ContentCleaningTelemetry(enable_telemetry=False)
-        self._pattern_cache: Dict[str, List[Dict[str, Any]]] = {}
+        self._pattern_cache: dict[str, list[dict[str, Any]]] = {}
 
-    def _get_patterns_for_domain(self, domain: str) -> List[Dict[str, Any]]:
+    def _get_patterns_for_domain(self, domain: str) -> list[dict[str, Any]]:
         if not domain:
             return []
         if domain not in self._pattern_cache:
@@ -199,9 +200,9 @@ class WireAuditEngine:
         domain = article.domain
         existing_provider = extract_provider_from_wire(article.wire_raw)
 
-        detection_methods: List[str] = []
-        provider_candidates: List[Optional[str]] = []
-        detected_provider: Optional[str] = None
+        detection_methods: list[str] = []
+        provider_candidates: list[str | None] = []
+        detected_provider: str | None = None
 
         if existing_provider:
             detection_methods.append("existing_wire")
@@ -255,8 +256,8 @@ class WireAuditEngine:
         # Determine final provider preference
         provider = next((p for p in provider_candidates if p), None)
 
-        locality: Optional[Dict[str, Any]] = None
-        source_context: Dict[str, Any] = {}
+        locality: dict[str, Any] | None = None
+        source_context: dict[str, Any] = {}
 
         if provider and article.content:
             source_context = self.cleaner._get_article_source_context(
@@ -279,7 +280,7 @@ class WireAuditEngine:
         )
 
 
-def format_locality_summary(locality: Optional[Dict[str, Any]]) -> str:
+def format_locality_summary(locality: dict[str, Any] | None) -> str:
     if not locality:
         return "n/a"
     parts = [
@@ -296,7 +297,7 @@ def format_locality_summary(locality: Optional[Dict[str, Any]]) -> str:
     return "; ".join(parts)
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
 
     with DatabaseManager(args.database) as db:
@@ -308,7 +309,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     engine = WireAuditEngine(resolve_sqlite_path(args.database))
 
-    results: List[AuditResult] = [
+    results: list[AuditResult] = [
         engine.audit_article(article)
         for article in articles
     ]
@@ -329,7 +330,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     print(f"Local wire candidates: {len(local_wire_results)}")
     print(f"  Newly detected local: {len(new_local_results)}")
 
-    domain_totals: Dict[str, Dict[str, int]] = defaultdict(
+    domain_totals: dict[str, dict[str, int]] = defaultdict(
         lambda: {"wire": 0, "local": 0}
     )
     for res in wire_results:
@@ -358,11 +359,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             provider_label = res.provider or "unknown"
             status = res.article.status or "unknown"
             print(
-                "- {} | domain={} | status={}".format(
-                    res.article.id,
-                    res.article.domain,
-                    status,
-                )
+                f"- {res.article.id} | domain={res.article.domain} | status={status}"
             )
             print(f"  Provider: {provider_label}")
             print(f"  Existing provider: {res.existing_provider or 'n/a'}")

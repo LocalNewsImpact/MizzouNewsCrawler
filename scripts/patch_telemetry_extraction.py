@@ -15,17 +15,17 @@ from pathlib import Path
 
 def patch_telemetry_file():
     """Add record_extraction_outcome method to telemetry.py."""
-    
+
     telemetry_path = Path(__file__).parent.parent / "src" / "utils" / "telemetry.py"
-    
+
     if not telemetry_path.exists():
         print(f"Error: telemetry.py not found at {telemetry_path}")
         return 1
-    
+
     # Read the current file
-    with open(telemetry_path, 'r') as f:
+    with open(telemetry_path) as f:
         content = f.read()
-    
+
     # Function to add after record_discovery_outcome
     extraction_function = '''
     def record_extraction_outcome(self, operation_id: str, article_id: int, 
@@ -115,23 +115,23 @@ def patch_telemetry_file():
         except Exception as e:
             self.logger.error(f"Failed to record extraction outcome: {e}")
 '''
-    
+
     # Find the end of record_discovery_outcome method
     pattern = r'(\n\s+def record_discovery_outcome\(.*?\n(?:\s{4,}.*\n)*)'
     match = re.search(pattern, content, re.DOTALL)
-    
+
     if not match:
         print("Error: Could not find record_discovery_outcome method")
         return 1
-    
+
     # Insert the new function after record_discovery_outcome
     insertion_point = match.end()
     new_content = content[:insertion_point] + extraction_function + content[insertion_point:]
-    
+
     # Write the patched file
     with open(telemetry_path, 'w') as f:
         f.write(new_content)
-    
+
     print("✓ Successfully added record_extraction_outcome method to telemetry.py")
     return 0
 

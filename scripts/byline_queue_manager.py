@@ -14,26 +14,27 @@ from pathlib import Path
 # Add src to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 
+from sqlalchemy import text
+
 from src.models.database import DatabaseManager
 from src.utils.byline_cleaner import BylineCleaner
-from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
 
 class BylineCleaningQueue:
     """Queue-based system for managing byline cleaning tasks."""
-    
+
     def __init__(self):
         """Initialize the queue system."""
         self.db = DatabaseManager()
         self.cleaner = BylineCleaner()
         self._ensure_queue_table()
-    
+
     def _ensure_queue_table(self):
         """Create the byline cleaning queue table if it doesn't exist."""
         session = self.db.session
-        
+
         try:
             # Create queue table for tracking cleaning tasks
             session.execute(text("""
@@ -49,22 +50,22 @@ class BylineCleaningQueue:
                     FOREIGN KEY (article_id) REFERENCES articles(id)
                 )
             """))
-            
+
             # Create index for efficient processing
             session.execute(text("""
                 CREATE INDEX IF NOT EXISTS idx_byline_queue_status 
                 ON byline_cleaning_queue(status, created_at)
             """))
-            
+
             session.commit()
             logger.debug("Byline cleaning queue table ready")
-            
+
         except Exception as e:
             logger.error(f"Error setting up queue table: {e}")
             session.rollback()
         finally:
             session.close()
-    
+
     def add_article_to_queue(self, article_id: str, raw_author: str) -> bool:
         """
         Add an article to the byline cleaning queue.
@@ -77,7 +78,7 @@ class BylineCleaningQueue:
             True if successfully added to queue
         """
         session = self.db.session
-        
+
         try:
             # Check if already in queue
             existing = session.execute(
@@ -88,11 +89,11 @@ class BylineCleaningQueue:
                 """),
                 {"article_id": article_id}
             ).fetchone()
-            
+
             if existing:
                 logger.debug(f"Article {article_id} already in queue")
                 return False
-            
+
             # Add to queue
             session.execute(
                 text("""
@@ -107,17 +108,17 @@ class BylineCleaningQueue:
                 }
             )
             session.commit()
-            
+
             logger.debug(f"Added article {article_id} to cleaning queue")
             return True
-            
+
         except Exception as e:
             logger.error(f"Error adding article to queue: {e}")
             session.rollback()
             return False
         finally:
             session.close()
-    
+
     def process_queue_batch(self, batch_size: int = 10) -> int:
         """
         Process a batch of items from the cleaning queue.
@@ -130,7 +131,7 @@ class BylineCleaningQueue:
         """
         session = self.db.session
         processed_count = 0
-        
+
         try:
             # Get pending items from queue
             pending_items = session.execute(
@@ -143,32 +144,32 @@ class BylineCleaningQueue:
                 """),
                 {"batch_size": batch_size}
             ).fetchall()
-            
+
             if not pending_items:
                 logger.debug("No pending items in byline cleaning queue")
                 return 0
-            
+
             logger.info(f"Processing {len(pending_items)} byline cleaning tasks")
-            
+
             for queue_id, article_id, raw_author in pending_items:
                 success = self._process_single_item(
                     session, queue_id, article_id, raw_author
                 )
                 if success:
                     processed_count += 1
-            
+
             session.commit()
             logger.info(f"Processed {processed_count}/{len(pending_items)} items")
-            
+
         except Exception as e:
             logger.error(f"Error processing queue batch: {e}")
             session.rollback()
         finally:
             session.close()
-            
+
         return processed_count
-    
-    def _process_single_item(self, session, queue_id: int, 
+
+    def _process_single_item(self, session, queue_id: int,
                            article_id: str, raw_author: str) -> bool:
         """Process a single item from the queue."""
         try:
@@ -181,10 +182,10 @@ class BylineCleaningQueue:
                 """),
                 {"queue_id": queue_id}
             )
-            
+
             # Clean the author field
             cleaned_author = self.cleaner.clean_byline(raw_author)
-            
+
             # Update the article if cleaning changed something
             if cleaned_author != raw_author:
                 session.execute(
@@ -200,10 +201,10 @@ class BylineCleaningQueue:
                         "article_id": article_id
                     }
                 )
-                
+
                 logger.info(f"Cleaned author for {article_id[:8]}...: "
                            f"'{raw_author}' → '{cleaned_author}'")
-            
+
             # Mark as completed
             session.execute(
                 text("""
@@ -217,9 +218,9 @@ class BylineCleaningQueue:
                     "queue_id": queue_id
                 }
             )
-            
+
             return True
-            
+
         except Exception as e:
             # Mark as failed and increment retry count
             session.execute(
@@ -237,14 +238,14 @@ class BylineCleaningQueue:
                     "queue_id": queue_id
                 }
             )
-            
+
             logger.error(f"Failed to process queue item {queue_id}: {e}")
             return False
-    
+
     def get_queue_status(self) -> dict:
         """Get current queue status."""
         session = self.db.session
-        
+
         try:
             status = session.execute(text("""
                 SELECT 
@@ -253,36 +254,36 @@ class BylineCleaningQueue:
                 FROM byline_cleaning_queue 
                 GROUP BY status
             """)).fetchall()
-            
+
             return {row[0]: row[1] for row in status}
-            
+
         except Exception as e:
             logger.error(f"Error getting queue status: {e}")
             return {}
         finally:
             session.close()
-    
+
     def cleanup_old_completed(self, days: int = 7) -> int:
         """Clean up old completed queue items."""
         session = self.db.session
-        
+
         try:
             result = session.execute(
-                text("""
+                text(f"""
                     DELETE FROM byline_cleaning_queue 
                     WHERE status = 'completed' 
-                    AND processed_at < datetime('now', '-{} days')
-                """.format(days))
+                    AND processed_at < datetime('now', '-{days} days')
+                """)
             )
-            
+
             deleted_count = result.rowcount
             session.commit()
-            
+
             if deleted_count > 0:
                 logger.info(f"Cleaned up {deleted_count} old queue items")
-            
+
             return deleted_count
-            
+
         except Exception as e:
             logger.error(f"Error cleaning up queue: {e}")
             session.rollback()
@@ -299,7 +300,7 @@ def auto_queue_new_articles():
     queue = BylineCleaningQueue()
     db = DatabaseManager()
     session = db.session
-    
+
     try:
         # Find articles with raw author data that haven't been queued
         articles = session.execute(text("""
@@ -320,17 +321,17 @@ def auto_queue_new_articles():
             )
             LIMIT 100
         """)).fetchall()
-        
+
         added_count = 0
         for article_id, raw_author in articles:
             if queue.add_article_to_queue(article_id, raw_author):
                 added_count += 1
-        
+
         if added_count > 0:
             logger.info(f"Added {added_count} articles to byline cleaning queue")
-        
+
         return added_count
-        
+
     except Exception as e:
         logger.error(f"Error auto-queueing articles: {e}")
         return 0
@@ -340,9 +341,9 @@ def auto_queue_new_articles():
 
 if __name__ == "__main__":
     import argparse
-    
+
     logging.basicConfig(level=logging.INFO)
-    
+
     parser = argparse.ArgumentParser(description="Byline cleaning queue manager")
     parser.add_argument("action", choices=[
         "process", "status", "queue", "cleanup"
@@ -351,25 +352,25 @@ if __name__ == "__main__":
                        help="Batch size for processing")
     parser.add_argument("--cleanup-days", type=int, default=7,
                        help="Days to keep completed items")
-    
+
     args = parser.parse_args()
-    
+
     queue = BylineCleaningQueue()
-    
+
     if args.action == "process":
         processed = queue.process_queue_batch(args.batch_size)
         print(f"Processed {processed} items")
-        
+
     elif args.action == "status":
         status = queue.get_queue_status()
         print("Queue Status:")
         for state, count in status.items():
             print(f"  {state}: {count}")
-            
+
     elif args.action == "queue":
         added = auto_queue_new_articles()
         print(f"Added {added} articles to queue")
-        
+
     elif args.action == "cleanup":
         cleaned = queue.cleanup_old_completed(args.cleanup_days)
         print(f"Cleaned up {cleaned} old items")

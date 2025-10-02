@@ -17,18 +17,17 @@ Assumptions made:
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta
-from typing import Optional
 
 from sqlalchemy import text
 
 from ..models.database import DatabaseManager
-import logging
 
 logger = logging.getLogger(__name__)
 
 
-def parse_frequency_to_days(freq: Optional[str]) -> float:
+def parse_frequency_to_days(freq: str | None) -> float:
     """Convert a human frequency string to an approximate cadence in days.
 
     Returns a floating point number of days to use as a cadence. Conservative
@@ -63,7 +62,7 @@ def parse_frequency_to_days(freq: Optional[str]) -> float:
 def _get_last_processed_date(
     db: DatabaseManager,
     source_id: str,
-) -> Optional[datetime]:
+) -> datetime | None:
     """Query candidate_links for the most recent processed_at for a source.
 
     Returns None if no processed_at rows exist for this source.
@@ -99,8 +98,8 @@ def _get_last_processed_date(
 def should_schedule_discovery(
     db: DatabaseManager,
     source_id: str,
-    source_meta: Optional[dict] = None,
-    now: Optional[datetime] = None,
+    source_meta: dict | None = None,
+    now: datetime | None = None,
 ) -> bool:
     """Decide whether a source is due for discovery.
 

@@ -2,7 +2,6 @@
 
 import argparse
 import logging
-from typing import List
 
 
 def add_discovery_parser(subparsers) -> argparse.ArgumentParser:
@@ -104,10 +103,7 @@ def add_discovery_parser(subparsers) -> argparse.ArgumentParser:
     discover_parser.add_argument(
         "--force-all",
         action="store_true",
-        help=(
-            "Process all sources regardless of scheduling "
-            "(disables due-only)"
-        ),
+        help=("Process all sources regardless of scheduling " "(disables due-only)"),
     )
 
     discover_parser.add_argument(
@@ -120,8 +116,7 @@ def add_discovery_parser(subparsers) -> argparse.ArgumentParser:
         "--existing-article-limit",
         type=int,
         help=(
-            "Skip sources that already have at least this many extracted "
-            "articles"
+            "Skip sources that already have at least this many extracted " "articles"
         ),
     )
 
@@ -131,9 +126,9 @@ def add_discovery_parser(subparsers) -> argparse.ArgumentParser:
 
 def _collect_source_uuids(
     source_uuid: str | None,
-    source_uuids: List[str] | None,
-) -> List[str]:
-    uuids: List[str] = []
+    source_uuids: list[str] | None,
+) -> list[str]:
+    uuids: list[str] = []
     if source_uuid:
         uuids.append(source_uuid)
     if source_uuids:
@@ -169,9 +164,8 @@ def handle_discovery_command(args) -> int:
         if existing_article_limit is None and legacy_article_limit is not None:
             existing_article_limit = legacy_article_limit
 
-        due_only_enabled = (
-            getattr(args, "due_only", True)
-            and not getattr(args, "force_all", False)
+        due_only_enabled = getattr(args, "due_only", True) and not getattr(
+            args, "force_all", False
         )
 
         stats = discovery.run_discovery(
@@ -212,8 +206,7 @@ def handle_discovery_command(args) -> int:
                 stats["sources_succeeded"] / stats["sources_processed"]
             ) * 100
             avg_candidates = (
-                stats["total_candidates_discovered"]
-                / stats["sources_processed"]
+                stats["total_candidates_discovered"] / stats["sources_processed"]
             )
             print(f"Technical success rate: {technical_success_rate:.1f}%")
 
@@ -243,10 +236,7 @@ def handle_discovery_command(args) -> int:
                             "most_common_failure",
                             "Unknown",
                         )
-                        print(
-                            "Most common failure type: "
-                            f"{most_common}"
-                        )
+                        print("Most common failure type: " f"{most_common}")
                         print("\nFailure breakdown:")
                         for failure_type, count in failure_summary[
                             "failure_types"
@@ -254,10 +244,7 @@ def handle_discovery_command(args) -> int:
                             percentage = (
                                 count / failure_summary["total_failures"]
                             ) * 100
-                            print(
-                                f"  {failure_type}: {count} "
-                                f"({percentage:.1f}%)"
-                            )
+                            print(f"  {failure_type}: {count} " f"({percentage:.1f}%)")
 
         return 0
 

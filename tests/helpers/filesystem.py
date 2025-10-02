@@ -4,18 +4,14 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from pathlib import Path
-from typing import Any, TypeAlias, Union
+from typing import Any, TypeAlias
 
 import pytest
 
 FileWriter = Callable[[Path], Any]
-StructurePayload: TypeAlias = Union[
-    Mapping[str, "StructurePayload"],
-    bytes,
-    None,
-    FileWriter,
-    Any,
-]
+StructurePayload: TypeAlias = (
+    Mapping[str, "StructurePayload"] | bytes | None | FileWriter | Any
+)
 FilesystemStructure = Mapping[str, StructurePayload]
 
 
@@ -23,9 +19,7 @@ def _ensure_parent(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
 
-def _render_payload(
-    path: Path, payload: StructurePayload, *, encoding: str
-) -> None:
+def _render_payload(path: Path, payload: StructurePayload, *, encoding: str) -> None:
     if payload is None:
         path.mkdir(parents=True, exist_ok=True)
         return
@@ -78,9 +72,7 @@ def build_filesystem(
 def filesystem_builder(tmp_path):
     """Fixture that yields a helper to construct filesystem structures."""
 
-    def _build(
-        structure: FilesystemStructure, *, encoding: str = "utf-8"
-    ) -> Path:
+    def _build(structure: FilesystemStructure, *, encoding: str = "utf-8") -> Path:
         return build_filesystem(tmp_path, structure, encoding=encoding)
 
     return _build

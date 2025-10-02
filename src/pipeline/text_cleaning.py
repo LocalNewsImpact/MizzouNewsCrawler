@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Iterable, List, Optional, Tuple
-
+from collections.abc import Iterable
 
 _ROT47_MARKERS = set("@?:;[]=^$\\|")
 _TOKEN_RE = re.compile(r"\S+")
@@ -12,7 +11,7 @@ _TOKEN_RE = re.compile(r"\S+")
 
 def _rot47(value: str) -> str:
     # ROT47 operates on printable ASCII (33-126); leave other chars untouched.
-    out_chars: List[str] = []
+    out_chars: list[str] = []
     for ch in value:
         code = ord(ch)
         if 33 <= code <= 126:
@@ -38,10 +37,10 @@ def _looks_like_rot47_token(token: str) -> bool:
     return True
 
 
-def _iter_rot47_ranges(text: str) -> Iterable[Tuple[int, int]]:
+def _iter_rot47_ranges(text: str) -> Iterable[tuple[int, int]]:
     matches = list(_TOKEN_RE.finditer(text))
-    current_start: Optional[int] = None
-    current_end: Optional[int] = None
+    current_start: int | None = None
+    current_end: int | None = None
     for idx, match in enumerate(matches):
         token = match.group(0)
         if _looks_like_rot47_token(token):
@@ -65,7 +64,7 @@ def _iter_rot47_ranges(text: str) -> Iterable[Tuple[int, int]]:
             )
 
 
-def _decode_segment(segment: str) -> Optional[str]:
+def _decode_segment(segment: str) -> str | None:
     decoded = _rot47(segment)
     letters = sum(1 for ch in decoded if ch.isalpha())
     if not decoded.strip():
@@ -76,7 +75,7 @@ def _decode_segment(segment: str) -> Optional[str]:
     return cleaned
 
 
-def decode_rot47_segments(text: Optional[str]) -> Optional[str]:
+def decode_rot47_segments(text: str | None) -> str | None:
     """Return *text* with ROT47-obfuscated sections decoded when detected."""
 
     if not text:
@@ -85,7 +84,7 @@ def decode_rot47_segments(text: Optional[str]) -> Optional[str]:
         # Quick short-circuit for the common unaffected case.
         return text
 
-    replacements: List[Tuple[int, int, str]] = []
+    replacements: list[tuple[int, int, str]] = []
     for start, end in _iter_rot47_ranges(text):
         replacement = _decode_segment(text[start:end])
         if replacement is not None:
@@ -94,7 +93,7 @@ def decode_rot47_segments(text: Optional[str]) -> Optional[str]:
     if not replacements:
         return text
 
-    parts: List[str] = []
+    parts: list[str] = []
     last_index = 0
     for start, end, replacement in replacements:
         parts.append(text[last_index:start])

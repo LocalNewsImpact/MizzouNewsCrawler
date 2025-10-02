@@ -14,9 +14,10 @@ from __future__ import annotations
 import argparse
 import json
 import sqlite3
+from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any
 from urllib.parse import urlparse
 
 from src.utils.content_type_detector import ContentTypeDetector
@@ -36,8 +37,8 @@ def _normalize_keywords(raw_keywords: Any) -> str:
 
 def _load_articles(
     connection: sqlite3.Connection,
-    limit: Optional[int] = None,
-) -> List[sqlite3.Row]:
+    limit: int | None = None,
+) -> list[sqlite3.Row]:
     query = (
         "SELECT a.id, a.url, a.title, a.content, a.metadata, a.status, "
         "a.candidate_link_id, cl.source, cl.source_name, cl.source_city, "
@@ -46,7 +47,7 @@ def _load_articles(
         "LEFT JOIN candidate_links cl ON cl.id = a.candidate_link_id "
         "WHERE a.content IS NOT NULL AND a.content != ''"
     )
-    params: List[Any] = []
+    params: list[Any] = []
     if limit is not None:
         query += " LIMIT ?"
         params.append(limit)
@@ -60,7 +61,7 @@ def _load_articles(
 def _prepare_detection_payload(
     *,
     result,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     detected_at = datetime.utcnow().replace(microsecond=0).isoformat()
     return {
         "status": result.status,
@@ -78,7 +79,7 @@ def _update_article(
     *,
     article_id: str,
     new_status: str,
-    metadata_payload: Dict[str, Any],
+    metadata_payload: dict[str, Any],
 ) -> None:
     metadata_json = json.dumps(metadata_payload, ensure_ascii=False)
     connection.execute(
@@ -91,11 +92,11 @@ def _write_telemetry(
     connection: sqlite3.Connection,
     *,
     article_id: str,
-    candidate_link_id: Optional[str],
+    candidate_link_id: str | None,
     url: str,
-    publisher: Optional[str],
+    publisher: str | None,
     host: str,
-    detection_payload: Dict[str, Any],
+    detection_payload: dict[str, Any],
     operation_id: str,
 ) -> None:
     evidence_json = json.dumps(
@@ -136,10 +137,10 @@ def _write_telemetry(
 def apply_detections(
     *,
     database: Path,
-    limit: Optional[int],
-    min_score: Optional[float],
+    limit: int | None,
+    min_score: float | None,
     operation_id: str,
-) -> Tuple[int, int]:
+) -> tuple[int, int]:
     detector = ContentTypeDetector()
 
     connection = sqlite3.connect(str(database))
@@ -158,7 +159,7 @@ def apply_detections(
             content = row["content"]
             metadata_json = row["metadata"]
 
-            metadata: Dict[str, Any] = {}
+            metadata: dict[str, Any] = {}
             if metadata_json:
                 try:
                     metadata = json.loads(metadata_json)
@@ -255,13 +256,9 @@ def main() -> None:
     )
 
     print(
-        "Updated {updated} articles and wrote {telemetry_rows} telemetry rows "
-        "using operation_id={operation}"
-        .format(
-            updated=updated,
-            telemetry_rows=telemetry_rows,
-            operation=args.operation_id,
-        )
+        f"Updated {updated} articles and wrote {telemetry_rows} telemetry rows "
+        f"using operation_id={args.operation_id}"
+
     )
 
 

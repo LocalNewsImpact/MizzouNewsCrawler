@@ -5,19 +5,20 @@ from __future__ import annotations
 import importlib
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, Iterable, Optional, Tuple, Type
+from typing import Any, Optional
 
 from .settings import LLMSettings
 
 logger = logging.getLogger(__name__)
 
-ErrorType = Optional[Type[BaseException]]
-ClientTuple = Tuple[Any, ErrorType, ErrorType]
+ErrorType = Optional[type[BaseException]]
+ClientTuple = tuple[Any, ErrorType, ErrorType]
 
 
-def _import_module(module_name: str) -> Optional[Any]:
+def _import_module(module_name: str) -> Any | None:
     """Import a module lazily, returning None when it cannot be loaded."""
 
     try:  # pragma: no cover - import side effects only when available
@@ -46,7 +47,7 @@ class LLMProviderResponse:
     provider: str
     model: str
     content: str
-    metadata: Dict[str, object]
+    metadata: dict[str, object]
 
 
 class LLMProvider(ABC):
@@ -58,7 +59,7 @@ class LLMProvider(ABC):
 
     def __init__(self, settings: LLMSettings):
         self._settings = settings
-        self._client: Optional[Any] = None
+        self._client: Any | None = None
 
     @property
     def name(self) -> str:
@@ -81,25 +82,25 @@ class LLMProvider(ABC):
         self,
         prompt: str,
         *,
-        max_output_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
-        metadata: Optional[Dict[str, object]] = None,
+        max_output_tokens: int | None = None,
+        temperature: float | None = None,
+        metadata: dict[str, object] | None = None,
     ) -> LLMProviderResponse:
         """Produce a response for the supplied prompt."""
 
-    def _default_temperature(self, override: Optional[float]) -> float:
+    def _default_temperature(self, override: float | None) -> float:
         if override is not None:
             return override
         return self._settings.default_temperature
 
-    def _default_output_tokens(self, override: Optional[int]) -> int:
+    def _default_output_tokens(self, override: int | None) -> int:
         if override is not None:
             return override
         return self._settings.default_max_output_tokens
 
     def _decorate_metadata(
-        self, metadata: Optional[Dict[str, object]]
-    ) -> Dict[str, object]:
+        self, metadata: dict[str, object] | None
+    ) -> dict[str, object]:
         payload = metadata.copy() if metadata else {}
         payload.setdefault("provider", self.provider_name)
         payload.setdefault("model", self.model_name)
@@ -140,9 +141,9 @@ class GPT41Provider(LLMProvider):
         self,
         prompt: str,
         *,
-        max_output_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
-        metadata: Optional[Dict[str, object]] = None,
+        max_output_tokens: int | None = None,
+        temperature: float | None = None,
+        metadata: dict[str, object] | None = None,
     ) -> LLMProviderResponse:
         client, error_cls, rate_cls = self._client_tuple()
         if client is None:
@@ -213,9 +214,9 @@ class Claude35SonnetProvider(LLMProvider):
         self,
         prompt: str,
         *,
-        max_output_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
-        metadata: Optional[Dict[str, object]] = None,
+        max_output_tokens: int | None = None,
+        temperature: float | None = None,
+        metadata: dict[str, object] | None = None,
     ) -> LLMProviderResponse:
         client, error_cls, rate_cls = self._client_tuple()
         if client is None:
@@ -284,9 +285,9 @@ class Gemini15FlashProvider(LLMProvider):
         self,
         prompt: str,
         *,
-        max_output_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
-        metadata: Optional[Dict[str, object]] = None,
+        max_output_tokens: int | None = None,
+        temperature: float | None = None,
+        metadata: dict[str, object] | None = None,
     ) -> LLMProviderResponse:
         client, error_cls, rate_cls = self._client_tuple()
         if client is None:
@@ -324,7 +325,7 @@ class Gemini15FlashProvider(LLMProvider):
 class ProviderRegistry:
     """Registry for mapping provider slugs to implementations."""
 
-    _registry: Dict[str, Type[LLMProvider]] = {
+    _registry: dict[str, type[LLMProvider]] = {
         GPT41Provider.provider_name: GPT41Provider,
         GPT4MiniProvider.provider_name: GPT4MiniProvider,
         Claude35SonnetProvider.provider_name: Claude35SonnetProvider,
@@ -332,7 +333,7 @@ class ProviderRegistry:
     }
 
     @classmethod
-    def register(cls, slug: str, provider_cls: Type[LLMProvider]) -> None:
+    def register(cls, slug: str, provider_cls: type[LLMProvider]) -> None:
         cls._registry[slug] = provider_cls
 
     @classmethod

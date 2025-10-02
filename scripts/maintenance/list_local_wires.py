@@ -5,13 +5,14 @@ from __future__ import annotations
 
 import argparse
 import json
-from typing import Iterable, List, Optional
+from collections.abc import Iterable
 
 from dry_run_wire_audit import (
+    WireAuditEngine,
     fetch_articles,
     resolve_sqlite_path,
-    WireAuditEngine,
 )
+
 from src.models.database import DatabaseManager
 
 
@@ -53,10 +54,10 @@ def parse_args() -> argparse.Namespace:
 
 def collect_local_wires(
     database_url: str,
-    domains: Optional[Iterable[str]],
+    domains: Iterable[str] | None,
     statuses: Iterable[str],
     limit: int,
-) -> List[dict]:
+) -> list[dict]:
     manager = DatabaseManager(database_url)
     try:
         articles = fetch_articles(manager, domains, statuses, limit)
@@ -84,7 +85,7 @@ def collect_local_wires(
         manager.close()
 
 
-def print_human(locals_only: List[dict]) -> None:
+def print_human(locals_only: list[dict]) -> None:
     if not locals_only:
         print("No local wire articles found for the given filters.")
         return

@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Iterable, List, Optional, Protocol, Sequence
+from typing import Protocol
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -28,8 +29,7 @@ class BatchClassifier(Protocol):
         texts: Sequence[str],
         *,
         top_k: int = 2,
-    ) -> List[List[Prediction]]:
-        ...
+    ) -> list[list[Prediction]]: ...
 
 
 @dataclass
@@ -52,12 +52,12 @@ class ArticleClassificationService:
 
     def _select_articles(
         self,
-        statuses: Optional[Sequence[str]],
+        statuses: Sequence[str] | None,
         label_version: str,
-        limit: Optional[int],
+        limit: int | None,
         include_existing: bool,
-        excluded_statuses: Optional[Sequence[str]] = None,
-    ) -> List[Article]:
+        excluded_statuses: Sequence[str] | None = None,
+    ) -> list[Article]:
         stmt = select(Article)
 
         if statuses:
@@ -82,7 +82,7 @@ class ArticleClassificationService:
 
         return list(self.session.scalars(stmt))
 
-    def _prepare_text(self, article: Article) -> Optional[str]:
+    def _prepare_text(self, article: Article) -> str | None:
         for field_name in ("content", "text", "title"):
             value = getattr(article, field_name, None)
             if isinstance(value, str) and value.strip():
@@ -94,10 +94,10 @@ class ArticleClassificationService:
         classifier: BatchClassifier,
         *,
         label_version: str,
-        model_version: Optional[str] = None,
-        model_path: Optional[str] = None,
-        statuses: Optional[Sequence[str]] = ("cleaned", "local"),
-        limit: Optional[int] = None,
+        model_version: str | None = None,
+        model_path: str | None = None,
+        statuses: Sequence[str] | None = ("cleaned", "local"),
+        limit: int | None = None,
         batch_size: int = 16,
         top_k: int = 2,
         dry_run: bool = False,
@@ -113,12 +113,10 @@ class ArticleClassificationService:
             "wire",
         }
         if statuses is None:
-            effective_statuses: Optional[List[str]] = None
+            effective_statuses: list[str] | None = None
         else:
             effective_statuses = [
-                status
-                for status in statuses
-                if status not in excluded_statuses
+                status for status in statuses if status not in excluded_statuses
             ]
             if not effective_statuses:
                 self.logger.info(
@@ -139,18 +137,16 @@ class ArticleClassificationService:
         if not articles:
             return stats
 
-        effective_model_version = (
-            model_version or classifier.model_version or "unknown"
-        )
-        effective_model_path = (
-            model_path or getattr(classifier, "model_identifier", None)
+        effective_model_version = model_version or classifier.model_version or "unknown"
+        effective_model_path = model_path or getattr(
+            classifier, "model_identifier", None
         )
         if effective_model_path is not None:
             effective_model_path = str(effective_model_path)
 
         for batch in _batch_iter(articles, batch_size):
-            texts: List[str] = []
-            article_refs: List[Article] = []
+            texts: list[str] = []
+            article_refs: list[Article] = []
 
             for article in batch:
                 text = self._prepare_text(article)
@@ -177,7 +173,9 @@ class ArticleClassificationService:
                 self.logger.exception("Classifier failed on batch: %s", exc)
                 continue
 
-            for article, predictions in zip(article_refs, predictions_batch):
+            for article, predictions in zip(
+                article_refs, predictions_batch, strict=False
+            ):
                 if not predictions:
                     stats.skipped += 1
                     self.logger.debug(
@@ -206,12 +204,8 @@ class ArticleClassificationService:
                             ),
                             "url": getattr(article, "url", ""),
                             "primary": primary.label,
-                            "alternate": (
-                                alternate.label if alternate else ""
-                            ),
-                            "top_k": [
-                                pred.as_dict() for pred in predictions
-                            ],
+                            "alternate": (alternate.label if alternate else ""),
+                            "top_k": [pred.as_dict() for pred in predictions],
                         }
                     )
                     self.logger.info(
@@ -253,4 +247,4 @@ def _batch_iter(
         raise ValueError("batch_size must be positive")
 
     for start in range(0, len(items), batch_size):
-        yield items[start:start + batch_size]
+        yield items[start : start + batch_size]

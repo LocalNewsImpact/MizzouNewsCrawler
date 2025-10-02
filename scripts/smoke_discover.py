@@ -11,9 +11,10 @@ Example:
     python scripts/smoke_discover.py npr.org
 """
 
-import sys
 import json
 import logging
+import sys
+
 from src.crawler.discovery import NewsDiscovery
 
 logging.basicConfig(level=logging.INFO)

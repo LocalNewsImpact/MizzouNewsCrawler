@@ -7,8 +7,8 @@ import logging
 import queue
 import sqlite3
 import threading
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
-from typing import Callable, Iterator, Optional, Sequence, Tuple
 
 DEFAULT_DATABASE_URL = "sqlite:///data/mizzou.db"
 
@@ -41,8 +41,8 @@ class TelemetryStore:
         self.timeout = timeout
         self._logger = logging.getLogger(__name__)
 
-        self._queue: Optional[queue.Queue] = None
-        self._writer_thread: Optional[threading.Thread] = None
+        self._queue: queue.Queue | None = None
+        self._writer_thread: threading.Thread | None = None
         self._owns_thread = False
 
         self._ddl_cache: set[str] = set()
@@ -79,11 +79,7 @@ class TelemetryStore:
             self._queue.join()
 
     def shutdown(self, wait: bool = False) -> None:
-        if (
-            not self.async_writes
-            or self._queue is None
-            or not self._owns_thread
-        ):
+        if not self.async_writes or self._queue is None or not self._owns_thread:
             return
 
         if wait:
@@ -114,9 +110,7 @@ class TelemetryStore:
         conn.execute("PRAGMA foreign_keys=ON")
         return conn
 
-    def _ensure_schema(
-        self, conn: sqlite3.Connection, ddls: Sequence[str]
-    ) -> None:
+    def _ensure_schema(self, conn: sqlite3.Connection, ddls: Sequence[str]) -> None:
         if not ddls:
             return
 
@@ -133,7 +127,7 @@ class TelemetryStore:
 
     def _execute(
         self,
-        job: Tuple[Callable[[sqlite3.Connection], None], Tuple[str, ...]],
+        job: tuple[Callable[[sqlite3.Connection], None], tuple[str, ...]],
     ) -> None:
         task, ddls = job
         conn = self._create_connection()
@@ -163,7 +157,7 @@ class TelemetryStore:
 
 
 _default_store_lock = threading.Lock()
-_default_store: Optional[TelemetryStore] = None
+_default_store: TelemetryStore | None = None
 
 
 def get_store(database: str = DEFAULT_DATABASE_URL) -> TelemetryStore:

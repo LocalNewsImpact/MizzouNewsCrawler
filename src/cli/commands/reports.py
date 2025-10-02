@@ -6,7 +6,6 @@ import argparse
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from src.reporting.county_report import (
     CountyReportConfig,
@@ -54,8 +53,7 @@ def add_reports_parser(subparsers) -> argparse.ArgumentParser:
         "--output",
         type=Path,
         help=(
-            "Destination CSV path. Defaults to "
-            "reports/county_report_<timestamp>.csv"
+            "Destination CSV path. Defaults to " "reports/county_report_<timestamp>.csv"
         ),
     )
     parser.add_argument(
@@ -86,7 +84,7 @@ def handle_county_report_command(args) -> int:
 
     include_entities = not getattr(args, "no_entities", False)
 
-    output_path: Optional[Path] = getattr(args, "output", None)
+    output_path: Path | None = getattr(args, "output", None)
     if output_path is None:
         timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         output_path = Path("reports") / f"county_report_{timestamp}.csv"

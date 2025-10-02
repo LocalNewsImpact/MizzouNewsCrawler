@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import logging
 from collections import OrderedDict
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List, Sequence, cast
+from typing import cast
 
 import torch
 from transformers import (
@@ -20,7 +21,7 @@ from transformers import (
 logger = logging.getLogger(__name__)
 
 
-CRITICAL_INFORMATION_NEEDS_LABELS: List[str] = [
+CRITICAL_INFORMATION_NEEDS_LABELS: list[str] = [
     "Civic Life",
     "Civic information",
     "Emergencies and Public Safety",
@@ -61,8 +62,8 @@ class ArticleClassifier:
         self.device = -1 if device is None else device
 
         resolved = Path(model_path)
-        candidate_paths: List[str] = []
-        pt_candidates: List[Path] = []
+        candidate_paths: list[str] = []
+        pt_candidates: list[Path] = []
 
         if resolved.is_file() and resolved.suffix == ".pt":
             pt_candidates.append(resolved)
@@ -158,19 +159,19 @@ class ArticleClassifier:
         texts: Sequence[str],
         *,
         top_k: int = 2,
-    ) -> List[List[Prediction]]:
+    ) -> list[list[Prediction]]:
         """Run classification on a batch of texts."""
 
         if not isinstance(texts, Iterable) or isinstance(texts, (str, bytes)):
             raise TypeError("predict_batch expects a sequence of text strings")
 
-        normalized: List[str] = [text or "" for text in texts]
+        normalized: list[str] = [text or "" for text in texts]
         raw_outputs = cast(
             Sequence[Sequence[dict]],
             self._pipeline(normalized, truncation=True),
         )
 
-        predictions: List[List[Prediction]] = []
+        predictions: list[list[Prediction]] = []
         for output in raw_outputs:
             sorted_scores = sorted(
                 output,
@@ -188,7 +189,7 @@ class ArticleClassifier:
 
         return predictions
 
-    def predict_text(self, text: str, *, top_k: int = 2) -> List[Prediction]:
+    def predict_text(self, text: str, *, top_k: int = 2) -> list[Prediction]:
         """Convenience wrapper for single-text classification."""
 
         return self.predict_batch([text], top_k=top_k)[0]
@@ -216,9 +217,7 @@ def _load_pt_classifier(
     """
 
     if not checkpoint_path.exists():
-        raise FileNotFoundError(
-            f"Classifier checkpoint not found: {checkpoint_path}"
-        )
+        raise FileNotFoundError(f"Classifier checkpoint not found: {checkpoint_path}")
 
     logger.info(
         "Loading custom classifier from checkpoint %s",
@@ -252,8 +251,7 @@ def _load_pt_classifier(
 
     num_labels = len(CRITICAL_INFORMATION_NEEDS_LABELS)
     label2id = {
-        label: idx
-        for idx, label in enumerate(CRITICAL_INFORMATION_NEEDS_LABELS)
+        label: idx for idx, label in enumerate(CRITICAL_INFORMATION_NEEDS_LABELS)
     }
     id2label = {idx: label for label, idx in label2id.items()}
 

@@ -22,8 +22,9 @@ from pathlib import Path
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.models.database import DatabaseManager
 from sqlalchemy import text
+
+from src.models.database import DatabaseManager
 
 
 def setup_logging():
@@ -41,7 +42,7 @@ def setup_logging():
 def get_extraction_status():
     """Get current extraction status from database."""
     db = DatabaseManager()
-    
+
     try:
         with db.engine.connect() as conn:
             # Check candidate_links status
@@ -54,12 +55,12 @@ def get_extraction_status():
             """)
             cl_result = conn.execute(cl_query)
             cl_stats = {row[0]: row[1] for row in cl_result}
-            
+
             # Check articles table
             art_query = text("SELECT COUNT(*) as count FROM articles")
             art_result = conn.execute(art_query)
             articles_count = art_result.fetchone()[0]
-            
+
             return {
                 'articles_ready': cl_stats.get('article', 0),
                 'articles_extracted': cl_stats.get('extracted', 0),
@@ -73,13 +74,13 @@ def get_extraction_status():
 def run_extraction_batch(batch_size: int, batch_num: int, total_batches: int):
     """Run a single extraction batch."""
     import subprocess
-    
+
     logger = logging.getLogger(__name__)
-    
+
     logger.info("=" * 60)
     logger.info(f"Starting batch {batch_num}/{total_batches} (size: {batch_size})")
     logger.info("=" * 60)
-    
+
     # Build command
     cmd = [
         sys.executable,
@@ -89,7 +90,7 @@ def run_extraction_batch(batch_size: int, batch_num: int, total_batches: int):
         "--limit",
         str(batch_size),
     ]
-    
+
     try:
         # Run the extraction
         start_time = time.time()
@@ -99,16 +100,16 @@ def run_extraction_batch(batch_size: int, batch_num: int, total_batches: int):
             text=True,
             timeout=30 * 60  # 30 minute timeout per batch
         )
-        
+
         duration = time.time() - start_time
-        
+
         if result.returncode == 0:
             logger.info(
                 "✅ Batch %s completed successfully in %.1fs",
                 batch_num,
                 duration,
             )
-            
+
             # Parse output for statistics if available
             output_lines = result.stdout.split('\n')
             for line in output_lines:
@@ -118,7 +119,7 @@ def run_extraction_batch(batch_size: int, batch_num: int, total_batches: int):
                     or 'Failed:' in line
                 ):
                     logger.info(f"   {line.strip()}")
-            
+
             return True
         else:
             logger.error(
@@ -129,7 +130,7 @@ def run_extraction_batch(batch_size: int, batch_num: int, total_batches: int):
             logger.error("   STDOUT: %s", result.stdout)
             logger.error("   STDERR: %s", result.stderr)
             return False
-            
+
     except subprocess.TimeoutExpired:
         logger.error(f"❌ Batch {batch_num} timed out after 30 minutes")
         return False
@@ -166,12 +167,12 @@ def main():
         action="store_true",
         help="Continue processing even if a batch fails"
     )
-    
+
     args = parser.parse_args()
-    
+
     setup_logging()
     logger = logging.getLogger(__name__)
-    
+
     # Show initial status
     logger.info("🚀 Starting batch extraction process")
     logger.info("   Batch size: %s", args.batch_size)
@@ -181,7 +182,7 @@ def main():
         args.batch_size * args.num_batches,
     )
     logger.info(f"   Delay between batches: {args.delay}s")
-    
+
     # Get initial status
     status = get_extraction_status()
     if status:
@@ -198,17 +199,17 @@ def main():
             "   Articles in database: %s",
             status["articles_in_db"],
         )
-        
+
         if status["articles_ready"] < args.batch_size * args.num_batches:
             logger.warning(
                 f"⚠️  Only {status['articles_ready']} articles available, "
                 f"but {args.batch_size * args.num_batches} requested"
             )
-    
+
     # Run batches
     successful_batches = 0
     failed_batches = 0
-    
+
     for batch_num in range(1, args.num_batches + 1):
         # Check status before each batch
         status = get_extraction_status()
@@ -218,14 +219,14 @@ def main():
                 batch_num - 1,
             )
             break
-        
+
         # Run the batch
         success = run_extraction_batch(
             args.batch_size,
             batch_num,
             args.num_batches,
         )
-        
+
         if success:
             successful_batches += 1
         else:
@@ -233,7 +234,7 @@ def main():
             if not args.continue_on_failure:
                 logger.error("💥 Stopping after batch %s failure", batch_num)
                 break
-        
+
         # Show updated status
         status = get_extraction_status()
         if status:
@@ -244,12 +245,12 @@ def main():
                 status["articles_extracted"],
             )
             logger.info(f"   Articles in database: {status['articles_in_db']}")
-        
+
         # Delay between batches (except for last batch)
         if batch_num < args.num_batches and args.delay > 0:
             logger.info(f"⏱️  Waiting {args.delay}s before next batch...")
             time.sleep(args.delay)
-    
+
     # Final summary
     logger.info("")
     logger.info("🏆 BATCH EXTRACTION COMPLETE")
@@ -262,7 +263,7 @@ def main():
     else:
         success_rate = 0
     logger.info("📊 Success rate: %.1f%%", success_rate)
-    
+
     # Final status
     final_status = get_extraction_status()
     if final_status:
@@ -276,7 +277,7 @@ def main():
             "   Articles in database: %s",
             final_status["articles_in_db"],
         )
-    
+
     return 0 if failed_batches == 0 else 1
 
 

@@ -4,17 +4,16 @@ from __future__ import annotations
 
 import argparse
 import logging
-from typing import Any, Dict, List
+from typing import Any
+from urllib.parse import urlparse
 
 import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
-from urllib.parse import urlparse
 
 from src.cli.context import trigger_gazetteer_population_background
 from src.models import Dataset, DatasetSource, Source
 from src.models.database import DatabaseManager
-
 
 logger = logging.getLogger(__name__)
 
@@ -37,11 +36,9 @@ def add_load_sources_parser(subparsers) -> argparse.ArgumentParser:
     return parser
 
 
-def _normalize_source_row(row: pd.Series) -> Dict[str, Any]:
+def _normalize_source_row(row: pd.Series) -> dict[str, Any]:
     """Build candidate link payload from CSV row."""
-    address = (
-        f"{row.get('address1', '')}, {row.get('address2', '')}"
-    ).strip(", ")
+    address = (f"{row.get('address1', '')}, {row.get('address2', '')}").strip(", ")
     zip_code = row.get("zip")
     if pd.isna(zip_code):
         zip_code = None
@@ -89,7 +86,7 @@ def _normalize_source_row(row: pd.Series) -> Dict[str, Any]:
     }
 
 
-def _validate_columns(df: pd.DataFrame) -> List[str]:
+def _validate_columns(df: pd.DataFrame) -> list[str]:
     missing = [col for col in REQUIRED_COLUMNS if col not in df.columns]
     return missing
 
@@ -110,16 +107,14 @@ def _parse_host_components(url: str) -> tuple[str, str]:
     return host, host_norm
 
 
-def _detect_duplicate_urls(df: pd.DataFrame) -> List[str]:
+def _detect_duplicate_urls(df: pd.DataFrame) -> list[str]:
     """Identify duplicate URL strings or hosts within the CSV."""
 
-    messages: List[str] = []
+    messages: list[str] = []
 
     duplicate_urls = df[df["url_news"].duplicated(keep=False)]
     if not duplicate_urls.empty:
-        details = duplicate_urls[
-            ["host_id", "name", "url_news"]
-        ].to_dict("records")
+        details = duplicate_urls[["host_id", "name", "url_news"]].to_dict("records")
         formatted = "; ".join(
             "host_id={host_id} name={name} url={url}".format(
                 host_id=row["host_id"],
@@ -149,10 +144,7 @@ def _detect_duplicate_urls(df: pd.DataFrame) -> List[str]:
             host_messages.append(f"{host_norm}: {entries}")
 
         messages.append(
-            (
-                "Duplicate host values detected "
-                "(same domain appears multiple times): "
-            )
+            ("Duplicate host values detected " "(same domain appears multiple times): ")
             + "; ".join(host_messages)
         )
 
@@ -176,8 +168,8 @@ def handle_load_sources_command(args) -> int:
         return 1
 
     # Pre-compute host components and validate duplicates prior to DB access.
-    parsed_hosts: List[str] = []
-    parsed_host_norms: List[str] = []
+    parsed_hosts: list[str] = []
+    parsed_host_norms: list[str] = []
 
     for idx, url in enumerate(df["url_news"], start=1):
         try:
@@ -227,13 +219,11 @@ def handle_load_sources_command(args) -> int:
             )
             session.add(dataset)
             session.flush()
-            logger.info(
-                "Created new dataset: %s (ID: %s)", dataset_slug, dataset.id
-            )
+            logger.info("Created new dataset: %s (ID: %s)", dataset_slug, dataset.id)
 
         sources_created = 0
         dataset_sources_created = 0
-        candidate_links: List[Dict[str, Any]] = []
+        candidate_links: list[dict[str, Any]] = []
 
         for _, row in df.iterrows():
             url = row["url_news"]
@@ -260,9 +250,7 @@ def handle_load_sources_command(args) -> int:
                         "address2": row.get("address2", ""),
                         "state": row.get("State", "MO"),
                         "zip": (
-                            str(row.get("zip", ""))
-                            if pd.notna(row.get("zip"))
-                            else ""
+                            str(row.get("zip", "")) if pd.notna(row.get("zip")) else ""
                         ),
                         "frequency": row.get("frequency", ""),
                         "cached_geographic_entities": row.get(
@@ -323,10 +311,12 @@ def handle_load_sources_command(args) -> int:
                 dataset_sources_created += 1
 
             link_data = _normalize_source_row(row)
-            link_data.update({
-                "dataset_id": dataset.id,
-                "source_id": source.id,
-            })
+            link_data.update(
+                {
+                    "dataset_id": dataset.id,
+                    "source_id": source.id,
+                }
+            )
             candidate_links.append(link_data)
 
         session.commit()
@@ -339,9 +329,7 @@ def handle_load_sources_command(args) -> int:
         if candidate_links:
             result_df = pd.DataFrame(candidate_links)
             db.upsert_candidate_links(result_df)
-            logger.info(
-                "Loaded %s candidate links", len(candidate_links)
-            )
+            logger.info("Loaded %s candidate links", len(candidate_links))
 
         print("\n=== Load Summary ===")
         print(f"Dataset: {dataset.slug}")
@@ -350,10 +338,7 @@ def handle_load_sources_command(args) -> int:
         print(f"Unique counties: {df['county'].nunique()}")
         print(f"Unique cities: {df['city'].nunique()}")
         if "media_type" in df.columns:
-            print(
-                "Media types: "
-                f"{df['media_type'].value_counts().to_dict()}"
-            )
+            print("Media types: " f"{df['media_type'].value_counts().to_dict()}")
 
         logger.info("Auto-triggering gazetteer population for new dataset")
         try:

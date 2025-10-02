@@ -16,21 +16,21 @@ from __future__ import annotations
 import argparse
 import json
 from collections import Counter
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Dict, Iterable, List
 
 
-def load_results(path: Path) -> List[Dict]:
+def load_results(path: Path) -> list[dict]:
     with path.open("r", encoding="utf-8") as handle:
         payload = json.load(handle)
     return payload.get("results", [])
 
 
-def success_records(results: Iterable[Dict]) -> List[Dict]:
+def success_records(results: Iterable[dict]) -> list[dict]:
     return [record for record in results if record.get("publish_date_found")]
 
 
-def summarize(label: str, results: List[Dict]) -> None:
+def summarize(label: str, results: list[dict]) -> None:
     total = len(results)
     successes = success_records(results)
     hit_rate = (len(successes) / total * 100) if total else 0.0
@@ -49,8 +49,8 @@ def summarize(label: str, results: List[Dict]) -> None:
         print("  No publish dates found.")
 
 
-def index_by_url(records: Iterable[Dict]) -> Dict[str, Dict]:
-    index: Dict[str, Dict] = {}
+def index_by_url(records: Iterable[dict]) -> dict[str, dict]:
+    index: dict[str, dict] = {}
     for record in records:
         url = record.get("url")
         if url:
@@ -58,7 +58,7 @@ def index_by_url(records: Iterable[Dict]) -> Dict[str, Dict]:
     return index
 
 
-def describe_strategy(record: Dict) -> str:
+def describe_strategy(record: dict) -> str:
     fallback = (
         (record.get("metadata") or {})
         .get("fallbacks", {})
@@ -76,7 +76,7 @@ def describe_strategy(record: Dict) -> str:
 def list_differences(
     label: str,
     urls: Iterable[str],
-    index: Dict[str, Dict],
+    index: dict[str, dict],
     *,
     regressions: bool = False,
 ) -> None:

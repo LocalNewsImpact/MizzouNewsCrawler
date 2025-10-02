@@ -6,10 +6,10 @@ This script converts ZIP codes from float format (e.g., 64108.0)
 to proper string format (e.g., "64108") in Source metadata.
 """
 
-import logging
-import sys
 import json
+import logging
 import sqlite3
+import sys
 
 
 def main():

@@ -3,7 +3,6 @@
 import logging
 import os
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
 
 from sqlalchemy.orm import sessionmaker
 
@@ -24,11 +23,11 @@ class ProcessTracker:
         self,
         process_type: str,
         command: str,
-        pid: Optional[int] = None,
-        dataset_id: Optional[str] = None,
-        source_id: Optional[str] = None,
-        metadata: Optional[Dict] = None,
-        parent_process_id: Optional[str] = None,
+        pid: int | None = None,
+        dataset_id: str | None = None,
+        source_id: str | None = None,
+        metadata: dict | None = None,
+        parent_process_id: str | None = None,
     ) -> BackgroundProcess:
         """Register a new background process."""
         with self.Session() as session:
@@ -48,16 +47,17 @@ class ProcessTracker:
 
             logger.info(
                 f"Registered {process_type} process {process.id} "
-                f"(PID: {process.pid})")
+                f"(PID: {process.pid})"
+            )
             return process
 
     def update_progress(
         self,
         process_id: str,
         current: int,
-        message: Optional[str] = None,
-        total: Optional[int] = None,
-        status: Optional[str] = None,
+        message: str | None = None,
+        total: int | None = None,
+        status: str | None = None,
     ):
         """Update process progress."""
         with self.Session() as session:
@@ -75,8 +75,8 @@ class ProcessTracker:
         self,
         process_id: str,
         status: str = "completed",
-        result_summary: Optional[Dict] = None,
-        error_message: Optional[str] = None,
+        result_summary: dict | None = None,
+        error_message: str | None = None,
     ):
         """Mark process as completed."""
         with self.Session() as session:
@@ -89,10 +89,9 @@ class ProcessTracker:
                 if error_message:
                     process.error_message = error_message
                 session.commit()
-                logger.info(
-                    f"Process {process_id} completed with status: {status}")
+                logger.info(f"Process {process_id} completed with status: {status}")
 
-    def get_active_processes(self) -> List[BackgroundProcess]:
+    def get_active_processes(self) -> list[BackgroundProcess]:
         """Get all active (running) processes."""
         with self.Session() as session:
             processes = (
@@ -102,9 +101,7 @@ class ProcessTracker:
             )
             return [p for p in processes]  # Detach from session
 
-    def get_process_by_id(
-            self,
-            process_id: str) -> Optional[BackgroundProcess]:
+    def get_process_by_id(self, process_id: str) -> BackgroundProcess | None:
         """Get a specific process by ID."""
         with self.Session() as session:
             process = session.get(BackgroundProcess, process_id)
@@ -113,9 +110,7 @@ class ProcessTracker:
                 session.expunge(process)
             return process
 
-    def get_processes_by_type(
-            self,
-            process_type: str) -> List[BackgroundProcess]:
+    def get_processes_by_type(self, process_type: str) -> list[BackgroundProcess]:
         """Get all processes of a specific type."""
         with self.Session() as session:
             processes = (
@@ -162,9 +157,9 @@ class ProcessContext:
         self,
         process_type: str,
         command: str,
-        dataset_id: Optional[str] = None,
-        source_id: Optional[str] = None,
-        metadata: Optional[Dict] = None,
+        dataset_id: str | None = None,
+        source_id: str | None = None,
+        metadata: dict | None = None,
     ):
         self.tracker = get_tracker()
         self.process_type = process_type

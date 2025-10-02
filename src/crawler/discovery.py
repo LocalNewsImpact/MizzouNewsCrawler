@@ -13,15 +13,17 @@ import json
 import logging
 import time
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 from urllib.parse import urljoin, urlparse
 
+import feedparser  # type: ignore[import]
 import pandas as pd
 import requests
-from sqlalchemy import text
-import feedparser  # type: ignore[import]
-from .scheduling import parse_frequency_to_days
 from newspaper import Config, build  # type: ignore[import]
+from sqlalchemy import text
+
+from .scheduling import parse_frequency_to_days
+
 # Using multiprocessing for build timeouts; no concurrent.futures needed here
 
 try:
@@ -39,16 +41,17 @@ try:
 except Exception:
     _parse_date = None
 
-from ..models.database import DatabaseManager
+from src.utils.discovery_outcomes import DiscoveryResult
 from src.utils.telemetry import (
-    OperationType,
-    OperationMetrics,
     DiscoveryMethod,
     DiscoveryMethodStatus,
+    OperationMetrics,
+    OperationType,
     create_telemetry_system,
 )
-from src.utils.discovery_outcomes import DiscoveryResult
 from src.utils.url_utils import normalize_url
+
+from ..models.database import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +105,7 @@ class NewsDiscovery:
     def __init__(
         self,
         database_url: str = "sqlite:///data/mizzou.db",
-        user_agent: Optional[str] = None,
+        user_agent: str | None = None,
         timeout: int = 30,
         delay: float = 2.0,
         max_articles_per_source: int = 50,
@@ -169,7 +172,7 @@ class NewsDiscovery:
             f"{self.cutoff_date.strftime('%Y-%m-%d')} will be filtered out"
         )
 
-        self._known_hosts_cache: Set[str] | None = None
+        self._known_hosts_cache: set[str] | None = None
 
     def _create_db_manager(self) -> DatabaseManager:
         """Factory method for database manager instances."""
@@ -177,7 +180,7 @@ class NewsDiscovery:
         return DatabaseManager(self.database_url)
 
     @staticmethod
-    def _normalize_host(host: Optional[str]) -> Optional[str]:
+    def _normalize_host(host: str | None) -> str | None:
         """Normalize hostnames for comparison."""
 
         if not host:
@@ -200,8 +203,8 @@ class NewsDiscovery:
 
         return value or None
 
-    def _iter_host_candidates(self, value: Any) -> List[str]:
-        hosts: List[str] = []
+    def _iter_host_candidates(self, value: Any) -> list[str]:
+        hosts: list[str] = []
         if isinstance(value, str):
             parts = [part.strip() for part in value.split(",") if part]
             hosts.extend(parts)
@@ -214,9 +217,9 @@ class NewsDiscovery:
     def _collect_allowed_hosts(
         self,
         source_row: pd.Series,
-        source_meta: Optional[dict],
-    ) -> Set[str]:
-        hosts: Set[str] = set()
+        source_meta: dict | None,
+    ) -> set[str]:
+        hosts: set[str] = set()
 
         primary_candidates = [
             source_row.get("host"),
@@ -256,8 +259,8 @@ class NewsDiscovery:
     @classmethod
     def _should_skip_rss_from_meta(
         cls,
-        source_meta: Optional[dict],
-    ) -> Tuple[bool, Optional[str], Optional[int]]:
+        source_meta: dict | None,
+    ) -> tuple[bool, str | None, int | None]:
         """Determine whether RSS probing should be skipped.
 
         Returns a tuple ``(skip, reason, failure_count)`` where ``skip`` is a
@@ -271,7 +274,7 @@ class NewsDiscovery:
 
         # rss_missing may be either a timestamp or a boolean flag.
         rss_missing = source_meta.get("rss_missing")
-        rss_failed_at: Optional[str]
+        rss_failed_at: str | None
         if isinstance(rss_missing, str):
             rss_failed_at = rss_missing
         elif rss_missing:
@@ -280,7 +283,7 @@ class NewsDiscovery:
             rss_failed_at = None
 
         consecutive_failures = source_meta.get("rss_consecutive_failures")
-        failure_count: Optional[int] = None
+        failure_count: int | None = None
         if consecutive_failures is not None:
             try:
                 failure_count = int(consecutive_failures)
@@ -298,7 +301,7 @@ class NewsDiscovery:
     def _extract_homepage_feed_urls(
         html: str,
         base_url: str,
-    ) -> List[str]:
+    ) -> list[str]:
         """Extract RSS/Atom feed URLs from a homepage."""
 
         if not html:
@@ -306,13 +309,9 @@ class NewsDiscovery:
 
         import re
 
-        rss_type = (
-            r"(?:application/rss\+xml|application/atom\+xml|text/xml)"
-        )
+        rss_type = r"(?:application/rss\+xml|application/atom\+xml|text/xml)"
         pattern = (
-            r'<link[^>]+type=["\']'
-            + rss_type
-            + r'["\'][^>]*href=["\']([^"\']+)["\']'
+            r'<link[^>]+type=["\']' + rss_type + r'["\'][^>]*href=["\']([^"\']+)["\']'
         )
 
         matches = re.findall(pattern, html, flags=re.I)
@@ -320,8 +319,8 @@ class NewsDiscovery:
             return []
 
         feeds = [urljoin(base_url, m) for m in matches]
-        seen: Set[str] = set()
-        deduped: List[str] = []
+        seen: set[str] = set()
+        deduped: list[str] = []
         for feed in feeds:
             if feed in seen:
                 continue
@@ -336,21 +335,19 @@ class NewsDiscovery:
         *,
         rss_missing: bool = False,
         max_candidates: int = 25,
-    ) -> List[str]:
+    ) -> list[str]:
         if not html:
             return []
 
         import re
 
-        hrefs = re.findall(
-            r'href=["\']([^"\']+)["\']', html, flags=re.I
-        )
+        hrefs = re.findall(r'href=["\']([^"\']+)["\']', html, flags=re.I)
         if not hrefs:
             return []
 
         parsed_base = urlparse(base_url)
-        candidates: List[str] = []
-        seen: Set[str] = set()
+        candidates: list[str] = []
+        seen: set[str] = set()
 
         for href in hrefs:
             href = href.strip()
@@ -403,8 +400,8 @@ class NewsDiscovery:
 
     def _update_source_meta(
         self,
-        source_id: Optional[str],
-        updates: Dict[str, Any],
+        source_id: str | None,
+        updates: dict[str, Any],
     ):
         """Merge `updates` into the `sources.metadata` JSON for `source_id`.
 
@@ -436,9 +433,7 @@ class NewsDiscovery:
                 merged.update(updates or {})
 
                 conn.execute(
-                    text(
-                        "UPDATE sources SET metadata = :meta WHERE id = :id"
-                    ),
+                    text("UPDATE sources SET metadata = :meta WHERE id = :id"),
                     {"meta": json.dumps(merged), "id": source_id},
                 )
         except Exception:
@@ -449,7 +444,7 @@ class NewsDiscovery:
 
     def _reset_rss_failure_state(
         self,
-        source_id: Optional[str],
+        source_id: str | None,
     ) -> None:
         if not source_id:
             return
@@ -463,22 +458,20 @@ class NewsDiscovery:
 
     def _increment_rss_failure(
         self,
-        source_id: Optional[str],
+        source_id: str | None,
     ) -> None:
         if not source_id:
             return
         try:
             dbm = DatabaseManager(self.database_url)
             with dbm.engine.connect() as conn:
-                query = text(
-                    "SELECT metadata FROM sources WHERE id = :id"
-                )
+                query = text("SELECT metadata FROM sources WHERE id = :id")
                 result = conn.execute(
                     query,
                     {"id": source_id},
                 ).fetchone()
 
-            cur_meta: Dict[str, Any] = {}
+            cur_meta: dict[str, Any] = {}
             if result and result[0]:
                 raw_meta = result[0]
                 try:
@@ -498,9 +491,7 @@ class NewsDiscovery:
                 "rss_consecutive_failures": next_count,
             }
             if next_count >= RSS_MISSING_THRESHOLD:
-                updates["rss_missing"] = (
-                    datetime.utcnow().isoformat()
-                )
+                updates["rss_missing"] = datetime.utcnow().isoformat()
 
             self._update_source_meta(source_id, updates)
         except Exception:
@@ -510,14 +501,14 @@ class NewsDiscovery:
                 {"rss_missing": missing_iso},
             )
 
-    def _get_existing_urls(self) -> Set[str]:
+    def _get_existing_urls(self) -> set[str]:
         """Return existing URLs from candidate_links to avoid duplicates."""
         try:
             db_manager = DatabaseManager(self.database_url)
 
             with db_manager.engine.connect() as conn:
                 result = conn.execute(text("SELECT url FROM candidate_links"))
-                urls: Set[str] = set()
+                urls: set[str] = set()
                 for row in result.fetchall():
                     raw = row[0]
                     if not raw:
@@ -530,7 +521,7 @@ class NewsDiscovery:
             return set()
 
     @staticmethod
-    def _rss_retry_window_days(freq: Optional[str]) -> int:
+    def _rss_retry_window_days(freq: str | None) -> int:
         """Return the number of days before retrying RSS after a miss.
 
         We interpret the declared publishing frequency into a conservative
@@ -546,14 +537,14 @@ class NewsDiscovery:
         window = int(round(days * 2))
         return max(2, min(7, window))
 
-    def _is_recent_article(self, publish_date: Optional[datetime]) -> bool:
+    def _is_recent_article(self, publish_date: datetime | None) -> bool:
         """Check if article was published within the date window."""
         if not publish_date:
             return True  # Include articles without dates (benefit of doubt)
 
         return publish_date >= self.cutoff_date
 
-    def _get_existing_urls_for_source(self, source_id: str) -> Set[str]:
+    def _get_existing_urls_for_source(self, source_id: str) -> set[str]:
         """Get existing URLs for a source to detect duplicates."""
         try:
             db_manager = DatabaseManager(self.database_url)
@@ -565,7 +556,7 @@ class NewsDiscovery:
                     ),
                     {"source_id": source_id},
                 )
-                urls: Set[str] = set()
+                urls: set[str] = set()
                 for row in result.fetchall():
                     raw = row[0]
                     if not raw:
@@ -605,14 +596,14 @@ class NewsDiscovery:
 
     def get_sources_to_process(
         self,
-        dataset_label: Optional[str] = None,
-        limit: Optional[int] = None,
+        dataset_label: str | None = None,
+        limit: int | None = None,
         due_only: bool = True,
-        host_filter: Optional[str] = None,
-        city_filter: Optional[str] = None,
-        county_filter: Optional[str] = None,
-        host_limit: Optional[int] = None,
-    ) -> tuple[pd.DataFrame, Dict[str, int]]:
+        host_filter: str | None = None,
+        city_filter: str | None = None,
+        county_filter: str | None = None,
+        host_limit: int | None = None,
+    ) -> tuple[pd.DataFrame, dict[str, int]]:
         """Retrieve sources from database that need URL discovery.
 
         Args:
@@ -632,7 +623,7 @@ class NewsDiscovery:
             # city, county, owner, type, metadata
             # Prioritize sources that have never been attempted for discovery
             where_clauses = ["s.host IS NOT NULL", "s.host != ''"]
-            params: Dict[str, Any] = {}
+            params: dict[str, Any] = {}
 
             join_clause = ""
             if dataset_label:
@@ -704,8 +695,7 @@ class NewsDiscovery:
                     try:
                         meta = None
                         raw_meta = (
-                            row.get("metadata")
-                            if "metadata" in row.index else None
+                            row.get("metadata") if "metadata" in row.index else None
                         )
                         if raw_meta and isinstance(raw_meta, str):
                             try:
@@ -754,12 +744,12 @@ class NewsDiscovery:
     def discover_with_newspaper4k(
         self,
         source_url: str,
-        source_id: Optional[str] = None,
-        operation_id: Optional[str] = None,
-        source_meta: Optional[dict] = None,
+        source_id: str | None = None,
+        operation_id: str | None = None,
+        source_meta: dict | None = None,
         allow_build: bool = True,
         rss_already_attempted: bool = False,
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """Use newspaper4k to discover articles from a news source.
 
         OPTIMIZED VERSION: Focus on RSS discovery first; fallback to HTML
@@ -772,20 +762,16 @@ class NewsDiscovery:
         """
         discovered_articles = []
         method_start_time = time.time()
-        homepage_status_code: Optional[int] = None
+        homepage_status_code: int | None = None
 
         def record_newspaper_effectiveness(
             status: DiscoveryMethodStatus,
             articles_found: int,
             *,
-            status_codes: Optional[List[int]] = None,
-            notes: Optional[str] = None,
+            status_codes: list[int] | None = None,
+            notes: str | None = None,
         ) -> None:
-            if not (
-                self.telemetry
-                and source_id
-                and operation_id
-            ):
+            if not (self.telemetry and source_id and operation_id):
                 return
 
             elapsed_ms = (time.time() - method_start_time) * 1000
@@ -829,13 +815,9 @@ class NewsDiscovery:
             # to prevent unnecessary feed fetches that are known to fail.
             try:
                 homepage_request_start = time.time()
-                resp = self.session.get(
-                    source_url, timeout=min(5, self.timeout)
-                )
+                resp = self.session.get(source_url, timeout=min(5, self.timeout))
                 homepage_status_code = getattr(resp, "status_code", None)
-                homepage_fetch_ms = (
-                    (time.time() - homepage_request_start) * 1000
-                )
+                homepage_fetch_ms = (time.time() - homepage_request_start) * 1000
                 html = resp.text or ""
 
                 source_meta_dict = (
@@ -845,14 +827,10 @@ class NewsDiscovery:
                 skip_internal_feed_probe = False
                 rss_missing_active = False
                 if source_meta_dict:
-                    rss_missing_active = bool(
-                        source_meta_dict.get("rss_missing")
-                    )
+                    rss_missing_active = bool(source_meta_dict.get("rss_missing"))
                     try:
                         skip_internal_feed_probe, _, _ = (
-                            self._should_skip_rss_from_meta(
-                                source_meta_dict
-                            )
+                            self._should_skip_rss_from_meta(source_meta_dict)
                         )
                     except Exception:
                         skip_internal_feed_probe = rss_missing_active
@@ -860,7 +838,7 @@ class NewsDiscovery:
                 if rss_already_attempted:
                     skip_internal_feed_probe = True
 
-                feeds: List[str] = []
+                feeds: list[str] = []
                 if not skip_internal_feed_probe:
                     try:
                         feeds = self._extract_homepage_feed_urls(
@@ -872,10 +850,8 @@ class NewsDiscovery:
 
                 if feeds:
                     logger.info(
-                        (
-                            "Found %d feed(s) on homepage; "
-                            "trying those first"
-                        ) % (len(feeds),)
+                        ("Found %d feed(s) on homepage; " "trying those first")
+                        % (len(feeds),)
                     )
                     _rss_ret = self.discover_with_rss_feeds(
                         source_url,
@@ -893,7 +869,8 @@ class NewsDiscovery:
                             (
                                 "Homepage RSS discovery returned %d "
                                 "articles, skipping newspaper.build"
-                            ) % (len(rss_results),)
+                            )
+                            % (len(rss_results),)
                         )
                         record_newspaper_effectiveness(
                             DiscoveryMethodStatus.SUCCESS,
@@ -908,16 +885,14 @@ class NewsDiscovery:
                         return rss_results
 
                 try:
-                    homepage_candidates = (
-                        self._extract_homepage_article_candidates(
-                            html,
-                            source_url,
-                            rss_missing=rss_missing_active,
-                            max_candidates=min(
-                                self.max_articles_per_source,
-                                25,
-                            ),
-                        )
+                    homepage_candidates = self._extract_homepage_article_candidates(
+                        html,
+                        source_url,
+                        rss_missing=rss_missing_active,
+                        max_candidates=min(
+                            self.max_articles_per_source,
+                            25,
+                        ),
                     )
                 except Exception:
                     homepage_candidates = []
@@ -1002,9 +977,9 @@ class NewsDiscovery:
                     # complex objects into the child process by sending
                     # only a simple boolean flag for image fetching so the
                     # worker constructs its own `Config` instance.
-                    from multiprocessing import Process
-                    import tempfile
                     import os
+                    import tempfile
+                    from multiprocessing import Process
 
                     tmpf = tempfile.NamedTemporaryFile(delete=False)
                     tmp_path = tmpf.name
@@ -1013,9 +988,7 @@ class NewsDiscovery:
                     fetch_images_flag = False
                     try:
                         # config may omit fetch_images; default to False
-                        fetch_images_flag = bool(
-                            getattr(config, "fetch_images", False)
-                        )
+                        fetch_images_flag = bool(getattr(config, "fetch_images", False))
                     except Exception:
                         fetch_images_flag = False
 
@@ -1059,16 +1032,12 @@ class NewsDiscovery:
 
                     class _FakePaper:
                         def __init__(self, urls):
-                            self.articles = [
-                                _FakeArticle(u) for u in (urls or [])
-                            ]
+                            self.articles = [_FakeArticle(u) for u in (urls or [])]
 
                     paper = _FakePaper(urls)
 
                 except Exception as e:
-                    logger.warning(
-                        f"newspaper4k build raised for {source_url}: {e}"
-                    )
+                    logger.warning(f"newspaper4k build raised for {source_url}: {e}")
 
             # Don't download all articles - just get the URLs
             articles_attr = []
@@ -1078,9 +1047,7 @@ class NewsDiscovery:
             logger.info("Found %d potential articles" % (article_count,))
 
             if article_count == 0:
-                logger.warning(
-                    "No articles found via newspaper4k for %s", source_url
-                )
+                logger.warning("No articles found via newspaper4k for %s", source_url)
                 record_newspaper_effectiveness(
                     DiscoveryMethodStatus.NO_FEED,
                     0,
@@ -1097,15 +1064,11 @@ class NewsDiscovery:
             existing_urls = self._get_existing_urls()
 
             # Limit processing and don't download full content
-            articles_to_process = articles_attr[
-                : min(self.max_articles_per_source, 25)
-            ]
+            articles_to_process = articles_attr[: min(self.max_articles_per_source, 25)]
 
             for article in articles_to_process:
                 try:
-                    normalized_article_url = self._normalize_candidate_url(
-                        article.url
-                    )
+                    normalized_article_url = self._normalize_candidate_url(article.url)
 
                     # Skip if URL already exists
                     if normalized_article_url in existing_urls:
@@ -1143,9 +1106,7 @@ class NewsDiscovery:
                 DiscoveryMethodStatus.SUCCESS,
                 len(discovered_articles),
                 status_codes=(
-                    [homepage_status_code]
-                    if homepage_status_code is not None
-                    else None
+                    [homepage_status_code] if homepage_status_code is not None else None
                 ),
                 notes="newspaper.build",
             )
@@ -1161,7 +1122,7 @@ class NewsDiscovery:
 
         return discovered_articles
 
-    def _format_discovered_by(self, article_data: Dict) -> str:
+    def _format_discovered_by(self, article_data: dict) -> str:
         """Return a concise, descriptive label for how this URL was discovered.
 
         The label is intended for storage in
@@ -1218,9 +1179,9 @@ class NewsDiscovery:
     def discover_with_storysniffer(
         self,
         source_url: str,
-        source_id: Optional[str] = None,
-        operation_id: Optional[str] = None,
-    ) -> List[Dict]:
+        source_id: str | None = None,
+        operation_id: str | None = None,
+    ) -> list[dict]:
         """Use storysniffer to intelligently detect article URLs.
 
         Args:
@@ -1236,13 +1197,9 @@ class NewsDiscovery:
             status: DiscoveryMethodStatus,
             articles_found: int,
             *,
-            notes: Optional[str] = None,
+            notes: str | None = None,
         ) -> None:
-            if not (
-                self.telemetry
-                and source_id
-                and operation_id
-            ):
+            if not (self.telemetry and source_id and operation_id):
                 return
 
             elapsed_ms = (time.time() - method_start_time) * 1000
@@ -1339,11 +1296,11 @@ class NewsDiscovery:
     def discover_with_rss_feeds(
         self,
         source_url: str,
-        source_id: Optional[str] = None,
-        operation_id: Optional[str] = None,
-        custom_rss_feeds: Optional[List[str]] = None,
-        source_meta: Optional[dict] = None,
-    ) -> Tuple[List[Dict], Dict]:
+        source_id: str | None = None,
+        operation_id: str | None = None,
+        custom_rss_feeds: list[str] | None = None,
+        source_meta: dict | None = None,
+    ) -> tuple[list[dict], dict]:
         """Attempt to discover RSS feeds and extract article URLs - OPTIMIZED.
 
         Args:
@@ -1363,7 +1320,7 @@ class NewsDiscovery:
         network_error_count = 0
 
         # Build candidate feed list (custom first, then common paths)
-        potential_feeds: List[str] = []
+        potential_feeds: list[str] = []
         if custom_rss_feeds:
             for f in custom_rss_feeds:
                 potential_feeds.append(f)
@@ -1407,9 +1364,7 @@ class NewsDiscovery:
                             attempted_url=feed_url,
                             status_code=408,
                             response_time_ms=response_time_ms,
-                            error_message=(
-                                "Timeout after %ds" % (self.timeout,)
-                            ),
+                            error_message=("Timeout after %ds" % (self.timeout,)),
                         )
                     logger.warning(
                         "RSS feed request timed out after %ds: %s",
@@ -1431,9 +1386,7 @@ class NewsDiscovery:
                             response_time_ms=response_time_ms,
                             error_message="Connection error",
                         )
-                    logger.warning(
-                        "Connection error for RSS feed: %s", feed_url
-                    )
+                    logger.warning("Connection error for RSS feed: %s", feed_url)
                     continue
                 except Exception as e:
                     network_error_count += 1
@@ -1464,9 +1417,7 @@ class NewsDiscovery:
                             attempted_url=feed_url,
                             status_code=response.status_code,
                             response_time_ms=response_time_ms,
-                            content_length=len(
-                                getattr(response, "content", b"")
-                            ),
+                            content_length=len(getattr(response, "content", b"")),
                         )
                     except Exception:
                         pass
@@ -1537,9 +1488,7 @@ class NewsDiscovery:
                         publish_date = None
                         if entry.get("published_parsed"):
                             try:
-                                publish_date = datetime(
-                                    *entry.published_parsed[:6]
-                                )
+                                publish_date = datetime(*entry.published_parsed[:6])
                             except Exception:
                                 publish_date = None
 
@@ -1565,9 +1514,7 @@ class NewsDiscovery:
                         }
 
                         if publish_date:
-                            article_data["publish_date"] = (
-                                publish_date.isoformat()
-                            )
+                            article_data["publish_date"] = publish_date.isoformat()
 
                         discovered_articles.append(article_data)
                         if normalized_article_url:
@@ -1575,17 +1522,13 @@ class NewsDiscovery:
 
                     # Fallback: if feed had entries but all filtered out,
                     # optionally include a small recent set
-                    if (
-                        len(discovered_articles) == start_len
-                        and entry_count > 0
-                    ):
+                    if len(discovered_articles) == start_len and entry_count > 0:
                         recent_activity_days = 90
                         try:
                             freq = None
                             if source_meta and isinstance(source_meta, dict):
-                                freq = (
-                                    source_meta.get("frequency")
-                                    or source_meta.get("freq")
+                                freq = source_meta.get("frequency") or source_meta.get(
+                                    "freq"
                                 )
                             if freq:
                                 parsed = parse_frequency_to_days(freq)
@@ -1598,9 +1541,7 @@ class NewsDiscovery:
                             if getattr(feed, "feed", None) and feed.feed.get(
                                 "updated_parsed"
                             ):
-                                most_recent = datetime(
-                                    *feed.feed.updated_parsed[:6]
-                                )
+                                most_recent = datetime(*feed.feed.updated_parsed[:6])
                             for e in feed.entries:
                                 if e.get("published_parsed"):
                                     try:
@@ -1623,15 +1564,11 @@ class NewsDiscovery:
                                 allow_fallback = False
 
                         if allow_fallback:
-                            fallback_count = min(
-                                5, self.max_articles_per_source
-                            )
+                            fallback_count = min(5, self.max_articles_per_source)
                             for entry in feed.entries[:fallback_count]:
                                 article_url = entry.get("link")
                                 normalized_article_url = (
-                                    self._normalize_candidate_url(
-                                        article_url
-                                    )
+                                    self._normalize_candidate_url(article_url)
                                     if article_url
                                     else None
                                 )
@@ -1645,12 +1582,8 @@ class NewsDiscovery:
                                     "url": article_url,
                                     "source_url": source_url,
                                     "discovery_method": "rss_feed",
-                                    "discovered_at": (
-                                        datetime.utcnow().isoformat()
-                                    ),
-                                    "title": (
-                                        (entry.get("title") or "").strip()
-                                    ),
+                                    "discovered_at": (datetime.utcnow().isoformat()),
+                                    "title": ((entry.get("title") or "").strip()),
                                     "metadata": {
                                         "rss_feed_url": feed_url,
                                         "feed_entry_count": entry_count,
@@ -1659,19 +1592,13 @@ class NewsDiscovery:
                                 }
                                 if entry.get("published_parsed"):
                                     try:
-                                        pd = datetime(
-                                            *entry.published_parsed[:6]
-                                        )
-                                        article_data[
-                                            "publish_date"
-                                        ] = pd.isoformat()
+                                        pd = datetime(*entry.published_parsed[:6])
+                                        article_data["publish_date"] = pd.isoformat()
                                     except Exception:
                                         pass
                                 discovered_articles.append(article_data)
                                 if normalized_article_url:
-                                    existing_urls.add(
-                                        normalized_article_url
-                                    )
+                                    existing_urls.add(normalized_article_url)
 
                     logger.info(
                         "RSS discovery found %d articles",
@@ -1734,9 +1661,8 @@ class NewsDiscovery:
                     response_time_ms=discovery_time * 1000,
                     status_codes=status_codes,
                     notes=(
-                        "Tried %d feeds, %d successful" % (
-                            feeds_tried, feeds_successful
-                        )
+                        "Tried %d feeds, %d successful"
+                        % (feeds_tried, feeds_successful)
                     ),
                 )
             except Exception:
@@ -1753,8 +1679,8 @@ class NewsDiscovery:
     def process_source(
         self,
         source_row: pd.Series,
-        dataset_label: Optional[str] = None,
-        operation_id: Optional[str] = None,
+        dataset_label: str | None = None,
+        operation_id: str | None = None,
     ) -> DiscoveryResult:
         """Process a single source and store discovered URLs."""
 
@@ -1771,17 +1697,17 @@ class NewsDiscovery:
 
     def run_discovery(
         self,
-        dataset_label: Optional[str] = None,
-        source_limit: Optional[int] = None,
-        source_filter: Optional[str] = None,
-        source_uuids: Optional[List[str]] = None,
+        dataset_label: str | None = None,
+        source_limit: int | None = None,
+        source_filter: str | None = None,
+        source_uuids: list[str] | None = None,
         due_only: bool = False,
-        host_filter: Optional[str] = None,
-        city_filter: Optional[str] = None,
-        county_filter: Optional[str] = None,
-        host_limit: Optional[int] = None,
-        existing_article_limit: Optional[int] = None,
-    ) -> Dict[str, int]:
+        host_filter: str | None = None,
+        city_filter: str | None = None,
+        county_filter: str | None = None,
+        host_limit: int | None = None,
+        existing_article_limit: int | None = None,
+    ) -> dict[str, int]:
         """Run the complete discovery pipeline.
 
         Args:
@@ -1838,17 +1764,14 @@ class NewsDiscovery:
                     }
             elif source_filter:
                 # Filter by source name or URL (fallback)
-                mask = (
-                    sources_df["name"].str.contains(
-                        source_filter,
-                        case=False,
-                        na=False,
-                    )
-                    | sources_df["url"].str.contains(
-                        source_filter,
-                        case=False,
-                        na=False,
-                    )
+                mask = sources_df["name"].str.contains(
+                    source_filter,
+                    case=False,
+                    na=False,
+                ) | sources_df["url"].str.contains(
+                    source_filter,
+                    case=False,
+                    na=False,
                 )
                 sources_df = sources_df[mask]
 
@@ -1877,10 +1800,7 @@ class NewsDiscovery:
             # `get_sources_to_process` when `due_only=True` is passed)
 
             for idx, source_row in sources_df.iterrows():
-                if (
-                    existing_article_limit is not None
-                    and existing_article_limit >= 0
-                ):
+                if existing_article_limit is not None and existing_article_limit >= 0:
                     try:
                         existing_count = self._get_existing_article_count(
                             str(source_row.get("id"))
@@ -1910,17 +1830,15 @@ class NewsDiscovery:
                     self.telemetry.record_discovery_outcome(
                         operation_id=tracker.operation_id,
                         source_id=str(source_row.get("id", "")),
-                        source_name=str(
-                            source_row.get("name", "Unknown")
-                        ),
+                        source_name=str(source_row.get("name", "Unknown")),
                         source_url=str(source_row.get("url", "")),
                         discovery_result=discovery_result,
                     )
 
                     stats["sources_processed"] += 1
-                    stats["total_candidates_discovered"] += (
-                        discovery_result.articles_new
-                    )
+                    stats[
+                        "total_candidates_discovered"
+                    ] += discovery_result.articles_new
 
                     # Track different types of success
                     if discovery_result.is_technical_failure:
@@ -1957,8 +1875,7 @@ class NewsDiscovery:
                         self._update_source_meta(
                             source_row.get("id"),
                             {
-                                "last_discovery_at":
-                                datetime.utcnow().isoformat(),
+                                "last_discovery_at": datetime.utcnow().isoformat(),
                             },
                         )
                     except Exception:
@@ -1990,15 +1907,11 @@ class NewsDiscovery:
                     tracker.update_progress(
                         processed=metrics.processed_items,
                         total=metrics.total_items,
-                        message=(
-                            "Failed: "
-                            f"{source_row.get('name', 'Unknown')}"
-                        ),
+                        message=("Failed: " f"{source_row.get('name', 'Unknown')}"),
                     )
 
             logger.info(
-                "Discovery complete. Processed %s sources, found %s "
-                "candidate URLs",
+                "Discovery complete. Processed %s sources, found %s " "candidate URLs",
                 stats["sources_processed"],
                 stats["total_candidates_discovered"],
             )
@@ -2078,19 +1991,19 @@ def get_sources_from_db(db_manager, dataset_id=None, limit=None):
 
 
 def run_discovery_pipeline(
-    dataset_label: Optional[str] = None,
-    source_limit: Optional[int] = None,
-    source_filter: Optional[str] = None,
-    source_uuids: Optional[List[str]] = None,
+    dataset_label: str | None = None,
+    source_limit: int | None = None,
+    source_filter: str | None = None,
+    source_uuids: list[str] | None = None,
     database_url: str = "sqlite:///data/mizzou.db",
     max_articles_per_source: int = 50,
     days_back: int = 7,
-    host_filter: Optional[str] = None,
-    city_filter: Optional[str] = None,
-    county_filter: Optional[str] = None,
-    host_limit: Optional[int] = None,
-    existing_article_limit: Optional[int] = None,
-) -> Dict[str, int]:
+    host_filter: str | None = None,
+    city_filter: str | None = None,
+    county_filter: str | None = None,
+    host_limit: int | None = None,
+    existing_article_limit: int | None = None,
+) -> dict[str, int]:
     """Convenience function to run the discovery pipeline.
 
     Args:
@@ -2141,6 +2054,5 @@ if __name__ == "__main__":
     print(f"  Sources processed: {stats['sources_processed']}")
     print(f"  Candidates found: {stats['total_candidates_discovered']}")
     print(
-        "  Success rate: "
-        f"{stats['sources_succeeded']}/{stats['sources_processed']}"
+        "  Success rate: " f"{stats['sources_succeeded']}/{stats['sources_processed']}"
     )

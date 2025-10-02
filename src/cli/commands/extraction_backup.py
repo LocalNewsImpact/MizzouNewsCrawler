@@ -6,9 +6,11 @@ import logging
 import time
 import uuid
 from datetime import datetime
+
 from sqlalchemy import text
-from src.models.database import DatabaseManager
+
 from src.crawler import ContentExtractor
+from src.models.database import DatabaseManager
 from src.utils.byline_cleaner import BylineCleaner
 
 logger = logging.getLogger(__name__)
@@ -17,38 +19,35 @@ logger = logging.getLogger(__name__)
 def add_extraction_parser(subparsers):
     """Add extraction command parser to CLI."""
     extract_parser = subparsers.add_parser(
-        "extract",
-        help="Extract content from verified articles"
+        "extract", help="Extract content from verified articles"
     )
     extract_parser.add_argument(
         "--limit",
         type=int,
         default=50,
-        help="Limit number of articles to extract per batch"
+        help="Limit number of articles to extract per batch",
     )
     extract_parser.add_argument(
         "--batches",
         type=int,
         default=1,
-        help="Number of batches to process (default: 1)"
+        help="Number of batches to process (default: 1)",
     )
     extract_parser.add_argument(
         "--articles-only",
         action="store_true",
         default=True,
-        help="Only extract URLs with 'article' status (default: True)"
+        help="Only extract URLs with 'article' status (default: True)",
     )
     extract_parser.add_argument(
-        "--source",
-        type=str,
-        help="Extract from specific source only"
+        "--source", type=str, help="Extract from specific source only"
     )
 
 
 def handle_extraction_command(args) -> int:
     """Handle the extraction command."""
     try:
-        batches = getattr(args, 'batches', 1)
+        batches = getattr(args, "batches", 1)
         per_batch = args.limit
         total_articles = batches * per_batch
 
@@ -61,10 +60,10 @@ def handle_extraction_command(args) -> int:
 
         # Overall statistics tracking
         overall_stats = {
-            'total_processed': 0,
-            'total_successful': 0,
-            'total_failed': 0,
-            'batches_completed': 0
+            "total_processed": 0,
+            "total_successful": 0,
+            "total_failed": 0,
+            "batches_completed": 0,
         }
 
         db = DatabaseManager()
@@ -99,12 +98,10 @@ def handle_extraction_command(args) -> int:
                 """
             )
 
-            if hasattr(args, 'source') and args.source:
+            if hasattr(args, "source") and args.source:
                 query = text(f"{query.text} AND source = '{args.source}'")
 
-            query = text(
-                f"{query.text} ORDER BY created_at DESC LIMIT {per_batch}"
-            )
+            query = text(f"{query.text} ORDER BY created_at DESC LIMIT {per_batch}")
 
             result = session.execute(query)
             articles = result.fetchall()
@@ -122,17 +119,17 @@ def handle_extraction_command(args) -> int:
             )
 
             # Update overall statistics
-            overall_stats['total_processed'] += batch_stats['processed']
-            overall_stats['total_successful'] += batch_stats['successful']
-            overall_stats['total_failed'] += batch_stats['failed']
-            overall_stats['batches_completed'] += 1
+            overall_stats["total_processed"] += batch_stats["processed"]
+            overall_stats["total_successful"] += batch_stats["successful"]
+            overall_stats["total_failed"] += batch_stats["failed"]
+            overall_stats["batches_completed"] += 1
 
             session.close()
 
             # Show batch summary
             success_rate = (
-                (batch_stats['successful'] / batch_stats['processed']) * 100
-                if batch_stats['processed'] > 0
+                (batch_stats["successful"] / batch_stats["processed"]) * 100
+                if batch_stats["processed"] > 0
                 else 0
             )
             print(f"\n✅ Batch {batch_num} complete:")
@@ -143,10 +140,7 @@ def handle_extraction_command(args) -> int:
 
             # Show user agent rotation stats
             rotation_stats = extractor.get_rotation_stats()
-            print(
-                "   Domains accessed: "
-                f"{rotation_stats['total_domains_accessed']}"
-            )
+            print("   Domains accessed: " f"{rotation_stats['total_domains_accessed']}")
 
             # Brief pause between batches
             if batch_num < batches:
@@ -157,18 +151,11 @@ def handle_extraction_command(args) -> int:
         print("\n🎯 EXTRACTION COMPLETE")
         print("=" * 60)
         overall_success_rate = (
-            (
-                overall_stats['total_successful']
-                / overall_stats['total_processed']
-            )
-            * 100
-            if overall_stats['total_processed'] > 0
+            (overall_stats["total_successful"] / overall_stats["total_processed"]) * 100
+            if overall_stats["total_processed"] > 0
             else 0
         )
-        print(
-            "Batches completed: "
-            f"{overall_stats['batches_completed']}/{batches}"
-        )
+        print("Batches completed: " f"{overall_stats['batches_completed']}/{batches}")
         print(f"Total articles processed: {overall_stats['total_processed']}")
         print(f"Total successful: {overall_stats['total_successful']}")
         print(f"Total failed: {overall_stats['total_failed']}")
@@ -177,12 +164,9 @@ def handle_extraction_command(args) -> int:
         # Show final rotation statistics
         rotation_stats = extractor.get_rotation_stats()
         print("\nUser Agent Rotation Summary:")
-        print(
-            "  Total domains: "
-            f"{rotation_stats['total_domains_accessed']}"
-        )
+        print("  Total domains: " f"{rotation_stats['total_domains_accessed']}")
         print(f"  Active sessions: {rotation_stats['active_sessions']}")
-        for domain, count in rotation_stats['request_counts'].items():
+        for domain, count in rotation_stats["request_counts"].items():
             print(f"  {domain}: {count} requests")
 
         return 0
@@ -203,18 +187,18 @@ def _process_batch(articles, extractor, byline_cleaner, session, batch_num):
 
     # Track field completion for quality reporting
     field_stats = {
-        'title': {'present': 0, 'total': 0},
-        'content': {'present': 0, 'total': 0},
-        'author': {'present': 0, 'total': 0},
-        'publish_date': {'present': 0, 'total': 0},
-        'metadata': {'present': 0, 'total': 0},
+        "title": {"present": 0, "total": 0},
+        "content": {"present": 0, "total": 0},
+        "author": {"present": 0, "total": 0},
+        "publish_date": {"present": 0, "total": 0},
+        "metadata": {"present": 0, "total": 0},
     }
 
     # Track extraction method usage
     method_stats = {
-        'newspaper4k': {'used': 0, 'fields_extracted': 0},
-        'beautifulsoup': {'used': 0, 'fields_extracted': 0},
-        'selenium': {'used': 0, 'fields_extracted': 0},
+        "newspaper4k": {"used": 0, "fields_extracted": 0},
+        "beautifulsoup": {"used": 0, "fields_extracted": 0},
+        "selenium": {"used": 0, "fields_extracted": 0},
     }
 
     for index, article in enumerate(articles, 1):
@@ -231,34 +215,34 @@ def _process_batch(articles, extractor, byline_cleaner, session, batch_num):
 
             print(f"  Extraction completed in {extraction_time:.1f}s")
 
-            if content_data and content_data.get('title'):
+            if content_data and content_data.get("title"):
                 # Track field completion for quality reporting
-                field_stats['title']['total'] += 1
-                field_stats['content']['total'] += 1
-                field_stats['author']['total'] += 1
-                field_stats['publish_date']['total'] += 1
-                field_stats['metadata']['total'] += 1
+                field_stats["title"]["total"] += 1
+                field_stats["content"]["total"] += 1
+                field_stats["author"]["total"] += 1
+                field_stats["publish_date"]["total"] += 1
+                field_stats["metadata"]["total"] += 1
 
                 fields_present = 0
                 total_fields = 5
 
-                if content_data.get('title'):
-                    field_stats['title']['present'] += 1
+                if content_data.get("title"):
+                    field_stats["title"]["present"] += 1
                     fields_present += 1
                 if (
-                    content_data.get('content')
-                    and content_data.get('content', '').strip()
+                    content_data.get("content")
+                    and content_data.get("content", "").strip()
                 ):
-                    field_stats['content']['present'] += 1
+                    field_stats["content"]["present"] += 1
                     fields_present += 1
-                if content_data.get('author'):
-                    field_stats['author']['present'] += 1
+                if content_data.get("author"):
+                    field_stats["author"]["present"] += 1
                     fields_present += 1
-                if content_data.get('publish_date'):
-                    field_stats['publish_date']['present'] += 1
+                if content_data.get("publish_date"):
+                    field_stats["publish_date"]["present"] += 1
                     fields_present += 1
-                if content_data.get('metadata'):
-                    field_stats['metadata']['present'] += 1
+                if content_data.get("metadata"):
+                    field_stats["metadata"]["present"] += 1
                     fields_present += 1
 
                 completion_percentage = (fields_present / total_fields) * 100
@@ -275,16 +259,16 @@ def _process_batch(articles, extractor, byline_cleaner, session, batch_num):
                     f"({status_text})"
                 )
 
-                metadata = content_data.get('metadata', {}) or {}
-                extraction_methods = metadata.get('extraction_methods', {})
+                metadata = content_data.get("metadata", {}) or {}
+                extraction_methods = metadata.get("extraction_methods", {})
                 if extraction_methods:
                     for field_name, method in extraction_methods.items():
                         if method in method_stats:
-                            method_stats[method]['fields_extracted'] += 1
+                            method_stats[method]["fields_extracted"] += 1
 
                     for method in set(extraction_methods.values()):
                         if method in method_stats:
-                            method_stats[method]['used'] += 1
+                            method_stats[method]["used"] += 1
 
                     methods_summary = [
                         f"{field_name}:{method}"
@@ -294,12 +278,10 @@ def _process_batch(articles, extractor, byline_cleaner, session, batch_num):
                         print(f"    Methods: {', '.join(methods_summary)}")
 
                 try:
-                    raw_author = content_data.get('author')
+                    raw_author = content_data.get("author")
                     cleaned_author = None
                     if raw_author:
-                        cleaned_author = byline_cleaner.clean_byline(
-                            raw_author
-                        )
+                        cleaned_author = byline_cleaner.clean_byline(raw_author)
                         logger.info(
                             "Author cleaning: '%s' → '%s'",
                             raw_author,
@@ -347,11 +329,11 @@ def _process_batch(articles, extractor, byline_cleaner, session, batch_num):
                             "id": article_id,
                             "candidate_link_id": str(url_id),
                             "url": url,
-                            "title": content_data.get('title'),
+                            "title": content_data.get("title"),
                             "author": cleaned_author,
-                            "publish_date": content_data.get('publish_date'),
-                            "content": content_data.get('content'),
-                            "text": content_data.get('content'),
+                            "publish_date": content_data.get("publish_date"),
+                            "content": content_data.get("content"),
+                            "text": content_data.get("content"),
                             "status": "extracted",
                             "metadata": str(metadata),
                             "extracted_at": now.isoformat(),
@@ -400,16 +382,16 @@ def _process_batch(articles, extractor, byline_cleaner, session, batch_num):
         print("\n📊 Field Completion Report:")
         print("=" * 40)
         for field, stats in field_stats.items():
-            if stats['total'] > 0:
-                percentage = (stats['present'] / stats['total']) * 100
+            if stats["total"] > 0:
+                percentage = (stats["present"] / stats["total"]) * 100
                 print(
                     f"  {field.capitalize():>12}: "
                     f"{stats['present']:>3}/{stats['total']:<3} "
                     f"({percentage:>5.1f}%)"
                 )
 
-        total_fields = sum(stats['total'] for stats in field_stats.values())
-        total_present = sum(stats['present'] for stats in field_stats.values())
+        total_fields = sum(stats["total"] for stats in field_stats.values())
+        total_present = sum(stats["present"] for stats in field_stats.values())
         overall_percentage = (
             (total_present / total_fields) * 100 if total_fields > 0 else 0
         )
@@ -423,10 +405,10 @@ def _process_batch(articles, extractor, byline_cleaner, session, batch_num):
         print("\n🔧 Extraction Method Usage:")
         print("=" * 40)
         for method, stats in method_stats.items():
-            if stats['used'] > 0:
+            if stats["used"] > 0:
                 avg_fields = (
-                    stats['fields_extracted'] / stats['used']
-                    if stats['used'] > 0
+                    stats["fields_extracted"] / stats["used"]
+                    if stats["used"] > 0
                     else 0
                 )
                 print(
@@ -437,8 +419,8 @@ def _process_batch(articles, extractor, byline_cleaner, session, batch_num):
                 )
 
     return {
-        'processed': total_processed,
-        'successful': extracted_count,
-        'failed': failed_count,
-        'partial': partial_count,
+        "processed": total_processed,
+        "successful": extracted_count,
+        "failed": failed_count,
+        "partial": partial_count,
     }

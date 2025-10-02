@@ -6,7 +6,7 @@ import json
 import sqlite3
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Any
 
 # Ensure src directory is importable
 IMPORT_ROOT = Path(__file__).parent / "src"
@@ -18,7 +18,6 @@ from utils.content_cleaner_balanced import (  # type: ignore  # noqa: E402
     BalancedBoundaryContentCleaner,
 )
 
-
 DB_PATH = Path("data/mizzou.db")
 DEFAULT_OUTPUT_DIR = Path("reports")
 
@@ -26,7 +25,7 @@ DEFAULT_OUTPUT_DIR = Path("reports")
 def get_domain_article_counts(
     db_path: Path,
     min_length: int = 100,
-) -> Dict[str, int]:
+) -> dict[str, int]:
     """Return article counts grouped by domain for eligible content."""
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -41,7 +40,7 @@ def get_domain_article_counts(
         (min_length,),
     )
 
-    counts: Dict[str, int] = {}
+    counts: dict[str, int] = {}
     for (url,) in cursor.fetchall():
         domain = extract_domain(url)
         if not domain or domain == "unknown":
@@ -160,7 +159,7 @@ def main() -> int:
         enable_telemetry=False,
     )
 
-    export_payload: Dict[str, Any] = {
+    export_payload: dict[str, Any] = {
         "generated_at": datetime.utcnow().isoformat(),
         "parameters": {
             "max_domains": args.max_domains,
@@ -182,8 +181,8 @@ def main() -> int:
             min_occurrences=args.min_articles,
         )
 
-        segments: List[Dict[str, Any]] = []
-        wire_patterns: List[Dict[str, Any]] = []
+        segments: list[dict[str, Any]] = []
+        wire_patterns: list[dict[str, Any]] = []
 
         for seg_index, segment in enumerate(analysis.get("segments", []), 1):
             boundary_score = segment.get("boundary_score", 0.0)

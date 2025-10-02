@@ -5,12 +5,11 @@ This module provides algorithms to detect and remove repeated text segments
 that appear across multiple articles from the same domain.
 """
 
-import re
 import hashlib
 import logging
+import re
 import sqlite3
 from collections import defaultdict
-from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -20,17 +19,19 @@ logger = logging.getLogger(__name__)
 @dataclass
 class BoilerplateMatch:
     """Represents a detected boilerplate text segment."""
+
     text: str
     hash_value: str
     occurrence_count: int
     confidence_score: float
-    domains: List[str]
-    positions: List[Tuple[float, float]]  # (start_pct, end_pct)
+    domains: list[str]
+    positions: list[tuple[float, float]]  # (start_pct, end_pct)
 
 
 @dataclass
 class CleaningTelemetry:
     """Telemetry data for content cleaning operations."""
+
     article_id: int
     domain: str
     original_length: int
@@ -39,7 +40,7 @@ class CleaningTelemetry:
     confidence_threshold: float
     processing_time: float
     timestamp: str
-    removed_segments: List[Dict]
+    removed_segments: list[dict]
 
 
 class ContentCleaner:
@@ -52,8 +53,7 @@ class ContentCleaner:
         self.min_occurrence_count = 3
         self._boilerplate_cache = {}
 
-    def analyze_domain(self, domain: str,
-                       sample_size: Optional[int] = None) -> Dict:
+    def analyze_domain(self, domain: str, sample_size: int | None = None) -> dict:
         """Analyze content from a domain to identify boilerplate."""
         articles = self._get_domain_articles(domain, sample_size)
 
@@ -61,7 +61,7 @@ class ContentCleaner:
             return {
                 "domain": domain,
                 "articles": len(articles),
-                "boilerplate_segments": []
+                "boilerplate_segments": [],
             }
 
         # Find common segments
@@ -76,10 +76,7 @@ class ContentCleaner:
                     boilerplate_matches.append(match)
 
         # Sort by confidence
-        boilerplate_matches.sort(
-            key=lambda x: x.confidence_score,
-            reverse=True
-        )
+        boilerplate_matches.sort(key=lambda x: x.confidence_score, reverse=True)
 
         return {
             "domain": domain,
@@ -87,20 +84,27 @@ class ContentCleaner:
             "boilerplate_segments": len(boilerplate_matches),
             "segments": [
                 {
-                    "text": (match.text[:200] + "..."
-                             if len(match.text) > 200 else match.text),
+                    "text": (
+                        match.text[:200] + "..."
+                        if len(match.text) > 200
+                        else match.text
+                    ),
                     "hash": match.hash_value,
                     "occurrence_count": match.occurrence_count,
                     "confidence_score": match.confidence_score,
-                    "avg_position": self._calc_avg_position(match.positions)
+                    "avg_position": self._calc_avg_position(match.positions),
                 }
                 for match in boilerplate_matches[:20]
-            ]
+            ],
         }
 
-    def clean_content(self, content: str, domain: str,
-                      article_id: Optional[int] = None,
-                      dry_run: bool = True) -> Tuple[str, CleaningTelemetry]:
+    def clean_content(
+        self,
+        content: str,
+        domain: str,
+        article_id: int | None = None,
+        dry_run: bool = True,
+    ) -> tuple[str, CleaningTelemetry]:
         """Clean content by removing detected boilerplate segments."""
         start_time = datetime.utcnow()
         original_length = len(content)
@@ -128,17 +132,16 @@ class ContentCleaner:
             cleaned_length=len(cleaned_content),
             segments_removed=len(removed_segments),
             confidence_threshold=self.confidence_threshold,
-            processing_time=(
-                datetime.utcnow() - start_time
-            ).total_seconds(),
+            processing_time=(datetime.utcnow() - start_time).total_seconds(),
             timestamp=datetime.utcnow().isoformat(),
-            removed_segments=removed_segments
+            removed_segments=removed_segments,
         )
 
         return cleaned_content, telemetry
 
-    def _get_domain_articles(self, domain: str,
-                             sample_size: Optional[int] = None) -> List[Dict]:
+    def _get_domain_articles(
+        self, domain: str, sample_size: int | None = None
+    ) -> list[dict]:
         """Get articles from a specific domain."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -159,26 +162,18 @@ class ContentCleaner:
 
         cursor.execute(query, params)
         articles = [
-            {
-                "id": row[0],
-                "url": row[1],
-                "content": row[2],
-                "text_hash": row[3]
-            }
+            {"id": row[0], "url": row[1], "content": row[2], "text_hash": row[3]}
             for row in cursor.fetchall()
         ]
 
         conn.close()
         return articles
 
-    def _find_common_segments(self, articles: List[Dict]) -> Dict:
+    def _find_common_segments(self, articles: list[dict]) -> dict:
         """Find text segments that appear across multiple articles."""
-        segment_occurrences = defaultdict(lambda: {
-            "count": 0,
-            "text": "",
-            "positions": [],
-            "article_ids": []
-        })
+        segment_occurrences = defaultdict(
+            lambda: {"count": 0, "text": "", "positions": [], "article_ids": []}
+        )
 
         for article in articles:
             content = article["content"]
@@ -190,36 +185,28 @@ class ContentCleaner:
                 if len(segment_text.strip()) < 20:
                     continue
 
-                segment_hash = hashlib.sha256(
-                    segment_text.strip().encode()
-                ).hexdigest()
+                segment_hash = hashlib.sha256(segment_text.strip().encode()).hexdigest()
 
                 # Calculate position percentages
                 content_length = len(content)
-                start_pct = (start_pos / content_length
-                             if content_length > 0 else 0)
-                end_pct = (end_pos / content_length
-                           if content_length > 0 else 0)
+                start_pct = start_pos / content_length if content_length > 0 else 0
+                end_pct = end_pos / content_length if content_length > 0 else 0
 
                 segment_occurrences[segment_hash]["count"] += 1
-                segment_occurrences[segment_hash]["text"] = (
-                    segment_text.strip()
-                )
+                segment_occurrences[segment_hash]["text"] = segment_text.strip()
                 segment_occurrences[segment_hash]["positions"].append(
                     (start_pct, end_pct)
                 )
-                segment_occurrences[segment_hash]["article_ids"].append(
-                    article_id
-                )
+                segment_occurrences[segment_hash]["article_ids"].append(article_id)
 
         return segment_occurrences
 
-    def _extract_segments(self, content: str) -> List[Tuple[str, int, int]]:
+    def _extract_segments(self, content: str) -> list[tuple[str, int, int]]:
         """Extract potential boilerplate segments from content."""
         segments = []
 
         # Extract sentences
-        sentences = re.split(r'[.!?]+', content)
+        sentences = re.split(r"[.!?]+", content)
         current_pos = 0
         for sentence in sentences:
             sentence = sentence.strip()
@@ -231,7 +218,7 @@ class ContentCleaner:
                     current_pos = end_pos
 
         # Extract paragraphs
-        paragraphs = content.split('\n\n')
+        paragraphs = content.split("\n\n")
         current_pos = 0
         for paragraph in paragraphs:
             paragraph = paragraph.strip()
@@ -244,8 +231,9 @@ class ContentCleaner:
 
         return segments
 
-    def _score_segment(self, segment_data: Dict, domain: str,
-                       total_articles: int) -> BoilerplateMatch:
+    def _score_segment(
+        self, segment_data: dict, domain: str, total_articles: int
+    ) -> BoilerplateMatch:
         """Score a segment for boilerplate likelihood."""
         text = segment_data["text"]
         occurrence_count = segment_data["count"]
@@ -264,12 +252,16 @@ class ContentCleaner:
             occurrence_count=occurrence_count,
             confidence_score=confidence,
             domains=[domain],
-            positions=positions
+            positions=positions,
         )
 
-    def _calculate_confidence(self, text: str, occurrence_count: int,
-                              total_articles: int,
-                              positions: List[Tuple[float, float]]) -> float:
+    def _calculate_confidence(
+        self,
+        text: str,
+        occurrence_count: int,
+        total_articles: int,
+        positions: list[tuple[float, float]],
+    ) -> float:
         """Calculate confidence score using rule-based approach."""
         text_lower = text.lower()
         confidence = 0.0
@@ -291,29 +283,33 @@ class ContentCleaner:
 
         # Content patterns (0-0.3 points)
         boilerplate_terms = [
-            "subscribe", "newsletter", "sign up", "follow us", "share",
-            "copyright", "privacy", "terms", "login", "register"
+            "subscribe",
+            "newsletter",
+            "sign up",
+            "follow us",
+            "share",
+            "copyright",
+            "privacy",
+            "terms",
+            "login",
+            "register",
         ]
 
-        term_matches = sum(
-            1 for term in boilerplate_terms if term in text_lower
-        )
-        confidence += min(
-            term_matches / len(boilerplate_terms), 1.0
-        ) * 0.3
+        term_matches = sum(1 for term in boilerplate_terms if term in text_lower)
+        confidence += min(term_matches / len(boilerplate_terms), 1.0) * 0.3
 
         return min(confidence, 1.0)
 
-    def _calculate_std(self, values: List[float]) -> float:
+    def _calculate_std(self, values: list[float]) -> float:
         """Calculate standard deviation."""
         if len(values) <= 1:
             return 0.0
 
         mean = sum(values) / len(values)
         variance = sum((x - mean) ** 2 for x in values) / len(values)
-        return variance ** 0.5
+        return variance**0.5
 
-    def _calc_avg_position(self, positions: List[Tuple[float, float]]) -> Dict:
+    def _calc_avg_position(self, positions: list[tuple[float, float]]) -> dict:
         """Calculate average position statistics."""
         if not positions:
             return {"start": 0.0, "end": 0.0}

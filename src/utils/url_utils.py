@@ -1,8 +1,7 @@
 """URL normalization utilities for consistent deduplication."""
 
-from urllib.parse import urlparse, urlunparse
-from typing import Optional
 import logging
+from urllib.parse import urlparse, urlunparse
 
 logger = logging.getLogger(__name__)
 
@@ -33,20 +32,22 @@ def normalize_url(url: str) -> str:
         parsed = urlparse(url.strip())
 
         # Reconstruct URL without fragment and query parameters
-        normalized = urlunparse((
-            parsed.scheme,
-            parsed.netloc,
-            parsed.path,
-            parsed.params,  # Keep params (might be part of path structure)
-            '',  # Remove query
-            ''   # Remove fragment
-        ))
+        normalized = urlunparse(
+            (
+                parsed.scheme,
+                parsed.netloc,
+                parsed.path,
+                parsed.params,  # Keep params (might be part of path structure)
+                "",  # Remove query
+                "",  # Remove fragment
+            )
+        )
 
         # Clean up any trailing slashes for consistency (except for root)
-        if normalized.endswith('/') and len(normalized) > 1:
+        if normalized.endswith("/") and len(normalized) > 1:
             # Only remove trailing slash if there's a path component
-            if parsed.path and parsed.path != '/':
-                normalized = normalized.rstrip('/')
+            if parsed.path and parsed.path != "/":
+                normalized = normalized.rstrip("/")
 
         return normalized
 
@@ -80,7 +81,7 @@ def is_same_article_url(url1: str, url2: str) -> bool:
     return normalize_url(url1) == normalize_url(url2)
 
 
-def extract_base_url(url: str) -> Optional[str]:
+def extract_base_url(url: str) -> str | None:
     """
     Extract the base URL (scheme + netloc) from a URL.
 

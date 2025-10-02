@@ -3,6 +3,7 @@
 
 import sqlite3
 
+
 def main():
     conn = sqlite3.connect('data/mizzou.db')
     cursor = conn.cursor()
@@ -18,14 +19,14 @@ def main():
         GROUP BY status
     ''')
     results = cursor.fetchall()
-    
+
     total_verified = 0
     for status, count in results:
         print(f'{status.upper()}: {count:,}')
         total_verified += count
-    
+
     print(f'TOTAL VERIFIED: {total_verified:,}')
-    
+
     # Calculate accuracy
     if results:
         article_count = next((count for status, count in results if status == 'article'), 0)
@@ -35,7 +36,7 @@ def main():
     print('\n' + '=' * 60)
     print('SAMPLE ARTICLES (StorySniffer verified as articles):')
     print('-' * 60)
-    
+
     cursor.execute('''
         SELECT url, source, created_at 
         FROM candidate_links 
@@ -43,7 +44,7 @@ def main():
         ORDER BY created_at DESC 
         LIMIT 5
     ''')
-    
+
     for i, (url, source, created_at) in enumerate(cursor.fetchall(), 1):
         display_url = url if len(url) <= 70 else url[:67] + '...'
         print(f'{i}. {display_url}')
@@ -54,7 +55,7 @@ def main():
     print('=' * 60)
     print('SAMPLE NON-ARTICLES (StorySniffer rejected):')
     print('-' * 60)
-    
+
     cursor.execute('''
         SELECT url, source, created_at 
         FROM candidate_links 
@@ -62,7 +63,7 @@ def main():
         ORDER BY created_at DESC 
         LIMIT 10
     ''')
-    
+
     for i, (url, source, created_at) in enumerate(cursor.fetchall(), 1):
         display_url = url if len(url) <= 70 else url[:67] + '...'
         print(f'{i}. {display_url}')
@@ -74,7 +75,7 @@ def main():
     print('=' * 60)
     print('NON-ARTICLE URL PATTERNS:')
     print('-' * 60)
-    
+
     cursor.execute('''
         SELECT url 
         FROM candidate_links 
@@ -82,7 +83,7 @@ def main():
         ORDER BY created_at DESC 
         LIMIT 20
     ''')
-    
+
     patterns = {}
     for (url,) in cursor.fetchall():
         # Extract common patterns
@@ -98,7 +99,7 @@ def main():
             patterns['Directory/landing pages'] = patterns.get('Directory/landing pages', 0) + 1
         else:
             patterns['Other'] = patterns.get('Other', 0) + 1
-    
+
     for pattern, count in sorted(patterns.items(), key=lambda x: x[1], reverse=True):
         print(f'{pattern}: {count}')
 

@@ -64,16 +64,10 @@ class URLVerification(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     candidate_link_id = Column(
-        String,
-        ForeignKey("candidate_links.id"),
-        nullable=False,
-        index=True
+        String, ForeignKey("candidate_links.id"), nullable=False, index=True
     )
     verification_job_id = Column(
-        String,
-        ForeignKey("verification_jobs.id"),
-        nullable=False,
-        index=True
+        String, ForeignKey("verification_jobs.id"), nullable=False, index=True
     )
 
     # Verification results
@@ -112,10 +106,7 @@ class VerificationTelemetry(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     verification_job_id = Column(
-        String,
-        ForeignKey("verification_jobs.id"),
-        nullable=False,
-        index=True
+        String, ForeignKey("verification_jobs.id"), nullable=False, index=True
     )
 
     # Source-level breakdown

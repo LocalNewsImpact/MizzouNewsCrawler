@@ -28,40 +28,40 @@ def execute_query(query, params=None, description="Query results"):
     if not db_path.exists():
         print(f"Error: Database not found at {db_path}")
         return
-    
+
     try:
         conn = sqlite3.connect(str(db_path))
         cursor = conn.cursor()
-        
+
         if params:
             cursor.execute(query, params)
         else:
             cursor.execute(query)
-        
+
         results = cursor.fetchall()
-        
+
         print(f"\n=== {description} ===")
-        
+
         if not results:
             print("No results found.")
             return
-        
+
         # Print column headers if available
         if cursor.description:
             headers = [desc[0] for desc in cursor.description]
             if len(headers) > 1:
                 print(" | ".join(headers))
                 print("-" * (sum(len(h) for h in headers) + 3 * (len(headers) - 1)))
-        
+
         # Print results
         for row in results:
             if len(row) == 1:
                 print(row[0])
             else:
                 print(" | ".join(str(val) for val in row))
-        
+
         print(f"\nTotal rows: {len(results)}")
-        
+
     except Exception as e:
         print(f"Error executing query: {e}")
     finally:
@@ -84,7 +84,7 @@ def discovery_status():
             WHERE discovery_attempted IS NULL
         """, None, "Sources Never Attempted"),
     ]
-    
+
     for query, params, desc in queries:
         execute_query(query, params, desc)
 
@@ -108,7 +108,7 @@ def source_counts():
 def recent_activity(hours=24):
     """Show recent discovery activity."""
     since_time = (datetime.now() - timedelta(hours=hours)).strftime('%Y-%m-%d %H:%M:%S')
-    
+
     queries = [
         ("""
             SELECT COUNT(DISTINCT cl.source_name) as active_sources
@@ -126,7 +126,7 @@ def recent_activity(hours=24):
             LIMIT 10
         """, (since_time,), f"Top Sources in Last {hours} Hours"),
     ]
-    
+
     for query, params, desc in queries:
         execute_query(query, params, desc)
 
@@ -170,7 +170,7 @@ def telemetry_status():
             ORDER BY count DESC
         """, None, "Discovery Outcomes Summary"),
     ]
-    
+
     for query, params, desc in queries:
         try:
             execute_query(query, params, desc)
@@ -186,15 +186,15 @@ def custom_query(sql):
 def main():
     parser = argparse.ArgumentParser(description="Quick SQLite database queries")
     parser.add_argument("command", choices=[
-        "discovery_status", "source_counts", "recent_activity", 
+        "discovery_status", "source_counts", "recent_activity",
         "unattempted_sources", "telemetry_status", "custom"
     ], help="Query to run")
     parser.add_argument("query", nargs="?", help="SQL query for custom command")
     parser.add_argument("--hours", type=int, default=24, help="Hours back for recent_activity")
     parser.add_argument("--limit", type=int, default=20, help="Limit for results")
-    
+
     args = parser.parse_args()
-    
+
     if args.command == "discovery_status":
         discovery_status()
     elif args.command == "source_counts":

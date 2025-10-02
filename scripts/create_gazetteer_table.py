@@ -10,6 +10,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+
 from sqlalchemy import create_engine
 
 

@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import csv
 import logging
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Dict, Iterable, Optional, Sequence
 
 from sqlalchemy import select
 
+from src.ml.article_classifier import ArticleClassifier
 from src.models import Article, ArticleLabel
 from src.models.database import DatabaseManager
 from src.services.classification_service import ArticleClassificationService
-from src.ml.article_classifier import ArticleClassifier
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ EXCLUDED_STATUSES = {"opinion", "opinions", "obituary", "obits", "wire"}
 
 def _resolve_statuses(
     raw_statuses: Iterable[str] | None,
-) -> Optional[list[str]]:
+) -> list[str] | None:
     if not raw_statuses:
         return ["cleaned", "local"]
 
@@ -46,34 +46,29 @@ def _resolve_statuses(
 
 
 def _filtered_statuses(
-    statuses: Optional[Sequence[str]],
-) -> Optional[list[str]]:
+    statuses: Sequence[str] | None,
+) -> list[str] | None:
     if statuses is None:
         return None
 
-    filtered = [
-        status for status in statuses if status not in EXCLUDED_STATUSES
-    ]
+    filtered = [status for status in statuses if status not in EXCLUDED_STATUSES]
     return filtered
 
 
 def _snapshot_labels(
     session,
     label_version: str,
-    statuses: Optional[Sequence[str]],
-) -> Dict[str, Dict[str, Optional[str]]]:
-    stmt = (
-        select(
-            Article.id,
-            Article.url,
-            ArticleLabel.primary_label,
-            ArticleLabel.alternate_label,
-        )
-        .outerjoin(
-            ArticleLabel,
-            (ArticleLabel.article_id == Article.id)
-            & (ArticleLabel.label_version == label_version),
-        )
+    statuses: Sequence[str] | None,
+) -> dict[str, dict[str, str | None]]:
+    stmt = select(
+        Article.id,
+        Article.url,
+        ArticleLabel.primary_label,
+        ArticleLabel.alternate_label,
+    ).outerjoin(
+        ArticleLabel,
+        (ArticleLabel.article_id == Article.id)
+        & (ArticleLabel.label_version == label_version),
     )
 
     if statuses is None:
@@ -84,7 +79,7 @@ def _snapshot_labels(
         stmt = stmt.where(Article.status.in_(list(statuses)))
 
     rows = session.execute(stmt).all()
-    snapshot: Dict[str, Dict[str, Optional[str]]] = {}
+    snapshot: dict[str, dict[str, str | None]] = {}
     for article_id, url, primary, alternate in rows:
         snapshot[str(article_id)] = {
             "url": url,
@@ -96,11 +91,11 @@ def _snapshot_labels(
 
 
 def _compute_label_changes(
-    before: Dict[str, Dict[str, Optional[str]]],
-    after: Dict[str, Dict[str, Optional[str]]],
+    before: dict[str, dict[str, str | None]],
+    after: dict[str, dict[str, str | None]],
     label_version: str,
-) -> list[Dict[str, str]]:
-    changes: list[Dict[str, str]] = []
+) -> list[dict[str, str]]:
+    changes: list[dict[str, str]] = []
     for article_id in sorted(set(before) | set(after)):
         before_entry = before.get(article_id, {})
         after_entry = after.get(article_id, {})
@@ -131,11 +126,11 @@ def _compute_label_changes(
 
 
 def _compute_dry_run_changes(
-    before: Dict[str, Dict[str, Optional[str]]],
-    proposals: Sequence[Dict[str, object]],
+    before: dict[str, dict[str, str | None]],
+    proposals: Sequence[dict[str, object]],
     label_version: str,
-) -> list[Dict[str, str]]:
-    changes: list[Dict[str, str]] = []
+) -> list[dict[str, str]]:
+    changes: list[dict[str, str]] = []
     for proposal in proposals:
         raw_id = proposal.get("article_id")
         article_id = str(raw_id) if raw_id is not None else ""
@@ -155,11 +150,7 @@ def _compute_dry_run_changes(
         new_alternate = (
             new_alternate_obj
             if isinstance(new_alternate_obj, str)
-            else (
-                str(new_alternate_obj)
-                if new_alternate_obj is not None
-                else ""
-            )
+            else (str(new_alternate_obj) if new_alternate_obj is not None else "")
         )
 
         if (old_primary or "") == (new_primary or ""):
@@ -191,7 +182,7 @@ def _compute_dry_run_changes(
 
 def _write_label_changes(
     report_path: Path,
-    changes: Sequence[Dict[str, str]],
+    changes: Sequence[dict[str, str]],
 ) -> Path:
     report_path = report_path.expanduser()
     report_path.parent.mkdir(parents=True, exist_ok=True)
@@ -308,7 +299,7 @@ def handle_analysis_command(args) -> int:
     service = ArticleClassificationService(db.session)
 
     try:
-        before_snapshot: Dict[str, Dict[str, Optional[str]]] = {}
+        before_snapshot: dict[str, dict[str, str | None]] = {}
         if collect_diff:
             before_snapshot = _snapshot_labels(
                 db.session,

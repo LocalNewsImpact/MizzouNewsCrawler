@@ -4,7 +4,7 @@
 
 
 # Read the file
-with open('src/utils/telemetry.py', 'r') as f:
+with open('src/utils/telemetry.py') as f:
     content = f.read()
 
 # Find the specific pattern and replace it

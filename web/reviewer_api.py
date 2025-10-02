@@ -11,7 +11,6 @@ import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,36 +18,35 @@ from pydantic import BaseModel
 
 from web import sqlite_store
 from web.byline_telemetry_api import (
-    get_pending_byline_reviews,
-    submit_byline_feedback,
+    BylineFeedback,
     get_byline_telemetry_stats,
     get_labeled_training_data,
-    BylineFeedback
-)
-from web.verification_telemetry_api import (
-    get_pending_verification_reviews,
-    submit_verification_feedback,
-    get_verification_telemetry_stats,
-    get_labeled_verification_training_data,
-    enhance_verification_with_content,
-    VerificationFeedback
+    get_pending_byline_reviews,
+    submit_byline_feedback,
 )
 from web.code_review_telemetry_api import (
-    get_pending_code_reviews,
-    submit_code_review_feedback,
-    get_code_review_stats,
-    add_code_review_item,
-    init_code_review_tables,
     CodeReviewFeedback,
-    CodeReviewItem
+    CodeReviewItem,
+    add_code_review_item,
+    get_code_review_stats,
+    get_pending_code_reviews,
+    init_code_review_tables,
+    submit_code_review_feedback,
+)
+from web.verification_telemetry_api import (
+    VerificationFeedback,
+    enhance_verification_with_content,
+    get_labeled_verification_training_data,
+    get_pending_verification_reviews,
+    get_verification_telemetry_stats,
+    submit_verification_feedback,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
 # Prefer pipeline/processed when running from project root.
 # Fall back to `processed/` in the repository root.
 PIPELINE_PROCESSED = Path(ROOT) / "pipeline" / "processed"
-PROCESSED = PIPELINE_PROCESSED if PIPELINE_PROCESSED.exists() else (ROOT /
-                                                                    "processed")
+PROCESSED = PIPELINE_PROCESSED if PIPELINE_PROCESSED.exists() else (ROOT / "processed")
 ARTICLES_CSV = PROCESSED / "articleslabelled_7.csv"
 FEEDBACK_CSV = PROCESSED / "feedback.csv"
 
@@ -74,20 +72,20 @@ app.add_middleware(
 class Feedback(BaseModel):
     id: str
     field: str
-    old_value: Optional[str] = None
-    new_value: Optional[str] = None
-    comment: Optional[str] = None
-    reviewer: Optional[str] = None
+    old_value: str | None = None
+    new_value: str | None = None
+    comment: str | None = None
+    reviewer: str | None = None
 
 
 class ReviewAction(BaseModel):
     action: str  # 'accept' or 'reject'
-    candidate_selector: Optional[str] = None
-    reviewer: Optional[str] = None
-    comment: Optional[str] = None
+    candidate_selector: str | None = None
+    reviewer: str | None = None
+    comment: str | None = None
 
 
-def read_articles(limit: Optional[int] = None, offset: int = 0):
+def read_articles(limit: int | None = None, offset: int = 0):
     # Prefer SQLite store if available (provides transactional reads).
     try:
         from web import sqlite_store
@@ -116,10 +114,10 @@ def read_articles(limit: Optional[int] = None, offset: int = 0):
             raise RuntimeError(f"Failed to parse CSV: {e}")
         if limit is None:
             return rows[offset:]
-        return rows[offset: offset + limit]
+        return rows[offset : offset + limit]
 
 
-@app.get("/api/articles", response_model=List[dict])
+@app.get("/api/articles", response_model=list[dict])
 def clean_html_to_text(html_text: str) -> str:
     """Convert HTML to safe plain text by removing scripts/styles and tags.
 
@@ -150,7 +148,7 @@ def clean_html_to_text(html_text: str) -> str:
 
 
 def get_articles(
-    limit: Optional[int] = 50,
+    limit: int | None = 50,
     offset: int = 0,
     full_text: bool = False,
     preview_chars: int = 500,
@@ -186,8 +184,7 @@ def get_articles(
             text = tag_re.sub(" ", text)
             text = " ".join(text.split())
         except Exception:
-            text = (news[:preview_chars] +
-                    "...") if len(news) > preview_chars else news
+            text = (news[:preview_chars] + "...") if len(news) > preview_chars else news
         preview = text[:preview_chars]
         row["news_preview"] = preview
         row["news_truncated"] = len(news) > len(preview)
@@ -203,7 +200,7 @@ def get_articles(
 
 def _load_json(path: Path):
     try:
-        with open(path, "r", encoding="utf8") as fh:
+        with open(path, encoding="utf8") as fh:
             return json.load(fh)
     except Exception:
         return None
@@ -248,9 +245,7 @@ def _write_csv_rows(path: Path, rows, fieldnames):
 
     def _atomic_replace(target: Path, write_rows, flds):
         # write to temporary file in same directory then fsync+replace
-        fd, tmp_path = tempfile.mkstemp(
-            prefix=target.name, dir=str(
-                target.parent))
+        fd, tmp_path = tempfile.mkstemp(prefix=target.name, dir=str(target.parent))
         try:
             with os.fdopen(fd, "w", newline="", encoding="utf8") as fh:
                 writer = csv.DictWriter(fh, fieldnames=flds)
@@ -338,7 +333,7 @@ def _promote_selector_to_site_specs(domain: str, selector: str):
                 break
 
         if not updated:
-            newrow = {k: "" for k in fieldnames}
+            newrow = dict.fromkeys(fieldnames, "")
             newrow["domain"] = domain
             newrow["url_pattern"] = f".*{domain}.*"
             newrow["body_selector"] = selector
@@ -353,9 +348,7 @@ def api_domain_issues():
     p = PROCESSED / "domain_issues.json"
     data = _load_json(p)
     if data is None:
-        raise HTTPException(
-            status_code=404,
-            detail="domain_issues.json not found")
+        raise HTTPException(status_code=404, detail="domain_issues.json not found")
     return data
 
 
@@ -372,9 +365,7 @@ def api_domain_review(host: str):
     p = PROCESSED / "domain_flags" / f"{host}.json"
     data = _load_json(p)
     if data is None:
-        raise HTTPException(
-            status_code=404,
-            detail="domain artifact not found")
+        raise HTTPException(status_code=404, detail="domain artifact not found")
     return data
 
 
@@ -563,13 +554,7 @@ def post_feedback(f: Feedback):
         sqlite_store.append_feedback(row)
     except Exception:
         # fallback: append to CSV for portability
-        header = [
-            "id",
-            "field",
-            "old_value",
-            "new_value",
-            "comment",
-            "reviewer"]
+        header = ["id", "field", "old_value", "new_value", "comment", "reviewer"]
         write_header = not FEEDBACK_CSV.exists()
         with open(FEEDBACK_CSV, "a", newline="", encoding="utf-8") as fh:
             writer = csv.writer(fh)
@@ -590,6 +575,7 @@ def post_feedback(f: Feedback):
 
 # --- Byline Telemetry Endpoints ---
 
+
 @app.get("/api/byline_telemetry/pending")
 def api_get_pending_bylines(limit: int = 50):
     """Get byline extractions that need human review."""
@@ -598,7 +584,7 @@ def api_get_pending_bylines(limit: int = 50):
         return {
             "status": "ok",
             "count": len(items),
-            "items": [item.dict() for item in items]
+            "items": [item.dict() for item in items],
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -612,9 +598,7 @@ def api_submit_byline_feedback(feedback: BylineFeedback):
         if success:
             return {"status": "ok", "telemetry_id": feedback.telemetry_id}
         else:
-            raise HTTPException(
-                status_code=404,
-                detail="Telemetry record not found")
+            raise HTTPException(status_code=404, detail="Telemetry record not found")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -636,8 +620,9 @@ def api_get_training_data(min_confidence: float = 0.0, format: str = "json"):
         data = get_labeled_training_data(min_confidence=min_confidence)
         if format == "csv":
             # Return CSV format for download
-            import io
             import csv
+            import io
+
             output = io.StringIO()
             if data:
                 writer = csv.DictWriter(output, fieldnames=data[0].keys())
@@ -647,15 +632,10 @@ def api_get_training_data(min_confidence: float = 0.0, format: str = "json"):
                 "status": "ok",
                 "format": "csv",
                 "content": output.getvalue(),
-                "count": len(data)
+                "count": len(data),
             }
         else:
-            return {
-                "status": "ok",
-                "format": "json",
-                "data": data,
-                "count": len(data)
-            }
+            return {"status": "ok", "format": "json", "data": data, "count": len(data)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -670,22 +650,35 @@ def api_telemetry_queue():
             "worker_alive": True,  # Assume worker is alive if API is responding
             "total_processed": stats.total_extractions,
             "accuracy_rate": (
-                stats.reviewed_correct /
-                max(stats.reviewed_correct +
-                    stats.reviewed_incorrect +
-                    stats.reviewed_partial, 1)
-            ) if (stats.reviewed_correct + stats.reviewed_incorrect + stats.reviewed_partial) > 0 else 0
+                (
+                    stats.reviewed_correct
+                    / max(
+                        stats.reviewed_correct
+                        + stats.reviewed_incorrect
+                        + stats.reviewed_partial,
+                        1,
+                    )
+                )
+                if (
+                    stats.reviewed_correct
+                    + stats.reviewed_incorrect
+                    + stats.reviewed_partial
+                )
+                > 0
+                else 0
+            ),
         }
     except Exception:
         return {
             "queue_size": 0,
             "worker_alive": False,
             "total_processed": 0,
-            "accuracy_rate": 0
+            "accuracy_rate": 0,
         }
 
 
 # --- URL Verification Telemetry Endpoints ---
+
 
 @app.get("/api/verification_telemetry/pending")
 def api_get_pending_verifications(limit: int = 50):
@@ -695,7 +688,7 @@ def api_get_pending_verifications(limit: int = 50):
         return {
             "status": "ok",
             "count": len(items),
-            "items": [item.dict() for item in items]
+            "items": [item.dict() for item in items],
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -707,13 +700,9 @@ def api_submit_verification_feedback(feedback: VerificationFeedback):
     try:
         success = submit_verification_feedback(feedback)
         if success:
-            return {
-                "status": "ok",
-                "verification_id": feedback.verification_id}
+            return {"status": "ok", "verification_id": feedback.verification_id}
         else:
-            raise HTTPException(
-                status_code=404,
-                detail="Verification record not found")
+            raise HTTPException(status_code=404, detail="Verification record not found")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -730,16 +719,16 @@ def api_get_verification_stats():
 
 @app.get("/api/verification_telemetry/training_data")
 def api_get_verification_training_data(
-        min_confidence: float = 0.0,
-        format: str = "json"):
+    min_confidence: float = 0.0, format: str = "json"
+):
     """Export labeled verification training data for ML."""
     try:
-        data = get_labeled_verification_training_data(
-            min_confidence=min_confidence)
+        data = get_labeled_verification_training_data(min_confidence=min_confidence)
         if format == "csv":
             # Return CSV format for download
-            import io
             import csv
+            import io
+
             output = io.StringIO()
             if data:
                 writer = csv.DictWriter(output, fieldnames=data[0].keys())
@@ -749,39 +738,31 @@ def api_get_verification_training_data(
                 "status": "ok",
                 "format": "csv",
                 "content": output.getvalue(),
-                "count": len(data)
+                "count": len(data),
             }
         else:
-            return {
-                "status": "ok",
-                "format": "json",
-                "data": data,
-                "count": len(data)
-            }
+            return {"status": "ok", "format": "json", "data": data, "count": len(data)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/verification_telemetry/enhance")
 def api_enhance_verification(
-        verification_id: str,
-        headline: str = "",
-        excerpt: str = ""):
+    verification_id: str, headline: str = "", excerpt: str = ""
+):
     """Add article content to verification for human review."""
     try:
-        success = enhance_verification_with_content(
-            verification_id, headline, excerpt)
+        success = enhance_verification_with_content(verification_id, headline, excerpt)
         if success:
             return {"status": "ok", "verification_id": verification_id}
         else:
-            raise HTTPException(
-                status_code=404,
-                detail="Verification record not found")
+            raise HTTPException(status_code=404, detail="Verification record not found")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 # --- Code Review Telemetry Endpoints ---
+
 
 @app.get("/api/code_review_telemetry/pending")
 def api_get_pending_code_reviews(limit: int = 50):
@@ -794,7 +775,7 @@ def api_get_pending_code_reviews(limit: int = 50):
         return {
             "status": "ok",
             "count": len(items),
-            "items": [item.dict() for item in items]
+            "items": [item.dict() for item in items],
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -808,9 +789,7 @@ def api_submit_code_review_feedback(feedback: CodeReviewFeedback):
         if success:
             return {"status": "ok", "review_id": feedback.review_id}
         else:
-            raise HTTPException(
-                status_code=404,
-                detail="Code review record not found")
+            raise HTTPException(status_code=404, detail="Code review record not found")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -837,8 +816,8 @@ def api_add_code_review_item(item: CodeReviewItem):
             return {"status": "ok", "review_id": item.review_id}
         else:
             raise HTTPException(
-                status_code=500,
-                detail="Failed to add code review item")
+                status_code=500, detail="Failed to add code review item"
+            )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

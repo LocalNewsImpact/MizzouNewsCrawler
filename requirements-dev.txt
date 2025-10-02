@@ -11,9 +11,13 @@ nbstripout>=0.6.0  # Remove notebook outputs from git
 jupyter-book>=0.15.0
 
 # Code quality
-mypy>=1.5.0
+ruff>=0.13.0  # Fast Python linter
+black>=24.0.0  # Code formatter
+isort>=5.13.0  # Import sorter
+mypy>=1.5.0  # Type checker
 bandit>=1.7.5  # Security linting
 safety>=2.3.0  # Dependency vulnerability scanning
+pre-commit>=3.5.0  # Git hooks for code quality
 
 # Performance profiling
 py-spy>=0.3.0

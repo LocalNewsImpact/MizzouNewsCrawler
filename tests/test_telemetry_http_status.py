@@ -1,5 +1,5 @@
-import sys
 import pathlib
+import sys
 
 # Ensure project root
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -7,11 +7,11 @@ sys.path.insert(0, str(ROOT))
 
 from sqlalchemy import text  # noqa: E402
 
-from src.utils.telemetry import (  # noqa: E402
-    OperationTracker,
-    DiscoveryMethod,
-)
 from src.models.database import DatabaseManager  # noqa: E402
+from src.utils.telemetry import (  # noqa: E402
+    DiscoveryMethod,
+    OperationTracker,
+)
 
 
 def test_track_http_status_inserts_row(tmp_path):

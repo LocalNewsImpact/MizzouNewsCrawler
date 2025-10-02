@@ -10,11 +10,10 @@ Usage:
     python fix_html_encoded_authors.py [--dry-run] [--article-id ARTICLE_ID]
 """
 
-import sqlite3
-import json
 import argparse
 import html
-from typing import List
+import json
+import sqlite3
 
 
 def log_info(message: str):
@@ -27,7 +26,7 @@ def log_error(message: str):
     print(f"[ERROR] {message}")
 
 
-def clean_html_encoded_authors(authors: List[str]) -> List[str]:
+def clean_html_encoded_authors(authors: list[str]) -> list[str]:
     """
     Clean a list of authors by:
     1. HTML decoding all names
@@ -36,22 +35,22 @@ def clean_html_encoded_authors(authors: List[str]) -> List[str]:
     """
     if not authors:
         return []
-    
+
     cleaned_authors = []
     seen = set()
-    
+
     for author in authors:
         if not author:
             continue
-            
+
         # HTML decode the author name
         decoded = html.unescape(str(author))
-        
+
         # Add only if not already seen (case-insensitive)
         if decoded.lower() not in seen:
             cleaned_authors.append(decoded)
             seen.add(decoded.lower())
-    
+
     return cleaned_authors
 
 
@@ -173,22 +172,22 @@ def main():
                                   f"duplicate(s)")
                 else:
                     print("  ✅ No changes needed")
-                
+
             except Exception as e:
                 log_error(f"Error processing article {article_id}: {e}")
-        
+
         if not args.dry_run:
             conn.commit()
             log_info(f"✅ Successfully fixed {fixed_count} articles")
         else:
             log_info(f"[DRY RUN] Would fix {fixed_count} articles")
-        
+
         print("=" * 60)
-        
+
     except Exception as e:
         log_error(f"Database error: {e}")
         conn.rollback()
-    
+
     finally:
         conn.close()
 

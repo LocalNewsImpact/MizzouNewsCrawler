@@ -327,85 +327,85 @@ def _seed_dashboard_tables(db_path: Path) -> None:
         now = datetime.utcnow().isoformat()
 
         snapshots = [
-                (
-                    "snap-1",
-                    "broken.local",
-                    None,
-                ),
-                (
-                    "snap-2",
-                    "broken.local",
-                    None,
-                ),
-                (
-                    "snap-3",
-                    "healthy.local",
-                    now,
-                ),
+            (
+                "snap-1",
+                "broken.local",
+                None,
+            ),
+            (
+                "snap-2",
+                "broken.local",
+                None,
+            ),
+            (
+                "snap-3",
+                "healthy.local",
+                now,
+            ),
         ]
         candidates = [
-                (
-                    "cand-1",
-                    "snap-1",
-                    "meta.title",
-                    "title",
-                    0.2,
-                    120,
-                    None,
-                    None,
-                    0,
-                    now,
-                ),
-                (
-                    "cand-2",
-                    "snap-1",
-                    "meta.description",
-                    "description",
-                    0.8,
-                    200,
-                    None,
-                    None,
-                    0,
-                    now,
-                ),
-                (
-                    "cand-3",
-                    "snap-2",
-                    "meta.author",
-                    "author",
-                    0.5,
-                    80,
-                    None,
-                    None,
-                    1,
-                    now,
-                ),
+            (
+                "cand-1",
+                "snap-1",
+                "meta.title",
+                "title",
+                0.2,
+                120,
+                None,
+                None,
+                0,
+                now,
+            ),
+            (
+                "cand-2",
+                "snap-1",
+                "meta.description",
+                "description",
+                0.8,
+                200,
+                None,
+                None,
+                0,
+                now,
+            ),
+            (
+                "cand-3",
+                "snap-2",
+                "meta.author",
+                "author",
+                0.5,
+                80,
+                None,
+                None,
+                1,
+                now,
+            ),
         ]
         dedupe = [
-                (
-                    "art-1",
-                    "art-dup",
-                    "broken.local",
-                    0.91,
-                    0,
-                    now,
-                ),
-                (
-                    "art-2",
-                    "art-dup2",
-                    "healthy.local",
-                    0.65,
-                    1,
-                    now,
-                ),
+            (
+                "art-1",
+                "art-dup",
+                "broken.local",
+                0.91,
+                0,
+                now,
+            ),
+            (
+                "art-2",
+                "art-dup2",
+                "healthy.local",
+                0.65,
+                1,
+                now,
+            ),
         ]
 
         conn.executemany(
-                """
+            """
                 INSERT OR REPLACE INTO snapshots (id, host, reviewed_at)
                 VALUES (?, ?, ?)
                 """,
-                snapshots,
+            snapshots,
         )
         conn.executemany(
             """

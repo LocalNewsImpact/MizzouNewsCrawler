@@ -5,8 +5,8 @@ from __future__ import annotations
 
 import argparse
 import logging
+from collections.abc import Sequence
 from datetime import datetime
-from typing import List, Sequence
 
 from sqlalchemy import or_
 from sqlalchemy.orm import Query, Session
@@ -144,7 +144,7 @@ def run_backfill(args: argparse.Namespace) -> None:
             return
 
         processed = 0
-        pending_ids: List[str] = []
+        pending_ids: list[str] = []
 
         for row in effective_query.yield_per(args.batch_size):
             article_id = row[0]

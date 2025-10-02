@@ -1,7 +1,6 @@
 """Telemetry command module for querying extraction performance data."""
 
 import logging
-from typing import Optional
 
 from src.utils.comprehensive_telemetry import ComprehensiveExtractionTelemetry
 
@@ -143,7 +142,7 @@ def _show_http_errors(telemetry, days: int) -> int:
 
 def _show_method_effectiveness(
     telemetry,
-    publisher: Optional[str] = None,
+    publisher: str | None = None,
 ) -> int:
     """Show extraction method effectiveness."""
     filter_text = f" (Publisher: {publisher})" if publisher else ""
@@ -156,21 +155,14 @@ def _show_method_effectiveness(
         print("No method effectiveness data available.")
         return 0
 
-    print(
-        f"{'Method':<15} {'Count':<8} {'Success Rate':<12} "
-        f"{'Avg Duration':<12}"
-    )
+    print(f"{'Method':<15} {'Count':<8} {'Success Rate':<12} " f"{'Avg Duration':<12}")
     print("-" * 60)
 
     for method in methods:
         method_name = method["successful_method"] or "Unknown"
         count = method["count"]
-        success_rate = (
-            method["success_rate"] * 100 if method["success_rate"] else 0
-        )
-        avg_duration = (
-            method["avg_duration"] / 1000 if method["avg_duration"] else 0
-        )
+        success_rate = method["success_rate"] * 100 if method["success_rate"] else 0
+        avg_duration = method["avg_duration"] / 1000 if method["avg_duration"] else 0
 
         print(
             f"{method_name:<15} {count:<8} "
@@ -207,9 +199,7 @@ def _show_publisher_stats(telemetry) -> int:
         total_attempts = sum(s["total_attempts"] for s in stats)
         total_successful = sum(s["successful"] for s in stats)
         success_rate = (
-            (total_successful / total_attempts * 100)
-            if total_attempts > 0
-            else 0
+            (total_successful / total_attempts * 100) if total_attempts > 0 else 0
         )
 
         print(
@@ -231,13 +221,9 @@ def _show_publisher_stats(telemetry) -> int:
             host = stat["host"][:29] if stat["host"] else "Unknown"
             attempts = stat["total_attempts"]
             successful = stat["successful"]
-            host_success_rate = (
-                successful / attempts * 100 if attempts > 0 else 0
-            )
+            host_success_rate = successful / attempts * 100 if attempts > 0 else 0
             avg_duration = (
-                stat["avg_duration_ms"] / 1000
-                if stat["avg_duration_ms"]
-                else 0
+                stat["avg_duration_ms"] / 1000 if stat["avg_duration_ms"] else 0
             )
 
             print(
@@ -252,8 +238,8 @@ def _show_publisher_stats(telemetry) -> int:
 
 def _show_field_extraction(
     telemetry,
-    publisher: Optional[str] = None,
-    method: Optional[str] = None,
+    publisher: str | None = None,
+    method: str | None = None,
 ) -> int:
     """Show field-level extraction success by method."""
     filter_text = ""
@@ -298,34 +284,22 @@ def _show_field_extraction(
     total_extractions = sum(data["count"] for data in field_data)
     if total_extractions > 0:
         overall_title = (
-            sum(
-                data["title_success_rate"] * data["count"]
-                for data in field_data
-            )
+            sum(data["title_success_rate"] * data["count"] for data in field_data)
             / total_extractions
             * 100
         )
         overall_author = (
-            sum(
-                data["author_success_rate"] * data["count"]
-                for data in field_data
-            )
+            sum(data["author_success_rate"] * data["count"] for data in field_data)
             / total_extractions
             * 100
         )
         overall_content = (
-            sum(
-                data["content_success_rate"] * data["count"]
-                for data in field_data
-            )
+            sum(data["content_success_rate"] * data["count"] for data in field_data)
             / total_extractions
             * 100
         )
         overall_date = (
-            sum(
-                data["date_success_rate"] * data["count"]
-                for data in field_data
-            )
+            sum(data["date_success_rate"] * data["count"] for data in field_data)
             / total_extractions
             * 100
         )
@@ -337,5 +311,6 @@ def _show_field_extraction(
         print(f"Total Records:   {total_extractions}")
 
     return 0
+
 
 # Telemetry CLI helpers end here

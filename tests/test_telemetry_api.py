@@ -3,13 +3,14 @@ Test suite for telemetry API endpoints and site management functionality.
 Tests the FastAPI endpoints without running the actual server.
 """
 
-import pytest
 import sqlite3
 import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
-from fastapi.testclient import TestClient
 from unittest.mock import patch
+
+import pytest
+from fastapi.testclient import TestClient
 
 
 class TestTelemetryAPIEndpoints:

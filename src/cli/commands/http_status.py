@@ -5,12 +5,10 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-from typing import Dict, List
 
 from sqlalchemy import text
 
 from src.models.database import DatabaseManager
-
 
 logger = logging.getLogger(__name__)
 
@@ -64,8 +62,8 @@ def handle_http_status_command(args) -> int:
     out_format = getattr(args, "format", "table")
     lookup_host = getattr(args, "lookup_host", False)
 
-    params: Dict[str, str | int] = {"limit": limit}
-    where_clauses: List[str] = []
+    params: dict[str, str | int] = {"limit": limit}
+    where_clauses: list[str] = []
 
     try:
         with DatabaseManager() as db:
@@ -78,17 +76,14 @@ def handle_http_status_command(args) -> int:
                 where_clauses.append("source_id = :source_id")
                 params["source_id"] = source_id
             elif resolved_ids:
-                placeholders = ",".join(
-                    f":sid{i}" for i in range(len(resolved_ids))
-                )
+                placeholders = ",".join(f":sid{i}" for i in range(len(resolved_ids)))
                 where_clauses.append(f"source_id IN ({placeholders})")
                 for idx, sid in enumerate(resolved_ids):
                     params[f"sid{idx}"] = sid
 
             if host and not lookup_host:
                 where_clauses.append(
-                    "(source_url LIKE :host_like OR "
-                    "attempted_url LIKE :host_like)"
+                    "(source_url LIKE :host_like OR " "attempted_url LIKE :host_like)"
                 )
                 params["host_like"] = f"%{host}%"
 
@@ -102,14 +97,12 @@ def handle_http_status_command(args) -> int:
                 )
 
             sql = text(
-                (
-                    "SELECT id, source_id, source_url, attempted_url, "
-                    "discovery_method, status_code, status_category, "
-                    "response_time_ms, content_length, error_message, "
-                    "timestamp "
-                    "FROM http_status_tracking "
-                    f"{where_sql} ORDER BY id DESC LIMIT :limit"
-                )
+                "SELECT id, source_id, source_url, attempted_url, "
+                "discovery_method, status_code, status_category, "
+                "response_time_ms, content_length, error_message, "
+                "timestamp "
+                "FROM http_status_tracking "
+                f"{where_sql} ORDER BY id DESC LIMIT :limit"
             )
 
             with db.engine.connect() as conn:
@@ -128,11 +121,9 @@ def handle_http_status_command(args) -> int:
         return 1
 
 
-def _resolve_host_to_source_ids(db: DatabaseManager, host: str) -> List[str]:
+def _resolve_host_to_source_ids(db: DatabaseManager, host: str) -> list[str]:
     """Lookup source IDs matching a host pattern."""
-    query = text(
-        "SELECT id FROM sources WHERE host LIKE :h OR host_norm LIKE :h_norm"
-    )
+    query = text("SELECT id FROM sources WHERE host LIKE :h OR host_norm LIKE :h_norm")
 
     try:
         with db.engine.connect() as conn:
@@ -146,7 +137,7 @@ def _resolve_host_to_source_ids(db: DatabaseManager, host: str) -> List[str]:
         return []
 
 
-def _print_http_status_table(rows: List[Dict[str, object]]) -> None:
+def _print_http_status_table(rows: list[dict[str, object]]) -> None:
     if not rows:
         print("No http status records found for the given filters")
         return

@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 
-import sqlite3
-import re
-from typing import List, Dict, Tuple, Set
-from collections import defaultdict
 import logging
+import re
+import sqlite3
+from collections import defaultdict
 
 
 class TwoPhaseContentCleaner:
@@ -19,18 +18,14 @@ class TwoPhaseContentCleaner:
         self.logger = logging.getLogger(__name__)
 
     def analyze_domain(
-        self, domain: str, sample_size: int = None,
-        min_occurrences: int = 3
-    ) -> Dict:
+        self, domain: str, sample_size: int = None, min_occurrences: int = 3
+    ) -> dict:
         """Analyze domain using two-phase approach."""
         self.logger.info(f"Analyzing domain: {domain}")
 
         articles = self._get_articles_for_domain(domain, sample_size)
         if len(articles) < min_occurrences:
-            return {
-                "domain": domain, "article_count": len(articles),
-                "segments": []
-            }
+            return {"domain": domain, "article_count": len(articles), "segments": []}
 
         # Phase 1: Find rough candidate segments
         self.logger.info("Phase 1: Finding rough candidate segments...")
@@ -49,11 +44,12 @@ class TwoPhaseContentCleaner:
             "domain": domain,
             "article_count": len(articles),
             "segments": exact_segments,
-            "stats": stats
+            "stats": stats,
         }
 
-    def _get_articles_for_domain(self, domain: str,
-                                 sample_size: int = None) -> List[Dict]:
+    def _get_articles_for_domain(
+        self, domain: str, sample_size: int = None
+    ) -> list[dict]:
         """Get articles for a specific domain."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -74,20 +70,14 @@ class TwoPhaseContentCleaner:
 
         cursor.execute(query, params)
         articles = [
-            {
-                "id": row[0],
-                "url": row[1],
-                "content": row[2],
-                "text_hash": row[3]
-            }
+            {"id": row[0], "url": row[1], "content": row[2], "text_hash": row[3]}
             for row in cursor.fetchall()
         ]
 
         conn.close()
         return articles
 
-    def _find_rough_candidates(
-            self, articles: List[Dict]) -> Dict[str, Set[str]]:
+    def _find_rough_candidates(self, articles: list[dict]) -> dict[str, set[str]]:
         """
         Phase 1: Find rough candidate segments using simple methods.
         Returns: {candidate_text: {article_ids that contain it}}
@@ -99,28 +89,28 @@ class TwoPhaseContentCleaner:
             article_id = str(article["id"])
 
             # Method 1: Extract sentences (split on periods)
-            sentences = re.split(r'\.[\s\n]+', content)
+            sentences = re.split(r"\.[\s\n]+", content)
             for sentence in sentences:
                 sentence = sentence.strip()
                 if 30 <= len(sentence) <= 300:  # Reasonable sentence length
                     # Normalize whitespace for rough matching
-                    normalized = re.sub(r'\s+', ' ', sentence)
+                    normalized = re.sub(r"\s+", " ", sentence)
                     candidates[normalized].add(article_id)
 
             # Method 2: Extract lines that might be navigation/headers
-            lines = content.split('\n')
+            lines = content.split("\n")
             for line in lines:
                 line = line.strip()
                 if 20 <= len(line) <= 200:  # Reasonable line length
-                    normalized = re.sub(r'\s+', ' ', line)
+                    normalized = re.sub(r"\s+", " ", line)
                     candidates[normalized].add(article_id)
 
             # Method 3: Extract paragraphs
-            paragraphs = re.split(r'\n\s*\n', content)
+            paragraphs = re.split(r"\n\s*\n", content)
             for paragraph in paragraphs:
                 paragraph = paragraph.strip()
                 if 40 <= len(paragraph) <= 500:  # Reasonable paragraph length
-                    normalized = re.sub(r'\s+', ' ', paragraph)
+                    normalized = re.sub(r"\s+", " ", paragraph)
                     candidates[normalized].add(article_id)
 
         # Filter candidates that appear in multiple articles
@@ -133,9 +123,12 @@ class TwoPhaseContentCleaner:
         self.logger.info(f"Found {len(filtered_candidates)} rough candidates")
         return filtered_candidates
 
-    def _refine_boundaries(self, articles: List[Dict],
-                           rough_candidates: Dict[str, Set[str]],
-                           min_occurrences: int) -> List[Dict]:
+    def _refine_boundaries(
+        self,
+        articles: list[dict],
+        rough_candidates: dict[str, set[str]],
+        min_occurrences: int,
+    ) -> list[dict]:
         """
         Phase 2: Refine boundaries to find exact duplicate segments.
         """
@@ -166,24 +159,22 @@ class TwoPhaseContentCleaner:
                         "article_ids": list(exact_matches.keys()),
                         "positions": exact_matches,
                         "position_consistency": position_consistency,
-                        "pattern_type": self._classify_pattern(candidate_text)
+                        "pattern_type": self._classify_pattern(candidate_text),
                     }
                     exact_segments.append(segment)
 
         # Sort by occurrences and length
-        exact_segments.sort(key=lambda x: (x["occurrences"], x["length"]),
-                            reverse=True)
+        exact_segments.sort(key=lambda x: (x["occurrences"], x["length"]), reverse=True)
 
         self.logger.info(f"Refined to {len(exact_segments)} exact segments")
         return exact_segments
 
-    def _find_exact_boundaries(self,
-                               candidate_text: str,
-                               candidate_article_ids: Set[str],
-                               articles_by_id: Dict[str,
-                                                    Dict]) -> Dict[str,
-                                                                   List[Tuple[int,
-                                                                              int]]]:
+    def _find_exact_boundaries(
+        self,
+        candidate_text: str,
+        candidate_article_ids: set[str],
+        articles_by_id: dict[str, dict],
+    ) -> dict[str, list[tuple[int, int]]]:
         """
         Find exact boundaries where candidate_text appears in each article.
         Returns: {article_id: [(start, end), ...]}
@@ -214,12 +205,11 @@ class TwoPhaseContentCleaner:
 
         return exact_matches
 
-    def _calculate_position_consistency(self,
-                                        exact_matches: Dict[str,
-                                                            List[Tuple[int,
-                                                                       int]]],
-                                        articles_by_id: Dict[str,
-                                                             Dict]) -> float:
+    def _calculate_position_consistency(
+        self,
+        exact_matches: dict[str, list[tuple[int, int]]],
+        articles_by_id: dict[str, dict],
+    ) -> float:
         """Calculate position consistency (0.0 to 1.0)."""
         if len(exact_matches) < 2:
             return 0.0
@@ -241,8 +231,9 @@ class TwoPhaseContentCleaner:
 
         # Calculate variance in relative positions
         mean_pos = sum(relative_positions) / len(relative_positions)
-        variance = sum((pos - mean_pos) ** 2
-                       for pos in relative_positions) / len(relative_positions)
+        variance = sum((pos - mean_pos) ** 2 for pos in relative_positions) / len(
+            relative_positions
+        )
 
         # Convert to consistency score (lower variance = higher consistency)
         consistency = max(0.0, 1.0 - (variance * 5))
@@ -254,29 +245,27 @@ class TwoPhaseContentCleaner:
 
         # Navigation patterns
         nav_keywords = [
-            'news',
-            'sports',
-            'obituaries',
-            'contact',
-            'subscribe',
-            'home',
-            'about',
-            'business',
-            'opinion',
-            'world',
-            'local']
-        nav_count = sum(1 for keyword in nav_keywords
-                        if keyword in text_lower)
+            "news",
+            "sports",
+            "obituaries",
+            "contact",
+            "subscribe",
+            "home",
+            "about",
+            "business",
+            "opinion",
+            "world",
+            "local",
+        ]
+        nav_count = sum(1 for keyword in nav_keywords if keyword in text_lower)
 
         # Footer patterns
-        footer_keywords = ['copyright', 'rights reserved', 'privacy', 'terms']
-        footer_count = sum(1 for keyword in footer_keywords
-                           if keyword in text_lower)
+        footer_keywords = ["copyright", "rights reserved", "privacy", "terms"]
+        footer_count = sum(1 for keyword in footer_keywords if keyword in text_lower)
 
         # Subscription patterns
-        sub_keywords = ['subscribe', 'subscription', 'paywall', 'premium']
-        sub_count = sum(1 for keyword in sub_keywords
-                        if keyword in text_lower)
+        sub_keywords = ["subscribe", "subscription", "paywall", "premium"]
+        sub_count = sum(1 for keyword in sub_keywords if keyword in text_lower)
 
         if nav_count >= 2:
             return "navigation"
@@ -287,8 +276,9 @@ class TwoPhaseContentCleaner:
         else:
             return "other"
 
-    def _calculate_domain_stats(self, articles: List[Dict],
-                                segments: List[Dict]) -> Dict:
+    def _calculate_domain_stats(
+        self, articles: list[dict], segments: list[dict]
+    ) -> dict:
         """Calculate statistics for the domain analysis."""
         total_removable_chars = 0
         affected_articles = set()
@@ -298,8 +288,7 @@ class TwoPhaseContentCleaner:
             total_removable_chars += segment["length"] * segment["occurrences"]
             affected_articles.update(segment["article_ids"])
 
-        total_content_chars = sum(len(article["content"])
-                                  for article in articles)
+        total_content_chars = sum(len(article["content"]) for article in articles)
 
         return {
             "total_articles": len(articles),
@@ -307,18 +296,23 @@ class TwoPhaseContentCleaner:
             "total_segments": len(segments),
             "total_removable_chars": total_removable_chars,
             "total_content_chars": total_content_chars,
-            "removal_percentage": (total_removable_chars / total_content_chars
-                                   * 100) if total_content_chars > 0 else 0
+            "removal_percentage": (
+                (total_removable_chars / total_content_chars * 100)
+                if total_content_chars > 0
+                else 0
+            ),
         }
 
-    def clean_article_content(self, content: str,
-                              segments_to_remove: List[Dict]) -> str:
+    def clean_article_content(
+        self, content: str, segments_to_remove: list[dict]
+    ) -> str:
         """Remove exact duplicate segments from article content."""
         cleaned_content = content
 
         # Sort segments by length (longest first) to avoid partial removals
-        segments_sorted = sorted(segments_to_remove,
-                                 key=lambda x: x["length"], reverse=True)
+        segments_sorted = sorted(
+            segments_to_remove, key=lambda x: x["length"], reverse=True
+        )
 
         for segment in segments_sorted:
             segment_text = segment["text"]
@@ -326,7 +320,7 @@ class TwoPhaseContentCleaner:
             cleaned_content = cleaned_content.replace(segment_text, "")
 
         # Clean up extra whitespace
-        cleaned_content = re.sub(r'\n\s*\n\s*\n', '\n\n', cleaned_content)
-        cleaned_content = re.sub(r'^\s+|\s+$', '', cleaned_content)
+        cleaned_content = re.sub(r"\n\s*\n\s*\n", "\n\n", cleaned_content)
+        cleaned_content = re.sub(r"^\s+|\s+$", "", cleaned_content)
 
         return cleaned_content

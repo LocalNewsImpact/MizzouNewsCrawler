@@ -1,14 +1,15 @@
 """Database utilities for SQLite backend with idempotent operations."""
 
 import hashlib
+import json
 import logging
 import random
 import re
 import time
 import uuid
-from typing import Any, Dict, List, Literal, Optional
-from urllib.parse import urlparse
 from datetime import datetime
+from typing import Any, Literal
+from urllib.parse import urlparse
 
 import pandas as pd
 from sqlalchemy import (
@@ -24,6 +25,8 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.attributes import flag_modified
 
+from src.utils.url_utils import normalize_url
+
 from . import (
     Article,
     ArticleEntity,
@@ -35,13 +38,11 @@ from . import (
     MLResult,
     Source,
 )
-from src.utils.url_utils import normalize_url
-import json
 
 logger = logging.getLogger(__name__)
 
 
-def _configure_sqlite_engine(engine, timeout: Optional[float]) -> None:
+def _configure_sqlite_engine(engine, timeout: float | None) -> None:
     """Enable WAL/unified writer settings for SQLite connections."""
 
     busy_timeout_ms = int((timeout or 30) * 1000)
@@ -131,7 +132,7 @@ class DatabaseManager:
         self,
         df: pd.DataFrame,
         if_exists: Literal["fail", "replace", "append"] = "append",
-        dataset_id: Optional[str] = None,
+        dataset_id: str | None = None,
     ) -> int:
         """Convenience wrapper to bulk insert candidate links from a DataFrame.
 
@@ -186,8 +187,7 @@ def _commit_with_retry(session, retries: int = 4, backoff: float = 0.1):
         except Exception as e:
             # Prefer to detect sqlite3.OperationalError but tolerate SQLAlchemy
             if isinstance(e, _sqlite.OperationalError) or (
-                hasattr(e, "orig")
-                and isinstance(getattr(e, "orig"), _sqlite.OperationalError)
+                hasattr(e, "orig") and isinstance(e.orig, _sqlite.OperationalError)
             ):
                 logger.warning(
                     "Commit attempt %d/%d failed with OperationalError: %s",
@@ -210,10 +210,7 @@ def _commit_with_retry(session, retries: int = 4, backoff: float = 0.1):
                     session.rollback()
                 except Exception as rollback_exc:  # pragma: no cover
                     logger.error(
-                        (
-                            "Rollback after non-retryable commit failure "
-                            "failed: %s"
-                        ),
+                        ("Rollback after non-retryable commit failure " "failed: %s"),
                         rollback_exc,
                     )
                 # Non-retryable error, re-raise
@@ -226,7 +223,7 @@ def upsert_candidate_links(
     self,
     df: pd.DataFrame,
     if_exists: Literal["fail", "replace", "append"] = "append",
-    dataset_id: Optional[str] = None,
+    dataset_id: str | None = None,
 ) -> int:
     """Convenience wrapper to bulk insert candidate links from a DataFrame.
 
@@ -286,8 +283,7 @@ def upsert_candidate_link(
     normalized_url = normalize_url(url)
 
     # Check if link already exists (using normalized URL)
-    existing = session.query(CandidateLink).filter_by(
-        url=normalized_url).first()
+    existing = session.query(CandidateLink).filter_by(url=normalized_url).first()
 
     if existing:
         # Update existing record with new data
@@ -350,9 +346,9 @@ def save_ml_results(
     article_id: str,
     model_version: str,
     model_type: str,
-    results: List[Dict[str, Any]],
-    job_id: Optional[str] = None,
-) -> List[MLResult]:
+    results: list[dict[str, Any]],
+    job_id: str | None = None,
+) -> list[MLResult]:
     """Save ML results for an article."""
     ml_records = []
 
@@ -380,15 +376,15 @@ def save_ml_results(
 
 
 def _prediction_to_tuple(
-    prediction: Optional[Any],
-) -> tuple[Optional[str], Optional[float]]:
+    prediction: Any | None,
+) -> tuple[str | None, float | None]:
     """Normalize prediction objects or dicts into (label, score)."""
 
     if prediction is None:
         return None, None
 
     if hasattr(prediction, "label"):
-        label = getattr(prediction, "label")
+        label = prediction.label
         score = getattr(prediction, "score", None)
         return label, score
 
@@ -406,9 +402,9 @@ def save_article_classification(
     label_version: str,
     model_version: str,
     primary_prediction: Any,
-    alternate_prediction: Optional[Any] = None,
-    model_path: Optional[str] = None,
-    metadata: Optional[Dict[str, Any]] = None,
+    alternate_prediction: Any | None = None,
+    model_path: str | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> ArticleLabel:
     """Persist primary/alternate labels and update article snapshot."""
 
@@ -470,9 +466,9 @@ def save_article_classification(
 def save_locations(
     session,
     article_id: str,
-    entities: List[Dict[str, Any]],
-    ner_model_version: Optional[str] = None,
-) -> List[Location]:
+    entities: list[dict[str, Any]],
+    ner_model_version: str | None = None,
+) -> list[Location]:
     """Save location entities for an article."""
     location_records = []
 
@@ -500,7 +496,7 @@ def save_locations(
     return location_records
 
 
-def _normalize_entity_text(value: Optional[str]) -> str:
+def _normalize_entity_text(value: str | None) -> str:
     if not value:
         return ""
     normalized = value.lower()
@@ -514,10 +510,10 @@ def _normalize_entity_text(value: Optional[str]) -> str:
 def save_article_entities(
     session,
     article_id: str,
-    entities: List[Dict[str, Any]],
+    entities: list[dict[str, Any]],
     extractor_version: str,
-    article_text_hash: Optional[str] = None,
-) -> List[ArticleEntity]:
+    article_text_hash: str | None = None,
+) -> list[ArticleEntity]:
     """Replace article entities for the given extractor version."""
 
     session.query(ArticleEntity).filter_by(
@@ -525,15 +521,13 @@ def save_article_entities(
         extractor_version=extractor_version,
     ).delete()
 
-    records: List[ArticleEntity] = []
+    records: list[ArticleEntity] = []
     for entity in entities:
         entity_text = entity.get("entity_text") or entity.get("text")
         if not entity_text:
             continue
 
-        entity_norm = entity.get("entity_norm") or _normalize_entity_text(
-            entity_text
-        )
+        entity_norm = entity.get("entity_norm") or _normalize_entity_text(entity_text)
         record = ArticleEntity(
             article_id=article_id,
             article_text_hash=article_text_hash,
@@ -562,8 +556,8 @@ def save_article_entities(
 def create_job_record(
     session,
     job_type: str,
-    job_name: Optional[str] = None,
-    params: Optional[Dict[str, Any]] = None,
+    job_name: str | None = None,
+    params: dict[str, Any] | None = None,
     **kwargs,
 ) -> Job:
     """Create a new job record for tracking execution."""
@@ -583,7 +577,7 @@ def finish_job_record(
     session,
     job_id: str,
     exit_status: str,
-    metrics: Optional[Dict[str, Any]] = None,
+    metrics: dict[str, Any] | None = None,
 ) -> Job:
     """Mark job as finished with final metrics."""
     job = session.query(Job).filter_by(id=job_id).first()
@@ -605,9 +599,7 @@ def finish_job_record(
 # Pandas integration for bulk operations
 
 
-def read_candidate_links(
-    engine, filters: Optional[Dict[str, Any]] = None
-) -> pd.DataFrame:
+def read_candidate_links(engine, filters: dict[str, Any] | None = None) -> pd.DataFrame:
     """Read candidate links as DataFrame with optional filters."""
     query = "SELECT * FROM candidate_links"
 
@@ -624,9 +616,7 @@ def read_candidate_links(
     return pd.read_sql(query, engine)
 
 
-def read_articles(
-    engine, filters: Optional[Dict[str, Any]] = None
-) -> pd.DataFrame:
+def read_articles(engine, filters: dict[str, Any] | None = None) -> pd.DataFrame:
     """Read articles as DataFrame with optional filters."""
     query = (
         "SELECT a.*, cl.url, cl.source\n"
@@ -651,7 +641,7 @@ def bulk_insert_candidate_links(
     engine,
     df: pd.DataFrame,
     if_exists: Literal["fail", "replace", "append"] = "append",
-    dataset_id: Optional[str] = None,
+    dataset_id: str | None = None,
 ) -> int:
     """Bulk insert candidate links from a DataFrame.
 
@@ -719,11 +709,7 @@ def bulk_insert_candidate_links(
             for col in missing:
                 try:
                     # Add as TEXT column; keep it simple and tolerant.
-                    sql = (
-                        "ALTER TABLE candidate_links ADD COLUMN "
-                        + col
-                        + " TEXT"
-                    )
+                    sql = "ALTER TABLE candidate_links ADD COLUMN " + col + " TEXT"
                     conn.execute(text(sql))
                 except Exception:
                     # Ignore if column can't be added. This can happen when
@@ -838,15 +824,13 @@ def bulk_insert_candidate_links(
 
                     hosts = {h for h in hosts if h}
 
-                    host_map: Dict[str, str] = {}
+                    host_map: dict[str, str] = {}
                     if hosts:
                         # Query existing sources matching these hosts.
                         sel = select(
                             sources_tbl.c.id,
                             sources_tbl.c.host,
-                        ).where(
-                            sources_tbl.c.host.in_(list(hosts))
-                        )
+                        ).where(sources_tbl.c.host.in_(list(hosts)))
                         res = conn.execute(sel)
                         for r in res.fetchall():
                             host_map[(r.host or "").lower()] = r.id
@@ -854,7 +838,7 @@ def bulk_insert_candidate_links(
                         # Insert missing hosts into `sources` table.
                         missing = [h for h in hosts if h not in host_map]
                         if missing:
-                            ins_rows: List[Dict[str, Any]] = []
+                            ins_rows: list[dict[str, Any]] = []
                             for h in missing:
                                 ins_rows.append(
                                     {
@@ -892,7 +876,7 @@ def bulk_insert_candidate_links(
                     )  # type: ignore[call-overload]
 
                     # Build `dataset_sources` rows grouped by legacy id.
-                    ds_rows: List[Dict[str, Any]] = []
+                    ds_rows: list[dict[str, Any]] = []
                     if "source_host_id" in df.columns:
                         for legacy, group in df.groupby(
                             df["source_host_id"].fillna("")
@@ -1036,11 +1020,7 @@ def bulk_insert_articles(
         if inspector_cols and "status" not in inspector_cols:
             with engine.connect() as conn:
                 try:
-                    conn.execute(
-                        text(
-                            "ALTER TABLE articles ADD COLUMN status TEXT"
-                        )
-                    )
+                    conn.execute(text("ALTER TABLE articles ADD COLUMN status TEXT"))
                 except Exception:
                     pass
 
@@ -1086,7 +1066,7 @@ def export_to_parquet(
     engine,
     table_name: str,
     output_path: str,
-    filters: Optional[Dict[str, Any]] = None,
+    filters: dict[str, Any] | None = None,
 ) -> str:
     """Export table data to Parquet for archival."""
     query = f"SELECT * FROM {table_name}"

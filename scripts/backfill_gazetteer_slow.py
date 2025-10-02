@@ -24,7 +24,6 @@ import sys
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List, Optional
 
 from sqlalchemy import text
 
@@ -44,8 +43,8 @@ def estimate_completion_time(remaining_sources: int,
 
 
 def get_sources_needing_gazetteer(session,
-                                  dataset_slug: Optional[str] = None
-                                  ) -> List[dict]:
+                                  dataset_slug: str | None = None
+                                  ) -> list[dict]:
     """Get list of sources that need gazetteer population."""
 
     # Base query to get sources without sufficient gazetteer data
@@ -106,24 +105,24 @@ def process_source_with_delay(source: dict, session,
     """Process a single source with gazetteer population."""
     source_id = source['source_id']
     source_name = source['source_name']
-    
+
     print(f"  Processing: {source_name} ({source_id})")
-    
+
     if dry_run:
         print("    DRY-RUN: Would populate gazetteer data")
         return True
-    
+
     try:
         # Import the populate_gazetteer main function
         scripts_dir = Path(__file__).resolve().parent
         sys.path.insert(0, str(scripts_dir))
-        
+
         from populate_gazetteer import main as populate_main
-        
+
         # Get database URL
         engine = session.get_bind()
         database_url = str(engine.url)
-        
+
         # Call populate_gazetteer for this specific source/publisher
         populate_main(
             database_url=database_url,
@@ -133,10 +132,10 @@ def process_source_with_delay(source: dict, session,
             dry_run=False,
             publisher=source_id  # Use publisher UUID mode
         )
-        
+
         print(f"    ✅ Successfully processed {source_name}")
         return True
-        
+
     except Exception as e:
         print(f"    ❌ Error processing {source_name}: {e}")
         return False
@@ -177,13 +176,13 @@ def main():
         default=8.0,
         help="Maximum delay between sources in seconds (default: 8.0)"
     )
-    
+
     args = parser.parse_args()
-    
+
     # Database connection
     engine = create_database_engine()
     session = get_session(engine)
-    
+
     print("🐌 SLOW GAZETTEER BACKFILL")
     print("=" * 50)
     print(f"Batch size: {args.batch_size}")
@@ -191,18 +190,18 @@ def main():
     print(f"Delay per source: {args.min_delay}-{args.max_delay} seconds")
     print(f"Mode: {'DRY-RUN' if args.dry_run else 'LIVE'}")
     print()
-    
+
     # Get sources needing gazetteer data
     sources_needing_gazetteer = get_sources_needing_gazetteer(
         session, args.dataset)
 
     print(f"📊 Found {len(sources_needing_gazetteer)} sources "
           f"needing gazetteer data")
-    
+
     if not sources_needing_gazetteer:
         print("✅ All sources already have sufficient gazetteer data!")
         return
-    
+
     # Handle resume functionality
     start_index = 0
     if args.resume_from_source:
@@ -225,7 +224,7 @@ def main():
 
     print(f"🎯 Processing batch of {len(batch_sources)} sources")
     print(f"📈 {remaining_after_batch} sources will remain after this batch")
-    
+
     # Estimate time
     avg_delay = (args.min_delay + args.max_delay) / 2
     estimated_seconds_per_source = avg_delay + 10  # Include processing time
@@ -237,29 +236,29 @@ def main():
     print(f"⏱️  Estimated batch duration: "
           f"{estimated_batch_time/60:.1f} minutes")
     print()
-    
+
     if not args.dry_run:
         response = input("Continue with processing? (y/N): ")
         if response.lower() != 'y':
             print("Aborted by user")
             return
-    
+
     # Process sources
     start_time = datetime.now()
     processed_count = 0
     failed_count = 0
-    
+
     for i, source in enumerate(batch_sources, 1):
         print(f"\n[{i}/{len(batch_sources)}] Processing source...")
-        
+
         # Process the source
         success = process_source_with_delay(source, session, args.dry_run)
-        
+
         if success:
             processed_count += 1
         else:
             failed_count += 1
-        
+
         # Progress update
         remaining_in_batch = len(batch_sources) - i
         if remaining_in_batch > 0:
@@ -267,21 +266,21 @@ def main():
                 remaining_in_batch * estimated_seconds_per_source)
             estimated_completion = (
                 datetime.now() + timedelta(seconds=estimated_remaining_time))
-            
+
             print(f"    📊 Progress: {i}/{len(batch_sources)} sources")
             print(f"    📊 Success: {processed_count}, Failed: {failed_count}")
             print(f"    ⏰ Estimated completion: "
                   f"{estimated_completion.strftime('%H:%M:%S')}")
-        
+
         # Inter-source delay (except for last source)
         if i < len(batch_sources):
             delay = (args.min_delay +
                      random.random() * (args.max_delay - args.min_delay))
             print(f"    😴 Waiting {delay:.1f} seconds before next source...")
-            
+
             if not args.dry_run:
                 time.sleep(delay)
-    
+
     # Final summary
     elapsed_time = datetime.now() - start_time
     print("\n🎉 BATCH COMPLETE")
@@ -290,7 +289,7 @@ def main():
     print(f"Sources failed: {failed_count}")
     print(f"Batch duration: {elapsed_time}")
     print(f"Remaining sources: {remaining_after_batch}")
-    
+
     if remaining_after_batch > 0:
         print("\n📋 To continue with next batch:")
         print(f"python scripts/backfill_gazetteer_slow.py "
@@ -300,7 +299,7 @@ def main():
         if len(batch_sources) > 0:
             last_processed = batch_sources[-1]
             print(f"    --resume-from-source {last_processed['source_id']}")
-    
+
     session.close()
 
 

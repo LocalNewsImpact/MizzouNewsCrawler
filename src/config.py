@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 from urllib.parse import quote_plus, urlencode
 
 try:
@@ -21,6 +21,7 @@ except Exception:  # pragma: no cover - optional dependency missing
 
     def load_dotenv(*args, **kwargs) -> bool:  # pragma: no cover
         return False
+
 
 # If a .env file is present and python-dotenv is installed, load it.
 _env_path = Path(".") / ".env"
@@ -37,7 +38,7 @@ def _env_bool(name: str, default: bool = False) -> bool:
     return value.strip().lower() in _TRUTHY
 
 
-def _normalize_scheme(value: Optional[str], *, default: str = "http") -> str:
+def _normalize_scheme(value: str | None, *, default: str = "http") -> str:
     """Normalize a URL scheme while tolerating partial or noisy values.
 
     Accepts inputs such as ``"HTTP"``, ``"https://"`` or ``" GrPc+1 "`` and
@@ -63,17 +64,17 @@ def _normalize_scheme(value: Optional[str], *, default: str = "http") -> str:
 # Runtime / deployment context
 APP_ENV: str = os.getenv("APP_ENV", os.getenv("ENVIRONMENT", "local"))
 IN_KUBERNETES: bool = bool(os.getenv("KUBERNETES_SERVICE_HOST"))
-KUBERNETES_NAMESPACE: Optional[str] = os.getenv("KUBERNETES_NAMESPACE")
+KUBERNETES_NAMESPACE: str | None = os.getenv("KUBERNETES_NAMESPACE")
 
 
 # Database configuration with Kubernetes-friendly fallbacks
 DATABASE_ENGINE: str = os.getenv("DATABASE_ENGINE", "postgresql+psycopg2")
-DATABASE_HOST: Optional[str] = os.getenv("DATABASE_HOST")
-DATABASE_PORT: Optional[str] = os.getenv("DATABASE_PORT", "5432")
-DATABASE_NAME: Optional[str] = os.getenv("DATABASE_NAME")
-DATABASE_USER: Optional[str] = os.getenv("DATABASE_USER")
-DATABASE_PASSWORD: Optional[str] = os.getenv("DATABASE_PASSWORD")
-DATABASE_SSLMODE: Optional[str] = os.getenv("DATABASE_SSLMODE")
+DATABASE_HOST: str | None = os.getenv("DATABASE_HOST")
+DATABASE_PORT: str | None = os.getenv("DATABASE_PORT", "5432")
+DATABASE_NAME: str | None = os.getenv("DATABASE_NAME")
+DATABASE_USER: str | None = os.getenv("DATABASE_USER")
+DATABASE_PASSWORD: str | None = os.getenv("DATABASE_PASSWORD")
+DATABASE_SSLMODE: str | None = os.getenv("DATABASE_SSLMODE")
 DATABASE_REQUIRE_SSL: bool = _env_bool("DATABASE_REQUIRE_SSL", False)
 
 _database_url = os.getenv("DATABASE_URL")
@@ -99,12 +100,10 @@ DATABASE_URL: str = _database_url or "sqlite:///data/mizzou.db"
 
 # Core configuration values
 LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
-TELEMETRY_URL: Optional[str] = os.getenv("TELEMETRY_URL")
-TELEMETRY_HOST: Optional[str] = os.getenv("TELEMETRY_HOST")
-TELEMETRY_PORT: Optional[str] = os.getenv("TELEMETRY_PORT", "")
-_telemetry_default_scheme = (
-    "https" if _env_bool("TELEMETRY_USE_TLS", False) else "http"
-)
+TELEMETRY_URL: str | None = os.getenv("TELEMETRY_URL")
+TELEMETRY_HOST: str | None = os.getenv("TELEMETRY_HOST")
+TELEMETRY_PORT: str | None = os.getenv("TELEMETRY_PORT", "")
+_telemetry_default_scheme = "https" if _env_bool("TELEMETRY_USE_TLS", False) else "http"
 TELEMETRY_SCHEME: str = _normalize_scheme(
     os.getenv("TELEMETRY_SCHEME"), default=_telemetry_default_scheme
 )
@@ -116,48 +115,45 @@ if TELEMETRY_BASE_PATH and not TELEMETRY_BASE_PATH.startswith("/"):
 if not TELEMETRY_URL and TELEMETRY_HOST:
     port_fragment = f":{TELEMETRY_PORT}" if TELEMETRY_PORT else ""
     TELEMETRY_URL = (
-        f"{TELEMETRY_SCHEME}://{TELEMETRY_HOST}{port_fragment}"
-        f"{TELEMETRY_BASE_PATH}"
+        f"{TELEMETRY_SCHEME}://{TELEMETRY_HOST}{port_fragment}" f"{TELEMETRY_BASE_PATH}"
     )
 
 # OAuth / Auth configuration (optional - used by future work)
-OAUTH_PROVIDER: Optional[str] = os.getenv("OAUTH_PROVIDER")
-OAUTH_CLIENT_ID: Optional[str] = os.getenv("OAUTH_CLIENT_ID")
-OAUTH_CLIENT_SECRET: Optional[str] = os.getenv("OAUTH_CLIENT_SECRET")
-OAUTH_REDIRECT_URI: Optional[str] = os.getenv("OAUTH_REDIRECT_URI")
+OAUTH_PROVIDER: str | None = os.getenv("OAUTH_PROVIDER")
+OAUTH_CLIENT_ID: str | None = os.getenv("OAUTH_CLIENT_ID")
+OAUTH_CLIENT_SECRET: str | None = os.getenv("OAUTH_CLIENT_SECRET")
+OAUTH_REDIRECT_URI: str | None = os.getenv("OAUTH_REDIRECT_URI")
 
 # App behaviour toggles
 REQUEST_TIMEOUT: int = int(os.getenv("REQUEST_TIMEOUT", "20"))
 REQUEST_DELAY: float = float(os.getenv("REQUEST_DELAY", "1.0"))
 
 # LLM / Generative AI integration
-OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
-OPENAI_ORGANIZATION: Optional[str] = os.getenv("OPENAI_ORGANIZATION")
-ANTHROPIC_API_KEY: Optional[str] = os.getenv("ANTHROPIC_API_KEY")
-GOOGLE_API_KEY: Optional[str] = os.getenv("GOOGLE_API_KEY")
-LLM_PROVIDER_SEQUENCE: Optional[str] = os.getenv("LLM_PROVIDER_SEQUENCE")
+OPENAI_API_KEY: str | None = os.getenv("OPENAI_API_KEY")
+OPENAI_ORGANIZATION: str | None = os.getenv("OPENAI_ORGANIZATION")
+ANTHROPIC_API_KEY: str | None = os.getenv("ANTHROPIC_API_KEY")
+GOOGLE_API_KEY: str | None = os.getenv("GOOGLE_API_KEY")
+LLM_PROVIDER_SEQUENCE: str | None = os.getenv("LLM_PROVIDER_SEQUENCE")
 LLM_REQUEST_TIMEOUT: int = int(os.getenv("LLM_REQUEST_TIMEOUT", "30"))
 LLM_MAX_RETRIES: int = int(os.getenv("LLM_MAX_RETRIES", "2"))
 LLM_DEFAULT_MAX_OUTPUT_TOKENS: int = int(
     os.getenv("LLM_DEFAULT_MAX_OUTPUT_TOKENS", "1024")
 )
-LLM_DEFAULT_TEMPERATURE: float = float(
-    os.getenv("LLM_DEFAULT_TEMPERATURE", "0.2")
-)
+LLM_DEFAULT_TEMPERATURE: float = float(os.getenv("LLM_DEFAULT_TEMPERATURE", "0.2"))
 
 # Optional vector store configuration
-VECTOR_STORE_PROVIDER: Optional[str] = os.getenv("VECTOR_STORE_PROVIDER")
-VECTOR_STORE_NAMESPACE: Optional[str] = os.getenv("VECTOR_STORE_NAMESPACE")
-PINECONE_API_KEY: Optional[str] = os.getenv("PINECONE_API_KEY")
-PINECONE_ENVIRONMENT: Optional[str] = os.getenv("PINECONE_ENVIRONMENT")
-PINECONE_INDEX: Optional[str] = os.getenv("PINECONE_INDEX")
-WEAVIATE_URL: Optional[str] = os.getenv("WEAVIATE_URL")
-WEAVIATE_API_KEY: Optional[str] = os.getenv("WEAVIATE_API_KEY")
-WEAVIATE_SCOPE: Optional[str] = os.getenv("WEAVIATE_SCOPE")
-WEAVIATE_INDEX: Optional[str] = os.getenv("WEAVIATE_INDEX")
+VECTOR_STORE_PROVIDER: str | None = os.getenv("VECTOR_STORE_PROVIDER")
+VECTOR_STORE_NAMESPACE: str | None = os.getenv("VECTOR_STORE_NAMESPACE")
+PINECONE_API_KEY: str | None = os.getenv("PINECONE_API_KEY")
+PINECONE_ENVIRONMENT: str | None = os.getenv("PINECONE_ENVIRONMENT")
+PINECONE_INDEX: str | None = os.getenv("PINECONE_INDEX")
+WEAVIATE_URL: str | None = os.getenv("WEAVIATE_URL")
+WEAVIATE_API_KEY: str | None = os.getenv("WEAVIATE_API_KEY")
+WEAVIATE_SCOPE: str | None = os.getenv("WEAVIATE_SCOPE")
+WEAVIATE_INDEX: str | None = os.getenv("WEAVIATE_INDEX")
 
 
-def get_config() -> Dict[str, Any]:
+def get_config() -> dict[str, Any]:
     """Return a dict of the most important configuration values.
 
     Useful for injecting into job records, telemetry events, or tests.
@@ -199,9 +195,7 @@ def get_config() -> Dict[str, Any]:
         "vector_store": {
             "provider": VECTOR_STORE_PROVIDER,
             "namespace": VECTOR_STORE_NAMESPACE,
-            "pinecone_configured": bool(
-                PINECONE_API_KEY and PINECONE_INDEX
-            ),
+            "pinecone_configured": bool(PINECONE_API_KEY and PINECONE_INDEX),
             "weaviate_configured": bool(WEAVIATE_URL),
         },
         "services": {

@@ -24,14 +24,14 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import List, Tuple
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.models.database import DatabaseManager
-from src.utils.process_tracker import ProcessTracker, ProcessContext
 from sqlalchemy import text
+
+from src.models.database import DatabaseManager
+from src.utils.process_tracker import ProcessContext, ProcessTracker
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ class GazetteerMonitor:
         self.db = DatabaseManager(database_url)
         self.tracker = ProcessTracker()
 
-    def get_gazetteer_status(self) -> Tuple[int, int, List[dict]]:
+    def get_gazetteer_status(self) -> tuple[int, int, list[dict]]:
         """Get current gazetteer population status.
 
         Returns:

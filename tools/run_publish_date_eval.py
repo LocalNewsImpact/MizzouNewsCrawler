@@ -14,13 +14,12 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List
 from urllib.parse import urlparse
 
 from src.crawler import ContentExtractor
 
 
-def load_baseline(path: Path) -> List[Dict]:
+def load_baseline(path: Path) -> list[dict]:
     with path.open("r", encoding="utf-8") as handle:
         payload = json.load(handle)
     results = payload.get("results")
@@ -29,7 +28,7 @@ def load_baseline(path: Path) -> List[Dict]:
     return results
 
 
-def build_record(entry: Dict, extracted: Dict, error: str | None) -> Dict:
+def build_record(entry: dict, extracted: dict, error: str | None) -> dict:
     url = entry.get("url") or extracted.get("url")
     parsed = urlparse(url or "")
     content = extracted.get("content") if extracted else ""
@@ -62,14 +61,14 @@ def run_evaluation(
     *,
     limit: int | None = None,
     timeout: int = 20,
-) -> Dict:
+) -> dict:
     entries = load_baseline(baseline_path)
     if limit is not None:
         entries = entries[:limit]
 
     extractor = ContentExtractor(timeout=timeout)
 
-    results: List[Dict] = []
+    results: list[dict] = []
     for idx, entry in enumerate(entries, start=1):
         url = entry.get("url")
         if not url:
@@ -100,7 +99,7 @@ def run_evaluation(
     return artifact
 
 
-def main(argv: List[str] | None = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--input",

@@ -9,11 +9,10 @@ import threading
 import time as _time
 import uuid
 from pathlib import Path
-from typing import List, Optional
 
 import numpy as np
-import pandas as pd
 import pandas as _pd
+import pandas as pd
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -23,19 +22,18 @@ from pydantic import BaseModel
 # Add gazetteer telemetry imports
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(BASE_DIR))
-from web.gazetteer_telemetry_api import (  # noqa: E402
-    get_gazetteer_stats,
-    get_publisher_telemetry,
-    get_failed_publishers,
-    update_publisher_address,
-    trigger_gazetteer_reprocess,
-    AddressEditRequest,
-    ReprocessRequest,
-)
-
 # Add comprehensive telemetry imports
 from src.utils.comprehensive_telemetry import (  # noqa: E402
     ComprehensiveExtractionTelemetry,
+)
+from web.gazetteer_telemetry_api import (  # noqa: E402
+    AddressEditRequest,
+    ReprocessRequest,
+    get_failed_publishers,
+    get_gazetteer_stats,
+    get_publisher_telemetry,
+    trigger_gazetteer_reprocess,
+    update_publisher_address,
 )
 
 # pydantic.Field not used here
@@ -76,40 +74,40 @@ except Exception:
 
 class ReviewIn(BaseModel):
     reviewer: str
-    article_uid: Optional[str] = None
-    rating: Optional[int] = None
-    secondary_rating: Optional[int] = None
-    tags: Optional[List[str]] = None
-    notes: Optional[str] = None
-    body_errors: Optional[List[str]] = None
-    headline_errors: Optional[List[str]] = None
-    author_errors: Optional[List[str]] = None
-    mentioned_locations: Optional[List[str]] = None
-    missing_locations: Optional[List[str]] = None
-    incorrect_locations: Optional[List[str]] = None
-    missing_tags: Optional[List[str]] = None
-    incorrect_tags: Optional[List[str]] = None
-    inferred_tags: Optional[List[str]] = None
+    article_uid: str | None = None
+    rating: int | None = None
+    secondary_rating: int | None = None
+    tags: list[str] | None = None
+    notes: str | None = None
+    body_errors: list[str] | None = None
+    headline_errors: list[str] | None = None
+    author_errors: list[str] | None = None
+    mentioned_locations: list[str] | None = None
+    missing_locations: list[str] | None = None
+    incorrect_locations: list[str] | None = None
+    missing_tags: list[str] | None = None
+    incorrect_tags: list[str] | None = None
+    inferred_tags: list[str] | None = None
 
 
 # Snapshot ingestion models
 class SnapshotIn(BaseModel):
     url: str
     host: str
-    html: Optional[str] = None
-    pipeline_run_id: Optional[str] = None
-    parsed_fields: Optional[dict] = None
-    model_confidence: Optional[float] = None
-    failure_reason: Optional[str] = None
+    html: str | None = None
+    pipeline_run_id: str | None = None
+    parsed_fields: dict | None = None
+    model_confidence: float | None = None
+    failure_reason: str | None = None
 
 
 class CandidateIn(BaseModel):
     selector: str
-    field: Optional[str] = None
-    score: Optional[float] = None
-    words: Optional[int] = None
-    snippet: Optional[str] = None
-    alts: Optional[List[str]] = None
+    field: str | None = None
+    score: float | None = None
+    words: int | None = None
+    snippet: str | None = None
+    alts: list[str] | None = None
 
 
 def init_db():
@@ -516,7 +514,7 @@ def startup():
 
 @app.get("/api/articles")
 def list_articles(
-    limit: int = 20, offset: int = 0, reviewer: Optional[str] = None
+    limit: int = 20, offset: int = 0, reviewer: str | None = None
 ):
     if not ARTICLES_CSV.exists():
         return {"count": 0, "results": []}
@@ -934,7 +932,7 @@ def post_review(idx: int, payload: ReviewIn):
 
     if row:
         cols = cols_sql.split(", ")
-        result = dict(zip(cols, row))
+        result = dict(zip(cols, row, strict=False))
         # Normalize CSV fields into arrays for API clients
         result["tags"] = _split_csv_field(result.get("tags"))
         result["body_errors"] = _split_csv_field(
@@ -1154,8 +1152,8 @@ def update_review(rid: int, payload: ReviewIn):
 
 @app.get("/api/reviews")
 def get_reviews(
-    article_idx: Optional[int] = None,
-    article_uid: Optional[str] = None
+    article_idx: int | None = None,
+    article_uid: str | None = None
 ):
     if not DB_PATH.exists():
         return []
@@ -1179,10 +1177,10 @@ def get_reviews(
         )
     elif article_idx is None:
         cur.execute(
-            (
+
                 f"SELECT {cols_sql} FROM reviews "
                 "ORDER BY id DESC LIMIT 200"
-            )
+
         )
     else:
         cur.execute(
@@ -1211,7 +1209,7 @@ def get_reviews(
 
     results = []
     for r in rows:
-        d = dict(zip(cols, r))
+        d = dict(zip(cols, r, strict=False))
         # normalize CSV-stored fields to arrays to match POST/PUT responses
         d["tags"] = _split_csv_field(d.get("tags"))
         d["body_errors"] = _split_csv_field(d.get("body_errors"))
@@ -1410,7 +1408,7 @@ def get_snapshot(sid: str):
         "status",
         "created_at",
     ]
-    rec = dict(zip(cols, row))
+    rec = dict(zip(cols, row, strict=False))
     # load candidates
     cur.execute(
         (
@@ -1433,7 +1431,7 @@ def get_snapshot(sid: str):
     ]
     rec["candidates"] = []
     for r in cand_rows:
-        obj = dict(zip(cand_cols, r))
+        obj = dict(zip(cand_cols, r, strict=False))
         # attempt to parse alts JSON
         if obj.get("alts"):
             try:
@@ -1472,7 +1470,7 @@ def get_snapshot_html(sid: str):
 
 
 @app.post("/api/snapshots/{sid}/candidates")
-def post_candidates(sid: str, payload: List[CandidateIn]):
+def post_candidates(sid: str, payload: list[CandidateIn]):
     init_snapshot_tables()
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
@@ -1521,11 +1519,11 @@ def get_domain_issues():
     # Find hosts that have non-accepted candidates (flagged issues)
     # Exclude snapshots that have been reviewed (snapshots.reviewed_at IS NOT NULL)
     cur.execute(
-        (
+
             "SELECT DISTINCT snapshots.host FROM candidates "
             "JOIN snapshots ON candidates.snapshot_id=snapshots.id "
             "WHERE candidates.accepted=0 AND (snapshots.reviewed_at IS NULL OR snapshots.reviewed_at='')"
-        )
+
     )
     host_rows = cur.fetchall()
     for (host,) in host_rows:
@@ -1670,7 +1668,7 @@ def post_domain_feedback(host: str, payload: dict):
 
 
 @app.post("/api/migrate_domain_feedback")
-def migrate_domain_feedback(dry_run: Optional[bool] = True):
+def migrate_domain_feedback(dry_run: bool | None = True):
     """Migrate existing domain_feedback columns (priority, needs_dev, assigned_to)
     into an audit table and recreate the `domain_feedback` table with only
     (host, notes, updated_at). This endpoint is idempotent and safe to run
@@ -1803,7 +1801,7 @@ def snapshots_by_host(host: str, include_reviewed: bool = False):
     ]
     out = []
     for r in rows:
-        rec = dict(zip(cols, r))
+        rec = dict(zip(cols, r, strict=False))
         if rec.get("parsed_fields"):
             try:
                 rec["parsed_fields"] = json.loads(rec["parsed_fields"])
@@ -1869,7 +1867,7 @@ def ui_overview():
 
 
 @app.post("/api/dedupe_records")
-def post_dedupe_records(payload: List[dict]):
+def post_dedupe_records(payload: list[dict]):
     """Insert one or more dedupe audit records.
     Each record may contain: article_uid, neighbor_uid, host, similarity,
     dedupe_flag (0/1), category (int), stage (str), details (dict or str).
@@ -1921,8 +1919,8 @@ def post_dedupe_records(payload: List[dict]):
 
 @app.get("/api/dedupe_records")
 def get_dedupe_records(
-    article_uid: Optional[str] = None,
-    host: Optional[str] = None,
+    article_uid: str | None = None,
+    host: str | None = None,
     limit: int = 100,
     offset: int = 0,
 ):
@@ -1961,7 +1959,7 @@ def get_dedupe_records(
     ]
     out = []
     for r in rows:
-        d = dict(zip(cols, r))
+        d = dict(zip(cols, r, strict=False))
         # attempt to parse details JSON
         if d.get("details"):
             try:
@@ -1973,7 +1971,7 @@ def get_dedupe_records(
 
 
 @app.post("/api/import_dupes_csv")
-def import_dupes_csv(payload: dict, dry_run: Optional[bool] = True):
+def import_dupes_csv(payload: dict, dry_run: bool | None = True):
     """Import dedupe flags from a processed CSV into dedupe_audit.
     Payload: {csv_path: str} where csv_path is relative to processed/ directory.
     If dry_run=True, returns counts without inserting.
@@ -2045,7 +2043,7 @@ def import_dupes_csv(payload: dict, dry_run: Optional[bool] = True):
 
 
 @app.post("/api/candidates/{cid}/accept")
-def accept_candidate(cid: str, payload: Optional[dict] = None):
+def accept_candidate(cid: str, payload: dict | None = None):
     """Mark a candidate as accepted (accepted=1) or rejected (accepted=0).
     Payload optional: {"accepted": true|false}
     """
@@ -2169,7 +2167,7 @@ def commit_site_rule(payload: dict):
                 "snapshot_example",
                 "notes",
             ]
-        new = {k: "" for k in header}
+        new = dict.fromkeys(header, "")
         new["hostname"] = host
         new[col] = selector
         rows.append(new)
@@ -2288,9 +2286,9 @@ def reprocess_gazetteer_sources(request: ReprocessRequest):
 # Telemetry API endpoints for React dashboard
 @app.get("/api/telemetry/http-errors")
 def get_http_errors(
-    days: int = 7, 
-    host: Optional[str] = None, 
-    status_code: Optional[int] = None
+    days: int = 7,
+    host: str | None = None,
+    status_code: int | None = None
 ):
     """Get HTTP error statistics for dashboard monitoring."""
     try:
@@ -2299,25 +2297,25 @@ def get_http_errors(
         # Build WHERE conditions based on parameters
         conditions = []
         params = []
-        
+
         if days:
             conditions.append(
-                "last_seen >= datetime('now', '-{} days')".format(days)
+                f"last_seen >= datetime('now', '-{days} days')"
             )
-        
+
         if host:
             conditions.append("host = ?")
             params.append(host)
-            
+
         if status_code:
             conditions.append("status_code = ?")
             params.append(status_code)
-        
+
         where_clause = " AND ".join(conditions) if conditions else "1=1"
-        
+
         conn = sqlite3.connect(str(MAIN_DB_PATH))
         cur = conn.cursor()
-        
+
         # Get error counts by status code and host
         query = f"""
         SELECT
@@ -2330,10 +2328,10 @@ def get_http_errors(
         GROUP BY host, status_code
         ORDER BY error_count DESC
         """
-        
+
         cur.execute(query, params)
         rows = cur.fetchall()
-        
+
         results = []
         for row in rows:
             results.append({
@@ -2342,10 +2340,10 @@ def get_http_errors(
                 "error_count": row[2],
                 "last_seen": row[3]
             })
-        
+
         conn.close()
         return {"http_errors": results}
-        
+
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -2356,8 +2354,8 @@ def get_http_errors(
 @app.get("/api/telemetry/method-performance")
 def get_method_performance(
     days: int = 7,
-    method: Optional[str] = None,
-    host: Optional[str] = None
+    method: str | None = None,
+    host: str | None = None
 ):
     """Get extraction method performance statistics."""
     try:
@@ -2366,25 +2364,25 @@ def get_method_performance(
         # Build WHERE conditions
         conditions = []
         params = []
-        
+
         if days:
             conditions.append(
-                "created_at >= datetime('now', '-{} days')".format(days)
+                f"created_at >= datetime('now', '-{days} days')"
             )
-        
+
         if method:
             conditions.append("method = ?")
             params.append(method)
-            
+
         if host:
             conditions.append("host = ?")
             params.append(host)
-        
+
         where_clause = " AND ".join(conditions) if conditions else "1=1"
-        
+
         conn = sqlite3.connect(str(MAIN_DB_PATH))
         cur = conn.cursor()
-        
+
         # Get method performance stats
         query = f"""
         SELECT
@@ -2402,10 +2400,10 @@ def get_method_performance(
         GROUP BY COALESCE(successful_method, 'failed'), host
         ORDER BY total_attempts DESC
         """
-        
+
         cur.execute(query, params)
         rows = cur.fetchall()
-        
+
         results = []
         for row in rows:
             success_rate = (row[3] / row[2] * 100) if row[2] > 0 else 0
@@ -2419,10 +2417,10 @@ def get_method_performance(
                 "min_duration": round(row[5], 2) if row[5] else 0,
                 "max_duration": round(row[6], 2) if row[6] else 0
             })
-        
+
         conn.close()
         return {"method_performance": results}
-        
+
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -2433,29 +2431,29 @@ def get_method_performance(
 @app.get("/api/telemetry/publisher-stats")
 def get_publisher_stats(
     days: int = 7,
-    host: Optional[str] = None,
+    host: str | None = None,
     min_attempts: int = 5
 ):
     """Get publisher performance statistics."""
     try:
         conn = sqlite3.connect(str(MAIN_DB_PATH))
         cur = conn.cursor()
-        
+
         # Build WHERE conditions
         conditions = []
         params = []
-        
+
         if days:
             conditions.append(
-                "created_at >= datetime('now', '-{} days')".format(days)
+                f"created_at >= datetime('now', '-{days} days')"
             )
-        
+
         if host:
             conditions.append("host = ?")
             params.append(host)
-        
+
         where_clause = " AND ".join(conditions) if conditions else "1=1"
-        
+
         # Get comprehensive publisher stats
         query = f"""
         SELECT
@@ -2475,11 +2473,11 @@ def get_publisher_stats(
         HAVING COUNT(*) >= ?
         ORDER BY total_extractions DESC
         """
-        
+
         params.append(min_attempts)
         cur.execute(query, params)
         rows = cur.fetchall()
-        
+
         results = []
         for row in rows:
             success_rate = (row[2] / row[1] * 100) if row[1] > 0 else 0
@@ -2500,10 +2498,10 @@ def get_publisher_stats(
                 "last_attempt": row[5],
                 "status": status,
             })
-        
+
         conn.close()
         return {"publisher_stats": results}
-        
+
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -2514,9 +2512,9 @@ def get_publisher_stats(
 @app.get("/api/telemetry/field-extraction")
 def get_field_extraction_stats(
     days: int = 7,
-    field: Optional[str] = None,
-    method: Optional[str] = None,
-    host: Optional[str] = None
+    field: str | None = None,
+    method: str | None = None,
+    host: str | None = None
 ):
     """Get field-level extraction statistics."""
     try:
@@ -2539,7 +2537,7 @@ def get_field_extraction_stats(
                     filtered.append(entry)
             stats = filtered
         return {"field_extraction_stats": stats}
-        
+
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -2557,9 +2555,9 @@ def get_poor_performing_sites(
     try:
         conn = sqlite3.connect(str(MAIN_DB_PATH))
         cur = conn.cursor()
-        
+
         # Find sites with low success rates
-        query = """
+        query = f"""
         SELECT
             host,
             COUNT(*) as total_attempts,
@@ -2576,15 +2574,15 @@ def get_poor_performing_sites(
                 DISTINCT COALESCE(successful_method, 'failed')
             ) as methods_tried
         FROM extraction_telemetry_v2
-        WHERE created_at >= datetime('now', '-{} days')
+        WHERE created_at >= datetime('now', '-{days} days')
         GROUP BY host
         HAVING COUNT(*) >= ? AND success_rate <= ?
         ORDER BY success_rate ASC, total_attempts DESC
-        """.format(days)
-        
+        """
+
         cur.execute(query, [min_attempts, max_success_rate])
         rows = cur.fetchall()
-        
+
         results = []
         for row in rows:
             results.append({
@@ -2597,10 +2595,10 @@ def get_poor_performing_sites(
                 "methods_tried": row[6],
                 "recommendation": "pause" if row[3] < 25 else "monitor"
             })
-        
+
         conn.close()
         return {"poor_performers": results}
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching poor performers: {str(e)}")
 
@@ -2611,9 +2609,9 @@ def get_telemetry_summary(days: int = 7):
     try:
         conn = sqlite3.connect(str(MAIN_DB_PATH))
         cur = conn.cursor()
-        
+
         # Overall extraction stats
-        cur.execute("""
+        cur.execute(f"""
         SELECT 
             COUNT(*) as total_extractions,
             SUM(CASE WHEN is_success = 1 THEN 1 ELSE 0 END) as successful_extractions,
@@ -2621,24 +2619,24 @@ def get_telemetry_summary(days: int = 7):
             COUNT(DISTINCT COALESCE(successful_method, 'failed')) as methods_used,
             AVG(total_duration_ms) as avg_duration
         FROM extraction_telemetry_v2 
-        WHERE created_at >= datetime('now', '-{} days')
-        """.format(days))
-        
+        WHERE created_at >= datetime('now', '-{days} days')
+        """)
+
         overall = cur.fetchone()
         success_rate = (overall[1] / overall[0] * 100) if overall[0] > 0 else 0
-        
+
         # Method breakdown
-        cur.execute("""
+        cur.execute(f"""
         SELECT 
             COALESCE(successful_method, 'failed') as method,
             COUNT(*) as count,
             SUM(CASE WHEN is_success = 1 THEN 1 ELSE 0 END) as successful
         FROM extraction_telemetry_v2 
-        WHERE created_at >= datetime('now', '-{} days')
+        WHERE created_at >= datetime('now', '-{days} days')
         GROUP BY COALESCE(successful_method, 'failed')
         ORDER BY count DESC
-        """.format(days))
-        
+        """)
+
         method_stats = []
         for row in cur.fetchall():
             method_success_rate = (row[2] / row[1] * 100) if row[1] > 0 else 0
@@ -2648,23 +2646,23 @@ def get_telemetry_summary(days: int = 7):
                 "successful": row[2],
                 "success_rate": round(method_success_rate, 2)
             })
-        
+
         # HTTP error counts
-        cur.execute("""
+        cur.execute(f"""
         SELECT
             status_code,
             SUM(count) as count
         FROM http_error_summary
-        WHERE last_seen >= datetime('now', '-{} days')
+        WHERE last_seen >= datetime('now', '-{days} days')
         GROUP BY status_code
         ORDER BY count DESC
         LIMIT 10
-        """.format(days))
-        
+        """)
+
         http_errors = [{"status_code": row[0], "count": row[1]} for row in cur.fetchall()]
-        
+
         conn.close()
-        
+
         return {
             "summary": {
                 "total_extractions": overall[0],
@@ -2677,7 +2675,7 @@ def get_telemetry_summary(days: int = 7):
                 "top_http_errors": http_errors
             }
         }
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching telemetry summary: {str(e)}")
 
@@ -2685,7 +2683,7 @@ def get_telemetry_summary(days: int = 7):
 # Site Management API endpoints
 class SiteManagementRequest(BaseModel):
     host: str
-    reason: Optional[str] = None
+    reason: str | None = None
 
 
 @app.post("/api/site-management/pause")
@@ -2694,14 +2692,14 @@ def pause_site(request: SiteManagementRequest):
     try:
         conn = sqlite3.connect(str(MAIN_DB_PATH))
         cur = conn.cursor()
-        
+
         # Add status column if it doesn't exist
         try:
             cur.execute("ALTER TABLE sources ADD COLUMN status VARCHAR DEFAULT 'active'")
         except sqlite3.OperationalError:
             # Column already exists
             pass
-        
+
         # Add paused_at and paused_reason columns if they don't exist
         try:
             cur.execute("ALTER TABLE sources ADD COLUMN paused_at TIMESTAMP")
@@ -2709,7 +2707,7 @@ def pause_site(request: SiteManagementRequest):
         except sqlite3.OperationalError:
             # Columns already exist
             pass
-        
+
         # Update the source status
         cur.execute("""
         UPDATE sources 
@@ -2718,25 +2716,25 @@ def pause_site(request: SiteManagementRequest):
             paused_reason = ?
         WHERE host = ?
         """, [request.reason or "Poor performance detected", request.host])
-        
+
         if cur.rowcount == 0:
             # Source doesn't exist, create it
             cur.execute("""
             INSERT INTO sources (id, host, host_norm, status, paused_at, paused_reason)
             VALUES (?, ?, ?, 'paused', datetime('now'), ?)
-            """, [request.host, request.host, request.host.lower(), 
+            """, [request.host, request.host, request.host.lower(),
                   request.reason or "Poor performance detected"])
-        
+
         conn.commit()
         conn.close()
-        
+
         return {
             "status": "success",
             "message": f"Site {request.host} has been paused",
             "paused_at": "now",
             "reason": request.reason or "Poor performance detected"
         }
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error pausing site: {str(e)}")
 
@@ -2747,7 +2745,7 @@ def resume_site(request: SiteManagementRequest):
     try:
         conn = sqlite3.connect(str(MAIN_DB_PATH))
         cur = conn.cursor()
-        
+
         # Update the source status
         cur.execute("""
         UPDATE sources 
@@ -2756,18 +2754,18 @@ def resume_site(request: SiteManagementRequest):
             paused_reason = NULL
         WHERE host = ?
         """, [request.host])
-        
+
         if cur.rowcount == 0:
             raise HTTPException(status_code=404, detail=f"Site {request.host} not found")
-        
+
         conn.commit()
         conn.close()
-        
+
         return {
             "status": "success",
             "message": f"Site {request.host} has been resumed"
         }
-        
+
     except HTTPException as exc:
         raise exc
     except Exception as e:
@@ -2783,14 +2781,14 @@ def get_paused_sites():
     try:
         conn = sqlite3.connect(str(MAIN_DB_PATH))
         cur = conn.cursor()
-        
+
         cur.execute("""
         SELECT host, paused_at, paused_reason
         FROM sources
         WHERE status = 'paused'
         ORDER BY paused_at DESC
         """)
-        
+
         paused_sites = []
         for row in cur.fetchall():
             paused_sites.append({
@@ -2798,10 +2796,10 @@ def get_paused_sites():
                 "paused_at": row[1],
                 "reason": row[2]
             })
-        
+
         conn.close()
         return {"paused_sites": paused_sites}
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching paused sites: {str(e)}")
 
@@ -2812,16 +2810,16 @@ def get_site_status(host: str):
     try:
         conn = sqlite3.connect(str(MAIN_DB_PATH))
         cur = conn.cursor()
-        
+
         cur.execute("""
         SELECT status, paused_at, paused_reason
         FROM sources
         WHERE host = ?
         """, [host])
-        
+
         result = cur.fetchone()
         conn.close()
-        
+
         if result:
             return {
                 "host": host,
@@ -2836,6 +2834,6 @@ def get_site_status(host: str):
                 "paused_at": None,
                 "paused_reason": None
             }
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching site status: {str(e)}")

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
-from typing import Callable, Dict, Iterable, List, Mapping, Optional
 
 
 @dataclass
@@ -13,7 +13,7 @@ class FakeSpacySpan:
     text: str
     label_: str
     start_char: int = 0
-    end_char: Optional[int] = None
+    end_char: int | None = None
 
     def __post_init__(self) -> None:  # pragma: no cover - trivial arithmetic
         if self.end_char is None:
@@ -25,7 +25,7 @@ class FakeSpacyDoc:
     """Minimal spaCy ``Doc`` replacement exposing ``ents``."""
 
     text: str
-    ents: List[FakeSpacySpan]
+    ents: list[FakeSpacySpan]
 
 
 class FakeSpacyNlp:
@@ -37,11 +37,11 @@ class FakeSpacyNlp:
         entities: Mapping[str, Iterable[FakeSpacySpan]] | None = None,
         factory: Callable[[str], Iterable[FakeSpacySpan]] | None = None,
     ) -> None:
-        self._entities: Dict[str, List[FakeSpacySpan]] = {
+        self._entities: dict[str, list[FakeSpacySpan]] = {
             text: list(spans) for text, spans in (entities or {}).items()
         }
         self._factory = factory
-        self.calls: List[str] = []
+        self.calls: list[str] = []
 
     def add_entities(self, text: str, spans: Iterable[FakeSpacySpan]) -> None:
         self._entities.setdefault(text, []).extend(spans)
@@ -68,13 +68,11 @@ class FakeStorySniffer:
         self,
         *,
         decision: bool | Callable[[str], bool] | Mapping[str, bool] = True,
-        exception: (
-            Callable[[str], Exception] | Mapping[str, Exception] | None
-        ) = None,
+        exception: Callable[[str], Exception] | Mapping[str, Exception] | None = None,
     ) -> None:
         self._decision = decision
         self._exception = exception
-        self.calls: List[str] = []
+        self.calls: list[str] = []
 
     def guess(self, url: str) -> bool:
         self.calls.append(url)

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
 
 from .settings import LLMSettings, VectorStoreSettings
 
@@ -19,7 +18,7 @@ class VectorStore:
         *,
         prompt: str,
         response: str,
-        metadata: Dict[str, object],
+        metadata: dict[str, object],
     ) -> None:  # pragma: no cover - interface stub
         raise NotImplementedError
 
@@ -30,14 +29,14 @@ class NoOpVectorStore(VectorStore):
 
     provider: str
     reason: str = "disabled"
-    events: List[Dict[str, object]] = field(default_factory=list)
+    events: list[dict[str, object]] = field(default_factory=list)
 
     def store(
         self,
         *,
         prompt: str,
         response: str,
-        metadata: Dict[str, object],
+        metadata: dict[str, object],
     ) -> None:
         logger.debug(
             "Vector store '%s' skipped: %s",
@@ -82,7 +81,7 @@ class VectorStoreFactory:
     """Factory for instantiating optional vector store integrations."""
 
     @staticmethod
-    def create(settings: LLMSettings) -> Optional[VectorStore]:
+    def create(settings: LLMSettings) -> VectorStore | None:
         vec_settings = settings.vector_store
         if not vec_settings or not vec_settings.is_enabled():
             return None

@@ -64,8 +64,9 @@ def check_is_article(url, discovery_method="unknown"):
 
     if discovery_method == "newspaper4k":
         path = url_lower.split("://")[-1].split("?")[0]
-        segments = [seg for seg in (
-            "/" + "/".join(path.split("/")[1:])).split("/") if seg]
+        segments = [
+            seg for seg in ("/" + "/".join(path.split("/")[1:])).split("/") if seg
+        ]
         if len(segments) >= 2 or any("-" in seg for seg in segments):
             return True
         return False

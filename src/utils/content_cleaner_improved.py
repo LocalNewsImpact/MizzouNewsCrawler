@@ -6,7 +6,6 @@ import hashlib
 import logging
 import sqlite3
 from collections import defaultdict
-from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -16,18 +15,20 @@ logger = logging.getLogger(__name__)
 @dataclass
 class BoilerplateMatch:
     """Represents a detected boilerplate text segment."""
+
     text: str
     hash_value: str
     occurrence_count: int
     confidence_score: float
-    domains: List[str]
-    positions: List[Tuple[float, float]]
+    domains: list[str]
+    positions: list[tuple[float, float]]
     pattern_type: str  # 'navigation', 'footer', 'paragraph', 'sentence'
 
 
 @dataclass
 class CleaningTelemetry:
     """Telemetry data for content cleaning operations."""
+
     article_id: int
     domain: str
     original_length: int
@@ -36,7 +37,7 @@ class CleaningTelemetry:
     confidence_threshold: float
     processing_time: float
     timestamp: str
-    removed_segments: List[Dict]
+    removed_segments: list[dict]
 
 
 class ImprovedContentCleaner:
@@ -49,8 +50,7 @@ class ImprovedContentCleaner:
         self.min_occurrence_count = 3
         self._boilerplate_cache = {}
 
-    def analyze_domain(self, domain: str,
-                       sample_size: Optional[int] = None) -> Dict:
+    def analyze_domain(self, domain: str, sample_size: int | None = None) -> dict:
         """Analyze content from a domain to identify boilerplate."""
         articles = self._get_domain_articles(domain, sample_size)
 
@@ -58,7 +58,7 @@ class ImprovedContentCleaner:
             return {
                 "domain": domain,
                 "articles": len(articles),
-                "boilerplate_segments": []
+                "boilerplate_segments": [],
             }
 
         # Find common segments using multiple strategies
@@ -73,10 +73,7 @@ class ImprovedContentCleaner:
                     boilerplate_matches.append(match)
 
         # Sort by confidence
-        boilerplate_matches.sort(
-            key=lambda x: x.confidence_score,
-            reverse=True
-        )
+        boilerplate_matches.sort(key=lambda x: x.confidence_score, reverse=True)
 
         return {
             "domain": domain,
@@ -84,21 +81,28 @@ class ImprovedContentCleaner:
             "boilerplate_segments": len(boilerplate_matches),
             "segments": [
                 {
-                    "text": (match.text[:200] + "..."
-                             if len(match.text) > 200 else match.text),
+                    "text": (
+                        match.text[:200] + "..."
+                        if len(match.text) > 200
+                        else match.text
+                    ),
                     "hash": match.hash_value,
                     "occurrence_count": match.occurrence_count,
                     "confidence_score": match.confidence_score,
                     "pattern_type": match.pattern_type,
-                    "avg_position": self._calc_avg_position(match.positions)
+                    "avg_position": self._calc_avg_position(match.positions),
                 }
                 for match in boilerplate_matches[:20]
-            ]
+            ],
         }
 
-    def clean_content(self, content: str, domain: str,
-                      article_id: Optional[int] = None,
-                      dry_run: bool = True) -> Tuple[str, CleaningTelemetry]:
+    def clean_content(
+        self,
+        content: str,
+        domain: str,
+        article_id: int | None = None,
+        dry_run: bool = True,
+    ) -> tuple[str, CleaningTelemetry]:
         """Clean content by removing detected boilerplate segments."""
         start_time = datetime.utcnow()
         original_length = len(content)
@@ -137,8 +141,10 @@ class ImprovedContentCleaner:
                     segment_end = pos + len(search_text)
 
                     # Extend to word boundaries if reasonable
-                    while (segment_end < len(cleaned_content) and
-                           cleaned_content[segment_end] not in '\n.!?'):
+                    while (
+                        segment_end < len(cleaned_content)
+                        and cleaned_content[segment_end] not in "\n.!?"
+                    ):
                         segment_end += 1
                         if segment_end - segment_start > len(search_text) * 2:
                             break
@@ -156,25 +162,33 @@ class ImprovedContentCleaner:
             if key not in unique_segments:
                 unique_segments[key] = (start_pos, segment_text, segment_info)
 
-        sorted_segments = sorted(unique_segments.values(),
-                                 key=lambda x: x[0], reverse=True)
+        sorted_segments = sorted(
+            unique_segments.values(), key=lambda x: x[0], reverse=True
+        )
 
         # Apply removal
         for start_pos, segment_text, segment_info in sorted_segments:
             if not dry_run:
                 # Remove the segment
-                cleaned_content = (cleaned_content[:start_pos] +
-                                   cleaned_content[start_pos + len(segment_text):])
+                cleaned_content = (
+                    cleaned_content[:start_pos]
+                    + cleaned_content[start_pos + len(segment_text) :]
+                )
 
-            removed_segments.append({
-                "hash": segment_info["hash"],
-                "text": segment_text[:100] + "..."
-                if len(segment_text) > 100 else segment_text,
-                "confidence": segment_info["confidence_score"],
-                "length": len(segment_text),
-                "position": start_pos,
-                "pattern_type": segment_info.get("pattern_type", "unknown")
-            })
+            removed_segments.append(
+                {
+                    "hash": segment_info["hash"],
+                    "text": (
+                        segment_text[:100] + "..."
+                        if len(segment_text) > 100
+                        else segment_text
+                    ),
+                    "confidence": segment_info["confidence_score"],
+                    "length": len(segment_text),
+                    "position": start_pos,
+                    "pattern_type": segment_info.get("pattern_type", "unknown"),
+                }
+            )
 
         # Create telemetry
         telemetry = CleaningTelemetry(
@@ -184,17 +198,16 @@ class ImprovedContentCleaner:
             cleaned_length=len(cleaned_content),
             segments_removed=len(removed_segments),
             confidence_threshold=self.confidence_threshold,
-            processing_time=(
-                datetime.utcnow() - start_time
-            ).total_seconds(),
+            processing_time=(datetime.utcnow() - start_time).total_seconds(),
             timestamp=datetime.utcnow().isoformat(),
-            removed_segments=removed_segments
+            removed_segments=removed_segments,
         )
 
         return cleaned_content, telemetry
 
-    def _get_domain_articles(self, domain: str,
-                             sample_size: Optional[int] = None) -> List[Dict]:
+    def _get_domain_articles(
+        self, domain: str, sample_size: int | None = None
+    ) -> list[dict]:
         """Get articles from a specific domain."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -215,27 +228,24 @@ class ImprovedContentCleaner:
 
         cursor.execute(query, params)
         articles = [
-            {
-                "id": row[0],
-                "url": row[1],
-                "content": row[2],
-                "text_hash": row[3]
-            }
+            {"id": row[0], "url": row[1], "content": row[2], "text_hash": row[3]}
             for row in cursor.fetchall()
         ]
 
         conn.close()
         return articles
 
-    def _find_common_segments_improved(self, articles: List[Dict]) -> Dict:
+    def _find_common_segments_improved(self, articles: list[dict]) -> dict:
         """Find text segments using multiple improved strategies."""
-        segment_occurrences = defaultdict(lambda: {
-            "count": 0,
-            "text": "",
-            "positions": [],
-            "article_ids": [],
-            "pattern_type": "unknown"
-        })
+        segment_occurrences = defaultdict(
+            lambda: {
+                "count": 0,
+                "text": "",
+                "positions": [],
+                "article_ids": [],
+                "pattern_type": "unknown",
+            }
+        )
 
         for article in articles:
             content = article["content"]
@@ -243,40 +253,31 @@ class ImprovedContentCleaner:
 
             # Strategy 1: Large blocks (navigation menus, headers)
             blocks = self._extract_large_blocks(content)
-            self._process_segments(blocks, "large_block", segment_occurrences,
-                                   content, article_id)
+            self._process_segments(
+                blocks, "large_block", segment_occurrences, content, article_id
+            )
 
             # Strategy 2: Paragraph-level segments
             paragraphs = self._extract_paragraphs(content)
             self._process_segments(
-                paragraphs,
-                "paragraph",
-                segment_occurrences,
-                content,
-                article_id)
+                paragraphs, "paragraph", segment_occurrences, content, article_id
+            )
 
             # Strategy 3: Navigation-like patterns
             nav_patterns = self._extract_navigation_patterns(content)
             self._process_segments(
-                nav_patterns,
-                "navigation",
-                segment_occurrences,
-                content,
-                article_id)
+                nav_patterns, "navigation", segment_occurrences, content, article_id
+            )
 
             # Strategy 4: Footer-like patterns
             footer_patterns = self._extract_footer_patterns(content)
             self._process_segments(
-                footer_patterns,
-                "footer",
-                segment_occurrences,
-                content,
-                article_id)
+                footer_patterns, "footer", segment_occurrences, content, article_id
+            )
 
         return segment_occurrences
 
-    def _extract_large_blocks(
-            self, content: str) -> List[Tuple[str, int, int]]:
+    def _extract_large_blocks(self, content: str) -> list[tuple[str, int, int]]:
         """Extract large text blocks that might be navigation or headers."""
         blocks = []
 
@@ -300,12 +301,12 @@ class ImprovedContentCleaner:
 
         return blocks
 
-    def _extract_paragraphs(self, content: str) -> List[Tuple[str, int, int]]:
+    def _extract_paragraphs(self, content: str) -> list[tuple[str, int, int]]:
         """Extract paragraph-level segments."""
         segments = []
 
         # Split on double newlines
-        paragraphs = content.split('\n\n')
+        paragraphs = content.split("\n\n")
         current_pos = 0
 
         for paragraph in paragraphs:
@@ -319,48 +320,69 @@ class ImprovedContentCleaner:
 
         return segments
 
-    def _extract_navigation_patterns(
-            self, content: str) -> List[Tuple[str, int, int]]:
+    def _extract_navigation_patterns(self, content: str) -> list[tuple[str, int, int]]:
         """Extract patterns that look like navigation menus."""
         patterns = []
 
         # Look for repeated words that suggest navigation
         nav_keywords = [
-            'news', 'sports', 'obituaries', 'contact', 'subscribe', 'home',
-            'about', 'business', 'opinion', 'world', 'local', 'weather',
-            'e-edition', 'magazines', 'gallery', 'photo', 'video'
+            "news",
+            "sports",
+            "obituaries",
+            "contact",
+            "subscribe",
+            "home",
+            "about",
+            "business",
+            "opinion",
+            "world",
+            "local",
+            "weather",
+            "e-edition",
+            "magazines",
+            "gallery",
+            "photo",
+            "video",
         ]
 
         # Find text that contains multiple navigation keywords
         words = content.lower().split()
-        nav_word_count = sum(1 for word in words if any(
-            keyword in word for keyword in nav_keywords))
+        nav_word_count = sum(
+            1 for word in words if any(keyword in word for keyword in nav_keywords)
+        )
 
         # If high density of nav words, look for the containing block
         if nav_word_count >= 5:
             # Find continuous blocks with high nav word density
             block_size = 300
             for i in range(0, min(len(content), 1000), 50):
-                block = content[i:i + block_size]
+                block = content[i : i + block_size]
                 block_words = block.lower().split()
                 block_nav_count = sum(
-                    1 for word in block_words if any(
-                        keyword in word for keyword in nav_keywords))
+                    1
+                    for word in block_words
+                    if any(keyword in word for keyword in nav_keywords)
+                )
 
-                if len(block_words) > 0 and block_nav_count / \
-                        len(block_words) > 0.3:
+                if len(block_words) > 0 and block_nav_count / len(block_words) > 0.3:
                     patterns.append((block.strip(), i, i + len(block)))
 
         return patterns
 
-    def _extract_footer_patterns(
-            self, content: str) -> List[Tuple[str, int, int]]:
+    def _extract_footer_patterns(self, content: str) -> list[tuple[str, int, int]]:
         """Extract patterns that look like footers."""
         patterns = []
 
         footer_keywords = [
-            'copyright', 'rights reserved', 'privacy', 'terms', 'sitemap',
-            'sign up', 'newsletter', 'follow us', 'contact us'
+            "copyright",
+            "rights reserved",
+            "privacy",
+            "terms",
+            "sitemap",
+            "sign up",
+            "newsletter",
+            "follow us",
+            "contact us",
         ]
 
         # Look at the last 500 characters for footer patterns
@@ -368,44 +390,46 @@ class ImprovedContentCleaner:
             footer_section = content[-500:]
             footer_words = footer_section.lower().split()
             footer_keyword_count = sum(
-                1 for word in footer_words if any(
-                    keyword in word for keyword in footer_keywords))
+                1
+                for word in footer_words
+                if any(keyword in word for keyword in footer_keywords)
+            )
 
             if footer_keyword_count >= 2:
                 start_pos = len(content) - 500
-                patterns.append(
-                    (footer_section.strip(), start_pos, len(content)))
+                patterns.append((footer_section.strip(), start_pos, len(content)))
 
         return patterns
 
-    def _process_segments(self, segments: List[Tuple[str, int, int]],
-                          pattern_type: str, segment_occurrences: Dict,
-                          content: str, article_id: str):
+    def _process_segments(
+        self,
+        segments: list[tuple[str, int, int]],
+        pattern_type: str,
+        segment_occurrences: dict,
+        content: str,
+        article_id: str,
+    ):
         """Process extracted segments and add to occurrences."""
         for segment_text, start_pos, end_pos in segments:
             if len(segment_text.strip()) < 30:  # Skip very short segments
                 continue
 
-            segment_hash = hashlib.sha256(
-                segment_text.strip().encode()
-            ).hexdigest()
+            segment_hash = hashlib.sha256(segment_text.strip().encode()).hexdigest()
 
             # Calculate position percentages
             content_length = len(content)
-            start_pct = (
-                start_pos /
-                content_length if content_length > 0 else 0)
-            end_pct = (end_pos / content_length if content_length > 0 else 0)
+            start_pct = start_pos / content_length if content_length > 0 else 0
+            end_pct = end_pos / content_length if content_length > 0 else 0
 
             segment_occurrences[segment_hash]["count"] += 1
             segment_occurrences[segment_hash]["text"] = segment_text.strip()
-            segment_occurrences[segment_hash]["positions"].append(
-                (start_pct, end_pct))
+            segment_occurrences[segment_hash]["positions"].append((start_pct, end_pct))
             segment_occurrences[segment_hash]["article_ids"].append(article_id)
             segment_occurrences[segment_hash]["pattern_type"] = pattern_type
 
-    def _score_segment(self, segment_data: Dict, domain: str,
-                       total_articles: int) -> BoilerplateMatch:
+    def _score_segment(
+        self, segment_data: dict, domain: str, total_articles: int
+    ) -> BoilerplateMatch:
         """Score a segment for boilerplate likelihood."""
         text = segment_data["text"]
         occurrence_count = segment_data["count"]
@@ -426,13 +450,17 @@ class ImprovedContentCleaner:
             confidence_score=confidence,
             domains=[domain],
             positions=positions,
-            pattern_type=pattern_type
+            pattern_type=pattern_type,
         )
 
-    def _calculate_improved_confidence(self, text: str, occurrence_count: int,
-                                       total_articles: int,
-                                       positions: List[Tuple[float, float]],
-                                       pattern_type: str) -> float:
+    def _calculate_improved_confidence(
+        self,
+        text: str,
+        occurrence_count: int,
+        total_articles: int,
+        positions: list[tuple[float, float]],
+        pattern_type: str,
+    ) -> float:
         """Calculate confidence score with improved logic."""
         text_lower = text.lower()
         confidence = 0.0
@@ -447,7 +475,7 @@ class ImprovedContentCleaner:
             "large_block": 0.15,
             "footer": 0.15,
             "paragraph": 0.1,
-            "unknown": 0.0
+            "unknown": 0.0,
         }
         confidence += pattern_bonuses.get(pattern_type, 0.0)
 
@@ -464,21 +492,35 @@ class ImprovedContentCleaner:
 
         # Content patterns (0-0.2 points)
         nav_terms = [
-            "news", "sports", "obituaries", "contact", "subscribe", "home",
-            "e-edition", "magazines", "gallery", "business", "opinion"
+            "news",
+            "sports",
+            "obituaries",
+            "contact",
+            "subscribe",
+            "home",
+            "e-edition",
+            "magazines",
+            "gallery",
+            "business",
+            "opinion",
         ]
 
         footer_terms = [
-            "copyright", "privacy", "terms", "sitemap", "newsletter",
-            "follow us", "sign up", "rights reserved"
+            "copyright",
+            "privacy",
+            "terms",
+            "sitemap",
+            "newsletter",
+            "follow us",
+            "sign up",
+            "rights reserved",
         ]
 
         nav_matches = sum(1 for term in nav_terms if term in text_lower)
         footer_matches = sum(1 for term in footer_terms if term in text_lower)
 
         pattern_score = max(
-            nav_matches / len(nav_terms),
-            footer_matches / len(footer_terms)
+            nav_matches / len(nav_terms), footer_matches / len(footer_terms)
         )
         confidence += pattern_score * 0.2
 
@@ -495,16 +537,16 @@ class ImprovedContentCleaner:
 
         return min(confidence, 1.0)
 
-    def _calculate_std(self, values: List[float]) -> float:
+    def _calculate_std(self, values: list[float]) -> float:
         """Calculate standard deviation."""
         if len(values) <= 1:
             return 0.0
 
         mean = sum(values) / len(values)
         variance = sum((x - mean) ** 2 for x in values) / len(values)
-        return variance ** 0.5
+        return variance**0.5
 
-    def _calc_avg_position(self, positions: List[Tuple[float, float]]) -> Dict:
+    def _calc_avg_position(self, positions: list[tuple[float, float]]) -> dict:
         """Calculate average position statistics."""
         if not positions:
             return {"start": 0.0, "end": 0.0}
@@ -514,7 +556,7 @@ class ImprovedContentCleaner:
 
         return {"start": start_avg, "end": end_avg}
 
-    def _get_segment_texts(self) -> Dict[str, str]:
+    def _get_segment_texts(self) -> dict[str, str]:
         """Get mapping of segment hashes to texts (placeholder)."""
         # This would need to be implemented to store/retrieve segment texts
         return {}

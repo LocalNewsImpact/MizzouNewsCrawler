@@ -23,7 +23,7 @@ def create_telemetry_tables():
     db_path = DATABASE_URL.replace('sqlite:///', '')
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
-    
+
     try:
         # Main telemetry table for byline cleaning transformations
         cursor.execute("""
@@ -72,7 +72,7 @@ def create_telemetry_tables():
                 FOREIGN KEY(candidate_link_id) REFERENCES candidate_links(id)
             )
         """)
-        
+
         # Detailed step-by-step transformation log
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS byline_transformation_steps (
@@ -92,7 +92,7 @@ def create_telemetry_tables():
                 FOREIGN KEY(telemetry_id) REFERENCES byline_cleaning_telemetry(id)
             )
         """)
-        
+
         # Source-specific cleaning patterns and effectiveness
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS source_cleaning_analytics (
@@ -121,7 +121,7 @@ def create_telemetry_tables():
                 last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        
+
         # ML training dataset preparation table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS ml_training_samples (
@@ -139,7 +139,7 @@ def create_telemetry_tables():
                 FOREIGN KEY(telemetry_id) REFERENCES byline_cleaning_telemetry(id)
             )
         """)
-        
+
         # Create indexes for efficient querying
         indexes = [
             "CREATE INDEX IF NOT EXISTS idx_byline_telemetry_article_id ON byline_cleaning_telemetry(article_id)",
@@ -153,10 +153,10 @@ def create_telemetry_tables():
             "CREATE INDEX IF NOT EXISTS idx_ml_samples_type ON ml_training_samples(sample_type)",
             "CREATE INDEX IF NOT EXISTS idx_ml_samples_validated ON ml_training_samples(human_validated)"
         ]
-        
+
         for index_sql in indexes:
             cursor.execute(index_sql)
-        
+
         conn.commit()
         print("✅ Successfully created byline cleaning telemetry tables:")
         print("   - byline_cleaning_telemetry (main transformation tracking)")
@@ -164,7 +164,7 @@ def create_telemetry_tables():
         print("   - source_cleaning_analytics (source-specific patterns)")
         print("   - ml_training_samples (ML training dataset preparation)")
         print("   - All necessary indexes created")
-        
+
     except Exception as e:
         conn.rollback()
         print(f"❌ Error creating telemetry tables: {e}")
@@ -178,14 +178,14 @@ def verify_tables():
     db_path = DATABASE_URL.replace('sqlite:///', '')
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
-    
+
     tables = [
         'byline_cleaning_telemetry',
-        'byline_transformation_steps', 
+        'byline_transformation_steps',
         'source_cleaning_analytics',
         'ml_training_samples'
     ]
-    
+
     for table in tables:
         cursor.execute(f"SELECT sql FROM sqlite_master WHERE type='table' AND name='{table}'")
         result = cursor.fetchone()
@@ -193,7 +193,7 @@ def verify_tables():
             print(f"\n✅ Table '{table}' created successfully")
         else:
             print(f"❌ Table '{table}' not found")
-    
+
     conn.close()
 
 if __name__ == "__main__":

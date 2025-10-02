@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Optional, Set
 
 from .confidence import normalize_score, score_to_label
 
@@ -17,7 +17,7 @@ class ContentTypeResult:
     confidence_score: float
     confidence: str
     reason: str
-    evidence: Dict[str, List[str]]
+    evidence: dict[str, list[str]]
     detector_version: str
 
 
@@ -152,16 +152,14 @@ class ContentTypeDetector:
         self,
         *,
         url: str,
-        title: Optional[str],
-        metadata: Optional[dict],
-        content: Optional[str] = None,
-    ) -> Optional[ContentTypeResult]:
+        title: str | None,
+        metadata: dict | None,
+        content: str | None = None,
+    ) -> ContentTypeResult | None:
         """Return the detected content type for the article, if any."""
 
         normalized_metadata = metadata or {}
-        keywords = self._normalize_keywords(
-            normalized_metadata.get("keywords")
-        )
+        keywords = self._normalize_keywords(normalized_metadata.get("keywords"))
         meta_description = normalized_metadata.get("meta_description")
 
         obituary_result = self._detect_obituary(
@@ -185,12 +183,12 @@ class ContentTypeDetector:
         self,
         *,
         url: str,
-        title: Optional[str],
+        title: str | None,
         keywords: Iterable[str],
-        meta_description: Optional[str],
-        content: Optional[str],
-    ) -> Optional[ContentTypeResult]:
-        matches: Dict[str, List[str]] = {}
+        meta_description: str | None,
+        content: str | None,
+    ) -> ContentTypeResult | None:
+        matches: dict[str, list[str]] = {}
         score = 0
         strong_signal_detected = False
 
@@ -202,13 +200,9 @@ class ContentTypeDetector:
             unique_title_matches = sorted(set(title_matches))
             matches["title"] = unique_title_matches
             title_strong_hits = (
-                set(unique_title_matches)
-                & self._OBITUARY_STRONG_TITLE_KEYWORDS
+                set(unique_title_matches) & self._OBITUARY_STRONG_TITLE_KEYWORDS
             )
-            title_weak_hits = (
-                set(unique_title_matches)
-                - title_strong_hits
-            )
+            title_weak_hits = set(unique_title_matches) - title_strong_hits
             if title_strong_hits:
                 score += self._TITLE_CONFIDENCE_WEIGHT
                 strong_signal_detected = True
@@ -223,13 +217,9 @@ class ContentTypeDetector:
             unique_url_matches = sorted(set(url_matches))
             matches["url"] = unique_url_matches
             url_strong_hits = (
-                set(unique_url_matches)
-                & self._OBITUARY_HIGH_CONFIDENCE_URL_SEGMENTS
+                set(unique_url_matches) & self._OBITUARY_HIGH_CONFIDENCE_URL_SEGMENTS
             )
-            url_weak_hits = (
-                set(unique_url_matches)
-                - url_strong_hits
-            )
+            url_weak_hits = set(unique_url_matches) - url_strong_hits
             if url_strong_hits:
                 score += self._URL_CONFIDENCE_WEIGHT
                 strong_signal_detected = True
@@ -244,8 +234,7 @@ class ContentTypeDetector:
             unique_keyword_matches = sorted(set(keyword_matches))
             matches["keywords"] = unique_keyword_matches
             keyword_strong_hits = (
-                set(unique_keyword_matches)
-                & self._OBITUARY_STRONG_TITLE_KEYWORDS
+                set(unique_keyword_matches) & self._OBITUARY_STRONG_TITLE_KEYWORDS
             )
             if keyword_strong_hits:
                 score += self._METADATA_CONFIDENCE_WEIGHT
@@ -259,8 +248,7 @@ class ContentTypeDetector:
             unique_description_matches = sorted(set(description_matches))
             matches["meta_description"] = unique_description_matches
             description_strong_hits = (
-                set(unique_description_matches)
-                & self._OBITUARY_STRONG_TITLE_KEYWORDS
+                set(unique_description_matches) & self._OBITUARY_STRONG_TITLE_KEYWORDS
             )
             if description_strong_hits:
                 score += self._METADATA_CONFIDENCE_WEIGHT
@@ -289,10 +277,7 @@ class ContentTypeDetector:
 
         if (
             "content" in matches
-            and (
-                set(matches["content"])
-                & self._OBITUARY_HIGH_SIGNAL_CONTENT_KEYWORDS
-            )
+            and (set(matches["content"]) & self._OBITUARY_HIGH_SIGNAL_CONTENT_KEYWORDS)
             and "title_patterns" in matches
         ):
             score += self._METADATA_CONFIDENCE_WEIGHT
@@ -321,11 +306,11 @@ class ContentTypeDetector:
         self,
         *,
         url: str,
-        title: Optional[str],
+        title: str | None,
         keywords: Iterable[str],
-        meta_description: Optional[str],
-    ) -> Optional[ContentTypeResult]:
-        matches: Dict[str, List[str]] = {}
+        meta_description: str | None,
+    ) -> ContentTypeResult | None:
+        matches: dict[str, list[str]] = {}
         score = 0
         strong_signal_detected = False
 
@@ -381,12 +366,12 @@ class ContentTypeDetector:
         )
 
     @staticmethod
-    def _normalize_keywords(raw_keywords: Optional[object]) -> List[str]:
+    def _normalize_keywords(raw_keywords: object | None) -> list[str]:
         if not raw_keywords:
             return []
         if isinstance(raw_keywords, str):
             return [raw_keywords.lower()]
-        keywords: List[str] = []
+        keywords: list[str] = []
         for keyword in raw_keywords:  # type: ignore[assignment]
             if not keyword:
                 continue
@@ -395,9 +380,9 @@ class ContentTypeDetector:
 
     @staticmethod
     def _find_keyword_matches(
-        value: Optional[str],
+        value: str | None,
         patterns: Iterable[str],
-    ) -> List[str]:
+    ) -> list[str]:
         if not value:
             return []
         lower_value = value.lower()
@@ -408,7 +393,7 @@ class ContentTypeDetector:
     def _find_segment_matches(
         url: str,
         segments: Iterable[str],
-    ) -> List[str]:
+    ) -> list[str]:
         lower_url = url.lower()
         return [segment for segment in segments if segment in lower_url]
 
@@ -416,9 +401,9 @@ class ContentTypeDetector:
     def _matches_from_iterable(
         haystack: Iterable[str],
         needles: Iterable[str],
-    ) -> List[str]:
+    ) -> list[str]:
         needles_normalized = {needle.lower() for needle in needles}
-        matches: Set[str] = set()
+        matches: set[str] = set()
         for item in haystack:
             if not item:
                 continue
@@ -430,8 +415,8 @@ class ContentTypeDetector:
 
     def _find_obituary_title_patterns(
         self,
-        title: Optional[str],
-    ) -> List[str]:
+        title: str | None,
+    ) -> list[str]:
         if not title:
             return []
         normalized = title.strip()
@@ -445,17 +430,19 @@ class ContentTypeDetector:
             return []
 
         lower_tokens = [token.lower() for token in cleaned_tokens]
-        patterns: List[str] = []
+        patterns: list[str] = []
 
         if 1 < len(cleaned_tokens) <= 5 and all(
             token.isupper() for token in cleaned_tokens
         ):
             patterns.append("all_caps_name")
 
-        if 1 < len(cleaned_tokens) <= 5 and all(
-            token.istitle() for token in tokens
-        ) and not any(
-            token in self._OBITUARY_TITLE_STOPWORDS for token in lower_tokens
+        if (
+            1 < len(cleaned_tokens) <= 5
+            and all(token.istitle() for token in tokens)
+            and not any(
+                token in self._OBITUARY_TITLE_STOPWORDS for token in lower_tokens
+            )
         ):
             patterns.append("personal_name_title")
 
@@ -467,11 +454,11 @@ class ContentTypeDetector:
 
         return patterns
 
-    def _find_opinion_title_matches(self, title: Optional[str]) -> List[str]:
+    def _find_opinion_title_matches(self, title: str | None) -> list[str]:
         if not title:
             return []
         lower_title = title.lower().strip()
-        matches: List[str] = []
+        matches: list[str] = []
         for prefix in self._OPINION_TITLE_PREFIXES:
             prefix_lower = prefix.lower()
             anchored_variations = (
@@ -481,8 +468,9 @@ class ContentTypeDetector:
                 f"{prefix_lower} -",
                 f"{prefix_lower} |",
             )
-            if any(lower_title.startswith(variation)
-                   for variation in anchored_variations):
+            if any(
+                lower_title.startswith(variation) for variation in anchored_variations
+            ):
                 matches.append(prefix_lower)
                 continue
 

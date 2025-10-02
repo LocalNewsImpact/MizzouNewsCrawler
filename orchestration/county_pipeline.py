@@ -21,8 +21,8 @@ import math
 import shlex
 import subprocess
 import sys
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Iterable, Sequence
 
 from sqlalchemy import text
 
@@ -222,10 +222,10 @@ def orchestrate_pipeline(
             extraction_ready = queue_counts["article"]
     elif not skip_verification:
         logging.info(
-            (
+
                 "No candidate links with status 'discovered'; "
                 "skipping verification"
-            )
+
         )
     else:
         logging.info("Skipping verification step per user request")
@@ -241,10 +241,10 @@ def orchestrate_pipeline(
 
         if extraction_ready == 0:
             logging.info(
-                (
+
                     "No candidate links with status 'article'; "
                     "skipping extraction"
-                )
+
             )
         else:
             _run_cli_step(

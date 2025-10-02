@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Sequence, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from .providers import (
     LLMConfigurationError,
@@ -33,21 +34,21 @@ class ProviderFailure:
 class OrchestrationResult:
     """Aggregated result of orchestrating a single LLM task."""
 
-    response: Optional[LLMProviderResponse] = None
-    failures: List[ProviderFailure] = field(default_factory=list)
+    response: LLMProviderResponse | None = None
+    failures: list[ProviderFailure] = field(default_factory=list)
 
     @property
     def succeeded(self) -> bool:
         return self.response is not None
 
     @property
-    def provider(self) -> Optional[str]:
+    def provider(self) -> str | None:
         if self.response is None:
             return None
         return self.response.provider
 
     @property
-    def content(self) -> Optional[str]:
+    def content(self) -> str | None:
         if self.response is None:
             return None
         return self.response.content
@@ -57,9 +58,9 @@ class OrchestrationResult:
 class LLMTaskConfig:
     """Runtime overrides for a single LLM request."""
 
-    max_output_tokens: Optional[int] = None
-    temperature: Optional[float] = None
-    metadata: Optional[Dict[str, object]] = None
+    max_output_tokens: int | None = None
+    temperature: float | None = None
+    metadata: dict[str, object] | None = None
 
 
 class LLMOrchestrator:
@@ -69,7 +70,7 @@ class LLMOrchestrator:
         self,
         settings: LLMSettings,
         providers: Sequence[LLMProvider],
-        vector_store: Optional["VectorStore"] = None,
+        vector_store: VectorStore | None = None,
     ) -> None:
         self._settings = settings
         self._providers = list(providers)
@@ -78,10 +79,10 @@ class LLMOrchestrator:
     @classmethod
     def from_settings(
         cls,
-        settings: Optional[LLMSettings] = None,
+        settings: LLMSettings | None = None,
         *,
-        vector_store: Optional["VectorStore"] = None,
-    ) -> "LLMOrchestrator":
+        vector_store: VectorStore | None = None,
+    ) -> LLMOrchestrator:
         resolved = settings or load_llm_settings()
         providers = [
             ProviderRegistry.create(name, resolved)
@@ -89,13 +90,13 @@ class LLMOrchestrator:
         ]
         return cls(resolved, providers, vector_store)
 
-    def list_providers(self) -> List[str]:
+    def list_providers(self) -> list[str]:
         return [provider.name for provider in self._providers]
 
     def generate(
         self,
         prompt: str,
-        config: Optional[LLMTaskConfig] = None,
+        config: LLMTaskConfig | None = None,
     ) -> OrchestrationResult:
         config = config or LLMTaskConfig()
         result = OrchestrationResult()

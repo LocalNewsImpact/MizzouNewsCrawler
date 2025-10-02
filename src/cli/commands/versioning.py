@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import logging
 from pathlib import Path
-from typing import Optional
 
 from src.models.versioning import (
     create_dataset_version,
@@ -115,16 +114,13 @@ def handle_create_version_command(args: argparse.Namespace) -> int:
         print(f"Failed to create dataset version: {exc}")
         return 1
 
-    print(
-        "Created dataset version: "
-        f"{version.id} (tag={version.version_tag})"
-    )
+    print("Created dataset version: " f"{version.id} (tag={version.version_tag})")
     return 0
 
 
 def handle_list_versions_command(args: argparse.Namespace) -> int:
     """List dataset versions, optionally filtered by dataset name."""
-    dataset: Optional[str] = getattr(args, "dataset", None)
+    dataset: str | None = getattr(args, "dataset", None)
 
     try:
         if dataset is None:
@@ -165,7 +161,7 @@ def handle_export_version_command(args: argparse.Namespace) -> int:
 def handle_export_snapshot_command(args: argparse.Namespace) -> int:
     """Stream a Parquet snapshot for a dataset version."""
     compression = getattr(args, "snapshot_compression", None)
-    resolved_compression: Optional[str] = None
+    resolved_compression: str | None = None
     if compression is not None and compression.lower() != "none":
         resolved_compression = compression
 
@@ -185,8 +181,5 @@ def handle_export_snapshot_command(args: argparse.Namespace) -> int:
 
     version_id = getattr(version, "id", args.version_id)
     snapshot_path = getattr(version, "snapshot_path", str(version))
-    print(
-        "Snapshot created and version finalized: "
-        f"{version_id} -> {snapshot_path}"
-    )
+    print("Snapshot created and version finalized: " f"{version_id} -> {snapshot_path}")
     return 0

@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from typing import Any, Dict, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup
@@ -20,25 +20,21 @@ except Exception:
     Article = None
 
 DEFAULT_CONFIG_PATH = os.path.join(
-    os.path.dirname(
-        os.path.dirname(__file__)),
-    "sources",
-    "host_selectors.json")
+    os.path.dirname(os.path.dirname(__file__)), "sources", "host_selectors.json"
+)
 
 
 class HostSelector:
-    def __init__(self, cfg: Dict[str, Any]):
+    def __init__(self, cfg: dict[str, Any]):
         self.host = cfg.get("host")
         self.selectors = cfg.get("selectors", {})
         # selectors may be a comma-separated string in config; normalize to
         # list
         for k, v in list(self.selectors.items()):
             if isinstance(v, str) and "," in v:
-                self.selectors[k] = [s.strip()
-                                     for s in v.split(",") if s.strip()]
+                self.selectors[k] = [s.strip() for s in v.split(",") if s.strip()]
 
-    def extract_with_selectors(
-            self, soup: BeautifulSoup) -> Dict[str, Optional[str]]:
+    def extract_with_selectors(self, soup: BeautifulSoup) -> dict[str, str | None]:
         out = {
             "title": None,
             "byline": None,
@@ -102,14 +98,14 @@ class HostSelector:
 
 
 class ExtractorRegistry:
-    def __init__(self, config_path: Optional[str] = None):
+    def __init__(self, config_path: str | None = None):
         self.config_path = config_path or DEFAULT_CONFIG_PATH
-        self.host_map: Dict[str, HostSelector] = {}
+        self.host_map: dict[str, HostSelector] = {}
         self._load_config()
 
     def _load_config(self):
         try:
-            with open(self.config_path, "r", encoding="utf-8") as fh:
+            with open(self.config_path, encoding="utf-8") as fh:
                 data = json.load(fh)
         except FileNotFoundError:
             data = []
@@ -124,7 +120,7 @@ class ExtractorRegistry:
         return self.host_map.get(hostname)
 
 
-def extract_schemaorg(soup: BeautifulSoup) -> Optional[Dict[str, Any]]:
+def extract_schemaorg(soup: BeautifulSoup) -> dict[str, Any] | None:
     # find <script type="application/ld+json">
     scripts = soup.find_all("script", type="application/ld+json")
     for s in scripts:
@@ -178,7 +174,7 @@ def extract_schemaorg(soup: BeautifulSoup) -> Optional[Dict[str, Any]]:
     return None
 
 
-def newspaper_fallback(url: str) -> Optional[Dict[str, Any]]:
+def newspaper_fallback(url: str) -> dict[str, Any] | None:
     if Article is None:
         return None
     try:
@@ -187,21 +183,17 @@ def newspaper_fallback(url: str) -> Optional[Dict[str, Any]]:
         a.parse()
         return {
             "title": a.title or None,
-            "byline": getattr(
-                a,
-                "authors",
-                None) and ", ".join(
-                a.authors) or None,
+            "byline": getattr(a, "authors", None) and ", ".join(a.authors) or None,
             "date": a.publish_date and a.publish_date.isoformat() or None,
             "text": a.text or None,
             "html": a.html or None,
             "lead_image": a.top_image or None,
-             }
+        }
     except Exception:
         return None
 
 
-def normalize_text(t: Optional[str]) -> Optional[str]:
+def normalize_text(t: str | None) -> str | None:
     if not t:
         return None
     # collapse whitespace
@@ -209,7 +201,7 @@ def normalize_text(t: Optional[str]) -> Optional[str]:
     return txt
 
 
-def _lead_image_field(field: Any) -> Optional[str]:
+def _lead_image_field(field: Any) -> str | None:
     """Normalize schema.org image field which may be a string, dict, or list.
 
     Returns a string URL if found, otherwise None.
@@ -240,10 +232,9 @@ DEFAULT_SELECTORS = [
 ]
 
 
-def extract(html: str,
-            url: Optional[str] = None,
-            registry: Optional[ExtractorRegistry] = None) -> Dict[str,
-                                                                  Optional[str]]:
+def extract(
+    html: str, url: str | None = None, registry: ExtractorRegistry | None = None
+) -> dict[str, str | None]:
     soup = BeautifulSoup(html, "html.parser")
     hostname = None
     if url:
@@ -254,8 +245,9 @@ def extract(html: str,
     # 1) schema.org
     schema = extract_schemaorg(soup)
     if schema and schema.get("text"):
-        return {k: normalize_text(v) if isinstance(
-            v, str) else v for k, v in schema.items()}
+        return {
+            k: normalize_text(v) if isinstance(v, str) else v for k, v in schema.items()
+        }
     # 2) host-specific selectors
     if registry and hostname:
         hs = registry.get(hostname)
@@ -270,8 +262,9 @@ def extract(html: str,
     if url:
         nw = newspaper_fallback(url)
         if nw and nw.get("text"):
-            return {k: normalize_text(v) if isinstance(
-                v, str) else v for k, v in nw.items()}
+            return {
+                k: normalize_text(v) if isinstance(v, str) else v for k, v in nw.items()
+            }
     # 4) generic selectors
     for sel in DEFAULT_SELECTORS:
         node = soup.select_one(sel)

@@ -12,13 +12,14 @@ import json
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Any
 
 from pydantic import BaseModel
 
 
 class GazetteerStats(BaseModel):
     """Overall gazetteer telemetry statistics."""
+
     total_enrichment_attempts: int
     successful_geocoding: int
     failed_geocoding: int
@@ -27,53 +28,57 @@ class GazetteerStats(BaseModel):
     publishers_processed: int
     avg_elements_per_publisher: float
     # e.g., {"street_address": 45, "city_county": 12}
-    geocoding_methods: Dict[str, int]
+    geocoding_methods: dict[str, int]
     # e.g., {"businesses": 1200, "schools": 450}
-    top_categories: Dict[str, int]
+    top_categories: dict[str, int]
 
 
 class PublisherTelemetry(BaseModel):
     """Per-publisher telemetry breakdown."""
+
     source_id: str
     source_name: str
     city: str
     county: str
     state: str
-    geocoding_method: Optional[str] = None
-    geocoding_success: Optional[bool] = None
-    address_used: Optional[str] = None
-    coordinates: Optional[Dict[str, float]] = None
-    total_osm_elements: Optional[int] = None
-    osm_categories: Optional[Dict[str, int]] = None
-    enrichment_success: Optional[bool] = None
-    processing_time_seconds: Optional[float] = None
-    failure_reason: Optional[str] = None
-    last_processed: Optional[datetime] = None
+    geocoding_method: str | None = None
+    geocoding_success: bool | None = None
+    address_used: str | None = None
+    coordinates: dict[str, float] | None = None
+    total_osm_elements: int | None = None
+    osm_categories: dict[str, int] | None = None
+    enrichment_success: bool | None = None
+    processing_time_seconds: float | None = None
+    failure_reason: str | None = None
+    last_processed: datetime | None = None
 
 
 class AddressEditRequest(BaseModel):
     """Request to update address information for re-processing."""
+
     source_id: str
     new_address: str
-    new_city: Optional[str] = None
-    new_county: Optional[str] = None
-    new_state: Optional[str] = None
-    notes: Optional[str] = None
+    new_city: str | None = None
+    new_county: str | None = None
+    new_state: str | None = None
+    notes: str | None = None
 
 
 class ReprocessRequest(BaseModel):
     """Request to re-run gazetteer processing for specific sources."""
-    source_ids: List[str]
+
+    source_ids: list[str]
     force_reprocess: bool = False
     use_updated_addresses: bool = True
 
 
 class TelemetryLogEntry(BaseModel):
     """Single entry from gazetteer telemetry log."""
+
     timestamp: datetime
     event: str
     source_id: str
-    data: Dict[str, Any]
+    data: dict[str, Any]
 
 
 def get_db_connection():
@@ -84,7 +89,7 @@ def get_db_connection():
     return sqlite3.connect(str(db_path))
 
 
-def parse_telemetry_log() -> List[TelemetryLogEntry]:
+def parse_telemetry_log() -> list[TelemetryLogEntry]:
     """Parse gazetteer_telemetry.log JSON entries."""
     base_dir = Path(__file__).resolve().parents[2]
     log_path = base_dir / "gazetteer_telemetry.log"
@@ -94,19 +99,17 @@ def parse_telemetry_log() -> List[TelemetryLogEntry]:
 
     entries = []
     try:
-        with open(log_path, 'r') as f:
+        with open(log_path) as f:
             for line in f:
                 line = line.strip()
                 if line:
                     try:
                         data = json.loads(line)
                         entry = TelemetryLogEntry(
-                            timestamp=datetime.fromisoformat(
-                                data["timestamp"]
-                            ),
+                            timestamp=datetime.fromisoformat(data["timestamp"]),
                             event=data["event"],
                             source_id=data["source_id"],
-                            data=data
+                            data=data,
                         )
                         entries.append(entry)
                     except (json.JSONDecodeError, KeyError, ValueError):
@@ -131,19 +134,27 @@ def get_gazetteer_stats() -> GazetteerStats:
         by_source[source_id][entry.event] = entry.data
 
     # Calculate statistics
-    total_attempts = len([s for s in by_source.values()
-                         if "enrichment_attempt" in s])
-    successful_geocoding = len([
-        s for s in by_source.values()
-        if ("geocoding_result" in s and
-            s["geocoding_result"].get("geocoding", {}).get("success", False))
-    ])
-    failed_geocoding = len([
-        s for s in by_source.values()
-        if ("geocoding_result" in s and
-            not s["geocoding_result"].get("geocoding", {}).get(
-                "success", False))
-    ])
+    total_attempts = len([s for s in by_source.values() if "enrichment_attempt" in s])
+    successful_geocoding = len(
+        [
+            s
+            for s in by_source.values()
+            if (
+                "geocoding_result" in s
+                and s["geocoding_result"].get("geocoding", {}).get("success", False)
+            )
+        ]
+    )
+    failed_geocoding = len(
+        [
+            s
+            for s in by_source.values()
+            if (
+                "geocoding_result" in s
+                and not s["geocoding_result"].get("geocoding", {}).get("success", False)
+            )
+        ]
+    )
 
     total_geocoding = successful_geocoding + failed_geocoding
     geocoding_success_rate = (
@@ -157,9 +168,7 @@ def get_gazetteer_stats() -> GazetteerStats:
             geocoding = source_data["geocoding_result"].get("geocoding", {})
             method = geocoding.get("method")
             if method:
-                geocoding_methods[method] = (
-                    geocoding_methods.get(method, 0) + 1
-                )
+                geocoding_methods[method] = geocoding_methods.get(method, 0) + 1
 
     # OSM statistics
     total_osm_elements = 0
@@ -173,14 +182,10 @@ def get_gazetteer_stats() -> GazetteerStats:
                 all_categories[cat] = all_categories.get(cat, 0) + count
 
     # Top 10 categories
-    sorted_categories = sorted(
-        all_categories.items(), key=lambda x: x[1], reverse=True
-    )
+    sorted_categories = sorted(all_categories.items(), key=lambda x: x[1], reverse=True)
     top_categories = dict(sorted_categories[:10])
 
-    avg_elements = (
-        total_osm_elements / total_attempts if total_attempts > 0 else 0
-    )
+    avg_elements = total_osm_elements / total_attempts if total_attempts > 0 else 0
 
     return GazetteerStats(
         total_enrichment_attempts=total_attempts,
@@ -191,11 +196,11 @@ def get_gazetteer_stats() -> GazetteerStats:
         publishers_processed=total_attempts,
         avg_elements_per_publisher=round(avg_elements, 1),
         geocoding_methods=geocoding_methods,
-        top_categories=top_categories
+        top_categories=top_categories,
     )
 
 
-def get_publisher_telemetry() -> List[PublisherTelemetry]:
+def get_publisher_telemetry() -> list[PublisherTelemetry]:
     """Get per-publisher telemetry breakdown."""
     entries = parse_telemetry_log()
 
@@ -221,7 +226,7 @@ def get_publisher_telemetry() -> List[PublisherTelemetry]:
             source_name=attempt_data.get("source_name", "Unknown"),
             city=location_data.get("city", ""),
             county=location_data.get("county", ""),
-            state=location_data.get("state", "")
+            state=location_data.get("state", ""),
         )
 
         # Add geocoding data
@@ -249,39 +254,40 @@ def get_publisher_telemetry() -> List[PublisherTelemetry]:
 
         # Set last processed time (latest timestamp)
         if events:
-            latest_timestamp = max([
-                datetime.fromisoformat(event_data["timestamp"])
-                for event_data in events.values()
-                if "timestamp" in event_data
-            ])
+            latest_timestamp = max(
+                [
+                    datetime.fromisoformat(event_data["timestamp"])
+                    for event_data in events.values()
+                    if "timestamp" in event_data
+                ]
+            )
             publisher.last_processed = latest_timestamp
 
         publishers.append(publisher)
 
     return sorted(
-        publishers,
-        key=lambda p: p.last_processed or datetime.min,
-        reverse=True
+        publishers, key=lambda p: p.last_processed or datetime.min, reverse=True
     )
 
 
-def get_failed_publishers() -> List[PublisherTelemetry]:
+def get_failed_publishers() -> list[PublisherTelemetry]:
     """Get publishers with geocoding or enrichment failures."""
     all_publishers = get_publisher_telemetry()
 
     failed_publishers = [
-        p for p in all_publishers
-        if (p.geocoding_success is False or
-            p.enrichment_success is False or
-            p.total_osm_elements == 0)
+        p
+        for p in all_publishers
+        if (
+            p.geocoding_success is False
+            or p.enrichment_success is False
+            or p.total_osm_elements == 0
+        )
     ]
 
     return failed_publishers
 
 
-def update_publisher_address(
-    source_id: str, address_data: AddressEditRequest
-) -> bool:
+def update_publisher_address(source_id: str, address_data: AddressEditRequest) -> bool:
     """Update address information for a publisher in the database."""
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -322,11 +328,14 @@ def update_publisher_address(
 
         # Log the address update
         if address_data.notes:
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT OR REPLACE INTO gazetteer_address_updates
                 (source_id, old_address, new_address, notes, updated_at)
                 VALUES (?, '', ?, ?, CURRENT_TIMESTAMP)
-            """, (source_id, address_data.new_address, address_data.notes))
+            """,
+                (source_id, address_data.new_address, address_data.notes),
+            )
 
         conn.commit()
         return cursor.rowcount > 0
@@ -339,8 +348,8 @@ def update_publisher_address(
 
 
 def trigger_gazetteer_reprocess(
-    source_ids: List[str], force: bool = False
-) -> Dict[str, Any]:
+    source_ids: list[str], force: bool = False
+) -> dict[str, Any]:
     """Trigger gazetteer re-processing for specific sources."""
     # This would integrate with the existing gazetteer processing scripts
     # For now, return a placeholder response
@@ -352,9 +361,7 @@ def trigger_gazetteer_reprocess(
         "estimated_completion": (
             datetime.now() + timedelta(minutes=len(source_ids) * 2)
         ),
-        "message": (
-            f"Queued {len(source_ids)} sources for gazetteer re-processing"
-        )
+        "message": (f"Queued {len(source_ids)} sources for gazetteer re-processing"),
     }
 
 
@@ -363,7 +370,8 @@ def ensure_address_updates_table():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS gazetteer_address_updates (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             source_id TEXT NOT NULL,
@@ -373,7 +381,8 @@ def ensure_address_updates_table():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (source_id) REFERENCES candidate_links (id)
         )
-    """)
+    """
+    )
 
     conn.commit()
     conn.close()

@@ -5,8 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-from typing import Any, Dict
-
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -26,10 +25,7 @@ def add_discovery_report_parser(subparsers) -> argparse.ArgumentParser:
         "--hours-back",
         type=int,
         default=24,
-        help=(
-            "Hours back to analyze when no operation is provided "
-            "(default: 24)"
-        ),
+        help=("Hours back to analyze when no operation is provided " "(default: 24)"),
     )
     parser.add_argument(
         "--format",
@@ -72,20 +68,14 @@ def handle_discovery_report_command(args) -> int:
         return 1
 
 
-def _print_summary_discovery_report(report: Dict[str, Any]) -> None:
+def _print_summary_discovery_report(report: dict[str, Any]) -> None:
     """Print a summary view of the discovery report."""
     summary = report.get("summary", {})
 
     print("\n=== Discovery Outcomes Summary ===")
     print(f"Total sources processed: {summary.get('total_sources', 0)}")
-    print(
-        "Technical success rate: "
-        f"{summary.get('technical_success_rate', 0)}%"
-    )
-    print(
-        "Content success rate: "
-        f"{summary.get('content_success_rate', 0)}%"
-    )
+    print("Technical success rate: " f"{summary.get('technical_success_rate', 0)}%")
+    print("Content success rate: " f"{summary.get('content_success_rate', 0)}%")
     print(f"New articles found: {summary.get('total_new_articles', 0)}")
     avg_time = summary.get("avg_discovery_time_ms")
     if avg_time is not None:
@@ -105,12 +95,10 @@ def _print_summary_discovery_report(report: Dict[str, Any]) -> None:
             name = source.get("source_name", "Unknown")
             rate = source.get("content_success_rate", 0)
             articles = source.get("total_new_articles", 0)
-            print(
-                f"  {name}: {rate}% success, {articles} articles"
-            )
+            print(f"  {name}: {rate}% success, {articles} articles")
 
 
-def _print_detailed_discovery_report(report: Dict[str, Any]) -> None:
+def _print_detailed_discovery_report(report: dict[str, Any]) -> None:
     """Print a detailed view of the discovery report."""
     _print_summary_discovery_report(report)
 

@@ -13,6 +13,7 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from sqlalchemy import text
+
 from src.models.database import DatabaseManager
 
 # Configure logging
@@ -33,7 +34,7 @@ def fix_wire_field_format(dry_run: bool = True) -> None:
                  updates
     """
     db = DatabaseManager()
-    
+
     wire_service_patterns = {
         'The Associated Press': [
             'associated press', 'the associated press', 'ap'
@@ -42,7 +43,7 @@ def fix_wire_field_format(dry_run: bool = True) -> None:
         'Hearst': ['hearst', 'hearst stations inc'],
         'ABC News': ['abc', 'abc news'],
     }
-    
+
     try:
         with db.engine.begin() as conn:
             # Find articles with wire fields stored as JSON arrays
@@ -50,16 +51,16 @@ def fix_wire_field_format(dry_run: bool = True) -> None:
                 'SELECT id, author, wire, title FROM articles '
                 'WHERE wire LIKE "[%]"'
             ))
-            
+
             anomalous_entries = result.fetchall()
-            
+
             logger.info(
                 f"Found {len(anomalous_entries)} articles with wire field "
                 "stored as JSON array"
             )
-            
+
             fixes_made = 0
-            
+
             for article_id, author_field, wire_field, title in (
                     anomalous_entries):
                 try:
@@ -70,14 +71,14 @@ def fix_wire_field_format(dry_run: bool = True) -> None:
                         wire_string = wire_array[0] if wire_array else None
                     else:
                         wire_string = wire_field
-                    
+
                     # Parse author field
                     if (author_field and author_field.startswith('[') and
                             author_field.endswith(']')):
                         authors = json.loads(author_field)
                     else:
                         authors = [author_field] if author_field else []
-                    
+
                     # Find wire service patterns to remove from authors
                     wire_patterns_to_remove = set()
                     if wire_string:
@@ -92,23 +93,23 @@ def fix_wire_field_format(dry_run: bool = True) -> None:
                                 wire_patterns_to_remove.add(
                                     canonical_name.lower()
                                 )
-                    
+
                     # Filter authors
                     original_authors = authors.copy()
                     filtered_authors = []
-                    
+
                     for author in authors:
                         author_normalized = author.lower().strip()
                         if author_normalized not in wire_patterns_to_remove:
                             filtered_authors.append(author)
-                    
+
                     logger.info(f"Article {article_id[:8]}...")
                     logger.info(f"  Title: {title[:50]}...")
                     logger.info(f"  Wire (array): {wire_field}")
                     logger.info(f"  Wire (string): {wire_string}")
                     logger.info(f"  Original authors: {original_authors}")
                     logger.info(f"  Filtered authors: {filtered_authors}")
-                    
+
                     if not dry_run:
                         # Update both wire and author fields
                         new_author_json = json.dumps(filtered_authors)
@@ -120,9 +121,9 @@ def fix_wire_field_format(dry_run: bool = True) -> None:
                             "new_author": new_author_json,
                             "article_id": article_id
                         })
-                    
+
                     fixes_made += 1
-                
+
                 except json.JSONDecodeError as e:
                     logger.warning(
                         f"Could not parse fields for article {article_id}: {e}"
@@ -131,7 +132,7 @@ def fix_wire_field_format(dry_run: bool = True) -> None:
                 except Exception as e:
                     logger.error(f"Error processing article {article_id}: {e}")
                     continue
-            
+
             if dry_run:
                 logger.info(
                     f"\nDRY RUN SUMMARY: {fixes_made} articles would be fixed"
@@ -139,7 +140,7 @@ def fix_wire_field_format(dry_run: bool = True) -> None:
                 logger.info("Run with --execute to apply changes")
             else:
                 logger.info(f"\nFix complete: {fixes_made} articles updated")
-                
+
                 # Show final wire service distribution
                 result = conn.execute(text(
                     'SELECT wire, COUNT(*) as count FROM articles '
@@ -147,11 +148,11 @@ def fix_wire_field_format(dry_run: bool = True) -> None:
                     'GROUP BY wire '
                     'ORDER BY count DESC'
                 ))
-                
+
                 logger.info("\nFinal wire service distribution:")
                 for wire, count in result.fetchall():
                     logger.info(f"  {wire}: {count} articles")
-                    
+
     except Exception as e:
         logger.error(f"Error during fix: {e}")
         raise
@@ -159,7 +160,7 @@ def fix_wire_field_format(dry_run: bool = True) -> None:
 
 if __name__ == "__main__":
     import argparse
-    
+
     parser = argparse.ArgumentParser(
         description="Fix wire field format issues"
     )
@@ -168,8 +169,8 @@ if __name__ == "__main__":
         action="store_true",
         help="Execute the fixes (default is dry run)"
     )
-    
+
     args = parser.parse_args()
-    
+
     # Run fixes
     fix_wire_field_format(dry_run=not args.execute)

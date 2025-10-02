@@ -18,29 +18,26 @@ transient errors.
 """
 
 import argparse
-import time
-import random
 import json
 import logging
-from typing import Dict, List, Optional
+import random
 import sys
-from pathlib import Path
+import time
 from datetime import datetime, timedelta
-from math import radians, cos, sin, asin, sqrt
+from math import asin, cos, radians, sin, sqrt
+from pathlib import Path
 
 import requests  # type: ignore
 from sqlalchemy import (  # type: ignore
-    create_engine,
-    select,
     MetaData,
     Table,
+    create_engine,
     insert,
-    update,
+    select,
     text,
+    update,
 )
-
 from sqlalchemy.orm import sessionmaker  # type: ignore
-
 
 # Make sure `src` package is importable when running as a script
 repo_root = Path(__file__).resolve().parents[1]
@@ -49,41 +46,41 @@ sys.path.insert(0, str(repo_root))
 
 class GazetteerTelemetry:
     """Telemetry tracking for gazetteer population process."""
-    
-    def __init__(self, log_file: Optional[str] = None, enable_console: bool = True):
+
+    def __init__(self, log_file: str | None = None, enable_console: bool = True):
         self.log_file = log_file or "gazetteer_telemetry.log"
         self.enable_console = enable_console
         self.setup_logging()
-        
+
     def setup_logging(self):
         """Setup telemetry logging."""
         self.logger = logging.getLogger('gazetteer_telemetry')
         self.logger.setLevel(logging.INFO)
-        
+
         # Remove existing handlers to avoid duplicates
         for handler in self.logger.handlers[:]:
             self.logger.removeHandler(handler)
-            
+
         # File handler for telemetry
         file_handler = logging.FileHandler(self.log_file)
         file_handler.setLevel(logging.INFO)
-        
+
         # JSON formatter for structured telemetry
         formatter = logging.Formatter('%(message)s')
         file_handler.setFormatter(formatter)
-        
+
         self.logger.addHandler(file_handler)
-        
+
         # Console handler for development/testing (optional)
         if self.enable_console:
             console_handler = logging.StreamHandler()
             console_handler.setLevel(logging.INFO)
             console_handler.setFormatter(formatter)
             self.logger.addHandler(console_handler)
-        
+
         # Allow propagation for pytest caplog to work
         self.logger.propagate = True
-        
+
     def log_enrichment_attempt(self, source_id: str, source_name: str,
                                city: str, county: str, state: str):
         """Log the start of an enrichment attempt."""
@@ -102,9 +99,9 @@ class GazetteerTelemetry:
 
     def log_geocoding_result(self, source_id: str, method: str,
                              address_used: str, success: bool,
-                             lat: Optional[float] = None,
-                             lon: Optional[float] = None,
-                             error: Optional[str] = None):
+                             lat: float | None = None,
+                             lon: float | None = None,
+                             error: str | None = None):
         """Log geocoding attempt results."""
         telemetry = {
             "timestamp": datetime.utcnow().isoformat(),
@@ -126,7 +123,7 @@ class GazetteerTelemetry:
 
     def log_osm_query_result(self, source_id: str,
                              total_elements: int,
-                             categories_data: Dict[str, int],
+                             categories_data: dict[str, int],
                              query_groups_used: int,
                              radius_miles: int):
         """Log OSM query results."""
@@ -145,10 +142,10 @@ class GazetteerTelemetry:
 
     def log_enrichment_result(self, source_id: str, success: bool,
                               total_inserted: int = 0,
-                              categories_inserted: Optional[Dict[str, int]]
+                              categories_inserted: dict[str, int] | None
                               = None,
-                              failure_reason: Optional[str] = None,
-                              processing_time_seconds: Optional[float] = None):
+                              failure_reason: str | None = None,
+                              processing_time_seconds: float | None = None):
         """Log final enrichment results."""
         telemetry = {
             "timestamp": datetime.utcnow().isoformat(),
@@ -169,7 +166,7 @@ class GazetteerTelemetry:
 telemetry = GazetteerTelemetry()
 
 
-def geocode_address_nominatim(address: str) -> Optional[Dict[str, float]]:
+def geocode_address_nominatim(address: str) -> dict[str, float] | None:
     """Geocode an address string with Nominatim (OpenStreetMap).
 
     Returns a dict with 'lat' and 'lon' or None on failure.
@@ -196,7 +193,7 @@ def geocode_address_nominatim(address: str) -> Optional[Dict[str, float]]:
 from src.models import Dataset, GeocodeCache  # noqa: E402
 
 
-def zippopotamus_zip_lookup(zip5: str) -> Optional[Dict[str, float]]:
+def zippopotamus_zip_lookup(zip5: str) -> dict[str, float] | None:
     try:
         r = requests.get(f"http://api.zippopotam.us/us/{zip5}", timeout=6)
         if r.status_code == 200:
@@ -408,17 +405,17 @@ def _process_single_source_osm(session, src, dataset_id, radius_miles,
     start_time = time.time()
     source_id = src.get("id")
     host_or_name = src.get("canonical_name") or src.get("host")
-    
+
     # Extract location data for telemetry
     city = src.get("city", "")
     county = src.get("county", "")
     state = src.get("metadata", {}).get("state", "MO") if src.get("metadata") else "MO"
-    
+
     # Log enrichment attempt
     telemetry.log_enrichment_attempt(
         source_id, host_or_name, str(city), str(county), str(state)
     )
-    
+
     try:
         print(f"    Processing source: {host_or_name} ({source_id})")
 
@@ -622,13 +619,13 @@ def _process_single_source_osm(session, src, dataset_id, radius_miles,
             county = src.get("county")
             city_str = str(city) if city is not None else ""
             county_str = str(county) if county is not None else ""
-            
+
             if (city_str and city_str.strip() and
                     city_str.lower() not in ["nan", "n/a", ""]):
-                
+
                 # Build city-based address
                 city_parts = [city_str.strip()]
-                
+
                 # Add county if available
                 if (county_str and county_str.strip() and
                         county_str.lower() not in ["nan", "n/a", ""]):
@@ -636,13 +633,13 @@ def _process_single_source_osm(session, src, dataset_id, radius_miles,
                     if not county_name.lower().endswith("county"):
                         county_name += " County"
                     city_parts.append(county_name)
-                
+
                 # Add state
                 city_parts.append(state)
-                
+
                 city_addr = ", ".join(city_parts)
                 print(f"      Trying city-based geocoding: {city_addr}")
-                
+
                 # Try cached geocode first
                 grow = get_cached_geocode(session, "nominatim", city_addr)
                 if (grow and getattr(grow, "status", None) == "ready"
@@ -861,7 +858,7 @@ def _process_single_source_osm(session, src, dataset_id, radius_miles,
         # Final telemetry and result reporting
         end_time = time.time()
         processing_time = end_time - start_time
-        
+
         # (even if 0 items were inserted due to existing data)
         if total_inserted > 0:
             telemetry.log_enrichment_result(
@@ -908,7 +905,7 @@ def _process_single_source_osm(session, src, dataset_id, radius_miles,
     except Exception as e:
         end_time = time.time()
         processing_time = end_time - start_time
-        
+
         telemetry.log_enrichment_result(
             source_id=source_id,
             success=False,
@@ -939,8 +936,8 @@ def haversine_miles(lat1: float, lon1: float, lat2: float, lon2: float) -> float
 
 
 def query_overpass(
-    lat: float, lon: float, radius_m: int, filters: List[str]
-) -> List[Dict]:
+    lat: float, lon: float, radius_m: int, filters: list[str]
+) -> list[dict]:
     """Run an Overpass QL query to fetch nodes/ways matching filters.
 
     Returns list of elements (dicts) each with tags and center coordinates.
@@ -975,8 +972,8 @@ def query_overpass(
 
 
 def query_overpass_grouped_categories(
-    lat: float, lon: float, radius_m: int, category_map: Dict[str, List[str]]
-) -> Dict[str, List[Dict]]:
+    lat: float, lon: float, radius_m: int, category_map: dict[str, list[str]]
+) -> dict[str, list[dict]]:
     """Run 3-4 Overpass queries for logical category groups.
 
     Much more efficient than 11 individual calls, avoids complexity limits.
@@ -1065,8 +1062,8 @@ def query_overpass_grouped_categories(
 
 
 def _fallback_to_individual_queries(
-    lat: float, lon: float, radius_m: int, category_map: Dict[str, List[str]]
-) -> Dict[str, List[Dict]]:
+    lat: float, lon: float, radius_m: int, category_map: dict[str, list[str]]
+) -> dict[str, list[dict]]:
     """Fallback to individual category queries if grouped queries fail."""
     print("    Using individual queries as fallback...")
     results = {}
@@ -1077,8 +1074,8 @@ def _fallback_to_individual_queries(
 
 
 def query_overpass_all_categories(
-    lat: float, lon: float, radius_m: int, category_map: Dict[str, List[str]]
-) -> Dict[str, List[Dict]]:
+    lat: float, lon: float, radius_m: int, category_map: dict[str, list[str]]
+) -> dict[str, list[dict]]:
     """Run a single Overpass QL query to fetch all categories at once.
 
     Returns dict mapping category names to lists of elements.
@@ -1190,10 +1187,10 @@ def set_cached_geocode(
     session,
     provider: str,
     input_str: str,
-    lat: Optional[float],
-    lon: Optional[float],
-    precision: Optional[str],
-    raw_response: Optional[dict],
+    lat: float | None,
+    lon: float | None,
+    precision: str | None,
+    raw_response: dict | None,
     success: bool = True,
     ttl_days: int = 365,
 ):
@@ -1308,11 +1305,11 @@ def get_cached_geocode(session, provider: str, input_str: str, wait_timeout: int
 
 def main(
     database_url: str,
-    dataset_slug: Optional[str] = None,
-    address: Optional[str] = None,
-    radius_miles: Optional[float] = None,
+    dataset_slug: str | None = None,
+    address: str | None = None,
+    radius_miles: float | None = None,
     dry_run: bool = False,
-    publisher: Optional[str] = None,
+    publisher: str | None = None,
 ):
     engine = create_engine(database_url)
     Session = sessionmaker(bind=engine)

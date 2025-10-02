@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import logging
-from typing import List, Optional, Sequence
+from collections.abc import Sequence
 
 from src.models.database import DatabaseManager
 
 from ...services.llm import (
-    ArticleLLMResult,
     ArticleLLMPipeline,
+    ArticleLLMResult,
     LLMOrchestrator,
     ProviderRegistry,
     VectorStoreFactory,
@@ -88,18 +88,12 @@ def _handle_llm_status(args) -> int:
 
     print("\n=== LLM Provider Configuration ===")
     print("Provider order: " + ", ".join(settings.provider_names()))
-    print(
-        "OpenAI API key configured? "
-        + ("yes" if settings.openai_api_key else "no")
-    )
+    print("OpenAI API key configured? " + ("yes" if settings.openai_api_key else "no"))
     print(
         "Anthropic API key configured? "
         + ("yes" if settings.anthropic_api_key else "no")
     )
-    print(
-        "Google API key configured? "
-        + ("yes" if settings.google_api_key else "no")
-    )
+    print("Google API key configured? " + ("yes" if settings.google_api_key else "no"))
     if settings.vector_store and settings.vector_store.is_enabled():
         print("Vector store provider: " + settings.vector_store.provider)
     else:
@@ -144,11 +138,11 @@ def _handle_llm_run(args) -> int:
         db.close()
 
 
-def _normalize_statuses(raw: Optional[Sequence[str]]) -> Optional[List[str]]:
+def _normalize_statuses(raw: Sequence[str] | None) -> list[str] | None:
     if not raw:
         return ["cleaned", "local"]
 
-    statuses: List[str] = []
+    statuses: list[str] = []
     for status in raw:
         if not status:
             continue
@@ -195,7 +189,5 @@ def _render_run_summary(
         if sample.content:
             snippet = sample.content[:300]
             print(
-                "Summary sample:\n"
-                + snippet
-                + ("..." if len(snippet) == 300 else "")
+                "Summary sample:\n" + snippet + ("..." if len(snippet) == 300 else "")
             )

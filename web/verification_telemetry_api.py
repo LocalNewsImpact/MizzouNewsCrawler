@@ -5,10 +5,10 @@ Provides human review interface for StorySniffer
 article/not-article classifications.
 """
 
-from datetime import datetime
-from typing import List, Optional
-from pydantic import BaseModel
 import sqlite3
+from datetime import datetime
+
+from pydantic import BaseModel
 
 # Use absolute path for database when running from web directory
 DATABASE_URL = "sqlite:///../data/mizzou.db"
@@ -16,58 +16,60 @@ DATABASE_URL = "sqlite:///../data/mizzou.db"
 
 class URLVerificationItem(BaseModel):
     """Single URL verification result for human review."""
+
     verification_id: str
     url: str
-    storysniffer_result: Optional[bool]
-    verification_confidence: Optional[float]
-    article_headline: Optional[str]
-    article_excerpt: Optional[str]
-    verification_time_ms: Optional[float]
+    storysniffer_result: bool | None
+    verification_confidence: float | None
+    article_headline: str | None
+    article_excerpt: str | None
+    verification_time_ms: float | None
     verified_at: datetime
-    source_name: Optional[str]
+    source_name: str | None
 
     # Human feedback fields (initially null)
-    human_label: Optional[str] = None  # "correct", "incorrect"
-    human_notes: Optional[str] = None
-    reviewed_by: Optional[str] = None
-    reviewed_at: Optional[datetime] = None
+    human_label: str | None = None  # "correct", "incorrect"
+    human_notes: str | None = None
+    reviewed_by: str | None = None
+    reviewed_at: datetime | None = None
 
 
 class VerificationFeedback(BaseModel):
     """Human feedback for a URL verification result."""
+
     verification_id: str
     human_label: str  # "correct", "incorrect"
-    human_notes: Optional[str] = None
+    human_notes: str | None = None
     reviewed_by: str
 
 
 class VerificationTelemetryStats(BaseModel):
     """Summary statistics for verification telemetry."""
+
     total_verifications: int
     pending_review: int
     reviewed_correct: int
     reviewed_incorrect: int
-    storysniffer_accuracy: Optional[float]
-    avg_verification_time_ms: Optional[float]
+    storysniffer_accuracy: float | None
+    avg_verification_time_ms: float | None
     article_rate: float
     sources_represented: int
 
 
 def get_db_connection():
     """Get database connection for verification telemetry data."""
-    db_path = DATABASE_URL.replace('sqlite:///', '')
+    db_path = DATABASE_URL.replace("sqlite:///", "")
     return sqlite3.connect(db_path)
 
 
-def get_pending_verification_reviews(
-    limit: int = 50
-) -> List[URLVerificationItem]:
+def get_pending_verification_reviews(limit: int = 50) -> list[URLVerificationItem]:
     """Get URL verifications that need human review."""
     conn = get_db_connection()
     cursor = conn.cursor()
 
     # Get items without human feedback, ordered by verification time
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT
             v.id, v.url, v.storysniffer_result,
             v.verification_confidence,
@@ -82,7 +84,9 @@ def get_pending_verification_reviews(
         AND v.storysniffer_result IS NOT NULL
         ORDER BY v.verified_at DESC
         LIMIT ?
-    """, (limit,))
+    """,
+        (limit,),
+    )
 
     items = []
     for row in cursor.fetchall():
@@ -94,15 +98,12 @@ def get_pending_verification_reviews(
             article_headline=row[4],
             article_excerpt=row[5],
             verification_time_ms=row[6],
-            verified_at=(
-                datetime.fromisoformat(row[7])
-                if row[7] else datetime.now()
-            ),
+            verified_at=(datetime.fromisoformat(row[7]) if row[7] else datetime.now()),
             human_label=row[8],
             human_notes=row[9],
             reviewed_by=row[10],
             reviewed_at=datetime.fromisoformat(row[11]) if row[11] else None,
-            source_name=row[12]
+            source_name=row[12],
         )
         items.append(item)
 
@@ -116,18 +117,21 @@ def submit_verification_feedback(feedback: VerificationFeedback) -> bool:
     cursor = conn.cursor()
 
     try:
-        cursor.execute("""
+        cursor.execute(
+            """
             UPDATE url_verifications
             SET human_label = ?, human_notes = ?,
                 reviewed_by = ?, reviewed_at = ?
             WHERE id = ?
-        """, (
-            feedback.human_label,
-            feedback.human_notes,
-            feedback.reviewed_by,
-            datetime.now().isoformat(),
-            feedback.verification_id
-        ))
+        """,
+            (
+                feedback.human_label,
+                feedback.human_notes,
+                feedback.reviewed_by,
+                datetime.now().isoformat(),
+                feedback.verification_id,
+            ),
+        )
 
         conn.commit()
         success = cursor.rowcount > 0
@@ -147,7 +151,8 @@ def get_verification_telemetry_stats() -> VerificationTelemetryStats:
     cursor = conn.cursor()
 
     # Get overall counts and accuracy
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT
             COUNT(*) as total,
             COUNT(CASE WHEN human_label IS NULL THEN 1 END) as pending,
@@ -159,12 +164,14 @@ def get_verification_telemetry_stats() -> VerificationTelemetryStats:
                 / COUNT(*) as article_rate
         FROM url_verifications
         WHERE storysniffer_result IS NOT NULL
-    """)
+    """
+    )
 
     row = cursor.fetchone()
 
     # Calculate StorySniffer accuracy based on human feedback
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT
             COUNT(CASE WHEN
                 (storysniffer_result = 1 AND human_label = 'correct') OR
@@ -172,17 +179,20 @@ def get_verification_telemetry_stats() -> VerificationTelemetryStats:
                 THEN 1 END) * 1.0 / COUNT(*) as accuracy
         FROM url_verifications
         WHERE human_label IN ('correct', 'incorrect')
-    """)
+    """
+    )
 
     accuracy_row = cursor.fetchone()
 
     # Get source count
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT COUNT(DISTINCT cl.source_name) as sources
         FROM url_verifications v
         LEFT JOIN candidate_links cl ON v.candidate_link_id = cl.id
         WHERE v.storysniffer_result IS NOT NULL
-    """)
+    """
+    )
 
     source_row = cursor.fetchone()
 
@@ -194,27 +204,22 @@ def get_verification_telemetry_stats() -> VerificationTelemetryStats:
         storysniffer_accuracy=(
             accuracy_row[0] if accuracy_row[0] is not None else None
         ),
-        avg_verification_time_ms=(
-            round(row[4], 2) if row[4] else None
-        ),
-        article_rate=(
-            round(row[5], 3) if row[5] else 0.0
-        ),
-        sources_represented=source_row[0] or 0
+        avg_verification_time_ms=(round(row[4], 2) if row[4] else None),
+        article_rate=(round(row[5], 3) if row[5] else 0.0),
+        sources_represented=source_row[0] or 0,
     )
 
     conn.close()
     return stats
 
 
-def get_labeled_verification_training_data(
-    min_confidence: float = 0.0
-) -> List[dict]:
+def get_labeled_verification_training_data(min_confidence: float = 0.0) -> list[dict]:
     """Export labeled verification data for ML training."""
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT
             v.url, v.storysniffer_result,
             v.verification_confidence,
@@ -235,24 +240,34 @@ def get_labeled_verification_training_data(
         AND v.storysniffer_result IS NOT NULL
         AND COALESCE(v.verification_confidence, 0) >= ?
         ORDER BY v.verified_at DESC
-    """, (min_confidence,))
+    """,
+        (min_confidence,),
+    )
 
     columns = [
-        'url', 'storysniffer_result', 'verification_confidence',
-        'verification_time_ms', 'article_headline', 'article_excerpt',
-        'human_label', 'source_name', 'url_length', 'has_deep_path',
-        'is_file_url', 'is_event_url'
+        "url",
+        "storysniffer_result",
+        "verification_confidence",
+        "verification_time_ms",
+        "article_headline",
+        "article_excerpt",
+        "human_label",
+        "source_name",
+        "url_length",
+        "has_deep_path",
+        "is_file_url",
+        "is_event_url",
     ]
 
     training_data = []
     for row in cursor.fetchall():
-        item = dict(zip(columns, row))
+        item = dict(zip(columns, row, strict=False))
         # Add engineered features
         # Subtract protocol and domain
-        item['url_segments'] = len(item['url'].split('/')) - 3
-        item['has_headline'] = 1 if item['article_headline'] else 0
-        item['headline_length'] = len(item['article_headline'] or '')
-        item['excerpt_length'] = len(item['article_excerpt'] or '')
+        item["url_segments"] = len(item["url"].split("/")) - 3
+        item["has_headline"] = 1 if item["article_headline"] else 0
+        item["headline_length"] = len(item["article_headline"] or "")
+        item["excerpt_length"] = len(item["article_excerpt"] or "")
         training_data.append(item)
 
     conn.close()
@@ -267,11 +282,14 @@ def enhance_verification_with_content(
     cursor = conn.cursor()
 
     try:
-        cursor.execute("""
+        cursor.execute(
+            """
             UPDATE url_verifications
             SET article_headline = ?, article_excerpt = ?
             WHERE id = ?
-        """, (headline, excerpt, verification_id))
+        """,
+            (headline, excerpt, verification_id),
+        )
 
         conn.commit()
         success = cursor.rowcount > 0

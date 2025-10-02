@@ -16,7 +16,7 @@ __all__ = [
 ]
 
 
-_EXPORTS: Dict[str, Tuple[str, str]] = {
+_EXPORTS: dict[str, tuple[str, str]] = {
     "create_sqlite_db": ("tests.helpers.sqlite", "create_sqlite_db"),
     "sqlite_builder": ("tests.helpers.sqlite", "sqlite_builder"),
     "build_filesystem": ("tests.helpers.filesystem", "build_filesystem"),

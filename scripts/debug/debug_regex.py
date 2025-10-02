@@ -10,7 +10,7 @@ patterns = [
     r'^written\s+by\s+(.+)$',
     r'^story\s+by\s+(.+)$',
     r'^report\s+by\s+(.+)$',
-    
+
     # "Special to" patterns (extract name before "Special")
     r'^(.+?)\s+special\s+to?t?\s*(the|he)?\s*(.+)$',
     r'^(.+?)\s+special\s+correspondent.*$',
@@ -25,7 +25,7 @@ print(f"Lowercase: {test_byline.lower()}")
 for i, pattern in enumerate(patterns):
     compiled_pattern = re.compile(pattern, re.IGNORECASE)
     match = compiled_pattern.search(test_byline.lower())
-    
+
     print(f"\nPattern {i}: {pattern}")
     if match:
         print(f"  ✅ MATCH: {match.groups()}")

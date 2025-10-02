@@ -3,19 +3,20 @@ Test suite for comprehensive telemetry system including HTTP error tracking.
 Tests the entire telemetry workflow without running production extractions.
 """
 
-import pytest
+import json
 import sqlite3
 import tempfile
-import json
 from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from src.utils.comprehensive_telemetry import (
-    ExtractionMetrics,
-    ComprehensiveExtractionTelemetry
-)
+import pytest
+
 from src.crawler import ContentExtractor
+from src.utils.comprehensive_telemetry import (
+    ComprehensiveExtractionTelemetry,
+    ExtractionMetrics,
+)
 
 
 class TestExtractionMetrics:

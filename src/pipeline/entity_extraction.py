@@ -4,17 +4,11 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 from functools import lru_cache
 from typing import (
-    Dict,
-    Iterable,
-    List,
-    Optional,
-    Sequence,
-    Set,
-    Tuple,
     cast,
 )
 
@@ -30,7 +24,7 @@ from src.pipeline.text_cleaning import decode_rot47_segments
 logger = logging.getLogger(__name__)
 
 
-GAZETTEER_CATEGORY_MAPPINGS: Dict[str, Tuple[str, Optional[str], str]] = {
+GAZETTEER_CATEGORY_MAPPINGS: dict[str, tuple[str, str | None, str]] = {
     "businesses": ("business", None, "ORG"),
     "economic": ("business", None, "ORG"),
     "entertainment": ("institution", "entertainment", "ORG"),
@@ -44,7 +38,7 @@ GAZETTEER_CATEGORY_MAPPINGS: Dict[str, Tuple[str, Optional[str], str]] = {
     "landmarks": ("landmark", None, "FAC"),
 }
 
-DEFAULT_GAZETTEER_MAPPING: Tuple[str, Optional[str], str] = (
+DEFAULT_GAZETTEER_MAPPING: tuple[str, str | None, str] = (
     "institution",
     None,
     "ORG",
@@ -112,26 +106,24 @@ class ArticleEntityExtractor:
     def __init__(self, model_name: str = "en_core_web_sm") -> None:
         self.model_name = model_name
         self.nlp = _load_spacy_model(model_name)
-        self.extractor_version = (
-            f"spacy-{model_name}-{spacy_about.__version__}"
-        )
+        self.extractor_version = f"spacy-{model_name}-{spacy_about.__version__}"
 
     def extract(
         self,
-        text: Optional[str],
+        text: str | None,
         *,
-        gazetteer_rows: Optional[Sequence[Gazetteer]] = None,
-    ) -> List[Dict[str, object]]:
+        gazetteer_rows: Sequence[Gazetteer] | None = None,
+    ) -> list[dict[str, object]]:
         if not text:
             return []
         text = decode_rot47_segments(text) or text
 
-        category_overrides: Dict[str, Tuple[str, Optional[str]]] = {}
-        pattern_entries: List[Tuple[str, str]] = []
+        category_overrides: dict[str, tuple[str, str | None]] = {}
+        pattern_entries: list[tuple[str, str]] = []
         if gazetteer_rows:
-            seen_patterns: Set[Tuple[str, str]] = set()
+            seen_patterns: set[tuple[str, str]] = set()
             for row in gazetteer_rows:
-                name = cast(Optional[str], getattr(row, "name", None))
+                name = cast(str | None, getattr(row, "name", None))
                 if not name:
                     continue
                 category_key = (getattr(row, "category", None) or "").lower()
@@ -152,7 +144,7 @@ class ArticleEntityExtractor:
                     seen_patterns.add(key)
 
                 name_norm = cast(
-                    Optional[str],
+                    str | None,
                     getattr(row, "name_norm", None),
                 )
                 if name_norm and name_norm.strip():
@@ -186,7 +178,7 @@ class ArticleEntityExtractor:
                     len(pattern_entries),
                 )
             else:
-                pattern_payloads: Sequence[Dict[str, object]] = [
+                pattern_payloads: Sequence[dict[str, object]] = [
                     {
                         "label": label,
                         "pattern": [
@@ -198,9 +190,7 @@ class ArticleEntityExtractor:
                     for label, pattern_doc in pattern_docs
                 ]
                 pattern_payloads = [
-                    payload
-                    for payload in pattern_payloads
-                    if payload["pattern"]
+                    payload for payload in pattern_payloads if payload["pattern"]
                 ]
                 sample_label, sample_doc = pattern_docs[0]
                 logger.debug(
@@ -223,9 +213,9 @@ class ArticleEntityExtractor:
                     len(ruler.patterns),
                 )
                 ruler(doc)
-        results: List[Dict[str, object]] = []
-        seen_spans: Set[Tuple[int, int, str]] = set()
-        seen_norms: Set[Tuple[str, str]] = set()
+        results: list[dict[str, object]] = []
+        seen_spans: set[tuple[int, int, str]] = set()
+        seen_norms: set[tuple[str, str]] = set()
 
         for ent in doc.ents:
             entity_text = ent.text.strip()
@@ -274,7 +264,7 @@ class ArticleEntityExtractor:
 
     def _map_to_category(
         self, entity_text: str, entity_label: str
-    ) -> tuple[Optional[str], Optional[str]]:
+    ) -> tuple[str | None, str | None]:
         normalized = _normalize_text(entity_text)
         label = entity_label.upper()
 
@@ -290,13 +280,9 @@ class ArticleEntityExtractor:
         if label == "ORG":
             if any(keyword in normalized for keyword in self.SCHOOL_KEYWORDS):
                 return "school", "education"
-            if any(
-                keyword in normalized for keyword in self.HEALTHCARE_KEYWORDS
-            ):
+            if any(keyword in normalized for keyword in self.HEALTHCARE_KEYWORDS):
                 return "institution", "healthcare"
-            if any(
-                keyword in normalized for keyword in self.BUSINESS_KEYWORDS
-            ):
+            if any(keyword in normalized for keyword in self.BUSINESS_KEYWORDS):
                 return "business", None
             return "institution", None
 
@@ -311,10 +297,10 @@ class ArticleEntityExtractor:
 
 def _score_match(
     norm_entity: str, candidates: Sequence[Gazetteer]
-) -> Optional[GazetteerMatch]:
-    best_match: Optional[GazetteerMatch] = None
+) -> GazetteerMatch | None:
+    best_match: GazetteerMatch | None = None
     for entry in candidates:
-        name_norm = cast(Optional[str], getattr(entry, "name_norm", None))
+        name_norm = cast(str | None, getattr(entry, "name_norm", None))
         entry_norm = name_norm or _normalize_text(cast(str, entry.name or ""))
         if not entry_norm:
             continue
@@ -336,9 +322,9 @@ def _score_match(
 
 def get_gazetteer_rows(
     session: Session,
-    source_id: Optional[str],
-    dataset_id: Optional[str],
-) -> List[Gazetteer]:
+    source_id: str | None,
+    dataset_id: str | None,
+) -> list[Gazetteer]:
     filters = []
     if source_id:
         filters.append(Gazetteer.source_id == source_id)
@@ -358,11 +344,11 @@ def get_gazetteer_rows(
 
 def attach_gazetteer_matches(
     session: Session,
-    source_id: Optional[str],
-    dataset_id: Optional[str],
-    entities: List[Dict[str, object]],
-    gazetteer_rows: Optional[List[Gazetteer]] = None,
-) -> List[Dict[str, object]]:
+    source_id: str | None,
+    dataset_id: str | None,
+    entities: list[dict[str, object]],
+    gazetteer_rows: list[Gazetteer] | None = None,
+) -> list[dict[str, object]]:
     if not entities:
         return entities
 
@@ -371,9 +357,9 @@ def attach_gazetteer_matches(
     if not gazetteer_rows:
         return entities
 
-    index: Dict[str, List[Gazetteer]] = {}
+    index: dict[str, list[Gazetteer]] = {}
     for row in gazetteer_rows:
-        name_norm = cast(Optional[str], getattr(row, "name_norm", None))
+        name_norm = cast(str | None, getattr(row, "name_norm", None))
         key = name_norm or _normalize_text(cast(str, row.name or ""))
         if not key:
             continue
@@ -388,9 +374,7 @@ def attach_gazetteer_matches(
         match = _score_match(norm, direct_matches)
         if not match and index:
             all_candidates: Iterable[Gazetteer] = (
-                candidate
-                for candidates in index.values()
-                for candidate in candidates
+                candidate for candidates in index.values() for candidate in candidates
             )
             match = _score_match(norm, list(all_candidates))
         if match:

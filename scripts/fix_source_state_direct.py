@@ -7,10 +7,10 @@ causing geocoding failures. It reads the CSV and updates the metadata
 for existing sources using direct SQL updates.
 """
 
+import json
 import logging
 import sys
 from urllib.parse import urlparse
-import json
 
 import pandas as pd
 from sqlalchemy import create_engine, text

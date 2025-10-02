@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 import pandas as pd
 
@@ -18,7 +17,7 @@ def write_report_csv(
     index: bool = False,
     mkdirs: bool = True,
     logger=None,
-    log_message: Optional[str] = "Wrote report to %s",
+    log_message: str | None = "Wrote report to %s",
 ) -> Path:
     """Persist a report DataFrame to CSV using standard project defaults.
 

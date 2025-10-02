@@ -28,9 +28,9 @@ import json
 import re
 import sys
 import uuid
+from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
-from typing import List, Sequence, Tuple
 from urllib.parse import urlparse
 
 import pandas as pd
@@ -49,7 +49,7 @@ from src.utils.url_utils import normalize_url  # noqa: E402
 ALLOWED_STATUSES = {"discovered", "article", "not_article"}
 
 
-def _read_urls(path: Path, column: str | None) -> List[str]:
+def _read_urls(path: Path, column: str | None) -> list[str]:
     """Load URLs from a text/CSV file.
 
     Args:
@@ -150,7 +150,7 @@ def _ensure_dataset(
     dataset_label: str | None,
     input_path: Path,
     discovered_by: str,
-) -> Tuple[str, bool, str]:
+) -> tuple[str, bool, str]:
     """Look up or create a Dataset for this manual enqueue batch.
 
     Returns a tuple of (dataset_id, created_flag, dataset_slug).
@@ -265,8 +265,8 @@ def enqueue_urls(
         )
 
     summary = (
-        "Inserted {inserted} new candidate links (out of {total} prepared)."
-    ).format(inserted=inserted, total=len(df))
+        f"Inserted {inserted} new candidate links (out of {len(df)} prepared)."
+    )
     print(summary)
     print(
         "Dataset {dataset_id} ({slug}) {action}.".format(

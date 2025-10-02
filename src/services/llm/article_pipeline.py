@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable, Sequence
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, cast
+from typing import Any, cast
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -34,9 +35,9 @@ DEFAULT_PROMPT_TEMPLATE = (
 class ArticleLLMResult:
     article_id: str
     success: bool
-    provider: Optional[str]
-    content: Optional[str]
-    failures: List[dict]
+    provider: str | None
+    content: str | None
+    failures: list[dict]
 
 
 class ArticleLLMPipeline:
@@ -47,7 +48,7 @@ class ArticleLLMPipeline:
         session: Session,
         orchestrator: LLMOrchestrator,
         *,
-        prompt_template: Optional[str] = None,
+        prompt_template: str | None = None,
     ) -> None:
         self._session = session
         self._orchestrator = orchestrator
@@ -56,12 +57,12 @@ class ArticleLLMPipeline:
     def run(
         self,
         *,
-        statuses: Optional[Sequence[str]] = None,
-        limit: Optional[int] = None,
+        statuses: Sequence[str] | None = None,
+        limit: int | None = None,
         dry_run: bool = False,
-    ) -> List[ArticleLLMResult]:
+    ) -> list[ArticleLLMResult]:
         articles = list(self._iter_articles(statuses, limit))
-        results: List[ArticleLLMResult] = []
+        results: list[ArticleLLMResult] = []
 
         for article in articles:
             prompt = self._render_prompt(article)
@@ -77,10 +78,7 @@ class ArticleLLMPipeline:
                 success=orchestration.succeeded,
                 provider=orchestration.provider,
                 content=orchestration.content,
-                failures=[
-                    asdict(failure)
-                    for failure in orchestration.failures
-                ],
+                failures=[asdict(failure) for failure in orchestration.failures],
             )
             results.append(result)
 
@@ -95,8 +93,8 @@ class ArticleLLMPipeline:
 
     def _iter_articles(
         self,
-        statuses: Optional[Sequence[str]],
-        limit: Optional[int],
+        statuses: Sequence[str] | None,
+        limit: int | None,
     ) -> Iterable[Article]:
         stmt = select(Article).order_by(Article.created_at.desc())
         if statuses:
@@ -133,19 +131,16 @@ class ArticleLLMPipeline:
         orchestration: OrchestrationResult,
     ) -> None:
         meta = _coerce_meta(article.meta)
-        llm_meta = cast(Dict[str, Any], meta.setdefault("llm", {}))
+        llm_meta = cast(dict[str, Any], meta.setdefault("llm", {}))
         llm_meta.update(
             {
                 "summary": orchestration.content,
                 "provider": orchestration.provider,
                 "timestamp": datetime.utcnow().isoformat(),
-                "failures": [
-                    asdict(failure)
-                    for failure in orchestration.failures
-                ],
+                "failures": [asdict(failure) for failure in orchestration.failures],
             }
         )
-        setattr(article, "meta", meta)
+        article.meta = meta
 
     def _persist_failure(
         self,
@@ -153,22 +148,19 @@ class ArticleLLMPipeline:
         orchestration: OrchestrationResult,
     ) -> None:
         meta = _coerce_meta(article.meta)
-        llm_meta = cast(Dict[str, Any], meta.setdefault("llm", {}))
+        llm_meta = cast(dict[str, Any], meta.setdefault("llm", {}))
         llm_meta.update(
             {
                 "summary": None,
                 "provider": None,
                 "timestamp": datetime.utcnow().isoformat(),
-                "failures": [
-                    asdict(failure)
-                    for failure in orchestration.failures
-                ],
+                "failures": [asdict(failure) for failure in orchestration.failures],
             }
         )
-        setattr(article, "meta", meta)
+        article.meta = meta
 
     @staticmethod
-    def load_prompt_template(path: Optional[str]) -> Optional[str]:
+    def load_prompt_template(path: str | None) -> str | None:
         if not path:
             return None
         file_path = Path(path).expanduser()
@@ -177,7 +169,7 @@ class ArticleLLMPipeline:
         return file_path.read_text(encoding="utf-8")
 
 
-def _coerce_meta(meta: object) -> Dict[str, Any]:
+def _coerce_meta(meta: object) -> dict[str, Any]:
     if isinstance(meta, dict):
         return dict(meta)
     return {}

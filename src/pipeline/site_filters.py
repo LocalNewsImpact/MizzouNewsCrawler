@@ -21,7 +21,6 @@ from __future__ import annotations
 import csv
 import os
 import re
-from typing import Dict, List, Optional
 
 LOOKUPS_DEFAULT = os.path.join(
     os.path.dirname(__file__), "..", "lookups", "site_specs.csv"
@@ -29,15 +28,15 @@ LOOKUPS_DEFAULT = os.path.join(
 
 
 def load_site_specs(
-    csv_path: Optional[str] = None,
-) -> Dict[str, Dict[str, List[str]]]:
+    csv_path: str | None = None,
+) -> dict[str, dict[str, list[str]]]:
     """Load the CSV into a dict keyed by hostname.
 
     Returns a mapping: { host: { 'skip_patterns': [...],
     'force_include_patterns': [...] } }
     """
     path = csv_path or LOOKUPS_DEFAULT
-    specs: Dict[str, Dict[str, List[str]]] = {}
+    specs: dict[str, dict[str, list[str]]] = {}
     # prefer sqlite store when available
     try:
         from web import sqlite_store
@@ -67,8 +66,9 @@ def load_site_specs(
         with open(path, newline="", encoding="utf-8") as fh:
             reader = csv.DictReader(fh)
             for row in reader:
-                host = (row.get("hostname") or row.get("host")
-                        or row.get("name") or "").strip()
+                host = (
+                    row.get("hostname") or row.get("host") or row.get("name") or ""
+                ).strip()
                 if not host:
                     continue
                 skip_raw = row.get("skip_patterns", "") or ""
@@ -88,7 +88,7 @@ def load_site_specs(
 def _match_token(token: str, url: str) -> bool:
     """Return True if token matches the url according to our mini-language."""
     if token.startswith("not-"):
-        subj = token[len("not-"):]
+        subj = token[len("not-") :]
         # treat remaining as plain substring unless it uses special prefixes
         return subj not in url
     if token.startswith("endswith:"):
@@ -104,7 +104,7 @@ def _match_token(token: str, url: str) -> bool:
     return token in url
 
 
-def should_skip(url: str, specs: Dict[str, Dict[str, List[str]]]) -> bool:
+def should_skip(url: str, specs: dict[str, dict[str, list[str]]]) -> bool:
     """Decide whether a URL should be skipped using per-host specs.
 
     Logic:

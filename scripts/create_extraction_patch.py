@@ -8,7 +8,7 @@ from pathlib import Path
 
 def add_extraction_function():
     """Add the extraction outcome recording function."""
-    
+
     # Define the function to add
     function_code = '''
     def record_extraction_outcome(self, operation_id: str, article_id: int, 
@@ -83,10 +83,10 @@ def add_extraction_function():
         except Exception as e:
             self.logger.error(f"Failed to record extraction outcome: {e}")
 '''
-    
+
     # Write the function to a patch file that can be imported
     patch_file = Path(__file__).parent.parent / "src" / "utils" / "extraction_telemetry_patch.py"
-    
+
     with open(patch_file, 'w') as f:
         f.write(f'''"""
 Patch module for extraction telemetry functionality.
@@ -101,7 +101,7 @@ def add_extraction_telemetry_to_class(cls):
     cls.record_extraction_outcome = record_extraction_outcome
     return cls
 ''')
-    
+
     print(f"✓ Created extraction telemetry patch at {patch_file}")
     return 0
 

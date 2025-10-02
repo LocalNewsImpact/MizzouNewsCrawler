@@ -5,10 +5,10 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+
 import pandas as pd
 
 from src.crawler.discovery import NewsDiscovery
-
 
 logger = logging.getLogger(__name__)
 
@@ -43,27 +43,15 @@ def _format_table(sources_df: pd.DataFrame) -> None:
         print(f"URL:  {source.get('url', 'N/A')}")
 
         city_val = source.get("city")
-        if (
-            city_val is not None
-            and pd.notna(city_val)
-            and str(city_val).strip()
-        ):
+        if city_val is not None and pd.notna(city_val) and str(city_val).strip():
             print(f"City: {city_val}")
 
         county_val = source.get("county")
-        if (
-            county_val is not None
-            and pd.notna(county_val)
-            and str(county_val).strip()
-        ):
+        if county_val is not None and pd.notna(county_val) and str(county_val).strip():
             print(f"County: {county_val}")
 
         type_val = source.get("type_classification")
-        if (
-            type_val is not None
-            and pd.notna(type_val)
-            and str(type_val).strip()
-        ):
+        if type_val is not None and pd.notna(type_val) and str(type_val).strip():
             print(f"Type: {type_val}")
 
         print("-" * 60)

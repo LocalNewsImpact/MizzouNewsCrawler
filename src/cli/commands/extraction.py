@@ -2,36 +2,37 @@
 Extraction command module for the modular CLI.
 """
 
+import json
 import logging
 import time
 import uuid
-import json
-from datetime import datetime
 from collections import defaultdict
-from typing import Iterable, Optional, Set, cast
+from collections.abc import Iterable
+from datetime import datetime
+from typing import cast
 
 from sqlalchemy import text
 
+from src.crawler import ContentExtractor
 from src.models import Article, CandidateLink
 from src.models.database import (
     DatabaseManager,
+    _commit_with_retry,
     calculate_content_hash,
     save_article_entities,
-    _commit_with_retry,
-)
-from src.crawler import ContentExtractor
-from src.utils.byline_cleaner import BylineCleaner
-from src.utils.content_cleaner_balanced import BalancedBoundaryContentCleaner
-from src.utils.content_type_detector import ContentTypeDetector
-from src.utils.comprehensive_telemetry import (
-    ComprehensiveExtractionTelemetry,
-    ExtractionMetrics
 )
 from src.pipeline.entity_extraction import (
     ArticleEntityExtractor,
-    get_gazetteer_rows,
     attach_gazetteer_matches,
+    get_gazetteer_rows,
 )
+from src.utils.byline_cleaner import BylineCleaner
+from src.utils.comprehensive_telemetry import (
+    ComprehensiveExtractionTelemetry,
+    ExtractionMetrics,
+)
+from src.utils.content_cleaner_balanced import BalancedBoundaryContentCleaner
+from src.utils.content_type_detector import ContentTypeDetector
 
 logger = logging.getLogger(__name__)
 
@@ -78,9 +79,7 @@ ARTICLE_UPDATE_SQL = text(
     "WHERE id = :id"
 )
 
-ARTICLE_STATUS_UPDATE_SQL = text(
-    "UPDATE articles SET status = :status WHERE id = :id"
-)
+ARTICLE_STATUS_UPDATE_SQL = text("UPDATE articles SET status = :status WHERE id = :id")
 
 
 def _format_cleaned_authors(authors):
@@ -88,11 +87,7 @@ def _format_cleaned_authors(authors):
     if not authors:
         return None
 
-    normalized = [
-        author.strip()
-        for author in authors
-        if author and author.strip()
-    ]
+    normalized = [author.strip() for author in authors if author and author.strip()]
     if not normalized:
         return None
 
@@ -102,26 +97,15 @@ def _format_cleaned_authors(authors):
 def add_extraction_parser(subparsers):
     """Add extraction command parser to CLI."""
     extract_parser = subparsers.add_parser(
-        "extract",
-        help="Extract content from verified articles"
+        "extract", help="Extract content from verified articles"
     )
     extract_parser.add_argument(
-        "--limit",
-        type=int,
-        default=10,
-        help="Articles per batch"
+        "--limit", type=int, default=10, help="Articles per batch"
     )
     extract_parser.add_argument(
-        "--batches",
-        type=int,
-        default=1,
-        help="Number of batches"
+        "--batches", type=int, default=1, help="Number of batches"
     )
-    extract_parser.add_argument(
-        "--source",
-        type=str,
-        help="Limit to a specific source"
-    )
+    extract_parser.add_argument("--source", type=str, help="Limit to a specific source")
 
     extract_parser.set_defaults(func=handle_extraction_command)
 
@@ -160,11 +144,11 @@ def handle_extraction_command(args) -> int:
 
         # Log driver usage stats before cleanup
         driver_stats = extractor.get_driver_stats()
-        if driver_stats['has_persistent_driver']:
+        if driver_stats["has_persistent_driver"]:
             logger.info(
                 "ChromeDriver efficiency: %s reuses, %s creations",
-                driver_stats['driver_reuse_count'],
-                driver_stats['driver_creation_count'],
+                driver_stats["driver_reuse_count"],
+                driver_stats["driver_creation_count"],
             )
 
         return 0
@@ -236,6 +220,7 @@ def _process_batch(
 
             # Extract domain for failure tracking
             from urllib.parse import urlparse
+
             domain = urlparse(url).netloc
 
             # Skip domains that have failed too many times
@@ -289,7 +274,7 @@ def _process_batch(
                             raw_author,
                             return_json=True,
                             source_name=source,
-                            candidate_link_id=str(url_id)
+                            candidate_link_id=str(url_id),
                         )
 
                         # Extract cleaned authors and wire service information
@@ -340,17 +325,13 @@ def _process_batch(
                             detection_payload = {
                                 "status": detection_result.status,
                                 "confidence": detection_result.confidence,
-                                "confidence_score": (
-                                    detection_result.confidence_score
-                                ),
+                                "confidence_score": (detection_result.confidence_score),
                                 "reason": detection_result.reason,
                                 "evidence": detection_result.evidence,
                                 "version": detection_result.detector_version,
                                 "detected_at": datetime.utcnow().isoformat(),
                             }
-                            metadata_value["content_type_detection"] = (
-                                detection_payload
-                            )
+                            metadata_value["content_type_detection"] = detection_payload
 
                     # Update metadata if we added detection info
                     if metadata_value:
@@ -358,8 +339,9 @@ def _process_batch(
 
                     now = datetime.utcnow()
                     content_text = content.get("content", "")
-                    text_hash = (calculate_content_hash(content_text)
-                                 if content_text else None)
+                    text_hash = (
+                        calculate_content_hash(content_text) if content_text else None
+                    )
 
                     metrics.set_content_type_detection(detection_payload)
                     metrics.finalize(content or {})
@@ -376,9 +358,7 @@ def _process_batch(
                             "content": content_text,
                             "text": content_text,  # Same as content
                             "status": article_status,
-                            "metadata": json.dumps(
-                                content.get("metadata", {})
-                            ),
+                            "metadata": json.dumps(content.get("metadata", {})),
                             "wire": wire_service_info,
                             "extracted_at": now.isoformat(),
                             "created_at": now.isoformat(),
@@ -395,9 +375,7 @@ def _process_batch(
                     processed += 1
                 else:
                     # Track failure for domain awareness
-                    domain_failures[domain] = (
-                        domain_failures.get(domain, 0) + 1
-                    )
+                    domain_failures[domain] = domain_failures.get(domain, 0) + 1
 
                     # If domain has failed too many times,
                     # skip it for rest of batch
@@ -438,9 +416,7 @@ def _process_batch(
                     # Cap at max failures once rate limited
                 else:
                     # Track other failures for domain awareness
-                    domain_failures[domain] = (
-                        domain_failures.get(domain, 0) + 1
-                    )
+                    domain_failures[domain] = domain_failures.get(domain, 0) + 1
                     if domain_failures[domain] >= max_failures_per_domain:
                         logger.warning(
                             "Domain %s failed %s times; skipping batch",
@@ -502,9 +478,7 @@ def _process_batch(
 
         if domain_failures:
             failure_summary = {
-                key: value
-                for key, value in domain_failures.items()
-                if value > 0
+                key: value for key, value in domain_failures.items() if value > 0
             }
             if failure_summary:
                 logger.info(
@@ -527,7 +501,7 @@ def _run_post_extraction_cleaning(domains_to_articles):
     cleaner = BalancedBoundaryContentCleaner(enable_telemetry=True)
     db = DatabaseManager()
     session = db.session
-    articles_for_entities: Set[str] = set()
+    articles_for_entities: set[str] = set()
 
     try:
         for domain, article_ids in domains_to_articles.items():
@@ -545,10 +519,7 @@ def _run_post_extraction_cleaning(domains_to_articles):
             for article_id in article_ids:
                 try:
                     row = session.execute(
-                        text(
-                            "SELECT content, status FROM articles "
-                            "WHERE id = :id"
-                        ),
+                        text("SELECT content, status FROM articles " "WHERE id = :id"),
                         {"id": article_id},
                     ).fetchone()
 
@@ -567,9 +538,7 @@ def _run_post_extraction_cleaning(domains_to_articles):
                     )
 
                     wire_detected = metadata.get("wire_detected")
-                    locality_assessment = (
-                        metadata.get("locality_assessment") or {}
-                    )
+                    locality_assessment = metadata.get("locality_assessment") or {}
                     is_local_wire = bool(
                         wire_detected
                         and locality_assessment
@@ -597,9 +566,7 @@ def _run_post_extraction_cleaning(domains_to_articles):
                             if cleaned_content
                             else None
                         )
-                        excerpt = (
-                            cleaned_content[:500] if cleaned_content else None
-                        )
+                        excerpt = cleaned_content[:500] if cleaned_content else None
 
                         session.execute(
                             ARTICLE_UPDATE_SQL,
@@ -700,16 +667,14 @@ def _run_article_entity_extraction(article_ids: Iterable[str]) -> None:
 
             candidate = article.candidate_link
             if candidate:
-                source_id = cast(Optional[str], candidate.source_id)
-                dataset_id = cast(Optional[str], candidate.dataset_id)
+                source_id = cast(str | None, candidate.source_id)
+                dataset_id = cast(str | None, candidate.dataset_id)
             else:
                 source_id = None
                 dataset_id = None
 
             raw_text = article.text or article.content
-            text_value = (
-                raw_text if isinstance(raw_text, str) else None
-            )
+            text_value = raw_text if isinstance(raw_text, str) else None
             gazetteer_rows = get_gazetteer_rows(
                 session,
                 source_id,
@@ -731,7 +696,7 @@ def _run_article_entity_extraction(article_ids: Iterable[str]) -> None:
                 cast(str, article.id),
                 entities,
                 extractor.extractor_version,
-                cast(Optional[str], article.text_hash),
+                cast(str | None, article.text_hash),
             )
     except Exception:
         session.rollback()

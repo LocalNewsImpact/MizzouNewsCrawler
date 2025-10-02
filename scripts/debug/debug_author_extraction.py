@@ -3,26 +3,28 @@
 Debug author extraction for simple names.
 """
 
-import sys
 import os
+import sys
+
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from src.utils.byline_cleaner import BylineCleaner
 
+
 def debug_author_extraction():
     """Debug author extraction."""
-    
+
     print("=== Debug Author Extraction ===\n")
-    
+
     cleaner = BylineCleaner(enable_telemetry=False)
-    
+
     test_cases = [
         "tom reporter",
-        "Tom Reporter", 
+        "Tom Reporter",
         "John Smith",
         "jane doe"
     ]
-    
+
     for test_text in test_cases:
         print(f"Testing: '{test_text}'")
         authors = cleaner._extract_authors(test_text)

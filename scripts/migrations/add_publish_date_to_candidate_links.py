@@ -14,9 +14,9 @@ Notes:
 import argparse
 import json
 import logging
-import time
 import random
 import sqlite3
+import time
 from datetime import datetime
 
 from sqlalchemy import create_engine, text

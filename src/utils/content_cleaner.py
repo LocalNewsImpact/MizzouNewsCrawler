@@ -8,11 +8,10 @@ that appear across multiple articles from the same domain, such as
 subscription prompts, navigation elements, and other boilerplate content.
 """
 
-import re
 import hashlib
 import logging
+import re
 from collections import defaultdict
-from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 from datetime import datetime
 from urllib.parse import urlparse
@@ -20,7 +19,7 @@ from urllib.parse import urlparse
 try:
     from .content_cleaning_ml import (
         ContentCleaningMLFeatureExtractor,
-        MLTrainingExample
+        MLTrainingExample,
     )
 except ImportError:
     # Handle case where ML module is not available
@@ -33,30 +32,32 @@ logger = logging.getLogger(__name__)
 @dataclass
 class BoilerplateMatch:
     """Represents a potential boilerplate text match."""
+
     text_segment: str
     segment_hash: str
     domain: str
     article_count: int
-    article_ids: List[str]
+    article_ids: list[str]
     confidence_score: float
     segment_length: int
-    position_stats: Dict[str, float]  # start, end, middle percentages
+    position_stats: dict[str, float]  # start, end, middle percentages
 
 
 @dataclass
 class ContentCleaningTelemetry:
     """Telemetry data for content cleaning operations."""
+
     operation_id: str
     started_at: datetime
-    finished_at: Optional[datetime]
+    finished_at: datetime | None
     total_articles_checked: int
     domains_processed: int
     boilerplate_patterns_found: int
     articles_modified: int
     total_characters_removed: int
-    decisions: List[Dict]  # Track each removal decision
+    decisions: list[dict]  # Track each removal decision
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert telemetry to dictionary for logging."""
         return {
             "operation_id": self.operation_id,
@@ -67,17 +68,19 @@ class ContentCleaningTelemetry:
             "boilerplate_patterns_found": self.boilerplate_patterns_found,
             "articles_modified": self.articles_modified,
             "total_characters_removed": self.total_characters_removed,
-            "decisions_count": len(
-                self.decisions)}
+            "decisions_count": len(self.decisions),
+        }
 
 
 class ContentCleaner:
     """Identifies and removes repeated boilerplate content from articles."""
 
-    def __init__(self,
-                 min_segment_length: int = 50,
-                 min_occurrence_count: int = 3,
-                 min_confidence_threshold: float = 0.7):
+    def __init__(
+        self,
+        min_segment_length: int = 50,
+        min_occurrence_count: int = 3,
+        min_confidence_threshold: float = 0.7,
+    ):
         """
         Initialize content cleaner.
 
@@ -102,7 +105,7 @@ class ContentCleaner:
             boilerplate_patterns_found=0,
             articles_modified=0,
             total_characters_removed=0,
-            decisions=[]
+            decisions=[],
         )
         logger.info(f"Started content cleaning operation: {operation_id}")
         return self.telemetry
@@ -113,7 +116,8 @@ class ContentCleaner:
             self.telemetry.finished_at = datetime.utcnow()
             logger.info(
                 f"Finished content cleaning operation: "
-                f"{self.telemetry.operation_id}")
+                f"{self.telemetry.operation_id}"
+            )
             logger.info(f"Telemetry: {self.telemetry.to_dict()}")
 
     def extract_domain(self, url: str) -> str:
@@ -124,7 +128,8 @@ class ContentCleaner:
             return "unknown"
 
     def generate_text_segments(
-            self, content: str, min_length: int = None) -> List[Tuple[str, int, int]]:
+        self, content: str, min_length: int = None
+    ) -> list[tuple[str, int, int]]:
         """
         Generate overlapping text segments from content.
 
@@ -137,15 +142,16 @@ class ContentCleaner:
         segments = []
 
         # Split by sentences to get meaningful segments
-        sentences = re.split(r'[.!?]+', content)
+        sentences = re.split(r"[.!?]+", content)
 
         # Create segments of different sizes
         for i in range(len(sentences)):
             for window_size in [1, 2, 3, 4, 5]:  # 1-5 sentence windows
                 if i + window_size <= len(sentences):
-                    segment_sentences = sentences[i:i + window_size]
-                    segment_text = '. '.join(
-                        s.strip() for s in segment_sentences if s.strip())
+                    segment_sentences = sentences[i : i + window_size]
+                    segment_text = ". ".join(
+                        s.strip() for s in segment_sentences if s.strip()
+                    )
 
                     if len(segment_text) >= min_length:
                         # Find position in original content
@@ -160,13 +166,11 @@ class ContentCleaner:
         """Calculate normalized hash for text segment."""
         # Normalize text: lowercase, remove extra whitespace, punctuation
         # normalization
-        normalized = re.sub(r'\s+', ' ', text.lower().strip())
-        normalized = re.sub(r'[^\w\s]', '', normalized)  # Remove punctuation
-        return hashlib.md5(normalized.encode('utf-8')).hexdigest()
+        normalized = re.sub(r"\s+", " ", text.lower().strip())
+        normalized = re.sub(r"[^\w\s]", "", normalized)  # Remove punctuation
+        return hashlib.md5(normalized.encode("utf-8")).hexdigest()
 
-    def analyze_domain_content(
-            self,
-            articles: List[Dict]) -> List[BoilerplateMatch]:
+    def analyze_domain_content(self, articles: list[dict]) -> list[BoilerplateMatch]:
         """
         Analyze articles from a single domain to find repeated content.
 
@@ -179,17 +183,15 @@ class ContentCleaner:
         if len(articles) < self.min_occurrence_count:
             return []
 
-        domain = self.extract_domain(
-            articles[0]['url']) if articles else "unknown"
-        logger.debug(
-            f"Analyzing {len(articles)} articles from domain: {domain}")
+        domain = self.extract_domain(articles[0]["url"]) if articles else "unknown"
+        logger.debug(f"Analyzing {len(articles)} articles from domain: {domain}")
 
         # Track segments across all articles
         # hash -> [(article_id, text, start_pos, end_pos)]
         segment_occurrences = defaultdict(list)
 
         for article in articles:
-            content = article.get('content', '') or ''
+            content = article.get("content", "") or ""
             if not content:
                 continue
 
@@ -198,7 +200,8 @@ class ContentCleaner:
             for segment_text, start_pos, end_pos in segments:
                 segment_hash = self.calculate_segment_hash(segment_text)
                 segment_occurrences[segment_hash].append(
-                    (article['id'], segment_text, start_pos, end_pos, len(content)))
+                    (article["id"], segment_text, start_pos, end_pos, len(content))
+                )
 
         # Identify potential boilerplate
         boilerplate_matches = []
@@ -208,33 +211,47 @@ class ContentCleaner:
                 # Calculate statistics
                 article_ids = [occ[0] for occ in occurrences]
                 text_samples = [occ[1] for occ in occurrences]
-                positions = [(occ[2], occ[3], occ[4])
-                             for occ in occurrences]  # start, end, content_length
+                positions = [
+                    (occ[2], occ[3], occ[4]) for occ in occurrences
+                ]  # start, end, content_length
 
                 # Use the longest version of the text
                 representative_text = max(text_samples, key=len)
 
                 # Calculate position statistics
                 start_percentages = [
-                    start / content_len for start,
-                    end,
-                    content_len in positions if content_len > 0]
+                    start / content_len
+                    for start, end, content_len in positions
+                    if content_len > 0
+                ]
                 end_percentages = [
-                    end / content_len for start,
-                    end,
-                    content_len in positions if content_len > 0]
+                    end / content_len
+                    for start, end, content_len in positions
+                    if content_len > 0
+                ]
 
                 position_stats = {
-                    "avg_start_percentage": sum(start_percentages) /
-                    len(start_percentages) if start_percentages else 0,
-                    "avg_end_percentage": sum(end_percentages) /
-                    len(end_percentages) if end_percentages else 0,
+                    "avg_start_percentage": (
+                        sum(start_percentages) / len(start_percentages)
+                        if start_percentages
+                        else 0
+                    ),
+                    "avg_end_percentage": (
+                        sum(end_percentages) / len(end_percentages)
+                        if end_percentages
+                        else 0
+                    ),
                     "start_std": self._calculate_std(start_percentages),
-                    "end_std": self._calculate_std(end_percentages)}
+                    "end_std": self._calculate_std(end_percentages),
+                }
 
                 # Calculate confidence score
                 confidence = self._calculate_confidence_score(
-                    len(occurrences), len(articles), len(representative_text), position_stats)
+                    len(occurrences),
+                    len(articles),
+                    len(representative_text),
+                    position_stats,
+                )
 
                 match = BoilerplateMatch(
                     text_segment=representative_text,
@@ -244,7 +261,7 @@ class ContentCleaner:
                     article_ids=article_ids,
                     confidence_score=confidence,
                     segment_length=len(representative_text),
-                    position_stats=position_stats
+                    position_stats=position_stats,
                 )
 
                 boilerplate_matches.append(match)
@@ -253,29 +270,29 @@ class ContentCleaner:
                 logger.debug(
                     f"Found potential boilerplate in {domain}: "
                     f"{len(occurrences)} occurrences, confidence="
-                    f"{confidence:.3f}, length={len(representative_text)}")
+                    f"{confidence:.3f}, length={len(representative_text)}"
+                )
 
         # Sort by confidence score (highest first)
-        boilerplate_matches.sort(
-            key=lambda x: x.confidence_score,
-            reverse=True)
+        boilerplate_matches.sort(key=lambda x: x.confidence_score, reverse=True)
 
         return boilerplate_matches
 
-    def _calculate_std(self, values: List[float]) -> float:
+    def _calculate_std(self, values: list[float]) -> float:
         """Calculate standard deviation."""
         if len(values) < 2:
             return 0.0
         mean = sum(values) / len(values)
         variance = sum((x - mean) ** 2 for x in values) / len(values)
-        return variance ** 0.5
+        return variance**0.5
 
     def _calculate_confidence_score(
-            self,
-            occurrences: int,
-            total_articles: int,
-            text_length: int,
-            position_stats: Dict) -> float:
+        self,
+        occurrences: int,
+        total_articles: int,
+        text_length: int,
+        position_stats: dict,
+    ) -> float:
         """
         Calculate confidence score for boilerplate detection.
 
@@ -296,8 +313,14 @@ class ContentCleaner:
 
         # Position consistency factor (boilerplate often appears in consistent
         # positions)
-        position_consistency = 1.0 - \
-            (position_stats.get("start_std", 1.0) + position_stats.get("end_std", 1.0)) / 2
+        position_consistency = (
+            1.0
+            - (
+                position_stats.get("start_std", 1.0)
+                + position_stats.get("end_std", 1.0)
+            )
+            / 2
+        )
         position_consistency = max(0.0, position_consistency)
 
         # Position location factor (content at very beginning or end is more
@@ -313,15 +336,16 @@ class ContentCleaner:
             position_location_factor = 0.8
 
         # Combine factors
-        confidence = (frequency_factor * 0.4 +
-                      length_factor * 0.2 +
-                      position_consistency * 0.2 +
-                      position_location_factor * 0.2)
+        confidence = (
+            frequency_factor * 0.4
+            + length_factor * 0.2
+            + position_consistency * 0.2
+            + position_location_factor * 0.2
+        )
 
         return min(confidence, 1.0)
 
-    def should_remove_segment(
-            self, match: BoilerplateMatch) -> Tuple[bool, str]:
+    def should_remove_segment(self, match: BoilerplateMatch) -> tuple[bool, str]:
         """
         Decide whether a segment should be removed.
 
@@ -332,7 +356,8 @@ class ContentCleaner:
         if match.confidence_score < self.min_confidence_threshold:
             return False, (
                 f"Low confidence: {match.confidence_score:.3f} < "
-                f"{self.min_confidence_threshold}")
+                f"{self.min_confidence_threshold}"
+            )
 
         # Additional safety checks
         if match.segment_length > 2000:
@@ -341,21 +366,36 @@ class ContentCleaner:
         if match.article_count < self.min_occurrence_count:
             return False, (
                 f"Insufficient occurrences: {match.article_count} < "
-                f"{self.min_occurrence_count}")
+                f"{self.min_occurrence_count}"
+            )
 
         # Check for common boilerplate patterns
         text_lower = match.text_segment.lower()
 
         # Positive indicators (more likely to be boilerplate)
         boilerplate_indicators = [
-            "subscribe", "paywall", "premium", "login", "sign up",
-            "advertisement", "sponsored", "copyright", "all rights reserved",
-            "terms of service", "privacy policy", "cookie", "newsletter",
-            "follow us", "social media", "share this", "related articles"
+            "subscribe",
+            "paywall",
+            "premium",
+            "login",
+            "sign up",
+            "advertisement",
+            "sponsored",
+            "copyright",
+            "all rights reserved",
+            "terms of service",
+            "privacy policy",
+            "cookie",
+            "newsletter",
+            "follow us",
+            "social media",
+            "share this",
+            "related articles",
         ]
 
         indicator_count = sum(
-            1 for indicator in boilerplate_indicators if indicator in text_lower)
+            1 for indicator in boilerplate_indicators if indicator in text_lower
+        )
 
         if indicator_count >= 2:
             return True, f"High boilerplate indicators: {indicator_count} matches"
@@ -365,11 +405,7 @@ class ContentCleaner:
 
         return True, f"Passed threshold: confidence={match.confidence_score:.3f}"
 
-    def log_decision(
-            self,
-            match: BoilerplateMatch,
-            should_remove: bool,
-            reason: str):
+    def log_decision(self, match: BoilerplateMatch, should_remove: bool, reason: str):
         """Log a removal decision for telemetry."""
         if self.telemetry:
             decision = {
@@ -381,15 +417,22 @@ class ContentCleaner:
                 "should_remove": should_remove,
                 "reason": reason,
                 "timestamp": datetime.utcnow().isoformat(),
-                "text_preview": match.text_segment[:100] + "..." if len(match.text_segment) > 100 else match.text_segment
+                "text_preview": (
+                    match.text_segment[:100] + "..."
+                    if len(match.text_segment) > 100
+                    else match.text_segment
+                ),
             }
             self.telemetry.decisions.append(decision)
 
-        logger.info(f"Decision for {match.domain} segment (hash={match.segment_hash[:8]}): "
-                    f"{'REMOVE' if should_remove else 'KEEP'} - {reason}")
+        logger.info(
+            f"Decision for {match.domain} segment (hash={match.segment_hash[:8]}): "
+            f"{'REMOVE' if should_remove else 'KEEP'} - {reason}"
+        )
 
-    def extract_ml_features(self, match: BoilerplateMatch,
-                            total_articles_in_domain: int) -> Dict:
+    def extract_ml_features(
+        self, match: BoilerplateMatch, total_articles_in_domain: int
+    ) -> dict:
         """
         Extract features for machine learning model training.
 
@@ -406,49 +449,83 @@ class ContentCleaner:
             "occurrence_count": match.article_count,
             "occurrence_ratio": match.article_count / total_articles_in_domain,
             "domain_prevalence": match.article_count / total_articles_in_domain,
-
             # Text length features
             "segment_length": match.segment_length,
             "log_segment_length": np.log(match.segment_length + 1),
             "length_category": self._categorize_length(match.segment_length),
-
             # Position features
             "avg_start_position": match.position_stats.get("avg_start_percentage", 0),
             "avg_end_position": match.position_stats.get("avg_end_percentage", 0),
-            "position_consistency": 1.0 - (match.position_stats.get("start_std", 1.0) +
-                                           match.position_stats.get("end_std", 1.0)) / 2,
-            "is_at_beginning": match.position_stats.get("avg_start_percentage", 0) < 0.1,
+            "position_consistency": 1.0
+            - (
+                match.position_stats.get("start_std", 1.0)
+                + match.position_stats.get("end_std", 1.0)
+            )
+            / 2,
+            "is_at_beginning": match.position_stats.get("avg_start_percentage", 0)
+            < 0.1,
             "is_at_end": match.position_stats.get("avg_end_percentage", 0) > 0.9,
-
             # Content pattern features
-            "has_subscription_terms": any(term in text for term in [
-                "subscribe", "subscription", "premium", "paywall", "unlock"
-            ]),
-            "has_social_terms": any(term in text for term in [
-                "follow", "like", "share", "twitter", "facebook", "instagram"
-            ]),
-            "has_legal_terms": any(term in text for term in [
-                "copyright", "rights reserved", "terms", "privacy", "policy"
-            ]),
-            "has_advertisement_terms": any(term in text for term in [
-                "advertisement", "sponsored", "ads", "promotion"
-            ]),
-            "has_navigation_terms": any(term in text for term in [
-                "menu", "navigation", "home", "contact", "about"
-            ]),
-
+            "has_subscription_terms": any(
+                term in text
+                for term in [
+                    "subscribe",
+                    "subscription",
+                    "premium",
+                    "paywall",
+                    "unlock",
+                ]
+            ),
+            "has_social_terms": any(
+                term in text
+                for term in [
+                    "follow",
+                    "like",
+                    "share",
+                    "twitter",
+                    "facebook",
+                    "instagram",
+                ]
+            ),
+            "has_legal_terms": any(
+                term in text
+                for term in [
+                    "copyright",
+                    "rights reserved",
+                    "terms",
+                    "privacy",
+                    "policy",
+                ]
+            ),
+            "has_advertisement_terms": any(
+                term in text
+                for term in ["advertisement", "sponsored", "ads", "promotion"]
+            ),
+            "has_navigation_terms": any(
+                term in text
+                for term in ["menu", "navigation", "home", "contact", "about"]
+            ),
             # Linguistic features
-            "sentence_count": len(re.split(r'[.!?]+', text)),
+            "sentence_count": len(re.split(r"[.!?]+", text)),
             "word_count": len(text.split()),
-            "avg_word_length": np.mean([len(word) for word in text.split()]) if text.split() else 0,
-            "punctuation_ratio": len([c for c in text if not c.isalnum() and not c.isspace()]) / len(text) if text else 0,
-            "uppercase_ratio": len([c for c in text if c.isupper()]) / len(text) if text else 0,
-            "digit_ratio": len([c for c in text if c.isdigit()]) / len(text) if text else 0,
-
+            "avg_word_length": (
+                np.mean([len(word) for word in text.split()]) if text.split() else 0
+            ),
+            "punctuation_ratio": (
+                len([c for c in text if not c.isalnum() and not c.isspace()])
+                / len(text)
+                if text
+                else 0
+            ),
+            "uppercase_ratio": (
+                len([c for c in text if c.isupper()]) / len(text) if text else 0
+            ),
+            "digit_ratio": (
+                len([c for c in text if c.isdigit()]) / len(text) if text else 0
+            ),
             # Domain-specific features
             "domain": match.domain,
             "domain_category": self._categorize_domain(match.domain),
-
             # Repetition features
             "confidence_score": match.confidence_score,
         }
@@ -470,7 +547,8 @@ class ContentCleaner:
             "share",
             "like",
             "social",
-            "related articles"]
+            "related articles",
+        ]
 
         for term in boilerplate_terms:
             features[f"contains_{term.replace(' ', '_')}"] = term in text
@@ -496,12 +574,9 @@ class ContentCleaner:
         domain_lower = domain.lower()
 
         if any(
-            term in domain_lower for term in [
-                "news",
-                "times",
-                "post",
-                "herald",
-                "gazette"]):
+            term in domain_lower
+            for term in ["news", "times", "post", "herald", "gazette"]
+        ):
             return "news"
         elif any(term in domain_lower for term in ["blog", "wordpress", "medium"]):
             return "blog"

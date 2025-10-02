@@ -5,8 +5,6 @@ from __future__ import annotations
 import logging
 import sys
 from pathlib import Path
-from typing import Optional
-
 
 DEFAULT_LOG_FILE = "crawler.log"
 
@@ -66,12 +64,13 @@ def trigger_gazetteer_population_background(
 
     metadata = {"auto_triggered": True, "dataset_slug": dataset_slug}
 
-    dataset_id: Optional[str] = None
+    dataset_id: str | None = None
     try:
-        from src.models.database import DatabaseManager
-        from src.models import Dataset
-        from sqlalchemy.orm import sessionmaker
         from sqlalchemy import select
+        from sqlalchemy.orm import sessionmaker
+
+        from src.models import Dataset
+        from src.models.database import DatabaseManager
 
         db = DatabaseManager()
         Session = sessionmaker(bind=db.engine)
@@ -114,12 +113,9 @@ def trigger_gazetteer_population_background(
             message=f"Started background process (PID: {proc.pid})",
             status="running",
         )
+        logger.info("Gazetteer population started in background (PID: %s)", proc.pid)
         logger.info(
-            "Gazetteer population started in background (PID: %s)", proc.pid
-        )
-        logger.info(
-            "Track progress with: python -m src.cli.cli_modular "
-            "status --process %s",
+            "Track progress with: python -m src.cli.cli_modular " "status --process %s",
             process_id,
         )
     except Exception as exc:  # pragma: no cover - log and re-raise

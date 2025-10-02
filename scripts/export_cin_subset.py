@@ -7,8 +7,8 @@ import argparse
 import csv
 import re
 import sqlite3
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Iterable, Sequence
 
 SPLIT_PATTERN = re.compile(r"\s*(?:and|/|,|&|\+|;)\s*", re.IGNORECASE)
 

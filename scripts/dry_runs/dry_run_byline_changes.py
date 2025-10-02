@@ -6,10 +6,11 @@ This script analyzes the telemetry data to find original bylines and compares
 them with what the current byline cleaner would produce.
 """
 
-import sqlite3
 import json
-from src.utils.byline_cleaner import BylineCleaner
+import sqlite3
 from collections import defaultdict
+
+from src.utils.byline_cleaner import BylineCleaner
 
 
 def analyze_byline_changes():
@@ -84,9 +85,9 @@ def analyze_byline_changes():
                 raw_byline, source_name=source_name)
 
             # Compare results
-            current_norm = sorted([a.strip() for a in current_authors 
+            current_norm = sorted([a.strip() for a in current_authors
                                    if a.strip()])
-            new_norm = sorted([a.strip() for a in new_authors 
+            new_norm = sorted([a.strip() for a in new_authors
                                if a.strip()])
 
             if current_norm == new_norm:
@@ -107,7 +108,7 @@ def analyze_byline_changes():
                     change_type = "fewer_authors_found"
                 elif new_count == current_count and new_count > 0:
                     # Same count, check quality
-                    has_html_fix = any('&#' in author 
+                    has_html_fix = any('&#' in author
                                        for author in current_norm)
                     if has_html_fix:
                         change_type = "html_decoding_fix"

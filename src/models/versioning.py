@@ -13,7 +13,6 @@ import os
 import shutil
 import uuid
 from datetime import datetime
-from typing import List, Optional
 
 import pandas as pd
 from sqlalchemy import (
@@ -100,11 +99,11 @@ def create_versioning_tables(database_url: str = None):
 def create_dataset_version(
     dataset_name: str,
     version_tag: str,
-    description: Optional[str] = None,
-    parent_version: Optional[str] = None,
-    snapshot_path: Optional[str] = None,
-    created_by_job: Optional[str] = None,
-    database_url: Optional[str] = None,
+    description: str | None = None,
+    parent_version: str | None = None,
+    snapshot_path: str | None = None,
+    created_by_job: str | None = None,
+    database_url: str | None = None,
 ) -> DatasetVersion:
     """Create a new DatasetVersion record and return it."""
     engine = create_database_engine(database_url or "sqlite:///data/mizzou.db")
@@ -139,16 +138,17 @@ def claim_dataset_version(
 
     # Only transition from pending -> in_progress
     rows = (
-        session.query(DatasetVersion) .filter(
-            DatasetVersion.id == version_id,
-            DatasetVersion.status == "pending") .update(
+        session.query(DatasetVersion)
+        .filter(DatasetVersion.id == version_id, DatasetVersion.status == "pending")
+        .update(
             {
                 "status": "in_progress",
                 "claimed_by": claimer,
                 "claimed_at": datetime.utcnow(),
-                },
-                synchronize_session=False,
-                 ))
+            },
+            synchronize_session=False,
+        )
+    )
 
     session.commit()
     return bool(rows)
@@ -250,7 +250,7 @@ def _fsync_path(path: str) -> None:
 
 def list_dataset_versions(
     dataset_name: str = None, database_url: str = None
-) -> List[DatasetVersion]:
+) -> list[DatasetVersion]:
     """Return list of DatasetVersion records, optionally filtered by dataset_name."""
     engine = create_database_engine(database_url or "sqlite:///data/mizzou.db")
     Session = sessionmaker(bind=engine)
@@ -293,7 +293,7 @@ def export_snapshot_for_version(
     output_path: str,
     database_url: str = None,
     chunksize: int = 10000,
-    compression: Optional[str] = None,
+    compression: str | None = None,
 ) -> str:
     """Create a Parquet snapshot for a given version by exporting the entire
     table `table_name` from the configured database to `output_path`, update
@@ -333,7 +333,8 @@ def export_snapshot_for_version(
     if not claimed:
         raise RuntimeError(
             f"Failed to claim DatasetVersion {dv.id}; "
-            f"another process may be working on it")
+            f"another process may be working on it"
+        )
 
     pg_lock_acquired = False
     lock_id = None
@@ -362,7 +363,8 @@ def export_snapshot_for_version(
 
             raise RuntimeError(
                 f"Failed to acquire Postgres advisory lock "
-                f"for DatasetVersion {dv.id}")
+                f"for DatasetVersion {dv.id}"
+            )
 
     total_rows = 0
     try:
@@ -378,9 +380,11 @@ def export_snapshot_for_version(
                 with engine.connect() as conn:
                     with conn.begin():
                         conn.execute(
-                            text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ"))
-                        result = conn.execution_options(
-                            stream_results=True).execute(select_sql)
+                            text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+                        )
+                        result = conn.execution_options(stream_results=True).execute(
+                            select_sql
+                        )
                         cols = result.keys()
 
                         while True:
@@ -390,7 +394,7 @@ def export_snapshot_for_version(
 
                             col_data = {c: [] for c in cols}
                             for r in rows:
-                                for c, v in zip(cols, r):
+                                for c, v in zip(cols, r, strict=False):
                                     col_data[c].append(v)
 
                             table = pa.Table.from_pydict(col_data)
@@ -405,16 +409,16 @@ def export_snapshot_for_version(
                                         compression=compression,
                                     )
                                 else:
-                                    writer = pq.ParquetWriter(
-                                        temp_path, table.schema)
+                                    writer = pq.ParquetWriter(temp_path, table.schema)
                                 writer.write_table(table)
                                 first = False
                             else:
                                 writer.write_table(table)
             else:
                 with engine.connect() as conn:
-                    result = conn.execution_options(
-                        stream_results=True).execute(select_sql)
+                    result = conn.execution_options(stream_results=True).execute(
+                        select_sql
+                    )
                     cols = result.keys()
 
                     while True:
@@ -424,7 +428,7 @@ def export_snapshot_for_version(
 
                         col_data = {c: [] for c in cols}
                         for r in rows:
-                            for c, v in zip(cols, r):
+                            for c, v in zip(cols, r, strict=False):
                                 col_data[c].append(v)
 
                         table = pa.Table.from_pydict(col_data)
@@ -438,8 +442,7 @@ def export_snapshot_for_version(
                                     compression=compression,
                                 )
                             else:
-                                writer = pq.ParquetWriter(
-                                    temp_path, table.schema)
+                                writer = pq.ParquetWriter(temp_path, table.schema)
                             writer.write_table(table)
                             first = False
                         else:
@@ -485,8 +488,7 @@ def export_snapshot_for_version(
         )
 
         # release advisory lock if we held it
-        if pg_lock_acquired and lock_id is not None and _is_postgres_engine(
-                engine):
+        if pg_lock_acquired and lock_id is not None and _is_postgres_engine(engine):
             try:
                 with engine.connect() as conn:
                     conn.execute(
@@ -505,8 +507,7 @@ def export_snapshot_for_version(
                 pass
 
         # release advisory lock if held
-        if pg_lock_acquired and lock_id is not None and _is_postgres_engine(
-                engine):
+        if pg_lock_acquired and lock_id is not None and _is_postgres_engine(engine):
             try:
                 with engine.connect() as conn:
                     conn.execute(
@@ -529,8 +530,7 @@ def export_snapshot_for_version(
 
         # finalize as failed in DB
         try:
-            finalize_dataset_version(
-                dv.id, succeeded=False, database_url=database_url)
+            finalize_dataset_version(dv.id, succeeded=False, database_url=database_url)
         except Exception:
             pass
 

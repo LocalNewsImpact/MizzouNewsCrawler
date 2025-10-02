@@ -7,8 +7,9 @@ from pathlib import Path
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
 
-from src.models.database import DatabaseManager
 from sqlalchemy import text
+
+from src.models.database import DatabaseManager
 
 
 def check_recent_sources():

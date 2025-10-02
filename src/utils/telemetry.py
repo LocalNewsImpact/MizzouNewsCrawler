@@ -20,11 +20,12 @@ import sqlite3
 import threading
 import time
 import uuid
+from collections.abc import Iterable
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any
 
 import requests
 
@@ -98,7 +99,7 @@ class FailureType(str, Enum):
     UNKNOWN = "unknown"
 
 
-_NETWORK_ERROR_KEYWORDS: Tuple[str, ...] = (
+_NETWORK_ERROR_KEYWORDS: tuple[str, ...] = (
     "connection",
     "network",
     "dns",
@@ -106,26 +107,26 @@ _NETWORK_ERROR_KEYWORDS: Tuple[str, ...] = (
     "resolve",
 )
 
-_SSL_ERROR_KEYWORDS: Tuple[str, ...] = (
+_SSL_ERROR_KEYWORDS: tuple[str, ...] = (
     "ssl",
     "tls",
     "certificate",
     "handshake",
 )
 
-_TIMEOUT_KEYWORDS: Tuple[str, ...] = (
+_TIMEOUT_KEYWORDS: tuple[str, ...] = (
     "timeout",
     "timed out",
     "read timeout",
 )
 
-_RATE_LIMIT_KEYWORDS: Tuple[str, ...] = (
+_RATE_LIMIT_KEYWORDS: tuple[str, ...] = (
     "rate limit",
     "too many requests",
     "429",
 )
 
-_AUTH_ERROR_KEYWORDS: Tuple[str, ...] = (
+_AUTH_ERROR_KEYWORDS: tuple[str, ...] = (
     "unauthorized",
     "forbidden",
     "authentication",
@@ -133,7 +134,7 @@ _AUTH_ERROR_KEYWORDS: Tuple[str, ...] = (
     "403",
 )
 
-_CONTENT_ERROR_KEYWORDS: Tuple[str, ...] = (
+_CONTENT_ERROR_KEYWORDS: tuple[str, ...] = (
     "content",
     "empty",
     "no articles",
@@ -150,12 +151,12 @@ class OperationMetrics:
     failed_items: int = 0
     success_rate: float = 0.0
     items_per_second: float = 0.0
-    estimated_completion: Optional[datetime] = None
+    estimated_completion: datetime | None = None
     memory_usage_mb: float = 0.0
     cpu_usage_percent: float = 0.0
     # Site-specific failure tracking
     failed_sites: int = 0
-    site_failures: Optional[List["SiteFailure"]] = None
+    site_failures: list["SiteFailure"] | None = None
 
     def __post_init__(self):
         if self.site_failures is None:
@@ -167,15 +168,15 @@ class SiteFailure:
     """Details about a site-specific failure."""
 
     site_url: str
-    site_name: Optional[str]
+    site_name: str | None
     failure_type: FailureType
     error_message: str
     failure_time: datetime
     retry_count: int = 0
-    http_status: Optional[int] = None
-    response_time_ms: Optional[float] = None
-    discovery_method: Optional[str] = None  # RSS, newspaper4k, storysniffer
-    error_details: Optional[Dict[str, Any]] = None
+    http_status: int | None = None
+    response_time_ms: float | None = None
+    discovery_method: str | None = None  # RSS, newspaper4k, storysniffer
+    error_details: dict[str, Any] | None = None
 
     def __post_init__(self):
         if self.error_details is None:
@@ -193,12 +194,12 @@ class OperationEvent:
     operation_type: OperationType
     status: OperationStatus
     timestamp: datetime
-    user_id: Optional[str] = None
-    session_id: Optional[str] = None
+    user_id: str | None = None
+    session_id: str | None = None
     message: str = ""
-    details: Optional[Dict[str, Any]] = None
-    metrics: Optional[OperationMetrics] = None
-    error_details: Optional[Dict[str, Any]] = None
+    details: dict[str, Any] | None = None
+    metrics: OperationMetrics | None = None
+    error_details: dict[str, Any] | None = None
 
     def __post_init__(self):
         if self.details is None:
@@ -220,8 +221,8 @@ class HTTPStatusTracking:
     response_time_ms: float
     timestamp: datetime
     operation_id: str
-    error_message: Optional[str] = None
-    content_length: Optional[int] = None
+    error_message: str | None = None
+    content_length: int | None = None
 
     def __post_init__(self):
         if self.timestamp is None:
@@ -241,8 +242,8 @@ class DiscoveryMethodEffectiveness:
     last_attempt: datetime
     attempt_count: int
     avg_response_time_ms: float
-    last_status_codes: List[int]  # Recent status codes
-    notes: Optional[str] = None
+    last_status_codes: list[int]  # Recent status codes
+    notes: str | None = None
 
     def __post_init__(self):
         if self.last_attempt is None:
@@ -425,7 +426,7 @@ _BASE_SCHEMA = (
 )
 
 
-def _parse_timestamp(value: Optional[str]) -> datetime:
+def _parse_timestamp(value: str | None) -> datetime:
     """Parse a SQLite timestamp string into a timezone-aware datetime."""
 
     if not value:
@@ -444,9 +445,7 @@ def _parse_timestamp(value: Optional[str]) -> datetime:
 class TelemetryReporter:
     """Handles sending telemetry data to external APIs."""
 
-    def __init__(
-        self, api_base_url: Optional[str] = None, api_key: Optional[str] = None
-    ):
+    def __init__(self, api_base_url: str | None = None, api_key: str | None = None):
         self.api_base_url = api_base_url
         self.api_key = api_key
         self.session = requests.Session()
@@ -487,9 +486,7 @@ class TelemetryReporter:
             return False
 
         try:
-            url = (
-                f"{self.api_base_url}/api/v1/telemetry/progress/{operation_id}"
-            )
+            url = f"{self.api_base_url}/api/v1/telemetry/progress/{operation_id}"
             payload = asdict(metrics)
             payload["timestamp"] = datetime.now(timezone.utc).isoformat()
 
@@ -502,7 +499,7 @@ class TelemetryReporter:
             self.logger.warning(f"Failed to send progress update: {e}")
             return False
 
-    def _serialize_event(self, event: OperationEvent) -> Dict[str, Any]:
+    def _serialize_event(self, event: OperationEvent) -> dict[str, Any]:
         """Serialize event for API transmission."""
         data = asdict(event)
         data["timestamp"] = event.timestamp.isoformat()
@@ -522,16 +519,16 @@ class OperationTracker:
 
     def __init__(
         self,
-        store: Optional[Any] = None,
+        store: Any | None = None,
         *,
-        telemetry_reporter: Optional[TelemetryReporter] = None,
+        telemetry_reporter: TelemetryReporter | None = None,
         database_url: str = DATABASE_URL,
     ) -> None:
         self.logger = logging.getLogger(__name__)
         self.database_url = database_url
         self._store = self._resolve_store(store, database_url)
         self.telemetry_reporter = telemetry_reporter
-        self.active_operations: Dict[str, Dict[str, Any]] = {}
+        self.active_operations: dict[str, dict[str, Any]] = {}
         self._lock = threading.Lock()
 
         self._ensure_base_schema()
@@ -545,7 +542,7 @@ class OperationTracker:
 
     def _resolve_store(
         self,
-        candidate: Optional[Any],
+        candidate: Any | None,
         database_url: str,
     ) -> TelemetryStore:
         if isinstance(candidate, TelemetryStore):
@@ -558,8 +555,7 @@ class OperationTracker:
             engine_url = getattr(candidate, "url", None)
             if engine_url is not None:
                 self.logger.debug(
-                    "Received engine; initializing dedicated TelemetryStore "
-                    "from %s",
+                    "Received engine; initializing dedicated TelemetryStore " "from %s",
                     engine_url,
                 )
                 return TelemetryStore(
@@ -626,12 +622,8 @@ class OperationTracker:
                 "discovery_time_ms", 0.0
             ),
             "is_success": 1 if discovery_result.is_success else 0,
-            "is_content_success": (
-                1 if discovery_result.is_content_success else 0
-            ),
-            "is_technical_failure": (
-                1 if discovery_result.is_technical_failure else 0
-            ),
+            "is_content_success": (1 if discovery_result.is_content_success else 0),
+            "is_technical_failure": (1 if discovery_result.is_technical_failure else 0),
             "metadata": json.dumps(discovery_result.metadata),
         }
 
@@ -715,30 +707,25 @@ class OperationTracker:
 
     def get_discovery_outcomes_report(
         self,
-        operation_id: Optional[str] = None,
+        operation_id: str | None = None,
         hours_back: int = 24,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Generate a detailed report of discovery outcomes."""
 
         try:
-            where_parts: List[str] = []
-            params: Dict[str, Any] = {}
+            where_parts: list[str] = []
+            params: dict[str, Any] = {}
 
             if operation_id:
                 where_parts.append("operation_id = :operation_id")
                 params["operation_id"] = operation_id
             else:
                 where_parts.append(
-                    (
-                        "timestamp >= datetime('now', '-' || :hours_back || "
-                        " ' hours')"
-                    )
+                    "timestamp >= datetime('now', '-' || :hours_back || " " ' hours')"
                 )
                 params["hours_back"] = hours_back
 
-            where_clause = (
-                f"WHERE {' AND '.join(where_parts)}" if where_parts else ""
-            )
+            where_clause = f"WHERE {' AND '.join(where_parts)}" if where_parts else ""
 
             summary_sql = f"""
             SELECT
@@ -807,9 +794,7 @@ class OperationTracker:
                 technical_rate = (
                     summary["technical_success_count"] / total_sources * 100
                 )
-                content_rate = (
-                    summary["content_success_count"] / total_sources * 100
-                )
+                content_rate = summary["content_success_count"] / total_sources * 100
             else:
                 technical_rate = 0.0
                 content_rate = 0.0
@@ -917,9 +902,9 @@ class OperationTracker:
         with self._lock:
             if operation_id in self.active_operations:
                 self.active_operations[operation_id]["metrics"] = metrics
-                self.active_operations[operation_id]["status"] = (
-                    OperationStatus.IN_PROGRESS
-                )
+                self.active_operations[operation_id][
+                    "status"
+                ] = OperationStatus.IN_PROGRESS
 
         self._update_job_record(
             operation_id,
@@ -933,17 +918,17 @@ class OperationTracker:
     def complete_operation(
         self,
         operation_id: str,
-        result_summary: Optional[Dict[str, Any]] = None,
+        result_summary: dict[str, Any] | None = None,
     ) -> None:
         """Mark operation as completed."""
 
         with self._lock:
             if operation_id in self.active_operations:
-                self.active_operations[operation_id]["status"] = (
-                    OperationStatus.COMPLETED
-                )
-                self.active_operations[operation_id]["end_time"] = (
-                    datetime.now(timezone.utc)
+                self.active_operations[operation_id][
+                    "status"
+                ] = OperationStatus.COMPLETED
+                self.active_operations[operation_id]["end_time"] = datetime.now(
+                    timezone.utc
                 )
 
         self._update_job_record(
@@ -967,17 +952,15 @@ class OperationTracker:
         self,
         operation_id: str,
         error_message: str,
-        error_details: Optional[Dict[str, Any]] = None,
+        error_details: dict[str, Any] | None = None,
     ) -> None:
         """Mark operation as failed."""
 
         with self._lock:
             if operation_id in self.active_operations:
-                self.active_operations[operation_id]["status"] = (
-                    OperationStatus.FAILED
-                )
-                self.active_operations[operation_id]["end_time"] = (
-                    datetime.now(timezone.utc)
+                self.active_operations[operation_id]["status"] = OperationStatus.FAILED
+                self.active_operations[operation_id]["end_time"] = datetime.now(
+                    timezone.utc
                 )
 
         combined_error = {"message": error_message, **(error_details or {})}
@@ -1002,11 +985,11 @@ class OperationTracker:
     def get_operation_status(
         self,
         operation_id: str,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         with self._lock:
             return self.active_operations.get(operation_id)
 
-    def list_active_operations(self) -> List[Dict[str, Any]]:
+    def list_active_operations(self) -> list[dict[str, Any]]:
         with self._lock:
             return [
                 {"operation_id": op_id, **details}
@@ -1029,14 +1012,10 @@ class OperationTracker:
 
         parameters = json.dumps(kwargs.get("parameters", {}))
         metrics_json = (
-            json.dumps(asdict(kwargs["metrics"]))
-            if kwargs.get("metrics")
-            else None
+            json.dumps(asdict(kwargs["metrics"])) if kwargs.get("metrics") else None
         )
         error_json = (
-            json.dumps(kwargs["error_details"])
-            if kwargs.get("error_details")
-            else None
+            json.dumps(kwargs["error_details"]) if kwargs.get("error_details") else None
         )
         summary_json = (
             json.dumps(kwargs["result_summary"])
@@ -1078,16 +1057,14 @@ class OperationTracker:
                             ),
                         )
                     else:
-                        update_fields: List[str] = [
+                        update_fields: list[str] = [
                             "status = ?",
                             "updated_at = CURRENT_TIMESTAMP",
                         ]
-                        params: List[Any] = [status.value]
+                        params: list[Any] = [status.value]
 
                         if status == OperationStatus.COMPLETED:
-                            update_fields.append(
-                                "completed_at = CURRENT_TIMESTAMP"
-                            )
+                            update_fields.append("completed_at = CURRENT_TIMESTAMP")
 
                         if metrics_json is not None:
                             update_fields.append("metrics = ?")
@@ -1136,10 +1113,10 @@ class OperationTracker:
         operation_id: str,
         site_url: str,
         error: Exception,
-        site_name: Optional[str] = None,
-        discovery_method: Optional[str] = None,
-        http_status: Optional[int] = None,
-        response_time_ms: Optional[float] = None,
+        site_name: str | None = None,
+        discovery_method: str | None = None,
+        http_status: int | None = None,
+        response_time_ms: float | None = None,
         retry_count: int = 0,
     ):
         """Record a site-specific failure with categorization."""
@@ -1180,7 +1157,7 @@ class OperationTracker:
         )
 
     def categorize_failure_type(
-        self, error: Exception, http_status: Optional[int] = None
+        self, error: Exception, http_status: int | None = None
     ) -> FailureType:
         """Categorize the type of failure based on error and context."""
         error_str = str(error).lower()
@@ -1256,7 +1233,7 @@ class OperationTracker:
 
         return FailureType.UNKNOWN
 
-    def get_site_failures(self, operation_id: str) -> List[SiteFailure]:
+    def get_site_failures(self, operation_id: str) -> list[SiteFailure]:
         """Get all site failures for an operation."""
         with self._lock:
             if operation_id in self.active_operations:
@@ -1265,7 +1242,7 @@ class OperationTracker:
                     return metrics.site_failures[:]
         return []
 
-    def get_failure_summary(self, operation_id: str) -> Dict[str, Any]:
+    def get_failure_summary(self, operation_id: str) -> dict[str, Any]:
         """Get a summary of failures for an operation."""
         failures = self.get_site_failures(operation_id)
 
@@ -1277,12 +1254,10 @@ class OperationTracker:
             }
 
         # Count failures by type
-        failure_counts: Dict[str, int] = {}
+        failure_counts: dict[str, int] = {}
         for failure in failures:
             failure_type = failure.failure_type.value
-            failure_counts[failure_type] = (
-                failure_counts.get(failure_type, 0) + 1
-            )
+            failure_counts[failure_type] = failure_counts.get(failure_type, 0) + 1
 
         # Get failed site URLs
         failed_sites = [failure.site_url for failure in failures]
@@ -1310,7 +1285,7 @@ class OperationTracker:
     def identify_common_failures(
         self,
         operation_id: str,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Identify patterns in failures for debugging."""
         failures = self.get_site_failures(operation_id)
 
@@ -1338,9 +1313,7 @@ class OperationTracker:
             if failure.response_time_ms:
                 current_avg = pattern["avg_response_time"]
                 count = pattern["count"]
-                weighted_total = (
-                    current_avg * (count - 1) + failure.response_time_ms
-                )
+                weighted_total = current_avg * (count - 1) + failure.response_time_ms
                 pattern["avg_response_time"] = weighted_total / count
 
             if failure.http_status:
@@ -1363,21 +1336,16 @@ class OperationTracker:
             return "No failures detected in this operation."
 
         report = []
-        report.append(
-            f"=== Failure Report for Operation {operation_id} ==="
-        )
+        report.append(f"=== Failure Report for Operation {operation_id} ===")
         report.append(f"Total failures: {summary['total_failures']}")
 
         if summary["most_common_failure"]:
             report.append(
-                "Most common failure type: "
-                f"{summary['most_common_failure']}"
+                "Most common failure type: " f"{summary['most_common_failure']}"
             )
 
         report.append(f"Total retries attempted: {summary['total_retries']}")
-        report.append(
-            f"Average retries per failure: {summary['average_retries']:.1f}"
-        )
+        report.append(f"Average retries per failure: {summary['average_retries']:.1f}")
 
         report.append("\n--- Failure Breakdown by Type ---")
         for failure_type, count in summary["failure_types"].items():
@@ -1388,20 +1356,16 @@ class OperationTracker:
             report.append("\n--- Common Failure Patterns ---")
             for i, pattern in enumerate(common_failures[:5], 1):
                 pattern_header = (
-                    f"{i}. {pattern['failure_type']}"
-                    f" ({pattern['count']} sites)"
+                    f"{i}. {pattern['failure_type']}" f" ({pattern['count']} sites)"
                 )
                 report.append(pattern_header)
                 report.append(f"   Error: {pattern['error_pattern']}")
                 if pattern["avg_response_time"] > 0:
                     report.append(
-                        "   Avg response time: "
-                        f"{pattern['avg_response_time']:.0f}ms"
+                        "   Avg response time: " f"{pattern['avg_response_time']:.0f}ms"
                     )
                 if pattern["http_statuses"]:
-                    report.append(
-                        f"   HTTP statuses: {pattern['http_statuses']}"
-                    )
+                    report.append(f"   HTTP statuses: {pattern['http_statuses']}")
                 report.append("")
 
         return "\n".join(report)
@@ -1415,8 +1379,8 @@ class OperationTracker:
         attempted_url: str,
         status_code: int,
         response_time_ms: float,
-        error_message: Optional[str] = None,
-        content_length: Optional[int] = None,
+        error_message: str | None = None,
+        content_length: int | None = None,
     ):
         """Track HTTP status codes for discovery methods."""
         # Categorize status code
@@ -1463,8 +1427,8 @@ class OperationTracker:
         status: DiscoveryMethodStatus,
         articles_found: int,
         response_time_ms: float,
-        status_codes: List[int],
-        notes: Optional[str] = None,
+        status_codes: list[int],
+        notes: str | None = None,
     ):
         """Update the effectiveness tracking for a discovery method."""
         effectiveness = self._get_or_create_method_effectiveness(
@@ -1487,8 +1451,8 @@ class OperationTracker:
         # Calculate rolling average response time
         previous_total_time = previous_avg_response_time * previous_attempts
         total_time = previous_total_time + response_time_ms
-        effectiveness.avg_response_time_ms = (
-            total_time / max(1, effectiveness.attempt_count)
+        effectiveness.avg_response_time_ms = total_time / max(
+            1, effectiveness.attempt_count
         )
 
         # Update success rate
@@ -1522,7 +1486,7 @@ class OperationTracker:
     def get_effective_discovery_methods(
         self,
         source_id: str,
-    ) -> List[DiscoveryMethod]:
+    ) -> list[DiscoveryMethod]:
         """Get list of discovery methods that work well for a source."""
         try:
             with self._connection() as conn:
@@ -1540,17 +1504,13 @@ class OperationTracker:
                     {"source_id": source_id},
                 )
 
-                effective_methods: List[DiscoveryMethod] = []
+                effective_methods: list[DiscoveryMethod] = []
                 for row in cursor.fetchall():
                     success_rate = row["success_rate"] or 0
                     articles = row["articles_found"] or 0
                     attempts = row["attempt_count"] or 0
 
-                    if (
-                        success_rate > 50
-                        and articles > 0
-                        and attempts >= 2
-                    ):
+                    if success_rate > 50 and articles > 0 and attempts >= 2:
                         try:
                             method = DiscoveryMethod(row["discovery_method"])
                         except ValueError:
@@ -1679,18 +1639,14 @@ class OperationTracker:
                     return DiscoveryMethodEffectiveness(
                         source_id=row["source_id"],
                         source_url=row["source_url"],
-                        discovery_method=DiscoveryMethod(
-                            row["discovery_method"]
-                        ),
+                        discovery_method=DiscoveryMethod(row["discovery_method"]),
                         status=DiscoveryMethodStatus(row["status"]),
                         articles_found=row["articles_found"],
                         success_rate=row["success_rate"],
                         last_attempt=_parse_timestamp(row["last_attempt"]),
                         attempt_count=row["attempt_count"],
                         avg_response_time_ms=row["avg_response_time_ms"],
-                        last_status_codes=json.loads(
-                            row["last_status_codes"] or "[]"
-                        ),
+                        last_status_codes=json.loads(row["last_status_codes"] or "[]"),
                         notes=row["notes"],
                     )
         except Exception as exc:
@@ -1872,9 +1828,9 @@ class OperationContext:
 def create_telemetry_system(
     database_url: str = DATABASE_URL,
     *,
-    api_base_url: Optional[str] = None,
-    api_key: Optional[str] = None,
-    store: Optional[TelemetryStore] = None,
+    api_base_url: str | None = None,
+    api_key: str | None = None,
+    store: TelemetryStore | None = None,
 ) -> OperationTracker:
     """Factory function to create telemetry system."""
     reporter = None

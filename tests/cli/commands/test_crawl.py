@@ -22,9 +22,7 @@ def test_add_crawl_parser_registers_command():
     with pytest.raises(SystemExit):
         parser.parse_args(["crawl"])  # --filter required
 
-    args = parser.parse_args(
-        ["crawl", "--filter", "HOST", "--host", "example.com"]
-    )
+    args = parser.parse_args(["crawl", "--filter", "HOST", "--host", "example.com"])
 
     assert args.func is crawl.handle_crawl_command
     assert args.filter == "HOST"
@@ -41,9 +39,7 @@ def test_add_crawl_parser_registers_command():
         ("COUNTY", "county"),
     ],
 )
-def test_handle_crawl_command_requires_target(
-    monkeypatch, filter_name, missing_field
-):
+def test_handle_crawl_command_requires_target(monkeypatch, filter_name, missing_field):
     errors = []
     monkeypatch.setattr(
         crawl,

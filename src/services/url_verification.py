@@ -10,15 +10,14 @@ import argparse
 import logging
 import sys
 import time
+from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Mapping, Optional, Tuple
-
-from sqlalchemy import text
 
 import requests
 from requests import Session
 from requests.exceptions import RequestException, Timeout
+from sqlalchemy import text
 
 # Add the src directory to the path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -32,7 +31,7 @@ except ImportError:
 
 from src.models.database import DatabaseManager  # noqa: E402
 
-_DEFAULT_HTTP_HEADERS: Dict[str, str] = {
+_DEFAULT_HTTP_HEADERS: dict[str, str] = {
     "User-Agent": (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -54,11 +53,11 @@ class URLVerificationService:
         batch_size: int = 100,
         sleep_interval: int = 30,
         *,
-        http_session: Optional[Session] = None,
+        http_session: Session | None = None,
         http_timeout: float = 5.0,
         http_retry_attempts: int = 3,
         http_backoff_seconds: float = 0.5,
-        http_headers: Optional[Mapping[str, str]] = None,
+        http_headers: Mapping[str, str] | None = None,
     ):
         """Initialize the verification service.
 
@@ -81,7 +80,7 @@ class URLVerificationService:
         self._prepare_http_session()
         self.running = False
 
-    def get_unverified_urls(self, limit: Optional[int] = None) -> List[Dict]:
+    def get_unverified_urls(self, limit: int | None = None) -> list[dict]:
         """Get candidate links that need verification."""
         query = """
             SELECT id, url, source_name, source_city, source_county, status
@@ -102,21 +101,19 @@ class URLVerificationService:
 
         session_headers = getattr(self.http_session, "headers", None)
         if session_headers is None:
-            setattr(self.http_session, "headers", dict(self.http_headers))
+            self.http_session.headers = dict(self.http_headers)
             return
 
         if not hasattr(session_headers, "setdefault"):
             # Unexpected type; fall back to a fresh mapping.
-            setattr(self.http_session, "headers", dict(self.http_headers))
+            self.http_session.headers = dict(self.http_headers)
             return
 
         for key, value in self.http_headers.items():
             if key not in session_headers:
                 session_headers[key] = value
 
-    def _check_http_health(
-        self, url: str
-    ) -> Tuple[bool, Optional[int], Optional[str], int]:
+    def _check_http_health(self, url: str) -> tuple[bool, int | None, str | None, int]:
         """Perform a lightweight HTTP check with retries.
 
         Returns a tuple of (is_successful, status_code, error_message,
@@ -124,8 +121,8 @@ class URLVerificationService:
         """
 
         attempts = 0
-        last_error: Optional[str] = None
-        status_code: Optional[int] = None
+        last_error: str | None = None
+        status_code: int | None = None
 
         while attempts < self.http_retry_attempts:
             attempts += 1
@@ -186,12 +183,10 @@ class URLVerificationService:
         return False, status_code, last_error, attempts
 
     @staticmethod
-    def _should_attempt_get_fallback(status_code: Optional[int]) -> bool:
+    def _should_attempt_get_fallback(status_code: int | None) -> bool:
         return bool(status_code) and status_code in _FALLBACK_GET_STATUSES
 
-    def _attempt_get_fallback(
-        self, url: str
-    ) -> Tuple[bool, Optional[int], Optional[str]]:
+    def _attempt_get_fallback(self, url: str) -> tuple[bool, int | None, str | None]:
         """Attempt a GET request when HEAD is blocked by the origin."""
 
         response = None
@@ -209,8 +204,10 @@ class URLVerificationService:
                 return True, status_code, None
             return False, status_code, f"HTTP {status_code}"
         except Timeout:
-            return False, None, (
-                f"timeout after {self.http_timeout}s during GET fallback"
+            return (
+                False,
+                None,
+                (f"timeout after {self.http_timeout}s during GET fallback"),
             )
         except RequestException as exc:
             status_code = getattr(
@@ -225,7 +222,7 @@ class URLVerificationService:
                 if callable(close_fn):
                     close_fn()
 
-    def verify_url(self, url: str) -> Dict:
+    def verify_url(self, url: str) -> dict:
         """Verify a single URL with StorySniffer.
 
         Returns:
@@ -233,25 +230,23 @@ class URLVerificationService:
         """
         start_time = time.time()
         result = {
-            'url': url,
-            'storysniffer_result': None,
-            'verification_time_ms': 0,
-            'error': None,
-            'http_status': None,
-            'http_attempts': 0,
+            "url": url,
+            "storysniffer_result": None,
+            "verification_time_ms": 0,
+            "error": None,
+            "http_status": None,
+            "http_attempts": 0,
         }
 
         health = self._check_http_health(url)
         http_ok, http_status, http_error, http_attempts = health
-        result['http_status'] = http_status
-        result['http_attempts'] = http_attempts
+        result["http_status"] = http_status
+        result["http_attempts"] = http_attempts
 
         if not http_ok:
-            result['error'] = http_error
-            result['verification_time_ms'] = (time.time() - start_time) * 1000
-            self.logger.warning(
-                f"HTTP verification failed for {url}: {http_error}"
-            )
+            result["error"] = http_error
+            result["verification_time_ms"] = (time.time() - start_time) * 1000
+            self.logger.warning(f"HTTP verification failed for {url}: {http_error}")
             return result
 
         if http_status is not None:
@@ -265,8 +260,8 @@ class URLVerificationService:
         try:
             # Run StorySniffer verification
             is_article = self.sniffer.guess(url)
-            result['storysniffer_result'] = bool(is_article)
-            result['verification_time_ms'] = (time.time() - start_time) * 1000
+            result["storysniffer_result"] = bool(is_article)
+            result["verification_time_ms"] = (time.time() - start_time) * 1000
 
             self.logger.debug(
                 f"Verified {url}: "
@@ -275,27 +270,24 @@ class URLVerificationService:
             )
 
         except Exception as e:
-            result['error'] = str(e)
-            result['verification_time_ms'] = (time.time() - start_time) * 1000
+            result["error"] = str(e)
+            result["verification_time_ms"] = (time.time() - start_time) * 1000
             self.logger.warning(f"Verification failed for {url}: {e}")
 
         return result
 
     def update_candidate_status(
-        self,
-        candidate_id: str,
-        new_status: str,
-        error_message: Optional[str] = None
+        self, candidate_id: str, new_status: str, error_message: str | None = None
     ):
         """Update candidate_links status based on verification."""
         update_data = {
-            'candidate_id': candidate_id,
-            'status': new_status,
-            'processed_at': datetime.now(),
+            "candidate_id": candidate_id,
+            "status": new_status,
+            "processed_at": datetime.now(),
         }
 
         if error_message:
-            update_data['error_message'] = error_message
+            update_data["error_message"] = error_message
 
         update_query = """
             UPDATE candidate_links
@@ -313,80 +305,78 @@ class URLVerificationService:
 
         self.logger.debug(f"Updated candidate {candidate_id} to: {new_status}")
 
-    def process_batch(self, candidates: List[Dict]) -> Dict:
+    def process_batch(self, candidates: list[dict]) -> dict:
         """Process a batch of candidates and return metrics."""
-        batch_metrics: Dict = {
-            'total_processed': 0,
-            'verified_articles': 0,
-            'verified_non_articles': 0,
-            'verification_errors': 0,
-            'total_time_ms': 0.0,
-            'batch_time_seconds': 0.0,
-            'avg_verification_time_ms': 0.0,
+        batch_metrics: dict = {
+            "total_processed": 0,
+            "verified_articles": 0,
+            "verified_non_articles": 0,
+            "verification_errors": 0,
+            "total_time_ms": 0.0,
+            "batch_time_seconds": 0.0,
+            "avg_verification_time_ms": 0.0,
         }
 
         batch_start_time = time.time()
 
         for candidate in candidates:
             # Verify URL
-            verification_result = self.verify_url(candidate['url'])
-            batch_metrics['total_processed'] += 1
+            verification_result = self.verify_url(candidate["url"])
+            batch_metrics["total_processed"] += 1
 
             # Determine new status and update metrics
-            if verification_result.get('error'):
-                batch_metrics['verification_errors'] += 1
-                new_status = 'verification_failed'
-                error_message = verification_result['error']
-            elif verification_result.get('storysniffer_result'):
-                batch_metrics['verified_articles'] += 1
-                new_status = 'article'
+            if verification_result.get("error"):
+                batch_metrics["verification_errors"] += 1
+                new_status = "verification_failed"
+                error_message = verification_result["error"]
+            elif verification_result.get("storysniffer_result"):
+                batch_metrics["verified_articles"] += 1
+                new_status = "article"
                 error_message = None
             else:
-                batch_metrics['verified_non_articles'] += 1
-                new_status = 'not_article'
+                batch_metrics["verified_non_articles"] += 1
+                new_status = "not_article"
                 error_message = None
 
-            batch_metrics['total_time_ms'] += verification_result.get(
-                'verification_time_ms', 0
+            batch_metrics["total_time_ms"] += verification_result.get(
+                "verification_time_ms", 0
             )
 
             # Update candidate status
-            self.update_candidate_status(
-                candidate['id'], new_status, error_message
-            )
+            self.update_candidate_status(candidate["id"], new_status, error_message)
 
         # Calculate batch timing
-        batch_metrics['batch_time_seconds'] = time.time() - batch_start_time
-        batch_metrics['avg_verification_time_ms'] = (
-            batch_metrics['total_time_ms'] / batch_metrics['total_processed']
-            if batch_metrics['total_processed'] > 0
+        batch_metrics["batch_time_seconds"] = time.time() - batch_start_time
+        batch_metrics["avg_verification_time_ms"] = (
+            batch_metrics["total_time_ms"] / batch_metrics["total_processed"]
+            if batch_metrics["total_processed"] > 0
             else 0.0
         )
 
         return batch_metrics
 
     def save_telemetry_summary(
-        self, batch_metrics: Dict, candidates: List[Dict], job_name: str
+        self, batch_metrics: dict, candidates: list[dict], job_name: str
     ):
         """Save telemetry summary to a simple log file."""
         summary = {
-            'timestamp': datetime.now().isoformat(),
-            'job_name': job_name,
-            'batch_size': len(candidates),
-            'metrics': batch_metrics,
-            'sources_processed': list(
-                set(c.get('source_name', 'Unknown') for c in candidates)
+            "timestamp": datetime.now().isoformat(),
+            "job_name": job_name,
+            "batch_size": len(candidates),
+            "metrics": batch_metrics,
+            "sources_processed": list(
+                set(c.get("source_name", "Unknown") for c in candidates)
             ),
         }
 
         # Write to telemetry log file
-        log_file = Path('verification_telemetry.log')
-        with open(log_file, 'a') as f:
+        log_file = Path("verification_telemetry.log")
+        with open(log_file, "a") as f:
             f.write(f"{summary}\n")
 
         self.logger.info(f"Telemetry saved to {log_file}")
 
-    def run_verification_loop(self, max_batches: Optional[int] = None):
+    def run_verification_loop(self, max_batches: int | None = None):
         """Run the main verification loop."""
         self.running = True
         batch_count = 0
@@ -435,9 +425,7 @@ class URLVerificationService:
                 batch_metrics = self.process_batch(candidates)
 
                 # Save telemetry
-                self.save_telemetry_summary(
-                    batch_metrics, candidates, job_name
-                )
+                self.save_telemetry_summary(batch_metrics, candidates, job_name)
 
                 # Log progress
                 self.logger.info(
@@ -470,7 +458,7 @@ class URLVerificationService:
         self.logger.info("Stopping verification service...")
         self.running = False
 
-    def get_status_summary(self) -> Dict:
+    def get_status_summary(self) -> dict:
         """Get current status summary from the database."""
         query = """
             SELECT status, COUNT(*) as count
@@ -484,14 +472,12 @@ class URLVerificationService:
             status_counts = {row[0]: row[1] for row in result.fetchall()}
 
         return {
-            'total_urls': sum(status_counts.values()),
-            'status_breakdown': status_counts,
-            'verification_pending': status_counts.get('discovered', 0),
-            'articles_verified': status_counts.get('article', 0),
-            'non_articles_verified': status_counts.get('not_article', 0),
-            'verification_failures': status_counts.get(
-                'verification_failed', 0
-            ),
+            "total_urls": sum(status_counts.values()),
+            "status_breakdown": status_counts,
+            "verification_pending": status_counts.get("discovered", 0),
+            "articles_verified": status_counts.get("article", 0),
+            "non_articles_verified": status_counts.get("not_article", 0),
+            "verification_failures": status_counts.get("verification_failed", 0),
         }
 
 
@@ -500,10 +486,10 @@ def setup_logging(level: str = "INFO"):
     log_level = getattr(logging, level.upper())
     logging.basicConfig(
         level=log_level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         handlers=[
             logging.StreamHandler(sys.stdout),
-            logging.FileHandler('verification_service.log'),
+            logging.FileHandler("verification_service.log"),
         ],
     )
 
@@ -511,35 +497,35 @@ def setup_logging(level: str = "INFO"):
 def main():
     """Main entry point for the verification service."""
     parser = argparse.ArgumentParser(
-        description='URL verification service with StorySniffer'
+        description="URL verification service with StorySniffer"
     )
     parser.add_argument(
-        '--batch-size',
+        "--batch-size",
         type=int,
         default=100,
-        help='Number of URLs to process per batch (default: 100)',
+        help="Number of URLs to process per batch (default: 100)",
     )
     parser.add_argument(
-        '--sleep-interval',
+        "--sleep-interval",
         type=int,
         default=30,
-        help='Seconds to sleep when no work available (default: 30)',
+        help="Seconds to sleep when no work available (default: 30)",
     )
     parser.add_argument(
-        '--max-batches',
+        "--max-batches",
         type=int,
-        help='Maximum number of batches to process (default: unlimited)',
+        help="Maximum number of batches to process (default: unlimited)",
     )
     parser.add_argument(
-        '--log-level',
-        default='INFO',
-        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'],
-        help='Logging level (default: INFO)',
+        "--log-level",
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        help="Logging level (default: INFO)",
     )
     parser.add_argument(
-        '--status',
-        action='store_true',
-        help='Show current verification status and exit',
+        "--status",
+        action="store_true",
+        help="Show current verification status and exit",
     )
 
     args = parser.parse_args()
@@ -565,7 +551,7 @@ def main():
             print(f"Verified non-articles: {status['non_articles_verified']}")
             print(f"Verification failures: {status['verification_failures']}")
             print("\nStatus breakdown:")
-            for status_name, count in status['status_breakdown'].items():
+            for status_name, count in status["status_breakdown"].items():
                 print(f"  {status_name}: {count}")
             return 0
 

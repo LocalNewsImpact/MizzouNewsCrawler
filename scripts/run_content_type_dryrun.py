@@ -11,9 +11,10 @@ from __future__ import annotations
 import argparse
 import json
 import sqlite3
+from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any
 
 import pandas as pd
 
@@ -34,7 +35,7 @@ def _normalize_keywords(raw_keywords: Any) -> str:
 
 
 def _load_articles(
-    connection: sqlite3.Connection, limit: Optional[int] = None
+    connection: sqlite3.Connection, limit: int | None = None
 ):
     query = (
         "SELECT a.id, a.candidate_link_id, a.url, a.title, a.content, "
@@ -44,7 +45,7 @@ def _load_articles(
         "LEFT JOIN candidate_links cl ON cl.id = a.candidate_link_id "
         "WHERE a.content IS NOT NULL AND a.content != ''"
     )
-    params: List[Any] = []
+    params: list[Any] = []
     if limit is not None:
         query += " LIMIT ?"
         params.append(limit)
@@ -55,8 +56,8 @@ def _load_articles(
     return rows
 
 
-def _flatten_evidence(evidence: Dict[str, List[str]]) -> Dict[str, str]:
-    flattened: Dict[str, str] = {}
+def _flatten_evidence(evidence: dict[str, list[str]]) -> dict[str, str]:
+    flattened: dict[str, str] = {}
     for key, values in evidence.items():
         if not values:
             continue
@@ -68,8 +69,8 @@ def run_dry_run(
     *,
     database: Path,
     output_dir: Path,
-    limit: Optional[int],
-    min_score: Optional[float],
+    limit: int | None,
+    min_score: float | None,
 ) -> Path | None:
     detector = ContentTypeDetector()
     connection = sqlite3.connect(str(database))
@@ -78,7 +79,7 @@ def run_dry_run(
     finally:
         connection.close()
 
-    detections: List[Dict[str, Any]] = []
+    detections: list[dict[str, Any]] = []
 
     for (
         article_id,
@@ -94,7 +95,7 @@ def run_dry_run(
         source_county,
         owner,
     ) in rows:
-        metadata: Dict[str, Any] = {}
+        metadata: dict[str, Any] = {}
         if metadata_json:
             try:
                 metadata = json.loads(metadata_json)
@@ -119,7 +120,7 @@ def run_dry_run(
 
         detected_at = datetime.utcnow().replace(microsecond=0).isoformat()
 
-        record: Dict[str, Any] = {
+        record: dict[str, Any] = {
             "article_id": article_id,
             "candidate_link_id": candidate_link_id,
             "url": url,

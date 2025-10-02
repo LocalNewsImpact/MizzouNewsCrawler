@@ -15,8 +15,8 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
-    text,
     create_engine,
+    text,
 )
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
@@ -540,7 +540,7 @@ class BackgroundProcess(Base):
     @property
     def progress_percentage(self):
         """Calculate progress as percentage (0-100)."""
-        total = cast(Optional[int], self.progress_total)
+        total = cast(int | None, self.progress_total)
         if total is None or total == 0:
             return None
         current = cast(int, self.progress_current or 0)
@@ -555,14 +555,14 @@ class BackgroundProcess(Base):
     @property
     def is_active(self):
         """Check if process is still active."""
-        status_value = cast(Optional[str], self.status)
+        status_value = cast(str | None, self.status)
         return status_value in {"started", "running"}
 
     def update_progress(
         self,
         current: int,
-        message: Optional[str] = None,
-        total: Optional[int] = None,
+        message: str | None = None,
+        total: int | None = None,
     ):
         """Update progress counters and message."""
         self.progress_current = current
@@ -571,7 +571,7 @@ class BackgroundProcess(Base):
         if message:
             self.progress_message = message
         self.updated_at = datetime.utcnow()
-        status_value = cast(Optional[str], self.status)
+        status_value = cast(str | None, self.status)
         if status_value == "started":
             self.status = "running"
 

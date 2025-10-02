@@ -6,7 +6,6 @@ import argparse
 import logging
 import sys
 from pathlib import Path
-from typing import Optional
 
 from src.models.database import DatabaseManager
 from src.utils.process_tracker import ProcessContext
@@ -18,8 +17,8 @@ if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
 try:  # pragma: no cover - import side effect
-    from populate_gazetteer import (  # type: ignore[import-not-found]
-        main as run_gazetteer_population,
+    from populate_gazetteer import (
+        main as run_gazetteer_population,  # type: ignore[import-not-found]
     )
 except Exception as exc:  # pragma: no cover - import failure logging
     run_gazetteer_population = None
@@ -75,11 +74,11 @@ def handle_gazetteer_command(args: argparse.Namespace) -> int:
         "database_url": database_url,
         "auto_triggered": False,
     }
-    dataset_slug: Optional[str] = getattr(args, "dataset", None)
+    dataset_slug: str | None = getattr(args, "dataset", None)
     if dataset_slug:
         metadata["dataset_slug"] = dataset_slug
 
-    publisher_uuid: Optional[str] = getattr(args, "publisher", None)
+    publisher_uuid: str | None = getattr(args, "publisher", None)
     if publisher_uuid:
         metadata["publisher_uuid"] = publisher_uuid
         metadata["processing_mode"] = "on_demand_publisher"
@@ -108,12 +107,13 @@ def handle_gazetteer_command(args: argparse.Namespace) -> int:
     if publisher_uuid:
         command_parts.extend(["--publisher", publisher_uuid])
 
-    dataset_id: Optional[str] = None
+    dataset_id: str | None = None
     if dataset_slug:
         try:
-            from src.models import Dataset
             from sqlalchemy import select
             from sqlalchemy.orm import sessionmaker
+
+            from src.models import Dataset
 
             Session = sessionmaker(bind=db.engine)
             with Session() as session:
@@ -129,9 +129,7 @@ def handle_gazetteer_command(args: argparse.Namespace) -> int:
 
     with ProcessContext(
         process_type="gazetteer_population",
-        command=" ".join(
-            [sys.executable, "-m", "src.cli.cli_modular", *command_parts]
-        ),
+        command=" ".join([sys.executable, "-m", "src.cli.cli_modular", *command_parts]),
         dataset_id=dataset_id,
         source_id=publisher_uuid,
         metadata=metadata,

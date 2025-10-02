@@ -7,9 +7,10 @@ methods, publishers, and error conditions to optimize extraction strategies.
 
 import json
 import time
+from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any
 from urllib.parse import urlparse
 
 from src.telemetry.store import TelemetryStore, get_store
@@ -18,8 +19,7 @@ from src.telemetry.store import TelemetryStore, get_store
 class ExtractionMetrics:
     """Tracks detailed metrics for a single extraction operation."""
 
-    def __init__(self, operation_id: str, article_id: str, url: str,
-                 publisher: str):
+    def __init__(self, operation_id: str, article_id: str, url: str, publisher: str):
         self.operation_id = operation_id
         self.article_id = article_id
         self.url = url
@@ -55,29 +55,33 @@ class ExtractionMetrics:
 
         # Final results
         self.extracted_fields = {
-            'title': False,
-            'author': False,
-            'content': False,
-            'publish_date': False
+            "title": False,
+            "author": False,
+            "content": False,
+            "publish_date": False,
         }
         self.content_length = 0
         self.is_success = False
 
         # Error tracking
-        self.error_message: Optional[str] = None
-        self.error_type: Optional[str] = None
+        self.error_message: str | None = None
+        self.error_type: str | None = None
 
         # Content type detection
-        self.content_type_detection: Optional[Dict[str, Any]] = None
+        self.content_type_detection: dict[str, Any] | None = None
 
     def start_method(self, method_name: str):
         """Start timing a specific extraction method."""
         self.methods_attempted.append(method_name)
         self.method_timings[method_name] = time.time()
 
-    def end_method(self, method_name: str, success: bool,
-                   error: Optional[str] = None,
-                   extracted_fields: Optional[Dict[str, Any]] = None):
+    def end_method(
+        self,
+        method_name: str,
+        success: bool,
+        error: str | None = None,
+        extracted_fields: dict[str, Any] | None = None,
+    ):
         """End timing and record results for a method."""
         if method_name in self.method_timings:
             duration = (time.time() - self.method_timings[method_name]) * 1000
@@ -93,23 +97,26 @@ class ExtractionMetrics:
         # Track field-level success (always track, even for failed methods)
         if extracted_fields is not None:
             self.field_extraction[method_name] = {
-                'title': bool(extracted_fields.get('title')),
-                'author': bool(extracted_fields.get('author')),
-                'content': bool(extracted_fields.get('content')),
-                'publish_date': bool(extracted_fields.get('publish_date'))
+                "title": bool(extracted_fields.get("title")),
+                "author": bool(extracted_fields.get("author")),
+                "content": bool(extracted_fields.get("content")),
+                "publish_date": bool(extracted_fields.get("publish_date")),
             }
 
             # Extract HTTP status from metadata if available
-            metadata = extracted_fields.get('metadata', {})
-            http_status = metadata.get('http_status')
+            metadata = extracted_fields.get("metadata", {})
+            http_status = metadata.get("http_status")
             if http_status and self.http_status_code is None:
                 # Use first HTTP status we encounter
                 self.set_http_metrics(http_status, 0, 0)
 
-    def record_alternative_extraction(self, method_name: str,
-                                      field_name: str,
-                                      alternative_value: str,
-                                      current_value: str):
+    def record_alternative_extraction(
+        self,
+        method_name: str,
+        field_name: str,
+        alternative_value: str,
+        current_value: str,
+    ):
         """Record when a later method extracts an alternative for filled field.
 
         Args:
@@ -122,17 +129,18 @@ class ExtractionMetrics:
             self.alternative_extractions[method_name] = {}
 
         self.alternative_extractions[method_name][field_name] = {
-            'alternative_value': alternative_value[:200],  # Truncate
-            'current_value': current_value[:200],          # Truncate
-            'values_differ': alternative_value != current_value
+            "alternative_value": alternative_value[:200],  # Truncate
+            "current_value": current_value[:200],  # Truncate
+            "values_differ": alternative_value != current_value,
         }
 
-    def set_content_type_detection(self, detection: Optional[Dict[str, Any]]):
+    def set_content_type_detection(self, detection: dict[str, Any] | None):
         """Attach content type detection payload for telemetry."""
         self.content_type_detection = detection
 
-    def set_http_metrics(self, status_code: int, response_size: int,
-                         response_time_ms: float):
+    def set_http_metrics(
+        self, status_code: int, response_size: int, response_time_ms: float
+    ):
         """Record HTTP-level metrics."""
         self.http_status_code = status_code
         self.response_size_bytes = response_size
@@ -140,13 +148,13 @@ class ExtractionMetrics:
 
         # Categorize HTTP errors
         if 300 <= status_code < 400:
-            self.http_error_type = '3xx_redirect'
+            self.http_error_type = "3xx_redirect"
         elif 400 <= status_code < 500:
-            self.http_error_type = '4xx_client_error'
+            self.http_error_type = "4xx_client_error"
         elif status_code >= 500:
-            self.http_error_type = '5xx_server_error'
+            self.http_error_type = "5xx_server_error"
 
-    def finalize(self, final_result: Dict[str, Any]):
+    def finalize(self, final_result: dict[str, Any]):
         """Finalize metrics with the overall extraction result."""
         self.end_time = datetime.utcnow()
         duration_sec = (self.end_time - self.start_time).total_seconds()
@@ -155,21 +163,21 @@ class ExtractionMetrics:
         # Update final field extraction success
         if final_result:
             self.extracted_fields = {
-                'title': bool(final_result.get('title')),
-                'author': bool(final_result.get('author')),
-                'content': bool(final_result.get('content')),
-                'publish_date': bool(final_result.get('publish_date'))
+                "title": bool(final_result.get("title")),
+                "author": bool(final_result.get("author")),
+                "content": bool(final_result.get("content")),
+                "publish_date": bool(final_result.get("publish_date")),
             }
 
             # Capture final field attribution from metadata
-            metadata = final_result.get('metadata', {})
-            extraction_methods = metadata.get('extraction_methods', {})
+            metadata = final_result.get("metadata", {})
+            extraction_methods = metadata.get("extraction_methods", {})
             if extraction_methods:
                 self.final_field_attribution = extraction_methods
 
-            self.content_length = len(final_result.get('content') or '')
-            has_title = bool(final_result.get('title'))
-            has_content = bool(final_result.get('content'))
+            self.content_length = len(final_result.get("content") or "")
+            has_title = bool(final_result.get("title"))
+            has_content = bool(final_result.get("content"))
             self.is_success = has_title and has_content
 
 
@@ -178,8 +186,8 @@ class ComprehensiveExtractionTelemetry:
 
     def __init__(
         self,
-        db_path: Optional[str] = None,
-        store: Optional[TelemetryStore] = None,
+        db_path: str | None = None,
+        store: TelemetryStore | None = None,
     ) -> None:
         """Initialize telemetry system."""
         if store is not None:
@@ -202,7 +210,8 @@ class ComprehensiveExtractionTelemetry:
         """Create telemetry tables if they don't exist."""
         with self._store.connection() as conn:
             # Enhanced extraction telemetry table
-            conn.execute('''
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS extraction_telemetry_v2 (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     operation_id TEXT NOT NULL,
@@ -243,21 +252,25 @@ class ComprehensiveExtractionTelemetry:
 
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            ''')
+            """
+            )
 
             # Add alternative_extractions column if it doesn't exist
             try:
-                conn.execute('''
+                conn.execute(
+                    """
                     ALTER TABLE extraction_telemetry_v2
                     ADD COLUMN alternative_extractions TEXT
-                ''')
+                """
+                )
                 print("Added alternative_extractions column")
             except Exception:
                 # Column already exists
                 pass
 
             # HTTP error tracking
-            conn.execute('''
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS http_error_summary (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     host TEXT NOT NULL,
@@ -269,9 +282,11 @@ class ComprehensiveExtractionTelemetry:
 
                     UNIQUE(host, status_code)
                 )
-            ''')
+            """
+            )
 
-            conn.execute('''
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS content_type_detection_telemetry (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     article_id TEXT NOT NULL,
@@ -288,14 +303,15 @@ class ComprehensiveExtractionTelemetry:
                     detected_at TIMESTAMP,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            ''')
+            """
+            )
 
             try:
                 conn.execute(
-                    '''
+                    """
                     ALTER TABLE content_type_detection_telemetry
                     ADD COLUMN confidence_score REAL
-                    '''
+                    """
                 )
             except Exception:
                 pass
@@ -304,6 +320,7 @@ class ComprehensiveExtractionTelemetry:
 
     def record_extraction(self, metrics: ExtractionMetrics):
         """Record detailed extraction metrics."""
+
         def writer(conn):
             is_success = bool(metrics.is_success)
             if not is_success:
@@ -312,7 +329,7 @@ class ComprehensiveExtractionTelemetry:
                 else:
                     is_success = any(metrics.method_success.values())
             conn.execute(
-                '''
+                """
                 INSERT INTO extraction_telemetry_v2 (
                     operation_id, article_id, url, publisher, host,
                     start_time, end_time, total_duration_ms,
@@ -325,7 +342,7 @@ class ComprehensiveExtractionTelemetry:
                     content_length, is_success, error_message, error_type
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                          ?, ?, ?, ?, ?, ?, ?, ?)
-                ''',
+                """,
                 (
                     metrics.operation_id,
                     metrics.article_id,
@@ -358,14 +375,14 @@ class ComprehensiveExtractionTelemetry:
             if metrics.http_status_code and metrics.http_error_type:
                 now = datetime.utcnow()
                 conn.execute(
-                    '''
+                    """
                     INSERT INTO http_error_summary
                     (host, status_code, error_type, count, last_seen)
                     VALUES (?, ?, ?, 1, ?)
                     ON CONFLICT(host, status_code) DO UPDATE SET
                         count = count + 1,
                         last_seen = ?
-                    ''',
+                    """,
                     (
                         metrics.host,
                         metrics.http_status_code,
@@ -379,13 +396,13 @@ class ComprehensiveExtractionTelemetry:
             if detection:
                 evidence_payload = detection.get("evidence")
                 conn.execute(
-                    '''
+                    """
                     INSERT INTO content_type_detection_telemetry (
                         article_id, operation_id, url, publisher, host,
                         status, confidence, confidence_score, reason,
                         evidence, version, detected_at
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ''',
+                    """,
                     (
                         metrics.article_id,
                         metrics.operation_id,
@@ -396,9 +413,11 @@ class ComprehensiveExtractionTelemetry:
                         detection.get("confidence"),
                         detection.get("confidence_score"),
                         detection.get("reason"),
-                        json.dumps(evidence_payload)
-                        if evidence_payload is not None
-                        else None,
+                        (
+                            json.dumps(evidence_payload)
+                            if evidence_payload is not None
+                            else None
+                        ),
                         detection.get("version"),
                         detection.get("detected_at"),
                     ),
@@ -410,16 +429,18 @@ class ComprehensiveExtractionTelemetry:
         """Get HTTP error summary for the last N days."""
         with self._store.connection() as conn:
             cursor = conn.execute(
-                '''
+                f"""
                 SELECT host, status_code, error_type, count, last_seen
                 FROM http_error_summary
-                WHERE last_seen >= datetime('now', '-{} days')
+                WHERE last_seen >= datetime('now', '-{days} days')
                 ORDER BY count DESC, last_seen DESC
-                '''.format(days)
+                """
             )
             try:
                 columns = [col[0] for col in cursor.description]
-                return [dict(zip(columns, row)) for row in cursor.fetchall()]
+                return [
+                    dict(zip(columns, row, strict=False)) for row in cursor.fetchall()
+                ]
             finally:
                 cursor.close()
 
@@ -427,13 +448,13 @@ class ComprehensiveExtractionTelemetry:
         self,
         *,
         limit: int = 200,
-        statuses: Optional[Sequence[str]] = None,
-        days: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
+        statuses: Sequence[str] | None = None,
+        days: int | None = None,
+    ) -> list[dict[str, Any]]:
         """Return recent content-type detections for review."""
 
-        where_clauses: List[str] = []
-        params: List[Any] = []
+        where_clauses: list[str] = []
+        params: list[Any] = []
 
         if statuses:
             placeholders = ",".join("?" for _ in statuses)
@@ -465,7 +486,7 @@ class ComprehensiveExtractionTelemetry:
             finally:
                 cursor.close()
 
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
         for row in rows:
             (
                 article_id,
@@ -508,12 +529,12 @@ class ComprehensiveExtractionTelemetry:
         return results
 
     def get_method_effectiveness(
-        self, publisher: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+        self, publisher: str | None = None
+    ) -> list[dict[str, Any]]:
         """Get method effectiveness stats."""
         with self._store.connection() as conn:
             where_clause = ""
-            params: List[Any] = []
+            params: list[Any] = []
 
             if publisher:
                 where_clause = "WHERE publisher = ?"
@@ -528,7 +549,7 @@ class ComprehensiveExtractionTelemetry:
 
             cursor = conn.execute(query, params)
             try:
-                method_stats: Dict[str, Dict[str, float]] = {}
+                method_stats: dict[str, dict[str, float]] = {}
                 for row in cursor.fetchall():
                     timings_json, success_json, _overall_success = row
                     if not timings_json:
@@ -536,51 +557,49 @@ class ComprehensiveExtractionTelemetry:
 
                     try:
                         timings = json.loads(timings_json)
-                        successes = (
-                            json.loads(success_json)
-                            if success_json
-                            else {}
-                        )
+                        successes = json.loads(success_json) if success_json else {}
                     except (json.JSONDecodeError, TypeError):
                         continue
 
                     for method, timing in timings.items():
                         if method not in method_stats:
                             method_stats[method] = {
-                                'count': 0,
-                                'total_duration': 0.0,
-                                'success_count': 0,
+                                "count": 0,
+                                "total_duration": 0.0,
+                                "success_count": 0,
                             }
 
                         stats = method_stats[method]
-                        stats['count'] += 1
-                        stats['total_duration'] += timing
+                        stats["count"] += 1
+                        stats["total_duration"] += timing
                         if successes.get(method, False):
-                            stats['success_count'] += 1
+                            stats["success_count"] += 1
             finally:
                 cursor.close()
 
-        method_results: List[Dict[str, Any]] = []
+        method_results: list[dict[str, Any]] = []
         for method, stats in method_stats.items():
-            count = stats['count']
-            avg_duration = stats['total_duration'] / count if count else 0.0
-            success_rate = stats['success_count'] / count if count else 0.0
-            method_results.append({
-                'method_type': method,
-                'successful_method': method,
-                'count': count,
-                'avg_duration': avg_duration,
-                'success_rate': success_rate,
-            })
+            count = stats["count"]
+            avg_duration = stats["total_duration"] / count if count else 0.0
+            success_rate = stats["success_count"] / count if count else 0.0
+            method_results.append(
+                {
+                    "method_type": method,
+                    "successful_method": method,
+                    "count": count,
+                    "avg_duration": avg_duration,
+                    "success_rate": success_rate,
+                }
+            )
 
-        method_results.sort(key=lambda item: item['count'], reverse=True)
+        method_results.sort(key=lambda item: item["count"], reverse=True)
         return method_results
 
-    def get_publisher_stats(self) -> List[Dict[str, Any]]:
+    def get_publisher_stats(self) -> list[dict[str, Any]]:
         """Get per-publisher performance statistics."""
         with self._store.connection() as conn:
             cursor = conn.execute(
-                '''
+                """
                 SELECT
                     publisher,
                     host,
@@ -591,29 +610,31 @@ class ComprehensiveExtractionTelemetry:
                 FROM extraction_telemetry_v2
                 GROUP BY publisher, host, successful_method
                 ORDER BY total_attempts DESC
-                '''
+                """
             )
             try:
                 columns = [col[0] for col in cursor.description]
-                return [dict(zip(columns, row)) for row in cursor.fetchall()]
+                return [
+                    dict(zip(columns, row, strict=False)) for row in cursor.fetchall()
+                ]
             finally:
                 cursor.close()
 
     def get_field_extraction_stats(
         self,
-        publisher: Optional[str] = None,
-        method: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+        publisher: str | None = None,
+        method: str | None = None,
+    ) -> list[dict[str, Any]]:
         """Get field-level extraction success statistics by method."""
         with self._store.connection() as conn:
-            where_parts: List[str] = []
-            params: List[Any] = []
+            where_parts: list[str] = []
+            params: list[Any] = []
 
             if publisher:
                 where_parts.append("publisher = ?")
                 params.append(publisher)
 
-            where_clause = ''
+            where_clause = ""
             if where_parts:
                 where_clause = "WHERE " + " AND ".join(where_parts)
 
@@ -625,15 +646,13 @@ class ComprehensiveExtractionTelemetry:
                 query += where_clause
 
             cursor = conn.execute(query, params)
-            method_field_stats: Dict[str, Dict[str, int]] = {}
+            method_field_stats: dict[str, dict[str, int]] = {}
             try:
                 for row in cursor.fetchall():
                     field_extraction_json, methods_json, _successful = row
 
                     try:
-                        methods = (
-                            json.loads(methods_json) if methods_json else []
-                        )
+                        methods = json.loads(methods_json) if methods_json else []
                         field_data = (
                             json.loads(field_extraction_json)
                             if field_extraction_json
@@ -649,39 +668,41 @@ class ComprehensiveExtractionTelemetry:
                         stats = method_field_stats.setdefault(
                             method_name,
                             {
-                                'count': 0,
-                                'title_success': 0,
-                                'author_success': 0,
-                                'content_success': 0,
-                                'date_success': 0,
+                                "count": 0,
+                                "title_success": 0,
+                                "author_success": 0,
+                                "content_success": 0,
+                                "date_success": 0,
                             },
                         )
 
-                        stats['count'] += 1
+                        stats["count"] += 1
                         method_fields = field_data.get(method_name, {})
-                        if method_fields.get('title'):
-                            stats['title_success'] += 1
-                        if method_fields.get('author'):
-                            stats['author_success'] += 1
-                        if method_fields.get('content'):
-                            stats['content_success'] += 1
-                        if method_fields.get('publish_date'):
-                            stats['date_success'] += 1
+                        if method_fields.get("title"):
+                            stats["title_success"] += 1
+                        if method_fields.get("author"):
+                            stats["author_success"] += 1
+                        if method_fields.get("content"):
+                            stats["content_success"] += 1
+                        if method_fields.get("publish_date"):
+                            stats["date_success"] += 1
             finally:
                 cursor.close()
 
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
         for method_name, stats in method_field_stats.items():
-            count = stats['count']
+            count = stats["count"]
             denominator = count if count else 1
-            results.append({
-                'method': method_name,
-                'count': count,
-                'title_success_rate': stats['title_success'] / denominator,
-                'author_success_rate': stats['author_success'] / denominator,
-                'content_success_rate': stats['content_success'] / denominator,
-                'date_success_rate': stats['date_success'] / denominator,
-            })
+            results.append(
+                {
+                    "method": method_name,
+                    "count": count,
+                    "title_success_rate": stats["title_success"] / denominator,
+                    "author_success_rate": stats["author_success"] / denominator,
+                    "content_success_rate": stats["content_success"] / denominator,
+                    "date_success_rate": stats["date_success"] / denominator,
+                }
+            )
 
-        results.sort(key=lambda item: item['count'], reverse=True)
+        results.sort(key=lambda item: item["count"], reverse=True)
         return results

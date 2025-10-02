@@ -6,7 +6,6 @@ import json
 import logging
 import re
 from difflib import SequenceMatcher
-from typing import List, Optional, Dict, Union
 
 # Import telemetry system
 from .byline_telemetry import BylineCleaningTelemetry
@@ -20,207 +19,436 @@ class BylineCleaner:
     # Common titles and job descriptions to remove
     TITLES_TO_REMOVE = {
         # Basic titles
-        'staff', 'reporter', 'editor', 'publisher', 'writer', 'journalist',
-        'correspondent', 'contributor', 'freelancer', 'intern', 'blogger',
-
+        "staff",
+        "reporter",
+        "editor",
+        "publisher",
+        "writer",
+        "journalist",
+        "correspondent",
+        "contributor",
+        "freelancer",
+        "intern",
+        "blogger",
         # Senior/lead roles
-        'senior', 'lead', 'chief', 'managing', 'executive', 'associate',
-        'assistant', 'deputy', 'acting', 'interim', 'former', 'co-',
-
+        "senior",
+        "lead",
+        "chief",
+        "managing",
+        "executive",
+        "associate",
+        "assistant",
+        "deputy",
+        "acting",
+        "interim",
+        "former",
+        "co-",
         # Department/beat specific
-        'news', 'sports', 'politics', 'business', 'entertainment', 'lifestyle',
-        'health', 'science', 'technology', 'education', 'crime', 'courts',
-        'government', 'city', 'county', 'state', 'national', 'international',
-        'investigative', 'feature', 'opinion', 'editorial', 'column',
-        'columnist',
-
+        "news",
+        "sports",
+        "politics",
+        "business",
+        "entertainment",
+        "lifestyle",
+        "health",
+        "science",
+        "technology",
+        "education",
+        "crime",
+        "courts",
+        "government",
+        "city",
+        "county",
+        "state",
+        "national",
+        "international",
+        "investigative",
+        "feature",
+        "opinion",
+        "editorial",
+        "column",
+        "columnist",
         # Organization roles
-        'director', 'manager', 'coordinator', 'specialist', 'analyst',
-        'producer', 'photographer', 'videographer', 'multimedia',
-
+        "director",
+        "manager",
+        "coordinator",
+        "specialist",
+        "analyst",
+        "producer",
+        "photographer",
+        "videographer",
+        "multimedia",
         # Special correspondent/contributor patterns
-        'special', 'contributing', 'freelance', 'guest', 'visiting',
-
+        "special",
+        "contributing",
+        "freelance",
+        "guest",
+        "visiting",
         # Common suffixes/prefixes
-        'the', 'for', 'at', 'of', 'and', 'from', 'with', 'by', 'staff writer',
-        'to', 'he', 'tot', 'teh',  # Common typos and words in "Special to"
-
+        "the",
+        "for",
+        "at",
+        "of",
+        "and",
+        "from",
+        "with",
+        "by",
+        "staff writer",
+        "to",
+        "he",
+        "tot",
+        "teh",  # Common typos and words in "Special to"
         # Publication words (when used as titles/suffixes)
-        'tribune', 'herald', 'gazette', 'times', 'post', 'news', 'press',
-        'journal', 'daily', 'weekly', 'newspaper', 'magazine', 'publication',
-        'citizen', 'sentinel', 'observer', 'chronicle', 'register', 'dispatch',
-        'record', 'mirror', 'beacon', 'voice', 'leader', 'independent',
-
+        "tribune",
+        "herald",
+        "gazette",
+        "times",
+        "post",
+        "press",
+        "journal",
+        "daily",
+        "weekly",
+        "newspaper",
+        "magazine",
+        "publication",
+        "citizen",
+        "sentinel",
+        "observer",
+        "chronicle",
+        "register",
+        "dispatch",
+        "record",
+        "mirror",
+        "beacon",
+        "voice",
+        "leader",
+        "independent",
         # Degrees and credentials
-        'phd', 'md', 'jd', 'mba', 'ma', 'ms', 'bs', 'ba'
+        "phd",
+        "md",
+        "jd",
+        "mba",
+        "ma",
+        "ms",
+        "bs",
+        "ba",
     }
 
     # Wire services and syndicated content sources
     # (preserve these for later filtering)
     WIRE_SERVICES = {
-        'associated press', 'ap', 'reuters', 'bloomberg', 'cnn',
-        'cnn newssource', 'fox news', 'fox', 'nbc', 'abc', 'abc news',
-        'cbs', 'npr', 'pbs', 'usa today', 'wall street journal',
-        'new york times', 'the new york times', 'washington post',
-        'the washington post', 'los angeles times', 'chicago tribune',
-        'boston globe', 'the guardian', 'bbc', 'politico', 'the hill',
-        'mcclatchy', 'gannett', 'hearst', 'scripps', 'sinclair'
+        "associated press",
+        "ap",
+        "reuters",
+        "bloomberg",
+        "cnn",
+        "cnn newssource",
+        "fox news",
+        "fox",
+        "nbc",
+        "abc",
+        "abc news",
+        "cbs",
+        "npr",
+        "pbs",
+        "usa today",
+        "wall street journal",
+        "new york times",
+        "the new york times",
+        "washington post",
+        "the washington post",
+        "los angeles times",
+        "chicago tribune",
+        "boston globe",
+        "the guardian",
+        "bbc",
+        "politico",
+        "the hill",
+        "mcclatchy",
+        "gannett",
+        "hearst",
+        "scripps",
+        "sinclair",
     }
 
     # Normalization mapping for wire services to canonical names
     WIRE_SERVICE_NORMALIZATION = {
-        'associated press': 'The Associated Press',
-        'the associated press': 'The Associated Press',
-        'ap': 'The Associated Press',
-        'cnn': 'CNN NewsSource',
-        'cnn newssource': 'CNN NewsSource',
-        'hearst': 'Hearst',
-        'abc': 'ABC News',
-        'abc news': 'ABC News',
-        'reuters': 'Reuters',
-        'bloomberg': 'Bloomberg',
-        'npr': 'NPR',
-        'pbs': 'PBS'
+        "associated press": "The Associated Press",
+        "the associated press": "The Associated Press",
+        "ap": "The Associated Press",
+        "cnn": "CNN NewsSource",
+        "cnn newssource": "CNN NewsSource",
+        "hearst": "Hearst",
+        "abc": "ABC News",
+        "abc news": "ABC News",
+        "reuters": "Reuters",
+        "bloomberg": "Bloomberg",
+        "npr": "NPR",
+        "pbs": "PBS",
     }
     # Journalism-specific nouns that are never names
     JOURNALISM_NOUNS = {
         # Core journalism terms
-        'news', 'editor', 'editors', 'reporter', 'reporters', 'staff',
-        'writer', 'writers', 'journalist', 'journalists', 'correspondent',
-        'correspondents', 'columnist', 'columnists', 'publisher',
-        'publishers', 'producer', 'producers', 'anchor', 'anchors',
-
+        "news",
+        "editor",
+        "editors",
+        "reporter",
+        "reporters",
+        "staff",
+        "writer",
+        "writers",
+        "journalist",
+        "journalists",
+        "correspondent",
+        "correspondents",
+        "columnist",
+        "columnists",
+        "publisher",
+        "publishers",
+        "producer",
+        "producers",
+        "anchor",
+        "anchors",
         # Job functions
-        'investigator', 'investigators', 'photographer', 'photographers',
-        'videographer', 'videographers', 'analyst', 'analysts', 'critic',
-        'critics', 'reviewer', 'reviewers', 'contributor', 'contributors',
-        'freelancer', 'freelancers', 'intern', 'interns',
-
+        "investigator",
+        "investigators",
+        "photographer",
+        "photographers",
+        "videographer",
+        "videographers",
+        "analyst",
+        "analysts",
+        "critic",
+        "critics",
+        "reviewer",
+        "reviewers",
+        "contributor",
+        "contributors",
+        "freelancer",
+        "freelancers",
+        "intern",
+        "interns",
         # Editorial roles
-        'editorial', 'editorials', 'opinion', 'opinions', 'commentary',
-        'commentaries', 'column', 'columns', 'feature', 'features',
-        'blog', 'blogs', 'blogger', 'bloggers',
-
+        "editorial",
+        "editorials",
+        "opinion",
+        "opinions",
+        "commentary",
+        "commentaries",
+        "column",
+        "columns",
+        "feature",
+        "features",
+        "blog",
+        "blogs",
+        "blogger",
+        "bloggers",
         # Publication terms
-        'publication', 'publications', 'newspaper', 'newspapers',
-        'magazine', 'magazines', 'journal', 'journals', 'press', 'media',
-        'newsroom', 'newsrooms', 'bureau', 'bureaus', 'desk', 'desks',
-        'beat', 'beats',
-
+        "publication",
+        "publications",
+        "newspaper",
+        "newspapers",
+        "magazine",
+        "magazines",
+        "journal",
+        "journals",
+        "press",
+        "media",
+        "newsroom",
+        "newsrooms",
+        "bureau",
+        "bureaus",
+        "desk",
+        "desks",
+        "beat",
+        "beats",
         # Content types
-        'article', 'articles', 'story', 'stories', 'report', 'reports',
-        'piece', 'pieces', 'coverage', 'interview', 'interviews',
-        'profile', 'profiles',
-
+        "article",
+        "articles",
+        "story",
+        "stories",
+        "report",
+        "reports",
+        "piece",
+        "pieces",
+        "coverage",
+        "interview",
+        "interviews",
+        "profile",
+        "profiles",
         # Time/status indicators
-        'former', 'current', 'retired', 'emeritus', 'acting', 'interim',
-        'temporary',
-
+        "former",
+        "current",
+        "retired",
+        "emeritus",
+        "acting",
+        "interim",
+        "temporary",
         # Organizational
-        'team', 'teams', 'crew', 'crews', 'department',
-        'departments', 'division', 'divisions',
-        'section', 'sections', 'unit', 'units', 'group', 'groups',
-        'name', 'names'
+        "team",
+        "teams",
+        "crew",
+        "crews",
+        "department",
+        "departments",
+        "division",
+        "divisions",
+        "section",
+        "sections",
+        "unit",
+        "units",
+        "group",
+        "groups",
+        "name",
+        "names",
     }
 
     # Organization and department patterns (not person names)
     ORGANIZATION_PATTERNS = {
         # Educational institutions
-        'university', 'college', 'school', 'academy', 'institute', 'campus',
-
+        "university",
+        "college",
+        "school",
+        "academy",
+        "institute",
+        "campus",
         # Government/Military
-        'department', 'bureau', 'agency', 'office', 'division', 'unit',
-        'wing', 'squadron', 'battalion', 'regiment', 'corps', 'command',
-        'affairs', 'administration', 'ministry', 'council', 'committee',
-
+        "department",
+        "bureau",
+        "agency",
+        "office",
+        "division",
+        "unit",
+        "wing",
+        "squadron",
+        "battalion",
+        "regiment",
+        "corps",
+        "command",
+        "affairs",
+        "administration",
+        "ministry",
+        "council",
+        "committee",
         # Business/Organization types
-        'corporation', 'company', 'inc', 'llc', 'ltd', 'group', 'organization',
-        'association', 'foundation', 'institute', 'center', 'centre',
-
+        "corporation",
+        "company",
+        "inc",
+        "llc",
+        "ltd",
+        "group",
+        "organization",
+        "association",
+        "foundation",
+        "center",
+        "centre",
         # Media/Communications
-        'media', 'communications', 'broadcast', 'network', 'channel',
-        'productions', 'studios', 'publishing', 'syndicate',
-
+        "media",
+        "communications",
+        "broadcast",
+        "network",
+        "channel",
+        "productions",
+        "studios",
+        "publishing",
+        "syndicate",
         # Activities/Services
-        'activities', 'services', 'operations', 'relations', 'resources',
-        'development', 'research', 'studies', 'programs', 'initiatives'
+        "activities",
+        "services",
+        "operations",
+        "relations",
+        "resources",
+        "development",
+        "research",
+        "studies",
+        "programs",
+        "initiatives",
     }
 
     # Wire service partial names that should be filtered
     WIRE_SERVICE_PARTIALS = {
-        'associated', 'reuters', 'bloomberg', 'ap news', 'cnn news',
-        'fox news', 'nbc news', 'abc news', 'cbs news', 'npr news',
-        'usa today', 'wsj', 'nyt', 'wapo', 'latimes', 'tribune',
-        'mcclatchy', 'gannett', 'hearst', 'scripps', 'sinclair'
+        "associated",
+        "reuters",
+        "bloomberg",
+        "ap news",
+        "cnn news",
+        "fox news",
+        "nbc news",
+        "abc news",
+        "cbs news",
+        "npr news",
+        "usa today",
+        "wsj",
+        "nyt",
+        "wapo",
+        "latimes",
+        "tribune",
+        "mcclatchy",
+        "gannett",
+        "hearst",
+        "scripps",
+        "sinclair",
     }
 
     # Patterns for common byline formats
     BYLINE_PATTERNS = [
         # "By Author Name" patterns
-        r'^by\s+(.+)$',
-        r'^written\s+by\s+(.+)$',
-        r'^story\s+by\s+(.+)$',
-        r'^report\s+by\s+(.+)$',
-
+        r"^by\s+(.+)$",
+        r"^written\s+by\s+(.+)$",
+        r"^story\s+by\s+(.+)$",
+        r"^report\s+by\s+(.+)$",
         # "Special to" patterns (extract name before "Special")
-        r'^(.+?)\s+special\s+to?t?\s*(the|he)?\s*(.+)$',
-        r'^(.+?)\s+special\s+correspondent.*$',
-        r'^(.+?)\s+special\s+contributor.*$',
-
+        r"^(.+?)\s+special\s+to?t?\s*(the|he)?\s*(.+)$",
+        r"^(.+?)\s+special\s+correspondent.*$",
+        r"^(.+?)\s+special\s+contributor.*$",
         # Email patterns (remove emails)
-        r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',
-
+        r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b",
         # Phone number patterns (remove phones)
-        r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b',
-        r'\(\d{3}\)\s*\d{3}[-.]?\d{4}',
-
+        r"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b",
+        r"\(\d{3}\)\s*\d{3}[-.]?\d{4}",
         # Social media handles and references
-        r'@\w+',
-        r'twitter\.com/\w+',
-        r'facebook\.com/[\w.]+',
-        r'twitter:\s*@?\w+',
-        r'facebook:\s*[\w./]+',
-        r'instagram:\s*@?\w+',
-        r'linkedin:\s*[\w./]+',
-
+        r"@\w+",
+        r"twitter\.com/\w+",
+        r"facebook\.com/[\w.]+",
+        r"twitter:\s*@?\w+",
+        r"facebook:\s*[\w./]+",
+        r"instagram:\s*@?\w+",
+        r"linkedin:\s*[\w./]+",
         # Copyright and source attributions
-        r'©.*$',
-        r'copyright.*$',
-        r'all rights reserved.*$',
-        r'source:.*$',
-        r'photo.*:.*$',
-        r'image.*:.*$',
+        r"©.*$",
+        r"copyright.*$",
+        r"all rights reserved.*$",
+        r"source:.*$",
+        r"photo.*:.*$",
+        r"image.*:.*$",
     ]
 
     # Author separators (order matters - more specific first)
     AUTHOR_SEPARATORS = [
-        ' and ',
-        ' & ',
-        ' with ',
-        ', and ',
-        ' + ',
+        " and ",
+        " & ",
+        " with ",
+        ", and ",
+        " + ",
     ]
 
     def __init__(self, enable_telemetry: bool = True):
         """Initialize the byline cleaner."""
         # Compile regex patterns for efficiency
         self.compiled_patterns = [
-            re.compile(pattern, re.IGNORECASE)
-            for pattern in self.BYLINE_PATTERNS
+            re.compile(pattern, re.IGNORECASE) for pattern in self.BYLINE_PATTERNS
         ]
 
         # Create title removal pattern
         titles_pattern = (
-            r'\b(?:' +
-            '|'.join(re.escape(title) for title in self.TITLES_TO_REMOVE) +
-            r')\b'
+            r"\b(?:"
+            + "|".join(re.escape(title) for title in self.TITLES_TO_REMOVE)
+            + r")\b"
         )
         self.title_pattern = re.compile(titles_pattern, re.IGNORECASE)
 
         # Initialize telemetry
-        self.telemetry = BylineCleaningTelemetry(
-            enable_telemetry=enable_telemetry
-        )
+        self.telemetry = BylineCleaningTelemetry(enable_telemetry=enable_telemetry)
 
         # Dynamic publication filter cache
         self._publication_cache = None
@@ -236,12 +464,12 @@ class BylineCleaner:
         self,
         byline: str,
         return_json: bool = False,
-        source_name: Optional[str] = None,
-        article_id: Optional[str] = None,
-        candidate_link_id: Optional[str] = None,
-        source_id: Optional[str] = None,
-        source_canonical_name: Optional[str] = None
-    ) -> Union[List[str], Dict]:
+        source_name: str | None = None,
+        article_id: str | None = None,
+        candidate_link_id: str | None = None,
+        source_id: str | None = None,
+        source_canonical_name: str | None = None,
+    ) -> list[str] | dict:
         """
         Clean a raw byline string with comprehensive telemetry.
 
@@ -266,7 +494,7 @@ class BylineCleaner:
             candidate_link_id=candidate_link_id,
             source_id=source_id,
             source_name=source_name,
-            source_canonical_name=source_canonical_name
+            source_canonical_name=source_canonical_name,
         )
 
         try:
@@ -292,13 +520,19 @@ class BylineCleaner:
                 # Get the detected wire service name
                 detected_wire_service = (
                     self._detected_wire_services[-1]
-                    if self._detected_wire_services else None)
+                    if self._detected_wire_services
+                    else None
+                )
 
                 # Check if this wire service is from the publication's
                 # own source
-                if (detected_wire_service and self._current_source_name and
-                    self._is_wire_service_from_own_source(
-                        detected_wire_service, self._current_source_name)):
+                if (
+                    detected_wire_service
+                    and self._current_source_name
+                    and self._is_wire_service_from_own_source(
+                        detected_wire_service, self._current_source_name
+                    )
+                ):
 
                     # This is local content - continue with normal processing
                     # to extract author name
@@ -308,9 +542,11 @@ class BylineCleaner:
                         output_text=byline,
                         transformation_type="classification",
                         confidence_delta=0.6,
-                        notes=(f"Detected own-source wire service "
-                               f"'{detected_wire_service}' - extracting "
-                               f"author name")
+                        notes=(
+                            f"Detected own-source wire service "
+                            f"'{detected_wire_service}' - extracting "
+                            f"author name"
+                        ),
                     )
 
                     # Clear the wire service detection since this is local
@@ -326,8 +562,10 @@ class BylineCleaner:
                         output_text=byline,
                         transformation_type="classification",
                         confidence_delta=0.8,
-                        notes=(f"Detected syndicated wire service "
-                               f"'{detected_wire_service}' - preserving as-is")
+                        notes=(
+                            f"Detected syndicated wire service "
+                            f"'{detected_wire_service}' - preserving as-is"
+                        ),
                     )
 
                     self.telemetry.finalize_cleaning_session(
@@ -336,9 +574,7 @@ class BylineCleaner:
                         likely_valid_authors=True,
                         likely_noise=False,
                     )
-                    return self._format_result(
-                        [byline.strip()], return_json
-                    )
+                    return self._format_result([byline.strip()], return_json)
 
             # Step 2: Check for "Special to" patterns BEFORE source
             # removal (because source removal might break the pattern
@@ -361,7 +597,8 @@ class BylineCleaner:
                         output_text=special_extracted,
                         transformation_type="special_pattern_extraction",
                         confidence_delta=0.8,
-                        notes="Extracted special contributor and skipped standard processing")
+                        notes="Extracted special contributor and skipped standard processing",
+                    )
 
                     self.telemetry.finalize_cleaning_session(
                         final_authors=final_authors,
@@ -369,17 +606,13 @@ class BylineCleaner:
                         likely_valid_authors=True,
                         likely_noise=False,
                     )
-                    return self._format_result(
-                        final_authors, return_json
-                    )
+                    return self._format_result(final_authors, return_json)
 
             # Step 3: Source name removal (for standard processing)
             cleaned_byline = byline
             if source_name:
                 original_byline = byline
-                cleaned_byline = self._remove_source_name(
-                    byline, source_name
-                )
+                cleaned_byline = self._remove_source_name(byline, source_name)
 
                 self.telemetry.log_transformation_step(
                     step_name="source_removal",
@@ -387,13 +620,14 @@ class BylineCleaner:
                     output_text=cleaned_byline,
                     transformation_type="source_filtering",
                     removed_content=(
-                        original_byline if cleaned_byline != original_byline else None),
+                        original_byline if cleaned_byline != original_byline else None
+                    ),
                     confidence_delta=0.1 if cleaned_byline != original_byline else 0.0,
-                    notes=f"Removed source name: {source_name}")
+                    notes=f"Removed source name: {source_name}",
+                )
 
                 if cleaned_byline != byline:
-                    logger.debug(
-                        f"Source removed: '{byline}' -> '{cleaned_byline}'")
+                    logger.debug(f"Source removed: '{byline}' -> '{cleaned_byline}'")
 
             # Step 3.5: Dynamic publication name filtering
             if self._is_publication_name(cleaned_byline):
@@ -404,14 +638,14 @@ class BylineCleaner:
                     transformation_type="publication_filtering",
                     removed_content=cleaned_byline,
                     confidence_delta=0.9,
-                    notes="Removed publication name using dynamic filter"
+                    notes="Removed publication name using dynamic filter",
                 )
 
                 self.telemetry.finalize_cleaning_session(
                     final_authors=[],
                     cleaning_method="publication_filtered",
                     likely_valid_authors=False,
-                    likely_noise=True
+                    likely_noise=True,
                 )
                 return self._format_result([], return_json)
 
@@ -443,9 +677,7 @@ class BylineCleaner:
                 input_text=cleaned_byline,
                 output_text=extracted_text,
                 transformation_type="text_extraction",
-                confidence_delta=(
-                    0.2 if pattern_used != "no_pattern" else 0.0
-                ),
+                confidence_delta=(0.2 if pattern_used != "no_pattern" else 0.0),
                 notes=f"Used {pattern_used}",
             )
 
@@ -461,9 +693,11 @@ class BylineCleaner:
                     transformation_type="noise_removal",
                     removed_content=(
                         f"Removed: "
-                        f"{before_pattern_removal.replace(cleaned_text, '').strip()}"),
+                        f"{before_pattern_removal.replace(cleaned_text, '').strip()}"
+                    ),
                     confidence_delta=0.1,
-                    notes="Removed emails, phones, and other patterns")
+                    notes="Removed emails, phones, and other patterns",
+                )
 
             logger.debug(f"After removing patterns: {cleaned_text}")
 
@@ -480,7 +714,7 @@ class BylineCleaner:
                     output_text=str(authors),
                     transformation_type="special_contributor_bypass",
                     confidence_delta=0.3,
-                    notes="Bypassed _extract_authors for special contributor"
+                    notes="Bypassed _extract_authors for special contributor",
                 )
             else:
                 authors = self._extract_authors(cleaned_text)
@@ -490,14 +724,17 @@ class BylineCleaner:
                     output_text=str(authors),
                     transformation_type="name_parsing",
                     confidence_delta=0.2,
-                    notes=f"Extracted {len(authors)} potential authors"
+                    notes=f"Extracted {len(authors)} potential authors",
                 )
 
             logger.debug(f"Extracted authors: {authors}")
 
             # Check if smart processing was used
-            if (isinstance(authors, list) and len(authors) >= 1 and
-                    authors[0] == "__SMART_PROCESSED__"):
+            if (
+                isinstance(authors, list)
+                and len(authors) >= 1
+                and authors[0] == "__SMART_PROCESSED__"
+            ):
                 smart_names = authors[1:]
                 cleaned_names = []
 
@@ -528,10 +765,8 @@ class BylineCleaner:
 
             # Step 6: Clean each author name individually
             before_name_cleaning = authors
-            cleaned_authors = [
-                self._clean_author_name(author) for author in authors]
-            cleaned_authors = [
-                author for author in cleaned_authors if author.strip()]
+            cleaned_authors = [self._clean_author_name(author) for author in authors]
+            cleaned_authors = [author for author in cleaned_authors if author.strip()]
 
             self.telemetry.log_transformation_step(
                 step_name="name_cleaning",
@@ -541,7 +776,9 @@ class BylineCleaner:
                 confidence_delta=0.1,
                 notes=(
                     f"Cleaned {len(before_name_cleaning)} names to "
-                    f"{len(cleaned_authors)}"))
+                    f"{len(cleaned_authors)}"
+                ),
+            )
 
             # Step 7: Remove duplicates and validate
             before_dedup = cleaned_authors
@@ -556,7 +793,7 @@ class BylineCleaner:
                     transformation_type="deduplication",
                     removed_content=f"Removed {removed_duplicates} duplicates",
                     confidence_delta=0.1,
-                    notes=f"Removed {removed_duplicates} duplicate authors"
+                    notes=f"Removed {removed_duplicates} duplicate authors",
                 )
 
             # Step 8: Final validation
@@ -571,7 +808,7 @@ class BylineCleaner:
                     transformation_type="validation",
                     removed_content=f"Removed {invalid_count} invalid names",
                     confidence_delta=0.1,
-                    notes=f"Filtered out {invalid_count} invalid author names"
+                    notes=f"Filtered out {invalid_count} invalid author names",
                 )
 
             logger.debug(f"Final authors: {valid_authors}")
@@ -581,15 +818,12 @@ class BylineCleaner:
                 final_authors=valid_authors,
                 cleaning_method="standard_pipeline",
                 likely_valid_authors=(
-                    len(valid_authors) > 0 and all(
-                        len(name.split()) >= 2
-                        for name in valid_authors
-                    )
+                    len(valid_authors) > 0
+                    and all(len(name.split()) >= 2 for name in valid_authors)
                 ),
                 likely_noise=len(valid_authors) == 0,
                 requires_manual_review=(
-                    len(valid_authors) == 0 and
-                    len(byline.strip()) > 10
+                    len(valid_authors) == 0 and len(byline.strip()) > 10
                 ),
             )
 
@@ -602,13 +836,12 @@ class BylineCleaner:
                 final_authors=[],
                 cleaning_method="error_fallback",
                 likely_valid_authors=False,
-                requires_manual_review=True
+                requires_manual_review=True,
             )
             logger.error(f"Error cleaning byline '{byline}': {e}")
             return self._format_result([], return_json)
 
-    def _process_single_name(self, name_text: str,
-                             return_json: bool) -> Union[str, Dict]:
+    def _process_single_name(self, name_text: str, return_json: bool) -> str | dict:
         """Process a single name that's already been identified as a clean name."""
         # Clean the individual name
         cleaned_name = self._clean_author_name(name_text)
@@ -618,7 +851,7 @@ class BylineCleaner:
         else:
             return self._format_result([], return_json)
 
-    def _extract_special_contributor(self, byline: str) -> Optional[str]:
+    def _extract_special_contributor(self, byline: str) -> str | None:
         """
         Extract author name from 'Special to' constructions.
 
@@ -639,16 +872,16 @@ class BylineCleaner:
         text = byline.lower().strip()
 
         # Remove "by" prefix first
-        text = re.sub(r'^by\s+', '', text)
+        text = re.sub(r"^by\s+", "", text)
 
         # Patterns to match "Special to" constructions
         special_patterns = [
             # "Name Special to [the] Publication"
-            r'^(.+?)\s+special\s+(?:to|tot|teh)\s*(?:the|he)?\s*(.+)$',
+            r"^(.+?)\s+special\s+(?:to|tot|teh)\s*(?:the|he)?\s*(.+)$",
             # "Name Special correspondent/contributor"
-            r'^(.+?)\s+special\s+(?:correspondent|contributor).*$',
+            r"^(.+?)\s+special\s+(?:correspondent|contributor).*$",
             # "Name Special" (standalone)
-            r'^(.+?)\s+special\s*$',
+            r"^(.+?)\s+special\s*$",
         ]
 
         for pattern in special_patterns:
@@ -679,14 +912,15 @@ class BylineCleaner:
         byline_lower = byline.lower().strip()
 
         # Remove common prefixes to get to the core identifier
-        for prefix in ['by ', 'from ', 'source: ', '- ']:
+        for prefix in ["by ", "from ", "source: ", "- "]:
             if byline_lower.startswith(prefix):
-                byline_lower = byline_lower[len(prefix):].strip()
+                byline_lower = byline_lower[len(prefix) :].strip()
 
         # Check if the byline matches known wire services
         for wire_service in self.WIRE_SERVICES:
-            if (byline_lower == wire_service or
-                    byline_lower.startswith(wire_service + ' ')):
+            if byline_lower == wire_service or byline_lower.startswith(
+                wire_service + " "
+            ):
                 # Track detected wire service with normalization
                 normalized_service = self._normalize_wire_service(wire_service)
                 self._detected_wire_services.append(normalized_service)
@@ -694,14 +928,20 @@ class BylineCleaner:
 
         # Check for common wire service patterns
         wire_patterns = [
-            (r'^(ap|reuters|bloomberg|cnn|npr|pbs)$',
-             'AP/Reuters/Bloomberg/CNN/NPR/PBS'),
-            (r'^(the\s+)?(associated\s+press|new\s+york\s+times|'
-             r'washington\s+post)$',
-             'Major Publication'),
-            (r'^(usa\s+today|wall\s+street\s+journal|'
-             r'los\s+angeles\s+times)$',
-             'National Publication')]
+            (
+                r"^(ap|reuters|bloomberg|cnn|npr|pbs)$",
+                "AP/Reuters/Bloomberg/CNN/NPR/PBS",
+            ),
+            (
+                r"^(the\s+)?(associated\s+press|new\s+york\s+times|"
+                r"washington\s+post)$",
+                "Major Publication",
+            ),
+            (
+                r"^(usa\s+today|wall\s+street\s+journal|" r"los\s+angeles\s+times)$",
+                "National Publication",
+            ),
+        ]
 
         for pattern, service_category in wire_patterns:
             if re.match(pattern, byline_lower):
@@ -709,8 +949,7 @@ class BylineCleaner:
                 match = re.match(pattern, byline_lower)
                 if match:
                     matched_service = match.group(0)
-                    normalized_service = self._normalize_wire_service(
-                        matched_service)
+                    normalized_service = self._normalize_wire_service(matched_service)
                     self._detected_wire_services.append(normalized_service)
                 else:
                     self._detected_wire_services.append(service_category)
@@ -721,25 +960,25 @@ class BylineCleaner:
     def _basic_cleaning(self, byline: str) -> str:
         """Perform basic text cleaning and normalization."""
         # Remove extra whitespace and normalize
-        cleaned = re.sub(r'\s+', ' ', byline.strip())
+        cleaned = re.sub(r"\s+", " ", byline.strip())
 
         # Remove common prefixes
-        for pattern in ['by ', 'written by ', 'story by ', 'report by ']:
+        for pattern in ["by ", "written by ", "story by ", "report by "]:
             if cleaned.lower().startswith(pattern):
-                cleaned = cleaned[len(pattern):].strip()
+                cleaned = cleaned[len(pattern) :].strip()
                 break
 
         # Remove trailing punctuation and common suffixes
-        cleaned = re.sub(r'[.,;:]+$', '', cleaned)
+        cleaned = re.sub(r"[.,;:]+$", "", cleaned)
         cleaned = re.sub(
-            r'\s+(staff|reporter|editor)$', '',
-            cleaned, flags=re.IGNORECASE
+            r"\s+(staff|reporter|editor)$", "", cleaned, flags=re.IGNORECASE
         )
 
         return cleaned
 
     def _is_wire_service_from_own_source(
-            self, wire_service: str, source_name: str) -> bool:
+        self, wire_service: str, source_name: str
+    ) -> bool:
         """
         Check if detected wire service is from the publication's own source.
 
@@ -755,15 +994,17 @@ class BylineCleaner:
         # Normalize for comparison
         def normalize_for_comparison(text: str) -> str:
             import re
+
             text = text.lower().strip()
             # Remove articles and common publication words
             text = re.sub(
-                r'\b(the|a|an|news|press|daily|weekly|times|post|gazette|herald|tribune|journal)\b',
-                '',
-                text)
+                r"\b(the|a|an|news|press|daily|weekly|times|post|gazette|herald|tribune|journal)\b",
+                "",
+                text,
+            )
             # Remove extra whitespace and punctuation
-            text = re.sub(r'[^\w\s]', '', text)
-            text = re.sub(r'\s+', ' ', text).strip()
+            text = re.sub(r"[^\w\s]", "", text)
+            text = re.sub(r"\s+", " ", text).strip()
             return text
 
         norm_wire = normalize_for_comparison(wire_service)
@@ -781,7 +1022,7 @@ class BylineCleaner:
         source_lower = source_name.lower()
 
         # Check if wire service is contained in source name or vice versa
-        if (wire_lower in source_lower or source_lower in wire_lower):
+        if wire_lower in source_lower or source_lower in wire_lower:
             return True
 
         return False
@@ -796,8 +1037,8 @@ class BylineCleaner:
         def normalize_for_comparison(input_text: str) -> str:
             """Normalize text for fuzzy comparison."""
             # Convert to lowercase, remove extra spaces, punctuation
-            normalized = re.sub(r'[^\w\s]', '', input_text.lower())
-            normalized = re.sub(r'\s+', ' ', normalized).strip()
+            normalized = re.sub(r"[^\w\s]", "", input_text.lower())
+            normalized = re.sub(r"\s+", " ", normalized).strip()
             return normalized
 
         normalized_source = normalize_for_comparison(source_name)
@@ -808,9 +1049,7 @@ class BylineCleaner:
             return text
 
         # Calculate similarity ratio for exact match detection
-        similarity = SequenceMatcher(
-            None, normalized_source, normalized_text
-        ).ratio()
+        similarity = SequenceMatcher(None, normalized_source, normalized_text).ratio()
 
         # High similarity threshold - likely just the publication name
         if similarity > 0.8:
@@ -825,8 +1064,7 @@ class BylineCleaner:
         # source)
         if normalized_source in normalized_text:
             # Calculate how much of the text is NOT the source name
-            remaining_text = normalized_text.replace(
-                normalized_source, '').strip()
+            remaining_text = normalized_text.replace(normalized_source, "").strip()
             if normalized_text:
                 remaining_ratio = len(remaining_text) / len(normalized_text)
             else:
@@ -873,39 +1111,44 @@ class BylineCleaner:
                 remaining_words = []
 
                 for word in original_words:
-                    word_normalized = re.sub(r'[^\w\s]', '', word.lower())
+                    word_normalized = re.sub(r"[^\w\s]", "", word.lower())
                     # Skip this word if it matches any source word
-                    if word_normalized not in [w.lower()
-                                               for w in source_words]:
+                    if word_normalized not in [w.lower() for w in source_words]:
                         remaining_words.append(word)
 
                 # Only return the remaining words if we have something left
                 # that looks like a name
                 if remaining_words:
-                    result = ' '.join(remaining_words).strip()
+                    result = " ".join(remaining_words).strip()
 
                     # Clean up any remaining email addresses
                     result = re.sub(
-                        r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', '', result)
-                    result = re.sub(r'\s+', ' ', result).strip()
+                        r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b",
+                        "",
+                        result,
+                    )
+                    result = re.sub(r"\s+", " ", result).strip()
 
                     if result:
                         logger.info(
                             f"Removing publication words "
                             f"(word match {match_ratio:.2f}): "
-                            f"'{text}' -> '{result}'")
+                            f"'{text}' -> '{result}'"
+                        )
                         return result
                     else:
                         logger.info(
                             f"Removing entire text "
                             f"(word match {match_ratio:.2f}): "
-                            f"'{text}' matches '{source_name}'")
+                            f"'{text}' matches '{source_name}'"
+                        )
                         return ""
                 else:
                     logger.info(
                         f"Removing entire text "
                         f"(word match {match_ratio:.2f}): "
-                        f"'{text}' matches '{source_name}'")
+                        f"'{text}' matches '{source_name}'"
+                    )
                     return ""
 
         # Additional patterns for common publication naming
@@ -915,7 +1158,7 @@ class BylineCleaner:
             # Last word(s) might be publication name
             last_word = text_words[-1]
             if len(text_words) >= 2:
-                last_two_words = ' '.join(text_words[-2:])
+                last_two_words = " ".join(text_words[-2:])
             else:
                 last_two_words = ""
 
@@ -927,15 +1170,17 @@ class BylineCleaner:
                     if word_similarity > 0.8:
                         # Remove the publication word(s) and return just the
                         # name part
-                        name_part = ' '.join(text_words[:-1]).strip()
+                        name_part = " ".join(text_words[:-1]).strip()
                         if name_part:
                             # Re-capitalize properly
-                            name_part = ' '.join(
-                                word.title() for word in name_part.split())
+                            name_part = " ".join(
+                                word.title() for word in name_part.split()
+                            )
                             logger.info(
                                 f"Removing publication suffix "
                                 f"'{last_word}' (similarity: "
-                                f"{word_similarity:.2f})")
+                                f"{word_similarity:.2f})"
+                            )
                             return name_part
 
             # Check last two words against source
@@ -943,15 +1188,15 @@ class BylineCleaner:
             matcher = SequenceMatcher(None, normalized_source, normalized_two)
             two_word_similarity = matcher.ratio()
             if two_word_similarity > 0.7:
-                name_part = ' '.join(text_words[:-2]).strip()
+                name_part = " ".join(text_words[:-2]).strip()
                 if name_part:
                     # Re-capitalize properly
-                    name_part = ' '.join(
-                        word.title() for word in name_part.split())
+                    name_part = " ".join(word.title() for word in name_part.split())
                     logger.info(
                         f"Removing publication suffix "
                         f"'{last_two_words}' (similarity: "
-                        f"{two_word_similarity:.2f})")
+                        f"{two_word_similarity:.2f})"
+                    )
                     return name_part
 
         # No match found - return original
@@ -961,30 +1206,28 @@ class BylineCleaner:
         """Remove unwanted patterns like emails, phones, etc."""
         # Skip byline extraction patterns
         for pattern in self.compiled_patterns[4:]:
-            text = pattern.sub('', text)
+            text = pattern.sub("", text)
 
         # Remove domain suffixes (e.g., "• @domain.com", "• .com")
-        text = re.sub(r'\s*[•·]\s*@?\w*\.com\b.*$',
-                      '', text, flags=re.IGNORECASE)
+        text = re.sub(r"\s*[•·]\s*@?\w*\.com\b.*$", "", text, flags=re.IGNORECASE)
         text = re.sub(
-            r'\s*[•·]\s*@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}.*$',
-            '',
-            text,
-            flags=re.IGNORECASE)
+            r"\s*[•·]\s*@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}.*$", "", text, flags=re.IGNORECASE
+        )
 
         # Remove trailing email domains and handles
-        text = re.sub(r'\s*@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}.*$', '', text)
-        text = re.sub(r'\s*\.\s*(com|org|net|edu|gov).*$',
-                      '', text, flags=re.IGNORECASE)
+        text = re.sub(r"\s*@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}.*$", "", text)
+        text = re.sub(
+            r"\s*\.\s*(com|org|net|edu|gov).*$", "", text, flags=re.IGNORECASE
+        )
 
         # Remove parenthetical information
-        text = re.sub(r'\([^)]*\)', '', text)
+        text = re.sub(r"\([^)]*\)", "", text)
 
         # Remove bracketed information
-        text = re.sub(r'\[[^\]]*\]', '', text)
+        text = re.sub(r"\[[^\]]*\]", "", text)
 
         # Clean up extra spaces
-        text = re.sub(r'\s+', ' ', text).strip()
+        text = re.sub(r"\s+", " ", text).strip()
 
         return text
 
@@ -995,68 +1238,85 @@ class BylineCleaner:
         """
         part = part.strip()
         if not part:
-            return 'empty'
+            return "empty"
 
         # Check for photo credits (e.g., "Photos Jeremy Jacob", "Photo by John
         # Doe")
         part_lower = part.lower()
-        if (part_lower.startswith('photo ') or
-            part_lower.startswith('photos ') or
-            'photo by' in part_lower or
-            'photos by' in part_lower or
-            part_lower == 'photo' or
-                part_lower == 'photos'):
-            return 'photo_credit'
+        if (
+            part_lower.startswith("photo ")
+            or part_lower.startswith("photos ")
+            or "photo by" in part_lower
+            or "photos by" in part_lower
+            or part_lower == "photo"
+            or part_lower == "photos"
+        ):
+            return "photo_credit"
 
         # Check for email
-        if '@' in part and '.' in part:
-            return 'email'
+        if "@" in part and "." in part:
+            return "email"
 
         # Check for titles/journalism words
         part_words = part.lower().split()
         title_word_count = 0
 
         # Check for non-name contexts with Roman numerals
-        if (len(part_words) == 2 and
-                part_words[0] in ['chapter', 'section', 'volume', 'part',
-                                  'book', 'act', 'scene'] and
-                part_words[1] in ['ii', 'iii', 'iv', 'v', 'vi', 'vii',
-                                  'viii', 'ix', 'x']):
-            return 'title'
+        if (
+            len(part_words) == 2
+            and part_words[0]
+            in ["chapter", "section", "volume", "part", "book", "act", "scene"]
+            and part_words[1]
+            in ["ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x"]
+        ):
+            return "title"
 
         for i, word in enumerate(part_words):
             is_title_word = False
 
             # Direct match for title/journalism words
-            if (word in self.TITLES_TO_REMOVE or
-                    word in self.JOURNALISM_NOUNS or
-                    word in self.ORGANIZATION_PATTERNS):
+            if (
+                word in self.TITLES_TO_REMOVE
+                or word in self.JOURNALISM_NOUNS
+                or word in self.ORGANIZATION_PATTERNS
+            ):
                 is_title_word = True
 
             # Check for plural forms
-            elif (word.endswith('s') and
-                  (word[:-1] in self.TITLES_TO_REMOVE or
-                   word[:-1] in self.JOURNALISM_NOUNS or
-                   word[:-1] in self.ORGANIZATION_PATTERNS)):
+            elif word.endswith("s") and (
+                word[:-1] in self.TITLES_TO_REMOVE
+                or word[:-1] in self.JOURNALISM_NOUNS
+                or word[:-1] in self.ORGANIZATION_PATTERNS
+            ):
                 is_title_word = True
 
             # Check for common title modifiers
-            elif word in ['senior', 'junior', 'lead', 'chief', 'managing',
-                          'executive', 'associate', 'assistant', 'deputy',
-                          'acting', 'interim', 'co']:
+            elif word in [
+                "senior",
+                "junior",
+                "lead",
+                "chief",
+                "managing",
+                "executive",
+                "associate",
+                "assistant",
+                "deputy",
+                "acting",
+                "interim",
+                "co",
+            ]:
                 is_title_word = True
 
             # Check for numbers (indicating positions/levels)
             # But exclude Roman numerals when they appear as name suffixes
-            elif (word.isdigit() or
-                  (word in ['ii', 'iii', 'iv', 'v', 'vi', 'vii',
-                            'vii', 'viii', 'ix', 'x'] and
-                   not (i == len(part_words) - 1 and len(part_words) <= 3))):
+            elif word.isdigit() or (
+                word in ["ii", "iii", "iv", "v", "vi", "vii", "vii", "viii", "ix", "x"]
+                and not (i == len(part_words) - 1 and len(part_words) <= 3)
+            ):
                 is_title_word = True  # Numbers are often part of titles
 
             # Check for ordinal indicators
-            elif (word.endswith(('st', 'nd', 'rd', 'th')) and
-                  word[:-2].isdigit()):
+            elif word.endswith(("st", "nd", "rd", "th")) and word[:-2].isdigit():
                 is_title_word = True  # Ordinals are often part of titles
 
             if is_title_word:
@@ -1068,57 +1328,65 @@ class BylineCleaner:
         for i, word in enumerate(part_words):
             word_lower = word.lower()
             # If we find a clear title word, check surrounding context
-            if (word_lower in self.TITLES_TO_REMOVE or
-                    word_lower in self.JOURNALISM_NOUNS):
+            if (
+                word_lower in self.TITLES_TO_REMOVE
+                or word_lower in self.JOURNALISM_NOUNS
+            ):
                 has_title_pattern = True
                 break
 
         # If we have title patterns and numbers/ordinals, it's likely all title
         if has_title_pattern and title_word_count >= len(part_words) * 0.6:
-            return 'title'        # If most words are titles/journalism terms, it's a title section
+            return "title"  # If most words are titles/journalism terms, it's a title section
         if title_word_count >= len(part_words) / 2:
-            return 'title'
+            return "title"
 
         # If it has some title words but not majority, it's mixed
         if title_word_count > 0:
-            return 'mixed'
+            return "mixed"
 
         # Check if it looks like a name (2-3 capitalized words, no special
         # chars)
-        if (len(part_words) <= 3 and
-            all(word.replace('.', '').replace("'", '').replace('-', '')
-                .isalpha() for word in part_words) and
-            not any(word.lower() in self.TITLES_TO_REMOVE or
-                    word.lower() in self.JOURNALISM_NOUNS
-                    for word in part_words)):
-            return 'name'
+        if (
+            len(part_words) <= 3
+            and all(
+                word.replace(".", "").replace("'", "").replace("-", "").isalpha()
+                for word in part_words
+            )
+            and not any(
+                word.lower() in self.TITLES_TO_REMOVE
+                or word.lower() in self.JOURNALISM_NOUNS
+                for word in part_words
+            )
+        ):
+            return "name"
 
         # Default to mixed if unclear
-        return 'mixed'
+        return "mixed"
 
-    def _extract_authors(self, text: str) -> List[str]:
+    def _extract_authors(self, text: str) -> list[str]:
         """
         Extract author names from cleaned text.
         Uses type identification to distinguish names from emails, titles, etc.
         """
         # Remove social media patterns first
         social_patterns = [
-            r'twitter:\s*@?\w+',
-            r'facebook:\s*[\w./]+',
-            r'instagram:\s*@?\w+',
-            r'@\w+',
-            r'\btwitter\b(?!\s+[A-Z][a-z]+)',
-            r'\bfacebook\b',
-            r'\binstagram\b',
-            r'\blinkedin\b'
+            r"twitter:\s*@?\w+",
+            r"facebook:\s*[\w./]+",
+            r"instagram:\s*@?\w+",
+            r"@\w+",
+            r"\btwitter\b(?!\s+[A-Z][a-z]+)",
+            r"\bfacebook\b",
+            r"\binstagram\b",
+            r"\blinkedin\b",
         ]
 
         for pattern in social_patterns:
-            text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+            text = re.sub(pattern, "", text, flags=re.IGNORECASE)
 
         # Handle "and" separated authors (keep both)
-        if ' and ' in text.lower():
-            parts = re.split(r'\s+and\s+', text, flags=re.IGNORECASE)
+        if " and " in text.lower():
+            parts = re.split(r"\s+and\s+", text, flags=re.IGNORECASE)
             authors = []
             for part in parts:
                 part = part.strip()
@@ -1126,8 +1394,7 @@ class BylineCleaner:
                     # For "and" separated parts, recursively extract authors
                     # This handles cases like "NAME1 and NAME2, NAME1, NAME2"
                     part_authors = self._extract_authors(part)
-                    if (isinstance(part_authors, list) and
-                            len(part_authors) > 0):
+                    if isinstance(part_authors, list) and len(part_authors) > 0:
                         # If it returned processed results, add them
                         if part_authors[0] == "__SMART_PROCESSED__":
                             # Smart processing can return multiple names
@@ -1153,17 +1420,17 @@ class BylineCleaner:
 
         # Handle comma-separated or pipe-separated content with type identification
         # Support formats like "Name, Title" or "Name | Title | @Handle"
-        has_comma = ',' in text
-        has_pipe = '|' in text
+        has_comma = "," in text
+        has_pipe = "|" in text
 
         if has_comma or has_pipe:
             # Choose the primary separator (prefer pipe if both exist)
             if has_pipe:
-                separator = '|'
-                parts = text.split('|')
+                separator = "|"
+                parts = text.split("|")
             else:
-                separator = ','
-                parts = text.split(',')
+                separator = ","
+                parts = text.split(",")
 
             # Identify the type of each part
             part_types = []
@@ -1173,9 +1440,12 @@ class BylineCleaner:
 
             # Special case: "Last, First" name format detection (only for
             # comma-separated)
-            if (separator == ',' and len(parts) == 2 and
-                len(part_types) == 2 and
-                    all(ptype == 'name' for _, ptype in part_types)):
+            if (
+                separator == ","
+                and len(parts) == 2
+                and len(part_types) == 2
+                and all(ptype == "name" for _, ptype in part_types)
+            ):
 
                 first_part = part_types[0][0]  # Potential last name
                 second_part = part_types[1][0]  # Potential first name(s)
@@ -1185,27 +1455,28 @@ class BylineCleaner:
                 second_part_words = second_part.split()
 
                 # Last name should be 1 word, first name(s) should be 1-2 words
-                if (len(first_part_words) == 1 and
-                        1 <= len(second_part_words) <= 2):
+                if len(first_part_words) == 1 and 1 <= len(second_part_words) <= 2:
                     # This looks like "Last, First" - reorder to "First Last"
                     reordered_name = f"{second_part} {first_part}"
-                    logger.debug(f"Detected 'Last, First' format: "
-                                 f"'{text}' -> '{reordered_name}'")
+                    logger.debug(
+                        f"Detected 'Last, First' format: "
+                        f"'{text}' -> '{reordered_name}'"
+                    )
                     return [reordered_name]
 
             # Count different types
             non_name_count = sum(
-                1 for _, ptype in part_types if ptype in [
-                    'email', 'title', 'photo_credit'])
+                1
+                for _, ptype in part_types
+                if ptype in ["email", "title", "photo_credit"]
+            )
 
             # Smart processing: if we have multiple non-name parts,
             # extract just the name part(s)
-            condition = (non_name_count >= 2 or
-                         (non_name_count >= 1 and len(parts) >= 3))
+            condition = non_name_count >= 2 or (non_name_count >= 1 and len(parts) >= 3)
             if condition:
                 # Find parts that are clearly names (not photo credits)
-                name_parts = [part for part, ptype in part_types
-                              if ptype == 'name']
+                name_parts = [part for part, ptype in part_types if ptype == "name"]
 
                 if name_parts:
                     # Return ALL clear names, not just the first one
@@ -1214,8 +1485,7 @@ class BylineCleaner:
                     # If no clear names, take the first part that's not
                     # email/title/photo_credit
                     for part, ptype in part_types:
-                        if ptype not in [
-                                'email', 'title', 'photo_credit'] and part:
+                        if ptype not in ["email", "title", "photo_credit"] and part:
                             return ["__SMART_PROCESSED__", part]
 
                     # If all parts are email/title/photo_credit, return empty list
@@ -1227,10 +1497,10 @@ class BylineCleaner:
             # Keep parts that are names or mixed (not email/title/photo_credit)
             authors = []
             for part, ptype in part_types:
-                if ptype in ['name', 'mixed'] and part:
+                if ptype in ["name", "mixed"] and part:
                     # For mixed types that might contain person + organization,
                     # try to filter out organization words
-                    if ptype == 'mixed':
+                    if ptype == "mixed":
                         filtered_part = self._filter_organization_words(part)
                         if filtered_part.strip():  # Only add if something remains
                             authors.append(filtered_part)
@@ -1246,11 +1516,11 @@ class BylineCleaner:
         if text.strip():
             # Check if the entire text is just a title or photo credit
             text_type = self._identify_part_type(text)
-            if text_type in ['title', 'photo_credit']:
+            if text_type in ["title", "photo_credit"]:
                 return []  # Don't return titles or photo credits as names
 
             # For mixed content, try to filter organization words
-            if text_type == 'mixed':
+            if text_type == "mixed":
                 filtered_text = self._filter_organization_words(text)
                 if filtered_text.strip():
                     return [filtered_text]
@@ -1310,27 +1580,28 @@ class BylineCleaner:
                     if text_ngram == org_words:
                         # Calculate character positions for span removal
                         words_before = text_words[:start_idx]
-                        char_start = len(' '.join(words_before))
+                        char_start = len(" ".join(words_before))
                         if words_before:  # Add space if there are words before
                             char_start += 1
 
                         # Calculate end position
-                        matched_text = ' '.join(text_ngram)
+                        matched_text = " ".join(text_ngram)
                         char_end = char_start + len(matched_text)
 
                         spans_to_remove.append((char_start, char_end))
 
                         # Track if this was a wire service
-                        if org_name in {ws.lower()
-                                        for ws in self.WIRE_SERVICES}:
+                        if org_name in {ws.lower() for ws in self.WIRE_SERVICES}:
                             # Find the original wire service name and normalize
                             # it
                             for service in self.WIRE_SERVICES:
                                 if service.lower() == org_name:
                                     normalized_service = self._normalize_wire_service(
-                                        service)
+                                        service
+                                    )
                                     self._detected_wire_services.append(
-                                        normalized_service)
+                                        normalized_service
+                                    )
                                     break
 
                 # Strategy 2: Check if text contains a subsequence of org words
@@ -1344,23 +1615,21 @@ class BylineCleaner:
                             org_subseq = org_words[subseq_start:subseq_end]
 
                             # Check if this subsequence appears in text
-                            subseq_max_start = (len(text_words) -
-                                                len(org_subseq) + 1)
+                            subseq_max_start = len(text_words) - len(org_subseq) + 1
                             for start_idx in range(subseq_max_start):
                                 end_idx = start_idx + len(org_subseq)
                                 text_ngram = text_words[start_idx:end_idx]
                                 if text_ngram == org_subseq:
                                     # Calculate character positions
                                     words_before = text_words[:start_idx]
-                                    char_start = len(' '.join(words_before))
+                                    char_start = len(" ".join(words_before))
                                     if words_before:
                                         char_start += 1
 
-                                    matched_text = ' '.join(text_ngram)
+                                    matched_text = " ".join(text_ngram)
                                     char_end = char_start + len(matched_text)
 
-                                    spans_to_remove.append(
-                                        (char_start, char_end))
+                                    spans_to_remove.append((char_start, char_end))
 
         # Apply organization removal spans (prioritized)
         if spans_to_remove:
@@ -1372,7 +1641,7 @@ class BylineCleaner:
                 result_text = result_text[:start] + result_text[end:]
 
             # Clean up extra spaces
-            result_text = re.sub(r'\s+', ' ', result_text).strip()
+            result_text = re.sub(r"\s+", " ", result_text).strip()
 
             # If we removed organizations and have something left, return it
             if result_text:
@@ -1394,9 +1663,10 @@ class BylineCleaner:
 
                     # Check if this matches known name patterns
                     if self._matches_known_name_pattern(
-                            potential_name, known_name_patterns):
+                        potential_name, known_name_patterns
+                    ):
                         # Calculate character span for this name
-                        name_text = ' '.join(words[:name_len])
+                        name_text = " ".join(words[:name_len])
                         char_end = len(name_text)
                         protected_spans.append((0, char_end))
                         break  # Use the longer name if found
@@ -1419,15 +1689,17 @@ class BylineCleaner:
                             break
 
                         # Must not be an obvious organization word
-                        if (word in self.ORGANIZATION_PATTERNS or
-                                word in self.JOURNALISM_NOUNS or
-                                word in self.TITLES_TO_REMOVE):
+                        if (
+                            word in self.ORGANIZATION_PATTERNS
+                            or word in self.JOURNALISM_NOUNS
+                            or word in self.TITLES_TO_REMOVE
+                        ):
                             looks_like_person = False
                             break
 
                     if looks_like_person:
                         # Calculate character span for this name
-                        name_text = ' '.join(words[:name_len])
+                        name_text = " ".join(words[:name_len])
                         char_end = len(name_text)
                         protected_spans.append((0, char_end))
                         break  # Use the longer name if found
@@ -1447,28 +1719,30 @@ class BylineCleaner:
                 # Find the original service name from WIRE_SERVICES
                 for service in self.WIRE_SERVICES:
                     if service.lower() == word_lower:
-                        normalized_service = self._normalize_wire_service(
-                            service)
+                        normalized_service = self._normalize_wire_service(service)
                         self._detected_wire_services.append(normalized_service)
                         break
                 continue  # Skip this word
 
             # Skip obvious organization patterns, journalism terms
-            if (word_lower not in self.ORGANIZATION_PATTERNS and
-                    word_lower not in self.WIRE_SERVICE_PARTIALS and
-                    word_lower not in self.JOURNALISM_NOUNS and
-                    word_lower not in self.TITLES_TO_REMOVE):
+            if (
+                word_lower not in self.ORGANIZATION_PATTERNS
+                and word_lower not in self.WIRE_SERVICE_PARTIALS
+                and word_lower not in self.JOURNALISM_NOUNS
+                and word_lower not in self.TITLES_TO_REMOVE
+            ):
                 filtered_words.append(word)
 
-        return ' '.join(filtered_words).strip()
+        return " ".join(filtered_words).strip()
 
-    def _get_known_name_patterns(self) -> Dict[str, int]:
+    def _get_known_name_patterns(self) -> dict[str, int]:
         """
         Get patterns of known person names from the database.
         Returns dictionary with pattern -> frequency count.
         """
         try:
             import sqlite3
+
             db_path = "data/mizzou.db"
 
             # Query for existing clean author names to build patterns
@@ -1476,17 +1750,20 @@ class BylineCleaner:
             cursor = conn.cursor()
 
             # Get clean author names from the database
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT clean_authors FROM articles
                 WHERE clean_authors IS NOT NULL
                 AND clean_authors != '[]'
                 AND clean_authors != ''
-            """)
+            """
+            )
 
             name_patterns = {}
             for (clean_authors_json,) in cursor.fetchall():
                 try:
                     import json
+
                     authors = json.loads(clean_authors_json)
                     for author in authors:
                         if isinstance(author, str) and author.strip():
@@ -1498,17 +1775,20 @@ class BylineCleaner:
                                 last_lower = words[-1].lower()
                                 pattern = f"{first_lower}_{last_lower}"
                                 name_patterns[pattern] = (
-                                    name_patterns.get(pattern, 0) + 1)
+                                    name_patterns.get(pattern, 0) + 1
+                                )
 
                                 # Pattern: first name frequency
                                 first_pattern = f"first_{first_lower}"
                                 name_patterns[first_pattern] = (
-                                    name_patterns.get(first_pattern, 0) + 1)
+                                    name_patterns.get(first_pattern, 0) + 1
+                                )
 
                                 # Pattern: last name frequency
                                 last_pattern = f"last_{last_lower}"
                                 name_patterns[last_pattern] = (
-                                    name_patterns.get(last_pattern, 0) + 1)
+                                    name_patterns.get(last_pattern, 0) + 1
+                                )
 
                 except (json.JSONDecodeError, TypeError):
                     continue
@@ -1520,8 +1800,9 @@ class BylineCleaner:
             # Return empty dict if database access fails
             return {}
 
-    def _matches_known_name_pattern(self, potential_name: List[str],
-                                    known_patterns: Dict[str, int]) -> bool:
+    def _matches_known_name_pattern(
+        self, potential_name: list[str], known_patterns: dict[str, int]
+    ) -> bool:
         """
         Check if potential name matches patterns from known authors.
 
@@ -1542,20 +1823,17 @@ class BylineCleaner:
 
             # Check if we've seen this first+last combination before
             full_pattern = f"{first_word}_{last_word}"
-            if (full_pattern in known_patterns and
-                    known_patterns[full_pattern] >= 2):
+            if full_pattern in known_patterns and known_patterns[full_pattern] >= 2:
                 return True
 
             # Check if first name appears frequently
             first_pattern = f"first_{first_word}"
-            if (first_pattern in known_patterns and
-                    known_patterns[first_pattern] >= 5):
+            if first_pattern in known_patterns and known_patterns[first_pattern] >= 5:
                 return True
 
             # Check if last name appears frequently
             last_pattern = f"last_{last_word}"
-            if (last_pattern in known_patterns and
-                    known_patterns[last_pattern] >= 3):
+            if last_pattern in known_patterns and known_patterns[last_pattern] >= 3:
                 return True
 
         return False
@@ -1567,6 +1845,7 @@ class BylineCleaner:
 
         # First decode any HTML entities
         import html
+
         name = html.unescape(name)
 
         # Check if this name is actually a publication name
@@ -1580,9 +1859,16 @@ class BylineCleaner:
         # Clean up separators and trailing URL-like fragments
         # Split on common separators and keep only the name part
         import re
-        separators = [r'\s*•\s*', r'\s*\|\s*', r'\s*–\s*', r'\s*—\s*',
-                      r'\s*-\s*(?=\w+\s*\.|\.)', r'\s*,\s*(?=\.)',
-                      r'\s+(?=\.com|\.org|\.net|\.edu)']
+
+        separators = [
+            r"\s*•\s*",
+            r"\s*\|\s*",
+            r"\s*–\s*",
+            r"\s*—\s*",
+            r"\s*-\s*(?=\w+\s*\.|\.)",
+            r"\s*,\s*(?=\.)",
+            r"\s+(?=\.com|\.org|\.net|\.edu)",
+        ]
 
         cleaned_name = name
         for separator in separators:
@@ -1591,11 +1877,22 @@ class BylineCleaner:
                 # Take the first part if it looks like a name
                 first_part = parts[0].strip()
                 words = first_part.split()
-                if (len(words) >= 2 and
-                    all(word.replace('.', '').replace("'", '').replace('-', '')
-                        .isalpha() for word in words if word) and
-                    all(word[0].isupper() for word in words
-                        if word and word[0].isalpha())):
+                if (
+                    len(words) >= 2
+                    and all(
+                        word.replace(".", "")
+                        .replace("'", "")
+                        .replace("-", "")
+                        .isalpha()
+                        for word in words
+                        if word
+                    )
+                    and all(
+                        word[0].isupper()
+                        for word in words
+                        if word and word[0].isalpha()
+                    )
+                ):
                     cleaned_name = first_part
                     break
 
@@ -1604,7 +1901,7 @@ class BylineCleaner:
 
         # Remove common patterns like ", Title", ", Title Title", etc.
         # This handles cases like "Mike Wilson, News Editors"
-        comma_split = cleaned.split(',', 1)
+        comma_split = cleaned.split(",", 1)
         if len(comma_split) == 2:
             main_name = comma_split[0].strip()
             title_part = comma_split[1].strip()
@@ -1614,7 +1911,10 @@ class BylineCleaner:
             title_words = title_part.lower().split()
             is_all_titles = True
             for word in title_words:
-                if word not in self.TITLES_TO_REMOVE and word not in self.JOURNALISM_NOUNS:
+                if (
+                    word not in self.TITLES_TO_REMOVE
+                    and word not in self.JOURNALISM_NOUNS
+                ):
                     is_all_titles = False
                     break
 
@@ -1624,10 +1924,10 @@ class BylineCleaner:
                 cleaned = name  # Keep original if not all title words
 
         # Remove titles and job descriptions using the compiled pattern
-        cleaned = self.title_pattern.sub(' ', cleaned)
+        cleaned = self.title_pattern.sub(" ", cleaned)
 
         # Remove extra whitespace
-        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
 
         # Handle name capitalization
         cleaned = self._normalize_capitalization(cleaned)
@@ -1639,10 +1939,10 @@ class BylineCleaner:
 
         if not has_quoted_nickname:
             # Only remove leading/trailing punctuation if no quoted nicknames
-            cleaned = re.sub(r'^[^a-zA-Z]+|[^a-zA-Z\s\'.-]+$', '', cleaned)
+            cleaned = re.sub(r"^[^a-zA-Z]+|[^a-zA-Z\s\'.-]+$", "", cleaned)
         else:
             # More conservative cleanup - only remove obvious junk
-            cleaned = re.sub(r'^[^\w"\']+|[^\w"\'.]+$', '', cleaned)
+            cleaned = re.sub(r'^[^\w"\']+|[^\w"\'.]+$', "", cleaned)
 
         return cleaned.strip()
 
@@ -1658,32 +1958,33 @@ class BylineCleaner:
         for word in words:
             # Handle prefixes like 'de', 'von', 'van', etc.
             if word.lower() in [
-                'de',
-                'da',
-                'del',
-                'della',
-                'von',
-                'van',
-                'der',
-                'le',
-                'la',
-                    'du']:
+                "de",
+                "da",
+                "del",
+                "della",
+                "von",
+                "van",
+                "der",
+                "le",
+                "la",
+                "du",
+            ]:
                 normalized.append(word.lower())
             # Handle suffixes like Jr., Sr., III - always normalize these
-            elif word.lower().rstrip('.') in ['jr', 'sr', 'ii', 'iii', 'iv']:
-                base_word = word.lower().rstrip('.')
-                if base_word in ['ii', 'iii', 'iv']:
+            elif word.lower().rstrip(".") in ["jr", "sr", "ii", "iii", "iv"]:
+                base_word = word.lower().rstrip(".")
+                if base_word in ["ii", "iii", "iv"]:
                     # Roman numerals should be uppercase
-                    suffix = '.' if word.endswith('.') else ''
+                    suffix = "." if word.endswith(".") else ""
                     normalized.append(base_word.upper() + suffix)
                 else:
                     # Jr, Sr should be title case
-                    suffix = '.' if word.endswith('.') else ''
+                    suffix = "." if word.endswith(".") else ""
                     normalized.append(base_word.title() + suffix)
             # Handle hyphenated names
-            elif '-' in word:
-                parts = word.split('-')
-                normalized.append('-'.join(part.title() for part in parts))
+            elif "-" in word:
+                parts = word.split("-")
+                normalized.append("-".join(part.title() for part in parts))
             else:
                 # Apply title case if the word is all caps or all lowercase
                 if word.isupper() or word.islower():
@@ -1692,9 +1993,9 @@ class BylineCleaner:
                     # Keep existing capitalization for mixed case
                     normalized.append(word)
 
-        return ' '.join(normalized)
+        return " ".join(normalized)
 
-    def _deduplicate_authors(self, authors: List[str]) -> List[str]:
+    def _deduplicate_authors(self, authors: list[str]) -> list[str]:
         """Remove duplicate author names, preferring non-hyphenated versions."""
         if not authors:
             return []
@@ -1709,7 +2010,7 @@ class BylineCleaner:
                 continue
 
             # Create a key that treats hyphens and spaces as equivalent
-            hyphen_normalized = re.sub(r'[\s\-–—]+', '', author.lower())
+            hyphen_normalized = re.sub(r"[\s\-–—]+", "", author.lower())
 
             if hyphen_normalized not in author_groups:
                 author_groups[hyphen_normalized] = []
@@ -1722,9 +2023,11 @@ class BylineCleaner:
                 deduplicated.append(variants[0])
             else:
                 # Multiple variants - prefer the one without hyphens
-                non_hyphenated = [v for v in variants
-                                  if '-' not in v and '–' not in v
-                                  and '—' not in v]
+                non_hyphenated = [
+                    v
+                    for v in variants
+                    if "-" not in v and "–" not in v and "—" not in v
+                ]
 
                 if non_hyphenated:
                     # Prefer the first non-hyphenated version
@@ -1735,7 +2038,7 @@ class BylineCleaner:
 
         return deduplicated
 
-    def _validate_authors(self, authors: List[str]) -> List[str]:
+    def _validate_authors(self, authors: list[str]) -> list[str]:
         """Validate author names and filter out invalid entries."""
         valid_authors = []
 
@@ -1748,7 +2051,7 @@ class BylineCleaner:
                 continue
 
             # Must contain at least one letter
-            if not re.search(r'[a-zA-Z]', author):
+            if not re.search(r"[a-zA-Z]", author):
                 continue
 
             # Reject if it's just a single word that looks like a title or
@@ -1756,13 +2059,14 @@ class BylineCleaner:
             words = author.split()
             if len(words) == 1:
                 word_lower = words[0].lower()
-                if word_lower in self.TITLES_TO_REMOVE or word_lower in self.JOURNALISM_NOUNS:
+                if (
+                    word_lower in self.TITLES_TO_REMOVE
+                    or word_lower in self.JOURNALISM_NOUNS
+                ):
                     continue
 
             # Reject common non-name patterns
-            if re.match(
-                r'^(staff|the|by|and|with|for|at|of)$',
-                    author.lower()):
+            if re.match(r"^(staff|the|by|and|with|for|at|of)$", author.lower()):
                 continue
 
             # Reject if it's too long (likely not a name)
@@ -1773,10 +2077,7 @@ class BylineCleaner:
 
         return valid_authors
 
-    def _format_result(self,
-                       authors: List[str],
-                       return_json: bool) -> Union[List[str],
-                                                   Dict]:
+    def _format_result(self, authors: list[str], return_json: bool) -> list[str] | dict:
         """Format the final result as array or JSON."""
         # FINAL STEP: Remove any duplicates that made it through
         if authors:
@@ -1798,11 +2099,10 @@ class BylineCleaner:
             if service_normalized not in seen_services:
                 # Check if this wire service matches the source name
                 # (indicating local content)
-                if hasattr(
-                        self,
-                        '_current_source_name') and self._current_source_name:
+                if hasattr(self, "_current_source_name") and self._current_source_name:
                     if self._is_wire_service_from_own_source(
-                            service, self._current_source_name):
+                        service, self._current_source_name
+                    ):
                         # This is local content, not wire content - skip it
                         continue
 
@@ -1817,12 +2117,12 @@ class BylineCleaner:
             for service in unique_wire_services:
                 wire_service_names.add(service.lower().strip())
                 # Also add common variations
-                if service.lower() == 'the associated press':
-                    wire_service_names.update(['associated press', 'ap'])
-                elif service.lower() == 'cnn newssource':
-                    wire_service_names.update(['cnn', 'cnn newsource'])
-                elif service.lower() == 'abc news':
-                    wire_service_names.update(['abc'])
+                if service.lower() == "the associated press":
+                    wire_service_names.update(["associated press", "ap"])
+                elif service.lower() == "cnn newssource":
+                    wire_service_names.update(["cnn", "cnn newsource"])
+                elif service.lower() == "abc news":
+                    wire_service_names.update(["abc"])
 
             # Filter out wire service names from authors
             filtered_authors = []
@@ -1841,13 +2141,16 @@ class BylineCleaner:
                 "has_multiple_authors": len(authors) > 1,
                 "wire_services": unique_wire_services,
                 "is_wire_content": len(unique_wire_services) > 0,
-                "primary_wire_service": unique_wire_services[0] if unique_wire_services else None}
+                "primary_wire_service": (
+                    unique_wire_services[0] if unique_wire_services else None
+                ),
+            }
         else:
             # Return array for normalized individual names (better for DB
             # operations)
             return authors
 
-    def get_detected_wire_services(self) -> List[str]:
+    def get_detected_wire_services(self) -> list[str]:
         """
         Get list of wire services detected in the last cleaning operation.
 
@@ -1856,7 +2159,7 @@ class BylineCleaner:
         """
         return list(self._detected_wire_services)
 
-    def get_primary_wire_service(self) -> Optional[str]:
+    def get_primary_wire_service(self) -> str | None:
         """
         Get the primary (first detected) wire service from last cleaning.
 
@@ -1866,7 +2169,8 @@ class BylineCleaner:
         return self._detected_wire_services[0] if self._detected_wire_services else None
 
     def clean_bulk_bylines(
-            self, bylines: List[str], return_json: bool = False) -> List[Union[str, Dict]]:
+        self, bylines: list[str], return_json: bool = False
+    ) -> list[str | dict]:
         """
         Clean multiple bylines in bulk.
 
@@ -1893,17 +2197,21 @@ class BylineCleaner:
             Set of normalized publication names for filtering
         """
         import time
-        from src.models.database import DatabaseManager
+
         from sqlalchemy import text
+
+        from src.models.database import DatabaseManager
 
         # Check if cache is still valid (refresh every 1 hour)
         current_time = time.time()
         cache_age = 3600  # 1 hour in seconds
 
-        if (not force_refresh and
-                self._publication_cache is not None and
-                self._publication_cache_timestamp is not None and
-                current_time - self._publication_cache_timestamp < cache_age):
+        if (
+            not force_refresh
+            and self._publication_cache is not None
+            and self._publication_cache_timestamp is not None
+            and current_time - self._publication_cache_timestamp < cache_age
+        ):
             return self._publication_cache
 
         # Fetch fresh data from database
@@ -1914,12 +2222,16 @@ class BylineCleaner:
             session = db.session
 
             # Get all canonical names from sources
-            result = session.execute(text("""
+            result = session.execute(
+                text(
+                    """
                 SELECT DISTINCT canonical_name
                 FROM sources
                 WHERE canonical_name IS NOT NULL
                 AND canonical_name != ''
-            """))
+            """
+                )
+            )
 
             for row in result:
                 canonical_name = row[0]
@@ -1932,9 +2244,20 @@ class BylineCleaner:
                     for word in words:
                         # Only add significant words (3+ chars, not common)
                         common_words = {
-                            'the', 'and', 'news', 'daily', 'county', 'city',
-                            'post', 'times', 'press', 'herald', 'tribune',
-                            'gazette', 'journal', 'review'
+                            "the",
+                            "and",
+                            "news",
+                            "daily",
+                            "county",
+                            "city",
+                            "post",
+                            "times",
+                            "press",
+                            "herald",
+                            "tribune",
+                            "gazette",
+                            "journal",
+                            "review",
                         }
                         if len(word) >= 3 and word not in common_words:
                             publication_names.add(word)
@@ -1971,6 +2294,7 @@ class BylineCleaner:
             Set of normalized organization names for filtering
         """
         import time
+
         from src.models.database import DatabaseManager
 
         current_time = time.time()
@@ -1979,11 +2303,9 @@ class BylineCleaner:
         # Check cache validity
         if (
             not force_refresh
-            and hasattr(self, '_organization_cache')
-            and hasattr(self, '_organization_cache_timestamp')
-            and (
-                current_time - self._organization_cache_timestamp
-            ) < cache_duration
+            and hasattr(self, "_organization_cache")
+            and hasattr(self, "_organization_cache_timestamp")
+            and (current_time - self._organization_cache_timestamp) < cache_duration
         ):
             return self._organization_cache
 
@@ -2019,8 +2341,18 @@ class BylineCleaner:
                     for word in words:
                         # Only add significant organizational words
                         common_words = {
-                            'the', 'and', 'of', 'for', 'at', 'in', 'on', 'to',
-                            'center', 'department', 'office', 'services'
+                            "the",
+                            "and",
+                            "of",
+                            "for",
+                            "at",
+                            "in",
+                            "on",
+                            "to",
+                            "center",
+                            "department",
+                            "office",
+                            "services",
                         }
                         if len(word) >= 4 and word not in common_words:
                             organization_names.add(word)
@@ -2071,7 +2403,7 @@ class BylineCleaner:
 
         # IMPORTANT: If text contains commas, it's likely mixed content
         # Don't filter out comma-separated content at this stage
-        if ',' in normalized_text:
+        if "," in normalized_text:
             return False
 
         # Check exact match in publications (only for multi-word phrases)
@@ -2087,18 +2419,14 @@ class BylineCleaner:
             return True
 
         # Check if it's an organization (contains organization keywords)
-        org_word_count = sum(
-            1 for word in words if word in self.ORGANIZATION_PATTERNS
-        )
+        org_word_count = sum(1 for word in words if word in self.ORGANIZATION_PATTERNS)
 
         # If >40% of words are organization-related, it's likely an org
         if len(words) > 0 and org_word_count / len(words) > 0.4:
             return True
 
         # Check if text is mostly publication words
-        pub_word_count = sum(
-            1 for word in words if word in publication_names
-        )
+        pub_word_count = sum(1 for word in words if word in publication_names)
 
         # If >60% of words are publication-related, consider it publication
         if len(words) > 0 and pub_word_count / len(words) > 0.6:
@@ -2123,20 +2451,21 @@ class BylineCleaner:
         text_clean = text.strip()
 
         # If there are multiple spaces, it's not a continuous URL
-        if '  ' in text_clean or text_clean.count(' ') > 1:
+        if "  " in text_clean or text_clean.count(" ") > 1:
             return False
 
         # Remove single spaces for checking (like "site .com" -> "site.com")
-        text_no_spaces = text_clean.replace(' ', '').lower()
+        text_no_spaces = text_clean.replace(" ", "").lower()
 
         # URL patterns that indicate continuous URL strings
         import re
+
         url_patterns = [
-            r'^https?://',                    # http:// or https://
-            r'^www\.',                       # starts with www.
-            r'^\w+\.\w{2,4}$',              # domain.tld format
-            r'^\w+\.\w+\.\w{2,4}$',         # subdomain.domain.tld
-            r'\.com$|\.org$|\.net$|\.edu$|\.gov$',  # ends with common TLD
+            r"^https?://",  # http:// or https://
+            r"^www\.",  # starts with www.
+            r"^\w+\.\w{2,4}$",  # domain.tld format
+            r"^\w+\.\w+\.\w{2,4}$",  # subdomain.domain.tld
+            r"\.com$|\.org$|\.net$|\.edu$|\.gov$",  # ends with common TLD
         ]
 
         for pattern in url_patterns:
@@ -2145,9 +2474,11 @@ class BylineCleaner:
 
         # Special case: malformed URLs with extra dots (like "Www..Com")
         # But only if it's a continuous string without spaces
-        if (len(text_clean.split()) <= 1 and
-                'www' in text_no_spaces and
-                text_no_spaces.count('.') >= 2):
+        if (
+            len(text_clean.split()) <= 1
+            and "www" in text_no_spaces
+            and text_no_spaces.count(".") >= 2
+        ):
             return True
 
         return False
@@ -2171,13 +2502,13 @@ class BylineCleaner:
         # Split on separators that might separate names from URL fragments
         # Including bullets, dashes, pipes, unusual spacing, etc.
         separators = [
-            r'\s*•\s*',          # bullet separator: "Name • .Com"
-            r'\s*\|\s*',         # pipe separator: "Name | .Com"
-            r'\s*-\s*',          # dash separator: "Name - .Com"
-            r'\s*–\s*',          # en-dash separator: "Name – .Com"
-            r'\s*—\s*',          # em-dash separator: "Name — .Com"
-            r'\s*\.\s*(?=\.)',   # dot before URL: "Name . .Com"
-            r'\s*,\s*(?=\w*\.)',  # comma before URL: "Name , .Com"
+            r"\s*•\s*",  # bullet separator: "Name • .Com"
+            r"\s*\|\s*",  # pipe separator: "Name | .Com"
+            r"\s*-\s*",  # dash separator: "Name - .Com"
+            r"\s*–\s*",  # en-dash separator: "Name – .Com"
+            r"\s*—\s*",  # em-dash separator: "Name — .Com"
+            r"\s*\.\s*(?=\.)",  # dot before URL: "Name . .Com"
+            r"\s*,\s*(?=\w*\.)",  # comma before URL: "Name , .Com"
         ]
 
         original_text = text.strip()
@@ -2200,11 +2531,23 @@ class BylineCleaner:
                     # Check if this part looks like a valid name
                     # (2-3 words, mostly alphabetic, capitalized)
                     words = part.split()
-                    if (len(words) >= 2 and len(words) <= 4 and
-                        all(word.replace('.', '').replace("'", '').replace(
-                            '-', '').isalpha() for word in words if word) and
-                        all(word[0].isupper() for word in words
-                            if word and word[0].isalpha())):
+                    if (
+                        len(words) >= 2
+                        and len(words) <= 4
+                        and all(
+                            word.replace(".", "")
+                            .replace("'", "")
+                            .replace("-", "")
+                            .isalpha()
+                            for word in words
+                            if word
+                        )
+                        and all(
+                            word[0].isupper()
+                            for word in words
+                            if word and word[0].isalpha()
+                        )
+                    ):
 
                         # This looks like a valid name - keep the longest one
                         if len(part) > len(best_name):
@@ -2222,7 +2565,7 @@ class BylineCleaner:
         return original_text
 
 
-def clean_byline(byline: str, return_json: bool = False) -> Union[str, Dict]:
+def clean_byline(byline: str, return_json: bool = False) -> str | dict:
     """
     Convenience function to clean a single byline.
 
@@ -2251,7 +2594,8 @@ if __name__ == "__main__":  # pragma: no cover
         "By the Associated Press",
         "John O'Connor Jr., Business Editor (555) 123-4567",
         "Maria de la Cruz and James van der Berg III",
-        "By Alex Thompson, alex.thompson@news.com, Twitter: @alexnews"]
+        "By Alex Thompson, alex.thompson@news.com, Twitter: @alexnews",
+    ]
 
     cleaner = BylineCleaner()
 

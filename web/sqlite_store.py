@@ -7,7 +7,7 @@ and perform transactional upserts/queries used by the reviewer API.
 import csv
 import sqlite3
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 LOOKUPS = ROOT / "lookups"
@@ -15,7 +15,7 @@ PROCESSED = ROOT / "processed"
 DB_PATH = LOOKUPS / "site_specs.db"
 
 
-def get_conn(path: Optional[Path] = None):
+def get_conn(path: Path | None = None):
     p = path or DB_PATH
     p.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(p), timeout=30, check_same_thread=False)
@@ -24,7 +24,7 @@ def get_conn(path: Optional[Path] = None):
     return conn
 
 
-def init_db(path: Optional[Path] = None):
+def init_db(path: Path | None = None):
     conn = get_conn(path)
     with conn:
         conn.execute(
@@ -74,7 +74,7 @@ def init_db(path: Optional[Path] = None):
     conn.close()
 
 
-def upsert_site_spec(domain: str, data: Dict[str, Any]):
+def upsert_site_spec(domain: str, data: dict[str, Any]):
     conn = get_conn()
     with conn:
         # try to insert or update
@@ -125,7 +125,7 @@ def upsert_site_spec(domain: str, data: Dict[str, Any]):
     conn.close()
 
 
-def get_site_spec(domain: str) -> Optional[Dict[str, Any]]:
+def get_site_spec(domain: str) -> dict[str, Any] | None:
     conn = get_conn()
     cur = conn.execute("SELECT * FROM site_specs WHERE domain = ?", (domain,))
     row = cur.fetchone()
@@ -169,7 +169,7 @@ def export_site_specs_csv(path: Path):
             writer.writerow(out)
 
 
-def append_feedback(row: Dict[str, Any]):
+def append_feedback(row: dict[str, Any]):
     conn = get_conn()
     with conn:
         conn.execute(
@@ -195,8 +195,7 @@ def append_feedback(row: Dict[str, Any]):
     conn.close()
 
 
-def get_articles(limit: Optional[int] = None,
-                 offset: int = 0) -> List[Dict[str, Any]]:
+def get_articles(limit: int | None = None, offset: int = 0) -> list[dict[str, Any]]:
     conn = get_conn()
     sql = "SELECT * FROM articleslabelled"
     params = []

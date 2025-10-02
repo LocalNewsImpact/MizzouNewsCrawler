@@ -12,7 +12,6 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -35,10 +34,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def load_sources(sources_file: str) -> List[Dict[str, any]]:
+def load_sources(sources_file: str) -> list[dict[str, any]]:
     """Load source site configurations from JSON file."""
     try:
-        with open(sources_file, "r") as f:
+        with open(sources_file) as f:
             sources = json.load(f)
 
         logger.info(f"Loaded {len(sources)} sources from {sources_file}")
@@ -50,10 +49,10 @@ def load_sources(sources_file: str) -> List[Dict[str, any]]:
 
 def crawl_site(
     crawler: NewsCrawler,
-    site_config: Dict[str, any],
+    site_config: dict[str, any],
     db_manager: DatabaseManager,
     job_id: str,
-) -> Dict[str, int]:
+) -> dict[str, int]:
     """Crawl a single site and return metrics."""
     site_name = site_config.get("name", "unknown")
     seed_urls = site_config.get("seed_urls", [])

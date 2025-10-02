@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable, Optional
 
 from src.telemetry.store import TelemetryStore, get_store
 
@@ -55,8 +55,7 @@ _EXTRACTION_OUTCOMES_INDEXES: Iterable[str] = (
     "ON extraction_outcomes (is_content_success)",
     "CREATE INDEX IF NOT EXISTS idx_extraction_timestamp "
     "ON extraction_outcomes (timestamp)",
-    "CREATE INDEX IF NOT EXISTS idx_extraction_url "
-    "ON extraction_outcomes (url)",
+    "CREATE INDEX IF NOT EXISTS idx_extraction_url " "ON extraction_outcomes (url)",
     "CREATE INDEX IF NOT EXISTS idx_extraction_quality "
     "ON extraction_outcomes (content_quality_score)",
 )
@@ -67,10 +66,10 @@ class ExtractionTelemetry:
 
     def __init__(
         self,
-        db_path: Optional[str] = None,
+        db_path: str | None = None,
         *,
-        store: Optional[TelemetryStore] = None,
-        async_writes: Optional[bool] = None,
+        store: TelemetryStore | None = None,
+        async_writes: bool | None = None,
     ) -> None:
         if store is not None:
             self._store = store
@@ -80,9 +79,7 @@ class ExtractionTelemetry:
             else:
                 resolved = Path(db_path)
                 resolved.parent.mkdir(parents=True, exist_ok=True)
-                async_flag = (
-                    async_writes if async_writes is not None else False
-                )
+                async_flag = async_writes if async_writes is not None else False
                 self._store = TelemetryStore(
                     database=f"sqlite:///{resolved}",
                     async_writes=async_flag,
@@ -112,8 +109,7 @@ class ExtractionTelemetry:
 
         if not isinstance(extraction_result, ExtractionResult):
             msg = (
-                "Warning: Expected ExtractionResult, got "
-                f"{type(extraction_result)}"
+                "Warning: Expected ExtractionResult, got " f"{type(extraction_result)}"
             )
             print(msg)
             return
@@ -121,18 +117,10 @@ class ExtractionTelemetry:
         metadata = extraction_result.extracted_content or {}
         metadata_json = json.dumps(metadata) if metadata else None
 
-        title_issues = json.dumps(
-            extraction_result.title_quality_issues or []
-        )
-        content_issues = json.dumps(
-            extraction_result.content_quality_issues or []
-        )
-        author_issues = json.dumps(
-            extraction_result.author_quality_issues or []
-        )
-        date_issues = json.dumps(
-            extraction_result.publish_date_quality_issues or []
-        )
+        title_issues = json.dumps(extraction_result.title_quality_issues or [])
+        content_issues = json.dumps(extraction_result.content_quality_issues or [])
+        author_issues = json.dumps(extraction_result.author_quality_issues or [])
+        date_issues = json.dumps(extraction_result.publish_date_quality_issues or [])
 
         outcome_data = (
             operation_id,
@@ -218,9 +206,7 @@ class ExtractionTelemetry:
     # ------------------------------------------------------------------
     # read API
     # ------------------------------------------------------------------
-    def get_extraction_stats(
-        self, operation_id: Optional[str] = None
-    ) -> list[dict]:
+    def get_extraction_stats(self, operation_id: str | None = None) -> list[dict]:
         """Get aggregate extraction statistics for reporting."""
 
         base_query = """

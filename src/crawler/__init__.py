@@ -8,8 +8,8 @@ import logging
 import random
 import re
 import time
-from datetime import datetime
 from copy import deepcopy
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.parse import urljoin, urlparse
 
@@ -21,22 +21,23 @@ from dateutil import parser as dateparser
 
 class RateLimitError(Exception):
     """Exception raised when a domain is rate limited."""
+
     pass
 
 
 # Enhanced extraction dependencies
 try:
     from newspaper import Article as NewspaperArticle
+
     NEWSPAPER_AVAILABLE = True
 except ImportError:
     NEWSPAPER_AVAILABLE = False
-    logging.warning(
-        "newspaper4k not available, falling back to BeautifulSoup only"
-    )
+    logging.warning("newspaper4k not available, falling back to BeautifulSoup only")
 
 # Cloudscraper for Cloudflare bypass
 try:
     import cloudscraper
+
     CLOUDSCRAPER_AVAILABLE = True
 except ImportError:
     CLOUDSCRAPER_AVAILABLE = False
@@ -46,10 +47,11 @@ except ImportError:
 # Selenium imports with advanced anti-detection
 try:
     from selenium import webdriver
-    from selenium.webdriver.common.by import By
-    from selenium.webdriver.support.ui import WebDriverWait
-    from selenium.webdriver.support import expected_conditions as EC
     from selenium.webdriver.chrome.options import Options as ChromeOptions
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.webdriver.support.ui import WebDriverWait
+
     SELENIUM_AVAILABLE = True
 except ImportError:
     SELENIUM_AVAILABLE = False
@@ -58,15 +60,15 @@ except ImportError:
 # Advanced anti-detection libraries
 try:
     import undetected_chromedriver as uc
+
     UNDETECTED_CHROME_AVAILABLE = True
 except ImportError:
     UNDETECTED_CHROME_AVAILABLE = False
-    logging.warning(
-        "undetected-chromedriver not available, using standard Selenium"
-    )
+    logging.warning("undetected-chromedriver not available, using standard Selenium")
 
 try:
     from selenium_stealth import stealth
+
     SELENIUM_STEALTH_AVAILABLE = True
 except ImportError:
     SELENIUM_STEALTH_AVAILABLE = False
@@ -134,12 +136,8 @@ DATE_ONLY_REGEX_PATTERNS = [
 class NewsCrawler:
     """Main crawler class for discovering and fetching news articles."""
 
-    def __init__(
-        self, user_agent: str = None, timeout: int = 20, delay: float = 1.0
-    ):
-        self.user_agent = (
-            user_agent or "Mozilla/5.0 (compatible; MizzouCrawler/1.0)"
-        )
+    def __init__(self, user_agent: str = None, timeout: int = 20, delay: float = 1.0):
+        self.user_agent = user_agent or "Mozilla/5.0 (compatible; MizzouCrawler/1.0)"
         self.timeout = timeout
         self.delay = delay
         self.session = requests.Session()
@@ -185,8 +183,7 @@ class NewsCrawler:
                 # Normalize URL (remove fragment, query params
                 # for deduplication)
                 normalized_url = (
-                    f"{parsed_href.scheme}://"
-                    f"{parsed_href.netloc}{parsed_href.path}"
+                    f"{parsed_href.scheme}://" f"{parsed_href.netloc}{parsed_href.path}"
                 )
 
                 if not self.is_valid_url(normalized_url):
@@ -249,14 +246,11 @@ class NewsCrawler:
                 article_urls.append(url)
 
         logger.info(
-            f"Filtered {len(urls)} URLs to "
-            f"{len(article_urls)} article candidates"
+            f"Filtered {len(urls)} URLs to " f"{len(article_urls)} article candidates"
         )
         return sorted(article_urls)
 
-    def _is_likely_article(
-        self, url: str, site_rules: Dict[str, any] = None
-    ) -> bool:
+    def _is_likely_article(self, url: str, site_rules: Dict[str, any] = None) -> bool:
         """Determine if a URL is likely an article page."""
         # Default filters - skip known non-article paths
         skip_patterns = [
@@ -365,17 +359,17 @@ class ContentExtractor:
 
         # Header variation pools
         self.accept_language_pool = [
-            'en-US,en;q=0.9',
-            'en-GB,en;q=0.9',
-            'en;q=0.9',
-            'en-US,en;q=0.8,fr;q=0.6',
-            'en-US,en;q=0.5'
+            "en-US,en;q=0.9",
+            "en-GB,en;q=0.9",
+            "en;q=0.9",
+            "en-US,en;q=0.8,fr;q=0.6",
+            "en-US,en;q=0.5",
         ]
 
         self.accept_encoding_pool = [
-            'gzip, deflate, br',
-            'gzip, deflate',
-            'gzip, deflate, br, zstd'
+            "gzip, deflate, br",
+            "gzip, deflate",
+            "gzip, deflate, br, zstd",
         ]
 
         # Track domain-specific sessions and user agents
@@ -387,14 +381,12 @@ class ContentExtractor:
         # Rate limiting and backoff management
         self.domain_request_times = {}  # Track request timestamps per domain
         self.domain_backoff_until = {}  # Track when domain is available again
-        self.domain_error_counts = {}   # Track consecutive errors per domain
-        self.base_delay = 1.0          # Base delay between requests (seconds)
-        self.max_backoff = 300         # Maximum backoff time (5 minutes)
+        self.domain_error_counts = {}  # Track consecutive errors per domain
+        self.base_delay = 1.0  # Base delay between requests (seconds)
+        self.max_backoff = 300  # Maximum backoff time (5 minutes)
 
         # Set initial user agent
-        self.current_user_agent = (
-            user_agent or random.choice(self.user_agent_pool)
-        )
+        self.current_user_agent = user_agent or random.choice(self.user_agent_pool)
 
         # Initialize primary session
         self._create_new_session()
@@ -402,9 +394,7 @@ class ContentExtractor:
         # Track metadata about publish date extraction source
         self._publish_date_details: Optional[Dict[str, any]] = None
 
-        logger.info(
-            "ContentExtractor initialized with user agent rotation enabled"
-        )
+        logger.info("ContentExtractor initialized with user agent rotation enabled")
 
     def _create_new_session(self):
         """Create a new session with current user agent and clear cookies."""
@@ -435,13 +425,12 @@ class ContentExtractor:
             "Sec-Fetch-Mode": "navigate",
             "Sec-Fetch-Site": "none",
             "Cache-Control": "max-age=0",
-            "DNT": "1"
+            "DNT": "1",
         }
 
         self.session.headers.update(headers)
         logger.debug(
-            f"Updated session headers with UA: "
-            f"{self.current_user_agent[:50]}..."
+            f"Updated session headers with UA: " f"{self.current_user_agent[:50]}..."
         )
 
     def _get_domain_session(self, url: str):
@@ -451,8 +440,10 @@ class ContentExtractor:
         # Check if domain is rate limited
         if self._check_rate_limit(domain):
             backoff_time = self.domain_backoff_until[domain] - time.time()
-            logger.info(f"Domain {domain} is rate limited, backing off for "
-                        f"{backoff_time:.0f} more seconds")
+            logger.info(
+                f"Domain {domain} is rate limited, backing off for "
+                f"{backoff_time:.0f} more seconds"
+            )
             raise RateLimitError(f"Domain {domain} is rate limited")
 
         # Check if we need to rotate user agent for this domain
@@ -483,7 +474,8 @@ class ContentExtractor:
         if should_rotate:
             # Select new user agent (avoid repeating the same one)
             available_agents = [
-                ua for ua in self.user_agent_pool
+                ua
+                for ua in self.user_agent_pool
                 if ua != self.domain_user_agents.get(domain)
             ]
             new_user_agent = random.choice(available_agents)
@@ -506,7 +498,7 @@ class ContentExtractor:
                 "Sec-Fetch-Mode": "navigate",
                 "Sec-Fetch-Site": "none",
                 "Cache-Control": "max-age=0",
-                "DNT": "1"
+                "DNT": "1",
             }
             new_session.headers.update(headers)
 
@@ -521,9 +513,7 @@ class ContentExtractor:
             logger.debug(f"Cleared cookies for domain {domain}")
 
         # Apply rate limiting delay before returning session
-        self._apply_rate_limit(
-            domain
-        )
+        self._apply_rate_limit(domain)
 
         return self.domain_sessions[domain]
 
@@ -532,10 +522,12 @@ class ContentExtractor:
         return {
             "total_domains_accessed": len(self.domain_sessions),
             "active_sessions": len(self.domain_sessions),
-            "domain_user_agents": {domain: ua[:50] + "..." if len(ua) > 50 else ua
-                                   for domain, ua in self.domain_user_agents.items()},
+            "domain_user_agents": {
+                domain: ua[:50] + "..." if len(ua) > 50 else ua
+                for domain, ua in self.domain_user_agents.items()
+            },
             "request_counts": self.request_counts.copy(),
-            "user_agent_pool_size": len(self.user_agent_pool)
+            "user_agent_pool_size": len(self.user_agent_pool),
         }
 
     def _check_rate_limit(self, domain: str) -> bool:
@@ -565,9 +557,7 @@ class ContentExtractor:
             time_since_last = current_time - self.domain_request_times[domain]
             if time_since_last < delay:
                 sleep_time = delay - time_since_last
-                logger.debug(
-                    f"Rate limiting: sleeping {sleep_time:.2f}s for {domain}"
-                )
+                logger.debug(f"Rate limiting: sleeping {sleep_time:.2f}s for {domain}")
                 time.sleep(sleep_time)
 
         # Update last request time
@@ -600,7 +590,7 @@ class ContentExtractor:
         self.domain_backoff_until[domain] = current_time + final_delay
 
         # Log the rate limit
-        retry_after = response.headers.get('retry-after') if response else None
+        retry_after = response.headers.get("retry-after") if response else None
         if retry_after:
             try:
                 retry_seconds = int(retry_after)
@@ -611,9 +601,7 @@ class ContentExtractor:
                 )
                 # Use server's retry-after if it's longer than our backoff
                 if retry_seconds > final_delay:
-                    self.domain_backoff_until[domain] = (
-                        current_time + retry_seconds
-                    )
+                    self.domain_backoff_until[domain] = current_time + retry_seconds
             except ValueError:
                 pass
         else:
@@ -627,8 +615,9 @@ class ContentExtractor:
         if domain in self.domain_error_counts:
             self.domain_error_counts[domain] = 0
 
-    def _create_error_result(self, url: str, error_msg: str,
-                             metadata: Dict = None) -> Dict[str, any]:
+    def _create_error_result(
+        self, url: str, error_msg: str, metadata: Dict = None
+    ) -> Dict[str, any]:
         """Create a standardized error result."""
         return {
             "url": url,
@@ -640,7 +629,7 @@ class ContentExtractor:
             "quality_score": 0.0,
             "success": False,
             "error": error_msg,
-            "metadata": metadata or {}
+            "metadata": metadata or {},
         }
 
     def clear_all_sessions(self):
@@ -649,9 +638,7 @@ class ContentExtractor:
         self.domain_user_agents.clear()
         self.request_counts.clear()
         self.last_request_times.clear()
-        logger.info(
-            "Cleared all domain sessions and rotation state"
-        )
+        logger.info("Cleared all domain sessions and rotation state")
 
     def get_persistent_driver(self):
         """Get or create a persistent Selenium driver for reuse."""
@@ -660,22 +647,17 @@ class ContentExtractor:
             try:
                 # Try undetected-chromedriver first (most advanced)
                 if UNDETECTED_CHROME_AVAILABLE:
-                    self._persistent_driver = (
-                        self._create_undetected_driver()
-                    )
+                    self._persistent_driver = self._create_undetected_driver()
                     self._driver_method = "undetected-chromedriver"
                 elif SELENIUM_AVAILABLE:
-                    self._persistent_driver = (
-                        self._create_stealth_driver()
-                    )
+                    self._persistent_driver = self._create_stealth_driver()
                     self._driver_method = "selenium-stealth"
                 else:
                     raise Exception("No Selenium implementation available")
 
                 self._driver_creation_count += 1
                 logger.info(
-                    f"Created persistent driver using "
-                    f"{self._driver_method}"
+                    f"Created persistent driver using " f"{self._driver_method}"
                 )
 
             except Exception as e:
@@ -686,7 +668,8 @@ class ContentExtractor:
             self._driver_reuse_count += 1
             logger.debug(
                 f"Reusing persistent driver "
-                f"(reuse count: {self._driver_reuse_count})")
+                f"(reuse count: {self._driver_reuse_count})"
+            )
 
         return self._persistent_driver
 
@@ -697,7 +680,8 @@ class ContentExtractor:
                 logger.info(
                     f"Closing persistent driver after "
                     f"{self._driver_reuse_count + 1} uses "
-                    f"(created {self._driver_creation_count} times)")
+                    f"(created {self._driver_creation_count} times)"
+                )
                 self._persistent_driver.quit()
             except Exception as e:
                 logger.warning(f"Error closing persistent driver: {e}")
@@ -711,7 +695,7 @@ class ContentExtractor:
             "has_persistent_driver": self._persistent_driver is not None,
             "driver_creation_count": self._driver_creation_count,
             "driver_reuse_count": self._driver_reuse_count,
-            "driver_method": getattr(self, '_driver_method', None)
+            "driver_method": getattr(self, "_driver_method", None),
         }
 
     def extract_article_data(self, html: str, url: str) -> Dict[str, any]:
@@ -750,8 +734,9 @@ class ContentExtractor:
 
         return data
 
-    def extract_content(self, url: str, html: str = None,
-                        metrics: Optional[object] = None) -> Dict[str, any]:
+    def extract_content(
+        self, url: str, html: str = None, metrics: Optional[object] = None
+    ) -> Dict[str, any]:
         """Fetch page if needed, extract article data using multiple methods.
 
         Uses intelligent field-level fallback:
@@ -781,7 +766,7 @@ class ContentExtractor:
             "content": None,
             "metadata": {},
             "extracted_at": datetime.utcnow().isoformat(),
-            "extraction_methods": {}  # Track which method worked for field
+            "extraction_methods": {},  # Track which method worked for field
         }
 
         # Try newspaper4k first (primary method)
@@ -800,22 +785,22 @@ class ContentExtractor:
                     )
                     logger.info(f"newspaper4k extraction completed for {url}")
                     if metrics:
-                        metrics.end_method("newspaper4k", True, None,
-                                           newspaper_result)
+                        metrics.end_method("newspaper4k", True, None, newspaper_result)
                 else:
                     if metrics:
-                        metrics.end_method("newspaper4k", False,
-                                           "No content extracted",
-                                           newspaper_result or {})
+                        metrics.end_method(
+                            "newspaper4k",
+                            False,
+                            "No content extracted",
+                            newspaper_result or {},
+                        )
 
             except Exception as e:
                 logger.info(f"newspaper4k extraction failed for {url}: {e}")
                 # Try to get any partial result with metadata (including HTTP
                 # status)
                 partial_result = {}
-                if hasattr(
-                        e, '__context__') and hasattr(
-                        e.__context__, 'response'):
+                if hasattr(e, "__context__") and hasattr(e.__context__, "response"):
                     # Some HTTP errors might have response info
                     pass
 
@@ -824,19 +809,19 @@ class ContentExtractor:
                 error_str = str(e)
                 if "Status code" in error_str:
                     import re
-                    status_match = re.search(r'Status code (\d+)', error_str)
+
+                    status_match = re.search(r"Status code (\d+)", error_str)
                     if status_match:
                         http_status = int(status_match.group(1))
                         partial_result = {
                             "metadata": {
                                 "extraction_method": "newspaper4k",
-                                "http_status": http_status
+                                "http_status": http_status,
                             }
                         }
 
                 if metrics:
-                    metrics.end_method(
-                        "newspaper4k", False, str(e), partial_result)
+                    metrics.end_method("newspaper4k", False, str(e), partial_result)
 
         # Check what fields are still missing
         missing_fields = self._get_missing_fields(result)
@@ -856,20 +841,19 @@ class ContentExtractor:
                 if bs_result:
                     # Only copy missing fields
                     self._merge_extraction_results(
-                        result, bs_result, "beautifulsoup", missing_fields,
-                        metrics
+                        result, bs_result, "beautifulsoup", missing_fields, metrics
                     )
-                    logger.info(
-                        f"BeautifulSoup extraction completed for {url}"
-                    )
+                    logger.info(f"BeautifulSoup extraction completed for {url}")
                     if metrics:
-                        metrics.end_method("beautifulsoup", True, None,
-                                           bs_result)
+                        metrics.end_method("beautifulsoup", True, None, bs_result)
                 else:
                     if metrics:
-                        metrics.end_method("beautifulsoup", False,
-                                           "No content extracted",
-                                           bs_result or {})
+                        metrics.end_method(
+                            "beautifulsoup",
+                            False,
+                            "No content extracted",
+                            bs_result or {},
+                        )
 
             except Exception as e:
                 logger.info(f"BeautifulSoup extraction failed for {url}: {e}")
@@ -894,18 +878,19 @@ class ContentExtractor:
                 if selenium_result:
                     # Only copy still-missing fields
                     self._merge_extraction_results(
-                        result, selenium_result, "selenium", missing_fields,
-                        metrics
+                        result, selenium_result, "selenium", missing_fields, metrics
                     )
                     logger.info(f"Selenium extraction completed for {url}")
                     if metrics:
-                        metrics.end_method("selenium", True, None,
-                                           selenium_result)
+                        metrics.end_method("selenium", True, None, selenium_result)
                 else:
                     if metrics:
-                        metrics.end_method("selenium", False,
-                                           "No content extracted",
-                                           selenium_result or {})
+                        metrics.end_method(
+                            "selenium",
+                            False,
+                            "No content extracted",
+                            selenium_result or {},
+                        )
 
             except Exception as e:
                 logger.info(f"Selenium extraction failed for {url}: {e}")
@@ -954,8 +939,7 @@ class ContentExtractor:
 
         # Clean up the metadata to remove internal tracking
         result_copy = result.copy()
-        result_copy["metadata"]["extraction_methods"] = result[
-            "extraction_methods"]
+        result_copy["metadata"]["extraction_methods"] = result["extraction_methods"]
         result_copy["metadata"]["extraction_method"] = primary_method
         del result_copy["extraction_methods"]
 
@@ -993,16 +977,12 @@ class ContentExtractor:
 
         return missing
 
-    def _extract_publish_date_from_url(
-        self, url: str
-    ) -> Optional[Tuple[str, str]]:
+    def _extract_publish_date_from_url(self, url: str) -> Optional[Tuple[str, str]]:
         """Attempt to derive publish date directly from URL path."""
         parsed = urlparse(url)
         host = parsed.netloc.lower().split(":")[0]
 
-        if not any(
-            host.endswith(allowed) for allowed in URL_DATE_FALLBACK_HOSTS
-        ):
+        if not any(host.endswith(allowed) for allowed in URL_DATE_FALLBACK_HOSTS):
             return None
 
         slug = parsed.path.lower()
@@ -1039,7 +1019,7 @@ class ContentExtractor:
         source: Dict[str, any],
         method: str,
         fields_to_copy: Optional[List[str]] = None,
-        metrics: Optional[object] = None
+        metrics: Optional[object] = None,
     ) -> None:
         """Merge source extraction results into target, tracking methods.
 
@@ -1070,14 +1050,9 @@ class ContentExtractor:
                     target[field] = source_value
                     target["extraction_methods"][field] = method
                     if field == "publish_date":
-                        self._merge_publish_date_fallback_metadata(
-                            target, source
-                        )
-                    logger.debug(
-                        f"Copied {field} from {method} for extraction"
-                    )
-                elif (metrics and
-                      hasattr(metrics, 'record_alternative_extraction')):
+                        self._merge_publish_date_fallback_metadata(target, source)
+                    logger.debug(f"Copied {field} from {method} for extraction")
+                elif metrics and hasattr(metrics, "record_alternative_extraction"):
                     # Record when we found an alternative but didn't use it
                     metrics.record_alternative_extraction(
                         method, field, str(source_value), str(current_value)
@@ -1106,7 +1081,8 @@ class ContentExtractor:
             if isinstance(value, dict):
                 # Meaningful if has more than just extraction method tracking
                 non_tracking_keys = [
-                    k for k in value.keys()
+                    k
+                    for k in value.keys()
                     if k not in ["extraction_method", "extraction_methods"]
                 ]
                 return len(non_tracking_keys) > 0
@@ -1128,8 +1104,7 @@ class ContentExtractor:
 
         result["extraction_methods"] = extraction_methods
 
-    def _determine_primary_extraction_method(
-            self, result: Dict[str, any]) -> str:
+    def _determine_primary_extraction_method(self, result: Dict[str, any]) -> str:
         """Determine primary extraction method based on core content.
 
         Priority: content > title > author > publish_date > metadata
@@ -1137,19 +1112,16 @@ class ContentExtractor:
         extraction_methods = result.get("extraction_methods", {})
 
         # Priority order - most important fields first
-        priority_fields = [
-            "content", "title", "author", "publish_date", "metadata"]
+        priority_fields = ["content", "title", "author", "publish_date", "metadata"]
 
         for field in priority_fields:
             method = extraction_methods.get(field)
             if method and method != "none":
-                logger.debug(
-                    f"Primary extraction method: {method} (based on {field})")
+                logger.debug(f"Primary extraction method: {method} (based on {field})")
                 return method
 
         # Fallback to newspaper4k if no methods tracked
-        logger.warning(
-            "No extraction methods tracked, defaulting to newspaper4k")
+        logger.warning("No extraction methods tracked, defaulting to newspaper4k")
         return "newspaper4k"
 
     def _is_extraction_successful(self, result: Dict[str, any]) -> bool:
@@ -1163,8 +1135,7 @@ class ContentExtractor:
 
         return bool(title) or (bool(content) and len(content) > 100)
 
-    def _extract_with_newspaper(
-            self, url: str, html: str = None) -> Dict[str, any]:
+    def _extract_with_newspaper(self, url: str, html: str = None) -> Dict[str, any]:
         """Extract content using newspaper4k library with cloudscraper support."""
         article = NewspaperArticle(url)
         http_status = None
@@ -1193,11 +1164,13 @@ class ContentExtractor:
                     # Possible rate limiting or bot detection
                     logger.warning(
                         f"Possible bot detection "
-                        f"({response.status_code}) by {domain}")
+                        f"({response.status_code}) by {domain}"
+                    )
                     self._handle_rate_limit_error(domain, response)
                     return self._create_error_result(
-                        url, f"Bot detection ({response.status_code})",
-                        {"status": response.status_code}
+                        url,
+                        f"Bot detection ({response.status_code})",
+                        {"status": response.status_code},
                     )
 
                 # Check if request was successful
@@ -1208,12 +1181,14 @@ class ContentExtractor:
                     # Use the downloaded HTML content to parse the article
                     article.html = response.text
                     ua = self.domain_user_agents.get(domain, "Unknown")
-                    logger.debug(f"Successfully fetched content for {url} with "
-                                 f"UA: {ua[:30]}...")
+                    logger.debug(
+                        f"Successfully fetched content for {url} with "
+                        f"UA: {ua[:30]}..."
+                    )
                 else:
                     logger.warning(
-                        f"Session returned status "
-                        f"{response.status_code} for {url}")
+                        f"Session returned status " f"{response.status_code} for {url}"
+                    )
                     # Fallback to newspaper4k's built-in download
                     try:
                         article.download()
@@ -1223,21 +1198,24 @@ class ContentExtractor:
                         error_str = str(download_e)
                         if "Status code" in error_str:
                             import re
-                            status_match = re.search(
-                                r'Status code (\d+)', error_str)
+
+                            status_match = re.search(r"Status code (\d+)", error_str)
                             if status_match:
                                 http_status = int(status_match.group(1))
                                 logger.warning(
-                                    f"Newspaper4k download failed with " f"status {http_status}: {error_str}")
+                                    f"Newspaper4k download failed with "
+                                    f"status {http_status}: {error_str}"
+                                )
                         raise download_e
 
             except RateLimitError as e:
                 logger.warning(f"Domain rate limited, skipping: {e}")
-                return self._create_error_result(
-                    url, str(e), {"rate_limited": True})
+                return self._create_error_result(url, str(e), {"rate_limited": True})
             except Exception as e:
-                logger.warning(f"Session fetch failed for {url}: {e}, "
-                               f"falling back to newspaper download")
+                logger.warning(
+                    f"Session fetch failed for {url}: {e}, "
+                    f"falling back to newspaper download"
+                )
                 # Fallback to newspaper4k's built-in download
                 try:
                     article.download()
@@ -1246,39 +1224,40 @@ class ContentExtractor:
                     error_str = str(download_e)
                     if "Status code" in error_str:
                         import re
-                        status_match = re.search(
-                            r'Status code (\d+)', error_str)
+
+                        status_match = re.search(r"Status code (\d+)", error_str)
                         if status_match:
                             http_status = int(status_match.group(1))
                             logger.warning(
-                                f"Newspaper4k download failed with status {http_status}: {error_str}")
+                                f"Newspaper4k download failed with status {http_status}: {error_str}"
+                            )
                     raise download_e
 
         article.parse()
 
         # Extract publish date if available
         publish_date = None
-        if hasattr(article, 'publish_date') and article.publish_date:
+        if hasattr(article, "publish_date") and article.publish_date:
             publish_date = article.publish_date.isoformat()
 
         return {
             "url": url,
             "title": article.title,
-            "author": ", ".join(
-                article.authors) if article.authors else None,
+            "author": ", ".join(article.authors) if article.authors else None,
             "publish_date": publish_date,
             "content": article.text,
             "metadata": {
                 "meta_description": article.meta_description,
                 "keywords": article.keywords,
                 "extraction_method": "newspaper4k",
-                "cloudscraper_used": CLOUDSCRAPER_AVAILABLE and cloudscraper is not None,
-                "http_status": http_status},
+                "cloudscraper_used": CLOUDSCRAPER_AVAILABLE
+                and cloudscraper is not None,
+                "http_status": http_status,
+            },
             "extracted_at": datetime.utcnow().isoformat(),
-             }
+        }
 
-    def _extract_with_beautifulsoup(
-            self, url: str, html: str = None) -> Dict[str, any]:
+    def _extract_with_beautifulsoup(self, url: str, html: str = None) -> Dict[str, any]:
         """Extract content using BeautifulSoup with bot-avoidance."""
         # Lazily fetch HTML if not provided
         page_html = html
@@ -1289,16 +1268,18 @@ class ContentExtractor:
 
                 # Additional headers for better bot-avoidance
                 headers = {
-                    'Accept': ('text/html,application/xhtml+xml,'
-                               'application/xml;q=0.9,image/webp,*/*;q=0.8'),
-                    'Accept-Language': random.choice(self.accept_language_pool),
-                    'Accept-Encoding': random.choice(self.accept_encoding_pool),
-                    'Connection': 'keep-alive',
-                    'Upgrade-Insecure-Requests': '1',
-                    'Sec-Fetch-Dest': 'document',
-                    'Sec-Fetch-Mode': 'navigate',
-                    'Sec-Fetch-Site': 'none',
-                    'Cache-Control': 'max-age=0',
+                    "Accept": (
+                        "text/html,application/xhtml+xml,"
+                        "application/xml;q=0.9,image/webp,*/*;q=0.8"
+                    ),
+                    "Accept-Language": random.choice(self.accept_language_pool),
+                    "Accept-Encoding": random.choice(self.accept_encoding_pool),
+                    "Connection": "keep-alive",
+                    "Upgrade-Insecure-Requests": "1",
+                    "Sec-Fetch-Dest": "document",
+                    "Sec-Fetch-Mode": "navigate",
+                    "Sec-Fetch-Site": "none",
+                    "Cache-Control": "max-age=0",
                 }
 
                 # Temporarily update session headers (preserve existing)
@@ -1326,9 +1307,7 @@ class ContentExtractor:
                     session.headers = original_headers
 
             except Exception as e:
-                logger.warning(
-                    f"Failed to fetch page for extraction {url}: {e}"
-                )
+                logger.warning(f"Failed to fetch page for extraction {url}: {e}")
                 return {}
 
         raw = self.extract_article_data(page_html, url)
@@ -1348,7 +1327,7 @@ class ContentExtractor:
                 "extraction_method": "beautifulsoup",
                 "cloudscraper_used": (
                     CLOUDSCRAPER_AVAILABLE and cloudscraper is not None
-                )
+                ),
             },
             "extracted_at": raw.get("extracted_at"),
         }
@@ -1362,7 +1341,7 @@ class ContentExtractor:
         try:
             # Get the persistent driver (creates one if needed)
             driver = self.get_persistent_driver()
-            stealth_method = getattr(self, '_driver_method', 'unknown')
+            stealth_method = getattr(self, "_driver_method", "unknown")
 
             logger.debug(f"Using persistent {stealth_method} driver for {url}")
 
@@ -1387,7 +1366,7 @@ class ContentExtractor:
                     "stealth_mode": True,
                     "stealth_method": stealth_method,
                     "page_source_length": len(html),
-                    "driver_reused": self._driver_reuse_count > 0
+                    "driver_reused": self._driver_reuse_count > 0,
                 },
                 "extracted_at": datetime.utcnow().isoformat(),
             }
@@ -1401,8 +1380,7 @@ class ContentExtractor:
             # If the driver fails, close it so a new one will be created next
             # time
             if "driver" in str(e).lower() or "session" in str(e).lower():
-                logger.warning(
-                    "Driver error detected, closing persistent driver")
+                logger.warning("Driver error detected, closing persistent driver")
                 self.close_persistent_driver()
             return {}
 
@@ -1436,7 +1414,7 @@ class ContentExtractor:
                 version_main=None,  # Auto-detect
                 headless=True,
                 use_subprocess=True,
-                log_level=3  # Suppress logs
+                log_level=3,  # Suppress logs
             )
         except Exception as e:
             logger.warning(f"Failed to create undetected driver: {e}")
@@ -1456,20 +1434,14 @@ class ContentExtractor:
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument(
-            "--disable-blink-features=AutomationControlled"
-        )
+        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
         chrome_options.add_argument("--disable-extensions")
         chrome_options.add_argument("--disable-web-security")
         chrome_options.add_argument("--allow-running-insecure-content")
         chrome_options.add_argument("--disable-features=TranslateUI")
         chrome_options.add_argument("--disable-ipc-flooding-protection")
-        chrome_options.add_argument(
-            "--disable-background-timer-throttling"
-        )
-        chrome_options.add_argument(
-            "--disable-backgrounding-occluded-windows"
-        )
+        chrome_options.add_argument("--disable-background-timer-throttling")
+        chrome_options.add_argument("--disable-backgrounding-occluded-windows")
         chrome_options.add_argument("--disable-renderer-backgrounding")
 
         # Random realistic viewport
@@ -1486,12 +1458,8 @@ class ContentExtractor:
         chrome_options.add_argument(f"--user-agent={realistic_ua}")
 
         # Exclude automation switches
-        chrome_options.add_experimental_option(
-            "excludeSwitches", ["enable-automation"]
-        )
-        chrome_options.add_experimental_option(
-            'useAutomationExtension', False
-        )
+        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        chrome_options.add_experimental_option("useAutomationExtension", False)
 
         # Additional prefs
         prefs = {
@@ -1522,11 +1490,11 @@ class ContentExtractor:
 
         # Manual stealth enhancements
         driver.execute_script(
-            "Object.defineProperty(navigator, 'webdriver', "
-            "{get: () => undefined})"
+            "Object.defineProperty(navigator, 'webdriver', " "{get: () => undefined})"
         )
 
-        driver.execute_script("""
+        driver.execute_script(
+            """
             // Override plugins
             Object.defineProperty(navigator, 'plugins', {
                 get: () => [1, 2, 3, 4, 5]
@@ -1546,7 +1514,8 @@ class ContentExtractor:
             Object.defineProperty(navigator, 'permissions', {
                 get: () => undefined
             });
-        """)
+        """
+        )
 
         # Set timeouts - reduced for faster extraction
         driver.set_page_load_timeout(15)  # Reduced from 30
@@ -1589,12 +1558,8 @@ class ContentExtractor:
             time.sleep(0.3)  # Reduced from 1.0-3.0 seconds
 
             # Get page dimensions for realistic scrolling
-            page_height = driver.execute_script(
-                "return document.body.scrollHeight"
-            )
-            viewport_height = driver.execute_script(
-                "return window.innerHeight"
-            )
+            page_height = driver.execute_script("return document.body.scrollHeight")
+            viewport_height = driver.execute_script("return window.innerHeight")
 
             if page_height > viewport_height:
                 # Simulate reading pattern: scroll down in chunks
@@ -1604,9 +1569,7 @@ class ContentExtractor:
                 while current_pos < page_height:
                     # Random scroll distance (realistic reading chunks)
                     scroll_distance = random.randint(200, 500)
-                    current_pos = min(
-                        current_pos + scroll_distance, page_height
-                    )
+                    current_pos = min(current_pos + scroll_distance, page_height)
                     scroll_positions.append(current_pos)
 
                 # Limit scrolling to avoid timeout - faster scrolling
@@ -1620,18 +1583,20 @@ class ContentExtractor:
                 time.sleep(0.2)  # Reduced from 0.5-1.0 seconds
 
             # Simulate mouse movement (if ActionChains available)
-            if hasattr(driver, 'execute_script'):
+            if hasattr(driver, "execute_script"):
                 # Move mouse to random positions - faster
                 for _ in range(1):  # Reduced from 2 iterations
                     x = random.randint(100, 800)
                     y = random.randint(100, 600)
-                    driver.execute_script(f"""
+                    driver.execute_script(
+                        f"""
                         var event = new MouseEvent('mousemove', {{
                             clientX: {x},
                             clientY: {y}
                         }});
                         document.dispatchEvent(event);
-                    """)
+                    """
+                    )
                     time.sleep(0.1)  # Reduced from 0.1-0.3 seconds
 
         except Exception as e:
@@ -1642,9 +1607,15 @@ class ContentExtractor:
         try:
             # Common CAPTCHA indicators
             captcha_indicators = [
-                "captcha", "recaptcha", "hcaptcha",
-                "challenge", "verify", "robot",
-                "cloudflare", "access denied", "blocked"
+                "captcha",
+                "recaptcha",
+                "hcaptcha",
+                "challenge",
+                "verify",
+                "robot",
+                "cloudflare",
+                "access denied",
+                "blocked",
             ]
 
             page_text = driver.page_source.lower()
@@ -1663,7 +1634,7 @@ class ContentExtractor:
                 "[id*='recaptcha']",
                 "iframe[src*='recaptcha']",
                 ".cf-challenge-form",  # Cloudflare
-                "#challenge-form"
+                "#challenge-form",
             ]
 
             for selector in captcha_selectors:
@@ -1688,22 +1659,25 @@ class ContentExtractor:
         # Check for obvious truncation patterns
         suspicious_patterns = [
             # Starts with lowercase (likely truncated from middle of sentence)
-            r'^[a-z]',
+            r"^[a-z]",
             # Starts with common word endings/fragments
-            r'^(peat|ing|ed|ly|tion|ment|ness|ers?|s)\b',
+            r"^(peat|ing|ed|ly|tion|ment|ness|ers?|s)\b",
             # Very short titles (less than 10 chars, too short for news)
-            r'^.{1,9}$',
+            r"^.{1,9}$",
             # Contains only numbers/punctuation
-            r'^[\d\s\-.,;:!?]+$'
+            r"^[\d\s\-.,;:!?]+$",
         ]
 
         import re
+
         for i, pattern in enumerate(suspicious_patterns):
             # Apply IGNORECASE only to specific patterns, not the first one
             flags = re.IGNORECASE if i > 0 else 0
             if re.search(pattern, title, flags):
-                logger.debug(f"Title flagged as suspicious: '{title}' "
-                             f"(matched pattern: {pattern})")
+                logger.debug(
+                    f"Title flagged as suspicious: '{title}' "
+                    f"(matched pattern: {pattern})"
+                )
                 return True
 
         return False
@@ -1847,9 +1821,7 @@ class ContentExtractor:
         else:
             target_metadata["fallbacks"] = {"publish_date": details_copy}
 
-    def _extract_published_date(
-        self, soup: BeautifulSoup, html: str
-    ) -> Optional[str]:
+    def _extract_published_date(self, soup: BeautifulSoup, html: str) -> Optional[str]:
         """Extract publication date using multiple heuristics."""
         self._publish_date_details = None
 
@@ -1876,7 +1848,8 @@ class ContentExtractor:
                         if date_published:
                             if isinstance(date_published, (list, tuple)):
                                 date_published = (
-                                    date_published[0] if date_published else None)
+                                    date_published[0] if date_published else None
+                                )
                             if isinstance(date_published, dict):
                                 date_published = (
                                     date_published.get("@value")
@@ -1886,10 +1859,10 @@ class ContentExtractor:
 
                             if date_published:
                                 try:
-                                    parsed_date = dateparser.parse(
-                                        str(date_published))
+                                    parsed_date = dateparser.parse(str(date_published))
                                     return (
-                                        parsed_date.isoformat() if parsed_date else None)
+                                        parsed_date.isoformat() if parsed_date else None
+                                    )
                                 except Exception:
                                     self._record_publish_date_details(
                                         "json_ld",
@@ -1976,8 +1949,7 @@ class ContentExtractor:
     def _extract_content(self, soup: BeautifulSoup) -> Optional[str]:
         """Extract main article content."""
         # Remove unwanted elements
-        for element in soup(
-                ["script", "style", "nav", "header", "footer", "aside"]):
+        for element in soup(["script", "style", "nav", "header", "footer", "aside"]):
             element.decompose()
 
         # Try common content selectors
@@ -2049,9 +2021,7 @@ class ContentExtractor:
             return None
 
         for idx, text in enumerate(stripped_strings):
-            parsed = try_candidate(
-                text, strategy="direct", block_index=idx
-            )
+            parsed = try_candidate(text, strategy="direct", block_index=idx)
             if parsed:
                 return parsed
 
@@ -2096,9 +2066,7 @@ class ContentExtractor:
                     if parsed:
                         return parsed
 
-        loose_parsed = self._extract_publish_date_without_keywords(
-            stripped_strings
-        )
+        loose_parsed = self._extract_publish_date_without_keywords(stripped_strings)
         if loose_parsed:
             return loose_parsed
 
@@ -2113,7 +2081,7 @@ class ContentExtractor:
         if not match:
             return None
 
-        tail = text[match.end():].strip(" |:\u2013-•")
+        tail = text[match.end() :].strip(" |:\u2013-•")
         if not tail:
             return None
 

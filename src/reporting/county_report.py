@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable, List, Optional, Sequence
 
 import pandas as pd
 from sqlalchemy import text
@@ -32,15 +32,15 @@ class CountyReportConfig:
 
     counties: Sequence[str]
     start_date: datetime
-    end_date: Optional[datetime] = None
+    end_date: datetime | None = None
     database_url: str = "sqlite:///data/mizzou.db"
     include_entities: bool = True
     entity_separator: str = "; "
-    label_version: Optional[str] = None
+    label_version: str | None = None
 
 
-def _clean_counties(raw_counties: Iterable[str]) -> List[str]:
-    cleaned: List[str] = []
+def _clean_counties(raw_counties: Iterable[str]) -> list[str]:
+    cleaned: list[str] = []
     for county in raw_counties:
         if not county:
             continue
@@ -48,9 +48,7 @@ def _clean_counties(raw_counties: Iterable[str]) -> List[str]:
         if county_str:
             cleaned.append(county_str)
     if not cleaned:
-        raise ValueError(
-            "At least one county must be provided for report generation."
-        )
+        raise ValueError("At least one county must be provided for report generation.")
     return cleaned
 
 
@@ -60,7 +58,7 @@ def _format_datetime_for_sql(value: datetime) -> str:
 
 def generate_county_report(
     config: CountyReportConfig,
-    output_path: Optional[Path] = None,
+    output_path: Path | None = None,
 ) -> pd.DataFrame:
     """Generate a county-focused article report and optionally persist to CSV.
 
@@ -79,10 +77,7 @@ def generate_county_report(
     """
 
     counties = _clean_counties(config.counties)
-    county_bindings = {
-        f"county_{idx}": county
-        for idx, county in enumerate(counties)
-    }
+    county_bindings = {f"county_{idx}": county for idx, county in enumerate(counties)}
     county_placeholders = ", ".join(f":{name}" for name in county_bindings)
 
     start_date_sql = _format_datetime_for_sql(config.start_date)
@@ -97,10 +92,7 @@ def generate_county_report(
         for idx, status in enumerate(DEFAULT_EXCLUDED_STATUSES)
     }
     params.update(status_bindings)
-    status_placeholders = ", ".join(
-        f":{name}"
-        for name in status_bindings
-    )
+    status_placeholders = ", ".join(f":{name}" for name in status_bindings)
     status_filter = (
         "  AND LOWER(COALESCE(a.status, '')) NOT IN (\n"
         f"      {status_placeholders}\n"
@@ -126,9 +118,7 @@ def generate_county_report(
     label_filter_subquery = ""
     label_filter_clause = ""
     if config.label_version:
-        label_filter_subquery = (
-            "        WHERE label_version = :label_version\n"
-        )
+        label_filter_subquery = "        WHERE label_version = :label_version\n"
         label_filter_clause = "    WHERE al.label_version = :label_version\n"
         params["label_version"] = config.label_version
 
@@ -159,32 +149,28 @@ def generate_county_report(
     entities_column = "    '' AS entities\n"
     if config.include_entities:
         cte_parts.append(
-            (
-                "entity_agg AS (\n"
-                "    SELECT grouped.article_id,\n"
-                "           GROUP_CONCAT(\n"
-                "               grouped.entity_value,\n"
-                "               :entity_separator\n"
-                "           ) AS entities\n"
-                "    FROM (\n"
-                "        SELECT DISTINCT ae.article_id,\n"
-                "                CASE\n"
-                "                    WHEN ae.entity_label IS NOT NULL\n"
-                "                         AND ae.entity_label != '' THEN\n"
-                "                        ae.entity_text || ' [' ||\n"
-                "                        ae.entity_label || ']'\n"
-                "                    ELSE ae.entity_text\n"
-                "                END AS entity_value\n"
-                "        FROM article_entities ae\n"
-                "    ) AS grouped\n"
-                "    GROUP BY grouped.article_id\n"
-                ")\n"
-            )
+            "entity_agg AS (\n"
+            "    SELECT grouped.article_id,\n"
+            "           GROUP_CONCAT(\n"
+            "               grouped.entity_value,\n"
+            "               :entity_separator\n"
+            "           ) AS entities\n"
+            "    FROM (\n"
+            "        SELECT DISTINCT ae.article_id,\n"
+            "                CASE\n"
+            "                    WHEN ae.entity_label IS NOT NULL\n"
+            "                         AND ae.entity_label != '' THEN\n"
+            "                        ae.entity_text || ' [' ||\n"
+            "                        ae.entity_label || ']'\n"
+            "                    ELSE ae.entity_text\n"
+            "                END AS entity_value\n"
+            "        FROM article_entities ae\n"
+            "    ) AS grouped\n"
+            "    GROUP BY grouped.article_id\n"
+            ")\n"
         )
         entity_join = "LEFT JOIN entity_agg ON entity_agg.article_id = a.id\n"
-        entities_column = (
-            "    COALESCE(entity_agg.entities, '') AS entities\n"
-        )
+        entities_column = "    COALESCE(entity_agg.entities, '') AS entities\n"
     else:
         params.pop("entity_separator", None)
 
@@ -197,9 +183,7 @@ def generate_county_report(
         time_filters += "  AND a.publish_date <= :end_date\n"
 
     county_filter = (
-        "  AND COALESCE(s.county, cl.source_county) IN ("
-        + county_placeholders
-        + ")\n"
+        "  AND COALESCE(s.county, cl.source_county) IN (" + county_placeholders + ")\n"
     )
 
     query_sql = (
@@ -265,9 +249,7 @@ def generate_county_report(
             utc=True,
         )
         parsed_dates = parsed_dates.dt.tz_localize(None)
-        df["publish_date"] = parsed_dates.dt.strftime(
-            "%Y-%m-%d %H:%M:%S"
-        ).fillna("")
+        df["publish_date"] = parsed_dates.dt.strftime("%Y-%m-%d %H:%M:%S").fillna("")
         df["author"] = df["author"].fillna("").astype(str)
         df["url"] = df["url"].astype(str)
         df["title"] = df["title"].fillna("")

@@ -3,9 +3,9 @@
 # Fix discovery_status function in quick_query.py to use discovery_attempted column
 
 def fix_discovery_status():
-    with open('scripts/quick_query.py', 'r') as f:
+    with open('scripts/quick_query.py') as f:
         content = f.read()
-    
+
     # Find and replace the old discovery_status function
     old_function = '''def discovery_status():
     """Check overall discovery status across all sources."""
@@ -45,12 +45,12 @@ def fix_discovery_status():
     
     for query, params, desc in queries:
         execute_query(query, params, desc)'''
-    
+
     content = content.replace(old_function, new_function)
-    
+
     with open('scripts/quick_query.py', 'w') as f:
         f.write(content)
-    
+
     print("Updated discovery_status function to use discovery_attempted column")
 
 if __name__ == "__main__":

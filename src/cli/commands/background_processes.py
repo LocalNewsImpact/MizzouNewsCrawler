@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import argparse
 import logging
-from typing import Iterable
+from collections.abc import Iterable
 
 from sqlalchemy import text
 
 from src.models.database import DatabaseManager
-
 
 logger = logging.getLogger(__name__)
 
@@ -69,11 +68,7 @@ def show_process_status(process_id: str) -> int:
 
         with DatabaseManager() as db:
             session = db.session
-            process = (
-                session.query(BackgroundProcess)
-                .filter_by(id=process_id)
-                .first()
-            )
+            process = session.query(BackgroundProcess).filter_by(id=process_id).first()
 
             if not process:
                 print(f"Process {process_id} not found")
@@ -120,7 +115,7 @@ def show_active_queue() -> bool:
 
         with DatabaseManager() as db:
             session = db.session
-            status_attr = getattr(BackgroundProcess, "status")
+            status_attr = BackgroundProcess.status
             active = (
                 session.query(BackgroundProcess)
                 .filter(status_attr.in_(["pending", "running"]))
@@ -262,17 +257,14 @@ def _print_process_table(processes: Iterable) -> None:
     print("Background Processes (most recent 20):")
     print("-" * 80)
     print(
-        f"{'ID':<8} {'Status':<10} {'Command':<20} "
-        f"{'Progress':<15} {'Started':<20}"
+        f"{'ID':<8} {'Status':<10} {'Command':<20} " f"{'Progress':<15} {'Started':<20}"
     )
     print("-" * 80)
 
     for process in processes:
         progress = _format_progress(process)
         started = (
-            process.started_at.strftime("%Y-%m-%d %H:%M")
-            if process.started_at
-            else ""
+            process.started_at.strftime("%Y-%m-%d %H:%M") if process.started_at else ""
         )
         print(
             f"{process.id:<8} {process.status:<10} "
@@ -312,9 +304,7 @@ def _format_progress(process, detailed: bool = False) -> str:
     if total:
         percentage = process.progress_percentage or 0
         if detailed:
-            return (
-                f"{current}/{total} ({percentage:.1f}%)"
-            )
+            return f"{current}/{total} ({percentage:.1f}%)"
         return f"{current}/{total}"
 
     return str(current)
