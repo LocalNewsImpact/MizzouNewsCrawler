@@ -2186,7 +2186,6 @@ def test_process_source_dedupes_query_urls(
             _session.add(types.SimpleNamespace(**data))
             _session.commit()
 
-    monkeypatch.setattr(discovery_module, "upsert_candidate_link", fake_upsert)
     monkeypatch.setattr(
         "src.models.database.upsert_candidate_link",
         fake_upsert,
