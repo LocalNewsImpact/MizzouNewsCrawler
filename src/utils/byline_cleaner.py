@@ -117,9 +117,10 @@ class BylineCleaner:
         'temporary',
 
         # Organizational
-        'team', 'teams', 'crew', 'crews', 'department', 'departments',
-        'division', 'divisions',
-        'section', 'sections', 'unit', 'units', 'group', 'groups', 'name', 'names'
+        'team', 'teams', 'crew', 'crews', 'department',
+        'departments', 'division', 'divisions',
+        'section', 'sections', 'unit', 'units', 'group', 'groups',
+        'name', 'names'
     }
 
     # Organization and department patterns (not person names)
@@ -204,15 +205,22 @@ class BylineCleaner:
         """Initialize the byline cleaner."""
         # Compile regex patterns for efficiency
         self.compiled_patterns = [
-            re.compile(pattern, re.IGNORECASE) for pattern in self.BYLINE_PATTERNS
+            re.compile(pattern, re.IGNORECASE)
+            for pattern in self.BYLINE_PATTERNS
         ]
 
         # Create title removal pattern
-        titles_pattern = r'\b(?:' + '|'.join(re.escape(title) for title in self.TITLES_TO_REMOVE) + r')\b'
+        titles_pattern = (
+            r'\b(?:' +
+            '|'.join(re.escape(title) for title in self.TITLES_TO_REMOVE) +
+            r')\b'
+        )
         self.title_pattern = re.compile(titles_pattern, re.IGNORECASE)
 
         # Initialize telemetry
-        self.telemetry = BylineCleaningTelemetry(enable_telemetry=enable_telemetry)
+        self.telemetry = BylineCleaningTelemetry(
+            enable_telemetry=enable_telemetry
+        )
 
         # Dynamic publication filter cache
         self._publication_cache = None
@@ -273,7 +281,7 @@ class BylineCleaner:
                     final_authors=[],
                     cleaning_method="empty_input",
                     likely_valid_authors=False,
-                    likely_noise=True
+                    likely_noise=True,
                 )
                 return self._format_result([], return_json)
 
@@ -325,15 +333,21 @@ class BylineCleaner:
                         final_authors=[byline.strip()],
                         cleaning_method="wire_service_passthrough",
                         likely_valid_authors=True,
-                        likely_noise=False
+                        likely_noise=False,
                     )
-                    return self._format_result([byline.strip()], return_json)
+                    return self._format_result(
+                        [byline.strip()], return_json
+                    )
 
-            # Step 2: Check for "Special to" patterns BEFORE source removal
-            # (because source removal might break the pattern matching)
+            # Step 2: Check for "Special to" patterns BEFORE source
+            # removal (because source removal might break the pattern
+            # matching)
             special_extracted = self._extract_special_contributor(byline)
             if special_extracted:
-                logger.debug(f"Extracted using special contributor pattern: {special_extracted}")
+                logger.debug(
+                    f"Extracted using special contributor pattern: "
+                    f"{special_extracted}"
+                )
 
                 # Clean the extracted name and skip most processing
                 cleaned_name = self._clean_author_name(special_extracted)
@@ -353,15 +367,19 @@ class BylineCleaner:
                         final_authors=final_authors,
                         cleaning_method="special_contributor",
                         likely_valid_authors=True,
-                        likely_noise=False
+                        likely_noise=False,
                     )
-                    return self._format_result(final_authors, return_json)
+                    return self._format_result(
+                        final_authors, return_json
+                    )
 
             # Step 3: Source name removal (for standard processing)
             cleaned_byline = byline
             if source_name:
                 original_byline = byline
-                cleaned_byline = self._remove_source_name(byline, source_name)
+                cleaned_byline = self._remove_source_name(
+                    byline, source_name
+                )
 
                 self.telemetry.log_transformation_step(
                     step_name="source_removal",
@@ -424,8 +442,10 @@ class BylineCleaner:
                 input_text=cleaned_byline,
                 output_text=extracted_text,
                 transformation_type="text_extraction",
-                confidence_delta=0.2 if pattern_used != "no_pattern" else 0.0,
-                notes=f"Used {pattern_used}"
+                confidence_delta=(
+                    0.2 if pattern_used != "no_pattern" else 0.0
+                ),
+                notes=f"Used {pattern_used}",
             )
 
             # Step 4: Remove unwanted patterns (emails, phones, etc.)
@@ -490,7 +510,7 @@ class BylineCleaner:
                     output_text=str(cleaned_names),
                     transformation_type="smart_name_cleaning",
                     confidence_delta=0.3,
-                    notes="Used smart processing for name cleaning"
+                    notes="Used smart processing for name cleaning",
                 )
 
                 final_authors = self._deduplicate_authors(cleaned_names)
@@ -499,7 +519,7 @@ class BylineCleaner:
                     final_authors=final_authors,
                     cleaning_method="smart_processing",
                     likely_valid_authors=len(final_authors) > 0,
-                    likely_noise=len(final_authors) == 0
+                    likely_noise=len(final_authors) == 0,
                 )
 
                 return self._format_result(final_authors, return_json)
@@ -555,13 +575,17 @@ class BylineCleaner:
             self.telemetry.finalize_cleaning_session(
                 final_authors=valid_authors,
                 cleaning_method="standard_pipeline",
-                likely_valid_authors=len(valid_authors) > 0 and all(
-                    len(name.split()) >= 2 for name in valid_authors
+                likely_valid_authors=(
+                    len(valid_authors) > 0 and all(
+                        len(name.split()) >= 2
+                        for name in valid_authors
+                    )
                 ),
                 likely_noise=len(valid_authors) == 0,
                 requires_manual_review=(
-                    len(valid_authors) == 0 and len(byline.strip()) > 10
-                )
+                    len(valid_authors) == 0 and
+                    len(byline.strip()) > 10
+                ),
             )
 
             return self._format_result(valid_authors, return_json)
@@ -698,7 +722,10 @@ class BylineCleaner:
 
         # Remove trailing punctuation and common suffixes
         cleaned = re.sub(r'[.,;:]+$', '', cleaned)
-        cleaned = re.sub(r'\s+(staff|reporter|editor)$', '', cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(
+            r'\s+(staff|reporter|editor)$', '',
+            cleaned, flags=re.IGNORECASE
+        )
 
         return cleaned
 
@@ -747,7 +774,8 @@ class BylineCleaner:
         return False
 
     def _remove_source_name(self, text: str, source_name: str) -> str:
-        """Remove source/publication name from author text using fuzzy matching."""
+        """Remove source/publication name from author text using
+        fuzzy matching."""
         if not source_name or not text:
             return text
 
@@ -767,11 +795,16 @@ class BylineCleaner:
             return text
 
         # Calculate similarity ratio for exact match detection
-        similarity = SequenceMatcher(None, normalized_source, normalized_text).ratio()
+        similarity = SequenceMatcher(
+            None, normalized_source, normalized_text
+        ).ratio()
 
-        # High similarity threshold - this is likely just the publication name
+        # High similarity threshold - likely just the publication name
         if similarity > 0.8:
-            logger.info(f"Removing publication name (similarity: {similarity:.2f}): '{text}' matches '{source_name}'")
+            logger.info(
+                f"Removing publication name (similarity: "
+                f"{similarity:.2f}): '{text}' matches '{source_name}'"
+            )
             return ""
 
         # Check if source name is contained within the text (partial match)
@@ -787,22 +820,28 @@ class BylineCleaner:
                 remaining_ratio = 0
 
             # Only remove if most of the text is the publication name
-            if remaining_ratio < 0.3:  # Less than 30% is non-source content
-                logger.info(f"Removing publication name (substring match): "
-                          f"'{source_name}' found in '{text}'")
+            # Less than 30% is non-source content
+            if remaining_ratio < 0.3:
+                logger.info(
+                    f"Removing publication name (substring match): "
+                    f"'{source_name}' found in '{text}'"
+                )
                 return ""
 
         # Check if text is contained within source name (reverse match)
         if normalized_text in normalized_source:
-            logger.info(f"Removing publication name (reverse match): '{text}' found in '{source_name}'")
+            logger.info(
+                f"Removing publication name (reverse match): "
+                f"'{text}' found in '{source_name}'"
+            )
             return ""
 
         # NEW: Smart partial removal for "Name Publication" patterns
         source_words = normalized_source.split()
         text_words = normalized_text.split()
 
-        # If source has multiple words, try to identify and remove just the
-        # publication part
+        # If source has multiple words, try to identify and remove
+        # just the publication part
         if len(source_words) > 1 and len(text_words) > 1:
             matching_words = []
             for word in source_words:
