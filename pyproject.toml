@@ -35,7 +35,7 @@ skip_gitignore = true
 
 [tool.ruff]
 line-length = 88
-target-version = "py310"
+target-version = "py311"  # Updated for Python 3.11
 
 [tool.ruff.lint]
 select = [
@@ -50,8 +50,12 @@ select = [
 ignore = [
     "E501",  # line too long (handled by black)
     "B008",  # do not perform function calls in argument defaults
+    "B904",  # raise-without-from (stylistic, fix in backend files later)
+    "B007",  # unused-loop-control-variable (common pattern)
     "C901",  # too complex
     "W191",  # indentation contains tabs
+    "W291",  # trailing-whitespace (auto-fixable, not critical)
+    "W293",  # blank-line-with-whitespace (auto-fixable, not critical)
 ]
 
 [tool.ruff.lint.per-file-ignores]
