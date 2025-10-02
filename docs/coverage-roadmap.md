@@ -163,6 +163,7 @@ _Outcome goal:_ introduce pytest E2E suites (`tests/e2e/test_pipeline_xxx.py`) w
 ### Phase 5 – Enforcement & maintenance (Weeks 7–8)
 
 - Raise `--cov-fail-under` incrementally (65% → 70% → 75%).
+- ✅ 2025-10-06: Added pytest session hook enforcing a 75% per-module floor for `src/utils/byline_cleaner.py` to guard the regression suite during refactors.
 - Automate weekly coverage trend report; alert on regressions.
 - Evaluate mutation testing or diff coverage checks for critical modules.
 

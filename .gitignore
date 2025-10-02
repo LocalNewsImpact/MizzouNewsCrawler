@@ -74,6 +74,12 @@ tests/test_*.py.new
 !tests/services/llm/test_providers.py
 !tests/utils/test_content_cleaning_telemetry.py
 
+# Coverage files
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
 # Project specific
 models/productionmodel.pt
 backend/reviews.db*

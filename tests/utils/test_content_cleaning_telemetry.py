@@ -5,11 +5,47 @@ from __future__ import annotations
 import json
 import sqlite3
 from datetime import datetime
+from typing import Callable, Iterator, Tuple
 from unittest.mock import Mock, patch
 
 import pytest
 
 from src.utils.content_cleaning_telemetry import ContentCleaningTelemetry
+
+
+class InMemoryStore:
+    """Telemetry store backed by a single in-memory SQLite connection."""
+
+    def __init__(self, conn: sqlite3.Connection) -> None:
+        self._conn = conn
+        self.submitted: list[Callable[[sqlite3.Connection], None]] = []
+
+    def submit(self, writer: Callable[[sqlite3.Connection], None]) -> None:
+        self.submitted.append(writer)
+
+    def flush(self) -> None:
+        while self.submitted:
+            writer = self.submitted.pop(0)
+            writer(self._conn)
+        self._conn.commit()
+
+    class _ConnectionContext:
+        def __init__(self, store: "InMemoryStore") -> None:
+            self._store = store
+
+        def __enter__(self) -> sqlite3.Connection:
+            return self._store._conn
+
+        def __exit__(
+            self,
+            exc_type,
+            exc: Exception | None,
+            exc_tb,
+        ) -> None:
+            self._store._conn.commit()
+
+    def connection(self) -> "InMemoryStore._ConnectionContext":
+        return InMemoryStore._ConnectionContext(self)
 
 
 @pytest.fixture
@@ -50,6 +86,17 @@ def telemetry(mock_store):
 def disabled_telemetry():
     """Create disabled telemetry instance."""
     return ContentCleaningTelemetry(enable_telemetry=False)
+
+
+@pytest.fixture
+def telemetry_store() -> Iterator[Tuple[InMemoryStore, sqlite3.Connection]]:
+    """Provide an in-memory telemetry store and connection."""
+    conn = sqlite3.connect(":memory:")
+    store = InMemoryStore(conn)
+    try:
+        yield store, conn
+    finally:
+        conn.close()
 
 
 class TestContentCleaningTelemetryInit:
@@ -360,7 +407,9 @@ class TestSegmentDetectionLogging:
         assert json.loads(segment['article_ids_json']) == ["123", "456", "789"]
         assert segment['detection_number'] == 1
 
-    def test_log_segment_detection_multiple_increments_counter(self, telemetry):
+    def test_log_segment_detection_multiple_increments_counter(
+        self, telemetry
+    ):
         """Should increment detection counter for multiple segments."""
         telemetry.start_cleaning_session("example.com", 100)
         
@@ -527,7 +576,9 @@ class TestPayloadBuilding:
         assert payload['session'] == telemetry.current_session
         assert payload['segments'] == telemetry.detected_segments
         assert payload['wire_events'] == telemetry.wire_detection_events
-        assert payload['locality_events'] == telemetry.locality_detection_events
+        assert payload['locality_events'] == (
+            telemetry.locality_detection_events
+        )
 
     def test_build_payload_snapshot_empty_session(self, telemetry):
         """Should handle empty session gracefully."""
@@ -586,3 +637,180 @@ class TestDatabaseOperations:
         # Should have called execute multiple times for table and indexes
         assert mock_cursor.execute.call_count >= 5  # 1 table + 4 indexes
         mock_cursor.close.assert_called()
+
+
+class TestTelemetryPersistence:
+    """Covers telemetry persistence and retrieval across the store."""
+
+    def test_enqueue_payload_disabled_skips_writer(self, telemetry_store):
+        store, _ = telemetry_store
+        telemetry = ContentCleaningTelemetry(
+            enable_telemetry=False,
+            store=store,
+        )
+
+        telemetry._enqueue_payload({'session': {'telemetry_id': 'noop'}})
+
+        assert store.submitted == []
+
+    def test_finalize_persists_and_updates_patterns(self, telemetry_store):
+        store, conn = telemetry_store
+        telemetry = ContentCleaningTelemetry(
+            enable_telemetry=True,
+            store=store,
+        )
+
+        telemetry.start_cleaning_session(
+            domain="example.com",
+            article_count=3,
+            min_occurrences=2,
+            min_boundary_score=0.4,
+        )
+
+        telemetry.log_segment_detection(
+            segment_text="Navigation footer",
+            boundary_score=0.8,
+            occurrences=2,
+            pattern_type="navigation",
+            position_consistency=0.9,
+            segment_length=180,
+            article_ids=["1", "2"],
+            was_removed=True,
+            removal_reason="nav_footer",
+        )
+        telemetry.log_segment_detection(
+            segment_text="Trending now",
+            boundary_score=0.7,
+            occurrences=1,
+            pattern_type="trending",
+            position_consistency=0.6,
+            segment_length=120,
+            article_ids=["3"],
+            was_removed=True,
+            removal_reason="dynamic_trending",
+        )
+        telemetry.log_wire_detection(
+            provider="AP",
+            detection_method="regex",
+            pattern_text="Associated Press",
+            confidence=0.9,
+            detection_stage="persistent_pattern",
+            article_ids=["1"],
+        )
+        telemetry.log_locality_detection(
+            provider="AP",
+            detection_method="gazetteer",
+            article_id="1",
+            domain="example.com",
+            locality={
+                'is_local': True,
+                'confidence': 0.85,
+                'raw_score': 0.9,
+                'threshold': 0.7,
+                'signals': ['county_match'],
+            },
+            source_context={'byline_location': 'Columbia, MO'},
+        )
+
+        telemetry.finalize_cleaning_session(
+            rough_candidates_found=5,
+            segments_detected=2,
+            total_removable_chars=300,
+            removal_percentage=0.2,
+            processing_time_ms=250.0,
+        )
+
+        assert len(store.submitted) == 1
+        store.flush()
+
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT domain, segments_detected FROM content_cleaning_sessions"
+        )
+        domain, detected = cursor.fetchone()
+        assert domain == "example.com"
+        assert detected == 2
+
+        cursor.execute(
+            """
+            SELECT pattern_type, occurrences_total, is_ml_training_eligible
+            FROM persistent_boilerplate_patterns
+            WHERE domain = ?
+            ORDER BY pattern_type
+            """,
+            ("example.com",),
+        )
+        pattern_rows = cursor.fetchall()
+        assert {row[0] for row in pattern_rows} == {
+            "navigation",
+            "trending",
+        }
+        nav_row = next(
+            row for row in pattern_rows if row[0] == "navigation"
+        )
+        assert nav_row[1] == 2
+        assert nav_row[2] == 1
+
+        telemetry.start_cleaning_session("example.com", article_count=1)
+        telemetry.log_segment_detection(
+            segment_text="Navigation footer",
+            boundary_score=0.9,
+            occurrences=1,
+            pattern_type="navigation",
+            position_consistency=1.0,
+            segment_length=90,
+            article_ids=["4"],
+            was_removed=True,
+            removal_reason="nav_footer",
+        )
+        telemetry.finalize_cleaning_session(
+            rough_candidates_found=1,
+            segments_detected=1,
+            total_removable_chars=90,
+            removal_percentage=0.1,
+        )
+        store.flush()
+
+        cursor.execute(
+            """
+            SELECT occurrences_total
+            FROM persistent_boilerplate_patterns
+            WHERE domain = ? AND pattern_type = ?
+            """,
+            ("example.com", "navigation"),
+        )
+        (updated_total,) = cursor.fetchone()
+        assert updated_total == 3
+
+        patterns = telemetry.get_persistent_patterns("example.com")
+        assert len(patterns) == 2
+
+        ml_patterns = telemetry.get_ml_training_patterns("example.com")
+        assert [p['pattern_type'] for p in ml_patterns] == ["navigation"]
+
+        global_ml = telemetry.get_ml_training_patterns()
+        assert any(p['domain'] == "example.com" for p in global_ml)
+
+        telemetry_patterns = telemetry.get_telemetry_patterns(
+            "example.com",
+            include_dynamic=False,
+        )
+        assert [p['pattern_type'] for p in telemetry_patterns] == [
+            "navigation"
+        ]
+
+        telemetry_patterns_all = telemetry.get_telemetry_patterns(
+            "example.com",
+            include_dynamic=True,
+        )
+        assert {p['pattern_type'] for p in telemetry_patterns_all} == {
+            "navigation",
+            "trending",
+        }
+
+        assert telemetry.current_session is None
+        assert telemetry.detected_segments == []
+        assert telemetry.detection_counter == 0
+
+        telemetry.flush()
+        telemetry.shutdown(wait=True)

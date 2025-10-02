@@ -178,19 +178,25 @@ def init_db():
     # Add secondary_rating column if missing
     if "secondary_rating" not in existing_cols:
         try:
-            cur.execute("ALTER TABLE reviews ADD COLUMN secondary_rating INTEGER")
+            cur.execute(
+                "ALTER TABLE reviews ADD COLUMN secondary_rating INTEGER"
+            )
         except Exception:
             pass
     # Add missing_locations column if missing
     if "missing_locations" not in existing_cols:
         try:
-            cur.execute("ALTER TABLE reviews ADD COLUMN missing_locations TEXT")
+            cur.execute(
+                "ALTER TABLE reviews ADD COLUMN missing_locations TEXT"
+            )
         except Exception:
             pass
     # Add incorrect_locations column if missing
     if "incorrect_locations" not in existing_cols:
         try:
-            cur.execute("ALTER TABLE reviews ADD COLUMN incorrect_locations TEXT")
+            cur.execute(
+                "ALTER TABLE reviews ADD COLUMN incorrect_locations TEXT"
+            )
         except Exception:
             pass
     # Add inferred_tags column if missing
@@ -202,10 +208,13 @@ def init_db():
     # Add mentioned_locations column if missing
     if "mentioned_locations" not in existing_cols:
         try:
-            cur.execute("ALTER TABLE reviews ADD COLUMN mentioned_locations TEXT")
+            cur.execute(
+                "ALTER TABLE reviews ADD COLUMN mentioned_locations TEXT"
+            )
         except Exception:
             pass
-    # Add article_uid column if missing (unique identifier from CSV 'id' column)
+    # Add article_uid column if missing
+    # (unique identifier from CSV 'id' column)
     if "article_uid" not in existing_cols:
         try:
             cur.execute("ALTER TABLE reviews ADD COLUMN article_uid TEXT")
@@ -214,15 +223,20 @@ def init_db():
     # Add missing_tags/incorrect_tags if missing
     if "missing_tags" not in existing_cols:
         try:
-            cur.execute("ALTER TABLE reviews ADD COLUMN missing_tags TEXT")
+            cur.execute(
+                "ALTER TABLE reviews ADD COLUMN missing_tags TEXT"
+            )
         except Exception:
             pass
     if "incorrect_tags" not in existing_cols:
         try:
-            cur.execute("ALTER TABLE reviews ADD COLUMN incorrect_tags TEXT")
+            cur.execute(
+                "ALTER TABLE reviews ADD COLUMN incorrect_tags TEXT"
+            )
         except Exception:
             pass
-    # Add reviewed_at column to mark when a reviewer saved/marked the article as reviewed
+    # Add reviewed_at column to mark when a reviewer saved/marked
+    # the article as reviewed
     if "reviewed_at" not in existing_cols:
         try:
             cur.execute("ALTER TABLE reviews ADD COLUMN reviewed_at TEXT")
@@ -348,7 +362,8 @@ def init_snapshot_tables():
         )
         # helpful index for querying by article_uid or host
         cur.execute(
-            "CREATE INDEX IF NOT EXISTS dedupe_audit_article_idx ON dedupe_audit(article_uid)"
+            "CREATE INDEX IF NOT EXISTS dedupe_audit_article_idx "
+            "ON dedupe_audit(article_uid)"
         )
         cur.execute(
             "CREATE INDEX IF NOT EXISTS dedupe_audit_host_idx ON dedupe_audit(host)"
@@ -405,7 +420,9 @@ def _db_writer_worker():
             last_exc = None
             for attempt in range(1, attempts + 1):
                 try:
-                    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+                    conn = sqlite3.connect(
+                        DB_PATH, timeout=30.0
+                    )
                     try:
                         conn.execute("PRAGMA journal_mode=WAL")
                     except Exception:
@@ -480,7 +497,9 @@ def shutdown_writer():
     _worker_stop_event.set()
     try:
         if _worker_thread is not None:
-            _worker_thread.join(timeout=5.0)
+            _worker_thread.join(
+                timeout=5.0
+            )
     except Exception:
         pass
 
@@ -496,14 +515,19 @@ def startup():
 
 
 @app.get("/api/articles")
-def list_articles(limit: int = 20, offset: int = 0, reviewer: Optional[str] = None):
+def list_articles(
+    limit: int = 20, offset: int = 0, reviewer: Optional[str] = None
+):
     if not ARTICLES_CSV.exists():
         return {"count": 0, "results": []}
     df = pd.read_csv(ARTICLES_CSV)
     # replace infinite values and NaN with None for JSON safety
-    df = df.replace([np.inf, -np.inf], None)
+    df = df.replace(
+        [np.inf, -np.inf], None
+    )
     df = df.where(pd.notnull(df), None)
-    # If caller provided a reviewer, filter out articles already reviewed by that reviewer
+    # If caller provided a reviewer, filter out articles
+    # already reviewed by that reviewer
     if reviewer:
         try:
             # use a longer timeout to wait for transient locks to clear
@@ -586,7 +610,8 @@ def sanitize_value(v):
 
 
 def sanitize_record(rec: dict) -> dict:
-    # Ensure the API always exposes a stable set of fields mapped from the CSV.
+    # Ensure the API always exposes a stable set of fields
+    # mapped from the CSV.
     wanted = [
         "url",
         "title",
@@ -603,16 +628,19 @@ def sanitize_record(rec: dict) -> dict:
         "locmentions",
     ]
     out = {}
-    # include requested keys with sanitized values (fall back to None)
+    # include requested keys with sanitized values
+    # (fall back to None)
     for k in wanted:
-        out[k] = sanitize_value(rec.get(k)) if k in rec else None
+        out[k] = (
+            sanitize_value(rec.get(k)) if k in rec else None
+        )
     # Also keep other keys present in the record so the frontend
     # can use them if needed
     for k, v in rec.items():
         if k not in out:
             out[k] = sanitize_value(v)
-    # Normalize inferred tags into a stable `inferred_tags` array so
-    # frontend code can uniformly access `article.inferred_tags`.
+    # Normalize inferred tags into a stable `inferred_tags` array
+    # so frontend code can uniformly access `article.inferred_tags`.
     try:
         # If the CSV already includes an `inferred_tags` column (array/string), prefer it.
         if "inferred_tags" in rec and rec.get("inferred_tags") is not None:
@@ -728,14 +756,22 @@ def post_review(idx: int, payload: ReviewIn):
         pass
     now = datetime.datetime.utcnow().isoformat()
     tags_str = ",".join(payload.tags) if payload.tags else None
-    body_str = ",".join(payload.body_errors) if payload.body_errors else None
+    body_str = (
+        ",".join(payload.body_errors) if payload.body_errors else None
+    )
     headline_str = (
         ",".join(payload.headline_errors) if payload.headline_errors else None
     )
-    author_str = ",".join(payload.author_errors) if payload.author_errors else None
-    # Prefer an explicit article_uid if supplied in the payload; otherwise
-    # attempt to map from the numeric CSV idx to the article's `id` column.
-    # Prefer explicit article_uid from the incoming payload when provided.
+    author_str = (
+        ",".join(payload.author_errors)
+        if payload.author_errors
+        else None
+    )
+    # Prefer an explicit article_uid if supplied in the payload;
+    # otherwise attempt to map from the numeric CSV idx to the
+    # article's `id` column.
+    # Prefer explicit article_uid from the incoming payload
+    # when provided.
     article_uid = getattr(payload, "article_uid", None) or None
     # try to read the CSV to map idx -> id if available
     try:
@@ -746,15 +782,23 @@ def post_review(idx: int, payload: ReviewIn):
     except Exception:
         pass
 
-    # DEBUG: print SQL and params length to help diagnose placeholder mismatch
-    # include reviewed_at so saving a review marks it reviewed for that reviewer
+    # DEBUG: print SQL and params length to help diagnose
+    # placeholder mismatch. include reviewed_at so saving a review
+    # marks it reviewed for that reviewer
     sql_stmt = (
         "INSERT INTO reviews ("
-        "article_idx, article_uid, reviewer, rating, secondary_rating, tags, notes, "
-        "mentioned_locations, missing_locations, incorrect_locations, inferred_tags, missing_tags, incorrect_tags, body_errors, headline_errors, author_errors, reviewed_at, created_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+        "article_idx, article_uid, reviewer, rating, "
+        "secondary_rating, tags, notes, "
+        "mentioned_locations, missing_locations, "
+        "incorrect_locations, inferred_tags, missing_tags, "
+        "incorrect_tags, body_errors, headline_errors, "
+        "author_errors, reviewed_at, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
+        "?, ?, ?, ?, ?) "
         "ON CONFLICT(article_uid, reviewer) DO UPDATE SET "
-        "rating=excluded.rating, secondary_rating=excluded.secondary_rating, tags=excluded.tags, "
+        "rating=excluded.rating, "
+        "secondary_rating=excluded.secondary_rating, "
+        "tags=excluded.tags, "
         "notes=excluded.notes, "
         "mentioned_locations=excluded.mentioned_locations, "
         "missing_locations=excluded.missing_locations, "
@@ -778,7 +822,11 @@ def post_review(idx: int, payload: ReviewIn):
         tags_str,
         payload.notes,
         # store mentioned_locations as CSV text
-        ",".join(payload.mentioned_locations) if payload.mentioned_locations else None,
+        (
+            ",".join(payload.mentioned_locations)
+            if payload.mentioned_locations
+            else None
+        ),
         # store missing_locations as CSV text
         (
             ",".join(payload.missing_locations)
@@ -821,35 +869,48 @@ def post_review(idx: int, payload: ReviewIn):
 
     cur.execute(sql_stmt, params)
     conn.commit()
-    # Retrieve the canonical row for this review so callers receive the
-    # authoritative, server-normalized representation immediately.
+    # Retrieve the canonical row for this review so callers
+    # receive the authoritative, server-normalized representation
+    # immediately.
     cols_sql = (
-        "id, article_idx, article_uid, reviewer, rating, secondary_rating, "
-        "tags, notes, mentioned_locations, missing_locations, incorrect_locations, inferred_tags, missing_tags, incorrect_tags, body_errors, headline_errors, author_errors, created_at"
+        "id, article_idx, article_uid, reviewer, rating, "
+        "secondary_rating, "
+        "tags, notes, mentioned_locations, missing_locations, "
+        "incorrect_locations, inferred_tags, missing_tags, "
+        "incorrect_tags, body_errors, headline_errors, "
+        "author_errors, created_at"
     )
 
-    # Try to use the sqlite cursor's lastrowid which points to the row
-    # inserted by the most recent INSERT. This handles the common case
-    # where the operation was an INSERT and we can return that exact row.
-    created_id = cur.lastrowid if hasattr(cur, "lastrowid") else None
+    # Try to use the sqlite cursor's lastrowid which points to
+    # the row inserted by the most recent INSERT. This handles
+    # the common case where the operation was an INSERT and we
+    # can return that exact row.
+    created_id = (
+        cur.lastrowid if hasattr(cur, "lastrowid") else None
+    )
     row = None
     if created_id:
-        cur.execute(f"SELECT {cols_sql} FROM reviews WHERE id=?", (created_id,))
+        cur.execute(
+            f"SELECT {cols_sql} FROM reviews WHERE id=?",
+            (created_id,),
+        )
         row = cur.fetchone()
 
-    # If lastrowid wasn't available (e.g. the statement performed an UPDATE
-    # as part of an upsert), fall back to selecting by article_uid+reviewer
-    # or article_idx+reviewer.
+    # If lastrowid wasn't available (e.g. the statement performed
+    # an UPDATE as part of an upsert), fall back to selecting by
+    # article_uid+reviewer or article_idx+reviewer.
     if not row:
         if article_uid:
             cur.execute(
-                f"SELECT {cols_sql} FROM reviews WHERE article_uid=? AND reviewer=?",
+                f"SELECT {cols_sql} FROM reviews "
+                "WHERE article_uid=? AND reviewer=?",
                 (article_uid, payload.reviewer),
             )
             row = cur.fetchone()
         if not row:
             cur.execute(
-                f"SELECT {cols_sql} FROM reviews WHERE article_idx=? AND reviewer=?",
+                f"SELECT {cols_sql} FROM reviews "
+                "WHERE article_idx=? AND reviewer=?",
                 (idx, payload.reviewer),
             )
             row = cur.fetchone()
@@ -865,7 +926,8 @@ def post_review(idx: int, payload: ReviewIn):
         s = s.strip()
         if s == "":
             return []
-        # Treat literal 'NONE' or 'None' as empty as some older records had that
+        # Treat literal 'NONE' or 'None' as empty as some
+        # older records had that
         if s.upper() == "NONE" or s == "None":
             return []
         return [p for p in s.split(",") if p]
@@ -875,27 +937,41 @@ def post_review(idx: int, payload: ReviewIn):
         result = dict(zip(cols, row))
         # Normalize CSV fields into arrays for API clients
         result["tags"] = _split_csv_field(result.get("tags"))
-        result["body_errors"] = _split_csv_field(result.get("body_errors"))
-        result["headline_errors"] = _split_csv_field(result.get("headline_errors"))
-        result["author_errors"] = _split_csv_field(result.get("author_errors"))
+        result["body_errors"] = _split_csv_field(
+            result.get("body_errors")
+        )
+        result["headline_errors"] = _split_csv_field(
+            result.get("headline_errors")
+        )
+        result["author_errors"] = _split_csv_field(
+            result.get("author_errors")
+        )
         # normalize mentioned_locations into an array
         result["mentioned_locations"] = _split_csv_field(
             result.get("mentioned_locations")
         )
         # normalize missing_locations into an array
-        result["missing_locations"] = _split_csv_field(result.get("missing_locations"))
+        result["missing_locations"] = _split_csv_field(
+            result.get("missing_locations")
+        )
         # normalize incorrect_locations into an array
         result["incorrect_locations"] = _split_csv_field(
             result.get("incorrect_locations")
         )
         # normalize inferred_tags
-        result["inferred_tags"] = _split_csv_field(result.get("inferred_tags"))
+        result["inferred_tags"] = _split_csv_field(
+            result.get("inferred_tags")
+        )
         # normalize missing_tags/incorrect_tags
-        result["missing_tags"] = _split_csv_field(result.get("missing_tags"))
-        result["incorrect_tags"] = _split_csv_field(result.get("incorrect_tags"))
+        result["missing_tags"] = _split_csv_field(
+            result.get("missing_tags")
+        )
+        result["incorrect_tags"] = _split_csv_field(
+            result.get("incorrect_tags")
+        )
     else:
-        # As a last resort, return the id if we can find any row for this
-        # (article_idx, reviewer) pair.
+        # As a last resort, return the id if we can find any row
+        # for this (article_idx, reviewer) pair.
         cur.execute(
             "SELECT id FROM reviews WHERE article_idx=? AND reviewer=?",
             (idx, payload.reviewer),
@@ -969,16 +1045,21 @@ def post_review(idx: int, payload: ReviewIn):
             return stable_stringify(obj)
         except Exception:
             try:
-                return json.dumps(obj, sort_keys=True, separators=(",", ":"))
+                return json.dumps(
+                    obj, sort_keys=True, separators=(",", ":")
+                )
             except Exception:
                 return None
 
-    # Attach canonical payload and hash to the returned row so the frontend
-    # can rely on a server-authoritative representation for savedness checks.
+    # Attach canonical payload and hash to the returned row so
+    # the frontend can rely on a server-authoritative
+    # representation for savedness checks.
     if result:
         try:
             result["canonical"] = build_canonical(result)
-            result["canonical_hash"] = canonical_hash(result["canonical"])
+            result["canonical_hash"] = canonical_hash(
+                result["canonical"]
+            )
         except Exception:
             pass
 
@@ -1015,8 +1096,13 @@ def update_review(rid: int, payload: ReviewIn):
 
     cur.execute(
         (
-            "UPDATE reviews SET reviewer=?, rating=?, secondary_rating=?, tags=?, notes=?, "
-            "mentioned_locations=?, missing_locations=?, incorrect_locations=?, inferred_tags=?, missing_tags=?, incorrect_tags=?, body_errors=?, headline_errors=?, author_errors=?, reviewed_at=? WHERE id=?"
+            "UPDATE reviews SET reviewer=?, rating=?, "
+            "secondary_rating=?, tags=?, notes=?, "
+            "mentioned_locations=?, missing_locations=?, "
+            "incorrect_locations=?, inferred_tags=?, "
+            "missing_tags=?, incorrect_tags=?, body_errors=?, "
+            "headline_errors=?, author_errors=?, reviewed_at=? "
+            "WHERE id=?"
         ),
         (
             payload.reviewer,
@@ -1067,26 +1153,43 @@ def update_review(rid: int, payload: ReviewIn):
 
 
 @app.get("/api/reviews")
-def get_reviews(article_idx: Optional[int] = None, article_uid: Optional[str] = None):
+def get_reviews(
+    article_idx: Optional[int] = None,
+    article_uid: Optional[str] = None
+):
     if not DB_PATH.exists():
         return []
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
     cols_sql = (
-        "id, article_idx, article_uid, reviewer, rating, secondary_rating, "
-        "tags, notes, mentioned_locations, missing_locations, incorrect_locations, inferred_tags, missing_tags, incorrect_tags, body_errors, headline_errors, "
+        "id, article_idx, article_uid, reviewer, rating, "
+        "secondary_rating, "
+        "tags, notes, mentioned_locations, missing_locations, "
+        "incorrect_locations, inferred_tags, missing_tags, "
+        "incorrect_tags, body_errors, headline_errors, "
         "author_errors, created_at"
     )
     if article_uid:
         cur.execute(
-            (f"SELECT {cols_sql} FROM reviews " "WHERE article_uid=? ORDER BY id DESC"),
+            (
+                f"SELECT {cols_sql} FROM reviews "
+                "WHERE article_uid=? ORDER BY id DESC"
+            ),
             (article_uid,),
         )
     elif article_idx is None:
-        cur.execute((f"SELECT {cols_sql} FROM reviews " "ORDER BY id DESC LIMIT 200"))
+        cur.execute(
+            (
+                f"SELECT {cols_sql} FROM reviews "
+                "ORDER BY id DESC LIMIT 200"
+            )
+        )
     else:
         cur.execute(
-            (f"SELECT {cols_sql} FROM reviews " "WHERE article_idx=? ORDER BY id DESC"),
+            (
+                f"SELECT {cols_sql} FROM reviews "
+                "WHERE article_idx=? ORDER BY id DESC"
+            ),
             (article_idx,),
         )
     rows = cur.fetchall()

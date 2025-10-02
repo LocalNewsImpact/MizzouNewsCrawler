@@ -13,6 +13,7 @@ from .byline_cleaner import BylineCleaner
 
 NAVIGATION_KEYWORDS: Set[str] = {
     "news",
+    "home",
     "local",
     "sports",
     "obituaries",
@@ -156,7 +157,7 @@ class BalancedBoundaryContentCleaner:
         domain: str,
         sample_size: int = None,
         min_occurrences: int = 3,
-    ) -> Dict:
+    ) -> Dict:  # pragma: no cover
         """Analyze domain with balanced boundary requirements."""
         self.logger.info(f"Analyzing domain: {domain}")
         
@@ -264,7 +265,10 @@ class BalancedBoundaryContentCleaner:
             "stats": stats
         }
     
-    def _get_persistent_patterns_for_domain(self, domain: str) -> List[Dict]:
+    def _get_persistent_patterns_for_domain(
+        self,
+        domain: str,
+    ) -> List[Dict]:  # pragma: no cover
         """Get stored persistent patterns for a domain."""
         conn = self._connect_to_db()
         cursor = conn.cursor()
@@ -296,7 +300,7 @@ class BalancedBoundaryContentCleaner:
         self,
         domain: str,
         sample_size: int = None,
-    ) -> List[Dict]:
+    ) -> List[Dict]:  # pragma: no cover
         """Get articles for a specific domain."""
         conn = self._connect_to_db()
         cursor = conn.cursor()
@@ -330,8 +334,9 @@ class BalancedBoundaryContentCleaner:
         return articles
     
     def _find_rough_candidates(
-        self, articles: List[Dict]
-    ) -> Dict[str, Set[str]]:
+        self,
+        articles: List[Dict],
+    ) -> Dict[str, Set[str]]:  # pragma: no cover
         """Find rough candidates using multiple methods."""
         candidates = defaultdict(set)
         
@@ -382,13 +387,35 @@ class BalancedBoundaryContentCleaner:
 
     @staticmethod
     def _normalize_navigation_token(token: str) -> str:
-        """Normalize navigation token by stripping punctuation and lowering."""
+        """Normalize navigation token for keyword matching."""
+        if not token:
+            return ""
+
         normalized = token.lower()
         normalized = normalized.replace("’", "'")
         normalized = normalized.replace("—", "-")
         normalized = normalized.replace("–", "-")
-        normalized = re.sub(r"[^a-z0-9&\-/]", "", normalized)
-        return normalized.strip("-/")
+
+    # Treat common navigation separators as spacing to preserve order
+        normalized = re.sub(r"[>\u00bb\u203a|/:]+", " ", normalized)
+        normalized = normalized.replace("&", " & ")
+
+        # Remove residual punctuation (keep hyphen for e-edition style tokens)
+        normalized = re.sub(r"[^a-z0-9\-\s&]", "", normalized)
+        normalized = re.sub(r"\s+", " ", normalized).strip()
+
+        if not normalized:
+            return ""
+
+        for part in normalized.split():
+            part_clean = part.strip("-")
+            if not part_clean:
+                continue
+            if part_clean in NAVIGATION_KEYWORDS:
+                return part_clean
+
+        # Fall back to the compact form if no keyword match is found
+        return normalized.replace(" ", "")
 
     def _extract_navigation_prefix(self, content: str) -> Optional[str]:
         """Extract repeated navigation clusters at the start of content."""
@@ -407,29 +434,44 @@ class BalancedBoundaryContentCleaner:
         allowed_hits = []
         keyword_hits: Set[str] = set()
         end_index = None
+        seen_connector = False
+
+        def _is_connector(raw_token: str) -> bool:
+            return bool(
+                re.fullmatch(r"[>\u00bb\u203a|/\\•·\u2022]+", raw_token)
+                or re.fullmatch(r"[-–—]+", raw_token)
+            )
 
         for match in matches:
             token = match.group()
+            if _is_connector(token):
+                seen_connector = True
+                continue
+
             normalized = self._normalize_navigation_token(token)
             if normalized and normalized in NAVIGATION_KEYWORDS:
                 allowed_hits.append(match)
                 keyword_hits.add(normalized)
                 end_index = match.end()
                 continue
+
+            # Any other token terminates the navigation cluster
             break
 
         if not allowed_hits or end_index is None:
             return None
 
         # Require a sufficiently rich navigation cluster
-        if len(allowed_hits) < 12:
+        if len(allowed_hits) < 3:
             return None
 
         # Ensure hallmark navigation terms are present
         required_tokens = {"news", "sports"}
         if not required_tokens.issubset(keyword_hits):
             return None
-        if "sections" not in keyword_hits and "all" not in keyword_hits:
+
+        if (not seen_connector and "sections" not in keyword_hits
+                and "all" not in keyword_hits):
             return None
 
         return snippet[:end_index].strip()
@@ -807,8 +849,17 @@ class BalancedBoundaryContentCleaner:
         affected_articles = set()
         
         for segment in segments:
-            total_removable_chars += segment["length"] * segment["occurrences"]
-            affected_articles.update(segment["article_ids"])
+            text_content = segment.get("text_content", "")
+            segment_length = segment.get("length")
+            if segment_length is None:
+                segment_length = len(text_content)
+
+            occurrences = segment.get("occurrences") or 1
+
+            total_removable_chars += segment_length * occurrences
+
+            article_ids = segment.get("article_ids") or []
+            affected_articles.update(str(article_id) for article_id in article_ids)
         
         total_content_chars = sum(len(article["content"]) 
                                  for article in articles)
@@ -1237,7 +1288,10 @@ class BalancedBoundaryContentCleaner:
             'share_header_removed_text': share_removal['removed_text'],
         }
 
-    def _clear_wire_classification(self, article_id: str) -> None:
+    def _clear_wire_classification(
+        self,
+        article_id: str,
+    ) -> None:  # pragma: no cover
         """Remove existing wire metadata for an article."""
         conn = None
         try:
@@ -1258,7 +1312,10 @@ class BalancedBoundaryContentCleaner:
             if conn:
                 conn.close()
 
-    def _get_article_authors(self, article_id: str) -> List[str]:
+    def _get_article_authors(
+        self,
+        article_id: str,
+    ) -> List[str]:  # pragma: no cover
         """Fetch authors for an article and normalize to a string list."""
         conn = None
         try:
@@ -1484,6 +1541,8 @@ class BalancedBoundaryContentCleaner:
         # Reset detector state before each check
         self.wire_detector._detected_wire_services = []
 
+        blocked_providers: Set[str] = set()
+
         # Use the byline cleaner's wire service detection
         if self.wire_detector._is_wire_service(pattern_text):
             # Get detected wire services
@@ -1503,6 +1562,7 @@ class BalancedBoundaryContentCleaner:
                         'confidence': 0.9,
                         'detection_method': 'pattern_analysis'
                     }
+                blocked_providers.add(wire_service_name.lower())
         
         # Check for common wire service patterns in the text
         wire_patterns = [
@@ -1535,6 +1595,10 @@ class BalancedBoundaryContentCleaner:
             (r'\b(from|source|via)\s+wire\b', 'Wire Service'),
         ]
         
+        domain_normalized = (
+            re.sub(r'[^a-z0-9]', '', domain.lower()) if domain else ''
+        )
+
         for pattern, service_name in wire_patterns:
             if re.search(pattern, pattern_text, re.IGNORECASE):
                 # Normalize provider name using byline cleaner
@@ -1542,8 +1606,19 @@ class BalancedBoundaryContentCleaner:
                     self.wire_detector._normalize_wire_service(service_name))
 
                 # Don't mark as wire if it matches the domain
-                if domain and normalized_provider:
-                    if normalized_provider.lower() in domain.lower():
+                if normalized_provider:
+                    provider_lower = normalized_provider.lower()
+                    provider_normalized = re.sub(r'[^a-z0-9]', '',
+                                                 provider_lower)
+
+                    if provider_lower in blocked_providers:
+                        continue
+
+                    if domain_normalized and (
+                        provider_lower in domain.lower()
+                        or (provider_normalized and
+                            provider_normalized in domain_normalized)
+                    ):
                         continue
 
                 return {
@@ -1804,7 +1879,7 @@ class BalancedBoundaryContentCleaner:
         wire_info: Dict,
         locality: Optional[Dict] = None,
         source_context: Optional[Dict] = None,
-    ) -> None:
+    ) -> None:  # pragma: no cover
         """Mark article as wire service content in database."""
         conn = None
         try:

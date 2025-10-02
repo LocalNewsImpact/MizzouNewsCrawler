@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, cast
@@ -73,12 +73,12 @@ class ArticleLLMPipeline:
             )
             orchestration = self._orchestrator.generate(prompt, config=config)
             result = ArticleLLMResult(
-                article_id=article.id,
+                article_id=str(article.id),
                 success=orchestration.succeeded,
                 provider=orchestration.provider,
                 content=orchestration.content,
                 failures=[
-                    failure.__dict__
+                    asdict(failure)
                     for failure in orchestration.failures
                 ],
             )
@@ -140,7 +140,7 @@ class ArticleLLMPipeline:
                 "provider": orchestration.provider,
                 "timestamp": datetime.utcnow().isoformat(),
                 "failures": [
-                    failure.__dict__
+                    asdict(failure)
                     for failure in orchestration.failures
                 ],
             }
@@ -160,7 +160,7 @@ class ArticleLLMPipeline:
                 "provider": None,
                 "timestamp": datetime.utcnow().isoformat(),
                 "failures": [
-                    failure.__dict__
+                    asdict(failure)
                     for failure in orchestration.failures
                 ],
             }
