@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import List
-
 import pytest
 
 from src.utils.content_cleaner_twophase import TwoPhaseContentCleaner
@@ -53,9 +51,7 @@ def test_analyze_domain_identifies_shared_segments(
     assert COMMON_SEGMENT in segment_texts
 
     target_segment = next(
-        segment
-        for segment in result["segments"]
-        if segment["text"] == COMMON_SEGMENT
+        segment for segment in result["segments"] if segment["text"] == COMMON_SEGMENT
     )
     assert target_segment["occurrences"] == 3
     assert target_segment["pattern_type"] == "subscription"
@@ -106,9 +102,7 @@ def test_analyze_domain_handles_insufficient_articles(
                 {"text": COMMON_SEGMENT, "length": len(COMMON_SEGMENT)},
                 {
                     "text": "Reader support keeps local journalism strong",
-                    "length": len(
-                        "Reader support keeps local journalism strong"
-                    ),
+                    "length": len("Reader support keeps local journalism strong"),
                 },
             ],
             "Breaking news update\n\nMore details follow.",
@@ -116,7 +110,7 @@ def test_analyze_domain_handles_insufficient_articles(
     ],
 )
 def test_clean_article_content_removes_segments(
-    segments_to_remove: List[dict], expected: str
+    segments_to_remove: list[dict], expected: str
 ) -> None:
     cleaner = TwoPhaseContentCleaner(db_path=":memory:")
 

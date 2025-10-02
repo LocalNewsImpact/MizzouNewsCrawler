@@ -63,9 +63,7 @@ def test_social_share_prefix_inline_with_article_text():
         original_text, "maryvilleforum.com"
     )
 
-    assert cleaned_text.startswith(
-        "Actors and first responders rushed to help."
-    )
+    assert cleaned_text.startswith("Actors and first responders rushed to help.")
     assert "Facebook Twitter" not in cleaned_text
     assert metadata["social_share_header_removed"] is True
     assert metadata["chars_removed"] == len(original_text) - len(cleaned_text)
@@ -80,9 +78,7 @@ def test_social_share_cluster_heuristics_are_general():
     assert cleaner._is_social_share_cluster(
         "Share this story on Facebook Twitter Email"
     )
-    assert cleaner._is_high_confidence_boilerplate(
-        "Facebook Twitter WhatsApp SMS"
-    )
+    assert cleaner._is_high_confidence_boilerplate("Facebook Twitter WhatsApp SMS")
 
 
 def test_long_navigation_block_detected_as_candidate():
@@ -184,16 +180,12 @@ def test_navigation_prefix_with_inline_date_detected():
     articles = [
         {
             "id": "alpha",
-            "content": (
-                f"{nav_prefix} September 20, 2025 "
-                "Sonny Curtis remembered."
-            ),
+            "content": (f"{nav_prefix} September 20, 2025 " "Sonny Curtis remembered."),
         },
         {
             "id": "beta",
             "content": (
-                f"{nav_prefix} September 22, 2025 "
-                "Parade coverage continues."
+                f"{nav_prefix} September 22, 2025 " "Parade coverage continues."
             ),
         },
     ]

@@ -16,7 +16,7 @@ def test_get_sources_passes_dict_to_read_sql(monkeypatch):
     captured = {}
 
     def fake_read_sql_query(query, engine, params=None):
-        captured['params'] = params
+        captured["params"] = params
         # return an empty dataframe matching expected columns
         cols = [
             "id",
@@ -33,14 +33,12 @@ def test_get_sources_passes_dict_to_read_sql(monkeypatch):
     monkeypatch.setattr(pd, "read_sql_query", fake_read_sql_query)
 
     # Call with a dataset_label so the code assembles params dictionary
-    nd.get_sources_to_process(
-        dataset_label="my-label", limit=1, due_only=False
-    )
+    nd.get_sources_to_process(dataset_label="my-label", limit=1, due_only=False)
 
-    assert 'params' in captured
-    assert isinstance(captured['params'], dict), (
-        f"expected dict but got {type(captured['params'])}"
-    )
+    assert "params" in captured
+    assert isinstance(
+        captured["params"], dict
+    ), f"expected dict but got {type(captured['params'])}"
 
 
 def test_get_sources_integration_sqlite(tmp_path):

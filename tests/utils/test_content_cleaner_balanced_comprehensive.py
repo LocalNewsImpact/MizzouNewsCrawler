@@ -1,6 +1,6 @@
 import json
 import sqlite3
-from typing import Dict, Optional
+from typing import Optional
 from unittest.mock import Mock, patch
 
 import pytest
@@ -109,7 +109,7 @@ def test_assess_locality_detects_city_and_county_signals():
         enable_telemetry=False,
     )
 
-    context: Dict[str, Optional[str]] = {
+    context: dict[str, Optional[str]] = {
         "publisher_city": "Jefferson City",
         "publisher_county": "Cole",
         "publisher_name": "Jefferson City Tribune",
@@ -138,16 +138,22 @@ def test_assess_locality_requires_text_and_context():
         enable_telemetry=False,
     )
 
-    assert cleaner._assess_locality(
-        "",
-        {"publisher_city": "Jefferson"},
-        "example.com",
-    ) is None
-    assert cleaner._assess_locality(
-        "Wire copy without context",
-        {},
-        "example.com",
-    ) is None
+    assert (
+        cleaner._assess_locality(
+            "",
+            {"publisher_city": "Jefferson"},
+            "example.com",
+        )
+        is None
+    )
+    assert (
+        cleaner._assess_locality(
+            "Wire copy without context",
+            {},
+            "example.com",
+        )
+        is None
+    )
 
 
 class _ExplodingConnectorCleaner(BalancedBoundaryContentCleaner):
@@ -166,9 +172,7 @@ def test_get_article_source_context_handles_errors_gracefully():
 def test_normalize_navigation_token_strips_punctuation():
     token = "\u2022Sports!!"
 
-    normalized = BalancedBoundaryContentCleaner._normalize_navigation_token(
-        token
-    )
+    normalized = BalancedBoundaryContentCleaner._normalize_navigation_token(token)
 
     assert normalized == "sports"
 
@@ -212,23 +216,17 @@ def test_filter_with_balanced_boundaries_accepts_best_candidates():
     telemetry_stub = _StubTelemetry(patterns=[])
     cleaner.telemetry = telemetry_stub  # type: ignore[assignment]
 
-    good_text = (
-        "Sign up today to receive daily headlines and newsletters."
-    )
+    good_text = "Sign up today to receive daily headlines and newsletters."
     bad_fragment = "and partial fragment without boundary"
 
     articles = [
         {
             "id": 1,
-            "content": (
-                f"Intro. {good_text} Closing remarks. {bad_fragment}."
-            ),
+            "content": (f"Intro. {good_text} Closing remarks. {bad_fragment}."),
         },
         {
             "id": 2,
-            "content": (
-                f"{good_text} Additional coverage. {bad_fragment}."
-            ),
+            "content": (f"{good_text} Additional coverage. {bad_fragment}."),
         },
     ]
 
@@ -446,9 +444,7 @@ def test_get_article_authors_handles_multiple_formats(tmp_path):
     def run_case(value, suffix):
         db_path = tmp_path / f"authors_{suffix}.db"
         conn = sqlite3.connect(db_path)
-        conn.execute(
-            "CREATE TABLE articles (id TEXT PRIMARY KEY, author BLOB)"
-        )
+        conn.execute("CREATE TABLE articles (id TEXT PRIMARY KEY, author BLOB)")
         conn.execute(
             "INSERT INTO articles (id, author) VALUES (?, ?)",
             ("a1", value),
@@ -464,13 +460,11 @@ def test_get_article_authors_handles_multiple_formats(tmp_path):
 
     assert run_case("Jane Doe", "plain") == ["Jane Doe"]
     assert run_case(b"Jane Doe", "bytes") == ["Jane Doe"]
-    assert run_case("[\"Jane Doe\", \"John Smith\"]", "json_list") == [
+    assert run_case('["Jane Doe", "John Smith"]', "json_list") == [
         "Jane Doe",
         "John Smith",
     ]
-    assert run_case("\"Solo Reporter\"", "json_string") == [
-        "Solo Reporter"
-    ]
+    assert run_case('"Solo Reporter"', "json_string") == ["Solo Reporter"]
     assert run_case("Jane Doe; John Smith", "fallback") == [
         "Jane Doe",
         "John Smith",
@@ -606,9 +600,7 @@ def test_mark_article_as_wire_updates_payload(tmp_path):
     assert payload["confidence"] == pytest.approx(0.91)
     assert payload["locality"]["is_local"] is True
     assert payload["locality"]["signals"]
-    assert payload["source_context"]["publisher_name"] == (
-        "Columbia Daily Tribune"
-    )
+    assert payload["source_context"]["publisher_name"] == ("Columbia Daily Tribune")
     assert "extra" not in payload["source_context"]
     assert payload["existing"] == "value"
     assert payload.get("detected_at")
@@ -664,28 +656,27 @@ def test_analyze_domain_with_repeated_pattern():
         {
             "id": 2,
             "content": (
-                "Intro paragraph.\n\n"
-                f"{repeated_text}\n\n"
-                "Closing thoughts."
+                "Intro paragraph.\n\n" f"{repeated_text}\n\n" "Closing thoughts."
             ),
         },
     ]
 
-    with patch.object(
-        cleaner,
-        "_get_articles_for_domain",
-        return_value=articles,
-    ), patch.object(
-        cleaner,
-        "_get_persistent_patterns_for_domain",
-        return_value=[],
+    with (
+        patch.object(
+            cleaner,
+            "_get_articles_for_domain",
+            return_value=articles,
+        ),
+        patch.object(
+            cleaner,
+            "_get_persistent_patterns_for_domain",
+            return_value=[],
+        ),
     ):
         result = cleaner.analyze_domain("example.com", min_occurrences=2)
 
     segments = result["segments"]
-    newsletter_segments = [
-        seg for seg in segments if repeated_text in seg["text"]
-    ]
+    newsletter_segments = [seg for seg in segments if repeated_text in seg["text"]]
     assert newsletter_segments
     assert newsletter_segments[0]["occurrences"] >= 2
 
@@ -707,14 +698,17 @@ def test_analyze_domain_uses_persistent_patterns_when_available():
         "removal_reason": "Persistent navigation pattern",
     }
 
-    with patch.object(
-        cleaner,
-        "_get_articles_for_domain",
-        return_value=[],
-    ), patch.object(
-        cleaner,
-        "_get_persistent_patterns_for_domain",
-        return_value=[stored_pattern],
+    with (
+        patch.object(
+            cleaner,
+            "_get_articles_for_domain",
+            return_value=[],
+        ),
+        patch.object(
+            cleaner,
+            "_get_persistent_patterns_for_domain",
+            return_value=[stored_pattern],
+        ),
     ):
         result = cleaner.analyze_domain("example.com")
 

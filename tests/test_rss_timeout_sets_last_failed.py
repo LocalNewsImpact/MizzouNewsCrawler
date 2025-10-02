@@ -42,8 +42,12 @@ def test_timeout_records_rss_last_failed(monkeypatch):
     assert recorded_updates, "_update_source_meta was not called"
 
     found_last_failed = any("rss_last_failed" in u for u in recorded_updates)
-    found_rss_missing = any("rss_missing" in u and u.get("rss_missing") for u in recorded_updates)
+    found_rss_missing = any(
+        "rss_missing" in u and u.get("rss_missing") for u in recorded_updates
+    )
 
     assert found_last_failed
     assert not found_rss_missing
-    assert found_last_failed, "Expected rss_last_failed to be recorded for network errors"
+    assert (
+        found_last_failed
+    ), "Expected rss_last_failed to be recorded for network errors"

@@ -77,8 +77,9 @@ def test_populate_inserts_gazetteer_rows(in_memory_db):
     mock_post.status_code = 200
     mock_post.json.return_value = overpass_response
 
-    with patch("requests.get", return_value=mock_get), patch(
-        "requests.post", return_value=mock_post
+    with (
+        patch("requests.get", return_value=mock_get),
+        patch("requests.post", return_value=mock_post),
     ):
         import importlib
 

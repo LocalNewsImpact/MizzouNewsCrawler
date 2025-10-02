@@ -149,9 +149,7 @@ def test_export_snapshot_for_version_pandas_fallback(
     db_url = ensure_tables
     engine = create_database_engine(db_url)
     with engine.begin() as conn:
-        conn.execute(
-            text("CREATE TABLE snapshot_source (id INTEGER, value TEXT)")
-        )
+        conn.execute(text("CREATE TABLE snapshot_source (id INTEGER, value TEXT)"))
 
     version = create_dataset_version(
         dataset_name="news",

@@ -33,14 +33,9 @@ def test_create_sqlite_db_helper(tmp_path: Path) -> None:
         "CREATE TABLE numbers(id INTEGER PRIMARY KEY, value INTEGER);",
         "INSERT INTO numbers(value) VALUES (1), (2);",
     ]
-    path, connection = create_sqlite_db(
-        tmp_path, schema=schema, name="nums.db"
-    )
+    path, connection = create_sqlite_db(tmp_path, schema=schema, name="nums.db")
     assert path.name == "nums.db"
-    values = [
-        row[0]
-        for row in connection.execute("SELECT value FROM numbers")
-    ]
+    values = [row[0] for row in connection.execute("SELECT value FROM numbers")]
     assert values == [1, 2]
     connection.close()
 

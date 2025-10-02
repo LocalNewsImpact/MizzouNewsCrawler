@@ -1,5 +1,5 @@
 import datetime
-from typing import Any, Dict, List
+from typing import Any
 
 import pandas as pd
 import pytest
@@ -13,10 +13,10 @@ from src.utils.discovery_outcomes import DiscoveryOutcome
 
 
 class _TelemetryStub:
-    def __init__(self, methods: List[DiscoveryMethod]):
+    def __init__(self, methods: list[DiscoveryMethod]):
         self._methods = methods
-        self.recorded_failures: List[Dict[str, Any]] = []
-        self.updated_methods: List[Dict[str, Any]] = []
+        self.recorded_failures: list[dict[str, Any]] = []
+        self.updated_methods: list[dict[str, Any]] = []
 
     def get_effective_discovery_methods(self, source_id: str):
         return list(self._methods)
@@ -41,7 +41,7 @@ class _DummyDBManager:
 
 @pytest.fixture()
 def discovery_setup(monkeypatch):
-    stored_candidates: List[Dict[str, Any]] = []
+    stored_candidates: list[dict[str, Any]] = []
 
     monkeypatch.setattr(
         "src.models.database.upsert_candidate_link",
@@ -76,20 +76,12 @@ def discovery_setup(monkeypatch):
         "_collect_allowed_hosts",
         lambda _row, _meta: {"example.com"},
     )
-    monkeypatch.setattr(
-        nd, "_update_source_meta", lambda *args, **kwargs: None
-    )
-    monkeypatch.setattr(
-        nd, "_increment_rss_failure", lambda *args, **kwargs: None
-    )
-    monkeypatch.setattr(
-        nd, "_reset_rss_failure_state", lambda *args, **kwargs: None
-    )
+    monkeypatch.setattr(nd, "_update_source_meta", lambda *args, **kwargs: None)
+    monkeypatch.setattr(nd, "_increment_rss_failure", lambda *args, **kwargs: None)
+    monkeypatch.setattr(nd, "_reset_rss_failure_state", lambda *args, **kwargs: None)
 
     now_iso = datetime.datetime.utcnow().isoformat()
-    old_iso = (
-        datetime.datetime.utcnow() - datetime.timedelta(days=30)
-    ).isoformat()
+    old_iso = (datetime.datetime.utcnow() - datetime.timedelta(days=30)).isoformat()
 
     articles = [
         {
@@ -126,12 +118,8 @@ def discovery_setup(monkeypatch):
         )
 
     monkeypatch.setattr(nd, "discover_with_rss_feeds", fake_rss)
-    monkeypatch.setattr(
-        nd, "discover_with_newspaper4k", lambda *args, **kwargs: []
-    )
-    monkeypatch.setattr(
-        nd, "discover_with_storysniffer", lambda *args, **kwargs: []
-    )
+    monkeypatch.setattr(nd, "discover_with_newspaper4k", lambda *args, **kwargs: [])
+    monkeypatch.setattr(nd, "discover_with_storysniffer", lambda *args, **kwargs: [])
 
     source_row = pd.Series(
         {

@@ -282,9 +282,7 @@ def test_resolve_statuses_handles_edge_cases(raw_statuses, expected):
 
 
 def test_resolve_statuses_preserves_order_unique():
-    statuses = analysis._resolve_statuses(
-        [" local", "cleaned", "Local", "state"]
-    )
+    statuses = analysis._resolve_statuses([" local", "cleaned", "Local", "state"])
     assert statuses == ["local", "cleaned", "state"]
 
 

@@ -79,14 +79,12 @@ def test_byline_cleaning_session_persists_steps(tmp_path):
 
     with store.connection() as conn:
         row = conn.execute(
-            (
-                "SELECT raw_byline, final_authors_json, has_email, "
-                "has_wire_service, source_name_removed, "
-                "duplicates_removed_count, likely_valid_authors, "
-                "likely_noise, requires_manual_review, cleaning_errors, "
-                "parsing_warnings, confidence_score "
-                "FROM byline_cleaning_telemetry"
-            )
+            "SELECT raw_byline, final_authors_json, has_email, "
+            "has_wire_service, source_name_removed, "
+            "duplicates_removed_count, likely_valid_authors, "
+            "likely_noise, requires_manual_review, cleaning_errors, "
+            "parsing_warnings, confidence_score "
+            "FROM byline_cleaning_telemetry"
         ).fetchone()
         assert row is not None
         (
@@ -117,11 +115,9 @@ def test_byline_cleaning_session_persists_steps(tmp_path):
         assert confidence_score == pytest.approx(0.4)
 
         steps = conn.execute(
-            (
-                "SELECT step_number, step_name, input_text, output_text, "
-                "confidence_delta FROM byline_transformation_steps "
-                "ORDER BY step_number"
-            )
+            "SELECT step_number, step_name, input_text, output_text, "
+            "confidence_delta FROM byline_transformation_steps "
+            "ORDER BY step_number"
         ).fetchall()
         assert len(steps) == 4
         assert steps[0][1] == "email_removal"

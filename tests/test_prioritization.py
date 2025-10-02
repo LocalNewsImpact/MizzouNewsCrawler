@@ -3,7 +3,6 @@ import pathlib
 import sys
 
 import pandas as pd
-import pytest
 
 # Ensure project root on sys.path
 ROOT = pathlib.Path(__file__).resolve().parents[1]

@@ -55,9 +55,7 @@ def test_rss_missing_sets_and_skips(tmp_path, monkeypatch):
     dbm_init.close()
 
     # Run process_source: should catch failure and set rss_missing
-    result1 = discovery.process_source(
-        src, dataset_label="test", operation_id=None
-    )
+    result1 = discovery.process_source(src, dataset_label="test", operation_id=None)
     assert result1.articles_new == 0
     assert result1.outcome == DiscoveryOutcome.NO_ARTICLES_FOUND
 
@@ -105,9 +103,7 @@ def test_rss_missing_sets_and_skips(tmp_path, monkeypatch):
 
     # Second run: due to rss_missing present in src['metadata'], RSS should
     # be skipped and our dummy_rss_ok should not be called.
-    _ = discovery.process_source(
-        src, dataset_label="test", operation_id=None
-    )
+    _ = discovery.process_source(src, dataset_label="test", operation_id=None)
     assert calls["count"] == 0
 
 

@@ -20,10 +20,10 @@ class FakeExtractor:
             metrics.http_status_code = 403
             # extract host from url naively for test; the real extractor
             # would set a host value on the metrics
-            metrics.host = 'example.com'
+            metrics.host = "example.com"
 
         if self.raise_on_extract:
-            raise Exception('HTTP 403')
+            raise Exception("HTTP 403")
         return {}
 
     def _check_rate_limit(self, domain):
@@ -86,7 +86,7 @@ def db_manager(tmp_path):
     return dm
 
 
-def insert_candidate(conn, id_, url, source, status='article'):
+def insert_candidate(conn, id_, url, source, status="article"):
     conn.execute(
         text(
             "INSERT INTO candidate_links "
@@ -111,8 +111,8 @@ def test_pause_on_two_403s(db_manager):
     with dm.engine.begin() as conn:
         id1 = str(uuid.uuid4())
         id2 = str(uuid.uuid4())
-        insert_candidate(conn, id1, 'https://example.com/a', 'example.com')
-        insert_candidate(conn, id2, 'https://example.com/b', 'example.com')
+        insert_candidate(conn, id1, "https://example.com/a", "example.com")
+        insert_candidate(conn, id2, "https://example.com/b", "example.com")
 
     # Prepare args object with minimal attributes used by _process_batch
     class Args:
@@ -128,9 +128,7 @@ def test_pause_on_two_403s(db_manager):
     # Create fake extractor that sets metrics to 403 and raises
     fake_extractor = FakeExtractor()
     fake_byline = None
-    fake_telemetry = type(
-        'T', (), {'record_extraction': lambda *a, **k: None}
-    )()
+    fake_telemetry = type("T", (), {"record_extraction": lambda *a, **k: None})()
 
     # Call _process_batch twice, first will record one 403, second will hit
     # threshold and pause candidate links.
@@ -192,14 +190,11 @@ def test_pause_on_two_403s(db_manager):
     # Now verify candidate_links rows are paused
     with dm.engine.begin() as conn:
         res = conn.execute(
-            text(
-                "SELECT id, status, error_message, url"
-                " FROM candidate_links"
-            )
+            text("SELECT id, status, error_message, url" " FROM candidate_links")
         )
         rows = list(res)
         assert len(rows) == 2
         for r in rows:
-            assert r[1] == 'paused'  # status is the second column (index 1)
+            assert r[1] == "paused"  # status is the second column (index 1)
             # error_message is the third column (index 2)
-            assert r[2] == 'Auto-paused: multiple HTTP 403 responses'
+            assert r[2] == "Auto-paused: multiple HTTP 403 responses"

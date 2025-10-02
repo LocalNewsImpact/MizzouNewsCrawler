@@ -225,11 +225,9 @@ def test_load_pt_classifier_normalizes_state_dict(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(article_classifier, "pipeline", fake_pipeline)
 
-    runner, model_identifier, model_version = (
-        article_classifier._load_pt_classifier(
-            checkpoint,
-            device=-1,
-        )
+    runner, model_identifier, model_version = article_classifier._load_pt_classifier(
+        checkpoint,
+        device=-1,
     )
 
     assert "classifier.weight" in loaded_state

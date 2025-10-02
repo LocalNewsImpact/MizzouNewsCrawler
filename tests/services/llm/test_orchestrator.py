@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Type
+from typing import Optional
 
 import pytest
 
@@ -35,7 +35,7 @@ class FakeProvider(LLMProvider):
         self._available = available
         self._error = error
         self._response = response
-        self.calls: List[Dict[str, object]] = []
+        self.calls: list[dict[str, object]] = []
 
     def is_available(self) -> bool:
         return self._available
@@ -49,7 +49,7 @@ class FakeProvider(LLMProvider):
         *,
         max_output_tokens: Optional[int] = None,
         temperature: Optional[float] = None,
-        metadata: Optional[Dict[str, object]] = None,
+        metadata: Optional[dict[str, object]] = None,
     ) -> LLMProviderResponse:
         self.calls.append(
             {
@@ -71,14 +71,14 @@ class FakeProvider(LLMProvider):
 
 class RecordingVectorStore(VectorStore):
     def __init__(self) -> None:
-        self.calls: List[Dict[str, object]] = []
+        self.calls: list[dict[str, object]] = []
 
     def store(
         self,
         *,
         prompt: str,
         response: str,
-        metadata: Dict[str, object],
+        metadata: dict[str, object],
     ) -> None:
         self.calls.append(
             {
@@ -99,7 +99,7 @@ class ExplodingVectorStore(RecordingVectorStore):
         *,
         prompt: str,
         response: str,
-        metadata: Dict[str, object],
+        metadata: dict[str, object],
     ) -> None:
         super().store(prompt=prompt, response=response, metadata=metadata)
         raise self.exc
@@ -128,7 +128,7 @@ def _provider(name: str, **kwargs) -> FakeProvider:
 
 
 class _RegistryPatch:
-    def __init__(self, registry: Dict[str, Type[LLMProvider]]) -> None:
+    def __init__(self, registry: dict[str, type[LLMProvider]]) -> None:
         self.registry = registry
 
     def __enter__(self) -> None:
@@ -183,10 +183,7 @@ def test_generate_collects_failures_and_falls_back(error, expected_type):
     assert result.succeeded is True
     assert result.provider == "success"
     assert result.content == "PROMPT-success"
-    assert [
-        (failure.provider, failure.error_type)
-        for failure in result.failures
-    ] == [
+    assert [(failure.provider, failure.error_type) for failure in result.failures] == [
         ("unavailable", "configuration"),
         ("failing", expected_type),
     ]
@@ -275,7 +272,4 @@ def test_vector_store_failure_is_swallowed(caplog):
 
     assert result.succeeded
     assert len(vector_store.calls) == 1
-    assert any(
-        "Vector store store() failed" in message
-        for message in caplog.messages
-    )
+    assert any("Vector store store() failed" in message for message in caplog.messages)

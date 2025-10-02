@@ -16,8 +16,8 @@ def _install_sqlite_stub(monkeypatch, rows, *, fetchone=None):
             self.executed = []
             self.executemany_calls = []
             self._rows = list(rows)
-            self._fetchone = fetchone if fetchone is not None else (
-                rows[0] if rows else None
+            self._fetchone = (
+                fetchone if fetchone is not None else (rows[0] if rows else None)
             )
             self.connection = None
 
@@ -303,9 +303,7 @@ def test_clean_content_command_dry_run(monkeypatch, runner):
             }
             return text[:-3], metadata
 
-    monkeypatch.setattr(
-        cc, "BalancedBoundaryContentCleaner", BalancedStub
-    )
+    monkeypatch.setattr(cc, "BalancedBoundaryContentCleaner", BalancedStub)
 
     result = runner.invoke(
         cc.content_cleaning,
@@ -322,14 +320,10 @@ def test_improved_content_cleaner_fallback(monkeypatch):
         def __init__(self, *args, **kwargs):
             raise RuntimeError("broken")
 
-    monkeypatch.setattr(
-        cc, "BalancedBoundaryContentCleaner", BrokenBalanced
-    )
+    monkeypatch.setattr(cc, "BalancedBoundaryContentCleaner", BrokenBalanced)
 
     cleaner = cc.ImprovedContentCleaner(db_path="missing.db")
-    content, telemetry = cleaner.clean_content(
-        content="sample", domain="example.com"
-    )
+    content, telemetry = cleaner.clean_content(content="sample", domain="example.com")
 
     assert content == "sample"
     assert telemetry.segments_removed == 0

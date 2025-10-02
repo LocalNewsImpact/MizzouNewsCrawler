@@ -74,9 +74,7 @@ def test_handle_llm_run_executes_pipeline(monkeypatch):
     monkeypatch.setattr(
         llm.VectorStoreFactory,
         "create",
-        classmethod(
-            lambda cls, settings: factory_calls.append(settings) or None
-        ),
+        classmethod(lambda cls, settings: factory_calls.append(settings) or None),
     )
 
     orchestrators = []

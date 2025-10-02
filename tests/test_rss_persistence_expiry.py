@@ -4,7 +4,6 @@ import sys
 from datetime import datetime, timedelta
 
 import pandas as pd
-import pytest
 
 # Ensure project root on sys.path
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -55,9 +54,7 @@ def test_last_successful_and_rss_missing_expiry(tmp_path, monkeypatch):
                     "url": "https://example.net/article-1",
                     "discovery_method": "rss_feed",
                     "discovered_at": datetime.utcnow().isoformat(),
-                    "metadata": {
-                        "rss_feed_url": "https://example.net/feed"
-                    },
+                    "metadata": {"rss_feed_url": "https://example.net/feed"},
                 }
             ],
             {
@@ -70,9 +67,7 @@ def test_last_successful_and_rss_missing_expiry(tmp_path, monkeypatch):
     monkeypatch.setattr(discovery, "discover_with_rss_feeds", rss_success)
 
     # Run process_source and expect one stored candidate
-    result = discovery.process_source(
-        src, dataset_label="test", operation_id=None
-    )
+    result = discovery.process_source(src, dataset_label="test", operation_id=None)
     assert result.articles_new == 1
     assert result.metadata.get("stored_count") == 1
     assert result.outcome == DiscoveryOutcome.NEW_ARTICLES_FOUND
@@ -92,10 +87,7 @@ def test_last_successful_and_rss_missing_expiry(tmp_path, monkeypatch):
             mobj = meta
         assert mobj.get("last_successful_method") == "rss_feed"
         # rss_missing should be absent or None
-        assert (
-            mobj.get("rss_missing") in (None, "")
-            or "rss_missing" not in mobj
-        )
+        assert mobj.get("rss_missing") in (None, "") or "rss_missing" not in mobj
 
     dbm2.close()
 

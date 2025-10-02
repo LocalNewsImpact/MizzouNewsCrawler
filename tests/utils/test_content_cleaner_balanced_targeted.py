@@ -1,6 +1,6 @@
 import os
 import tempfile
-from typing import Dict, Optional, cast
+from typing import Optional, cast
 from unittest.mock import Mock, patch
 
 from src.utils.byline_cleaner import BylineCleaner
@@ -13,7 +13,7 @@ class _StubTelemetry:
         self.log_summary = {
             "sessions": [],
             "patterns_analyzed": patterns,
-            "total_sessions": 0
+            "total_sessions": 0,
         }
 
     def start_session(self, *args, **kwargs):
@@ -48,7 +48,7 @@ class TestBalancedContentCleanerBasics:
 
     def test_connect_to_db_creates_connection(self):
         """Test that database connection works."""
-        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp:
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
             tmp_path = tmp.name
 
         try:
@@ -76,7 +76,7 @@ class TestDomainAnalysis:
                 "id": 1,
                 "url": "https://example.com/article1",
                 "content": "Article content with newsletter signup",
-                "text_hash": "hash1"
+                "text_hash": "hash1",
             }
         ]
         persistent_patterns = [
@@ -85,20 +85,21 @@ class TestDomainAnalysis:
                 "pattern_type": "newsletter_signup",
                 "confidence_score": 0.9,
                 "occurrences_total": 5,
-                "removal_reason": "Newsletter signup prompt"
+                "removal_reason": "Newsletter signup prompt",
             }
         ]
 
-        with patch.object(cleaner, '_get_articles_for_domain',
-                          return_value=mock_articles):
+        with patch.object(
+            cleaner, "_get_articles_for_domain", return_value=mock_articles
+        ):
             with patch.object(
                 cleaner,
-                '_get_persistent_patterns_for_domain',
+                "_get_persistent_patterns_for_domain",
                 return_value=persistent_patterns,
             ):
                 with patch.object(
                     cleaner,
-                    '_calculate_domain_stats',
+                    "_calculate_domain_stats",
                     return_value={"total_segments": 1},
                 ):
                     result = cleaner.analyze_domain("example.com")
@@ -114,10 +115,10 @@ class TestDomainAnalysis:
         mock_conn.cursor.return_value = mock_cursor
         mock_cursor.fetchall.return_value = [
             (1, "https://example.com/art1", "Article 1 content", "hash1"),
-            (2, "https://example.com/art2", "Article 2 content", "hash2")
+            (2, "https://example.com/art2", "Article 2 content", "hash2"),
         ]
 
-        with patch.object(cleaner, '_connect_to_db', return_value=mock_conn):
+        with patch.object(cleaner, "_connect_to_db", return_value=mock_conn):
             articles = cleaner._get_articles_for_domain("example.com")
 
         assert len(articles) == 2
@@ -129,8 +130,7 @@ class TestDomainAnalysis:
         cleaner = BalancedBoundaryContentCleaner(db_path=":memory:")
 
         # Mock the entire method to return empty list on error
-        with patch.object(cleaner, '_get_articles_for_domain',
-                          return_value=[]):
+        with patch.object(cleaner, "_get_articles_for_domain", return_value=[]):
             articles = cleaner._get_articles_for_domain("example.com")
 
         assert articles == []
@@ -146,12 +146,27 @@ class TestRoughCandidateDetection:
         )
 
         mock_articles = [
-            {"id": 1, "content": ("A very long repeated boilerplate pattern "
-                                  "that appears multiple times.\nContent 1")},
-            {"id": 2, "content": ("A very long repeated boilerplate pattern "
-                                  "that appears multiple times.\nContent 2")},
-            {"id": 3, "content": ("A very long repeated boilerplate pattern "
-                                  "that appears multiple times.\nContent 3")},
+            {
+                "id": 1,
+                "content": (
+                    "A very long repeated boilerplate pattern "
+                    "that appears multiple times.\nContent 1"
+                ),
+            },
+            {
+                "id": 2,
+                "content": (
+                    "A very long repeated boilerplate pattern "
+                    "that appears multiple times.\nContent 2"
+                ),
+            },
+            {
+                "id": 3,
+                "content": (
+                    "A very long repeated boilerplate pattern "
+                    "that appears multiple times.\nContent 3"
+                ),
+            },
         ]
 
         candidates = cleaner._find_rough_candidates(mock_articles)
@@ -245,8 +260,7 @@ class TestNavigationExtraction:
         )
 
         content_with_nav = (
-            "Home > News > Sports > Article Title\n"
-            "This is the main article content."
+            "Home > News > Sports > Article Title\n" "This is the main article content."
         )
 
         result = cleaner._extract_navigation_prefix(content_with_nav)
@@ -280,7 +294,7 @@ class TestContextRetrieval:
         mock_conn.cursor.return_value = mock_cursor
         mock_cursor.fetchone.return_value = ("example.com", "Example News")
 
-        with patch.object(cleaner, '_connect_to_db', return_value=mock_conn):
+        with patch.object(cleaner, "_connect_to_db", return_value=mock_conn):
             context = cleaner._get_article_source_context("123")
 
         assert isinstance(context, dict)
@@ -294,7 +308,7 @@ class TestContextRetrieval:
         mock_conn.cursor.return_value = mock_cursor
         mock_cursor.fetchone.return_value = None
 
-        with patch.object(cleaner, '_connect_to_db', return_value=mock_conn):
+        with patch.object(cleaner, "_connect_to_db", return_value=mock_conn):
             context = cleaner._get_article_source_context("123")
 
         assert context == {}
@@ -309,10 +323,10 @@ class TestLocalityAssessment:
             db_path=":memory:", enable_telemetry=False
         )
 
-        context: Dict[str, Optional[str]] = {
+        context: dict[str, Optional[str]] = {
             "domain": "example.com",
             "source_name": "Local News",
-            "location": "Columbia, MO"
+            "location": "Columbia, MO",
         }
 
         text = "Local news about Columbia events"
@@ -327,7 +341,7 @@ class TestLocalityAssessment:
             db_path=":memory:", enable_telemetry=False
         )
 
-        empty_context: Dict[str, Optional[str]] = {}
+        empty_context: dict[str, Optional[str]] = {}
         result = cleaner._assess_locality(
             "Some text",
             empty_context,
@@ -342,7 +356,7 @@ class TestLocalityAssessment:
             db_path=":memory:", enable_telemetry=False
         )
 
-        context: Dict[str, Optional[str]] = {"domain": "example.com"}
+        context: dict[str, Optional[str]] = {"domain": "example.com"}
 
         result = cleaner._assess_locality("", context, "example.com")
 
@@ -370,8 +384,7 @@ class TestUtilityMethods:
 
         content = "Test article content"
 
-        with patch.object(cleaner, '_get_article_source_context',
-                          return_value={}):
+        with patch.object(cleaner, "_get_article_source_context", return_value={}):
             result = cleaner.process_single_article(
                 content, "example.com", article_id="1"
             )
@@ -390,8 +403,7 @@ class TestUtilityMethods:
 
         content = "(AP) - This is an Associated Press article"
 
-        with patch.object(cleaner, '_get_article_source_context',
-                          return_value={}):
+        with patch.object(cleaner, "_get_article_source_context", return_value={}):
             result = cleaner.process_single_article(
                 content, "example.com", article_id="1"
             )
@@ -408,13 +420,10 @@ class TestErrorHandling:
 
     def test_database_connection_failure_graceful_handling(self):
         """Test graceful handling of database connection failures."""
-        cleaner = BalancedBoundaryContentCleaner(
-            db_path="/nonexistent/path/db.sqlite"
-        )
+        cleaner = BalancedBoundaryContentCleaner(db_path="/nonexistent/path/db.sqlite")
 
         # Mock to return empty results on connection failure
-        with patch.object(cleaner, '_get_articles_for_domain',
-                          return_value=[]):
+        with patch.object(cleaner, "_get_articles_for_domain", return_value=[]):
             articles = cleaner._get_articles_for_domain("example.com")
 
         assert articles == []
@@ -425,10 +434,10 @@ class TestErrorHandling:
             db_path=":memory:", enable_telemetry=False
         )
 
-        with patch.object(cleaner, '_get_articles_for_domain',
-                          return_value=[]):
-            with patch.object(cleaner, '_get_persistent_patterns_for_domain',
-                              return_value=[]):
+        with patch.object(cleaner, "_get_articles_for_domain", return_value=[]):
+            with patch.object(
+                cleaner, "_get_persistent_patterns_for_domain", return_value=[]
+            ):
                 result = cleaner.analyze_domain("")
 
         assert isinstance(result, dict)
@@ -441,8 +450,7 @@ class TestErrorHandling:
 
         malformed_content = None  # Malformed content
 
-        with patch.object(cleaner, '_get_article_source_context',
-                          return_value={}):
+        with patch.object(cleaner, "_get_article_source_context", return_value={}):
             # This should handle None content gracefully
             result = cleaner.process_single_article(
                 malformed_content or "", "example.com", article_id="1"
@@ -478,11 +486,16 @@ class TestIntegration:
             db_path=":memory:", enable_telemetry=False
         )
 
-        content = ("Share on Facebook\nHome > News > Sports\n"
-                   "This is the main article content with some text.")
+        content = (
+            "Share on Facebook\nHome > News > Sports\n"
+            "This is the main article content with some text."
+        )
 
-        with patch.object(cleaner, '_get_article_source_context',
-                          return_value={"domain": "example.com"}):
+        with patch.object(
+            cleaner,
+            "_get_article_source_context",
+            return_value={"domain": "example.com"},
+        ):
             result = cleaner.process_single_article(
                 content, "example.com", article_id="1"
             )
@@ -501,16 +514,18 @@ class TestIntegration:
         # Mock articles and patterns for comprehensive test
         mock_articles = [
             {"id": 1, "content": "Article 1 with pattern", "url": "url1"},
-            {"id": 2, "content": "Article 2 with pattern", "url": "url2"}
+            {"id": 2, "content": "Article 2 with pattern", "url": "url2"},
         ]
-        mock_patterns = [
-            {"text_content": "pattern", "confidence_score": 0.8}
-        ]
+        mock_patterns = [{"text_content": "pattern", "confidence_score": 0.8}]
 
-        with patch.object(cleaner, '_get_articles_for_domain',
-                          return_value=mock_articles):
-            with patch.object(cleaner, '_get_persistent_patterns_for_domain',
-                              return_value=mock_patterns):
+        with patch.object(
+            cleaner, "_get_articles_for_domain", return_value=mock_articles
+        ):
+            with patch.object(
+                cleaner,
+                "_get_persistent_patterns_for_domain",
+                return_value=mock_patterns,
+            ):
                 result = cleaner.analyze_domain("example.com")
         assert isinstance(result, dict)
         assert "article_count" in result

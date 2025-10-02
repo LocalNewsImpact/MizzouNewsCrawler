@@ -8,9 +8,7 @@ def test_parse_provider_order_variants():
     assert llm_settings._parse_provider_order(None) == defaults
     assert llm_settings._parse_provider_order(" , , ") == defaults
 
-    custom = llm_settings._parse_provider_order(
-        "openai-gpt4.1,gemini-1.5-flash"
-    )
+    custom = llm_settings._parse_provider_order("openai-gpt4.1,gemini-1.5-flash")
     assert custom == ["openai-gpt4.1", "gemini-1.5-flash"]
 
 
@@ -51,9 +49,7 @@ def test_vector_store_settings_missing_options_returns_none(monkeypatch):
 
 
 def test_load_llm_settings_aggregates_environment(monkeypatch):
-    monkeypatch.setenv(
-        "LLM_PROVIDER_SEQUENCE", "openai-gpt4.1, claude-3.5-sonnet"
-    )
+    monkeypatch.setenv("LLM_PROVIDER_SEQUENCE", "openai-gpt4.1, claude-3.5-sonnet")
     monkeypatch.setenv("OPENAI_API_KEY", "openai-key")
     monkeypatch.setenv("OPENAI_ORGANIZATION", "openai-org")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "anthropic-key")

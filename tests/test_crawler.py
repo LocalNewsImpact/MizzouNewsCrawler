@@ -31,5 +31,4 @@ def test_is_likely_article():
         "exclude_patterns": ["/weather/"],
     }
     assert nc._is_likely_article("https://example.com/news/interesting", rules)
-    assert not nc._is_likely_article(
-        "https://example.com/weather/today", rules)
+    assert not nc._is_likely_article("https://example.com/weather/today", rules)

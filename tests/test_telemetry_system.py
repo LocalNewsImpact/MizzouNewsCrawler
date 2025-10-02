@@ -28,7 +28,7 @@ class TestExtractionMetrics:
             operation_id="test-op-123",
             article_id="article-456",
             url="https://example.com/test",
-            publisher="example.com"
+            publisher="example.com",
         )
 
         assert metrics.operation_id == "test-op-123"
@@ -44,8 +44,7 @@ class TestExtractionMetrics:
 
     def test_start_and_end_method_success(self):
         """Test successful method timing and tracking."""
-        metrics = ExtractionMetrics(
-            "op1", "art1", "https://test.com", "test.com")
+        metrics = ExtractionMetrics("op1", "art1", "https://test.com", "test.com")
 
         # Start method
         metrics.start_method("newspaper4k")
@@ -58,37 +57,28 @@ class TestExtractionMetrics:
             "title": "Test Article",
             "content": "Test content",
             "author": "Test Author",
-            "metadata": {"http_status": 200}
+            "metadata": {"http_status": 200},
         }
 
         metrics.end_method("newspaper4k", True, None, extracted_fields)
 
         assert metrics.method_success["newspaper4k"] is True
         assert "newspaper4k" not in metrics.method_errors  # No error recorded
-        assert isinstance(
-            metrics.method_timings["newspaper4k"],
-            float)  # Duration
+        assert isinstance(metrics.method_timings["newspaper4k"], float)  # Duration
         assert metrics.http_status_code == 200
         assert metrics.field_extraction["newspaper4k"]["title"] is True
         assert metrics.field_extraction["newspaper4k"]["content"] is True
 
     def test_start_and_end_method_failure(self):
         """Test failed method tracking with HTTP error."""
-        metrics = ExtractionMetrics(
-            "op1", "art1", "https://test.com", "test.com")
+        metrics = ExtractionMetrics("op1", "art1", "https://test.com", "test.com")
 
         metrics.start_method("newspaper4k")
 
         # End method with failure
-        extracted_fields = {
-            "metadata": {"http_status": 403}
-        }
+        extracted_fields = {"metadata": {"http_status": 403}}
 
-        metrics.end_method(
-            "newspaper4k",
-            False,
-            "HTTP 403 Forbidden",
-            extracted_fields)
+        metrics.end_method("newspaper4k", False, "HTTP 403 Forbidden", extracted_fields)
 
         assert metrics.method_success["newspaper4k"] is False
         assert metrics.method_errors["newspaper4k"] == "HTTP 403 Forbidden"
@@ -97,8 +87,7 @@ class TestExtractionMetrics:
 
     def test_http_status_categorization(self):
         """Test HTTP status code categorization."""
-        metrics = ExtractionMetrics(
-            "op1", "art1", "https://test.com", "test.com")
+        metrics = ExtractionMetrics("op1", "art1", "https://test.com", "test.com")
 
         # Test 3xx redirect
         metrics.set_http_metrics(301, 1024, 500)
@@ -118,15 +107,14 @@ class TestExtractionMetrics:
 
     def test_field_extraction_tracking(self):
         """Test field-level extraction success/failure tracking."""
-        metrics = ExtractionMetrics(
-            "op1", "art1", "https://test.com", "test.com")
+        metrics = ExtractionMetrics("op1", "art1", "https://test.com", "test.com")
 
         # Test partial extraction
         extracted_fields = {
             "title": "Test Title",
             "content": "",  # Empty content should be False
             "author": None,  # None should be False
-            "publish_date": "2023-01-01"
+            "publish_date": "2023-01-01",
         }
 
         metrics.start_method("beautifulsoup")
@@ -145,7 +133,7 @@ class TestComprehensiveExtractionTelemetry:
     @pytest.fixture
     def temp_db(self):
         """Create a temporary database for testing."""
-        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
             db_path = f.name
 
         telemetry = ComprehensiveExtractionTelemetry(db_path)
@@ -166,13 +154,31 @@ class TestComprehensiveExtractionTelemetry:
         columns = [row[1] for row in cur.fetchall()]
 
         expected_columns = [
-            'id', 'operation_id', 'article_id', 'url', 'publisher', 'host',
-            'start_time', 'end_time', 'total_duration_ms', 'http_status_code',
-            'http_error_type', 'response_size_bytes', 'response_time_ms',
-            'methods_attempted', 'successful_method', 'method_timings',
-            'method_success', 'method_errors', 'field_extraction',
-            'extracted_fields', 'content_length', 'is_success',
-            'error_message', 'error_type', 'created_at'
+            "id",
+            "operation_id",
+            "article_id",
+            "url",
+            "publisher",
+            "host",
+            "start_time",
+            "end_time",
+            "total_duration_ms",
+            "http_status_code",
+            "http_error_type",
+            "response_size_bytes",
+            "response_time_ms",
+            "methods_attempted",
+            "successful_method",
+            "method_timings",
+            "method_success",
+            "method_errors",
+            "field_extraction",
+            "extracted_fields",
+            "content_length",
+            "is_success",
+            "error_message",
+            "error_type",
+            "created_at",
         ]
 
         for col in expected_columns:
@@ -183,13 +189,14 @@ class TestComprehensiveExtractionTelemetry:
         columns = [row[1] for row in cur.fetchall()]
 
         expected_columns = [
-            'id',
-            'host',
-            'status_code',
-            'error_type',
-            'count',
-            'first_seen',
-            'last_seen']
+            "id",
+            "host",
+            "status_code",
+            "error_type",
+            "count",
+            "first_seen",
+            "last_seen",
+        ]
         for col in expected_columns:
             assert col in columns
 
@@ -201,7 +208,8 @@ class TestComprehensiveExtractionTelemetry:
 
         # Create test metrics
         metrics = ExtractionMetrics(
-            "op1", "art1", "https://test.com/article", "test.com")
+            "op1", "art1", "https://test.com/article", "test.com"
+        )
         metrics.start_time = datetime.utcnow()
         metrics.end_time = datetime.utcnow() + timedelta(seconds=5)
 
@@ -211,7 +219,7 @@ class TestComprehensiveExtractionTelemetry:
             "title": "Test Article",
             "content": "Article content",
             "author": "John Doe",
-            "metadata": {"http_status": 200}
+            "metadata": {"http_status": 200},
         }
         metrics.end_method("newspaper4k", True, None, extracted_fields)
 
@@ -219,7 +227,7 @@ class TestComprehensiveExtractionTelemetry:
         final_result = {
             "title": "Test Article",
             "content": "Article content",
-            "author": "John Doe"
+            "author": "John Doe",
         }
         metrics.finalize(final_result)
 
@@ -235,7 +243,7 @@ class TestComprehensiveExtractionTelemetry:
         assert len(records) == 1
 
         columns = [desc[0] for desc in cur.description]
-        record = dict(zip(columns, records[0]))
+        record = dict(zip(columns, records[0], strict=False))
         assert record["operation_id"] == "op1"
         assert record["article_id"] == "art1"
         assert record["url"] == "https://test.com/article"
@@ -258,23 +266,15 @@ class TestComprehensiveExtractionTelemetry:
 
         # Create test metrics with HTTP error
         metrics = ExtractionMetrics(
-            "op2",
-            "art2",
-            "https://blocked.com/article",
-            "blocked.com")
+            "op2", "art2", "https://blocked.com/article", "blocked.com"
+        )
         metrics.start_time = datetime.utcnow()
         metrics.end_time = datetime.utcnow() + timedelta(seconds=3)
 
         # Simulate failed extraction with 403 error
         metrics.start_method("newspaper4k")
-        extracted_fields = {
-            "metadata": {"http_status": 403}
-        }
-        metrics.end_method(
-            "newspaper4k",
-            False,
-            "HTTP 403 Forbidden",
-            extracted_fields)
+        extracted_fields = {"metadata": {"http_status": 403}}
+        metrics.end_method("newspaper4k", False, "HTTP 403 Forbidden", extracted_fields)
 
         # Save metrics
         telemetry.record_extraction(metrics)
@@ -287,17 +287,20 @@ class TestComprehensiveExtractionTelemetry:
             "SELECT http_status_code, http_error_type, is_success "
             "FROM extraction_telemetry_v2"
         )
-        record = dict(zip([desc[0]
-                      for desc in cur.description], cur.fetchone()))
+        record = dict(
+            zip([desc[0] for desc in cur.description], cur.fetchone(), strict=False)
+        )
         assert record["http_status_code"] == 403
         assert record["http_error_type"] == "4xx_client_error"
         assert record["is_success"] == 0
 
         # Verify HTTP error summary
         cur.execute(
-            "SELECT host, status_code, error_type, count FROM http_error_summary")
+            "SELECT host, status_code, error_type, count FROM http_error_summary"
+        )
         error_record = dict(
-            zip([desc[0] for desc in cur.description], cur.fetchone()))
+            zip([desc[0] for desc in cur.description], cur.fetchone(), strict=False)
+        )
         assert error_record["host"] == "blocked.com"
         assert error_record["status_code"] == 403
         assert error_record["error_type"] == "4xx_client_error"
@@ -312,10 +315,8 @@ class TestComprehensiveExtractionTelemetry:
         # Create multiple test records
         for i in range(3):
             metrics = ExtractionMetrics(
-                f"op{i}",
-                f"art{i}",
-                f"https://test.com/article{i}",
-                "test.com")
+                f"op{i}", f"art{i}", f"https://test.com/article{i}", "test.com"
+            )
             metrics.start_time = datetime.utcnow()
             metrics.end_time = datetime.utcnow() + timedelta(seconds=2)
 
@@ -324,15 +325,13 @@ class TestComprehensiveExtractionTelemetry:
             extracted_fields = {
                 "title": f"Title {i}" if success else "",
                 "content": f"Content {i}" if success else "",
-                "author": f"Author {i}" if success else None
+                "author": f"Author {i}" if success else None,
             }
 
             metrics.start_method("newspaper4k")
             metrics.end_method(
-                "newspaper4k",
-                success,
-                None if success else "Failed",
-                extracted_fields)
+                "newspaper4k", success, None if success else "Failed", extracted_fields
+            )
 
             telemetry.record_extraction(metrics)
 
@@ -342,15 +341,14 @@ class TestComprehensiveExtractionTelemetry:
         assert len(stats) > 0
 
         # Check that we have stats for each method
-        method_names = {stat['method'] for stat in stats}
-        assert 'newspaper4k' in method_names
+        method_names = {stat["method"] for stat in stats}
+        assert "newspaper4k" in method_names
 
         # Find newspaper4k stats
-        newspaper_stats = next(
-            s for s in stats if s['method'] == 'newspaper4k')
-        assert newspaper_stats['count'] == 3
-        assert 'title_success_rate' in newspaper_stats
-        assert 'content_success_rate' in newspaper_stats
+        newspaper_stats = next(s for s in stats if s["method"] == "newspaper4k")
+        assert newspaper_stats["count"] == 3
+        assert "title_success_rate" in newspaper_stats
+        assert "content_success_rate" in newspaper_stats
 
 
 class TestContentExtractorIntegration:
@@ -359,12 +357,12 @@ class TestContentExtractorIntegration:
     @pytest.fixture
     def temp_db(self):
         """Create a temporary database for testing."""
-        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
             db_path = f.name
         yield db_path
         Path(db_path).unlink(missing_ok=True)
 
-    @patch('src.crawler.requests.Session.get')
+    @patch("src.crawler.requests.Session.get")
     def test_extractor_with_telemetry_success(self, mock_get, temp_db):
         """Test ContentExtractor with telemetry tracking for successful extraction."""
         # Mock successful HTTP response
@@ -385,14 +383,11 @@ class TestContentExtractorIntegration:
         # Create extractor and metrics
         extractor = ContentExtractor()
         metrics = ExtractionMetrics(
-            "test-op",
-            "test-article",
-            "https://test.com/article",
-            "test.com")
+            "test-op", "test-article", "https://test.com/article", "test.com"
+        )
 
         # Extract content with telemetry
-        result = extractor.extract_content(
-            "https://test.com/article", metrics=metrics)
+        result = extractor.extract_content("https://test.com/article", metrics=metrics)
 
         # Verify extraction succeeded
         assert result is not None
@@ -404,7 +399,7 @@ class TestContentExtractorIntegration:
         # At least one method succeeded
         assert any(metrics.method_success.values())
 
-    @patch('src.crawler.requests.Session.get')
+    @patch("src.crawler.requests.Session.get")
     def test_extractor_with_telemetry_http_error(self, mock_get, temp_db):
         """Test ContentExtractor with telemetry tracking for HTTP error."""
         # Mock HTTP 403 error
@@ -414,10 +409,11 @@ class TestContentExtractorIntegration:
         mock_get.return_value = mock_response
 
         # Mock newspaper4k to also fail with 403
-        with patch('src.crawler.NewspaperArticle') as mock_article_class:
+        with patch("src.crawler.NewspaperArticle") as mock_article_class:
             mock_article = Mock()
             mock_article.download.side_effect = Exception(
-                "Article `download()` failed with Status code 403")
+                "Article `download()` failed with Status code 403"
+            )
             mock_article.title = ""
             mock_article.text = ""
             mock_article.authors = []
@@ -430,11 +426,13 @@ class TestContentExtractorIntegration:
                 "test-op",
                 "test-article",
                 "https://forbidden.com/article",
-                "forbidden.com")
+                "forbidden.com",
+            )
 
             # Extract content (should fail but capture HTTP status)
             _ = extractor.extract_content(
-                "https://forbidden.com/article", metrics=metrics)
+                "https://forbidden.com/article", metrics=metrics
+            )
 
             # Verify HTTP error was captured
             assert metrics.http_status_code == 403
@@ -456,7 +454,8 @@ class TestContentExtractorIntegration:
 
         for i, (host, status, success, method) in enumerate(test_scenarios):
             metrics = ExtractionMetrics(
-                f"op{i}", f"art{i}", f"https://{host}/article{i}", host)
+                f"op{i}", f"art{i}", f"https://{host}/article{i}", host
+            )
             metrics.start_time = datetime.utcnow()
             metrics.end_time = datetime.utcnow() + timedelta(seconds=2)
 
@@ -465,13 +464,14 @@ class TestContentExtractorIntegration:
                 extracted_fields = {
                     "title": "Test Title" if success else "",
                     "content": "Test Content" if success else "",
-                    "metadata": {"http_status": status}
+                    "metadata": {"http_status": status},
                 }
                 metrics.end_method(
                     method,
                     success,
                     None if success else f"HTTP {status}",
-                    extracted_fields)
+                    extracted_fields,
+                )
             else:
                 # Failed extraction with HTTP error
                 metrics.set_http_metrics(status, 0, 1000)
@@ -483,7 +483,8 @@ class TestContentExtractorIntegration:
         cur = conn.cursor()
 
         # Test method performance query
-        cur.execute("""
+        cur.execute(
+            """
         SELECT
             COALESCE(successful_method, 'failed') as method,
             host,
@@ -492,36 +493,42 @@ class TestContentExtractorIntegration:
         FROM extraction_telemetry_v2
         GROUP BY COALESCE(successful_method, 'failed'), host
         ORDER BY total_attempts DESC
-        """)
+        """
+        )
 
         method_results = cur.fetchall()
         assert len(method_results) > 0
 
         # Test HTTP error summary query
-        cur.execute("""
+        cur.execute(
+            """
         SELECT host, status_code, count
         FROM http_error_summary
         ORDER BY count DESC
-        """)
+        """
+        )
 
         error_results = cur.fetchall()
         assert len(error_results) > 0
 
         # Verify blocked.com has 2 403 errors
-        blocked_errors = [r for r in error_results if r[0]
-                          == 'blocked.com' and r[1] == 403]
+        blocked_errors = [
+            r for r in error_results if r[0] == "blocked.com" and r[1] == 403
+        ]
         assert len(blocked_errors) == 1
         assert blocked_errors[0][2] == 2  # count should be 2
 
         # Test publisher stats query
-        cur.execute("""
+        cur.execute(
+            """
         SELECT
             host,
             COUNT(*) as total_extractions,
             SUM(CASE WHEN is_success = 1 THEN 1 ELSE 0 END) as successful_extractions
         FROM extraction_telemetry_v2
         GROUP BY host
-        """)
+        """
+        )
 
         publisher_results = cur.fetchall()
         assert len(publisher_results) == 3  # test1.com, test2.com, blocked.com
@@ -545,8 +552,8 @@ class TestHTTPErrorExtraction:
 
         expected_codes = [403, 404, 500, None]
 
-        for error_msg, expected in zip(error_messages, expected_codes):
-            status_match = re.search(r'Status code (\d+)', error_msg)
+        for error_msg, expected in zip(error_messages, expected_codes, strict=False):
+            status_match = re.search(r"Status code (\d+)", error_msg)
             if status_match:
                 extracted_code = int(status_match.group(1))
                 assert extracted_code == expected
@@ -560,7 +567,7 @@ class TestTelemetrySystemEndToEnd:
 
     def test_complete_workflow_simulation(self):
         """Simulate a complete extraction workflow with telemetry."""
-        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
             db_path = f.name
 
         try:
@@ -576,10 +583,10 @@ class TestTelemetrySystemEndToEnd:
 
             for i, url in enumerate(urls):
                 from urllib.parse import urlparse
+
                 host = urlparse(url).netloc
 
-                metrics = ExtractionMetrics(
-                    f"batch-job-{i}", f"article-{i}", url, host)
+                metrics = ExtractionMetrics(f"batch-job-{i}", f"article-{i}", url, host)
                 metrics.start_time = datetime.utcnow()
 
                 # Simulate different outcomes based on host
@@ -590,20 +597,17 @@ class TestTelemetrySystemEndToEnd:
                         "title": f"Article {i} Title",
                         "content": f"Article {i} content...",
                         "author": "Test Author",
-                        "metadata": {"http_status": 200}
+                        "metadata": {"http_status": 200},
                     }
-                    metrics.end_method(
-                        "newspaper4k", True, None, extracted_fields)
+                    metrics.end_method("newspaper4k", True, None, extracted_fields)
 
                 elif "blocked-site" in host:
                     # HTTP 403 error
                     metrics.start_method("newspaper4k")
                     extracted_fields = {"metadata": {"http_status": 403}}
                     metrics.end_method(
-                        "newspaper4k",
-                        False,
-                        "HTTP 403 Forbidden",
-                        extracted_fields)
+                        "newspaper4k", False, "HTTP 403 Forbidden", extracted_fields
+                    )
 
                 elif "error-site" in host:
                     # HTTP 500 error
@@ -613,7 +617,8 @@ class TestTelemetrySystemEndToEnd:
                         "newspaper4k",
                         False,
                         "HTTP 500 Internal Server Error",
-                        extracted_fields)
+                        extracted_fields,
+                    )
 
                 metrics.end_time = datetime.utcnow() + timedelta(seconds=2)
                 telemetry.record_extraction(metrics)
@@ -623,12 +628,14 @@ class TestTelemetrySystemEndToEnd:
             cur = conn.cursor()
 
             # Overall success rate
-            cur.execute("""
+            cur.execute(
+                """
             SELECT
                 COUNT(*) as total,
                 SUM(CASE WHEN is_success = 1 THEN 1 ELSE 0 END) as successful
             FROM extraction_telemetry_v2
-            """)
+            """
+            )
 
             total, successful = cur.fetchone()
             success_rate = (successful / total * 100) if total > 0 else 0
@@ -638,11 +645,13 @@ class TestTelemetrySystemEndToEnd:
             assert success_rate == 50.0
 
             # HTTP error breakdown
-            cur.execute("""
+            cur.execute(
+                """
             SELECT status_code, COUNT(*)
             FROM http_error_summary
             GROUP BY status_code
-            """)
+            """
+            )
 
             error_breakdown = dict(cur.fetchall())
             assert 403 in error_breakdown

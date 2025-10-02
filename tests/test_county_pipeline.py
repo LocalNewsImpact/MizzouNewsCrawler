@@ -387,9 +387,7 @@ def test_orchestrate_pipeline_bubbles_analysis_failure(monkeypatch):
 
 def test_run_cli_step_dry_run_skips_execution(monkeypatch):
     def fake_run(*_args, **_kwargs):  # pragma: no cover
-        raise AssertionError(
-            "subprocess.run should not be called during dry run"
-        )
+        raise AssertionError("subprocess.run should not be called during dry run")
 
     monkeypatch.setattr(county_pipeline.subprocess, "run", fake_run)
 
@@ -599,7 +597,7 @@ def test_orchestrate_pipeline_success_runs_all_steps(tmp_path, monkeypatch):
     assert analysis_cmd[analysis_cmd.index("--limit") + 1] == "7"
     assert "--dry-run" in analysis_cmd
     statuses_index = analysis_cmd.index("--statuses")
-    assert analysis_cmd[statuses_index + 1:statuses_index + 3] == [
+    assert analysis_cmd[statuses_index + 1 : statuses_index + 3] == [
         "article_ready",
         "verified",
     ]

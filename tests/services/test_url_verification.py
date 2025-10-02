@@ -4,7 +4,7 @@ import logging
 import sys
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Dict, Iterator, List, Optional, cast
+from typing import Any, Iterator, Optional, cast
 
 import pytest
 import requests
@@ -26,7 +26,7 @@ def _patch_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
 
     class _Session:
         def __init__(self) -> None:
-            self.headers: Dict[str, str] = {}
+            self.headers: dict[str, str] = {}
 
         def head(self, *_args, **_kwargs) -> SimpleNamespace:
             return SimpleNamespace(status_code=200)
@@ -82,7 +82,7 @@ def test_process_batch_collects_metrics(
 ) -> None:
     service = _service(batch_size=3)
 
-    results: Iterator[Dict[str, Any]] = iter(
+    results: Iterator[dict[str, Any]] = iter(
         [
             {"storysniffer_result": True, "verification_time_ms": 10},
             {"storysniffer_result": False, "verification_time_ms": 20},
@@ -94,10 +94,10 @@ def test_process_batch_collects_metrics(
         ]
     )
 
-    def fake_verify(url: str) -> Dict[str, Any]:
+    def fake_verify(url: str) -> dict[str, Any]:
         return next(results)
 
-    updated: List[Dict[str, str | None]] = []
+    updated: list[dict[str, str | None]] = []
 
     def fake_update(
         candidate_id: str,
@@ -137,18 +137,18 @@ def test_update_candidate_status_with_and_without_error(
 
     class DummyConnection:
         def __init__(self) -> None:
-            self.executed: List[Dict[str, Any]] = []
-            self.queries: List[str] = []
+            self.executed: list[dict[str, Any]] = []
+            self.queries: list[str] = []
             self.commits = 0
 
-        def execute(self, query: Any, params: Dict[str, Any]) -> None:
+        def execute(self, query: Any, params: dict[str, Any]) -> None:
             self.queries.append(str(query))
             self.executed.append(dict(params))
 
         def commit(self) -> None:
             self.commits += 1
 
-        def __enter__(self) -> "DummyConnection":
+        def __enter__(self) -> DummyConnection:
             return self
 
         def __exit__(self, *_: Any) -> None:
@@ -231,14 +231,12 @@ def test_run_verification_loop_honors_max_batches(
         ],
     ]
 
-    def fake_get_unverified(limit: int) -> List[Dict[str, str]]:
+    def fake_get_unverified(limit: int) -> list[dict[str, str]]:
         return batches.pop(0) if batches else []
 
-    processed_batches: List[List[Dict[str, str]]] = []
+    processed_batches: list[list[dict[str, str]]] = []
 
-    def fake_process_batch(
-        candidates: List[Dict[str, str]]
-    ) -> Dict[str, float | int]:
+    def fake_process_batch(candidates: list[dict[str, str]]) -> dict[str, float | int]:
         processed_batches.append(candidates)
         return {
             "total_processed": len(candidates),
@@ -277,7 +275,7 @@ def test_verify_url_retries_on_http_5xx(
     service = _service()
     service.http_retry_attempts = 3
 
-    attempts: Dict[str, int] = {"count": 0}
+    attempts: dict[str, int] = {"count": 0}
     responses = iter(
         [
             SimpleNamespace(status_code=503),
@@ -292,7 +290,7 @@ def test_verify_url_retries_on_http_5xx(
 
     service.http_session.head = fake_head  # type: ignore[attr-defined]
 
-    sniffer_calls: Dict[str, int] = {"count": 0}
+    sniffer_calls: dict[str, int] = {"count": 0}
 
     def fake_guess(_: str) -> bool:
         sniffer_calls["count"] += 1
@@ -316,7 +314,7 @@ def test_verify_url_timeout_reports_error(
     service = _service()
     service.http_retry_attempts = 2
 
-    attempts: Dict[str, int] = {"count": 0}
+    attempts: dict[str, int] = {"count": 0}
 
     def fake_head(url: str, **_: Any) -> None:
         attempts["count"] += 1
@@ -379,7 +377,7 @@ def test_verify_url_rate_limited_retries_and_reports_error(
     service.http_retry_attempts = 3
     service.http_backoff_seconds = 0.25
 
-    attempts: Dict[str, int] = {"count": 0}
+    attempts: dict[str, int] = {"count": 0}
 
     def fake_head(url: str, **_: Any) -> SimpleNamespace:
         attempts["count"] += 1
@@ -395,7 +393,7 @@ def test_verify_url_rate_limited_retries_and_reports_error(
 
     monkeypatch.setattr(service.sniffer, "guess", fake_guess)
 
-    sleeps: List[float] = []
+    sleeps: list[float] = []
 
     def fake_sleep(interval: float) -> None:
         sleeps.append(interval)
@@ -421,7 +419,7 @@ def test_verify_url_reports_persistent_server_error(
     service = _service()
     service.http_retry_attempts = 2
 
-    attempts: Dict[str, int] = {"count": 0}
+    attempts: dict[str, int] = {"count": 0}
 
     def fake_head(url: str, **_: Any) -> SimpleNamespace:
         attempts["count"] += 1
@@ -487,9 +485,7 @@ def test_check_http_health_returns_failure_on_client_error(
     service.http_session.head = fake_head  # type: ignore[attr-defined]
     service.http_session.get = fake_get  # type: ignore[attr-defined]
 
-    ok, status, error, attempts = service._check_http_health(
-        "https://example.com/404"
-    )
+    ok, status, error, attempts = service._check_http_health("https://example.com/404")
 
     assert ok is False
     assert status == 404
@@ -532,9 +528,7 @@ def test_attempt_get_fallback_handles_timeout() -> None:
 
     service.http_session.get = fake_get  # type: ignore[attr-defined]
 
-    ok, status, error = service._attempt_get_fallback(
-        "https://example.com/timeout"
-    )
+    ok, status, error = service._attempt_get_fallback("https://example.com/timeout")
 
     assert ok is False
     assert status is None
@@ -546,16 +540,12 @@ def test_attempt_get_fallback_handles_request_exception() -> None:
 
     def fake_get(*_args: Any, **_kwargs: Any) -> Any:
         exc = requests.RequestException("bad origin")
-        exc.response = SimpleNamespace(  # type: ignore[attr-defined]
-            status_code=418
-        )
+        exc.response = SimpleNamespace(status_code=418)  # type: ignore[attr-defined]
         raise exc
 
     service.http_session.get = fake_get  # type: ignore[attr-defined]
 
-    ok, status, error = service._attempt_get_fallback(
-        "https://example.com/error"
-    )
+    ok, status, error = service._attempt_get_fallback("https://example.com/error")
 
     assert ok is False
     assert status == 418
@@ -598,7 +588,7 @@ def test_get_status_summary_returns_counts() -> None:
     service = _service()
 
     class FakeResult:
-        def fetchall(self) -> List[tuple[str, int]]:
+        def fetchall(self) -> list[tuple[str, int]]:
             return [
                 ("discovered", 2),
                 ("article", 1),
@@ -608,7 +598,7 @@ def test_get_status_summary_returns_counts() -> None:
         def execute(self, *_args: Any, **_kwargs: Any) -> FakeResult:
             return FakeResult()
 
-        def __enter__(self) -> "FakeConnection":
+        def __enter__(self) -> FakeConnection:
             return self
 
         def __exit__(self, *_args: Any) -> None:
@@ -633,7 +623,7 @@ def test_get_status_summary_returns_counts() -> None:
 def test_setup_logging_configures_handlers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    captured: Dict[str, Any] = {}
+    captured: dict[str, Any] = {}
 
     def fake_basic_config(**kwargs: Any) -> None:
         captured.update(kwargs)
@@ -646,15 +636,13 @@ def test_setup_logging_configures_handlers(
     assert len(captured["handlers"]) == 2
 
 
-def test_main_status_path(
-    monkeypatch: pytest.MonkeyPatch, capsys: Any
-) -> None:
+def test_main_status_path(monkeypatch: pytest.MonkeyPatch, capsys: Any) -> None:
     class FakeService:
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             self.args = args
             self.kwargs = kwargs
 
-        def get_status_summary(self) -> Dict[str, Any]:
+        def get_status_summary(self) -> dict[str, Any]:
             return {
                 "total_urls": 5,
                 "verification_pending": 2,
@@ -681,7 +669,7 @@ def test_main_status_path(
 
 
 def test_main_runs_verification_loop(monkeypatch: pytest.MonkeyPatch) -> None:
-    called: Dict[str, Any] = {}
+    called: dict[str, Any] = {}
 
     class FakeService:
         def __init__(self, batch_size: int, sleep_interval: int) -> None:

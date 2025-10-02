@@ -127,9 +127,7 @@ def _make_process(**overrides):
     return types.SimpleNamespace(**defaults)
 
 
-def test_show_background_processes_empty(
-    monkeypatch, capsys, install_background_env
-):
+def test_show_background_processes_empty(monkeypatch, capsys, install_background_env):
     install_background_env([])
 
     assert bp.show_background_processes() is True
@@ -159,9 +157,7 @@ def test_show_background_processes_lists_rows(
     assert "populate-gazetteer" in out
 
 
-def test_show_active_queue_prints_running(
-    monkeypatch, capsys, install_background_env
-):
+def test_show_active_queue_prints_running(monkeypatch, capsys, install_background_env):
     process = _make_process(
         id="queue-7",
         status="running",
@@ -200,9 +196,7 @@ def test_show_active_queue_handles_exception(monkeypatch, capsys):
     assert "Error listing queue" in out
 
 
-def test_show_process_status_prints_detail(
-    monkeypatch, capsys, install_background_env
-):
+def test_show_process_status_prints_detail(monkeypatch, capsys, install_background_env):
     process = _make_process(
         id="detail-9",
         status="running",
@@ -221,9 +215,7 @@ def test_show_process_status_prints_detail(
     assert "3/12" in out
 
 
-def test_show_process_status_not_found(
-    monkeypatch, capsys, install_background_env
-):
+def test_show_process_status_not_found(monkeypatch, capsys, install_background_env):
     install_background_env([])
 
     assert bp.show_process_status("missing") == 1
@@ -285,15 +277,9 @@ def test_print_database_status_executes_queries(monkeypatch, capsys):
                 return [("pending", 3)]
             if "FROM articles" in sql and "GROUP BY status" in sql:
                 return [("processed", 5)]
-            if (
-                "FROM candidate_links cl" in sql
-                and "GROUP BY cl.source_name" in sql
-            ):
+            if "FROM candidate_links cl" in sql and "GROUP BY cl.source_name" in sql:
                 return [("Example News", "Boone", "Columbia", 7)]
-            if (
-                "FROM candidate_links cl" in sql
-                and "COUNT(DISTINCT cl.id)" in sql
-            ):
+            if "FROM candidate_links cl" in sql and "COUNT(DISTINCT cl.id)" in sql:
                 return [("Boone", 4, 10)]
 
             return []

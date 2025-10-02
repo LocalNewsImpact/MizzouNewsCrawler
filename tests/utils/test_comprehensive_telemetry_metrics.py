@@ -48,10 +48,7 @@ def test_extraction_metrics_tracks_methods(monkeypatch):
     assert metrics.method_success["primary"] is True
     assert metrics.field_extraction["primary"]["title"] is True
     assert metrics.http_error_type == "4xx_client_error"
-    assert (
-        metrics.alternative_extractions["fallback"]["title"]["values_differ"]
-        is True
-    )
+    assert metrics.alternative_extractions["fallback"]["title"]["values_differ"] is True
     assert metrics.final_field_attribution["title"] == "primary"
     assert metrics.is_success is True
     assert metrics.content_length == len("Body")
@@ -221,9 +218,7 @@ def test_comprehensive_telemetry_aggregates(tmp_path):
     telemetry.record_extraction(metrics_secondary)
 
     with store.connection() as conn:
-        conn.execute(
-            "UPDATE content_type_detection_telemetry SET evidence = '{'"
-        )
+        conn.execute("UPDATE content_type_detection_telemetry SET evidence = '{'")
         conn.commit()
 
     summary = telemetry.get_error_summary(days=30)
@@ -245,9 +240,7 @@ def test_comprehensive_telemetry_aggregates(tmp_path):
     assert 0 < primary_stats["avg_duration"] < 60
     assert primary_stats["success_rate"] > 0.5
 
-    filtered_methods = telemetry.get_method_effectiveness(
-        publisher="Publisher A"
-    )
+    filtered_methods = telemetry.get_method_effectiveness(publisher="Publisher A")
     assert len(filtered_methods) == 2
 
     publisher_stats = telemetry.get_publisher_stats()
@@ -257,9 +250,7 @@ def test_comprehensive_telemetry_aggregates(tmp_path):
     }
 
     field_stats = telemetry.get_field_extraction_stats()
-    primary_field = next(
-        item for item in field_stats if item["method"] == "primary"
-    )
+    primary_field = next(item for item in field_stats if item["method"] == "primary")
     assert primary_field["title_success_rate"] > 0
 
     filtered_field_stats = telemetry.get_field_extraction_stats(

@@ -84,9 +84,7 @@ def test_setup_logging_uses_expected_handlers(monkeypatch, tmp_path):
 
 
 def test_trigger_gazetteer_population_success(monkeypatch, tracker_spy):
-    monkeypatch.setattr(
-        "src.utils.process_tracker.get_tracker", lambda: tracker_spy
-    )
+    monkeypatch.setattr("src.utils.process_tracker.get_tracker", lambda: tracker_spy)
 
     fake_db_module = types.ModuleType("src.models.database")
 
@@ -94,7 +92,7 @@ def test_trigger_gazetteer_population_success(monkeypatch, tracker_spy):
         def __init__(self):
             self.engine = object()
 
-    setattr(fake_db_module, "DatabaseManager", FakeDatabaseManager)
+    fake_db_module.DatabaseManager = FakeDatabaseManager
     monkeypatch.setitem(sys.modules, "src.models.database", fake_db_module)
 
     fake_models_module = types.ModuleType("src.models")
@@ -106,7 +104,7 @@ def test_trigger_gazetteer_population_success(monkeypatch, tracker_spy):
             self.id = id
             self.name = name
 
-    setattr(fake_models_module, "Dataset", FakeDataset)
+    fake_models_module.Dataset = FakeDataset
     monkeypatch.setitem(sys.modules, "src.models", fake_models_module)
 
     fake_sqlalchemy_module = types.ModuleType("sqlalchemy")
@@ -118,7 +116,7 @@ def test_trigger_gazetteer_population_success(monkeypatch, tracker_spy):
 
         return Selector()
 
-    setattr(fake_sqlalchemy_module, "select", fake_select)
+    fake_sqlalchemy_module.select = fake_select
     monkeypatch.setitem(sys.modules, "sqlalchemy", fake_sqlalchemy_module)
 
     fake_sqlalchemy_orm = types.ModuleType("sqlalchemy.orm")
@@ -140,7 +138,7 @@ def test_trigger_gazetteer_population_success(monkeypatch, tracker_spy):
 
         return FakeSession
 
-    setattr(fake_sqlalchemy_orm, "sessionmaker", fake_sessionmaker)
+    fake_sqlalchemy_orm.sessionmaker = fake_sessionmaker
     monkeypatch.setitem(sys.modules, "sqlalchemy.orm", fake_sqlalchemy_orm)
 
     popen_calls = {}
@@ -166,10 +164,7 @@ def test_trigger_gazetteer_population_success(monkeypatch, tracker_spy):
 
     context.trigger_gazetteer_population_background("test-slug", logger)
 
-    assert (
-        tracker_spy.register_kwargs["process_type"]
-        == "gazetteer_population"
-    )
+    assert tracker_spy.register_kwargs["process_type"] == "gazetteer_population"
     assert "test-slug" in tracker_spy.register_kwargs["command"]
     assert tracker_spy.register_kwargs["metadata"]["dataset_id"] == "7"
     assert tracker_spy.register_kwargs["metadata"]["dataset_name"] == "Sample"

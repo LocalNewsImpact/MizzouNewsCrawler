@@ -15,15 +15,11 @@ from src.models import Dataset, DatasetSource, Source
 
 
 def test_validate_columns_reports_missing_fields():
-    df = pd.DataFrame([
-        {"host_id": 1, "name": "Example", "city": "Columbia"}
-    ])
+    df = pd.DataFrame([{"host_id": 1, "name": "Example", "city": "Columbia"}])
 
     missing = _validate_columns(df)
 
-    expected_missing = [
-        col for col in REQUIRED_COLUMNS if col not in df.columns
-    ]
+    expected_missing = [col for col in REQUIRED_COLUMNS if col not in df.columns]
     assert missing == expected_missing
 
 
@@ -96,9 +92,7 @@ def test_normalize_source_row_handles_missing_zip(zip_value, expected):
 
 
 def test_parse_host_components_returns_raw_and_normalized():
-    raw, normalized = _parse_host_components(
-        "https://Sub.Domain.Example.com/path"
-    )
+    raw, normalized = _parse_host_components("https://Sub.Domain.Example.com/path")
 
     assert raw == "Sub.Domain.Example.com"
     assert normalized == "sub.domain.example.com"
@@ -172,7 +166,7 @@ class _StubSession:
     def flush(self):
         for obj in self.added:
             if getattr(obj, "id", None) is None:
-                setattr(obj, "id", self._id_sequence)
+                obj.id = self._id_sequence
                 self._id_sequence += 1
 
     def commit(self):
@@ -247,9 +241,7 @@ def test_handle_load_sources_command_creates_dataset_and_sources(monkeypatch):
     assert stub_session.closed is True
     assert trigger_calls == ["publinks-publinks_csv"]
 
-    dataset = next(
-        obj for obj in stub_session.added if isinstance(obj, Dataset)
-    )
+    dataset = next(obj for obj in stub_session.added if isinstance(obj, Dataset))
     dataset_values = dataset.__dict__
     assert dataset_values["slug"] == "publinks-publinks_csv"
     assert dataset_values["meta"]["total_rows"] == len(source_df)
@@ -306,8 +298,6 @@ def test_handle_load_sources_command_detects_duplicates_early(monkeypatch):
         ),
     )
 
-    exit_code = load_sources.handle_load_sources_command(
-        _build_args("/tmp/dupes.csv")
-    )
+    exit_code = load_sources.handle_load_sources_command(_build_args("/tmp/dupes.csv"))
 
     assert exit_code == 1

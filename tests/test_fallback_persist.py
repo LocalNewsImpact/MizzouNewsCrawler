@@ -76,9 +76,7 @@ def test_fallback_flag_persisted(tmp_db_path, monkeypatch):
     dbm.close()
 
     # Run process_source which should call our dummy RSS discovery
-    result = discovery.process_source(
-        src, dataset_label="test", operation_id=None
-    )
+    result = discovery.process_source(src, dataset_label="test", operation_id=None)
     assert result.articles_new == 1
     assert result.metadata.get("stored_count") == 1
     assert result.outcome == DiscoveryOutcome.NEW_ARTICLES_FOUND
@@ -88,9 +86,7 @@ def test_fallback_flag_persisted(tmp_db_path, monkeypatch):
     df = read_candidate_links(dm.engine)
     # Debugging helper if test fails
     if len(df) == 0:
-        pytest.fail(
-            "No rows inserted into candidate_links; check process_source path"
-        )
+        pytest.fail("No rows inserted into candidate_links; check process_source path")
     assert len(df) == 1
     meta = df["meta"].iloc[0]
     # meta may be loaded as dict or JSON string depending on driver

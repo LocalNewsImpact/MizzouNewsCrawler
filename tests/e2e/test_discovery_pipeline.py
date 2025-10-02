@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from types import SimpleNamespace
-from typing import Any, Dict, List
+from typing import Any
 
 import pytest
 import requests
@@ -35,10 +35,10 @@ class StubTelemetry:
     """Minimal telemetry stub capturing discovery lifecycle events."""
 
     def __init__(self) -> None:
-        self.operations: List[Dict[str, Any]] = []
-        self.discovery_outcomes: List[RecordedOutcome] = []
-        self.method_updates: List[Dict[str, Any]] = []
-        self.site_failures: List[Dict[str, Any]] = []
+        self.operations: list[dict[str, Any]] = []
+        self.discovery_outcomes: list[RecordedOutcome] = []
+        self.method_updates: list[dict[str, Any]] = []
+        self.site_failures: list[dict[str, Any]] = []
 
     @contextmanager
     def track_operation(self, operation_type, **kwargs):
@@ -108,7 +108,7 @@ def source_id(database_url: str) -> str:
     return identifier
 
 
-def _make_recent_article(slug: str) -> Dict[str, Any]:
+def _make_recent_article(slug: str) -> dict[str, Any]:
     published = datetime.utcnow().replace(microsecond=0)
     return {
         "url": f"https://example.com/{slug}",
@@ -123,14 +123,9 @@ def _ensure_discovery_attempted_column(database_url: str) -> None:
 
     sqlite_path = database_url.replace("sqlite:///", "", 1)
     with sqlite3.connect(sqlite_path) as conn:
-        columns = {
-            row[1]
-            for row in conn.execute("PRAGMA table_info(sources)")
-        }
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(sources)")}
         if "discovery_attempted" not in columns:
-            conn.execute(
-                "ALTER TABLE sources ADD COLUMN discovery_attempted TIMESTAMP"
-            )
+            conn.execute("ALTER TABLE sources ADD COLUMN discovery_attempted TIMESTAMP")
             conn.commit()
 
 
@@ -185,9 +180,7 @@ def _patch_noop_discovery(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def test_run_discovery_happy_path(
-    database_url: str, source_id: str, monkeypatch
-):
+def test_run_discovery_happy_path(database_url: str, source_id: str, monkeypatch):
     telemetry_stub = StubTelemetry()
 
     monkeypatch.setattr(
@@ -439,9 +432,7 @@ def test_run_discovery_duplicate_only_records_outcome(
     assert stats["total_candidates_discovered"] == 0
 
     with DatabaseManager(database_url) as db:
-        stored_urls = {
-            link.url for link in db.session.query(CandidateLink).all()
-        }
+        stored_urls = {link.url for link in db.session.query(CandidateLink).all()}
 
     assert stored_urls == {duplicate_url}
 
@@ -479,7 +470,7 @@ def test_run_discovery_rss_timeout_uses_fallback_and_records_failure(
 
     _ensure_discovery_attempted_column(database_url)
 
-    fallback_calls: List[Any] = []
+    fallback_calls: list[Any] = []
 
     def rss_failure(*_args, **_kwargs):
         raise requests.exceptions.Timeout("rss timed out")
@@ -614,12 +605,8 @@ def test_due_only_respects_metadata_and_updates_state(
 
     processed_last = refreshed_due.meta.get("last_discovery_at")
     assert processed_last is not None
-    assert datetime.fromisoformat(processed_last) > datetime.fromisoformat(
-        due_last
-    )
-    assert (
-        refreshed_recent.meta.get("last_discovery_at") == recent_last
-    )
+    assert datetime.fromisoformat(processed_last) > datetime.fromisoformat(due_last)
+    assert refreshed_recent.meta.get("last_discovery_at") == recent_last
 
 
 def test_due_only_honors_host_limit(
@@ -690,9 +677,7 @@ def test_due_only_honors_host_limit(
     )
     for other in others:
         assert other is not None
-        assert (
-            other.meta.get("last_discovery_at") == baseline_last
-        )
+        assert other.meta.get("last_discovery_at") == baseline_last
 
 
 def test_due_only_respects_existing_article_limit(
@@ -782,6 +767,4 @@ def test_due_only_respects_existing_article_limit(
     )
 
     assert skipped is not None
-    assert (
-        skipped.meta.get("last_discovery_at") == baseline_last
-    )
+    assert skipped.meta.get("last_discovery_at") == baseline_last

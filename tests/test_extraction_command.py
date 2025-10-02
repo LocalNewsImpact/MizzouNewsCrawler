@@ -24,17 +24,15 @@ def _default_driver_stats():
 def mocked_extraction_env():
     """Provide standard patches for extraction command tests."""
 
-    with patch(
-        "src.cli.commands.extraction.DatabaseManager"
-    ) as db_class, patch(
-        "src.cli.commands.extraction.ContentExtractor"
-    ) as extractor_class, patch(
-        "src.cli.commands.extraction.BylineCleaner"
-    ) as byline_class, patch(
-        "src.cli.commands.extraction.ComprehensiveExtractionTelemetry"
-    ) as telemetry_class, patch(
-        "src.cli.commands.extraction._run_post_extraction_cleaning"
-    ) as cleaning:
+    with (
+        patch("src.cli.commands.extraction.DatabaseManager") as db_class,
+        patch("src.cli.commands.extraction.ContentExtractor") as extractor_class,
+        patch("src.cli.commands.extraction.BylineCleaner") as byline_class,
+        patch(
+            "src.cli.commands.extraction.ComprehensiveExtractionTelemetry"
+        ) as telemetry_class,
+        patch("src.cli.commands.extraction._run_post_extraction_cleaning") as cleaning,
+    ):
         session = Mock()
         db = Mock()
         db.session = session
@@ -286,9 +284,7 @@ def test_duplicate_article_constraint_rollback():
         ]
         env.session.execute.side_effect = [
             mock_result,
-            sqlite3.IntegrityError(
-                "UNIQUE constraint failed: articles.id"
-            ),
+            sqlite3.IntegrityError("UNIQUE constraint failed: articles.id"),
         ]
         env.extractor.extract_content.return_value = {
             "title": "Test Article Title",
@@ -355,9 +351,7 @@ def test_content_extraction_exception_handling():
             )
         ]
         env.session.execute.return_value = mock_result
-        env.extractor.extract_content.side_effect = Exception(
-            "Network error"
-        )
+        env.extractor.extract_content.side_effect = Exception("Network error")
 
         outcome = handle_extraction_command(args)
 

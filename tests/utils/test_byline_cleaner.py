@@ -174,31 +174,46 @@ def test_is_wire_service_detects_and_tracks_normalized():
 def test_is_wire_service_from_own_source_similarity():
     cleaner = BylineCleaner(enable_telemetry=False)
 
-    assert cleaner._is_wire_service_from_own_source(
-        "The Associated Press",
-        "The Associated Press",
-    ) is True
-    assert cleaner._is_wire_service_from_own_source(
-        "USA Today Network",
-        "USA Today Network Tennessee",
-    ) is True
-    assert cleaner._is_wire_service_from_own_source(
-        "Reuters",
-        "Springfield Daily News",
-    ) is False
+    assert (
+        cleaner._is_wire_service_from_own_source(
+            "The Associated Press",
+            "The Associated Press",
+        )
+        is True
+    )
+    assert (
+        cleaner._is_wire_service_from_own_source(
+            "USA Today Network",
+            "USA Today Network Tennessee",
+        )
+        is True
+    )
+    assert (
+        cleaner._is_wire_service_from_own_source(
+            "Reuters",
+            "Springfield Daily News",
+        )
+        is False
+    )
 
 
 def test_remove_source_name_removes_publication_suffix():
     cleaner = BylineCleaner(enable_telemetry=False)
 
-    assert cleaner._remove_source_name(
-        "By Jane Doe Springfield News-Leader",
-        "Springfield News-Leader",
-    ) == "By Jane Doe"
-    assert cleaner._remove_source_name(
-        "Springfield News-Leader",
-        "Springfield News-Leader",
-    ) == ""
+    assert (
+        cleaner._remove_source_name(
+            "By Jane Doe Springfield News-Leader",
+            "Springfield News-Leader",
+        )
+        == "By Jane Doe"
+    )
+    assert (
+        cleaner._remove_source_name(
+            "Springfield News-Leader",
+            "Springfield News-Leader",
+        )
+        == ""
+    )
 
 
 def test_remove_source_name_drops_all_words_when_only_publication_remains():
@@ -273,10 +288,7 @@ def test_is_publication_name_handles_various_branches(monkeypatch):
     assert cleaner._is_publication_name("County Journal") is True
     assert cleaner._is_publication_name("County Health Department") is True
     assert cleaner._is_publication_name("AP News") is True
-    assert (
-        cleaner._is_publication_name("County Department Services")
-        is True
-    )
+    assert cleaner._is_publication_name("County Department Services") is True
     assert cleaner._is_publication_name("Local Press Gazette") is True
     assert cleaner._is_publication_name("News, Local") is False
     assert cleaner._is_publication_name("AP") is False
@@ -479,9 +491,7 @@ def test_extract_authors_handles_and_separation():
 def test_extract_authors_returns_marker_without_names():
     cleaner = BylineCleaner(enable_telemetry=False)
 
-    authors = cleaner._extract_authors(
-        "Senior Editor II, Managing Director III"
-    )
+    authors = cleaner._extract_authors("Senior Editor II, Managing Director III")
 
     assert authors == ["__SMART_PROCESSED__"]
 
@@ -528,9 +538,7 @@ def test_filter_organization_words_returns_empty_when_only_organization():
         patch.object(cleaner, "get_organization_names", return_value=set()),
         patch.object(cleaner, "_get_known_name_patterns", return_value={}),
     ):
-        result = cleaner._filter_organization_words(
-            "Springfield Community Voice"
-        )
+        result = cleaner._filter_organization_words("Springfield Community Voice")
 
     assert result == ""
 
@@ -571,10 +579,7 @@ def test_normalize_capitalization_handles_prefixes_and_suffixes():
         cleaner._normalize_capitalization("maria DE LA CRUZ jr.")
         == "Maria de la Cruz Jr."
     )
-    assert (
-        cleaner._normalize_capitalization("ANNE-MARIE SMITH")
-        == "Anne-Marie Smith"
-    )
+    assert cleaner._normalize_capitalization("ANNE-MARIE SMITH") == "Anne-Marie Smith"
 
 
 def test_format_result_skips_wire_matching_source():

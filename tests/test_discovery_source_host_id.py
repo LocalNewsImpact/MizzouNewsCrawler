@@ -13,7 +13,7 @@ import pathlib
 import sqlite3
 import sys
 import tempfile
-from typing import Iterator, Tuple, cast
+from typing import Iterator, cast
 from unittest.mock import patch
 
 import pandas as pd
@@ -34,7 +34,7 @@ except ModuleNotFoundError:  # pragma: no cover - fallback for direct test runs
 
 
 @contextlib.contextmanager
-def temporary_database() -> Iterator[Tuple[str, str]]:
+def temporary_database() -> Iterator[tuple[str, str]]:
     """Yield a temporary SQLite DB URL and path, then remove the file."""
 
     fd, path = tempfile.mkstemp(prefix="test_discovery_", suffix=".db")
@@ -157,18 +157,22 @@ def test_discovery_populates_source_host_id():
             },
         ]
 
-        with patch.object(
-            discovery,
-            "discover_with_rss_feeds",
-            return_value=([], {}),
-        ), patch.object(
-            discovery,
-            "discover_with_newspaper4k",
-            return_value=test_articles,
-        ), patch.object(
-            discovery,
-            "discover_with_storysniffer",
-            return_value=[],
+        with (
+            patch.object(
+                discovery,
+                "discover_with_rss_feeds",
+                return_value=([], {}),
+            ),
+            patch.object(
+                discovery,
+                "discover_with_newspaper4k",
+                return_value=test_articles,
+            ),
+            patch.object(
+                discovery,
+                "discover_with_storysniffer",
+                return_value=[],
+            ),
         ):
             result = discovery.process_source(
                 source_row=source_row,
@@ -242,18 +246,22 @@ def test_discovery_populates_source_host_id():
                 },
             ]
 
-            with patch.object(
-                discovery,
-                "discover_with_rss_feeds",
-                return_value=([], {}),
-            ), patch.object(
-                discovery,
-                "discover_with_newspaper4k",
-                return_value=test_articles,
-            ), patch.object(
-                discovery,
-                "discover_with_storysniffer",
-                return_value=[],
+            with (
+                patch.object(
+                    discovery,
+                    "discover_with_rss_feeds",
+                    return_value=([], {}),
+                ),
+                patch.object(
+                    discovery,
+                    "discover_with_newspaper4k",
+                    return_value=test_articles,
+                ),
+                patch.object(
+                    discovery,
+                    "discover_with_storysniffer",
+                    return_value=[],
+                ),
             ):
                 result = discovery.process_source(
                     source_row=source_row,
@@ -298,18 +306,22 @@ def test_discovery_without_source_host_id_requires_identifier():
 
         test_articles = [{"url": "https://example.com/test", "title": "Test"}]
 
-        with patch.object(
-            discovery,
-            "discover_with_rss_feeds",
-            return_value=([], {}),
-        ), patch.object(
-            discovery,
-            "discover_with_newspaper4k",
-            return_value=test_articles,
-        ), patch.object(
-            discovery,
-            "discover_with_storysniffer",
-            return_value=[],
+        with (
+            patch.object(
+                discovery,
+                "discover_with_rss_feeds",
+                return_value=([], {}),
+            ),
+            patch.object(
+                discovery,
+                "discover_with_newspaper4k",
+                return_value=test_articles,
+            ),
+            patch.object(
+                discovery,
+                "discover_with_storysniffer",
+                return_value=[],
+            ),
         ):
             with pytest.raises(KeyError):
                 discovery.process_source(
@@ -366,18 +378,22 @@ def test_discovery_skips_preexisting_candidate_links():
             },
         ]
 
-        with patch.object(
-            discovery,
-            "discover_with_rss_feeds",
-            return_value=([], {}),
-        ), patch.object(
-            discovery,
-            "discover_with_newspaper4k",
-            return_value=test_articles,
-        ), patch.object(
-            discovery,
-            "discover_with_storysniffer",
-            return_value=[],
+        with (
+            patch.object(
+                discovery,
+                "discover_with_rss_feeds",
+                return_value=([], {}),
+            ),
+            patch.object(
+                discovery,
+                "discover_with_newspaper4k",
+                return_value=test_articles,
+            ),
+            patch.object(
+                discovery,
+                "discover_with_storysniffer",
+                return_value=[],
+            ),
         ):
             result = discovery.process_source(
                 source_row=source_row,
@@ -526,7 +542,8 @@ def test_discovery_storysniffer_fallback_records_article(monkeypatch):
         assert result.is_success
         assert result.articles_new == 1
         assert any(
-            method for method in result.metadata.get("methods_attempted", [])
+            method
+            for method in result.metadata.get("methods_attempted", [])
             if "storysniffer" in method
         )
 

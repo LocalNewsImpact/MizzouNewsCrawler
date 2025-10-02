@@ -29,7 +29,7 @@ class TestActualGazetteerTelemetry:
                 source_name="Test News Source",
                 city="Test City",
                 county="Test County",
-                state="MO"
+                state="MO",
             )
 
         assert len(caplog.records) == 1
@@ -48,7 +48,7 @@ class TestActualGazetteerTelemetry:
                 address_used="123 Main St, Test City, MO",
                 success=True,
                 lat=39.7,
-                lon=-94.5
+                lon=-94.5,
             )
 
         log_data = json.loads(caplog.records[0].message)
@@ -68,7 +68,7 @@ class TestActualGazetteerTelemetry:
                 method="nominatim",
                 address_used="Invalid Address",
                 success=False,
-                error="Geocoding failed"
+                error="Geocoding failed",
             )
 
         log_data = json.loads(caplog.records[0].message)
@@ -79,11 +79,7 @@ class TestActualGazetteerTelemetry:
 
     def test_log_osm_query_result(self, caplog):
         """Test actual OSM query result logging."""
-        categories_data = {
-            "schools": 5,
-            "businesses": 10,
-            "landmarks": 3
-        }
+        categories_data = {"schools": 5, "businesses": 10, "landmarks": 3}
 
         with caplog.at_level(logging.INFO):
             self.telemetry.log_osm_query_result(
@@ -91,7 +87,7 @@ class TestActualGazetteerTelemetry:
                 total_elements=18,
                 categories_data=categories_data,
                 query_groups_used=3,
-                radius_miles=20
+                radius_miles=20,
             )
 
         log_data = json.loads(caplog.records[0].message)
@@ -104,10 +100,7 @@ class TestActualGazetteerTelemetry:
 
     def test_log_enrichment_result_success(self, caplog):
         """Test actual enrichment result logging - success case."""
-        categories_inserted = {
-            "schools": 3,
-            "businesses": 7
-        }
+        categories_inserted = {"schools": 3, "businesses": 7}
 
         with caplog.at_level(logging.INFO):
             self.telemetry.log_enrichment_result(
@@ -115,7 +108,7 @@ class TestActualGazetteerTelemetry:
                 success=True,
                 total_inserted=10,
                 categories_inserted=categories_inserted,
-                processing_time_seconds=45.2
+                processing_time_seconds=45.2,
             )
 
         log_data = json.loads(caplog.records[0].message)
@@ -134,7 +127,7 @@ class TestActualGazetteerTelemetry:
                 success=False,
                 total_inserted=0,
                 failure_reason="No OSM data found",
-                processing_time_seconds=12.1
+                processing_time_seconds=12.1,
             )
 
         log_data = json.loads(caplog.records[0].message)
@@ -153,7 +146,7 @@ class TestActualGazetteerTelemetry:
                 source_name="Test Source",
                 city="Test City",
                 county="Test County",
-                state="MO"
+                state="MO",
             )
             self.telemetry.log_geocoding_result(
                 source_id=self.test_source_id,
@@ -161,19 +154,17 @@ class TestActualGazetteerTelemetry:
                 address_used="test address",
                 success=True,
                 lat=1.0,
-                lon=1.0
+                lon=1.0,
             )
             self.telemetry.log_osm_query_result(
                 source_id=self.test_source_id,
                 total_elements=5,
                 categories_data={"schools": 5},
                 query_groups_used=1,
-                radius_miles=10
+                radius_miles=10,
             )
             self.telemetry.log_enrichment_result(
-                source_id=self.test_source_id,
-                success=True,
-                total_inserted=5
+                source_id=self.test_source_id, success=True, total_inserted=5
             )
 
         # Verify all logs are valid JSON with required fields

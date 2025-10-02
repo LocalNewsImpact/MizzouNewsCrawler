@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Generator, List, Optional, cast
+from typing import Generator, Optional, cast
 
 import pytest
 from sqlalchemy import create_engine
@@ -54,15 +54,15 @@ class FakeSpan:
 
 
 class FakeDoc:
-    def __init__(self, text: str, spans: List[FakeSpan]):
+    def __init__(self, text: str, spans: list[FakeSpan]):
         self.text = text
         self.ents = spans
 
 
 class FakeNLP:
     def __init__(self):
-        self.calls: List[str] = []
-        self.ents_by_text: Dict[str, List[FakeSpan]] = {}
+        self.calls: list[str] = []
+        self.ents_by_text: dict[str, list[FakeSpan]] = {}
 
     def __call__(self, text: str) -> FakeDoc:
         self.calls.append(text)
@@ -87,10 +87,10 @@ class FakeNLP:
 @pytest.fixture()
 def fake_entity_ruler(monkeypatch):
     class _FakeEntityRuler:
-        instances: List["_FakeEntityRuler"] = []
+        instances: list[_FakeEntityRuler] = []
 
         def __init__(self, *args, **kwargs):
-            self.patterns: List[Dict[str, object]] = []
+            self.patterns: list[dict[str, object]] = []
             self.called_with: Optional[FakeDoc] = None
             _FakeEntityRuler.instances.append(self)
 
@@ -230,7 +230,7 @@ def test_attach_gazetteer_matches_handles_direct_and_fuzzy(
     in_memory_session.add_all([direct, fuzzy])
     in_memory_session.commit()
 
-    entities: List[Dict[str, object]] = [
+    entities: list[dict[str, object]] = [
         {
             "entity_text": "Boone County Library",
             "entity_norm": "boone county library",
@@ -247,9 +247,7 @@ def test_attach_gazetteer_matches_handles_direct_and_fuzzy(
     by_id = {entity.get("matched_gazetteer_id") for entity in result}
     assert by_id == {"direct", "fuzzy"}
     fuzzy_entity = next(
-        entity
-        for entity in result
-        if entity["matched_gazetteer_id"] == "fuzzy"
+        entity for entity in result if entity["matched_gazetteer_id"] == "fuzzy"
     )
     assert fuzzy_entity["entity_norm"] == "boone gen hospital"
     match_score = cast(float, fuzzy_entity["match_score"])
@@ -306,16 +304,12 @@ def test_article_entity_extractor_applies_overrides_and_deduplicates(
     assert fake_nlp.calls == [decoded_text]
     assert len(results) == 2
     hospital = next(
-        item
-        for item in results
-        if item["entity_text"] == "Boone County Hospital"
+        item for item in results if item["entity_text"] == "Boone County Hospital"
     )
     assert hospital["osm_category"] == "institution"
     assert hospital["osm_subcategory"] == "healthcare"
     assert hospital["entity_label"] == "ORG"
-    person = next(
-        item for item in results if item["entity_text"] == "Jane Doe"
-    )
+    person = next(item for item in results if item["entity_text"] == "Jane Doe")
     assert person["osm_category"] == "person"
     assert len(fake_entity_ruler.instances) == 1
     assert fake_entity_ruler.instances[0].patterns

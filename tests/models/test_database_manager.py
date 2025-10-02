@@ -631,9 +631,7 @@ def test_update_source_metadata_merges_dict_and_handles_locks(monkeypatch):
             assert refreshed is not None
             assert refreshed.meta["existing"] is False
 
-            toggle_success = db.update_source_metadata(
-                "source-1", {"existing": True}
-            )
+            toggle_success = db.update_source_metadata("source-1", {"existing": True})
             assert toggle_success is True
             meta_after_toggle = db.session.execute(
                 select(Source.meta).where(Source.id == "source-1")
@@ -671,22 +669,16 @@ def test_bulk_insert_articles_migrates_schema_and_adds_defaults():
 
         with manager.engine.connect() as conn:
             row = conn.execute(
-                text(
-                    "SELECT candidate_link_id, status, created_at "
-                    "FROM articles"
-                )
+                text("SELECT candidate_link_id, status, created_at " "FROM articles")
             ).one()
             columns = {
-                info[1]
-                for info in conn.execute(text("PRAGMA table_info(articles)"))
+                info[1] for info in conn.execute(text("PRAGMA table_info(articles)"))
             }
 
         assert row.candidate_link_id == "cand-123"
         assert row.status == "discovered"
         assert row.created_at is not None
-        assert {"candidate_link_id", "status", "primary_label"}.issubset(
-            columns
-        )
+        assert {"candidate_link_id", "status", "primary_label"}.issubset(columns)
 
         manager.close()
 
@@ -754,9 +746,7 @@ def test_upsert_article_handles_lock_and_updates(monkeypatch):
             assert stored is not None
             assert cast(str, stored.candidate_link_id) == "cand-lock"
             assert cast(str, stored.status) == "processed"
-            assert cast(str, stored.text_hash) == calculate_content_hash(
-                article_text
-            )
+            assert cast(str, stored.text_hash) == calculate_content_hash(article_text)
             assert attempts["count"] >= 2
 
             upsert_article(
@@ -815,40 +805,38 @@ def test_save_article_classification_creates_and_updates():
         )
 
         assert isinstance(created, ArticleLabel)
-        assert getattr(created, "primary_label") == "news"
-        assert getattr(created, "alternate_label") == "sports"
-        assert getattr(created, "primary_label_confidence") == 0.95
-        assert getattr(created, "alternate_label_confidence") == 0.12
-        assert getattr(created, "model_path") == "/models/a"
-        original_applied_at = getattr(created, "applied_at")
+        assert created.primary_label == "news"
+        assert created.alternate_label == "sports"
+        assert created.primary_label_confidence == 0.95
+        assert created.alternate_label_confidence == 0.12
+        assert created.model_path == "/models/a"
+        original_applied_at = created.applied_at
 
         updated = save_article_classification(
             manager.session,
             article_id="article-1",
             label_version="2025.09",
             model_version="model-b",
-            primary_prediction=types.SimpleNamespace(
-                label="metro", score=0.77
-            ),
+            primary_prediction=types.SimpleNamespace(label="metro", score=0.77),
             alternate_prediction=None,
             metadata={"threshold": 0.8},
         )
 
-        assert getattr(updated, "primary_label") == "metro"
-        assert getattr(updated, "alternate_label") is None
-        assert getattr(updated, "primary_label_confidence") == 0.77
-        assert getattr(updated, "alternate_label_confidence") is None
-        assert getattr(updated, "model_version") == "model-b"
-        assert getattr(updated, "meta") == {"threshold": 0.8}
-        assert getattr(updated, "applied_at") >= original_applied_at
+        assert updated.primary_label == "metro"
+        assert updated.alternate_label is None
+        assert updated.primary_label_confidence == 0.77
+        assert updated.alternate_label_confidence is None
+        assert updated.model_version == "model-b"
+        assert updated.meta == {"threshold": 0.8}
+        assert updated.applied_at >= original_applied_at
 
         stored = (
             manager.session.query(ArticleLabel)
             .filter_by(article_id="article-1", label_version="2025.09")
             .one()
         )
-        assert getattr(stored, "primary_label") == "metro"
-        assert getattr(stored, "model_version") == "model-b"
+        assert stored.primary_label == "metro"
+        assert stored.model_version == "model-b"
 
         with pytest.raises(ValueError):
             save_article_classification(
@@ -887,7 +875,7 @@ def test_save_ml_results_persists_records():
         )
 
         assert len(records) == 2
-        assert {getattr(record, "label") for record in records} == {
+        assert {record.label for record in records} == {
             "news",
             "sports",
         }
@@ -900,11 +888,11 @@ def test_save_ml_results_persists_records():
         )
 
         assert len(stored) == 2
-        assert getattr(stored[0], "model_version") == "v1"
-        assert getattr(stored[0], "model_type") == "classifier"
+        assert stored[0].model_version == "v1"
+        assert stored[0].model_type == "classifier"
         assert stored[0].details["label"] in {"news", "sports"}
         assert stored[1].details["label"] in {"news", "sports"}
-        assert getattr(stored[0], "job_id") == "job-123"
+        assert stored[0].job_id == "job-123"
 
         manager.close()
 
@@ -948,13 +936,11 @@ def test_save_locations_persists_records():
 
         assert len(records) == 1
         stored = (
-            manager.session.query(Location)
-            .filter_by(article_id="article-loc")
-            .one()
+            manager.session.query(Location).filter_by(article_id="article-loc").one()
         )
-        assert getattr(stored, "entity_text") == "Boone County"
-        assert getattr(stored, "ner_model_version") == "ner-1"
-        assert getattr(stored, "geocoded_place") == "Boone County, MO"
+        assert stored.entity_text == "Boone County"
+        assert stored.ner_model_version == "ner-1"
+        assert stored.geocoded_place == "Boone County, MO"
 
         manager.close()
 
@@ -1011,7 +997,7 @@ def test_save_article_entities_replaces_existing():
             .all()
         )
         assert len(stored) == 2
-        norms = {getattr(entity, "entity_norm") for entity in stored}
+        norms = {entity.entity_norm for entity in stored}
         assert _normalize_entity_text("County’s Park") in norms
         assert "old name" not in norms
 
@@ -1033,13 +1019,13 @@ def test_create_and_finish_job_record_updates_metrics():
         assert isinstance(job, Job)
         finished = finish_job_record(
             manager.session,
-            job_id=getattr(job, "id"),
+            job_id=job.id,
             exit_status="success",
             metrics={"records_processed": 7, "unknown_field": 99},
         )
 
-        assert getattr(finished, "exit_status") == "success"
-        assert getattr(finished, "records_processed") == 7
+        assert finished.exit_status == "success"
+        assert finished.records_processed == 7
         assert not hasattr(finished, "unknown_field")
 
         manager.close()
@@ -1072,22 +1058,18 @@ def test_read_candidate_links_and_articles_filters():
         assert list(filtered_links["source"]) == ["Example"]
 
         candidate = (
-            manager.session.query(CandidateLink)
-            .filter_by(source="Example")
-            .one()
+            manager.session.query(CandidateLink).filter_by(source="Example").one()
         )
 
         upsert_article(
             manager.session,
-            candidate_id=str(getattr(candidate, "id")),
+            candidate_id=str(candidate.id),
             text="Breaking story",
             status="processed",
             url="https://example.com/a",
         )
 
-        articles_df = read_articles(
-            manager.engine, filters={"status": "processed"}
-        )
+        articles_df = read_articles(manager.engine, filters={"status": "processed"})
 
         assert len(articles_df) == 1
         assert list(articles_df["source"]) == ["Example"]

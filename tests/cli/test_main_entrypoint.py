@@ -72,9 +72,7 @@ def test_setup_logging_configures_handlers(monkeypatch):
         recorded["called"] = True
         recorded["kwargs"] = kwargs
 
-    monkeypatch.setattr(
-        cli_context.logging, "StreamHandler", DummyStreamHandler
-    )
+    monkeypatch.setattr(cli_context.logging, "StreamHandler", DummyStreamHandler)
     monkeypatch.setattr(cli_context.logging, "FileHandler", DummyFileHandler)
     monkeypatch.setattr(cli_context.logging, "basicConfig", fake_basic_config)
 

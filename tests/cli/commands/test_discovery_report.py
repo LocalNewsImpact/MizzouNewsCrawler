@@ -26,7 +26,7 @@ class FakeDiscovery:
 def _patch_discovery(monkeypatch, report: dict[str, Any]):
     telemetry = FakeTelemetry(report)
     stub = ModuleType("src.crawler.discovery")
-    setattr(stub, "NewsDiscovery", lambda: FakeDiscovery(telemetry))
+    stub.NewsDiscovery = lambda: FakeDiscovery(telemetry)
     monkeypatch.setitem(sys.modules, "src.crawler.discovery", stub)
     return telemetry
 
@@ -140,10 +140,7 @@ def test_handle_discovery_report_handles_report_errors(monkeypatch, capsys):
     exit_code = discovery_report.handle_discovery_report_command(args)
 
     assert exit_code == 1
-    assert (
-        capsys.readouterr().out.strip()
-        == "Error generating report: upstream issue"
-    )
+    assert capsys.readouterr().out.strip() == "Error generating report: upstream issue"
 
 
 def test_handle_discovery_report_handles_exceptions(monkeypatch, capsys):
@@ -158,7 +155,7 @@ def test_handle_discovery_report_handles_exceptions(monkeypatch, capsys):
             recorded["message"] = message
 
     stub = ModuleType("src.crawler.discovery")
-    setattr(stub, "NewsDiscovery", FailingDiscovery)
+    stub.NewsDiscovery = FailingDiscovery
     monkeypatch.setitem(sys.modules, "src.crawler.discovery", stub)
     monkeypatch.setattr(discovery_report, "logger", DummyLogger())
 

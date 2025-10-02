@@ -55,11 +55,7 @@ def test_save_article_classification_persists_labels(db_session):
         metadata={"source": "test"},
     )
 
-    refreshed_article = (
-        db_session.query(Article)
-        .filter_by(id=article.id)
-        .one()
-    )
+    refreshed_article = db_session.query(Article).filter_by(id=article.id).one()
     saved_label = (
         db_session.query(ArticleLabel)
         .filter_by(article_id=article.id, label_version="v1")

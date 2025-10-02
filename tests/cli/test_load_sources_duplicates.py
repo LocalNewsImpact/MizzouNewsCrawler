@@ -46,8 +46,7 @@ def test_load_sources_fails_on_duplicate_hosts(
 
     assert exit_code == 1
     assert any(
-        "Duplicate host values detected" in message
-        for message in caplog.messages
+        "Duplicate host values detected" in message for message in caplog.messages
     )
 
 
@@ -72,6 +71,5 @@ def test_load_sources_fails_on_duplicate_urls(
 
     assert exit_code == 1
     assert any(
-        "Duplicate url_news entries detected" in message
-        for message in caplog.messages
+        "Duplicate url_news entries detected" in message for message in caplog.messages
     )

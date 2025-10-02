@@ -49,12 +49,8 @@ def test_http_errors_surface_verification_outages(
     payload = app_main.get_http_errors(days=7, status_code=429)
     errors = payload["http_errors"]
 
-    verification_rows = [
-        row for row in errors if row["host"] == "verification.local"
-    ]
-    assert verification_rows, (
-        "expected verification.local to appear in outage alerts"
-    )
+    verification_rows = [row for row in errors if row["host"] == "verification.local"]
+    assert verification_rows, "expected verification.local to appear in outage alerts"
     assert verification_rows[0]["error_count"] == 2
 
 

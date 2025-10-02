@@ -71,10 +71,9 @@ def test_write_report_csv_respects_index_flag(
 
     write_report_csv(sample_dataframe, output_path, index=True)
 
-    contents = (
-        output_path.read_text(encoding=DEFAULT_REPORT_CSV_ENCODING)
-        .splitlines()[0]
-    )
+    contents = output_path.read_text(encoding=DEFAULT_REPORT_CSV_ENCODING).splitlines()[
+        0
+    ]
     parts = contents.split(",")
     assert parts[0] == ""
     assert parts[1:3] == ["article_id", "title"]

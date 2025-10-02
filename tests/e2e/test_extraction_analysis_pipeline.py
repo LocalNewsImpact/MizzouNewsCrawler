@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from types import SimpleNamespace
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable
 
 import pytest
 
@@ -31,10 +31,10 @@ class ExtractionTestContext:
 
     db_url: str
     manager_factory: Callable[..., DatabaseManager]
-    created_managers: List[DatabaseManager]
-    telemetry_records: List[Dict[str, Any]]
-    cleaner_calls: List[str]
-    created_extractors: List[Any]
+    created_managers: list[DatabaseManager]
+    telemetry_records: list[dict[str, Any]]
+    cleaner_calls: list[str]
+    created_extractors: list[Any]
 
 
 def _setup_extraction_test_environment(
@@ -42,12 +42,12 @@ def _setup_extraction_test_environment(
     tmp_path,
     *,
     extractor_factory: Callable[[], Any],
-    byline_payload: Dict[str, Any],
-    cleaner_metadata_factory: Callable[..., Dict[str, Any]],
+    byline_payload: dict[str, Any],
+    cleaner_metadata_factory: Callable[..., dict[str, Any]],
     entity_extractor: Any,
 ) -> ExtractionTestContext:
     db_url = f"sqlite:///{(tmp_path / 'golden_pipeline.db')}"
-    created_managers: List[DatabaseManager] = []
+    created_managers: list[DatabaseManager] = []
 
     def manager_factory(*_args, **_kwargs) -> DatabaseManager:
         manager = DatabaseManager(database_url=db_url)
@@ -56,7 +56,7 @@ def _setup_extraction_test_environment(
 
     monkeypatch.setattr(extraction, "DatabaseManager", manager_factory)
 
-    telemetry_records: List[Dict[str, Any]] = []
+    telemetry_records: list[dict[str, Any]] = []
 
     class FakeTelemetry:
         def record_extraction(self, metrics) -> None:
@@ -76,7 +76,7 @@ def _setup_extraction_test_environment(
         lambda: FakeTelemetry(),
     )
 
-    cleaner_calls: List[str] = []
+    cleaner_calls: list[str] = []
 
     class FakeCleaner:
         def __init__(self, enable_telemetry: bool = False) -> None:
@@ -90,7 +90,7 @@ def _setup_extraction_test_environment(
             text: str,
             domain: str,
             article_id: str,
-        ) -> tuple[str, Dict[str, Any]]:
+        ) -> tuple[str, dict[str, Any]]:
             cleaner_calls.append(f"cleaned:{article_id}")
             cleaned_text = text.strip()
             metadata = cleaner_metadata_factory(
@@ -115,7 +115,7 @@ def _setup_extraction_test_environment(
             return_json: bool,
             source_name: str,
             candidate_link_id: str,
-        ) -> Dict[str, Any]:
+        ) -> dict[str, Any]:
             return byline_payload
 
     monkeypatch.setattr(
@@ -124,7 +124,7 @@ def _setup_extraction_test_environment(
         lambda: FakeBylineCleaner(),
     )
 
-    created_extractors: List[Any] = []
+    created_extractors: list[Any] = []
 
     def wrapped_extractor_factory() -> Any:
         extractor_instance = extractor_factory()
@@ -180,7 +180,7 @@ def test_extraction_pipeline_through_analysis(
         def __init__(self) -> None:
             self.closed = False
 
-        def extract_content(self, url: str, *, metrics) -> Dict[str, Any]:
+        def extract_content(self, url: str, *, metrics) -> dict[str, Any]:
             metrics.set_http_metrics(200, 512, 42)
             return {
                 "title": "Council approves new park",
@@ -198,7 +198,7 @@ def test_extraction_pipeline_through_analysis(
         def _check_rate_limit(self, domain: str) -> bool:
             return False
 
-        def get_driver_stats(self) -> Dict[str, Any]:
+        def get_driver_stats(self) -> dict[str, Any]:
             return {
                 "has_persistent_driver": True,
                 "driver_reuse_count": 0,
@@ -208,7 +208,7 @@ def test_extraction_pipeline_through_analysis(
         def close_persistent_driver(self) -> None:
             self.closed = True
 
-    def metadata_factory(**kwargs) -> Dict[str, Any]:
+    def metadata_factory(**kwargs) -> dict[str, Any]:
         text = kwargs["text"]
         cleaned_text = kwargs["cleaned_text"]
         return {
@@ -225,7 +225,7 @@ def test_extraction_pipeline_through_analysis(
             text: str | None,
             *,
             gazetteer_rows=None,
-        ) -> List[Dict[str, Any]]:
+        ) -> list[dict[str, Any]]:
             assert text is not None
             return [
                 {
@@ -298,23 +298,20 @@ def test_extraction_pipeline_through_analysis(
         verify_session = verify_manager.session
 
         article = verify_session.query(Article).one()
-        assert getattr(article, "status") == "local"
-        assert getattr(article, "author") == "Jane Tester"
-        assert (
-            getattr(article, "content")
-            == "Columbia City Hall will host the forum."
-        )
-        assert getattr(article, "wire") is None
+        assert article.status == "local"
+        assert article.author == "Jane Tester"
+        assert article.content == "Columbia City Hall will host the forum."
+        assert article.wire is None
 
         candidate_row = verify_session.get(CandidateLink, "candidate-1")
         assert candidate_row is not None
-        assert getattr(candidate_row, "status") == "extracted"
+        assert candidate_row.status == "extracted"
 
         entities = verify_session.query(ArticleEntity).all()
         assert len(entities) == 1
         entity = entities[0]
-        assert getattr(entity, "entity_text") == "Columbia City Hall"
-        assert getattr(entity, "matched_gazetteer_id") == "gaz-1"
+        assert entity.entity_text == "Columbia City Hall"
+        assert entity.matched_gazetteer_id == "gaz-1"
 
         assert "analyzed:example.com" in ctx.cleaner_calls
         assert f"cleaned:{article.id}" in ctx.cleaner_calls
@@ -348,7 +345,7 @@ def test_extraction_pipeline_through_analysis(
             .filter_by(article_id=article.id, label_version="golden-path")
             .one()
         )
-        assert getattr(label_record, "primary_label") == "Civic Life"
+        assert label_record.primary_label == "Civic Life"
 
         config = CountyReportConfig(
             counties=["Boone"],
@@ -382,7 +379,7 @@ def test_extraction_pipeline_handles_failure_and_gazetteer_miss(
             self.closed = False
             self.calls = 0
 
-        def extract_content(self, url: str, *, metrics) -> Dict[str, Any]:
+        def extract_content(self, url: str, *, metrics) -> dict[str, Any]:
             self.calls += 1
             if self.calls == 1:
                 metrics.set_http_metrics(500, 0, 0)
@@ -404,7 +401,7 @@ def test_extraction_pipeline_handles_failure_and_gazetteer_miss(
         def _check_rate_limit(self, domain: str) -> bool:
             return False
 
-        def get_driver_stats(self) -> Dict[str, Any]:
+        def get_driver_stats(self) -> dict[str, Any]:
             return {
                 "has_persistent_driver": True,
                 "driver_reuse_count": 0,
@@ -414,7 +411,7 @@ def test_extraction_pipeline_handles_failure_and_gazetteer_miss(
         def close_persistent_driver(self) -> None:
             self.closed = True
 
-    def miss_metadata_factory(**kwargs) -> Dict[str, Any]:
+    def miss_metadata_factory(**kwargs) -> dict[str, Any]:
         text = kwargs["text"]
         cleaned_text = kwargs["cleaned_text"]
         return {
@@ -431,7 +428,7 @@ def test_extraction_pipeline_handles_failure_and_gazetteer_miss(
             text: str | None,
             *,
             gazetteer_rows=None,
-        ) -> List[Dict[str, Any]]:
+        ) -> list[dict[str, Any]]:
             assert text is not None
             return [
                 {
@@ -517,8 +514,8 @@ def test_extraction_pipeline_handles_failure_and_gazetteer_miss(
         assert len(articles) == 1
         article = articles[0]
         assert article.candidate_link_id == success_candidate_id
-        assert getattr(article, "status") in {"cleaned", "extracted"}
-        assert getattr(article, "wire") is None
+        assert article.status in {"cleaned", "extracted"}
+        assert article.wire is None
 
         failure_candidate_row = verify_session.get(
             CandidateLink,
@@ -530,8 +527,8 @@ def test_extraction_pipeline_handles_failure_and_gazetteer_miss(
         )
         assert failure_candidate_row is not None
         assert success_candidate_row is not None
-        assert getattr(failure_candidate_row, "status") == "article"
-        assert getattr(success_candidate_row, "status") == "extracted"
+        assert failure_candidate_row.status == "article"
+        assert success_candidate_row.status == "extracted"
 
         entities = verify_session.query(ArticleEntity).all()
         assert len(entities) == 1
@@ -539,9 +536,7 @@ def test_extraction_pipeline_handles_failure_and_gazetteer_miss(
 
         extractors = ctx.created_extractors
         assert extractors and extractors[0].closed
-        assert any(
-            call.startswith("cleaned:") for call in ctx.cleaner_calls
-        )
+        assert any(call.startswith("cleaned:") for call in ctx.cleaner_calls)
     finally:
         for manager in ctx.created_managers:
             try:

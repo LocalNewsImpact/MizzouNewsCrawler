@@ -88,9 +88,7 @@ def test_handle_extraction_command_success(monkeypatch):
     assert exit_code == 0
     assert calls["process"] == 2
     assert calls["closed"] is True
-    assert calls["post_clean_domains"] == {
-        "example.com": ["article-1", "article-2"]
-    }
+    assert calls["post_clean_domains"] == {"example.com": ["article-1", "article-2"]}
 
 
 def test_handle_extraction_command_handles_exception(monkeypatch):
@@ -232,9 +230,7 @@ def test_process_batch_success_path(monkeypatch):
                 "title": "Title",
                 "content": "Body text",
                 "author": "Alice",
-                "metadata": {
-                    "extraction_methods": {"title": "newspaper4k"}
-                },
+                "metadata": {"extraction_methods": {"title": "newspaper4k"}},
             }
 
         def get_driver_stats(self):
@@ -312,9 +308,7 @@ def test_process_batch_success_path(monkeypatch):
 
 
 def test_process_batch_rate_limited(monkeypatch):
-    rows = [
-        ("cand-1", "https://blocked.com/a", "Example", "article", None)
-    ]
+    rows = [("cand-1", "https://blocked.com/a", "Example", "article", None)]
     session = _FakeSession(rows)
 
     def fake_db_manager():

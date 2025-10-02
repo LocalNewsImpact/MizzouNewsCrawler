@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from types import SimpleNamespace
-from typing import Any, List, Sequence
+from typing import Any, Sequence
 
 import pytest
 from requests import Session
@@ -54,7 +54,7 @@ def test_county_pipeline_verification_retry_exhaustion(
 
     verification_attempts: dict[str, int] = {}
     verification_metrics: list[dict] = []
-    steps_run: List[tuple[str, List[str]]] = []
+    steps_run: list[tuple[str, list[str]]] = []
 
     class AlwaysTimeoutSession(Session):
         def head(
@@ -65,9 +65,7 @@ def test_county_pipeline_verification_retry_exhaustion(
             **_kwargs,
         ) -> Any:
             url_key = str(url)
-            verification_attempts[url_key] = (
-                verification_attempts.get(url_key, 0) + 1
-            )
+            verification_attempts[url_key] = verification_attempts.get(url_key, 0) + 1
             raise url_verification.Timeout("simulated timeout")
 
     def _ensure_source_for(county: str) -> Source:
@@ -110,8 +108,8 @@ def test_county_pipeline_verification_retry_exhaustion(
             )
             session.add(candidate)
         else:
-            setattr(candidate, "status", "discovered")
-            setattr(candidate, "error_message", None)
+            candidate.status = "discovered"
+            candidate.error_message = None
         session.commit()
         session.close()
         manager.close()
@@ -136,10 +134,7 @@ def test_county_pipeline_verification_retry_exhaustion(
         processed_batches = 0
         try:
             while True:
-                if (
-                    max_batches is not None
-                    and processed_batches >= max_batches
-                ):
+                if max_batches is not None and processed_batches >= max_batches:
                     break
 
                 candidates = service.get_unverified_urls(limit=batch_size)
@@ -204,18 +199,15 @@ def test_county_pipeline_verification_retry_exhaustion(
     manager = manager_factory()
     session = manager.session
     candidates = {
-        candidate.id: candidate
-        for candidate in session.query(CandidateLink).all()
+        candidate.id: candidate for candidate in session.query(CandidateLink).all()
     }
 
     assert set(candidates) == {"candidate-boone", "candidate-cole"}
     assert all(
-        getattr(candidate, "status") == "verification_failed"
-        for candidate in candidates.values()
+        candidate.status == "verification_failed" for candidate in candidates.values()
     )
     assert all(
-        getattr(candidate, "error_message")
-        and "timeout" in getattr(candidate, "error_message").lower()
+        candidate.error_message and "timeout" in candidate.error_message.lower()
         for candidate in candidates.values()
     )
 
@@ -229,24 +221,16 @@ def test_county_pipeline_verification_retry_exhaustion(
     ]
 
     verification_args = next(
-        args
-        for label, args in steps_run
-        if label == "Verification service"
+        args for label, args in steps_run if label == "Verification service"
     )
-    batch_size_arg = verification_args[
-        verification_args.index("--batch-size") + 1
-    ]
-    max_batches_arg = verification_args[
-        verification_args.index("--max-batches") + 1
-    ]
+    batch_size_arg = verification_args[verification_args.index("--batch-size") + 1]
+    max_batches_arg = verification_args[verification_args.index("--max-batches") + 1]
     assert batch_size_arg == "1"
     assert max_batches_arg == "2"
 
     assert all(attempts == 3 for attempts in verification_attempts.values())
     assert len(verification_metrics) == 2
-    assert all(
-        metric["verification_errors"] == 1 for metric in verification_metrics
-    )
+    assert all(metric["verification_errors"] == 1 for metric in verification_metrics)
 
 
 @pytest.mark.e2e
@@ -261,7 +245,7 @@ def test_county_pipeline_multi_county_stress_drain(
     expected_total = len(counties) * candidates_per_county
 
     processed_candidates: list[str] = []
-    steps_run: List[tuple[str, List[str]]] = []
+    steps_run: list[tuple[str, list[str]]] = []
     expected_candidate_ids = {
         f"candidate-{county.lower()}-{index}"
         for county in counties
@@ -313,8 +297,8 @@ def test_county_pipeline_multi_county_stress_drain(
                 )
                 session.add(candidate)
             else:
-                setattr(candidate, "status", "discovered")
-                setattr(candidate, "error_message", None)
+                candidate.status = "discovered"
+                candidate.error_message = None
         session.commit()
         session.close()
         manager.close()
@@ -342,8 +326,8 @@ def test_county_pipeline_multi_county_stress_drain(
         assert len(discovered_candidates) == expected_total
 
         for candidate in discovered_candidates[:max_batches]:
-            setattr(candidate, "status", "article")
-            processed_candidates.append(getattr(candidate, "id"))
+            candidate.status = "article"
+            processed_candidates.append(candidate.id)
 
         session.commit()
         session.close()
@@ -401,7 +385,7 @@ def test_county_pipeline_multi_county_stress_drain(
     manager = manager_factory()
     session = manager.session
     candidates = {
-        getattr(candidate, "id"): getattr(candidate, "status")
+        candidate.id: candidate.status
         for candidate in session.query(CandidateLink).all()
     }
     session.close()
@@ -433,7 +417,7 @@ def test_county_pipeline_golden_path(
     tmp_path,
 ) -> None:
     db_url = f"sqlite:///{(tmp_path / 'county_pipeline.db')}"
-    created_managers: List[DatabaseManager] = []
+    created_managers: list[DatabaseManager] = []
 
     def manager_factory(*_args, **_kwargs) -> DatabaseManager:
         manager = DatabaseManager(database_url=db_url)
@@ -443,15 +427,13 @@ def test_county_pipeline_golden_path(
     monkeypatch.setattr(county_pipeline, "DatabaseManager", manager_factory)
     monkeypatch.setattr(extraction, "DatabaseManager", manager_factory)
 
-    telemetry_log: List[tuple[str, str]] = []
-    steps_run: List[tuple[str, List[str]]] = []
+    telemetry_log: list[tuple[str, str]] = []
+    steps_run: list[tuple[str, list[str]]] = []
 
     setup_manager = manager_factory()
     setup_session = setup_manager.session
     try:
-        setup_session.execute(
-            sa_text("ALTER TABLE articles ADD COLUMN wire TEXT")
-        )
+        setup_session.execute(sa_text("ALTER TABLE articles ADD COLUMN wire TEXT"))
         setup_session.commit()
     except OperationalError as exc:
         if "duplicate column name" not in str(exc.orig).lower():
@@ -512,7 +494,7 @@ def test_county_pipeline_golden_path(
         def close_persistent_driver(self) -> None:
             self.closed = True
 
-    extractors: List[FakeContentExtractor] = []
+    extractors: list[FakeContentExtractor] = []
 
     def extractor_factory() -> FakeContentExtractor:
         extractor = FakeContentExtractor()
@@ -542,7 +524,7 @@ def test_county_pipeline_golden_path(
         lambda: FakeBylineCleaner(),
     )
 
-    extraction_telemetry_records: List[str] = []
+    extraction_telemetry_records: list[str] = []
 
     class FakeTelemetry:
         def record_extraction(self, metrics) -> None:
@@ -554,7 +536,7 @@ def test_county_pipeline_golden_path(
         lambda: FakeTelemetry(),
     )
 
-    cleaner_calls: List[str] = []
+    cleaner_calls: list[str] = []
 
     class FakeCleaner:
         def __init__(self, enable_telemetry: bool = False) -> None:
@@ -659,7 +641,7 @@ def test_county_pipeline_golden_path(
             )
             session.add(candidate)
         else:
-            setattr(candidate, "status", status)
+            candidate.status = status
         session.commit()
         session.close()
         return candidate
@@ -673,7 +655,7 @@ def test_county_pipeline_golden_path(
         session = manager.session
         candidate = session.get(CandidateLink, "candidate-1")
         assert candidate is not None
-        setattr(candidate, "status", "article")
+        candidate.status = "article"
         session.commit()
         session.close()
         telemetry_log.append(("verification", "candidate-1"))
@@ -763,22 +745,22 @@ def test_county_pipeline_golden_path(
     manager = manager_factory()
     verify_session = manager.session
     article = verify_session.query(Article).one()
-    assert getattr(article, "status") == "local"
-    assert getattr(article, "author") == "Jane Tester"
+    assert article.status == "local"
+    assert article.author == "Jane Tester"
 
     candidate = verify_session.get(CandidateLink, "candidate-1")
     assert candidate is not None
-    assert getattr(candidate, "status") == "extracted"
+    assert candidate.status == "extracted"
 
     entity = verify_session.query(ArticleEntity).one()
-    assert getattr(entity, "entity_text") == "Columbia City Hall"
+    assert entity.entity_text == "Columbia City Hall"
 
     label = (
         verify_session.query(ArticleLabel)
         .filter_by(article_id=article.id, label_version="golden-path")
         .one()
     )
-    assert getattr(label, "primary_label") == "Civic Life"
+    assert label.primary_label == "Civic Life"
 
     report_df = generate_county_report(
         CountyReportConfig(

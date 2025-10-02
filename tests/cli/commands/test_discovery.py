@@ -117,10 +117,7 @@ def test_add_discovery_parser_aliases():
     ],
 )
 def test_collect_source_uuids(source_uuid, source_uuids, expected):
-    assert (
-        discovery._collect_source_uuids(source_uuid, source_uuids)
-        == expected
-    )
+    assert discovery._collect_source_uuids(source_uuid, source_uuids) == expected
 
 
 def test_handle_discovery_command_legacy_limit_sets_existing(monkeypatch):
@@ -290,9 +287,7 @@ def test_handle_discovery_command_reports_success(monkeypatch, capsys):
     assert "Sources processed: 2" in out
     assert "Technical success rate: 100.0%" in out
     assert "Average candidates per source: 4.0" in out
-    assert any(
-        "Starting URL discovery pipeline" in msg for msg in log_messages
-    )
+    assert any("Starting URL discovery pipeline" in msg for msg in log_messages)
 
 
 def test_handle_discovery_command_reports_failures(monkeypatch, capsys):
@@ -383,9 +378,7 @@ def test_handle_discovery_command_handles_exception(monkeypatch, capsys):
     def fake_get_logger(*_a, **_k):
         return types.SimpleNamespace(
             info=lambda message: log_messages["info"].append(message),
-            exception=lambda message: log_messages["exception"].append(
-                message
-            ),
+            exception=lambda message: log_messages["exception"].append(message),
         )
 
     monkeypatch.setattr(

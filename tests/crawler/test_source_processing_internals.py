@@ -1,6 +1,6 @@
 import json
 from datetime import datetime, timedelta
-from typing import Any, Dict, List
+from typing import Any
 
 import pandas as pd
 
@@ -9,12 +9,10 @@ from src.utils.telemetry import DiscoveryMethod
 
 
 class _TelemetryStub:
-    def __init__(self, methods: List[DiscoveryMethod]):
+    def __init__(self, methods: list[DiscoveryMethod]):
         self._methods = methods
 
-    def get_effective_discovery_methods(
-        self, source_id: str
-    ) -> List[DiscoveryMethod]:
+    def get_effective_discovery_methods(self, source_id: str) -> list[DiscoveryMethod]:
         return list(self._methods)
 
 
@@ -35,7 +33,7 @@ class _BaseDiscoveryStub:
         return self._retry_days
 
 
-def _make_series(metadata: Dict[str, Any] | None = None) -> pd.Series:
+def _make_series(metadata: dict[str, Any] | None = None) -> pd.Series:
     return pd.Series(
         {
             "id": "source-1",
@@ -47,17 +45,13 @@ def _make_series(metadata: Dict[str, Any] | None = None) -> pd.Series:
 
 
 def test_source_processor_prioritizes_last_successful_method():
-    telemetry = _TelemetryStub(
-        [DiscoveryMethod.NEWSPAPER4K, DiscoveryMethod.RSS_FEED]
-    )
+    telemetry = _TelemetryStub([DiscoveryMethod.NEWSPAPER4K, DiscoveryMethod.RSS_FEED])
 
     class _DiscoveryStub(_BaseDiscoveryStub):
         def _get_existing_urls_for_source(self, source_id: str) -> set[str]:
             return set()
 
-        def _collect_allowed_hosts(
-            self, _row: pd.Series, _meta: Any
-        ) -> set[str]:
+        def _collect_allowed_hosts(self, _row: pd.Series, _meta: Any) -> set[str]:
             return {"example.com"}
 
     discovery = _DiscoveryStub(telemetry=telemetry)
@@ -90,9 +84,7 @@ def test_source_processor_should_skip_rss_when_recent_missing(monkeypatch):
         def _get_existing_urls_for_source(self, source_id: str) -> set[str]:
             return set()
 
-        def _collect_allowed_hosts(
-            self, _row: pd.Series, _meta: Any
-        ) -> set[str]:
+        def _collect_allowed_hosts(self, _row: pd.Series, _meta: Any) -> set[str]:
             return {"example.com"}
 
     recent_processor = SourceProcessor(
@@ -111,7 +103,7 @@ def test_source_processor_should_skip_rss_when_recent_missing(monkeypatch):
 
 
 def test_store_candidates_classification(monkeypatch):
-    stored_payloads: List[Dict[str, Any]] = []
+    stored_payloads: list[dict[str, Any]] = []
     monkeypatch.setattr(
         "src.models.database.upsert_candidate_link",
         lambda _session, **payload: stored_payloads.append(payload),
@@ -135,9 +127,7 @@ def test_store_candidates_classification(monkeypatch):
         def _get_existing_urls_for_source(self, source_id: str) -> set[str]:
             return {"https://example.com/duplicate"}
 
-        def _collect_allowed_hosts(
-            self, _row: pd.Series, _meta: Any
-        ) -> set[str]:
+        def _collect_allowed_hosts(self, _row: pd.Series, _meta: Any) -> set[str]:
             return {"example.com"}
 
         def _normalize_host(self, host: str | None) -> str | None:
@@ -156,7 +146,7 @@ def test_store_candidates_classification(monkeypatch):
                 return True
             return publish_date >= self._recent_cutoff
 
-        def _format_discovered_by(self, article_data: Dict[str, Any]) -> str:
+        def _format_discovered_by(self, article_data: dict[str, Any]) -> str:
             method = article_data.get("discovery_method", "unknown")
             return f"formatted_{method}"
 

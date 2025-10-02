@@ -75,9 +75,7 @@ def test_handle_list_versions_no_results(monkeypatch, capsys):
         lambda dataset=None: [],
     )
 
-    result = versioning.handle_list_versions_command(
-        argparse.Namespace(dataset=None)
-    )
+    result = versioning.handle_list_versions_command(argparse.Namespace(dataset=None))
     output = capsys.readouterr().out
 
     assert result == 0
@@ -90,9 +88,7 @@ def test_handle_list_versions_error(monkeypatch, capsys):
 
     monkeypatch.setattr(versioning, "list_dataset_versions", fake_list)
 
-    result = versioning.handle_list_versions_command(
-        argparse.Namespace(dataset=None)
-    )
+    result = versioning.handle_list_versions_command(argparse.Namespace(dataset=None))
     output = capsys.readouterr().out
 
     assert result == 1

@@ -36,9 +36,7 @@ def test_handle_gazetteer_command_missing_script(monkeypatch, capsys):
     assert "populate_gazetteer script not available" in captured
 
 
-def test_handle_gazetteer_command_success(
-    monkeypatch, capsys, _reset_process_context
-):
+def test_handle_gazetteer_command_success(monkeypatch, capsys, _reset_process_context):
     called = {}
 
     class FakeDB:

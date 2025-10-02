@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import Dict, List, cast
+from typing import cast
 
 import pytest
 from sqlalchemy.orm import Session
@@ -43,7 +43,7 @@ def test_score_match_prefers_exact_over_fuzzy():
         name="Springfield School",
         name_norm="springfield school",
     )
-    candidates = cast(List[extraction.Gazetteer], [near, exact])
+    candidates = cast(list[extraction.Gazetteer], [near, exact])
     result = extraction._score_match("springfield high school", candidates)
     assert result is not None
     assert result.gazetteer_id == "1"
@@ -65,9 +65,9 @@ def test_attach_gazetteer_matches_applies_best_candidate():
             category="schools",
         ),
     ]
-    typed_rows = cast(List[extraction.Gazetteer], rows)
+    typed_rows = cast(list[extraction.Gazetteer], rows)
 
-    entities: List[Dict[str, object]] = [
+    entities: list[dict[str, object]] = [
         {
             "entity_text": "Springfield High School",
             "entity_label": "ORG",

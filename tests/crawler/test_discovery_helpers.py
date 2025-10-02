@@ -4,7 +4,7 @@ import json
 import pickle
 import types
 from datetime import datetime, timedelta
-from typing import Any, Dict, Iterable, List, Set, cast
+from typing import Any, Iterable, cast
 
 import pandas as pd
 import pytest
@@ -16,9 +16,7 @@ from src.utils.telemetry import DiscoveryMethod, DiscoveryMethodStatus
 
 
 def _make_discovery_stub() -> discovery_module.NewsDiscovery:
-    return discovery_module.NewsDiscovery.__new__(
-        discovery_module.NewsDiscovery
-    )
+    return discovery_module.NewsDiscovery.__new__(discovery_module.NewsDiscovery)
 
 
 class _FakeResult:
@@ -33,18 +31,18 @@ class _FakeConn:
     def __init__(
         self,
         select_row: Any,
-        executed: List[tuple[Any, Dict[str, Any]]] | None = None,
+        executed: list[tuple[Any, dict[str, Any]]] | None = None,
     ) -> None:
         self._select_row = select_row
         self._executed = executed
 
-    def __enter__(self) -> "_FakeConn":
+    def __enter__(self) -> _FakeConn:
         return self
 
     def __exit__(self, *_exc: Any) -> bool:
         return False
 
-    def execute(self, statement: Any, params: Dict[str, Any]) -> _FakeResult:
+    def execute(self, statement: Any, params: dict[str, Any]) -> _FakeResult:
         text_repr = str(statement).upper()
         if "SELECT" in text_repr and "METADATA" in text_repr:
             return _FakeResult(self._select_row)
@@ -58,7 +56,7 @@ class _FakeEngine:
         self,
         begin_row: Any = None,
         connect_row: Any = None,
-        executed: List[tuple[Any, Dict[str, Any]]] | None = None,
+        executed: list[tuple[Any, dict[str, Any]]] | None = None,
     ) -> None:
         self._begin_row = begin_row
         self._connect_row = connect_row
@@ -73,11 +71,11 @@ class _FakeEngine:
 
 
 class _FakeQuery:
-    def __init__(self, records: Dict[str, Any]):
+    def __init__(self, records: dict[str, Any]):
         self._records = records
-        self._filters: Dict[str, Any] = {}
+        self._filters: dict[str, Any] = {}
 
-    def filter_by(self, **kwargs: Any) -> "_FakeQuery":
+    def filter_by(self, **kwargs: Any) -> _FakeQuery:
         self._filters.update(kwargs)
         return self
 
@@ -92,8 +90,8 @@ class _FakeSession:
     """Lightweight stand-in for a SQLAlchemy session."""
 
     def __init__(self) -> None:
-        self._records: Dict[str, Any] = {}
-        self.added: List[Any] = []
+        self._records: dict[str, Any] = {}
+        self.added: list[Any] = []
         self.commits = 0
         self.rollbacks = 0
 
@@ -139,7 +137,7 @@ def test_normalize_host(value: str | None, expected: str | None) -> None:
 )
 def test_iter_host_candidates(
     value: Iterable[str] | str,
-    expected: List[str],
+    expected: list[str],
 ) -> None:
     instance = _make_discovery_stub()
     result = instance._iter_host_candidates(value)  # type: ignore[arg-type]
@@ -157,7 +155,7 @@ def test_collect_allowed_hosts_aggregates_and_normalizes() -> None:
         }
     )
 
-    metadata: Dict[str, Any] = {
+    metadata: dict[str, Any] = {
         "alternate_hosts": ["www.example.com", "blog.example.com"],
         "allowed_domains": "alt.example.org, api.example.org",
         "host_aliases": ["news.example.org"],
@@ -196,9 +194,7 @@ def test_collect_allowed_hosts_aggregates_and_normalizes() -> None:
     ],
 )
 def test_should_skip_rss_from_meta(metadata, expected) -> None:
-    result = discovery_module.NewsDiscovery._should_skip_rss_from_meta(
-        metadata
-    )
+    result = discovery_module.NewsDiscovery._should_skip_rss_from_meta(metadata)
     assert result == expected
 
 
@@ -251,12 +247,10 @@ def test_extract_homepage_article_candidates_filters_and_limits() -> None:
     </html>
     """
 
-    candidates = (
-        discovery_module.NewsDiscovery._extract_homepage_article_candidates(
-            html,
-            "https://example.org",
-            rss_missing=False,
-        )
+    candidates = discovery_module.NewsDiscovery._extract_homepage_article_candidates(
+        html,
+        "https://example.org",
+        rss_missing=False,
     )
 
     assert candidates == [
@@ -276,13 +270,11 @@ def test_homepage_candidates_skip_feeds_when_missing() -> None:
     </html>
     """
 
-    candidates = (
-        discovery_module.NewsDiscovery._extract_homepage_article_candidates(
-            html,
-            "https://example.org",
-            rss_missing=True,
-            max_candidates=10,
-        )
+    candidates = discovery_module.NewsDiscovery._extract_homepage_article_candidates(
+        html,
+        "https://example.org",
+        rss_missing=True,
+        max_candidates=10,
     )
 
     assert candidates == [
@@ -301,12 +293,10 @@ def test_extract_homepage_article_candidates_honors_limit() -> None:
     </html>
     """
 
-    candidates = (
-        discovery_module.NewsDiscovery._extract_homepage_article_candidates(
-            html,
-            "https://example.org",
-            max_candidates=2,
-        )
+    candidates = discovery_module.NewsDiscovery._extract_homepage_article_candidates(
+        html,
+        "https://example.org",
+        max_candidates=2,
     )
 
     assert candidates == [
@@ -346,10 +336,7 @@ def test_rss_retry_window_days(
     else:
         freq = "weekly"
 
-    assert (
-        discovery_module.NewsDiscovery._rss_retry_window_days(freq)
-        == expected
-    )
+    assert discovery_module.NewsDiscovery._rss_retry_window_days(freq) == expected
     assert discovery_module.NewsDiscovery._rss_retry_window_days("raise") == 7
 
 
@@ -366,7 +353,7 @@ def test_newspaper_build_worker_writes_urls(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
 ) -> None:
-    recorded: Dict[str, Any] = {}
+    recorded: dict[str, Any] = {}
 
     class FakeConfig:
         def __init__(self) -> None:
@@ -377,16 +364,18 @@ def test_newspaper_build_worker_writes_urls(
             self.url = url
 
     class FakePaper:
-        def __init__(self, urls: List[str]) -> None:
+        def __init__(self, urls: list[str]) -> None:
             self.articles = [FakeArticle(url) for url in urls]
 
     def fake_build(target_url: str, config) -> FakePaper:
         recorded["target"] = target_url
         recorded["fetch_images"] = getattr(config, "fetch_images", None)
-        return FakePaper([
-            "https://example.com/a",
-            "https://example.com/b",
-        ])
+        return FakePaper(
+            [
+                "https://example.com/a",
+                "https://example.com/b",
+            ]
+        )
 
     monkeypatch.setattr(discovery_module, "Config", FakeConfig)
     monkeypatch.setattr(discovery_module, "build", fake_build)
@@ -415,7 +404,7 @@ def test_newspaper_build_worker_writes_urls(
 def test_update_source_meta_merges_existing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    executed: List[tuple[Any, Dict[str, Any]]] = []
+    executed: list[tuple[Any, dict[str, Any]]] = []
 
     class FakeDBM:
         def __init__(self, *_a: Any, **_k: Any) -> None:
@@ -446,9 +435,9 @@ def test_increment_rss_failure_increments(
                 connect_row=(json.dumps({"rss_consecutive_failures": 1}),),
             )
 
-    updates: List[tuple[str, Dict[str, Any]]] = []
+    updates: list[tuple[str, dict[str, Any]]] = []
 
-    def fake_update(self, source_id: str, payload: Dict[str, Any]) -> None:
+    def fake_update(self, source_id: str, payload: dict[str, Any]) -> None:
         updates.append((source_id, payload))
 
     monkeypatch.setattr(discovery_module, "DatabaseManager", FakeDBM)
@@ -464,9 +453,7 @@ def test_increment_rss_failure_increments(
 
     instance._increment_rss_failure("source-2")
 
-    assert updates == [
-        ("source-2", {"rss_consecutive_failures": 2})
-    ]
+    assert updates == [("source-2", {"rss_consecutive_failures": 2})]
 
 
 def test_increment_rss_failure_marks_missing(
@@ -478,9 +465,9 @@ def test_increment_rss_failure_marks_missing(
                 connect_row=(json.dumps({"rss_consecutive_failures": 2}),),
             )
 
-    updates: List[tuple[str, Dict[str, Any]]] = []
+    updates: list[tuple[str, dict[str, Any]]] = []
 
-    def fake_update(self, source_id: str, payload: Dict[str, Any]) -> None:
+    def fake_update(self, source_id: str, payload: dict[str, Any]) -> None:
         updates.append((source_id, payload))
 
     monkeypatch.setattr(discovery_module, "DatabaseManager", FakeDBM)
@@ -504,7 +491,7 @@ def test_increment_rss_failure_marks_missing(
 
 
 class _FakeTracker:
-    def __init__(self, telemetry: "_FakeTelemetry") -> None:
+    def __init__(self, telemetry: _FakeTelemetry) -> None:
         self.operation_id = "op-1"
         self._telemetry = telemetry
 
@@ -525,7 +512,7 @@ class _FakeTracker:
 
 
 class _TelemetryContext:
-    def __init__(self, telemetry: "_FakeTelemetry") -> None:
+    def __init__(self, telemetry: _FakeTelemetry) -> None:
         self._telemetry = telemetry
         self._tracker = _FakeTracker(telemetry)
 
@@ -538,11 +525,11 @@ class _TelemetryContext:
 
 class _FakeTelemetry:
     def __init__(self) -> None:
-        self.outcomes: List[Dict[str, Any]] = []
-        self.failures: List[Dict[str, Any]] = []
-        self.tracker_updates: List[Dict[str, Any]] = []
-        self.track_calls: List[tuple[tuple[Any, ...], Dict[str, Any]]] = []
-        self.method_updates: List[Dict[str, Any]] = []
+        self.outcomes: list[dict[str, Any]] = []
+        self.failures: list[dict[str, Any]] = []
+        self.tracker_updates: list[dict[str, Any]] = []
+        self.track_calls: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+        self.method_updates: list[dict[str, Any]] = []
 
     def track_operation(self, *args: Any, **kwargs: Any) -> _TelemetryContext:
         self.track_calls.append((args, kwargs))
@@ -613,9 +600,7 @@ def test_discover_with_storysniffer_records_success() -> None:
         operation_id="op-1",
     )
 
-    assert [a["url"] for a in articles] == [
-        "https://example.com/story-sniffed"
-    ]
+    assert [a["url"] for a in articles] == ["https://example.com/story-sniffed"]
     assert telemetry.method_updates, "Telemetry update not captured"
 
     update = telemetry.method_updates[-1]
@@ -703,7 +688,7 @@ def test_discover_with_rss_feeds_handles_transient_errors(monkeypatch):
     bad_response = _FakeResponse(200, b"bad-feed")
     good_response = _FakeResponse(200, b"good-feed")
 
-    actions: List[Any] = [
+    actions: list[Any] = [
         raise_exc(requests.exceptions.Timeout()),
         raise_exc(requests.exceptions.ConnectionError()),
         raise_exc(RuntimeError("boom")),
@@ -784,11 +769,11 @@ def test_discover_with_rss_feeds_returns_empty_on_not_found(monkeypatch):
     }
 
 
-def list_active_operations(self) -> List[Dict[str, Any]]:
+def list_active_operations(self) -> list[dict[str, Any]]:
     return []
 
 
-def get_failure_summary(self, operation_id: str) -> Dict[str, Any]:
+def get_failure_summary(self, operation_id: str) -> dict[str, Any]:
     return {"total_failures": 0, "failure_types": {}}
 
 
@@ -803,9 +788,9 @@ class _FakeResponse:
 
 
 class _SequenceSession:
-    def __init__(self, sequence: List[Any]) -> None:
+    def __init__(self, sequence: list[Any]) -> None:
         self.sequence = sequence
-        self.calls: List[str] = []
+        self.calls: list[str] = []
 
     def get(self, url: str, timeout: int):
         index = len(self.calls)
@@ -834,7 +819,7 @@ def test_process_source_stores_and_classifies_articles(
 
     class TelemetryStub:
         def __init__(self) -> None:
-            self.failures: List[Dict[str, Any]] = []
+            self.failures: list[dict[str, Any]] = []
             self.methods = [
                 DiscoveryMethod.RSS_FEED,
                 DiscoveryMethod.NEWSPAPER4K,
@@ -853,55 +838,30 @@ def test_process_source_stores_and_classifies_articles(
 
     existing_urls = {"https://existing.com/already"}
 
-    setattr(
-        instance,
-        "_get_existing_urls_for_source",
-        _bind_method(instance, lambda _self, _sid: existing_urls),
+    instance._get_existing_urls_for_source = _bind_method(
+        instance, lambda _self, _sid: existing_urls
     )
-    setattr(
-        instance,
-        "_collect_allowed_hosts",
-        _bind_method(
-            instance,
-            lambda _self, _row, _meta: {"example.com", "existing.com"},
-        ),
-
-
-
+    instance._collect_allowed_hosts = _bind_method(
+        instance, lambda _self, _row, _meta: {"example.com", "existing.com"}
     )
 
-    meta_updates: List[tuple[str, Dict[str, Any]]] = []
+    meta_updates: list[tuple[str, dict[str, Any]]] = []
 
     def fake_update_meta(
         self,
         source_id: str,
-        updates: Dict[str, Any],
+        updates: dict[str, Any],
     ) -> None:
         meta_updates.append((source_id, updates))
 
-    setattr(
-        instance,
-        "_update_source_meta",
-        _bind_method(instance, fake_update_meta),
-    )
+    instance._update_source_meta = _bind_method(instance, fake_update_meta)
 
-    setattr(
-        instance,
-        "_reset_rss_failure_state",
-        _bind_method(instance, lambda *_a, **_k: None),
-    )
-    setattr(
-        instance,
-        "_increment_rss_failure",
-        _bind_method(instance, lambda *_a, **_k: None),
-    )
+    instance._reset_rss_failure_state = _bind_method(instance, lambda *_a, **_k: None)
+    instance._increment_rss_failure = _bind_method(instance, lambda *_a, **_k: None)
 
     now = datetime.utcnow()
 
     rss_articles = [
-
-
-
         {
             "url": "https://example.com/news1",
             "publish_date": now.isoformat(),
@@ -933,7 +893,6 @@ def test_process_source_stores_and_classifies_articles(
 
     monkeypatch.setattr(
         instance,
-
         "discover_with_newspaper4k",
         _bind_method(
             instance,
@@ -951,26 +910,24 @@ def test_process_source_stores_and_classifies_articles(
         "discover_with_storysniffer",
         _bind_method(
             instance,
-            lambda _self, *_a, **_k: [
-                {"url": "https://other.com/outside"}
-            ],
+            lambda _self, *_a, **_k: [{"url": "https://other.com/outside"}],
         ),
     )
 
-    store_calls: List[Dict[str, Any]] = []
+    store_calls: list[dict[str, Any]] = []
 
     class FakeDBManager:
         def __init__(
             self,
             *_a: Any,
-            existing_records: Dict[str, Any] | None = None,
+            existing_records: dict[str, Any] | None = None,
             **_k: Any,
         ) -> None:
             self.session = _FakeSession()
             if existing_records:
                 self.session._records.update(existing_records)
 
-        def __enter__(self) -> "FakeDBManager":
+        def __enter__(self) -> FakeDBManager:
             return self
 
         def __exit__(self, *_exc: Any) -> bool:
@@ -1048,7 +1005,7 @@ def test_source_processor_skips_rss_when_recently_missing(
 
     class TelemetryStub:
         def __init__(self) -> None:
-            self.failures: List[Dict[str, Any]] = []
+            self.failures: list[dict[str, Any]] = []
             self.methods = [
                 DiscoveryMethod.RSS_FEED,
                 DiscoveryMethod.NEWSPAPER4K,
@@ -1066,54 +1023,38 @@ def test_source_processor_skips_rss_when_recently_missing(
     instance.delay = 0
     instance.days_back = 7
 
-    existing_urls: Set[str] = set()
+    existing_urls: set[str] = set()
 
-    setattr(
-        instance,
-        "_get_existing_urls_for_source",
-        _bind_method(instance, lambda _self, _sid: existing_urls),
+    instance._get_existing_urls_for_source = _bind_method(
+        instance, lambda _self, _sid: existing_urls
     )
-    setattr(
-        instance,
-        "_collect_allowed_hosts",
-        _bind_method(instance, lambda *_a, **_k: {"example.com"}),
+    instance._collect_allowed_hosts = _bind_method(
+        instance, lambda *_a, **_k: {"example.com"}
     )
-    setattr(
-        instance,
-        "_rss_retry_window_days",
-        _bind_method(instance, lambda *_a, **_k: 2),
-    )
+    instance._rss_retry_window_days = _bind_method(instance, lambda *_a, **_k: 2)
 
-    rss_increments: List[Any] = []
-    rss_resets: List[Any] = []
+    rss_increments: list[Any] = []
+    rss_resets: list[Any] = []
 
-    setattr(
-        instance,
-        "_increment_rss_failure",
-        _bind_method(instance, lambda *_a, **_k: rss_increments.append(1)),
+    instance._increment_rss_failure = _bind_method(
+        instance, lambda *_a, **_k: rss_increments.append(1)
     )
-    setattr(
-        instance,
-        "_reset_rss_failure_state",
-        _bind_method(instance, lambda *_a, **_k: rss_resets.append(1)),
+    instance._reset_rss_failure_state = _bind_method(
+        instance, lambda *_a, **_k: rss_resets.append(1)
     )
 
     def _raise_if_rss_invoked(*_a: Any, **_k: Any) -> None:
         raise AssertionError("RSS discovery should be skipped")
 
-    setattr(
-        instance,
-        "discover_with_rss_feeds",
-        _bind_method(instance, _raise_if_rss_invoked),
-    )
+    instance.discover_with_rss_feeds = _bind_method(instance, _raise_if_rss_invoked)
 
-    newspaper_calls: List[Dict[str, Any]] = []
+    newspaper_calls: list[dict[str, Any]] = []
 
     def _fake_newspaper(
         _self: Any,
         *_a: Any,
         **kwargs: Any,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         newspaper_calls.append(kwargs)
         return [
             {
@@ -1123,45 +1064,33 @@ def test_source_processor_skips_rss_when_recently_missing(
             }
         ]
 
-    setattr(
-        instance,
-        "discover_with_newspaper4k",
-        _bind_method(instance, _fake_newspaper),
-    )
+    instance.discover_with_newspaper4k = _bind_method(instance, _fake_newspaper)
 
-    setattr(
-        instance,
-        "discover_with_storysniffer",
-        _bind_method(instance, lambda *_a, **_k: []),
-    )
+    instance.discover_with_storysniffer = _bind_method(instance, lambda *_a, **_k: [])
 
-    meta_updates: List[tuple[str, Dict[str, Any]]] = []
+    meta_updates: list[tuple[str, dict[str, Any]]] = []
 
-    setattr(
+    instance._update_source_meta = _bind_method(
         instance,
-        "_update_source_meta",
-        _bind_method(
-            instance,
-            lambda _self, source_id, payload: meta_updates.append(
-                (source_id, dict(payload))
-            ),
+        lambda _self, source_id, payload: meta_updates.append(
+            (source_id, dict(payload))
         ),
     )
 
-    store_calls: List[Dict[str, Any]] = []
+    store_calls: list[dict[str, Any]] = []
 
     class FakeDBManager:
         def __init__(
             self,
             *_a: Any,
-            existing_records: Dict[str, Any] | None = None,
+            existing_records: dict[str, Any] | None = None,
             **_k: Any,
         ) -> None:
             self.session = _FakeSession()
             if existing_records:
                 self.session._records.update(existing_records)
 
-        def __enter__(self) -> "FakeDBManager":
+        def __enter__(self) -> FakeDBManager:
             return self
 
         def __exit__(self, *_exc: Any) -> bool:
@@ -1237,7 +1166,7 @@ def test_source_processor_records_network_rss_failure(
 
     class TelemetryStub:
         def __init__(self) -> None:
-            self.failures: List[Dict[str, Any]] = []
+            self.failures: list[dict[str, Any]] = []
             self.methods = [
                 DiscoveryMethod.RSS_FEED,
                 DiscoveryMethod.NEWSPAPER4K,
@@ -1253,40 +1182,28 @@ def test_source_processor_records_network_rss_failure(
     telemetry = TelemetryStub()
     instance.telemetry = cast(Any, telemetry)
 
-    existing_urls: Set[str] = set()
+    existing_urls: set[str] = set()
 
-    setattr(
-        instance,
-        "_get_existing_urls_for_source",
-        _bind_method(instance, lambda _self, _sid: existing_urls),
+    instance._get_existing_urls_for_source = _bind_method(
+        instance, lambda _self, _sid: existing_urls
     )
-    setattr(
-        instance,
-        "_collect_allowed_hosts",
-        _bind_method(instance, lambda *_a, **_k: {"example.com"}),
+    instance._collect_allowed_hosts = _bind_method(
+        instance, lambda *_a, **_k: {"example.com"}
     )
 
-    meta_updates: List[tuple[str, Dict[str, Any]]] = []
+    meta_updates: list[tuple[str, dict[str, Any]]] = []
 
-    setattr(
+    instance._update_source_meta = _bind_method(
         instance,
-        "_update_source_meta",
-        _bind_method(
-            instance,
-            lambda _self, source_id, payload: meta_updates.append(
-                (source_id, dict(payload))
-            ),
+        lambda _self, source_id, payload: meta_updates.append(
+            (source_id, dict(payload))
         ),
     )
 
-    setattr(
+    instance.discover_with_rss_feeds = _bind_method(
         instance,
-        "discover_with_rss_feeds",
-        _bind_method(
-            instance,
-            lambda *_a, **_k: (_ for _ in ()).throw(  # type: ignore[misc]
-                requests.exceptions.Timeout("rss timed out")
-            ),
+        lambda *_a, **_k: (_ for _ in ()).throw(
+            requests.exceptions.Timeout("rss timed out")
         ),
     )
 
@@ -1294,16 +1211,14 @@ def test_source_processor_records_network_rss_failure(
         def __init__(self) -> None:
             self.session = _FakeSession()
 
-        def __enter__(self) -> "FakeDBManager":
+        def __enter__(self) -> FakeDBManager:
             return self
 
         def __exit__(self, *_exc: Any) -> bool:
             return False
 
-    setattr(
-        instance,
-        "_create_db_manager",
-        _bind_method(instance, lambda *_a, **_k: FakeDBManager()),
+    instance._create_db_manager = _bind_method(
+        instance, lambda *_a, **_k: FakeDBManager()
     )
 
     monkeypatch.setattr(
@@ -1342,8 +1257,7 @@ def test_source_processor_records_network_rss_failure(
 
     assert telemetry.failures
     assert any(
-        failure.get("discovery_method") == "rss"
-        for failure in telemetry.failures
+        failure.get("discovery_method") == "rss" for failure in telemetry.failures
     )
 
     assert meta_updates
@@ -1365,7 +1279,7 @@ def test_source_processor_marks_rss_missing_after_non_network_failure(
 
     class TelemetryStub:
         def __init__(self) -> None:
-            self.failures: List[Dict[str, Any]] = []
+            self.failures: list[dict[str, Any]] = []
             self.methods = [
                 DiscoveryMethod.RSS_FEED,
                 DiscoveryMethod.NEWSPAPER4K,
@@ -1381,63 +1295,43 @@ def test_source_processor_marks_rss_missing_after_non_network_failure(
     telemetry = TelemetryStub()
     instance.telemetry = cast(Any, telemetry)
 
-    existing_urls: Set[str] = set()
+    existing_urls: set[str] = set()
 
-    setattr(
-        instance,
-        "_get_existing_urls_for_source",
-        _bind_method(instance, lambda _self, _sid: existing_urls),
+    instance._get_existing_urls_for_source = _bind_method(
+        instance, lambda _self, _sid: existing_urls
     )
-    setattr(
-        instance,
-        "_collect_allowed_hosts",
-        _bind_method(instance, lambda *_a, **_k: {"example.com"}),
+    instance._collect_allowed_hosts = _bind_method(
+        instance, lambda *_a, **_k: {"example.com"}
     )
 
-    meta_updates: List[tuple[str, Dict[str, Any]]] = []
+    meta_updates: list[tuple[str, dict[str, Any]]] = []
 
-    setattr(
+    instance._update_source_meta = _bind_method(
         instance,
-        "_update_source_meta",
-        _bind_method(
-            instance,
-            lambda _self, source_id, payload: meta_updates.append(
-                (source_id, dict(payload))
-            ),
+        lambda _self, source_id, payload: meta_updates.append(
+            (source_id, dict(payload))
         ),
     )
 
-    setattr(
+    instance.discover_with_rss_feeds = _bind_method(
         instance,
-        "discover_with_rss_feeds",
-        _bind_method(
-            instance,
-            lambda *_a, **_k: (_ for _ in ()).throw(  # type: ignore[misc]
-                RuntimeError("rss parsing failed")
-            ),
-        ),
+        lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("rss parsing failed")),
     )
 
-    setattr(
-        instance,
-        "discover_with_newspaper4k",
-        _bind_method(instance, lambda *_a, **_k: []),
-    )
+    instance.discover_with_newspaper4k = _bind_method(instance, lambda *_a, **_k: [])
 
     class FakeDBManager:
         def __init__(self) -> None:
             self.session = _FakeSession()
 
-        def __enter__(self) -> "FakeDBManager":
+        def __enter__(self) -> FakeDBManager:
             return self
 
         def __exit__(self, *_exc: Any) -> bool:
             return False
 
-    setattr(
-        instance,
-        "_create_db_manager",
-        _bind_method(instance, lambda *_a, **_k: FakeDBManager()),
+    instance._create_db_manager = _bind_method(
+        instance, lambda *_a, **_k: FakeDBManager()
     )
 
     monkeypatch.setattr(
@@ -1476,8 +1370,7 @@ def test_source_processor_marks_rss_missing_after_non_network_failure(
 
     assert telemetry.failures
     assert any(
-        failure.get("discovery_method") == "rss"
-        for failure in telemetry.failures
+        failure.get("discovery_method") == "rss" for failure in telemetry.failures
     )
 
     assert meta_updates
@@ -1499,7 +1392,7 @@ def test_source_processor_records_failures_for_downstream_methods(
 
     class TelemetryStub:
         def __init__(self) -> None:
-            self.failures: List[Dict[str, Any]] = []
+            self.failures: list[dict[str, Any]] = []
             self.methods = [
                 DiscoveryMethod.RSS_FEED,
                 DiscoveryMethod.NEWSPAPER4K,
@@ -1516,71 +1409,45 @@ def test_source_processor_records_failures_for_downstream_methods(
     telemetry = TelemetryStub()
     instance.telemetry = cast(Any, telemetry)
 
-    existing_urls: Set[str] = set()
+    existing_urls: set[str] = set()
 
-    setattr(
-        instance,
-        "_get_existing_urls_for_source",
-        _bind_method(instance, lambda _self, _sid: existing_urls),
+    instance._get_existing_urls_for_source = _bind_method(
+        instance, lambda _self, _sid: existing_urls
     )
-    setattr(
-        instance,
-        "_collect_allowed_hosts",
-        _bind_method(instance, lambda *_a, **_k: {"example.com"}),
+    instance._collect_allowed_hosts = _bind_method(
+        instance, lambda *_a, **_k: {"example.com"}
     )
 
-    setattr(
+    instance.discover_with_rss_feeds = _bind_method(
         instance,
-        "discover_with_rss_feeds",
-        _bind_method(
-            instance,
-            lambda *_a, **_k: (
-                [],
-                {
-                    "feeds_tried": 1,
-                    "feeds_successful": 0,
-                    "network_errors": 0,
-                },
-            ),
+        lambda *_a, **_k: (
+            [],
+            {"feeds_tried": 1, "feeds_successful": 0, "network_errors": 0},
         ),
     )
 
-    setattr(
+    instance.discover_with_newspaper4k = _bind_method(
         instance,
-        "discover_with_newspaper4k",
-        _bind_method(
-            instance,
-            lambda *_a, **_k: (_ for _ in ()).throw(
-                RuntimeError("newspaper down")
-            ),
-        ),
+        lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("newspaper down")),
     )
 
-    setattr(
+    instance.discover_with_storysniffer = _bind_method(
         instance,
-        "discover_with_storysniffer",
-        _bind_method(
-            instance,
-            lambda *_a, **_k: (_ for _ in ()).throw(
-                ValueError("storysniffer offline")
-            ),
-        ),
+        lambda *_a, **_k: (_ for _ in ()).throw(ValueError("storysniffer offline")),
     )
 
     class FakeDBManager:
         def __init__(self) -> None:
             self.session = _FakeSession()
 
-        def __enter__(self) -> "FakeDBManager":
+        def __enter__(self) -> FakeDBManager:
             return self
 
         def __exit__(self, *_exc: Any) -> bool:
             return False
 
-    setattr(
-        instance,
-        "_create_db_manager",
-        _bind_method(instance, lambda *_a, **_k: FakeDBManager()),
+    instance._create_db_manager = _bind_method(
+        instance, lambda *_a, **_k: FakeDBManager()
     )
 
     monkeypatch.setattr(
@@ -1624,9 +1491,7 @@ def test_source_processor_records_failures_for_downstream_methods(
     discovery_methods = {
         failure.get("discovery_method") for failure in telemetry.failures
     }
-    assert {"newspaper4k", "storysniffer", "all_methods"}.issubset(
-        discovery_methods
-    )
+    assert {"newspaper4k", "storysniffer", "all_methods"}.issubset(discovery_methods)
 
 
 def test_source_processor_skips_out_of_scope_urls(
@@ -1642,7 +1507,7 @@ def test_source_processor_skips_out_of_scope_urls(
 
     class TelemetryStub:
         def __init__(self) -> None:
-            self.failures: List[Dict[str, Any]] = []
+            self.failures: list[dict[str, Any]] = []
             self.methods = [
                 DiscoveryMethod.RSS_FEED,
                 DiscoveryMethod.NEWSPAPER4K,
@@ -1658,39 +1523,23 @@ def test_source_processor_skips_out_of_scope_urls(
     telemetry = TelemetryStub()
     instance.telemetry = cast(Any, telemetry)
 
-    existing_urls: Set[str] = set()
+    existing_urls: set[str] = set()
 
-    setattr(
-        instance,
-        "_get_existing_urls_for_source",
-        _bind_method(instance, lambda _self, _sid: existing_urls),
+    instance._get_existing_urls_for_source = _bind_method(
+        instance, lambda _self, _sid: existing_urls
     )
-    setattr(
-        instance,
-        "_collect_allowed_hosts",
-        _bind_method(instance, lambda *_a, **_k: {"example.com"}),
+    instance._collect_allowed_hosts = _bind_method(
+        instance, lambda *_a, **_k: {"example.com"}
     )
-    setattr(
-        instance,
-        "_reset_rss_failure_state",
-        _bind_method(instance, lambda *_a, **_k: None),
-    )
-    setattr(
-        instance,
-        "_increment_rss_failure",
-        _bind_method(instance, lambda *_a, **_k: None),
-    )
+    instance._reset_rss_failure_state = _bind_method(instance, lambda *_a, **_k: None)
+    instance._increment_rss_failure = _bind_method(instance, lambda *_a, **_k: None)
 
-    meta_updates: List[tuple[str, Dict[str, Any]]] = []
+    meta_updates: list[tuple[str, dict[str, Any]]] = []
 
-    setattr(
+    instance._update_source_meta = _bind_method(
         instance,
-        "_update_source_meta",
-        _bind_method(
-            instance,
-            lambda _self, source_id, payload: meta_updates.append(
-                (source_id, dict(payload))
-            ),
+        lambda _self, source_id, payload: meta_updates.append(
+            (source_id, dict(payload))
         ),
     )
 
@@ -1712,44 +1561,30 @@ def test_source_processor_skips_out_of_scope_urls(
         },
     ]
 
-    setattr(
+    instance.discover_with_rss_feeds = _bind_method(
         instance,
-        "discover_with_rss_feeds",
-        _bind_method(
-            instance,
-            lambda *_a, **_k: (
-                discovered_articles,
-                {
-                    "feeds_tried": 1,
-                    "feeds_successful": 1,
-                    "network_errors": 0,
-                },
-            ),
+        lambda *_a, **_k: (
+            discovered_articles,
+            {"feeds_tried": 1, "feeds_successful": 1, "network_errors": 0},
         ),
     )
 
-    setattr(
-        instance,
-        "discover_with_newspaper4k",
-        _bind_method(instance, lambda *_a, **_k: []),
-    )
+    instance.discover_with_newspaper4k = _bind_method(instance, lambda *_a, **_k: [])
 
-    store_calls: List[Dict[str, Any]] = []
+    store_calls: list[dict[str, Any]] = []
 
     class FakeDBManager:
         def __init__(self) -> None:
             self.session = _FakeSession()
 
-        def __enter__(self) -> "FakeDBManager":
+        def __enter__(self) -> FakeDBManager:
             return self
 
         def __exit__(self, *_exc: Any) -> bool:
             return False
 
-    setattr(
-        instance,
-        "_create_db_manager",
-        _bind_method(instance, lambda *_a, **_k: FakeDBManager()),
+    instance._create_db_manager = _bind_method(
+        instance, lambda *_a, **_k: FakeDBManager()
     )
 
     def _capture_upsert(_session: Any, **data: Any) -> None:
@@ -1816,7 +1651,7 @@ def test_source_processor_stores_when_publish_date_parse_fails(
 
     class TelemetryStub:
         def __init__(self) -> None:
-            self.failures: List[Dict[str, Any]] = []
+            self.failures: list[dict[str, Any]] = []
             self.methods = [DiscoveryMethod.RSS_FEED]
 
         def get_effective_discovery_methods(self, source_id: str):
@@ -1829,100 +1664,64 @@ def test_source_processor_stores_when_publish_date_parse_fails(
     telemetry = TelemetryStub()
     instance.telemetry = cast(Any, telemetry)
 
-    existing_urls: Set[str] = set()
+    existing_urls: set[str] = set()
 
-    setattr(
-        instance,
-        "_get_existing_urls_for_source",
-        _bind_method(instance, lambda _self, _sid: existing_urls),
+    instance._get_existing_urls_for_source = _bind_method(
+        instance, lambda _self, _sid: existing_urls
     )
-    setattr(
-        instance,
-        "_collect_allowed_hosts",
-        _bind_method(instance, lambda *_a, **_k: {"example.com"}),
+    instance._collect_allowed_hosts = _bind_method(
+        instance, lambda *_a, **_k: {"example.com"}
     )
-    setattr(
-        instance,
-        "_reset_rss_failure_state",
-        _bind_method(instance, lambda *_a, **_k: None),
-    )
-    setattr(
-        instance,
-        "_increment_rss_failure",
-        _bind_method(instance, lambda *_a, **_k: None),
-    )
+    instance._reset_rss_failure_state = _bind_method(instance, lambda *_a, **_k: None)
+    instance._increment_rss_failure = _bind_method(instance, lambda *_a, **_k: None)
 
-    meta_updates: List[tuple[str, Dict[str, Any]]] = []
+    meta_updates: list[tuple[str, dict[str, Any]]] = []
 
-    setattr(
+    instance._update_source_meta = _bind_method(
         instance,
-        "_update_source_meta",
-        _bind_method(
-            instance,
-            lambda _self, source_id, payload: meta_updates.append(
-                (source_id, dict(payload))
-            ),
+        lambda _self, source_id, payload: meta_updates.append(
+            (source_id, dict(payload))
         ),
     )
 
-    setattr(
+    instance._coerce_publish_date = _bind_method(
         instance,
-        "_coerce_publish_date",
-        _bind_method(
-            instance,
-            lambda *_a, **_k: (_ for _ in ()).throw(
-                ValueError("bad publish date")
-            ),
-        ),
+        lambda *_a, **_k: (_ for _ in ()).throw(ValueError("bad publish date")),
     )
 
     invalid_date = "Thu, 24 Oct 2024 18:42:00 GMT"
 
-    setattr(
+    instance.discover_with_rss_feeds = _bind_method(
         instance,
-        "discover_with_rss_feeds",
-        _bind_method(
-            instance,
-            lambda *_a, **_k: (
-                [
-                    {
-                        "url": "https://example.com/article",
-                        "publish_date": invalid_date,
-                        "metadata": {"feed": "primary"},
-                        "discovery_method": "rss_feed",
-                    }
-                ],
+        lambda *_a, **_k: (
+            [
                 {
-                    "feeds_tried": 1,
-                    "feeds_successful": 1,
-                    "network_errors": 0,
-                },
-            ),
+                    "url": "https://example.com/article",
+                    "publish_date": invalid_date,
+                    "metadata": {"feed": "primary"},
+                    "discovery_method": "rss_feed",
+                }
+            ],
+            {"feeds_tried": 1, "feeds_successful": 1, "network_errors": 0},
         ),
     )
 
-    setattr(
-        instance,
-        "discover_with_newspaper4k",
-        _bind_method(instance, lambda *_a, **_k: []),
-    )
+    instance.discover_with_newspaper4k = _bind_method(instance, lambda *_a, **_k: [])
 
-    store_calls: List[Dict[str, Any]] = []
+    store_calls: list[dict[str, Any]] = []
 
     class FakeDBManager:
         def __init__(self) -> None:
             self.session = _FakeSession()
 
-        def __enter__(self) -> "FakeDBManager":
+        def __enter__(self) -> FakeDBManager:
             return self
 
         def __exit__(self, *_exc: Any) -> bool:
             return False
 
-    setattr(
-        instance,
-        "_create_db_manager",
-        _bind_method(instance, lambda *_a, **_k: FakeDBManager()),
+    instance._create_db_manager = _bind_method(
+        instance, lambda *_a, **_k: FakeDBManager()
     )
 
     def _capture_upsert(_session: Any, **data: Any) -> None:
@@ -1991,7 +1790,7 @@ def test_source_processor_continues_when_upsert_raises(
 
     class TelemetryStub:
         def __init__(self) -> None:
-            self.failures: List[Dict[str, Any]] = []
+            self.failures: list[dict[str, Any]] = []
             self.methods = [DiscoveryMethod.RSS_FEED]
 
         def get_effective_discovery_methods(self, source_id: str):
@@ -2004,72 +1803,50 @@ def test_source_processor_continues_when_upsert_raises(
     telemetry = TelemetryStub()
     instance.telemetry = cast(Any, telemetry)
 
-    existing_urls: Set[str] = set()
+    existing_urls: set[str] = set()
 
-    setattr(
-        instance,
-        "_get_existing_urls_for_source",
-        _bind_method(instance, lambda _self, _sid: existing_urls),
+    instance._get_existing_urls_for_source = _bind_method(
+        instance, lambda _self, _sid: existing_urls
     )
-    setattr(
-        instance,
-        "_collect_allowed_hosts",
-        _bind_method(instance, lambda *_a, **_k: {"example.com"}),
+    instance._collect_allowed_hosts = _bind_method(
+        instance, lambda *_a, **_k: {"example.com"}
     )
-    setattr(
-        instance,
-        "_reset_rss_failure_state",
-        _bind_method(instance, lambda *_a, **_k: None),
-    )
-    setattr(
-        instance,
-        "_increment_rss_failure",
-        _bind_method(instance, lambda *_a, **_k: None),
-    )
+    instance._reset_rss_failure_state = _bind_method(instance, lambda *_a, **_k: None)
+    instance._increment_rss_failure = _bind_method(instance, lambda *_a, **_k: None)
 
-    setattr(
+    instance.discover_with_rss_feeds = _bind_method(
         instance,
-        "discover_with_rss_feeds",
-        _bind_method(
-            instance,
-            lambda *_a, **_k: (
-                [
-                    {
-                        "url": "https://example.com/good",
-                        "publish_date": datetime.utcnow().isoformat(),
-                        "discovery_method": "rss_feed",
-                    },
-                    {
-                        "url": "https://example.com/bad",
-                        "publish_date": datetime.utcnow().isoformat(),
-                        "discovery_method": "rss_feed",
-                    },
-                ],
+        lambda *_a, **_k: (
+            [
                 {
-                    "feeds_tried": 1,
-                    "feeds_successful": 1,
-                    "network_errors": 0,
+                    "url": "https://example.com/good",
+                    "publish_date": datetime.utcnow().isoformat(),
+                    "discovery_method": "rss_feed",
                 },
-            ),
+                {
+                    "url": "https://example.com/bad",
+                    "publish_date": datetime.utcnow().isoformat(),
+                    "discovery_method": "rss_feed",
+                },
+            ],
+            {"feeds_tried": 1, "feeds_successful": 1, "network_errors": 0},
         ),
     )
 
-    store_calls: List[Dict[str, Any]] = []
+    store_calls: list[dict[str, Any]] = []
 
     class FakeDBManager:
         def __init__(self) -> None:
             self.session = _FakeSession()
 
-        def __enter__(self) -> "FakeDBManager":
+        def __enter__(self) -> FakeDBManager:
             return self
 
         def __exit__(self, *_exc: Any) -> bool:
             return False
 
-    setattr(
-        instance,
-        "_create_db_manager",
-        _bind_method(instance, lambda *_a, **_k: FakeDBManager()),
+    instance._create_db_manager = _bind_method(
+        instance, lambda *_a, **_k: FakeDBManager()
     )
 
     def _capture_upsert(_session: Any, **data: Any) -> None:
@@ -2138,39 +1915,27 @@ def test_process_source_dedupes_query_urls(
 
     existing_urls = {"https://example.com/news-item"}
 
-    setattr(
-        instance,
-        "_get_existing_urls_for_source",
-        _bind_method(instance, lambda _self, _sid: set(existing_urls)),
+    instance._get_existing_urls_for_source = _bind_method(
+        instance, lambda _self, _sid: set(existing_urls)
     )
-    setattr(
-        instance,
-        "_collect_allowed_hosts",
-        _bind_method(instance, lambda *_a, **_k: {"example.com"}),
+    instance._collect_allowed_hosts = _bind_method(
+        instance, lambda *_a, **_k: {"example.com"}
     )
-    setattr(
-        instance,
-        "_reset_rss_failure_state",
-        _bind_method(instance, lambda *_a, **_k: None),
-    )
-    setattr(
-        instance,
-        "_increment_rss_failure",
-        _bind_method(instance, lambda *_a, **_k: None),
-    )
+    instance._reset_rss_failure_state = _bind_method(instance, lambda *_a, **_k: None)
+    instance._increment_rss_failure = _bind_method(instance, lambda *_a, **_k: None)
 
     class FakeDBManager:
         def __init__(
             self,
             *_a: Any,
-            existing_records: Dict[str, Any] | None = None,
+            existing_records: dict[str, Any] | None = None,
             **_k: Any,
         ) -> None:
             self.session = _FakeSession()
             if existing_records:
                 self.session._records.update(existing_records)
 
-        def __enter__(self) -> "FakeDBManager":
+        def __enter__(self) -> FakeDBManager:
             return self
 
         def __exit__(self, *_exc: Any) -> bool:
@@ -2178,7 +1943,7 @@ def test_process_source_dedupes_query_urls(
 
     monkeypatch.setattr(discovery_module, "DatabaseManager", FakeDBManager)
 
-    store_calls: List[Dict[str, Any]] = []
+    store_calls: list[dict[str, Any]] = []
 
     def fake_upsert(_session: Any, **data: Any) -> None:
         store_calls.append(data)
@@ -2208,9 +1973,7 @@ def test_process_source_dedupes_query_urls(
         _bind_method(instance, lambda *_a, **_k: []),
     )
 
-    dedupe_candidate = (
-        "https://example.com/news-item?utm=ref&utm_campaign=test#section"
-    )
+    dedupe_candidate = "https://example.com/news-item?utm=ref&utm_campaign=test#section"
 
     monkeypatch.setattr(
         instance,
@@ -2279,7 +2042,7 @@ def test_run_discovery_processes_sources(
         "sources_limited_by_host": 2,
     }
 
-    get_sources_calls: List[Dict[str, Any]] = []
+    get_sources_calls: list[dict[str, Any]] = []
 
     def fake_get_sources_to_process(self, **kwargs: Any):
         get_sources_calls.append(kwargs)
@@ -2295,12 +2058,12 @@ def test_run_discovery_processes_sources(
     def fake_get_existing(self, source_id: str) -> int:
         return existing_counts[source_id]
 
-    meta_updates: List[tuple[str, Dict[str, Any]]] = []
+    meta_updates: list[tuple[str, dict[str, Any]]] = []
 
     def fake_update_meta(
         self,
         source_id: str,
-        updates: Dict[str, Any],
+        updates: dict[str, Any],
     ) -> None:
         meta_updates.append((source_id, updates))
 
@@ -2322,26 +2085,12 @@ def test_run_discovery_processes_sources(
             raise RuntimeError("boom")
         raise AssertionError(f"Unexpected source {source_id}")
 
-    setattr(
-        instance,
-        "get_sources_to_process",
-        _bind_method(instance, fake_get_sources_to_process),
+    instance.get_sources_to_process = _bind_method(
+        instance, fake_get_sources_to_process
     )
-    setattr(
-        instance,
-        "_get_existing_article_count",
-        _bind_method(instance, fake_get_existing),
-    )
-    setattr(
-        instance,
-        "_update_source_meta",
-        _bind_method(instance, fake_update_meta),
-    )
-    setattr(
-        instance,
-        "process_source",
-        _bind_method(instance, fake_process_source),
-    )
+    instance._get_existing_article_count = _bind_method(instance, fake_get_existing)
+    instance._update_source_meta = _bind_method(instance, fake_update_meta)
+    instance.process_source = _bind_method(instance, fake_process_source)
 
     monkeypatch.setattr(discovery_module.time, "sleep", lambda *_a, **_k: None)
 
@@ -2393,15 +2142,11 @@ def test_run_discovery_uuid_filter_returns_empty(
     instance.days_back = 7
 
     def fake_get_sources_to_process(self, **kwargs: Any):
-        df = pd.DataFrame(
-            [{"id": "1", "name": "Source Alpha", "url": "https://alpha"}]
-        )
+        df = pd.DataFrame([{"id": "1", "name": "Source Alpha", "url": "https://alpha"}])
         return df, {"sources_available": 1}
 
-    setattr(
-        instance,
-        "get_sources_to_process",
-        _bind_method(instance, fake_get_sources_to_process),
+    instance.get_sources_to_process = _bind_method(
+        instance, fake_get_sources_to_process
     )
 
     monkeypatch.setattr(discovery_module.time, "sleep", lambda *_a, **_k: None)

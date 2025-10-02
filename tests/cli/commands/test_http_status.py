@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 from types import SimpleNamespace
-from typing import Any, Dict, List, Sequence
+from typing import Any, Sequence
 
 import pytest
 
@@ -21,15 +21,15 @@ class _FakeResult:
     def __init__(self, rows: Sequence[Any]):
         self._rows = list(rows)
 
-    def fetchall(self) -> List[Any]:
+    def fetchall(self) -> list[Any]:
         return list(self._rows)
 
 
 class _FakeConnection:
-    def __init__(self, parent: "_FakeDatabase"):
+    def __init__(self, parent: _FakeDatabase):
         self._parent = parent
 
-    def __enter__(self) -> "_FakeConnection":
+    def __enter__(self) -> _FakeConnection:
         return self
 
     def __exit__(self, *_args) -> None:  # pragma: no cover - no cleanup
@@ -54,8 +54,8 @@ class _FakeDatabase:
     def __init__(
         self,
         *,
-        status_rows: List[Dict[str, Any]] | None = None,
-        host_lookup: List[str] | None = None,
+        status_rows: list[dict[str, Any]] | None = None,
+        host_lookup: list[str] | None = None,
         query_error: bool = False,
         lookup_error: bool = False,
     ) -> None:
@@ -63,24 +63,24 @@ class _FakeDatabase:
         self.host_lookup = host_lookup or []
         self.query_error = query_error
         self.lookup_error = lookup_error
-        self.query_calls: List[tuple[str, Dict[str, Any]]] = []
-        self.lookup_calls: List[Dict[str, Any]] = []
+        self.query_calls: list[tuple[str, dict[str, Any]]] = []
+        self.lookup_calls: list[dict[str, Any]] = []
 
-    def __enter__(self) -> "_FakeDatabase":
+    def __enter__(self) -> _FakeDatabase:
         return self
 
     def __exit__(self, *_args) -> None:  # pragma: no cover - no cleanup
         return None
 
     @property
-    def engine(self) -> "_FakeDatabase":
+    def engine(self) -> _FakeDatabase:
         return self
 
     def connect(self) -> _FakeConnection:
         return _FakeConnection(self)
 
 
-_SAMPLE_ROW: Dict[str, Any] = {
+_SAMPLE_ROW: dict[str, Any] = {
     "id": 1,
     "source_id": "src-1",
     "source_url": "https://example.com",
@@ -95,14 +95,12 @@ _SAMPLE_ROW: Dict[str, Any] = {
 }
 
 
-def _install_db(
-    monkeypatch: pytest.MonkeyPatch, fake_db: _FakeDatabase
-) -> None:
+def _install_db(monkeypatch: pytest.MonkeyPatch, fake_db: _FakeDatabase) -> None:
     monkeypatch.setattr(http_status, "DatabaseManager", lambda: fake_db)
 
 
-def _capture_print(monkeypatch: pytest.MonkeyPatch) -> List[str]:
-    printed: List[str] = []
+def _capture_print(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    printed: list[str] = []
 
     def fake_print(*parts, **_kwargs) -> None:
         printed.append(" ".join(str(part) for part in parts))
@@ -167,9 +165,7 @@ def test_handle_http_status_adds_host_like_filter(monkeypatch):
     _install_db(monkeypatch, fake_db)
 
     printed = _capture_print(monkeypatch)
-    args = _build_parser().parse_args(
-        ["dump-http-status", "--host", "example.com"]
-    )
+    args = _build_parser().parse_args(["dump-http-status", "--host", "example.com"])
 
     exit_code = http_status.handle_http_status_command(args)
 
@@ -196,9 +192,7 @@ def test_handle_http_status_resolves_lookup_host(monkeypatch):
 
     assert exit_code == 0
     assert printed and not printed[0].startswith("Warning")
-    assert fake_db.lookup_calls == [
-        {"h": "%Example.com%", "h_norm": "%example.com%"}
-    ]
+    assert fake_db.lookup_calls == [{"h": "%Example.com%", "h_norm": "%example.com%"}]
     sql, params = fake_db.query_calls[0]
     assert "source_id IN" in sql
     assert params["sid0"] == "id-1"
@@ -226,16 +220,14 @@ def test_handle_http_status_handles_exception(monkeypatch):
     _install_db(monkeypatch, fake_db)
 
     printed = _capture_print(monkeypatch)
-    exceptions: List[str] = []
+    exceptions: list[str] = []
     monkeypatch.setattr(
         http_status,
         "logger",
         SimpleNamespace(exception=lambda message: exceptions.append(message)),
     )
 
-    args = _build_parser().parse_args(
-        ["dump-http-status", "--host", "example.com"]
-    )
+    args = _build_parser().parse_args(["dump-http-status", "--host", "example.com"])
 
     exit_code = http_status.handle_http_status_command(args)
 

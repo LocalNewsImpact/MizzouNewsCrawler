@@ -15,7 +15,9 @@ def test_repeated_non_network_failures_set_rss_missing(monkeypatch):
     nd = NewsDiscovery(timeout=1, delay=0)
 
     recorded_updates = []
-    monkeypatch.setattr(nd, "_update_source_meta", lambda sid, updates: recorded_updates.append(updates))
+    monkeypatch.setattr(
+        nd, "_update_source_meta", lambda sid, updates: recorded_updates.append(updates)
+    )
 
     # Simulate RSS discovery with no network errors but no successful feeds
     def fake_rss(*args, **kwargs):
@@ -25,15 +27,17 @@ def test_repeated_non_network_failures_set_rss_missing(monkeypatch):
     monkeypatch.setattr(nd, "discover_with_newspaper4k", lambda *a, **k: [])
     monkeypatch.setattr(nd, "discover_with_storysniffer", lambda *a, **k: [])
 
-    source_row = pd.Series({
-        "url": "https://example.com",
-        "name": "Example",
-        "id": "test-source-2",
-        "metadata": None,
-        "city": None,
-        "county": None,
-        "type_classification": None,
-    })
+    source_row = pd.Series(
+        {
+            "url": "https://example.com",
+            "name": "Example",
+            "id": "test-source-2",
+            "metadata": None,
+            "city": None,
+            "county": None,
+            "type_classification": None,
+        }
+    )
 
     # Monkeypatch DatabaseManager used in discovery to return a metadata
     # row with rss_consecutive_failures = threshold - 1 so a single call
@@ -54,7 +58,9 @@ def test_repeated_non_network_failures_set_rss_missing(monkeypatch):
 
         def execute(self, *args, **kwargs):
             # Return a JSON string similar to what's stored in the DB
-            return FakeResult(json.dumps({"rss_consecutive_failures": RSS_MISSING_THRESHOLD - 1}))
+            return FakeResult(
+                json.dumps({"rss_consecutive_failures": RSS_MISSING_THRESHOLD - 1})
+            )
 
     class FakeEngine:
         def connect(self):
@@ -85,8 +91,7 @@ def test_repeated_non_network_failures_set_rss_missing(monkeypatch):
 
     # Ensure we saw an update that sets rss_missing or increments the counter
     found_missing = any(
-        "rss_missing" in u and u.get("rss_missing")
-        for u in recorded_updates
+        "rss_missing" in u and u.get("rss_missing") for u in recorded_updates
     )
 
     found_count = any(

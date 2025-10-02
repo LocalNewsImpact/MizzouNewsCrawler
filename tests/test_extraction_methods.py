@@ -76,23 +76,26 @@ def mock_html_minimal():
 @pytest.fixture
 def mock_requests_response():
     """Create a mock requests response."""
+
     def _create_response(content: str, status_code: int = 200):
         response = Mock()
         response.text = content
-        response.content = content.encode('utf-8')
+        response.content = content.encode("utf-8")
         response.status_code = status_code
         response.raise_for_status = Mock()
         if status_code >= 400:
-            response.raise_for_status.side_effect = \
-                requests.RequestException(f"HTTP {status_code}")
+            response.raise_for_status.side_effect = requests.RequestException(
+                f"HTTP {status_code}"
+            )
         return response
+
     return _create_response
 
 
 @pytest.fixture
 def mock_webdriver():
     """Mock webdriver for Selenium tests."""
-    with patch('src.crawler.webdriver') as mock_wd:
+    with patch("src.crawler.webdriver") as mock_wd:
         mock_driver = Mock()
         mock_driver.page_source = """
         <html>
@@ -119,8 +122,7 @@ class TestContentExtractor:
                 "2024-09-25",
             ),
             (
-                "https://www.kbia.org/health/2024-10-01/"
-                "test-segment/",
+                "https://www.kbia.org/health/2024-10-01/" "test-segment/",
                 "2024-10-01",
             ),
         ],
@@ -142,18 +144,22 @@ class TestContentExtractor:
             "extracted_at": datetime.utcnow().isoformat(),
         }
 
-        with patch.object(
-            extractor,
-            "_extract_with_newspaper",
-            return_value=newspaper_result,
-        ), patch.object(
-            extractor,
-            "_extract_with_beautifulsoup",
-            return_value={},
-        ), patch.object(
-            extractor,
-            "_extract_with_selenium",
-            return_value={},
+        with (
+            patch.object(
+                extractor,
+                "_extract_with_newspaper",
+                return_value=newspaper_result,
+            ),
+            patch.object(
+                extractor,
+                "_extract_with_beautifulsoup",
+                return_value={},
+            ),
+            patch.object(
+                extractor,
+                "_extract_with_selenium",
+                return_value={},
+            ),
         ):
             result = extractor.extract_content(url)
 
@@ -169,9 +175,7 @@ class TestContentExtractor:
         assert fallback_info["source"] == "url_path"
 
     def test_publish_date_url_fallback_skips_unknown_hosts(self, extractor):
-        url = (
-            "https://example.com/news/2024/09/25/test-story"
-        )
+        url = "https://example.com/news/2024/09/25/test-story"
         content_text = " ".join(["content"] * 40)
         newspaper_result = {
             "url": url,
@@ -183,18 +187,22 @@ class TestContentExtractor:
             "extracted_at": datetime.utcnow().isoformat(),
         }
 
-        with patch.object(
-            extractor,
-            "_extract_with_newspaper",
-            return_value=newspaper_result,
-        ), patch.object(
-            extractor,
-            "_extract_with_beautifulsoup",
-            return_value={},
-        ), patch.object(
-            extractor,
-            "_extract_with_selenium",
-            return_value={},
+        with (
+            patch.object(
+                extractor,
+                "_extract_with_newspaper",
+                return_value=newspaper_result,
+            ),
+            patch.object(
+                extractor,
+                "_extract_with_beautifulsoup",
+                return_value={},
+            ),
+            patch.object(
+                extractor,
+                "_extract_with_selenium",
+                return_value={},
+            ),
         ):
             result = extractor.extract_content(url)
 
@@ -350,9 +358,7 @@ class TestContentExtractor:
         assert fallback_info is None
 
     def test_publish_date_detected_near_byline_text(self, extractor):
-        content = (
-            "Lorem ipsum dolor sit amet, consectetur adipiscing elit. " * 5
-        )
+        content = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. " * 5
         html = textwrap.dedent(
             f"""
             <html>
@@ -377,10 +383,7 @@ class TestContentExtractor:
         assert result["publish_date"].startswith("2025-09-26")
 
     def test_publish_date_detected_above_byline_text(self, extractor):
-        content = (
-            "Sed ut perspiciatis unde omnis iste natus error sit voluptatem. "
-            * 4
-        )
+        content = "Sed ut perspiciatis unde omnis iste natus error sit voluptatem. " * 4
         html = textwrap.dedent(
             f"""
             <html>
@@ -407,12 +410,9 @@ class TestContentExtractor:
         assert result["publish_date"] is not None
         assert result["publish_date"].startswith("2025-09-24")
 
-    def test_publish_date_detected_next_to_byline_without_keywords(
-        self, extractor
-    ):
+    def test_publish_date_detected_next_to_byline_without_keywords(self, extractor):
         content = (
-            "Nemo enim ipsam voluptatem quia voluptas sit aspernatur "
-            "aut odit. "
+            "Nemo enim ipsam voluptatem quia voluptas sit aspernatur " "aut odit. "
         ) * 4
         html = textwrap.dedent(
             f"""
@@ -451,12 +451,12 @@ class TestContentExtractor:
             "extracted_at": datetime.utcnow().isoformat(),
         }
 
-        with patch.object(
-            extractor, "_extract_with_newspaper", return_value=empty_result
-        ), patch.object(
-            extractor, "_extract_with_beautifulsoup", return_value={}
-        ), patch.object(
-            extractor, "_extract_with_selenium", return_value={}
+        with (
+            patch.object(
+                extractor, "_extract_with_newspaper", return_value=empty_result
+            ),
+            patch.object(extractor, "_extract_with_beautifulsoup", return_value={}),
+            patch.object(extractor, "_extract_with_selenium", return_value={}),
         ):
             result = extractor.extract_content(url)
 
@@ -480,19 +480,25 @@ class TestRealWorldExtraction:
         # Real URLs from database that have missing fields
         test_urls = [
             # Missing only author
-            ("https://www.warrencountyrecord.com/stories/"
-             "warrior-ridge-elementary-wow-winners,160763"),
+            (
+                "https://www.warrencountyrecord.com/stories/"
+                "warrior-ridge-elementary-wow-winners,160763"
+            ),
             # Missing author and content
-            ("https://www.webstercountycitizen.com/upcoming_events/"
-             "article_6ca9c607-4677-473e-99b3-fb58292d2876.html"),
+            (
+                "https://www.webstercountycitizen.com/upcoming_events/"
+                "article_6ca9c607-4677-473e-99b3-fb58292d2876.html"
+            ),
             # Missing only content
-            ("https://www.webstercountycitizen.com/community/"
-             "article_8130b150-ee3f-11ef-8297-27cfd0562367.html"),
+            (
+                "https://www.webstercountycitizen.com/community/"
+                "article_8130b150-ee3f-11ef-8297-27cfd0562367.html"
+            ),
         ]
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("REAL-WORLD EXTRACTION TEST RESULTS")
-        print("="*60)
+        print("=" * 60)
 
         for i, url in enumerate(test_urls, 1):
             print(f"\n{i}. Testing URL: {url}")
@@ -507,8 +513,7 @@ class TestRealWorldExtraction:
 
                 # Test passes if we get some result (even with missing fields)
                 # NOTE: Missing fields may indicate data not present in source
-                assert result is not None, \
-                    f"Complete extraction failure for {url}"
+                assert result is not None, f"Complete extraction failure for {url}"
 
                 # For real-world URLs, 50%+ completion is often best possible
                 # when source HTML lacks structured metadata
@@ -516,8 +521,9 @@ class TestRealWorldExtraction:
             except Exception as e:
                 print(f"   ERROR: {str(e)}")
                 # Check for network issues
-                is_network_error = ("timeout" in str(e).lower() or
-                                    "connection" in str(e).lower())
+                is_network_error = (
+                    "timeout" in str(e).lower() or "connection" in str(e).lower()
+                )
                 if is_network_error:
                     print(f"   SKIPPED: Network issue with {url}")
                     continue
@@ -544,7 +550,7 @@ class TestRealWorldExtraction:
         content_ok = len(content) >= 50
         print(f"   CONTENT: {'✓' if content_ok else '✗'} {len(content)} chars")
 
-        date_str = publish_date or '[MISSING]'
+        date_str = publish_date or "[MISSING]"
         print(f"   DATE: {'✓' if publish_date else '✗'} {date_str}")
 
         # Show which methods were used for each field
@@ -554,21 +560,17 @@ class TestRealWorldExtraction:
                 print(f"     {field}: {method}")
 
         # Calculate completion percentage
-        fields_present = sum([
-            bool(title),
-            bool(author),
-            bool(len(content) >= 50),
-            bool(publish_date)
-        ])
+        fields_present = sum(
+            [bool(title), bool(author), bool(len(content) >= 50), bool(publish_date)]
+        )
         completion_pct = (fields_present / 4) * 100
-        print(f"   COMPLETION: {completion_pct:.0f}% "
-              f"({fields_present}/4 fields)")
+        print(f"   COMPLETION: {completion_pct:.0f}% " f"({fields_present}/4 fields)")
 
         # Test that fallback mechanism was used if needed
         if completion_pct < 100 and extraction_methods:
             methods_used = set(extraction_methods.values())
             if len(methods_used) > 1:
-                methods_list = ', '.join(methods_used)
+                methods_list = ", ".join(methods_used)
                 print(f"   FALLBACK: ✓ Multiple methods used: {methods_list}")
             else:
                 single_method = list(methods_used)[0]
@@ -580,8 +582,10 @@ class TestRealWorldExtraction:
     @pytest.mark.integration
     def test_individual_method_performance(self, extractor):
         """Test each extraction method individually on a real URL."""
-        test_url = ("https://www.warrencountyrecord.com/stories/"
-                    "warrior-ridge-elementary-wow-winners,160763")
+        test_url = (
+            "https://www.warrencountyrecord.com/stories/"
+            "warrior-ridge-elementary-wow-winners,160763"
+        )
 
         print(f"\n{'='*60}")
         print("INDIVIDUAL METHOD PERFORMANCE TEST")
@@ -591,7 +595,7 @@ class TestRealWorldExtraction:
         methods = [
             ("newspaper4k", extractor._extract_with_newspaper),
             ("beautifulsoup", extractor._extract_with_beautifulsoup),
-            ("selenium", extractor._extract_with_selenium)
+            ("selenium", extractor._extract_with_selenium),
         ]
 
         for method_name, method_func in methods:
@@ -621,16 +625,19 @@ class TestRealWorldExtraction:
                 has_value = bool(value and str(value).strip())
             results[field] = "✓" if has_value else "✗"
 
-        field_status = ' '.join([f'{field}:{status}'
-                                for field, status in results.items()])
+        field_status = " ".join(
+            [f"{field}:{status}" for field, status in results.items()]
+        )
         print(f"   {method_name}: {field_status}")
 
     @pytest.mark.integration
     def test_fallback_trigger_conditions(self, extractor):
         """Test that fallback mechanisms are triggered appropriately."""
         # Use a URL that typically has partial data
-        test_url = ("https://www.webstercountycitizen.com/upcoming_events/"
-                    "article_6ca9c607-4677-473e-99b3-fb58292d2876.html")
+        test_url = (
+            "https://www.webstercountycitizen.com/upcoming_events/"
+            "article_6ca9c607-4677-473e-99b3-fb58292d2876.html"
+        )
 
         print(f"\n{'='*60}")
         print("FALLBACK TRIGGER TEST")
@@ -656,19 +663,18 @@ class TestRealWorldExtraction:
             method_calls["selenium"] += 1
             return original_selenium(*args, **kwargs)
 
-        with patch.object(extractor, '_extract_with_newspaper',
-                          track_newspaper), \
-             patch.object(extractor, '_extract_with_beautifulsoup',
-                          track_beautifulsoup), \
-             patch.object(extractor, '_extract_with_selenium',
-                          track_selenium):
+        with (
+            patch.object(extractor, "_extract_with_newspaper", track_newspaper),
+            patch.object(extractor, "_extract_with_beautifulsoup", track_beautifulsoup),
+            patch.object(extractor, "_extract_with_selenium", track_selenium),
+        ):
 
             try:
                 result = extractor.extract_content(test_url)
 
                 print("\nMETHOD CALLS:")
                 print(f"   newspaper4k: {method_calls['newspaper']} calls")
-                bs_calls = method_calls['beautifulsoup']
+                bs_calls = method_calls["beautifulsoup"]
                 print(f"   beautifulsoup: {bs_calls} calls")
                 print(f"   selenium: {method_calls['selenium']} calls")
 
@@ -676,8 +682,9 @@ class TestRealWorldExtraction:
                 if method_calls["newspaper"] > 0:
                     print("   ✓ Primary method (newspaper4k) was attempted")
 
-                fallback_used = (method_calls["beautifulsoup"] > 0 or
-                                 method_calls["selenium"] > 0)
+                fallback_used = (
+                    method_calls["beautifulsoup"] > 0 or method_calls["selenium"] > 0
+                )
                 if fallback_used:
                     print("   ✓ Fallback methods were triggered")
 
@@ -686,14 +693,18 @@ class TestRealWorldExtraction:
                     if extraction_methods:
                         methods_used = set(extraction_methods.values())
                         if len(methods_used) > 1:
-                            print("   ✓ Multiple methods successfully "
-                                  f"contributed: {methods_used}")
+                            print(
+                                "   ✓ Multiple methods successfully "
+                                f"contributed: {methods_used}"
+                            )
 
             except Exception as e:
                 print(f"   ERROR: {str(e)}")
                 # Don't fail test for network issues
-                is_network_error = ("timeout" not in str(e).lower() and
-                                    "connection" not in str(e).lower())
+                is_network_error = (
+                    "timeout" not in str(e).lower()
+                    and "connection" not in str(e).lower()
+                )
                 if not is_network_error:
                     raise
 
@@ -703,7 +714,7 @@ class TestNewspaperMethod:
 
     def test_newspaper_extraction_success(self, extractor, mock_html_complete):
         """Test successful newspaper4k extraction with all fields."""
-        with patch('src.crawler.NewspaperArticle') as mock_article_class:
+        with patch("src.crawler.NewspaperArticle") as mock_article_class:
             # Mock the NewspaperArticle instance
             mock_article = Mock()
             mock_article.title = "Test Article Title"
@@ -716,7 +727,7 @@ class TestNewspaperMethod:
             mock_article_class.return_value = mock_article
 
             # Mock session.get to avoid actual HTTP requests
-            with patch.object(extractor.session, 'get') as mock_get:
+            with patch.object(extractor.session, "get") as mock_get:
                 mock_response = Mock()
                 mock_response.status_code = 200
                 mock_response.text = mock_html_complete
@@ -733,7 +744,7 @@ class TestNewspaperMethod:
 
     def test_newspaper_extraction_failure(self, extractor):
         """Test newspaper4k extraction failure handling."""
-        with patch('src.crawler.NewspaperArticle') as mock_article_class:
+        with patch("src.crawler.NewspaperArticle") as mock_article_class:
             # Mock article parse failure
             mock_article_class.side_effect = Exception("Parse error")
 
@@ -746,7 +757,7 @@ class TestNewspaperMethod:
 
     def test_newspaper_extraction_partial(self, extractor, mock_html_partial):
         """Test newspaper4k extraction with partial content."""
-        with patch('src.crawler.NewspaperArticle') as mock_article_class:
+        with patch("src.crawler.NewspaperArticle") as mock_article_class:
             mock_article = Mock()
             mock_article.title = "Partial Article"
             mock_article.text = "Short content without author or date."
@@ -757,7 +768,7 @@ class TestNewspaperMethod:
 
             mock_article_class.return_value = mock_article
 
-            with patch.object(extractor.session, 'get') as mock_get:
+            with patch.object(extractor.session, "get") as mock_get:
                 mock_response = Mock()
                 mock_response.status_code = 200
                 mock_response.text = mock_html_partial
@@ -778,49 +789,43 @@ class TestBeautifulSoupMethod:
         self, extractor, mock_html_complete, mock_requests_response
     ):
         """Test successful BeautifulSoup extraction."""
-        with patch.object(extractor.session, 'get') as mock_get:
+        with patch.object(extractor.session, "get") as mock_get:
             mock_get.return_value = mock_requests_response(mock_html_complete)
 
             with patch.object(
                 extractor,
-                '_get_domain_session',
+                "_get_domain_session",
                 return_value=extractor.session,
             ):
-                result = extractor._extract_with_beautifulsoup(
-                    "https://test.com"
-                )
+                result = extractor._extract_with_beautifulsoup("https://test.com")
 
             assert result is not None
             assert result["title"] == "Test Article Title"
             assert result["metadata"]["extraction_method"] == "beautifulsoup"
 
-    def test_beautifulsoup_with_provided_html(
-        self, extractor, mock_html_complete
-    ):
+    def test_beautifulsoup_with_provided_html(self, extractor, mock_html_complete):
         """Test BeautifulSoup extraction with pre-provided HTML."""
         result = extractor._extract_with_beautifulsoup(
-            "https://test.com", mock_html_complete)
+            "https://test.com", mock_html_complete
+        )
 
         assert result is not None
         assert result["title"] == "Test Article Title"
 
-    def test_beautifulsoup_network_failure(
-        self, extractor, mock_requests_response
-    ):
+    def test_beautifulsoup_network_failure(self, extractor, mock_requests_response):
         """Test BeautifulSoup extraction with network failure."""
-        with patch.object(extractor.session, 'get') as mock_get:
+        with patch.object(extractor.session, "get") as mock_get:
             mock_get.return_value = mock_requests_response("", 404)
-            mock_get.return_value.raise_for_status.side_effect = \
+            mock_get.return_value.raise_for_status.side_effect = (
                 requests.RequestException("404")
+            )
 
             with patch.object(
                 extractor,
-                '_get_domain_session',
+                "_get_domain_session",
                 return_value=extractor.session,
             ):
-                result = extractor._extract_with_beautifulsoup(
-                    "https://test.com"
-                )
+                result = extractor._extract_with_beautifulsoup("https://test.com")
 
             assert result == {}
 
@@ -832,10 +837,9 @@ class TestSeleniumMethod:
         """Test successful Selenium extraction."""
         # Mock the webdriver creation instead of testing actual extraction
         with patch.object(
-            extractor, '_create_undetected_driver',
-            return_value=mock_webdriver
+            extractor, "_create_undetected_driver", return_value=mock_webdriver
         ):
-            with patch('src.crawler.WebDriverWait') as mock_wait:
+            with patch("src.crawler.WebDriverWait") as mock_wait:
                 # Setup mock elements
                 mock_title_element = Mock()
                 mock_title_element.text = "Selenium Test"
@@ -864,12 +868,9 @@ class TestSeleniumMethod:
 
                 # Mock CAPTCHA detection to return False
                 with patch.object(
-                    extractor, '_detect_captcha_or_challenge',
-                    return_value=False
+                    extractor, "_detect_captcha_or_challenge", return_value=False
                 ):
-                    result = extractor._extract_with_selenium(
-                        "https://test.com"
-                    )
+                    result = extractor._extract_with_selenium("https://test.com")
 
                 assert result is not None
                 assert result["title"] == "Selenium Test"
@@ -878,8 +879,10 @@ class TestSeleniumMethod:
     def test_selenium_stealth_application(self, extractor, mock_webdriver):
         """Test that selenium-stealth is applied when available."""
         # Test stealth driver creation directly
-        with patch('src.crawler.stealth') as mock_stealth, \
-             patch('src.crawler.SELENIUM_STEALTH_AVAILABLE', True):
+        with (
+            patch("src.crawler.stealth") as mock_stealth,
+            patch("src.crawler.SELENIUM_STEALTH_AVAILABLE", True),
+        ):
 
             extractor._create_stealth_driver()
 
@@ -890,15 +893,13 @@ class TestSeleniumMethod:
 class TestFallbackMechanism:
     """Tests for the intelligent field-level fallback system."""
 
-    def test_complete_extraction_no_fallback(
-        self, extractor, mock_html_complete
-    ):
+    def test_complete_extraction_no_fallback(self, extractor, mock_html_complete):
         """Test that no fallback is needed when first method succeeds."""
-        with patch.object(extractor, '_extract_with_newspaper') as mock_np, \
-             patch.object(
-                 extractor, '_extract_with_beautifulsoup'
-             ) as mock_bs, \
-             patch.object(extractor, '_extract_with_selenium') as mock_sel:
+        with (
+            patch.object(extractor, "_extract_with_newspaper") as mock_np,
+            patch.object(extractor, "_extract_with_beautifulsoup") as mock_bs,
+            patch.object(extractor, "_extract_with_selenium") as mock_sel,
+        ):
 
             # Newspaper returns complete results
             mock_np.return_value = {
@@ -912,7 +913,7 @@ class TestFallbackMechanism:
                 "metadata": {
                     "language": "en",
                     "keywords": ["test", "article"],
-                    "tags": ["news", "testing"]
+                    "tags": ["news", "testing"],
                 },
                 "extracted_at": datetime.utcnow().isoformat(),
             }
@@ -936,8 +937,10 @@ class TestFallbackMechanism:
 
     def test_partial_extraction_with_beautifulsoup_fallback(self, extractor):
         """Test fallback to BeautifulSoup for missing fields."""
-        with patch.object(extractor, '_extract_with_newspaper') as mock_np, \
-             patch.object(extractor, '_extract_with_beautifulsoup') as mock_bs:
+        with (
+            patch.object(extractor, "_extract_with_newspaper") as mock_np,
+            patch.object(extractor, "_extract_with_beautifulsoup") as mock_bs,
+        ):
 
             # Newspaper returns partial results
             mock_np.return_value = {
@@ -979,10 +982,11 @@ class TestFallbackMechanism:
 
     def test_full_cascade_to_selenium(self, extractor):
         """Test full cascade from newspaper → BeautifulSoup → Selenium."""
-        with patch.object(extractor, '_extract_with_newspaper') as mock_np, \
-             patch.object(extractor,
-                          '_extract_with_beautifulsoup') as mock_bs, \
-             patch.object(extractor, '_extract_with_selenium') as mock_sel:
+        with (
+            patch.object(extractor, "_extract_with_newspaper") as mock_np,
+            patch.object(extractor, "_extract_with_beautifulsoup") as mock_bs,
+            patch.object(extractor, "_extract_with_selenium") as mock_sel,
+        ):
 
             # Newspaper fails completely
             mock_np.return_value = {}
@@ -1029,7 +1033,7 @@ class TestMethodTracking:
 
     def test_extraction_methods_metadata(self, extractor):
         """Test that extraction methods are tracked in metadata."""
-        with patch.object(extractor, '_extract_with_newspaper') as mock_np:
+        with patch.object(extractor, "_extract_with_newspaper") as mock_np:
             mock_np.return_value = {
                 "title": "Test Title",
                 "author": "Test Author",
@@ -1057,12 +1061,11 @@ class TestEdgeCases:
 
     def test_all_methods_fail(self, extractor):
         """Test behavior when all extraction methods fail."""
-        with patch.object(extractor, '_extract_with_newspaper',
-                          return_value={}), \
-             patch.object(extractor, '_extract_with_beautifulsoup',
-                          return_value={}), \
-             patch.object(extractor, '_extract_with_selenium',
-                          return_value={}):
+        with (
+            patch.object(extractor, "_extract_with_newspaper", return_value={}),
+            patch.object(extractor, "_extract_with_beautifulsoup", return_value={}),
+            patch.object(extractor, "_extract_with_selenium", return_value={}),
+        ):
 
             result = extractor.extract_content("https://test.com")
 
@@ -1074,8 +1077,9 @@ class TestEdgeCases:
 
     def test_network_timeout_handling(self, extractor):
         """Test handling of network timeouts."""
-        with patch.object(extractor.session, 'get',
-                          side_effect=requests.Timeout("Timeout")):
+        with patch.object(
+            extractor.session, "get", side_effect=requests.Timeout("Timeout")
+        ):
             result = extractor._extract_with_beautifulsoup("https://test.com")
             assert result == {}
 
@@ -1086,7 +1090,8 @@ class TestEdgeCases:
 
         # BeautifulSoup should handle malformed HTML gracefully
         result = extractor._extract_with_beautifulsoup(
-            "https://test.com", malformed_html)
+            "https://test.com", malformed_html
+        )
         assert result is not None
         assert result["title"] == "Test"
 
@@ -1116,7 +1121,7 @@ class TestRealWorldExtractionFailures:
         print(f"Extraction methods used: {methods}")
         print(f"Title: {result['title']}")
         print(f"Author: {result['author']}")
-        content_len = len(result['content']) if result['content'] else 0
+        content_len = len(result["content"]) if result["content"] else 0
         print(f"Content length: {content_len}")
 
     def test_webster_county_citizen_missing_content(self, extractor):
@@ -1145,7 +1150,7 @@ class TestRealWorldExtractionFailures:
         print(f"Extraction methods used: {methods}")
         print(f"Title: {result['title']}")
         print(f"Author: {result['author']}")
-        content_len = len(result['content']) if result['content'] else 0
+        content_len = len(result["content"]) if result["content"] else 0
         print(f"Content length: {content_len}")
 
     def test_multiple_failed_urls_batch(self, extractor):
@@ -1163,7 +1168,7 @@ class TestRealWorldExtractionFailures:
             (
                 "https://www.webstercountycitizen.com/community/"
                 "article_45667631-bc02-4d86-8d67-09bc24bb0846.html"
-            )
+            ),
         ]
 
         results = []
@@ -1176,9 +1181,9 @@ class TestRealWorldExtractionFailures:
                 if result:
                     print(f"✅ Success - Title: {result['title']}")
                     print(f"   Author: {result['author'] or '[Missing]'}")
-                    content_len = len(result['content']) if result['content'] else 0
+                    content_len = len(result["content"]) if result["content"] else 0
                     print(f"   Content length: {content_len}")
-                    methods = result['metadata'].get('extraction_methods', {})
+                    methods = result["metadata"].get("extraction_methods", {})
                     print(f"   Methods used: {methods}")
                 else:
                     print("❌ Failed - No result returned")
@@ -1189,9 +1194,7 @@ class TestRealWorldExtractionFailures:
 
         # At least some should succeed
         successful_extractions = [r for url, r in results if r is not None]
-        assert len(successful_extractions) > 0, (
-            "No URLs were successfully extracted"
-        )
+        assert len(successful_extractions) > 0, "No URLs were successfully extracted"
 
         success_count = len(successful_extractions)
         total_count = len(failed_urls)

@@ -155,13 +155,15 @@ def test_run_backfill_processes_missing_entities(
         osm_category="business",
         extractor_version="stub-en_core_web_sm",
     )
-    session.add_all([
-        candidate1,
-        candidate2,
-        article_needs,
-        article_has,
-        existing_entity,
-    ])
+    session.add_all(
+        [
+            candidate1,
+            candidate2,
+            article_needs,
+            article_has,
+            existing_entity,
+        ]
+    )
     session.commit()
     session.close()
 

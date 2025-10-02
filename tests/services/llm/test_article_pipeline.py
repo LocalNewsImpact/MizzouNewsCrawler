@@ -3,7 +3,7 @@ from __future__ import annotations
 import types
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, Iterator, List, Tuple, cast
+from typing import Any, Iterable, Iterator, cast
 
 import pytest
 from sqlalchemy.orm import Session
@@ -18,7 +18,7 @@ from src.services.llm.providers import LLMProviderResponse
 
 
 def _make_article(**overrides: Any) -> Any:
-    defaults: Dict[str, Any] = {
+    defaults: dict[str, Any] = {
         "id": "article-1",
         "title": "Local council approves budget",
         "author": "Jamie Writer",
@@ -44,7 +44,7 @@ class _FakeResult:
 class _FakeSession:
     def __init__(self, articles: Iterable[Any]) -> None:
         self._articles = list(articles)
-        self.statements: List[Any] = []
+        self.statements: list[Any] = []
         self.commit_calls = 0
 
     def execute(self, statement: Any) -> _FakeResult:
@@ -58,7 +58,7 @@ class _FakeSession:
 class _DummyOrchestrator:
     def __init__(self, responses: Iterable[OrchestrationResult]) -> None:
         self._responses = iter(responses)
-        self.calls: List[Tuple[str, Dict[str, Any]]] = []
+        self.calls: list[tuple[str, dict[str, Any]]] = []
 
     def generate(
         self,

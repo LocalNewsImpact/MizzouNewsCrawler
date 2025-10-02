@@ -61,9 +61,7 @@ def test_handle_list_sources_json(monkeypatch, capsys):
 
 
 def test_handle_list_sources_csv(monkeypatch, capsys):
-    df = pd.DataFrame(
-        [{"id": "id-1", "name": "Source 1", "url": "https://one"}]
-    )
+    df = pd.DataFrame([{"id": "id-1", "name": "Source 1", "url": "https://one"}])
     monkeypatch.setattr(
         list_sources,
         "NewsDiscovery",

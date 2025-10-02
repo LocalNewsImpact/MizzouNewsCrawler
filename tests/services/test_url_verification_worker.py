@@ -137,10 +137,7 @@ def test_worker_recovers_after_long_running_backlog() -> None:
         assert await worker.submit("queued-0")
         assert await worker.submit("queued-1")
 
-        shed_results = [
-            await worker.submit(f"shed-{i}")
-            for i in range(3)
-        ]
+        shed_results = [await worker.submit(f"shed-{i}") for i in range(3)]
         assert shed_results == [False, False, False]
         assert worker.stats.shed == 3
         assert list(worker.stats.shed_samples) == ["shed-1", "shed-2"]

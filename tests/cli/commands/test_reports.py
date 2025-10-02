@@ -58,9 +58,7 @@ def test_handle_county_report_uses_default_output_path(monkeypatch, capsys):
     assert output == f"Wrote 2 rows to {expected_path}"
 
 
-def test_handle_county_report_respects_cli_flags(
-    monkeypatch, capsys, tmp_path
-):
+def test_handle_county_report_respects_cli_flags(monkeypatch, capsys, tmp_path):
     captured: dict[str, Any] = {}
 
     def fake_generate(config, output_path: Path):

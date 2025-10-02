@@ -555,7 +555,4 @@ def test_apply_cleaning_updates_articles(monkeypatch, fake_cleaner):
 
     update_query, update_params = stub_conn.cursor_obj.executemany_calls[0]
     assert "UPDATE articles" in update_query
-    assert update_params == [
-        (row[2].rstrip(), row[0])
-        for row in rows
-    ]
+    assert update_params == [(row[2].rstrip(), row[0]) for row in rows]

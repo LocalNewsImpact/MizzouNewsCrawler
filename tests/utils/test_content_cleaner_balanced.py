@@ -1,14 +1,12 @@
 import sqlite3
-from typing import Dict, Optional, cast
+from typing import Optional, cast
 from unittest.mock import MagicMock, patch
 
 from src.utils.content_cleaner_balanced import BalancedBoundaryContentCleaner
 
 
 def _build_share_header_text():
-    share_header = (
-        "Facebook Twitter WhatsApp SMS Email • Share this article"
-    )
+    share_header = "Facebook Twitter WhatsApp SMS Email • Share this article"
     body = "This is the article content.\nMore informative text follows."
     # Include a blank line so the cleaner drops empty padding after removal.
     return f"{share_header}\n\n{body}"
@@ -106,7 +104,7 @@ def test_assess_locality_detects_city_and_county_signals():
         enable_telemetry=False,
     )
 
-    context: Dict[str, Optional[str]] = {
+    context: dict[str, Optional[str]] = {
         "publisher_city": "Jefferson City",
         "publisher_county": "Cole",
         "publisher_name": "Jefferson City Tribune",
@@ -138,16 +136,22 @@ def test_assess_locality_requires_text_and_context():
         enable_telemetry=False,
     )
 
-    assert cleaner._assess_locality(
-        "",
-        cast(Dict[str, Optional[str]], {"publisher_city": "Jefferson"}),
-        "example.com",
-    ) is None
-    assert cleaner._assess_locality(
-        "Wire copy without context",
-        cast(Dict[str, Optional[str]], {}),
-        "example.com",
-    ) is None
+    assert (
+        cleaner._assess_locality(
+            "",
+            cast(dict[str, Optional[str]], {"publisher_city": "Jefferson"}),
+            "example.com",
+        )
+        is None
+    )
+    assert (
+        cleaner._assess_locality(
+            "Wire copy without context",
+            cast(dict[str, Optional[str]], {}),
+            "example.com",
+        )
+        is None
+    )
 
 
 class _ExplodingConnectorCleaner(BalancedBoundaryContentCleaner):
@@ -166,9 +170,7 @@ def test_get_article_source_context_handles_errors_gracefully():
 def test_normalize_navigation_token_strips_punctuation():
     token = "\u2022Sports!!"
 
-    normalized = BalancedBoundaryContentCleaner._normalize_navigation_token(
-        token
-    )
+    normalized = BalancedBoundaryContentCleaner._normalize_navigation_token(token)
 
     assert normalized == "sports"
 
@@ -237,9 +239,7 @@ def test_filter_with_balanced_boundaries_accepts_best_candidates():
     telemetry_stub = _StubTelemetry(patterns=[])
     cleaner.telemetry = telemetry_stub  # type: ignore[assignment]
 
-    good_text = (
-        "Sign up today to receive daily headlines and newsletters."
-    )
+    good_text = "Sign up today to receive daily headlines and newsletters."
     bad_fragment = "and partial fragment without boundary"
 
     articles = [
@@ -276,9 +276,7 @@ def test_filter_with_balanced_boundaries_accepts_best_candidates():
 
     logged = telemetry_stub.log_summary["segments"]
     assert any(
-        entry["was_removed"]
-        for entry in logged
-        if entry["segment_text"] == good_text
+        entry["was_removed"] for entry in logged if entry["segment_text"] == good_text
     )
     assert any(
         not entry["was_removed"]
@@ -322,10 +320,7 @@ def test_calculate_position_consistency_measures_variance():
 
     consistency = cleaner._calculate_position_consistency(matches, articles)
     assert 0 < consistency < 1
-    assert (
-        cleaner._calculate_position_consistency({"1": [(0, 10)]}, articles)
-        == 0
-    )
+    assert cleaner._calculate_position_consistency({"1": [(0, 10)]}, articles) == 0
 
 
 def test_classify_pattern_identifies_common_categories():
@@ -335,33 +330,22 @@ def test_classify_pattern_identifies_common_categories():
     )
 
     assert (
-        cleaner._classify_pattern(
-            "Watch this discussion and post a comment right now"
-        )
+        cleaner._classify_pattern("Watch this discussion and post a comment right now")
         == "sidebar"
     )
     assert (
-        cleaner._classify_pattern(
-            "News Sports Obituaries Subscribe Contact Business"
-        )
+        cleaner._classify_pattern("News Sports Obituaries Subscribe Contact Business")
         == "navigation"
     )
-    assert (
-        cleaner._classify_pattern("All rights reserved Privacy Policy")
-        == "footer"
-    )
+    assert cleaner._classify_pattern("All rights reserved Privacy Policy") == "footer"
     assert (
         cleaner._classify_pattern("Print subscriber account setup help")
         == "subscription"
     )
     assert (
-        cleaner._classify_pattern("Trending now: Popular stories today")
-        == "trending"
+        cleaner._classify_pattern("Trending now: Popular stories today") == "trending"
     )
-    assert (
-        cleaner._classify_pattern("Local team defeats rival in finals")
-        == "other"
-    )
+    assert cleaner._classify_pattern("Local team defeats rival in finals") == "other"
 
 
 def test_generate_removal_reason_covers_patterns_and_confidence():
@@ -524,9 +508,7 @@ def test_social_share_helpers_detect_clusters():
         "• Facebook Twitter WhatsApp Email"
     )
     assert prefix_end is not None
-    assert cleaner._is_social_share_cluster(
-        "Facebook Twitter WhatsApp Email"
-    )
+    assert cleaner._is_social_share_cluster("Facebook Twitter WhatsApp Email")
 
     result = cleaner._remove_social_share_header(
         "Facebook Twitter WhatsApp Email\n\nStory starts here"
@@ -604,15 +586,24 @@ def test_detect_local_byline_override_filters_wire_authors(monkeypatch):
 
 
 def test_contains_term_matches_with_and_without_spaces():
-    assert BalancedBoundaryContentCleaner._contains_term(
-        "the city of jefferson reports", "Jefferson"
-    ) is True
-    assert BalancedBoundaryContentCleaner._contains_term(
-        "the city of jefferson reports", "city of jefferson"
-    ) is True
-    assert BalancedBoundaryContentCleaner._contains_term(
-        "the city of jefferson reports", "springfield"
-    ) is False
+    assert (
+        BalancedBoundaryContentCleaner._contains_term(
+            "the city of jefferson reports", "Jefferson"
+        )
+        is True
+    )
+    assert (
+        BalancedBoundaryContentCleaner._contains_term(
+            "the city of jefferson reports", "city of jefferson"
+        )
+        is True
+    )
+    assert (
+        BalancedBoundaryContentCleaner._contains_term(
+            "the city of jefferson reports", "springfield"
+        )
+        is False
+    )
 
 
 def test_detect_inline_wire_indicators_matches_provider():

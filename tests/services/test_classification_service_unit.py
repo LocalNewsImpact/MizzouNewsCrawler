@@ -67,9 +67,7 @@ def test_prepare_text_prefers_first_non_empty_field():
         text="  candidate text  ",
         title="Headline",
     )
-    assert service._prepare_text(cast(Article, article)) == (
-        "  candidate text  "
-    )
+    assert service._prepare_text(cast(Article, article)) == ("  candidate text  ")
 
     empty_article = _make_article(content="", text="   ", title="  ")
     assert service._prepare_text(cast(Article, empty_article)) is None
@@ -117,15 +115,15 @@ def test_apply_classification_dry_run_collects_proposed_labels(monkeypatch):
     monkeypatch.setattr(service, "_select_articles", fake_select)
     monkeypatch.setattr(
         "src.services.classification_service.save_article_classification",
-        lambda *args, **kwargs: pytest.fail(
-            "save should not be called in dry-run"
-        ),
+        lambda *args, **kwargs: pytest.fail("save should not be called in dry-run"),
     )
 
-    predictions = [[
-        Prediction(label="Local", score=0.9),
-        Prediction(label="Sports", score=0.1),
-    ]]
+    predictions = [
+        [
+            Prediction(label="Local", score=0.9),
+            Prediction(label="Sports", score=0.1),
+        ]
+    ]
     classifier = DummyClassifier(
         predictions,
         model_version="2025.09",
@@ -156,9 +154,7 @@ def test_apply_classification_dry_run_collects_proposed_labels(monkeypatch):
 
 def test_apply_classification_persists_predictions(monkeypatch):
     service = _make_service()
-    articles = [
-        _make_article(id=999, content="Body", url="https://example.com/real")
-    ]
+    articles = [_make_article(id=999, content="Body", url="https://example.com/real")]
     monkeypatch.setattr(
         service,
         "_select_articles",
@@ -175,10 +171,12 @@ def test_apply_classification_persists_predictions(monkeypatch):
         fake_save,
     )
 
-    predictions = [[
-        Prediction(label="Civic", score=0.8),
-        Prediction(label="Economy", score=0.2),
-    ]]
+    predictions = [
+        [
+            Prediction(label="Civic", score=0.8),
+            Prediction(label="Economy", score=0.2),
+        ]
+    ]
     classifier = DummyClassifier(
         predictions,
         model_version="2025.10",
@@ -208,9 +206,7 @@ def test_apply_classification_persists_predictions(monkeypatch):
     assert saved["primary_prediction"].label == "Civic"
     assert saved["alternate_prediction"].label == "Economy"
     assert "metadata" in saved
-    assert saved["metadata"]["top_k"] == [
-        pred.as_dict() for pred in predictions[0]
-    ]
+    assert saved["metadata"]["top_k"] == [pred.as_dict() for pred in predictions[0]]
 
 
 def test_apply_classification_records_error_when_missing_id(monkeypatch):

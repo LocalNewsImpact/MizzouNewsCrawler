@@ -5,7 +5,7 @@ import types
 
 def _mock_dotenv(monkeypatch):
     basic_dotenv = types.ModuleType("dotenv")
-    setattr(basic_dotenv, "load_dotenv", lambda *args, **kwargs: None)
+    basic_dotenv.load_dotenv = lambda *args, **kwargs: None
     monkeypatch.setitem(sys.modules, "dotenv", basic_dotenv)
 
 
@@ -71,7 +71,7 @@ def test_config_loads_dotenv_when_available(monkeypatch, tmp_path):
         spy["path"] = dotenv_path
         monkeypatch.setenv("DATABASE_URL", "sqlite:///from_env_file.db")
 
-    setattr(dotenv_module, "load_dotenv", fake_load_dotenv)
+    dotenv_module.load_dotenv = fake_load_dotenv
     monkeypatch.setitem(sys.modules, "dotenv", dotenv_module)
 
     monkeypatch.chdir(tmp_path)
@@ -171,9 +171,7 @@ def test_config_normalizes_telemetry_settings(monkeypatch):
 
     assert config_without_path.TELEMETRY_SCHEME == "http"
     assert config_without_path.TELEMETRY_BASE_PATH == ""
-    telemetry_config_no_path = config_without_path.get_config()["services"][
-        "telemetry"
-    ]
+    telemetry_config_no_path = config_without_path.get_config()["services"]["telemetry"]
     assert telemetry_config_no_path == {
         "host": "telemetry.svc",
         "port": "9000",
