@@ -12,11 +12,11 @@ on:
 
 jobs:
   lint:
-    name: Lint
+    name: Lint & Format Check
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.10, 3.11]
+        python-version: ['3.10', '3.11']
 
     steps:
       - uses: actions/checkout@v4
@@ -44,10 +44,54 @@ jobs:
       - name: Run ruff
         run: ruff check .
 
+      - name: Check code formatting with black
+        run: black --check src/ tests/ web/
+
+      - name: Check import sorting with isort
+        run: isort --check-only --profile black src/ tests/ web/
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip wheels
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip/wheels
+          key: ${{ runner.os }}-pip-security-${{ hashFiles('requirements.txt','requirements-dev.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-security-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install -r requirements-dev.txt
+
+      - name: Run bandit security scan
+        run: |
+          bandit -r src/ -ll -f txt || true
+          echo "Bandit found issues but not failing build (review recommended)"
+
+      - name: Check dependency vulnerabilities with safety
+        run: |
+          safety check --json || true
+          echo "Safety check completed (review recommended)"
+        continue-on-error: true
+
   test:
     name: Tests
     runs-on: ubuntu-latest
-    needs: lint
+    needs: [lint, security]
     strategy:
       matrix:
         python-version: [3.10, 3.11]
