@@ -2442,4 +2442,3 @@ def test_run_discovery_uuid_filter_returns_empty(
     }
     assert telemetry.outcomes == []
     assert telemetry.failures == []
-

@@ -54,7 +54,7 @@ def mock_store():
     store = Mock()
     store.submit = Mock()
     store.flush = Mock()
-    
+
     # Mock connection context manager
     mock_conn = Mock(spec=sqlite3.Connection)
     mock_cursor = Mock()
@@ -62,13 +62,13 @@ def mock_store():
     mock_cursor.fetchone.return_value = None
     mock_cursor.fetchall.return_value = []
     mock_cursor.close.return_value = None
-    
+
     # Create proper context manager mock
     mock_context_manager = Mock()
     mock_context_manager.__enter__ = Mock(return_value=mock_conn)
     mock_context_manager.__exit__ = Mock(return_value=None)
     store.connection.return_value = mock_context_manager
-    
+
     return store
 
 
@@ -108,7 +108,7 @@ class TestContentCleaningTelemetryInit:
             enable_telemetry=True,
             store=mock_store
         )
-        
+
         assert telemetry.enable_telemetry is True
         assert telemetry.session_id is not None
         assert telemetry.detection_counter == 0
@@ -121,7 +121,7 @@ class TestContentCleaningTelemetryInit:
     def test_init_with_telemetry_disabled(self):
         """Should initialize with telemetry disabled."""
         telemetry = ContentCleaningTelemetry(enable_telemetry=False)
-        
+
         assert telemetry.enable_telemetry is False
         assert telemetry.session_id is not None
 
@@ -130,11 +130,11 @@ class TestContentCleaningTelemetryInit:
         """Should create default store when none provided."""
         mock_store = Mock()
         mock_get_store.return_value = mock_store
-        
+
         telemetry = ContentCleaningTelemetry(
             database_url="test://custom_db"
         )
-        
+
         mock_get_store.assert_called_once_with("test://custom_db")
         assert telemetry._store == mock_store
 
@@ -150,7 +150,7 @@ class TestCleaningSessionManagement:
             min_occurrences=3,
             min_boundary_score=0.3
         )
-        
+
         assert telemetry_id != ""
         assert telemetry.current_session is not None
         assert telemetry.current_session['domain'] == "example.com"
@@ -159,7 +159,7 @@ class TestCleaningSessionManagement:
         assert telemetry.current_session['min_boundary_score'] == 0.3
         assert telemetry.current_session['telemetry_id'] == telemetry_id
         assert isinstance(telemetry.current_session['start_time'], datetime)
-        
+
         # Should reset counters
         assert telemetry.detection_counter == 0
         assert telemetry.detected_segments == []
@@ -172,7 +172,7 @@ class TestCleaningSessionManagement:
             domain="example.com",
             article_count=100
         )
-        
+
         assert telemetry_id == ""
         assert disabled_telemetry.current_session is None
 
@@ -183,10 +183,10 @@ class TestCleaningSessionManagement:
             domain="example.com",
             article_count=100
         )
-        
+
         # Add some test data
         telemetry.detected_segments = [{"test": "segment"}]
-        
+
         # Finalize session
         telemetry.finalize_cleaning_session(
             rough_candidates_found=50,
@@ -195,10 +195,10 @@ class TestCleaningSessionManagement:
             removal_percentage=0.15,
             processing_time_ms=500.0
         )
-        
+
         # Should have updated session data
         assert telemetry.current_session is None  # Reset after finalize
-        
+
         # Should have submitted to store
         telemetry._store.submit.assert_called_once()
 
@@ -210,7 +210,7 @@ class TestCleaningSessionManagement:
             total_removable_chars=1000,
             removal_percentage=0.15
         )
-        
+
         # Should do nothing - no assertions needed, just ensure no errors
 
     def test_finalize_cleaning_session_no_current_session(self, telemetry):
@@ -222,7 +222,7 @@ class TestCleaningSessionManagement:
             total_removable_chars=0,
             removal_percentage=0.0
         )
-        
+
         # Should not crash and not submit anything
         telemetry._store.submit.assert_not_called()
 
@@ -234,7 +234,7 @@ class TestWireDetectionLogging:
         """Should log wire detection when telemetry enabled."""
         # Start session first
         telemetry.start_cleaning_session("example.com", 100)
-        
+
         telemetry.log_wire_detection(
             provider="AP",
             detection_method="regex_pattern",
@@ -245,10 +245,10 @@ class TestWireDetectionLogging:
             domain="custom.com",
             extra_metadata={"source": "byline"}
         )
-        
+
         assert len(telemetry.wire_detection_events) == 1
         event = telemetry.wire_detection_events[0]
-        
+
         assert event['provider'] == "AP"
         assert event['detection_method'] == "regex_pattern"
         assert event['pattern_text'] == "Associated Press"
@@ -268,7 +268,7 @@ class TestWireDetectionLogging:
             confidence=0.5,
             detection_stage="test"
         )
-        
+
         # Should not crash and not store anything
         assert len(disabled_telemetry.wire_detection_events) == 0
 
@@ -281,13 +281,13 @@ class TestWireDetectionLogging:
             confidence=0.5,
             detection_stage="test"
         )
-        
+
         assert len(telemetry.wire_detection_events) == 0
 
     def test_log_wire_detection_defaults(self, telemetry):
         """Should handle optional parameters with defaults."""
         telemetry.start_cleaning_session("example.com", 100)
-        
+
         telemetry.log_wire_detection(
             provider="Reuters",
             detection_method="keyword",
@@ -295,7 +295,7 @@ class TestWireDetectionLogging:
             confidence=0.8,
             detection_stage="preprocessing"
         )
-        
+
         event = telemetry.wire_detection_events[0]
         assert event['domain'] == "example.com"  # From session
         assert json.loads(event['article_ids_json']) == []
@@ -308,7 +308,7 @@ class TestLocalityDetectionLogging:
     def test_log_locality_detection_enabled(self, telemetry):
         """Should log locality detection when telemetry enabled."""
         telemetry.start_cleaning_session("example.com", 100)
-        
+
         locality_data = {
             'is_local': True,
             'confidence': 0.85,
@@ -316,9 +316,9 @@ class TestLocalityDetectionLogging:
             'threshold': 0.7,
             'signals': ['zip_code', 'city_name']
         }
-        
+
         source_context = {'byline_location': 'Columbia, MO'}
-        
+
         telemetry.log_locality_detection(
             provider="AP",
             detection_method="gazetteer",
@@ -327,10 +327,10 @@ class TestLocalityDetectionLogging:
             locality=locality_data,
             source_context=source_context
         )
-        
+
         assert len(telemetry.locality_detection_events) == 1
         event = telemetry.locality_detection_events[0]
-        
+
         assert event['provider'] == "AP"
         assert event['detection_method'] == "gazetteer"
         assert event['article_id'] == "art123"
@@ -346,7 +346,7 @@ class TestLocalityDetectionLogging:
     def test_log_locality_detection_empty_locality(self, telemetry):
         """Should not log when locality data is empty."""
         telemetry.start_cleaning_session("example.com", 100)
-        
+
         telemetry.log_locality_detection(
             provider="AP",
             detection_method="test",
@@ -354,13 +354,13 @@ class TestLocalityDetectionLogging:
             domain="test.com",
             locality={}  # Empty locality
         )
-        
+
         assert len(telemetry.locality_detection_events) == 0
 
     def test_log_locality_detection_disabled(self, disabled_telemetry):
         """Should do nothing when telemetry disabled."""
         locality_data = {'is_local': True, 'confidence': 0.8}
-        
+
         disabled_telemetry.log_locality_detection(
             provider="AP",
             detection_method="test",
@@ -368,7 +368,7 @@ class TestLocalityDetectionLogging:
             domain="test.com",
             locality=locality_data
         )
-        
+
         assert len(disabled_telemetry.locality_detection_events) == 0
 
 
@@ -378,7 +378,7 @@ class TestSegmentDetectionLogging:
     def test_log_segment_detection_enabled(self, telemetry):
         """Should log segment detection when telemetry enabled."""
         telemetry.start_cleaning_session("example.com", 100)
-        
+
         telemetry.log_segment_detection(
             segment_text="© 2024 Example News",
             boundary_score=0.8,
@@ -390,10 +390,10 @@ class TestSegmentDetectionLogging:
             was_removed=True,
             removal_reason="copyright_footer"
         )
-        
+
         assert len(telemetry.detected_segments) == 1
         assert telemetry.detection_counter == 1
-        
+
         segment = telemetry.detected_segments[0]
         assert segment['segment_text'] == "© 2024 Example News"
         assert segment['boundary_score'] == 0.8
@@ -412,7 +412,7 @@ class TestSegmentDetectionLogging:
     ):
         """Should increment detection counter for multiple segments."""
         telemetry.start_cleaning_session("example.com", 100)
-        
+
         # Log first segment
         telemetry.log_segment_detection(
             segment_text="First segment",
@@ -423,7 +423,7 @@ class TestSegmentDetectionLogging:
             segment_length=10,
             article_ids=["1", "2"]
         )
-        
+
         # Log second segment
         telemetry.log_segment_detection(
             segment_text="Second segment",
@@ -434,7 +434,7 @@ class TestSegmentDetectionLogging:
             segment_length=15,
             article_ids=["3", "4", "5"]
         )
-        
+
         assert len(telemetry.detected_segments) == 2
         assert telemetry.detection_counter == 2
         assert telemetry.detected_segments[0]['detection_number'] == 1
@@ -451,7 +451,7 @@ class TestSegmentDetectionLogging:
             segment_length=4,
             article_ids=["1"]
         )
-        
+
         assert len(disabled_telemetry.detected_segments) == 0
         assert disabled_telemetry.detection_counter == 0
 
@@ -462,20 +462,20 @@ class TestBoundaryAssessment:
     def test_log_boundary_assessment_enabled(self, telemetry):
         """Should store boundary assessment data."""
         telemetry.start_cleaning_session("example.com", 100)
-        
+
         score_breakdown = {
             'capitalization': 0.3,
             'punctuation': 0.2,
             'patterns': 0.4
         }
-        
+
         telemetry.log_boundary_assessment(
             text="This is a test boundary.",
             score=0.75,
             score_breakdown=score_breakdown,
             detected_patterns=["start_cap", "end_period"]
         )
-        
+
         assessment = telemetry._last_boundary_assessment
         assert assessment is not None
         assert assessment['text'] == "This is a test boundary."
@@ -489,14 +489,14 @@ class TestBoundaryAssessment:
     def test_log_boundary_assessment_empty_text(self, telemetry):
         """Should handle empty text gracefully."""
         telemetry.start_cleaning_session("example.com", 100)
-        
+
         telemetry.log_boundary_assessment(
             text="",
             score=0.0,
             score_breakdown={},
             detected_patterns=[]
         )
-        
+
         assessment = telemetry._last_boundary_assessment
         assert assessment['text'] == ""
         assert assessment['text_length'] == 0
@@ -511,7 +511,7 @@ class TestBoundaryAssessment:
             score_breakdown={},
             detected_patterns=[]
         )
-        
+
         assert disabled_telemetry._last_boundary_assessment is None
 
 
@@ -546,10 +546,10 @@ class TestUtilityMethods:
         telemetry.wire_detection_events = [{"event": "data"}]
         telemetry.locality_detection_events = [{"locality": "data"}]
         telemetry.detection_counter = 5
-        
+
         # Reset
         telemetry._reset_session_state()
-        
+
         assert telemetry.current_session is None
         assert telemetry.detected_segments == []
         assert telemetry.wire_detection_events == []
@@ -570,9 +570,9 @@ class TestPayloadBuilding:
         telemetry.detected_segments = [{'segment': 'test'}]
         telemetry.wire_detection_events = [{'wire': 'event'}]
         telemetry.locality_detection_events = [{'locality': 'event'}]
-        
+
         payload = telemetry._build_payload_snapshot()
-        
+
         assert payload['session'] == telemetry.current_session
         assert payload['segments'] == telemetry.detected_segments
         assert payload['wire_events'] == telemetry.wire_detection_events
@@ -583,9 +583,9 @@ class TestPayloadBuilding:
     def test_build_payload_snapshot_empty_session(self, telemetry):
         """Should handle empty session gracefully."""
         telemetry.current_session = None
-        
+
         payload = telemetry._build_payload_snapshot()
-        
+
         assert payload['session'] == {}
         assert payload['segments'] == []
         assert payload['wire_events'] == []
@@ -604,9 +604,9 @@ class TestDatabaseOperations:
             ('footer', '© 2024 News', 0.9, 5, 'copyright', 1),
             ('navigation', 'Home | About', 0.8, 3, 'menu', 0)
         ]
-        
+
         patterns = telemetry.get_persistent_patterns("example.com")
-        
+
         assert len(patterns) == 2
         assert patterns[0] == {
             'pattern_type': 'footer',
@@ -622,18 +622,18 @@ class TestDatabaseOperations:
         """Should handle database exceptions gracefully."""
         with patch.object(telemetry._store, 'connection') as mock_conn:
             mock_conn.side_effect = Exception("Database error")
-            
+
             patterns = telemetry.get_persistent_patterns("example.com")
-            
+
             assert patterns == []
 
     def test_ensure_persistent_patterns_table(self, telemetry, mock_store):
         """Should create table and indexes when called."""
         mock_conn = mock_store.connection.return_value.__enter__.return_value
         mock_cursor = mock_conn.cursor.return_value
-        
+
         telemetry._ensure_persistent_patterns_table(mock_conn)
-        
+
         # Should have called execute multiple times for table and indexes
         assert mock_cursor.execute.call_count >= 5  # 1 table + 4 indexes
         mock_cursor.close.assert_called()

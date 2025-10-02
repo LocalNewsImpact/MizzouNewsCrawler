@@ -284,7 +284,7 @@ def upsert_candidate_link(
     """Insert or update candidate link (idempotent by URL)."""
     # Normalize URL for consistent deduplication
     normalized_url = normalize_url(url)
-    
+
     # Check if link already exists (using normalized URL)
     existing = session.query(CandidateLink).filter_by(
         url=normalized_url).first()

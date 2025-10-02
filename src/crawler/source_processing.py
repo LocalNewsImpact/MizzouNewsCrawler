@@ -744,4 +744,3 @@ class SourceProcessor:
         if stats["articles_found_total"] == 0:
             return DiscoveryOutcome.NO_ARTICLES_FOUND
         return DiscoveryOutcome.UNKNOWN_ERROR
-

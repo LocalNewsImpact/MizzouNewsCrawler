@@ -271,7 +271,7 @@ class URLVerificationService:
         # Update source metrics based on verification results
         # Use existing session from DatabaseManager
         session = self.db.session
-        
+
         # Get verification results for this batch
         verification_query = text("""
             SELECT v.url, v.storysniffer_result, v.verification_error, cl.source_name

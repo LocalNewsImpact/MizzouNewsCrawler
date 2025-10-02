@@ -655,7 +655,7 @@ def api_telemetry_queue():
             "worker_alive": True,  # Assume worker is alive if API is responding
             "total_processed": stats.total_extractions,
             "accuracy_rate": (
-                stats.reviewed_correct / 
+                stats.reviewed_correct /
                 max(stats.reviewed_correct + stats.reviewed_incorrect + stats.reviewed_partial, 1)
             ) if (stats.reviewed_correct + stats.reviewed_incorrect + stats.reviewed_partial) > 0 else 0
         }
@@ -759,7 +759,7 @@ def api_get_pending_code_reviews(limit: int = 50):
     try:
         # Initialize tables if they don't exist
         init_code_review_tables()
-        
+
         items = get_pending_code_reviews(limit=limit)
         return {
             "status": "ok",
@@ -799,7 +799,7 @@ def api_add_code_review_item(item: CodeReviewItem):
     try:
         # Initialize tables if they don't exist
         init_code_review_tables()
-        
+
         success = add_code_review_item(item)
         if success:
             return {"status": "ok", "review_id": item.review_id}
