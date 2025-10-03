@@ -1567,32 +1567,163 @@ C. **Hybrid** (recommended)
 
 ### 6. Multi-tenancy Design
 
-**Scenario**: Multiple universities/organizations using same infrastructure
+**✅ DECISION MADE**: Application-level multi-tenancy with source-based data ownership
 
-**Options:**
-A. **Namespace per tenant** (Kubernetes-native)
+**Requirements:**
 
-- Separate namespace per org
-- Separate databases per org
-- Resource quotas per namespace
+- **Default Access**: Users only see data from sources they create/upload
+- **Permission Model**: Admin-granted access to additional datasets
+- **Growth Pattern**: Bandwidth and storage will grow slowly (no need for complex tenant isolation)
+- **Security**: Row-level security in database + API-level filtering
+- **UI**: React site filters data based on user permissions
 
-B. **Single namespace, tenant column** (application-level)
+**Implementation Approach: Option B - Single Namespace, Source-Based Ownership**
 
-- Single database with tenant_id column
-- Row-level security
-- Shared resources
+**Architecture:**
 
-C. **Separate clusters** (maximum isolation)
+```python
+# Database schema additions
+class User:
+    user_id: str
+    email: str
+    role: Role  # admin, editor, viewer
+    created_at: datetime
 
-- Separate GKE cluster per tenant
-- No resource contention
-- Higher operational overhead
+class Source:
+    source_id: int
+    owner_id: str  # FK to User
+    created_by: str  # FK to User
+    is_public: bool = False  # Admin can make sources visible to all
+    
+class SourcePermission:
+    permission_id: int
+    source_id: int  # FK to Source
+    user_id: str  # FK to User
+    access_level: str  # read, write, admin
+    granted_by: str  # FK to User (admin who granted)
+    granted_at: datetime
 
-**Questions to resolve:**
+class Article:
+    article_id: str
+    source_id: int  # FK to Source (determines access)
+    # ... other fields
+```
 
-- How many tenants expected?
-- Isolation requirements?
-- Cost per tenant?
+**Access Control Logic:**
+
+```python
+def get_accessible_sources(user: User) -> List[int]:
+    """Get all source IDs the user can access."""
+    if user.role == Role.ADMIN:
+        # Admins see everything
+        return db.query(Source.source_id).all()
+    
+    # Get sources user owns
+    owned = db.query(Source.source_id).filter(Source.owner_id == user.user_id)
+    
+    # Get sources with explicit permissions
+    permitted = db.query(SourcePermission.source_id).filter(
+        SourcePermission.user_id == user.user_id
+    )
+    
+    # Get public sources
+    public = db.query(Source.source_id).filter(Source.is_public == True)
+    
+    return list(set(owned + permitted + public))
+
+@app.get("/articles")
+async def get_articles(
+    county: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Articles filtered by user's source access."""
+    accessible_sources = get_accessible_sources(current_user)
+    
+    articles = db.query(Article).filter(
+        Article.county == county,
+        Article.source_id.in_(accessible_sources)
+    ).all()
+    
+    return articles
+```
+
+**React UI Changes:**
+
+```typescript
+// User can only see sources they have access to
+interface UserContext {
+  userId: string;
+  role: Role;
+  accessibleSources: number[];  // Fetched on login
+  isAdmin: boolean;
+}
+
+// Admin panel for granting access
+const SourcePermissionsManager = () => {
+  const [users, setUsers] = useState<User[]>([]);
+  const [sources, setSources] = useState<Source[]>([]);
+  
+  const grantAccess = async (userId: string, sourceId: number, accessLevel: string) => {
+    await api.post('/admin/permissions', {
+      user_id: userId,
+      source_id: sourceId,
+      access_level: accessLevel
+    });
+  };
+  
+  // UI for admins to grant/revoke source access
+};
+```
+
+**Database Migration:**
+
+```sql
+-- Add user management tables
+CREATE TABLE users (
+    user_id VARCHAR(255) PRIMARY KEY,  -- OAuth sub claim
+    email VARCHAR(255) UNIQUE NOT NULL,
+    role VARCHAR(50) NOT NULL,  -- admin, editor, viewer
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_login TIMESTAMP
+);
+
+-- Add ownership to sources
+ALTER TABLE sources ADD COLUMN owner_id VARCHAR(255) REFERENCES users(user_id);
+ALTER TABLE sources ADD COLUMN created_by VARCHAR(255) REFERENCES users(user_id);
+ALTER TABLE sources ADD COLUMN is_public BOOLEAN DEFAULT FALSE;
+
+-- Create permissions table
+CREATE TABLE source_permissions (
+    permission_id SERIAL PRIMARY KEY,
+    source_id INTEGER REFERENCES sources(source_id),
+    user_id VARCHAR(255) REFERENCES users(user_id),
+    access_level VARCHAR(50) NOT NULL,  -- read, write, admin
+    granted_by VARCHAR(255) REFERENCES users(user_id),
+    granted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(source_id, user_id)
+);
+
+-- Create indexes for performance
+CREATE INDEX idx_source_permissions_user ON source_permissions(user_id);
+CREATE INDEX idx_source_permissions_source ON source_permissions(source_id);
+CREATE INDEX idx_sources_owner ON sources(owner_id);
+CREATE INDEX idx_articles_source ON articles(source_id);
+```
+
+**Benefits of This Approach:**
+
+✅ **Simple**: Single database, single namespace, no operational complexity  
+✅ **Cost-effective**: Shared resources, no per-tenant overhead  
+✅ **Flexible**: Easy to add more sources and users  
+✅ **Secure**: Row-level filtering prevents data leakage  
+✅ **Scalable**: Can handle slow growth without infrastructure changes  
+✅ **Admin-friendly**: Clear permission management UI  
+
+**No need for:**
+❌ Separate Kubernetes namespaces per user  
+❌ Separate databases per user  
+❌ Complex tenant isolation  
+❌ Per-tenant resource quotas
 
 ---
 
@@ -1625,14 +1756,51 @@ C. **Separate clusters** (maximum isolation)
 
 ## Questions for Discussion
 
+### ✅ Answered
+
+5. **Multi-tenancy**: ~~Do we need to support multiple organizations from day 1?~~
+   - **ANSWER**: Yes, but with source-based ownership model (not separate tenant infrastructure)
+   - Users only access sources they create/upload by default
+   - Admins grant additional access as needed
+   - Single database with row-level security
+   - See "6. Multi-tenancy Design" section for full implementation
+
+### 🔄 Pending Decisions
+
 1. **Budget**: What's the monthly budget for GCP costs?
+   - Estimated: $200-400/month baseline, $500-800/month during heavy crawling
+   - Need to confirm acceptable range
+
 2. **Timeline**: Is 12 weeks realistic, or do we need to adjust scope?
+   - Can compress by parallelizing phases
+   - Can extend by adding buffer for testing
+   - Need to confirm deadline/launch date
+
 3. **Team**: Who will be responsible for each phase?
+   - Backend development (Python/FastAPI)
+   - Frontend development (React/TypeScript)
+   - DevOps/Infrastructure (Docker/Kubernetes/GCP)
+   - Testing/QA
+
 4. **Priorities**: Which phases are must-have vs. nice-to-have?
-5. **Multi-tenancy**: Do we need to support multiple organizations from day 1?
+   - Must-have: Phases 1-5, 7 (Docker, GCP, K8s, CI/CD, migration, security)
+   - Nice-to-have: Phase 6 (full frontend), Phase 8 (advanced observability)
+   - Need to confirm based on launch goals
+
 6. **Data retention**: How long should we keep raw HTML, articles, etc.?
+   - Recommendation: Articles (indefinite), Raw HTML (1 year), Logs (90 days)
+   - Need to confirm for compliance/research needs
+
 7. **Compliance**: Any specific compliance requirements (GDPR, CCPA, etc.)?
+   - Educational/research data may have different requirements
+   - Need to clarify if handling any PII
+   - Impact on data retention and access logs
+
 8. **Disaster recovery**: What's the acceptable RTO/RPO?
+   - RTO = Recovery Time Objective (how long can system be down?)
+   - RPO = Recovery Point Objective (how much data loss is acceptable?)
+   - Recommendation: RTO 4 hours, RPO 24 hours (daily backups)
+   - Impacts backup frequency and HA configuration
 
 ---
 
