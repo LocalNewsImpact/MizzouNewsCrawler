@@ -1,0 +1,62 @@
+# Multi-stage Dockerfile for Crawler services
+# Handles discovery, extraction, and verification
+
+# Stage 1: Base image with system dependencies
+FROM python:3.11-slim as base
+
+# Install system dependencies (including those for spacy, playwright, etc.)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    libpq-dev \
+    wget \
+    ca-certificates \
+    fonts-liberation \
+    libnss3 \
+    libxss1 \
+    xdg-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Stage 2: Install Python dependencies
+FROM base as deps
+
+COPY requirements.txt requirements-dev.txt ./
+
+# Install Python packages
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Download spacy model
+RUN python -m spacy download en_core_web_sm
+
+# Stage 3: Final runtime image
+FROM base as runtime
+
+# Copy installed packages from deps stage
+COPY --from=deps /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=deps /usr/local/bin /usr/local/bin
+COPY --from=deps /root/.cache /root/.cache
+
+# Create non-root user
+RUN useradd -m -u 1000 appuser && \
+    chown -R appuser:appuser /app
+
+# Copy application code
+COPY --chown=appuser:appuser src/ ./src/
+COPY --chown=appuser:appuser lookups/ ./lookups/
+COPY --chown=appuser:appuser orchestration/ ./orchestration/
+
+# Create data directory for SQLite (will be replaced with Cloud SQL)
+RUN mkdir -p /app/data && chown -R appuser:appuser /app/data
+
+# Switch to non-root user
+USER appuser
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+# Default command (can be overridden in Kubernetes)
+CMD ["python", "-m", "src.cli.main", "discover-urls", "--source-limit", "50"]

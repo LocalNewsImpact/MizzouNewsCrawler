@@ -1,0 +1,120 @@
+# Git and version control
+.git
+.gitignore
+.gitattributes
+
+# Python cache
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# Testing
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+tmp_test.db*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Documentation (not needed in runtime)
+docs/
+*.md
+!backend/README.md
+!web/README.md
+
+# CI/CD
+.github/
+.circleci/
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Data files (will use Cloud SQL and GCS)
+data/*.db
+data/*.db-*
+*.sqlite
+*.sqlite3
+
+# Reports and artifacts (generated, not needed in image)
+reports/
+artifacts/
+
+# Backend tests (not needed in API image)
+backend/tests/
+
+# Test files
+tests/
+test_*.py
+*_test.py
+scripts/manual_tests/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Node modules (for frontend)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Jupyter notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# Large model files (will be loaded from GCS)
+models/*.pt
+models/*.bin
+*.safetensors
+
+# Backup files
+*.backup
+*.bak
+*.old
+
+# Configuration (use env vars and ConfigMaps)
+.env
+.env.*
+*.local
+
+# Telemetry and demo files
+telemetry_demo/
+
+# Package files
+package.json
+package-lock.json
+
+# Make and build files
+Makefile
+pyproject.toml
+
+# Other Dockerfiles
+Dockerfile*
+docker-compose.yml
+.dockerignore

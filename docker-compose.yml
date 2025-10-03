@@ -1,0 +1,108 @@
+# Docker Compose for local development
+# Simulates the production Kubernetes environment
+
+version: '3.8'
+
+services:
+  # PostgreSQL database (replaces SQLite)
+  postgres:
+    image: postgres:16
+    container_name: mizzou-postgres
+    environment:
+      POSTGRES_DB: mizzou
+      POSTGRES_USER: mizzou_user
+      POSTGRES_PASSWORD: mizzou_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mizzou_user -d mizzou"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI backend
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: mizzou-api
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://mizzou_user:mizzou_pass@postgres:5432/mizzou
+      LOG_LEVEL: INFO
+      GCS_BUCKET: mizzou-raw-assets-local
+      BIGQUERY_DATASET: mizzou_analytics_local
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app/backend
+      - ./src:/app/src
+      - ./lookups:/app/lookups
+    command: uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Crawler service
+  crawler:
+    build:
+      context: .
+      dockerfile: Dockerfile.crawler
+    container_name: mizzou-crawler
+    environment:
+      DATABASE_URL: postgresql://mizzou_user:mizzou_pass@postgres:5432/mizzou
+      LOG_LEVEL: INFO
+      SOURCE_LIMIT: "10"
+      MAX_ARTICLES: "20"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./src:/app/src
+      - ./lookups:/app/lookups
+      - ./data:/app/data
+    command: python -m src.cli.main discover-urls --source-limit 10
+    profiles:
+      - crawler  # Only start with: docker-compose --profile crawler up
+
+  # Background processor
+  processor:
+    build:
+      context: .
+      dockerfile: Dockerfile.processor
+    container_name: mizzou-processor
+    environment:
+      DATABASE_URL: postgresql://mizzou_user:mizzou_pass@postgres:5432/mizzou
+      LOG_LEVEL: INFO
+      MODEL_PATH: /app/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./src:/app/src
+      - ./lookups:/app/lookups
+      - ./models:/app/models
+      - ./data:/app/data
+    command: python -m src.cli.main extract --limit 10
+    profiles:
+      - processor  # Only start with: docker-compose --profile processor up
+
+  # Adminer for database management (optional)
+  adminer:
+    image: adminer:latest
+    container_name: mizzou-adminer
+    ports:
+      - "8080:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    profiles:
+      - tools
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  default:
+    name: mizzou-network
