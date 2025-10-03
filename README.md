@@ -1,4 +1,4 @@
-# MizzouNewsCrawler-Scripts
+# MizzouNewsCrawler
 
 [![CI](https://github.com/LocalNewsImpact/MizzouNewsCrawler-Scripts/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/LocalNewsImpact/MizzouNewsCrawler-Scripts/actions/workflows/ci.yml)
 
