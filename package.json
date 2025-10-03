@@ -8,5 +8,8 @@
   "scripts": {
     "lint:md": "markdownlint-cli2 --ignore '**/node_modules/**' '**/*.md'",
     "lint:md:fix": "markdownlint-cli2 --fix --ignore '**/node_modules/**' '**/*.md'"
+  },
+  "dependencies": {
+    "markdownlint-cli": "^0.45.0"
   }
 }

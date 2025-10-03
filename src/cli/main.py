@@ -60,7 +60,7 @@ __all__ = [
 def main() -> int:
     """Forward execution to the modular CLI with a deprecation warning."""
     warnings.warn(
-        "src.cli.main is deprecated; please invoke src.cli.cli_modular " "instead",
+        "src.cli.main is deprecated; please invoke src.cli.cli_modular instead",
         category=DeprecationWarning,
         stacklevel=2,
     )

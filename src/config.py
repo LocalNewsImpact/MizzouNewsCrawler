@@ -115,7 +115,7 @@ if TELEMETRY_BASE_PATH and not TELEMETRY_BASE_PATH.startswith("/"):
 if not TELEMETRY_URL and TELEMETRY_HOST:
     port_fragment = f":{TELEMETRY_PORT}" if TELEMETRY_PORT else ""
     TELEMETRY_URL = (
-        f"{TELEMETRY_SCHEME}://{TELEMETRY_HOST}{port_fragment}" f"{TELEMETRY_BASE_PATH}"
+        f"{TELEMETRY_SCHEME}://{TELEMETRY_HOST}{port_fragment}{TELEMETRY_BASE_PATH}"
     )
 
 # OAuth / Auth configuration (optional - used by future work)

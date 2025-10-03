@@ -5,7 +5,7 @@ import os
 import sys
 
 # Add the project root to Python path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from src.utils.byline_cleaner import BylineCleaner
 
@@ -15,7 +15,7 @@ def debug_extract_authors():
     cleaner = BylineCleaner(enable_telemetry=False)
 
     # Test what _extract_authors does with 'mary johnson'
-    text = 'mary johnson'
+    text = "mary johnson"
     print(f"Input to _extract_authors: '{text}'")
 
     authors = cleaner._extract_authors(text)

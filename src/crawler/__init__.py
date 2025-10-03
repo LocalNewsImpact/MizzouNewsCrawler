@@ -183,7 +183,7 @@ class NewsCrawler:
                 # Normalize URL (remove fragment, query params
                 # for deduplication)
                 normalized_url = (
-                    f"{parsed_href.scheme}://" f"{parsed_href.netloc}{parsed_href.path}"
+                    f"{parsed_href.scheme}://{parsed_href.netloc}{parsed_href.path}"
                 )
 
                 if not self.is_valid_url(normalized_url):
@@ -246,7 +246,7 @@ class NewsCrawler:
                 article_urls.append(url)
 
         logger.info(
-            f"Filtered {len(urls)} URLs to " f"{len(article_urls)} article candidates"
+            f"Filtered {len(urls)} URLs to {len(article_urls)} article candidates"
         )
         return sorted(article_urls)
 
@@ -430,7 +430,7 @@ class ContentExtractor:
 
         self.session.headers.update(headers)
         logger.debug(
-            f"Updated session headers with UA: " f"{self.current_user_agent[:50]}..."
+            f"Updated session headers with UA: {self.current_user_agent[:50]}..."
         )
 
     def _get_domain_session(self, url: str):
@@ -507,8 +507,7 @@ class ContentExtractor:
             self.domain_user_agents[domain] = new_user_agent
 
             logger.info(
-                f"Created new session for {domain} with UA: "
-                f"{new_user_agent[:50]}..."
+                f"Created new session for {domain} with UA: {new_user_agent[:50]}..."
             )
             logger.debug(f"Cleared cookies for domain {domain}")
 
@@ -656,9 +655,7 @@ class ContentExtractor:
                     raise Exception("No Selenium implementation available")
 
                 self._driver_creation_count += 1
-                logger.info(
-                    f"Created persistent driver using " f"{self._driver_method}"
-                )
+                logger.info(f"Created persistent driver using {self._driver_method}")
 
             except Exception as e:
                 logger.error(f"Failed to create persistent driver: {e}")
@@ -667,8 +664,7 @@ class ContentExtractor:
         else:
             self._driver_reuse_count += 1
             logger.debug(
-                f"Reusing persistent driver "
-                f"(reuse count: {self._driver_reuse_count})"
+                f"Reusing persistent driver (reuse count: {self._driver_reuse_count})"
             )
 
         return self._persistent_driver
@@ -924,8 +920,7 @@ class ContentExtractor:
         final_missing = self._get_missing_fields(result)
         if final_missing:
             logger.warning(
-                f"Could not extract fields {final_missing} "
-                f"for {url} with any method"
+                f"Could not extract fields {final_missing} for {url} with any method"
             )
         else:
             logger.info(f"Successfully extracted all fields for {url}")
@@ -1163,8 +1158,7 @@ class ContentExtractor:
                 elif response.status_code in [403, 503, 502, 504]:
                     # Possible rate limiting or bot detection
                     logger.warning(
-                        f"Possible bot detection "
-                        f"({response.status_code}) by {domain}"
+                        f"Possible bot detection ({response.status_code}) by {domain}"
                     )
                     self._handle_rate_limit_error(domain, response)
                     return self._create_error_result(
@@ -1182,12 +1176,11 @@ class ContentExtractor:
                     article.html = response.text
                     ua = self.domain_user_agents.get(domain, "Unknown")
                     logger.debug(
-                        f"Successfully fetched content for {url} with "
-                        f"UA: {ua[:30]}..."
+                        f"Successfully fetched content for {url} with UA: {ua[:30]}..."
                     )
                 else:
                     logger.warning(
-                        f"Session returned status " f"{response.status_code} for {url}"
+                        f"Session returned status {response.status_code} for {url}"
                     )
                     # Fallback to newspaper4k's built-in download
                     try:
@@ -1490,7 +1483,7 @@ class ContentExtractor:
 
         # Manual stealth enhancements
         driver.execute_script(
-            "Object.defineProperty(navigator, 'webdriver', " "{get: () => undefined})"
+            "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
         )
 
         driver.execute_script(

@@ -8,7 +8,7 @@ import sqlite3
 import sys
 
 # Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 from utils.byline_cleaner import BylineCleaner
 
@@ -33,8 +33,8 @@ def fix_duplicate_authors(db_path: str, dry_run: bool = True):
         print(f"Found {len(articles)} articles with potential duplicates")
 
         for article in articles:
-            article_id = article['id']
-            original_author = article['author']
+            article_id = article["id"]
+            original_author = article["author"]
 
             # Re-clean to fix duplicates
             cleaned_authors = cleaner.clean_byline(original_author)
@@ -49,7 +49,7 @@ def fix_duplicate_authors(db_path: str, dry_run: bool = True):
                         seen.add(author_lower)
                         deduplicated.append(author)
 
-                new_author_value = ', '.join(deduplicated)
+                new_author_value = ", ".join(deduplicated)
 
                 if new_author_value != original_author:
                     print(f"ID: {article_id[:8]}...")
@@ -58,11 +58,14 @@ def fix_duplicate_authors(db_path: str, dry_run: bool = True):
                     print("-" * 40)
 
                     if not dry_run:
-                        conn.execute("""
+                        conn.execute(
+                            """
                             UPDATE articles 
                             SET author = ?, processed_at = CURRENT_TIMESTAMP
                             WHERE id = ?
-                        """, (new_author_value, article_id))
+                        """,
+                            (new_author_value, article_id),
+                        )
 
         if not dry_run:
             conn.commit()
@@ -82,9 +85,9 @@ def main():
     """Main function."""
     import argparse
 
-    parser = argparse.ArgumentParser(description='Fix duplicate author entries')
-    parser.add_argument('--db', default='data/mizzou.db', help='Database path')
-    parser.add_argument('--apply', action='store_true', help='Apply changes')
+    parser = argparse.ArgumentParser(description="Fix duplicate author entries")
+    parser.add_argument("--db", default="data/mizzou.db", help="Database path")
+    parser.add_argument("--apply", action="store_true", help="Apply changes")
 
     args = parser.parse_args()
 

@@ -134,9 +134,7 @@ def main() -> int:
     if output_path is None:
         DEFAULT_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        output_path = (
-            DEFAULT_OUTPUT_DIR / f"cleaning_segments_{timestamp}.json"
-        )
+        output_path = DEFAULT_OUTPUT_DIR / f"cleaning_segments_{timestamp}.json"
     else:
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -212,9 +210,7 @@ def main() -> int:
                     "boundary_score": boundary_score,
                     "occurrences": segment.get("occurrences"),
                     "length": segment.get("length"),
-                    "position_consistency": segment.get(
-                        "position_consistency"
-                    ),
+                    "position_consistency": segment.get("position_consistency"),
                     "removal_reason": segment.get("removal_reason"),
                     "article_ids": segment.get("article_ids", []),
                 }

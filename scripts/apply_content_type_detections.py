@@ -220,8 +220,7 @@ def main() -> None:
         type=Path,
         default=DEFAULT_DB_PATH,
         help=(
-            "Path to the SQLite database containing articles "
-            "(default: data/mizzou.db)"
+            "Path to the SQLite database containing articles (default: data/mizzou.db)"
         ),
     )
     parser.add_argument(
@@ -232,17 +231,13 @@ def main() -> None:
     parser.add_argument(
         "--min-score",
         type=float,
-        help=(
-            "Only include detections with a confidence score at or above "
-            "this value"
-        ),
+        help=("Only include detections with a confidence score at or above this value"),
     )
     parser.add_argument(
         "--operation-id",
         type=str,
         default=(
-            f"content-type-backfill-"
-            f"{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+            f"content-type-backfill-{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
         ),
         help="Identifier stored with telemetry rows to track this execution",
     )
@@ -258,7 +253,6 @@ def main() -> None:
     print(
         f"Updated {updated} articles and wrote {telemetry_rows} telemetry rows "
         f"using operation_id={args.operation_id}"
-
     )
 
 

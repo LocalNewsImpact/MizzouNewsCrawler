@@ -53,7 +53,7 @@ def add_reports_parser(subparsers) -> argparse.ArgumentParser:
         "--output",
         type=Path,
         help=(
-            "Destination CSV path. Defaults to " "reports/county_report_<timestamp>.csv"
+            "Destination CSV path. Defaults to reports/county_report_<timestamp>.csv"
         ),
     )
     parser.add_argument(

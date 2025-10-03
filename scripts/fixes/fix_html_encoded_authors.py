@@ -57,7 +57,8 @@ def clean_html_encoded_authors(authors: list[str]) -> list[str]:
 def find_html_encoded_articles(cursor, specific_article_id=None):
     """Find articles with HTML entities in author fields."""
     if specific_article_id:
-        cursor.execute('''
+        cursor.execute(
+            """
             SELECT id, url, title, author
             FROM articles
             WHERE id = ? AND (
@@ -67,9 +68,11 @@ def find_html_encoded_articles(cursor, specific_article_id=None):
                 OR author LIKE '%&gt;%'
                 OR author LIKE '%&quot;%'
             )
-        ''', (specific_article_id,))
+        """,
+            (specific_article_id,),
+        )
     else:
-        cursor.execute('''
+        cursor.execute("""
             SELECT id, url, title, author
             FROM articles
             WHERE author LIKE '%&#%'
@@ -77,13 +80,14 @@ def find_html_encoded_articles(cursor, specific_article_id=None):
                OR author LIKE '%&lt;%'
                OR author LIKE '%&gt;%'
                OR author LIKE '%&quot;%'
-        ''')
+        """)
 
     return cursor.fetchall()
 
 
-def fix_article_authors(cursor, article_id, current_authors, new_authors,
-                        dry_run=False):
+def fix_article_authors(
+    cursor, article_id, current_authors, new_authors, dry_run=False
+):
     """Fix the authors for a specific article."""
     if dry_run:
         log_info(f"[DRY RUN] Would update article {article_id}")
@@ -93,11 +97,14 @@ def fix_article_authors(cursor, article_id, current_authors, new_authors,
 
     try:
         new_author_json = json.dumps(new_authors)
-        cursor.execute('''
+        cursor.execute(
+            """
             UPDATE articles
             SET author = ?
             WHERE id = ?
-        ''', (new_author_json, article_id))
+        """,
+            (new_author_json, article_id),
+        )
 
         log_info(f"✅ Updated article {article_id}")
         log_info(f"  From: {current_authors}")
@@ -110,35 +117,37 @@ def fix_article_authors(cursor, article_id, current_authors, new_authors,
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Fix HTML encoded author names")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Show what would be changed without changes")
-    parser.add_argument("--article-id", type=str,
-                        help="Fix only the specified article ID")
+    parser = argparse.ArgumentParser(description="Fix HTML encoded author names")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be changed without changes",
+    )
+    parser.add_argument(
+        "--article-id", type=str, help="Fix only the specified article ID"
+    )
 
     args = parser.parse_args()
 
     # Connect to database
-    db_path = 'data/mizzou.db'
+    db_path = "data/mizzou.db"
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
     try:
         # Find articles with HTML entities
-        problematic_articles = find_html_encoded_articles(
-            cursor, args.article_id)
+        problematic_articles = find_html_encoded_articles(cursor, args.article_id)
 
         if not problematic_articles:
             if args.article_id:
-                log_info(f"No HTML encoding issues found in article "
-                         f"{args.article_id}")
+                log_info(f"No HTML encoding issues found in article {args.article_id}")
             else:
                 log_info("No articles found with HTML encoding issues!")
             return
 
-        log_info(f"Found {len(problematic_articles)} articles with "
-                 f"HTML encoding issues")
+        log_info(
+            f"Found {len(problematic_articles)} articles with HTML encoding issues"
+        )
         print("=" * 60)
 
         fixed_count = 0
@@ -149,27 +158,28 @@ def main():
             print(f"Title: {title[:60]}...")
 
             try:
-                current_authors = (json.loads(author_json)
-                                   if author_json else [])
-                print(f"Current authors ({len(current_authors)}): "
-                      f"{current_authors}")
+                current_authors = json.loads(author_json) if author_json else []
+                print(f"Current authors ({len(current_authors)}): {current_authors}")
 
                 # Clean HTML encoding and remove duplicates
                 cleaned_authors = clean_html_encoded_authors(current_authors)
-                print(f"Cleaned authors ({len(cleaned_authors)}): "
-                      f"{cleaned_authors}")
+                print(f"Cleaned authors ({len(cleaned_authors)}): {cleaned_authors}")
 
                 # Check if any changes needed
                 if cleaned_authors != current_authors:
-                    if fix_article_authors(cursor, article_id,
-                                           current_authors,
-                                           cleaned_authors, args.dry_run):
+                    if fix_article_authors(
+                        cursor,
+                        article_id,
+                        current_authors,
+                        cleaned_authors,
+                        args.dry_run,
+                    ):
                         fixed_count += 1
                         if len(cleaned_authors) < len(current_authors):
-                            duplicates_removed = (len(current_authors) -
-                                                  len(cleaned_authors))
-                            print(f"  📝 Removed {duplicates_removed} "
-                                  f"duplicate(s)")
+                            duplicates_removed = len(current_authors) - len(
+                                cleaned_authors
+                            )
+                            print(f"  📝 Removed {duplicates_removed} duplicate(s)")
                 else:
                     print("  ✅ No changes needed")
 

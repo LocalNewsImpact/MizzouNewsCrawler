@@ -4,7 +4,7 @@ Batch extraction script for processing articles in manageable chunks.
 
 This script processes articles in batches to:
 - Prevent memory leaks from long-running Selenium sessions
-- Allow monitoring progress between batches  
+- Allow monitoring progress between batches
 - Enable recovery if any batch fails
 - Manage system resources better
 
@@ -62,9 +62,9 @@ def get_extraction_status():
             articles_count = art_result.fetchone()[0]
 
             return {
-                'articles_ready': cl_stats.get('article', 0),
-                'articles_extracted': cl_stats.get('extracted', 0),
-                'articles_in_db': articles_count
+                "articles_ready": cl_stats.get("article", 0),
+                "articles_extracted": cl_stats.get("extracted", 0),
+                "articles_in_db": articles_count,
             }
     except Exception as e:
         logging.error(f"Failed to get extraction status: {e}")
@@ -98,7 +98,7 @@ def run_extraction_batch(batch_size: int, batch_num: int, total_batches: int):
             cmd,
             capture_output=True,
             text=True,
-            timeout=30 * 60  # 30 minute timeout per batch
+            timeout=30 * 60,  # 30 minute timeout per batch
         )
 
         duration = time.time() - start_time
@@ -111,12 +111,12 @@ def run_extraction_batch(batch_size: int, batch_num: int, total_batches: int):
             )
 
             # Parse output for statistics if available
-            output_lines = result.stdout.split('\n')
+            output_lines = result.stdout.split("\n")
             for line in output_lines:
                 if (
-                    'Successfully extracted:' in line
-                    or 'Partially extracted:' in line
-                    or 'Failed:' in line
+                    "Successfully extracted:" in line
+                    or "Partially extracted:" in line
+                    or "Failed:" in line
                 ):
                     logger.info(f"   {line.strip()}")
 
@@ -165,7 +165,7 @@ def main():
     parser.add_argument(
         "--continue-on-failure",
         action="store_true",
-        help="Continue processing even if a batch fails"
+        help="Continue processing even if a batch fails",
     )
 
     args = parser.parse_args()

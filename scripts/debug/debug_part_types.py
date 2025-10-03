@@ -18,7 +18,7 @@ def test_part_type_identification():
         "D'Angelo",
         "Staff Reporter",
         "News Editor",
-        "photographer@news.com"
+        "photographer@news.com",
     ]
 
     print("🔍 TESTING PART TYPE IDENTIFICATION")
@@ -35,14 +35,14 @@ def test_part_type_identification():
     problematic_cases = [
         "O'Connor, Sean",
         "O'brien, Mary Jane",
-        "Sean O'Connor, Staff Reporter"
+        "Sean O'Connor, Staff Reporter",
     ]
 
     for case in problematic_cases:
         print(f"\nTesting: '{case}'")
 
         # Split on comma
-        comma_parts = case.split(',')
+        comma_parts = case.split(",")
         print(f"  Comma parts: {comma_parts}")
 
         # Identify each part

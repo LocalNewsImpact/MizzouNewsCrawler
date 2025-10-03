@@ -65,7 +65,7 @@ def execute_query(query, params=None, description="Query results"):
     except Exception as e:
         print(f"Error executing query: {e}")
     finally:
-        if 'conn' in locals():
+        if "conn" in locals():
             conn.close()
 
 
@@ -73,16 +73,24 @@ def discovery_status():
     """Check overall discovery status across all sources."""
     queries = [
         ("SELECT COUNT(*) as total_sources FROM sources", None, "Total Sources"),
-        ("""
+        (
+            """
             SELECT COUNT(*) as sources_with_discoveries
             FROM sources
             WHERE discovery_attempted IS NOT NULL
-        """, None, "Sources With Discovery Attempts"),
-        ("""
+        """,
+            None,
+            "Sources With Discovery Attempts",
+        ),
+        (
+            """
             SELECT COUNT(*) as unattempted_sources
             FROM sources
             WHERE discovery_attempted IS NULL
-        """, None, "Sources Never Attempted"),
+        """,
+            None,
+            "Sources Never Attempted",
+        ),
     ]
 
     for query, params, desc in queries:
@@ -107,15 +115,20 @@ def source_counts():
 
 def recent_activity(hours=24):
     """Show recent discovery activity."""
-    since_time = (datetime.now() - timedelta(hours=hours)).strftime('%Y-%m-%d %H:%M:%S')
+    since_time = (datetime.now() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
 
     queries = [
-        ("""
+        (
+            """
             SELECT COUNT(DISTINCT cl.source_name) as active_sources
             FROM candidate_links cl
             WHERE cl.created_at >= ?
-        """, (since_time,), f"Sources Active in Last {hours} Hours"),
-        ("""
+        """,
+            (since_time,),
+            f"Sources Active in Last {hours} Hours",
+        ),
+        (
+            """
             SELECT 
                 cl.source_name,
                 COUNT(*) as articles_found
@@ -124,7 +137,10 @@ def recent_activity(hours=24):
             GROUP BY cl.source_name
             ORDER BY articles_found DESC
             LIMIT 10
-        """, (since_time,), f"Top Sources in Last {hours} Hours"),
+        """,
+            (since_time,),
+            f"Top Sources in Last {hours} Hours",
+        ),
     ]
 
     for query, params, desc in queries:
@@ -148,7 +164,8 @@ def telemetry_status():
     """Check telemetry/operation tracking status."""
     queries = [
         ("SELECT COUNT(*) FROM operations", None, "Total Operations Tracked"),
-        ("""
+        (
+            """
             SELECT 
                 operation_type,
                 COUNT(*) as count,
@@ -156,11 +173,19 @@ def telemetry_status():
             FROM operations
             GROUP BY operation_type
             ORDER BY count DESC
-        """, None, "Operations by Type"),
-        ("""
+        """,
+            None,
+            "Operations by Type",
+        ),
+        (
+            """
             SELECT COUNT(*) FROM discovery_outcomes
-        """, None, "Discovery Outcomes Recorded"),
-        ("""
+        """,
+            None,
+            "Discovery Outcomes Recorded",
+        ),
+        (
+            """
             SELECT 
                 outcome,
                 COUNT(*) as count,
@@ -168,7 +193,10 @@ def telemetry_status():
             FROM discovery_outcomes
             GROUP BY outcome
             ORDER BY count DESC
-        """, None, "Discovery Outcomes Summary"),
+        """,
+            None,
+            "Discovery Outcomes Summary",
+        ),
     ]
 
     for query, params, desc in queries:
@@ -185,12 +213,22 @@ def custom_query(sql):
 
 def main():
     parser = argparse.ArgumentParser(description="Quick SQLite database queries")
-    parser.add_argument("command", choices=[
-        "discovery_status", "source_counts", "recent_activity",
-        "unattempted_sources", "telemetry_status", "custom"
-    ], help="Query to run")
+    parser.add_argument(
+        "command",
+        choices=[
+            "discovery_status",
+            "source_counts",
+            "recent_activity",
+            "unattempted_sources",
+            "telemetry_status",
+            "custom",
+        ],
+        help="Query to run",
+    )
     parser.add_argument("query", nargs="?", help="SQL query for custom command")
-    parser.add_argument("--hours", type=int, default=24, help="Hours back for recent_activity")
+    parser.add_argument(
+        "--hours", type=int, default=24, help="Hours back for recent_activity"
+    )
     parser.add_argument("--limit", type=int, default=20, help="Limit for results")
 
     args = parser.parse_args()

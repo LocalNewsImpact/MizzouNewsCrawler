@@ -417,8 +417,7 @@ class URLVerificationService:
                     continue
 
                 self.logger.info(
-                    f"Processing batch {batch_count + 1} "
-                    f"of {len(candidates)} URLs..."
+                    f"Processing batch {batch_count + 1} of {len(candidates)} URLs..."
                 )
 
                 # Process batch

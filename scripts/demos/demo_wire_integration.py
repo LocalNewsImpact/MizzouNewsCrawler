@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 # Add src directory to path
-src_path = Path(__file__).parent / 'src'
+src_path = Path(__file__).parent / "src"
 sys.path.insert(0, str(src_path))
 
 from utils.byline_cleaner import BylineCleaner  # noqa: E402
@@ -30,7 +30,7 @@ def demo_wire_service_integration():
     cleaner = BylineCleaner(enable_telemetry=False)
 
     # Connect to database
-    db_path = Path('data/mizzou.db')
+    db_path = Path("data/mizzou.db")
     conn = sqlite3.connect(str(db_path))
     cursor = conn.cursor()
 
@@ -68,7 +68,7 @@ def demo_wire_service_integration():
         "CNN",
         "Mary Williams Sports Editor",
         "Bob Wilson Fox News",
-        "Alice Brown Wall Street Journal"
+        "Alice Brown Wall Street Journal",
     ]
 
     for i, byline in enumerate(sample_bylines, 1):
@@ -77,9 +77,9 @@ def demo_wire_service_integration():
         # Clean byline and get results
         result = cleaner.clean_byline(byline, return_json=True)
 
-        authors = result['authors']
-        wire_services = result['wire_services']
-        primary_wire = result['primary_wire_service']
+        authors = result["authors"]
+        wire_services = result["wire_services"]
+        primary_wire = result["primary_wire_service"]
 
         print(f"   Authors: {authors}")
         print(f"   Wire Services: {wire_services}")
@@ -151,7 +151,7 @@ def demo_backfill_process():
     print("=" * 32)
 
     # Connect to database
-    db_path = Path('data/mizzou.db')
+    db_path = Path("data/mizzou.db")
     conn = sqlite3.connect(str(db_path))
     cursor = conn.cursor()
 
@@ -187,11 +187,13 @@ def demo_backfill_process():
 
             # Process with wire detection
             result = cleaner.clean_byline(byline, return_json=True)
-            primary_wire = result['primary_wire_service']
+            primary_wire = result["primary_wire_service"]
 
             if primary_wire:
                 print(f"🎯 Detected Wire Service: {primary_wire}")
-                print(f"SQL: UPDATE articles SET wire = '{primary_wire}' WHERE id = '{article_id}';")
+                print(
+                    f"SQL: UPDATE articles SET wire = '{primary_wire}' WHERE id = '{article_id}';"
+                )
             else:
                 print("🎯 No wire service detected")
     else:
@@ -220,5 +222,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n❌ Demo failed: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

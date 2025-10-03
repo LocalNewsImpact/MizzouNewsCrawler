@@ -5,7 +5,7 @@
 import os
 import sys
 
-sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
 
 from utils.byline_cleaner import BylineCleaner
 
@@ -46,7 +46,7 @@ def debug_specific_cases():
         print(f"1. _identify_part_type('{case}') = '{part_type}'")
 
         # Simulate _extract_authors logic
-        if part_type in ['title', 'photo_credit']:
+        if part_type in ["title", "photo_credit"]:
             print(f"2. Would be filtered out due to type '{part_type}'")
         else:
             print("2. Would be passed to validation")
@@ -56,6 +56,7 @@ def debug_specific_cases():
             print(f"3. _validate_authors(['{case}']) = {valid}")
 
         print("\n" + "=" * 50 + "\n")
+
 
 if __name__ == "__main__":
     debug_specific_cases()

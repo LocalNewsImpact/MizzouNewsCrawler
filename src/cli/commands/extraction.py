@@ -519,7 +519,7 @@ def _run_post_extraction_cleaning(domains_to_articles):
             for article_id in article_ids:
                 try:
                     row = session.execute(
-                        text("SELECT content, status FROM articles " "WHERE id = :id"),
+                        text("SELECT content, status FROM articles WHERE id = :id"),
                         {"id": article_id},
                     ).fetchone()
 

@@ -180,13 +180,11 @@ def test_navigation_prefix_with_inline_date_detected():
     articles = [
         {
             "id": "alpha",
-            "content": (f"{nav_prefix} September 20, 2025 " "Sonny Curtis remembered."),
+            "content": (f"{nav_prefix} September 20, 2025 Sonny Curtis remembered."),
         },
         {
             "id": "beta",
-            "content": (
-                f"{nav_prefix} September 22, 2025 " "Parade coverage continues."
-            ),
+            "content": (f"{nav_prefix} September 22, 2025 Parade coverage continues."),
         },
     ]
 

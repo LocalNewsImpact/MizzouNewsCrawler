@@ -39,9 +39,8 @@ def _load_filtered_rows(
 
             if normalized_counties:
                 row_counties = {
-                    county.lower() for county in _split_counties(
-                        row.get("publication_county")
-                    )
+                    county.lower()
+                    for county in _split_counties(row.get("publication_county"))
                 }
                 if not row_counties & normalized_counties:
                     continue
@@ -170,8 +169,7 @@ def main() -> None:
 
     if missing_text:
         print(
-            f"Export complete: {args.output}. "
-            f"Missing text for {missing_text} articles."
+            f"Export complete: {args.output}. Missing text for {missing_text} articles."
         )
     else:
         print(f"Export complete: {args.output}.")

@@ -269,8 +269,7 @@ class PublisherGeoFilter:
                 }
         except Exception as e:
             print(
-                f"Warning: Could not load publisher data from "
-                f"{self.publinks_path}: {e}"
+                f"Warning: Could not load publisher data from {self.publinks_path}: {e}"
             )
             self.publishers = {}
 
@@ -333,7 +332,7 @@ class PublisherGeoFilter:
                 df.to_csv(self.publinks_path, index=False)
                 print(f"Updated cached gazetteer for {host_id}")
         except Exception as e:
-            print(f"Warning: Could not save gazetteer cache for " f"{host_id}: {e}")
+            print(f"Warning: Could not save gazetteer cache for {host_id}: {e}")
 
     def _query_osm_entities(
         self,
@@ -372,7 +371,7 @@ class PublisherGeoFilter:
                 overpass_query = f"""
                 [out:json][timeout:45];
                 (
-                    {' '.join(query_parts)}
+                    {" ".join(query_parts)}
                 );
                 out center meta;
                 """
@@ -381,7 +380,7 @@ class PublisherGeoFilter:
                 if attempt > 0:
                     # Exponential backoff + jitter
                     delay = base_delay * (2**attempt) + 1
-                    print(f"    Retrying {entity_type} after " f"{delay:.1f}s delay...")
+                    print(f"    Retrying {entity_type} after {delay:.1f}s delay...")
                     time.sleep(delay)
 
                 # Make API request with longer timeout
@@ -414,10 +413,7 @@ class PublisherGeoFilter:
                         print(f"Max retries reached for {entity_type}")
                         return []
                 else:
-                    print(
-                        f"OSM query failed for {entity_type}: "
-                        f"{response.status_code}"
-                    )
+                    print(f"OSM query failed for {entity_type}: {response.status_code}")
                     return []
 
             except requests.exceptions.Timeout:
@@ -524,7 +520,7 @@ class PublisherGeoFilter:
                 print(f"Found coordinates for zipcode {zip5}: ({lat}, {lon})")
                 return (lat, lon)
         except Exception as e:
-            print("Warning: Could not get coordinates for zipcode " f"{zipcode}: {e}")
+            print(f"Warning: Could not get coordinates for zipcode {zipcode}: {e}")
         return None
 
     def build_publisher_gazetteer(self, host_id: str) -> set[str]:
@@ -1352,8 +1348,7 @@ class PublisherGeoFilter:
         counts = df["classification"].value_counts().to_dict()
         print("Publisher-specific geographic filtering results:")
         print(
-            "- Articles with geographic signals: "
-            f"{df['has_geographic_signals'].sum()}"
+            f"- Articles with geographic signals: {df['has_geographic_signals'].sum()}"
         )
         print(f"- Classification counts: {counts}")
 
@@ -1388,7 +1383,7 @@ if __name__ == "__main__":
     for host_id in ["163", "203", "220"]:  # Examples from the CSV
         if host_id in geo_filter.publishers:
             pub = geo_filter.publishers[host_id]
-            print(f"\nPublisher: {pub['name']} " f"({pub['city']}, {pub['county']})")
+            print(f"\nPublisher: {pub['name']} ({pub['city']}, {pub['county']})")
             print(
                 f"Media type: {pub['media_type']}, "
                 f"Coverage radius: {pub['coverage_radius']} miles"

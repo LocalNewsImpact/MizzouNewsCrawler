@@ -115,8 +115,7 @@ class ContentCleaner:
         if self.telemetry:
             self.telemetry.finished_at = datetime.utcnow()
             logger.info(
-                f"Finished content cleaning operation: "
-                f"{self.telemetry.operation_id}"
+                f"Finished content cleaning operation: {self.telemetry.operation_id}"
             )
             logger.info(f"Telemetry: {self.telemetry.to_dict()}")
 

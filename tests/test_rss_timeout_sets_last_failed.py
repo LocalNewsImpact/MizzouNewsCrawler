@@ -48,6 +48,6 @@ def test_timeout_records_rss_last_failed(monkeypatch):
 
     assert found_last_failed
     assert not found_rss_missing
-    assert (
-        found_last_failed
-    ), "Expected rss_last_failed to be recorded for network errors"
+    assert found_last_failed, (
+        "Expected rss_last_failed to be recorded for network errors"
+    )

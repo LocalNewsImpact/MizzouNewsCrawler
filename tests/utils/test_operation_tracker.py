@@ -156,7 +156,7 @@ def test_operation_lifecycle_handles_retry(tracker_factory, monkeypatch):
     with sqlite3.connect(db_path) as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute(
-            ("SELECT status, metrics, result_summary " "FROM operations WHERE id = ?"),
+            ("SELECT status, metrics, result_summary FROM operations WHERE id = ?"),
             (operation_id,),
         ).fetchone()
         assert row["status"] == OperationStatus.COMPLETED.value
@@ -221,8 +221,7 @@ def test_track_http_status_uses_normalized_timestamps(tracker_factory):
     with sqlite3.connect(db_path) as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute(
-            "SELECT status_code, status_category, timestamp "
-            "FROM http_status_tracking"
+            "SELECT status_code, status_category, timestamp FROM http_status_tracking"
         ).fetchone()
 
     assert row["status_code"] == 404

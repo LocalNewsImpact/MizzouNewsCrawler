@@ -73,8 +73,7 @@ def handle_extraction_command(args) -> int:
         byline_cleaner = BylineCleaner()
 
         print(
-            "\n🚀 Starting batch extraction: "
-            f"{batches} batches × {per_batch} articles"
+            f"\n🚀 Starting batch extraction: {batches} batches × {per_batch} articles"
         )
         print("=" * 60)
 
@@ -140,7 +139,7 @@ def handle_extraction_command(args) -> int:
 
             # Show user agent rotation stats
             rotation_stats = extractor.get_rotation_stats()
-            print("   Domains accessed: " f"{rotation_stats['total_domains_accessed']}")
+            print(f"   Domains accessed: {rotation_stats['total_domains_accessed']}")
 
             # Brief pause between batches
             if batch_num < batches:
@@ -155,7 +154,7 @@ def handle_extraction_command(args) -> int:
             if overall_stats["total_processed"] > 0
             else 0
         )
-        print("Batches completed: " f"{overall_stats['batches_completed']}/{batches}")
+        print(f"Batches completed: {overall_stats['batches_completed']}/{batches}")
         print(f"Total articles processed: {overall_stats['total_processed']}")
         print(f"Total successful: {overall_stats['total_successful']}")
         print(f"Total failed: {overall_stats['total_failed']}")
@@ -164,7 +163,7 @@ def handle_extraction_command(args) -> int:
         # Show final rotation statistics
         rotation_stats = extractor.get_rotation_stats()
         print("\nUser Agent Rotation Summary:")
-        print("  Total domains: " f"{rotation_stats['total_domains_accessed']}")
+        print(f"  Total domains: {rotation_stats['total_domains_accessed']}")
         print(f"  Active sessions: {rotation_stats['active_sessions']}")
         for domain, count in rotation_stats["request_counts"].items():
             print(f"  {domain}: {count} requests")
@@ -255,8 +254,7 @@ def _process_batch(articles, extractor, byline_cleaner, session, batch_num):
                     status_text = f"{completion_percentage:.0f}% complete"
 
                 print(
-                    f"  {status_icon}: {content_data['title'][:50]}... "
-                    f"({status_text})"
+                    f"  {status_icon}: {content_data['title'][:50]}... ({status_text})"
                 )
 
                 metadata = content_data.get("metadata", {}) or {}

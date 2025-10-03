@@ -144,7 +144,7 @@ def _detect_duplicate_urls(df: pd.DataFrame) -> list[str]:
             host_messages.append(f"{host_norm}: {entries}")
 
         messages.append(
-            ("Duplicate host values detected " "(same domain appears multiple times): ")
+            ("Duplicate host values detected (same domain appears multiple times): ")
             + "; ".join(host_messages)
         )
 
@@ -338,7 +338,7 @@ def handle_load_sources_command(args) -> int:
         print(f"Unique counties: {df['county'].nunique()}")
         print(f"Unique cities: {df['city'].nunique()}")
         if "media_type" in df.columns:
-            print("Media types: " f"{df['media_type'].value_counts().to_dict()}")
+            print(f"Media types: {df['media_type'].value_counts().to_dict()}")
 
         logger.info("Auto-triggering gazetteer population for new dataset")
         try:

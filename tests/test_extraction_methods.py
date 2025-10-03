@@ -122,7 +122,7 @@ class TestContentExtractor:
                 "2024-09-25",
             ),
             (
-                "https://www.kbia.org/health/2024-10-01/" "test-segment/",
+                "https://www.kbia.org/health/2024-10-01/test-segment/",
                 "2024-10-01",
             ),
         ],
@@ -412,7 +412,7 @@ class TestContentExtractor:
 
     def test_publish_date_detected_next_to_byline_without_keywords(self, extractor):
         content = (
-            "Nemo enim ipsam voluptatem quia voluptas sit aspernatur " "aut odit. "
+            "Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit. "
         ) * 4
         html = textwrap.dedent(
             f"""
@@ -564,7 +564,7 @@ class TestRealWorldExtraction:
             [bool(title), bool(author), bool(len(content) >= 50), bool(publish_date)]
         )
         completion_pct = (fields_present / 4) * 100
-        print(f"   COMPLETION: {completion_pct:.0f}% " f"({fields_present}/4 fields)")
+        print(f"   COMPLETION: {completion_pct:.0f}% ({fields_present}/4 fields)")
 
         # Test that fallback mechanism was used if needed
         if completion_pct < 100 and extraction_methods:
@@ -587,10 +587,10 @@ class TestRealWorldExtraction:
             "warrior-ridge-elementary-wow-winners,160763"
         )
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("INDIVIDUAL METHOD PERFORMANCE TEST")
         print(f"URL: {test_url}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         methods = [
             ("newspaper4k", extractor._extract_with_newspaper),
@@ -639,10 +639,10 @@ class TestRealWorldExtraction:
             "article_6ca9c607-4677-473e-99b3-fb58292d2876.html"
         )
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("FALLBACK TRIGGER TEST")
         print(f"URL: {test_url}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         # Track method calls by patching the methods
         method_calls = {"newspaper": 0, "beautifulsoup": 0, "selenium": 0}
@@ -668,7 +668,6 @@ class TestRealWorldExtraction:
             patch.object(extractor, "_extract_with_beautifulsoup", track_beautifulsoup),
             patch.object(extractor, "_extract_with_selenium", track_selenium),
         ):
-
             try:
                 result = extractor.extract_content(test_url)
 
@@ -883,7 +882,6 @@ class TestSeleniumMethod:
             patch("src.crawler.stealth") as mock_stealth,
             patch("src.crawler.SELENIUM_STEALTH_AVAILABLE", True),
         ):
-
             extractor._create_stealth_driver()
 
             # Verify stealth was applied
@@ -900,7 +898,6 @@ class TestFallbackMechanism:
             patch.object(extractor, "_extract_with_beautifulsoup") as mock_bs,
             patch.object(extractor, "_extract_with_selenium") as mock_sel,
         ):
-
             # Newspaper returns complete results
             mock_np.return_value = {
                 "title": "Complete Title",
@@ -941,7 +938,6 @@ class TestFallbackMechanism:
             patch.object(extractor, "_extract_with_newspaper") as mock_np,
             patch.object(extractor, "_extract_with_beautifulsoup") as mock_bs,
         ):
-
             # Newspaper returns partial results
             mock_np.return_value = {
                 "title": "Newspaper Title",
@@ -987,7 +983,6 @@ class TestFallbackMechanism:
             patch.object(extractor, "_extract_with_beautifulsoup") as mock_bs,
             patch.object(extractor, "_extract_with_selenium") as mock_sel,
         ):
-
             # Newspaper fails completely
             mock_np.return_value = {}
 
@@ -1066,7 +1061,6 @@ class TestEdgeCases:
             patch.object(extractor, "_extract_with_beautifulsoup", return_value={}),
             patch.object(extractor, "_extract_with_selenium", return_value={}),
         ):
-
             result = extractor.extract_content("https://test.com")
 
             # Should return minimal structure

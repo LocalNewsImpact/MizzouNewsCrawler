@@ -215,19 +215,17 @@ def get_code_review_stats() -> CodeReviewStats:
         total_reviews = cur.fetchone()[0]
 
         cur.execute(
-            "SELECT COUNT(*) FROM code_review_telemetry " "WHERE human_label IS NULL"
+            "SELECT COUNT(*) FROM code_review_telemetry WHERE human_label IS NULL"
         )
         pending_review = cur.fetchone()[0]
 
         cur.execute(
-            "SELECT COUNT(*) FROM code_review_telemetry "
-            "WHERE human_label = 'approved'"
+            "SELECT COUNT(*) FROM code_review_telemetry WHERE human_label = 'approved'"
         )
         approved = cur.fetchone()[0]
 
         cur.execute(
-            "SELECT COUNT(*) FROM code_review_telemetry "
-            "WHERE human_label = 'rejected'"
+            "SELECT COUNT(*) FROM code_review_telemetry WHERE human_label = 'rejected'"
         )
         rejected = cur.fetchone()[0]
 

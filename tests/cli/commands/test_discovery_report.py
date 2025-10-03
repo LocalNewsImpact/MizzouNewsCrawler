@@ -62,9 +62,9 @@ def test_handle_discovery_report_summary_default(monkeypatch, capsys):
     exit_code = discovery_report.handle_discovery_report_command(args)
 
     assert exit_code == 0
-    assert telemetry.calls == [
-        {"operation_id": None, "hours_back": 24}
-    ], "Default hours_back should be applied"
+    assert telemetry.calls == [{"operation_id": None, "hours_back": 24}], (
+        "Default hours_back should be applied"
+    )
 
     output = capsys.readouterr().out
     assert "Discovery Outcomes Summary" in output

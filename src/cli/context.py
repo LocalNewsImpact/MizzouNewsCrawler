@@ -115,7 +115,7 @@ def trigger_gazetteer_population_background(
         )
         logger.info("Gazetteer population started in background (PID: %s)", proc.pid)
         logger.info(
-            "Track progress with: python -m src.cli.cli_modular " "status --process %s",
+            "Track progress with: python -m src.cli.cli_modular status --process %s",
             process_id,
         )
     except Exception as exc:  # pragma: no cover - log and re-raise

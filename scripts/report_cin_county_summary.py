@@ -42,10 +42,7 @@ def _summarize() -> tuple[
                 continue
 
             publication = row.get("publication_name", "Unknown Publication")
-            label = (
-                (row.get("primary_label") or "Unlabeled").strip()
-                or "Unlabeled"
-            )
+            label = (row.get("primary_label") or "Unlabeled").strip() or "Unlabeled"
 
             for raw_county in counties:
                 normalized = raw_county.title()
@@ -76,9 +73,7 @@ def _render_markdown(
             lines.append("No stories collected for this county.\n")
             continue
 
-        lines.append(
-            "| Publication | Stories | Critical Information Needs Mix |\n"
-        )
+        lines.append("| Publication | Stories | Critical Information Needs Mix |\n")
         lines.append("| --- | ---: | --- |\n")
 
         for publication in sorted(publications):

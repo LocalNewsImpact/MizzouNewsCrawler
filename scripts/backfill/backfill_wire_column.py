@@ -22,7 +22,7 @@ from difflib import SequenceMatcher
 from typing import Any
 
 # Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 from utils.byline_cleaner import BylineCleaner
 
@@ -30,20 +30,20 @@ from utils.byline_cleaner import BylineCleaner
 class WireBackfillProcessor:
     """Handles the backfill process for wire service detection."""
 
-    def __init__(self, db_path: str = 'data/mizzou.db', dry_run: bool = False):
+    def __init__(self, db_path: str = "data/mizzou.db", dry_run: bool = False):
         self.db_path = db_path
         self.dry_run = dry_run
         self.cleaner = BylineCleaner(enable_telemetry=False)
 
         # Statistics tracking
         self.stats = {
-            'total_processed': 0,
-            'wire_detected': 0,
-            'local_content': 0,
-            'author_cleaned': 0,
-            'errors': 0,
-            'skipped_no_author': 0,
-            'source_matches': 0  # Wire service matches source name
+            "total_processed": 0,
+            "wire_detected": 0,
+            "local_content": 0,
+            "author_cleaned": 0,
+            "errors": 0,
+            "skipped_no_author": 0,
+            "source_matches": 0,  # Wire service matches source name
         }
 
     def similarity_ratio(self, text1: str, text2: str) -> float:
@@ -60,13 +60,18 @@ class WireBackfillProcessor:
     def _normalize_for_comparison(self, text: str) -> str:
         """Normalize text for similarity comparison."""
         import re
+
         # Remove common words and normalize
         text = text.lower().strip()
         # Remove articles and common publication words
-        text = re.sub(r'\b(the|a|an|news|press|daily|weekly|times|post|gazette|herald|tribune|journal)\b', '', text)
+        text = re.sub(
+            r"\b(the|a|an|news|press|daily|weekly|times|post|gazette|herald|tribune|journal)\b",
+            "",
+            text,
+        )
         # Remove extra whitespace and punctuation
-        text = re.sub(r'[^\w\s]', '', text)
-        text = re.sub(r'\s+', ' ', text).strip()
+        text = re.sub(r"[^\w\s]", "", text)
+        text = re.sub(r"\s+", " ", text).strip()
         return text
 
     def parse_author_json(self, author_data: Any) -> list[str]:
@@ -94,10 +99,12 @@ class WireBackfillProcessor:
         """Format authors as JSON string for database storage."""
         return json.dumps(authors)
 
-    def is_wire_service_from_own_source(self, wire_service: str, source_name: str) -> bool:
+    def is_wire_service_from_own_source(
+        self, wire_service: str, source_name: str
+    ) -> bool:
         """
         Check if detected wire service is actually from the publication's own source.
-        
+
         Returns True if the wire service matches the source (indicating local content),
         False if it's syndicated content.
         """
@@ -109,7 +116,9 @@ class WireBackfillProcessor:
 
         # High similarity threshold - this is the publication's own content
         if similarity > 0.7:  # 70% similarity threshold
-            print(f"   🏠 Source match detected: '{wire_service}' matches '{source_name}' (similarity: {similarity:.2f})")
+            print(
+                f"   🏠 Source match detected: '{wire_service}' matches '{source_name}' (similarity: {similarity:.2f})"
+            )
             return True
 
         # Check for direct substring matches (case insensitive)
@@ -117,16 +126,18 @@ class WireBackfillProcessor:
         source_lower = source_name.lower()
 
         # Check if wire service is contained in source name or vice versa
-        if (wire_lower in source_lower or source_lower in wire_lower):
+        if wire_lower in source_lower or source_lower in wire_lower:
             print(f"   🏠 Source substring match: '{wire_service}' <-> '{source_name}'")
             return True
 
         return False
 
-    def process_article(self, article_id: str, author_data: Any, source_name: str, current_wire: Any) -> tuple[list[str], str | None, bool]:
+    def process_article(
+        self, article_id: str, author_data: Any, source_name: str, current_wire: Any
+    ) -> tuple[list[str], str | None, bool]:
         """
         Process a single article's author data.
-        
+
         Returns:
             (new_authors, wire_service, needs_update)
         """
@@ -134,7 +145,7 @@ class WireBackfillProcessor:
         current_authors = self.parse_author_json(author_data)
 
         if not current_authors:
-            self.stats['skipped_no_author'] += 1
+            self.stats["skipped_no_author"] += 1
             return [], None, False
 
         # Process each author in the list
@@ -142,7 +153,7 @@ class WireBackfillProcessor:
         detected_wire_services = []
 
         for author in current_authors:
-            if not author or author.strip() == '':
+            if not author or author.strip() == "":
                 continue
 
             # Use the byline cleaner to detect wire services
@@ -160,18 +171,19 @@ class WireBackfillProcessor:
 
                     # Check if this wire service matches the source
                     if self.is_wire_service_from_own_source(
-                            detected_service, source_name):
+                        detected_service, source_name
+                    ):
                         # This is local content, not syndicated
-                        self.stats['source_matches'] += 1
-                        print(f"   ✅ Local content: Wire service "
-                              f"'{detected_service}' matches source "
-                              f"'{source_name}'")
+                        self.stats["source_matches"] += 1
+                        print(
+                            f"   ✅ Local content: Wire service "
+                            f"'{detected_service}' matches source "
+                            f"'{source_name}'"
+                        )
 
                         # Try to extract actual author name from the byline
                         cleaned_result = self.cleaner.clean_byline(
-                            author,
-                            return_json=False,
-                            source_name=source_name
+                            author, return_json=False, source_name=source_name
                         )
                         if cleaned_result:
                             new_authors.extend(cleaned_result)
@@ -179,16 +191,16 @@ class WireBackfillProcessor:
                     else:
                         # This is actual syndicated wire content
                         detected_wire_services.append(detected_service)
-                        print(f"   🔗 Syndicated content: "
-                              f"'{detected_service}' from '{source_name}'")
+                        print(
+                            f"   🔗 Syndicated content: "
+                            f"'{detected_service}' from '{source_name}'"
+                        )
                         # Do NOT add to authors - wire services are not authors
 
             else:
                 # Not a wire service, process as normal author
                 cleaned_result = self.cleaner.clean_byline(
-                    author,
-                    return_json=False,
-                    source_name=source_name
+                    author, return_json=False, source_name=source_name
                 )
                 if cleaned_result:
                     new_authors.extend(cleaned_result)
@@ -198,9 +210,9 @@ class WireBackfillProcessor:
         if detected_wire_services:
             # Use the first/primary wire service detected
             final_wire = detected_wire_services[0]
-            self.stats['wire_detected'] += 1
+            self.stats["wire_detected"] += 1
         else:
-            self.stats['local_content'] += 1
+            self.stats["local_content"] += 1
 
         # Check if we need to update
         needs_update = False
@@ -208,7 +220,7 @@ class WireBackfillProcessor:
         # Check if authors changed
         if new_authors != current_authors:
             needs_update = True
-            self.stats['author_cleaned'] += 1
+            self.stats["author_cleaned"] += 1
 
         # Check if wire service changed
         current_wire_str = str(current_wire) if current_wire else None
@@ -223,11 +235,14 @@ class WireBackfillProcessor:
         """Get the source name for an article by looking up candidate_link and source tables."""
         try:
             # Get the candidate_link_id for this article
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT candidate_link_id 
                 FROM articles 
                 WHERE id = ?
-            """, (article_id,))
+            """,
+                (article_id,),
+            )
 
             result = cursor.fetchone()
             if not result:
@@ -236,11 +251,14 @@ class WireBackfillProcessor:
             candidate_link_id = result[0]
 
             # Get the source_id from candidate_links
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT source_id 
                 FROM candidate_links 
                 WHERE id = ?
-            """, (candidate_link_id,))
+            """,
+                (candidate_link_id,),
+            )
 
             result = cursor.fetchone()
             if not result:
@@ -249,11 +267,14 @@ class WireBackfillProcessor:
             source_id = result[0]
 
             # Get the source name
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT canonical_name
                 FROM sources
                 WHERE id = ?
-            """, (source_id,))
+            """,
+                (source_id,),
+            )
 
             result = cursor.fetchone()
             if not result:
@@ -280,7 +301,9 @@ class WireBackfillProcessor:
             cursor = conn.cursor()
 
             # Get total count
-            cursor.execute("SELECT COUNT(*) FROM articles WHERE author IS NOT NULL AND author != 'null' AND author != '[]'")
+            cursor.execute(
+                "SELECT COUNT(*) FROM articles WHERE author IS NOT NULL AND author != 'null' AND author != '[]'"
+            )
             total_count = cursor.fetchone()[0]
 
             print(f"📊 Found {total_count} articles with author data")
@@ -314,7 +337,9 @@ class WireBackfillProcessor:
                     # Get source name for this article
                     source_name = self.get_source_name_for_article(cursor, article_id)
 
-                    print(f"\n{i:4d}. Article {article_id[:8]}... (Source: {source_name or 'Unknown'})")
+                    print(
+                        f"\n{i:4d}. Article {article_id[:8]}... (Source: {source_name or 'Unknown'})"
+                    )
                     print(f"      Current Authors: {author_data}")
 
                     # Process the article
@@ -330,15 +355,17 @@ class WireBackfillProcessor:
                             print("      ✅ Local Content")
 
                         # Store update for later execution
-                        updates_to_perform.append({
-                            'article_id': article_id,
-                            'new_authors': new_authors,
-                            'final_wire': final_wire
-                        })
+                        updates_to_perform.append(
+                            {
+                                "article_id": article_id,
+                                "new_authors": new_authors,
+                                "final_wire": final_wire,
+                            }
+                        )
                     else:
                         print("      ✅ No changes needed")
 
-                    self.stats['total_processed'] += 1
+                    self.stats["total_processed"] += 1
 
                     # Progress indicator
                     if i % 50 == 0:
@@ -347,7 +374,7 @@ class WireBackfillProcessor:
 
                 except Exception as e:
                     print(f"      ❌ Error processing article {article_id[:8]}: {e}")
-                    self.stats['errors'] += 1
+                    self.stats["errors"] += 1
                     continue
 
             # Perform updates
@@ -362,12 +389,16 @@ class WireBackfillProcessor:
                     print("🚨 DRY RUN - Updates would be applied here")
                     # Show sample updates
                     for update in updates_to_perform[:5]:
-                        authors_json = self.format_author_json(update['new_authors'])
-                        print(f"   UPDATE articles SET author='{authors_json}', wire='{update['final_wire']}' WHERE id='{update['article_id'][:8]}...'")
+                        authors_json = self.format_author_json(update["new_authors"])
+                        print(
+                            f"   UPDATE articles SET author='{authors_json}', wire='{update['final_wire']}' WHERE id='{update['article_id'][:8]}...'"
+                        )
                     if len(updates_to_perform) > 5:
                         print(f"   ... and {len(updates_to_perform) - 5} more updates")
             else:
-                print("\n✅ No updates needed - all articles already processed correctly")
+                print(
+                    "\n✅ No updates needed - all articles already processed correctly"
+                )
 
             conn.close()
 
@@ -378,13 +409,16 @@ class WireBackfillProcessor:
     def _apply_updates(self, cursor, updates: list[dict]):
         """Apply the updates to the database."""
         for update in updates:
-            authors_json = self.format_author_json(update['new_authors'])
+            authors_json = self.format_author_json(update["new_authors"])
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE articles 
                 SET author = ?, wire = ? 
                 WHERE id = ?
-            """, (authors_json, update['final_wire'], update['article_id']))
+            """,
+                (authors_json, update["final_wire"], update["article_id"]),
+            )
 
     def _print_stats(self):
         """Print current statistics."""
@@ -405,17 +439,23 @@ class WireBackfillProcessor:
 
         self._print_stats()
 
-        if self.stats['total_processed'] > 0:
-            wire_percentage = (self.stats['wire_detected'] / self.stats['total_processed']) * 100
-            local_percentage = (self.stats['local_content'] / self.stats['total_processed']) * 100
+        if self.stats["total_processed"] > 0:
+            wire_percentage = (
+                self.stats["wire_detected"] / self.stats["total_processed"]
+            ) * 100
+            local_percentage = (
+                self.stats["local_content"] / self.stats["total_processed"]
+            ) * 100
 
             print("\n📈 Content Distribution:")
             print(f"   Wire Content: {wire_percentage:.1f}%")
             print(f"   Local Content: {local_percentage:.1f}%")
 
-            if self.stats['source_matches'] > 0:
+            if self.stats["source_matches"] > 0:
                 print("\n🏠 Source Matching:")
-                print(f"   Wire services matching source names: {self.stats['source_matches']}")
+                print(
+                    f"   Wire services matching source names: {self.stats['source_matches']}"
+                )
                 print("   These were correctly classified as LOCAL content")
 
 
@@ -423,26 +463,30 @@ def main():
     """Main execution function."""
     import argparse
 
-    parser = argparse.ArgumentParser(description='Backfill wire column with enhanced source matching')
-    parser.add_argument('--dry-run', action='store_true', help='Show what would be done without making changes')
-    parser.add_argument('--limit', type=int, help='Limit number of articles to process')
-    parser.add_argument('--offset', type=int, default=0, help='Starting offset for processing')
-    parser.add_argument('--db-path', default='data/mizzou.db', help='Path to database file')
+    parser = argparse.ArgumentParser(
+        description="Backfill wire column with enhanced source matching"
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be done without making changes",
+    )
+    parser.add_argument("--limit", type=int, help="Limit number of articles to process")
+    parser.add_argument(
+        "--offset", type=int, default=0, help="Starting offset for processing"
+    )
+    parser.add_argument(
+        "--db-path", default="data/mizzou.db", help="Path to database file"
+    )
 
     args = parser.parse_args()
 
     # Create processor
-    processor = WireBackfillProcessor(
-        db_path=args.db_path,
-        dry_run=args.dry_run
-    )
+    processor = WireBackfillProcessor(db_path=args.db_path, dry_run=args.dry_run)
 
     try:
         # Run backfill
-        processor.backfill_all_articles(
-            limit=args.limit,
-            offset=args.offset
-        )
+        processor.backfill_all_articles(limit=args.limit, offset=args.offset)
 
         # Print summary
         processor.print_final_summary()
@@ -453,6 +497,7 @@ def main():
     except Exception as e:
         print(f"\n❌ Error during backfill: {e}")
         import traceback
+
         traceback.print_exc()
 
 

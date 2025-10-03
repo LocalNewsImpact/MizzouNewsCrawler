@@ -136,7 +136,6 @@ class ExactContentCleaner:
                     match_info["length"] >= 30
                     and match_info["position_consistency"] > 0.3
                 ):
-
                     segment = {
                         "text": match_info["text"],
                         "length": match_info["length"],

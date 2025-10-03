@@ -55,13 +55,11 @@ class AuditResult:
 
     @property
     def is_local(self) -> bool:
-        return bool(self.locality and self.locality.get('is_local'))
+        return bool(self.locality and self.locality.get("is_local"))
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Dry-run wire detection audit"
-    )
+    parser = argparse.ArgumentParser(description="Dry-run wire detection audit")
     parser.add_argument(
         "--domains",
         nargs="*",
@@ -125,30 +123,24 @@ def fetch_articles(
     if domains:
         filters.append(
             "("
-            + " OR ".join(
-                f"url LIKE :domain_{i}" for i, _ in enumerate(domains)
-            )
+            + " OR ".join(f"url LIKE :domain_{i}" for i, _ in enumerate(domains))
             + ")"
         )
     if statuses:
         filters.append(
             "status IN ("
-            + ",".join(
-                f":status_{i}" for i, _ in enumerate(statuses)
-            )
+            + ",".join(f":status_{i}" for i, _ in enumerate(statuses))
             + ")"
         )
 
     where_clause = " AND ".join(filters) if filters else "1=1"
 
-    base_query = (
-        f"""
+    base_query = f"""
         SELECT id, url, title, author, content, wire, status
         FROM articles
         WHERE {where_clause}
         ORDER BY created_at DESC
         """
-    )
 
     if limit and limit > 0:
         base_query += " LIMIT :limit"
@@ -191,9 +183,7 @@ class WireAuditEngine:
         if not domain:
             return []
         if domain not in self._pattern_cache:
-            self._pattern_cache[domain] = (
-                self.telemetry.get_persistent_patterns(domain)
-            )
+            self._pattern_cache[domain] = self.telemetry.get_persistent_patterns(domain)
         return self._pattern_cache[domain]
 
     def audit_article(self, article: ArticleRecord) -> AuditResult:
@@ -210,7 +200,7 @@ class WireAuditEngine:
 
         # Persistent pattern scan
         for pattern in self._get_patterns_for_domain(domain):
-            pattern_text = pattern.get('text_content') or ''
+            pattern_text = pattern.get("text_content") or ""
             if not pattern_text:
                 continue
             info = self.cleaner._detect_wire_service_in_pattern(
@@ -218,12 +208,12 @@ class WireAuditEngine:
                 domain,
             )
             if info:
-                detected_provider = detected_provider or info.get('provider')
+                detected_provider = detected_provider or info.get("provider")
                 method_tag = "persistent:{}".format(
-                    pattern.get('pattern_type', 'unknown')
+                    pattern.get("pattern_type", "unknown")
                 )
                 detection_methods.append(method_tag)
-                provider_candidates.append(info.get('provider'))
+                provider_candidates.append(info.get("provider"))
                 break
 
         # Byline detection
@@ -248,10 +238,10 @@ class WireAuditEngine:
             domain,
         )
         if inline:
-            detected_provider = detected_provider or inline.get('provider')
-            variant = inline.get('matched_variant') or 'unknown'
+            detected_provider = detected_provider or inline.get("provider")
+            variant = inline.get("matched_variant") or "unknown"
             detection_methods.append(f"inline:{variant}")
-            provider_candidates.append(inline.get('provider'))
+            provider_candidates.append(inline.get("provider"))
 
         # Determine final provider preference
         provider = next((p for p in provider_candidates if p), None)
@@ -260,9 +250,7 @@ class WireAuditEngine:
         source_context: dict[str, Any] = {}
 
         if provider and article.content:
-            source_context = self.cleaner._get_article_source_context(
-                article.id
-            )
+            source_context = self.cleaner._get_article_source_context(article.id)
             locality = self.cleaner._assess_locality(
                 article.content,
                 source_context,
@@ -287,11 +275,10 @@ def format_locality_summary(locality: dict[str, Any] | None) -> str:
         f"is_local={bool(locality.get('is_local'))}",
         f"confidence={locality.get('confidence')}",
     ]
-    signals = locality.get('signals') or []
+    signals = locality.get("signals") or []
     if signals:
         sample = ", ".join(
-            f"{sig.get('type')}:{sig.get('value')}"
-            for sig in signals[:3]
+            f"{sig.get('type')}:{sig.get('value')}" for sig in signals[:3]
         )
         parts.append(f"signals=[{sample}{'…' if len(signals) > 3 else ''}]")
     return "; ".join(parts)
@@ -309,18 +296,11 @@ def main(argv: list[str] | None = None) -> int:
 
     engine = WireAuditEngine(resolve_sqlite_path(args.database))
 
-    results: list[AuditResult] = [
-        engine.audit_article(article)
-        for article in articles
-    ]
+    results: list[AuditResult] = [engine.audit_article(article) for article in articles]
     wire_results = [res for res in results if res.is_wire]
-    new_wire_results = [
-        res for res in wire_results if not res.existing_provider
-    ]
+    new_wire_results = [res for res in wire_results if not res.existing_provider]
     local_wire_results = [res for res in wire_results if res.is_local]
-    new_local_results = [
-        res for res in local_wire_results if not res.existing_provider
-    ]
+    new_local_results = [res for res in local_wire_results if not res.existing_provider]
 
     print("=== Wire Detection Summary ===")
     print(f"Articles examined: {len(articles)}")
@@ -341,15 +321,11 @@ def main(argv: list[str] | None = None) -> int:
     if domain_totals:
         print("\nPer-domain breakdown:")
         for domain, counts in sorted(domain_totals.items()):
-            print(
-                f"  {domain}: wire={counts['wire']}, local={counts['local']}"
-            )
+            print(f"  {domain}: wire={counts['wire']}, local={counts['local']}")
 
     reportable_results = wire_results
     if args.skip_labeled:
-        reportable_results = [
-            res for res in wire_results if not res.existing_provider
-        ]
+        reportable_results = [res for res in wire_results if not res.existing_provider]
 
     if reportable_results:
         print("\nDetailed wire listings:\n")
@@ -358,9 +334,7 @@ def main(argv: list[str] | None = None) -> int:
             detection_summary = ",".join(res.detection_methods) or "(none)"
             provider_label = res.provider or "unknown"
             status = res.article.status or "unknown"
-            print(
-                f"- {res.article.id} | domain={res.article.domain} | status={status}"
-            )
+            print(f"- {res.article.id} | domain={res.article.domain} | status={status}")
             print(f"  Provider: {provider_label}")
             print(f"  Existing provider: {res.existing_provider or 'n/a'}")
             print(f"  Detection methods: {detection_summary}")

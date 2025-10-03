@@ -30,13 +30,13 @@ def analyze_alternative_extractions():
     print("=== ALTERNATIVE EXTRACTION ANALYSIS ===\n")
 
     # Get entries with alternative extractions
-    cursor.execute('''
+    cursor.execute("""
         SELECT id, url, final_field_attribution, alternative_extractions
         FROM extraction_telemetry_v2 
         WHERE alternative_extractions IS NOT NULL 
         AND alternative_extractions != 'null'
         AND alternative_extractions != '{}'
-    ''')
+    """)
 
     entries = cursor.fetchall()
     print(f"Found {len(entries)} entries with alternative extractions\n")
@@ -62,20 +62,18 @@ def analyze_alternative_extractions():
             for field, data in fields.items():
                 method_field_alternatives[method][field] += 1
 
-                current = data['current_value']
-                alternative = data['alternative_value']
-                differs = data['values_differ']
+                current = data["current_value"]
+                alternative = data["alternative_value"]
+                differs = data["values_differ"]
 
                 print(f"    {field}: {'DIFFERENT' if differs else 'SAME'}")
                 print(f"      Current:     {current[:50]}...")
                 print(f"      Alternative: {alternative[:50]}...")
 
                 if differs:
-                    value_differences[f"{method}_{field}"].append({
-                        'url': url,
-                        'current': current,
-                        'alternative': alternative
-                    })
+                    value_differences[f"{method}_{field}"].append(
+                        {"url": url, "current": current, "alternative": alternative}
+                    )
         print()
 
     # Summary statistics
@@ -94,7 +92,7 @@ def analyze_alternative_extractions():
                 if len(diffs) > 0:
                     print("    Example differences:")
                     for i, diff in enumerate(diffs[:2]):  # Show first 2 examples
-                        print(f"      #{i+1}: Current='{diff['current'][:30]}...'")
+                        print(f"      #{i + 1}: Current='{diff['current'][:30]}...'")
                         print(f"          Alternative='{diff['alternative'][:30]}...'")
 
     print("\n💡 INSIGHTS:")

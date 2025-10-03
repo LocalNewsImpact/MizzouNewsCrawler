@@ -24,20 +24,22 @@ from services.url_verification import URLVerificationService
 
 def show_verification_status():
     """Show current verification status."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("VERIFICATION STATUS CHECK")
-    print("="*60)
+    print("=" * 60)
 
     db = DatabaseManager()
     session = db.session
 
     # Get status counts
-    result = session.execute(text("""
+    result = session.execute(
+        text("""
         SELECT status, COUNT(*) as count
         FROM candidate_links
         GROUP BY status
         ORDER BY count DESC
-    """))
+    """)
+    )
 
     total = 0
     status_counts = {}
@@ -61,9 +63,9 @@ def show_verification_status():
 
 def run_verification_demo(batch_size=10):
     """Run a demonstration verification batch."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print(f"RUNNING VERIFICATION DEMO (batch_size={batch_size})")
-    print("="*60)
+    print("=" * 60)
 
     service = URLVerificationService(batch_size=batch_size, sleep_interval=1)
 
@@ -71,13 +73,16 @@ def run_verification_demo(batch_size=10):
     db = service.db
     session = db.session
 
-    candidates = session.execute(text("""
+    candidates = session.execute(
+        text("""
         SELECT id, url, source
         FROM candidate_links
         WHERE status = 'discovered'
         ORDER BY created_at DESC
         LIMIT :batch_size
-    """), {"batch_size": batch_size}).fetchall()
+    """),
+        {"batch_size": batch_size},
+    ).fetchall()
 
     if not candidates:
         print("No URLs with 'discovered' status found!")
@@ -94,10 +99,7 @@ def run_verification_demo(batch_size=10):
 
     # Process the batch
     print(f"\nProcessing {len(candidates)} URLs with StorySniffer...")
-    candidates_dict = [
-        {"id": c[0], "url": c[1], "source": c[2]}
-        for c in candidates
-    ]
+    candidates_dict = [{"id": c[0], "url": c[1], "source": c[2]} for c in candidates]
 
     metrics = service.process_batch(candidates_dict)
 
@@ -110,21 +112,23 @@ def run_verification_demo(batch_size=10):
 
 def show_article_extraction_simulation():
     """Show how extraction would work with verified URLs."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("ARTICLE EXTRACTION SIMULATION")
-    print("="*60)
+    print("=" * 60)
 
     db = DatabaseManager()
     session = db.session
 
     # Show URLs that would be processed by extraction
-    result = session.execute(text("""
+    result = session.execute(
+        text("""
         SELECT url, source, created_at
         FROM candidate_links
         WHERE status = 'article'
         ORDER BY created_at DESC
         LIMIT 5
-    """))
+    """)
+    )
 
     articles = result.fetchall()
 
@@ -137,11 +141,13 @@ def show_article_extraction_simulation():
         print("Run verification on more URLs to find actual articles.")
 
     # Show URLs that would be skipped
-    result = session.execute(text("""
+    result = session.execute(
+        text("""
         SELECT COUNT(*)
         FROM candidate_links
         WHERE status = 'not_article'
-    """))
+    """)
+    )
 
     not_articles = result.fetchone()[0]
     print(f"\nURLs that would be SKIPPED by extraction: {not_articles}")
@@ -152,24 +158,25 @@ def show_article_extraction_simulation():
 
 def show_telemetry_data():
     """Show telemetry data from verification runs."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("VERIFICATION TELEMETRY")
-    print("="*60)
+    print("=" * 60)
 
     try:
         with open("verification_telemetry.log") as f:
             content = f.read().strip()
             if content:
                 import json
+
                 # Get the last entry
-                lines = content.strip().split('\n')
+                lines = content.strip().split("\n")
                 if lines:
                     last_entry = json.loads(lines[-1])
                     print(f"Latest verification job: {last_entry['job_name']}")
                     print(f"Timestamp: {last_entry['timestamp']}")
                     print(f"Batch size: {last_entry['batch_size']}")
                     print("Metrics:")
-                    for key, value in last_entry['metrics'].items():
+                    for key, value in last_entry["metrics"].items():
                         if isinstance(value, float):
                             print(f"  {key}: {value:.2f}")
                         else:
@@ -186,7 +193,7 @@ def show_telemetry_data():
 def main():
     """Run the complete verification workflow demo."""
     print("URL VERIFICATION WORKFLOW DEMONSTRATION")
-    print("="*60)
+    print("=" * 60)
     print("This demo shows the complete background verification system:")
     print("1. URLs start with 'discovered' status")
     print("2. StorySniffer verifies each URL")
@@ -198,8 +205,8 @@ def main():
     initial_status = show_verification_status()
 
     # If we have URLs to verify, run a demo batch
-    if initial_status.get('discovered', 0) > 0:
-        run_verification_demo(batch_size=min(10, initial_status['discovered']))
+    if initial_status.get("discovered", 0) > 0:
+        run_verification_demo(batch_size=min(10, initial_status["discovered"]))
 
         # Show updated status
         show_verification_status()
@@ -213,9 +220,9 @@ def main():
     # Show telemetry
     show_telemetry_data()
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("WORKFLOW COMPLETE")
-    print("="*60)
+    print("=" * 60)
     print("The verification system successfully:")
     print("✅ Processes URLs with 'discovered' status")
     print("✅ Uses StorySniffer to verify article content")

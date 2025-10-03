@@ -56,10 +56,10 @@ def handle_crawl_command(args) -> int:
         return 1
 
     logger.warning(
-        "'crawl' is deprecated and will be removed. Forwarding to " "'discover-urls'."
+        "'crawl' is deprecated and will be removed. Forwarding to 'discover-urls'."
     )
     print(
-        "⚠️  The 'crawl' command is deprecated. Please migrate to " "'discover-urls'.",
+        "⚠️  The 'crawl' command is deprecated. Please migrate to 'discover-urls'.",
     )
 
     legacy_limit = getattr(args, "article_limit", None)

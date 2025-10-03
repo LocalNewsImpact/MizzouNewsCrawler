@@ -34,9 +34,7 @@ def _normalize_keywords(raw_keywords: Any) -> str:
     return str(raw_keywords)
 
 
-def _load_articles(
-    connection: sqlite3.Connection, limit: int | None = None
-):
+def _load_articles(connection: sqlite3.Connection, limit: int | None = None):
     query = (
         "SELECT a.id, a.candidate_link_id, a.url, a.title, a.content, "
         "a.metadata, a.publish_date, cl.source, cl.source_name, "
@@ -173,18 +171,14 @@ def main() -> None:
         type=Path,
         default=DEFAULT_DB_PATH,
         help=(
-            "Path to the SQLite database containing articles "
-            "(default: data/mizzou.db)"
+            "Path to the SQLite database containing articles (default: data/mizzou.db)"
         ),
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
         default=DEFAULT_OUTPUT_DIR,
-        help=(
-            "Directory where the CSV export will be written "
-            "(default: reports/)"
-        ),
+        help=("Directory where the CSV export will be written (default: reports/)"),
     )
     parser.add_argument(
         "--limit",
@@ -194,10 +188,7 @@ def main() -> None:
     parser.add_argument(
         "--min-score",
         type=float,
-        help=(
-            "Only include detections with a confidence score at or above "
-            "this value"
-        ),
+        help=("Only include detections with a confidence score at or above this value"),
     )
     args = parser.parse_args()
 

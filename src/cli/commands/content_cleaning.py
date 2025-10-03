@@ -1,6 +1,7 @@
 # ruff: noqa: E501
 
 """CLI commands for detecting and removing boilerplate text."""
+
 import json
 import logging
 import sqlite3
@@ -251,9 +252,7 @@ def analyze_domains(
     for domain_name, domain_articles_list in sorted(filtered_domains.items()):
         total_stats["domains_analyzed"] += 1
 
-        click.echo(
-            "📊 Domain: " f"{domain_name} ({len(domain_articles_list)} articles)"
-        )
+        click.echo(f"📊 Domain: {domain_name} ({len(domain_articles_list)} articles)")
 
         domain_stats = {
             "articles_total": len(domain_articles_list),
@@ -324,7 +323,7 @@ def analyze_domains(
                             f"len: {segment['length']})"
                         )
             elif verbose:
-                click.echo("  ⚪ " f"{article_id_display}... - No boilerplate detected")
+                click.echo(f"  ⚪ {article_id_display}... - No boilerplate detected")
 
             domain_stats["articles"].append(article_result)
 
@@ -350,7 +349,7 @@ def analyze_domains(
                 f"{removal_phrase} removed"
             )
             click.echo(
-                "   🎯 Average confidence: " f"{domain_stats['avg_confidence']:.3f}"
+                f"   🎯 Average confidence: {domain_stats['avg_confidence']:.3f}"
             )
 
             if domain_stats["pattern_types"]:
@@ -369,9 +368,7 @@ def analyze_domains(
     click.echo("📊 OVERALL SUMMARY")
     click.echo(f"Domains analyzed: {total_stats['domains_analyzed']}")
     click.echo(f"Articles analyzed: {total_stats['articles_analyzed']}")
-    click.echo(
-        "Articles with boilerplate: " f"{total_stats['articles_with_boilerplate']}"
-    )
+    click.echo(f"Articles with boilerplate: {total_stats['articles_with_boilerplate']}")
 
     if total_stats["articles_analyzed"] > 0:
         overall_percentage = (
@@ -448,7 +445,7 @@ def clean_article(article_id, confidence_threshold, dry_run, show_content):
     click.echo(f"🔍 Analyzing article: {article_id}")
     click.echo(f"📡 Domain: {domain}")
     click.echo(f"📏 Original length: {len(content):,} characters")
-    click.echo("🎯 Confidence threshold (legacy): " f"{confidence_threshold}")
+    click.echo(f"🎯 Confidence threshold (legacy): {confidence_threshold}")
     click.echo(f"🧪 Dry run: {'Yes' if dry_run else 'No'}")
     click.echo()
 
@@ -550,7 +547,7 @@ def apply_cleaning(domain, confidence_threshold, limit, dry_run, verbose):
         return
 
     click.echo(f"🚀 Processing {len(articles)} articles...")
-    click.echo("🎯 Confidence threshold (legacy): " f"{confidence_threshold}")
+    click.echo(f"🎯 Confidence threshold (legacy): {confidence_threshold}")
     click.echo(f"🧪 Dry run: {'Yes' if dry_run else 'No'}")
     click.echo()
 
@@ -592,8 +589,7 @@ def apply_cleaning(domain, confidence_threshold, limit, dry_run, verbose):
         if stats["processed"] % 100 == 0:
             percentage = (stats["processed"] / len(articles)) * 100
             click.echo(
-                "📊 Progress: "
-                f"{stats['processed']}/{len(articles)} ({percentage:.1f}%)"
+                f"📊 Progress: {stats['processed']}/{len(articles)} ({percentage:.1f}%)"
             )
 
     # Apply updates if not dry run
@@ -617,7 +613,7 @@ def apply_cleaning(domain, confidence_threshold, limit, dry_run, verbose):
         click.echo(f"Cleaning rate: {percentage:.1f}%")
 
     removal_status = "would be" if dry_run else "were"
-    click.echo(f"Characters {removal_status} removed: " f"{stats['chars_removed']:,}")
+    click.echo(f"Characters {removal_status} removed: {stats['chars_removed']:,}")
     click.echo(f"Total processing time: {stats['processing_time']:.2f}s")
 
     conn.close()
@@ -750,7 +746,7 @@ def list_domains_command(min_articles: int):
         for domain, count in results:
             click.echo(f"{domain:<40} {count:>8} articles")
 
-        click.echo(f"\nFound {len(results)} domains with " f"{min_articles}+ articles")
+        click.echo(f"\nFound {len(results)} domains with {min_articles}+ articles")
 
     except Exception as e:
         logger.error(f"Error listing domains: {e}")
@@ -877,7 +873,7 @@ def analyze_balanced(domain, sample_size, min_occurrences, show_text):
             click.echo(f"   Boundary score: {segment['boundary_score']:.2f}")
 
             if show_text:
-                click.echo(f"   Text: \"{segment['text']}\"")
+                click.echo(f'   Text: "{segment["text"]}"')
             else:
                 preview = segment["text"][:100]
                 suffix = "..." if len(segment["text"]) > 100 else ""

@@ -18,9 +18,9 @@ def debug_segment():
     # Get the full analysis
     results = cleaner.analyze_domain("hannibal.net", sample_size=10)
 
-    if results['segments']:
+    if results["segments"]:
         # Look at the first segment (the problematic one)
-        segment = results['segments'][0]
+        segment = results["segments"][0]
 
         print("PROBLEMATIC SEGMENT ANALYSIS:")
         print(f"Length: {segment['length']}")
@@ -31,12 +31,12 @@ def debug_segment():
         print(f"'{segment['text']}'")
 
         print("\nAPPEARS IN ARTICLES:")
-        for article_id in segment['article_ids']:
+        for article_id in segment["article_ids"]:
             print(f"  - {article_id}")
 
         # Show some positions
         print("\nPOSITIONS:")
-        for article_id, positions in list(segment['positions'].items())[:3]:
+        for article_id, positions in list(segment["positions"].items())[:3]:
             print(f"  Article {article_id}: {positions}")
 
 

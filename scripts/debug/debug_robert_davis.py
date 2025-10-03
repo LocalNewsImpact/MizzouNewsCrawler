@@ -3,7 +3,7 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 from utils.byline_cleaner import BylineCleaner
 
@@ -34,13 +34,18 @@ def debug_robert_davis():
             print(f"  '{word}' is in JOURNALISM_NOUNS")
             is_title_word = True
         # Check for ordinals
-        elif (word.endswith(('st', 'nd', 'rd', 'th')) and
-              len(word) > 2 and word[:-2].isdigit()):
+        elif (
+            word.endswith(("st", "nd", "rd", "th"))
+            and len(word) > 2
+            and word[:-2].isdigit()
+        ):
             print(f"  '{word}' is an ordinal")
             is_title_word = True
-        elif (word.endswith(('1st', '2nd', '3rd')) or
-              (len(word) >= 3 and word[-3:] in ['1st', '2nd', '3rd']) or
-              (len(word) >= 2 and word[-2:].isdigit())):
+        elif (
+            word.endswith(("1st", "2nd", "3rd"))
+            or (len(word) >= 3 and word[-3:] in ["1st", "2nd", "3rd"])
+            or (len(word) >= 2 and word[-2:].isdigit())
+        ):
             print(f"  '{word}' looks like number/ordinal")
             is_title_word = True
 

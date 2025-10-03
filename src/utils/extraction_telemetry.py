@@ -55,7 +55,7 @@ _EXTRACTION_OUTCOMES_INDEXES: Iterable[str] = (
     "ON extraction_outcomes (is_content_success)",
     "CREATE INDEX IF NOT EXISTS idx_extraction_timestamp "
     "ON extraction_outcomes (timestamp)",
-    "CREATE INDEX IF NOT EXISTS idx_extraction_url " "ON extraction_outcomes (url)",
+    "CREATE INDEX IF NOT EXISTS idx_extraction_url ON extraction_outcomes (url)",
     "CREATE INDEX IF NOT EXISTS idx_extraction_quality "
     "ON extraction_outcomes (content_quality_score)",
 )
@@ -108,9 +108,7 @@ class ExtractionTelemetry:
         """Record detailed extraction outcome for reporting and analysis."""
 
         if not isinstance(extraction_result, ExtractionResult):
-            msg = (
-                "Warning: Expected ExtractionResult, got " f"{type(extraction_result)}"
-            )
+            msg = f"Warning: Expected ExtractionResult, got {type(extraction_result)}"
             print(msg)
             return
 
@@ -196,8 +194,7 @@ class ExtractionTelemetry:
             self._store.submit(writer, ensure=self._ensure_statements)
             outcome_value = extraction_result.outcome.value
             print(
-                "Recorded extraction outcome: "
-                f"{outcome_value} for article {article_id}"
+                f"Recorded extraction outcome: {outcome_value} for article {article_id}"
             )
         except Exception as exc:
             print(f"Failed to record extraction outcome: {exc}")

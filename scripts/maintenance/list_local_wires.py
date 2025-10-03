@@ -18,9 +18,7 @@ from src.models.database import DatabaseManager
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description=(
-            "List articles flagged as wire that also have locality signals."
-        )
+        description=("List articles flagged as wire that also have locality signals.")
     )
     parser.add_argument(
         "--database",
@@ -92,14 +90,11 @@ def print_human(locals_only: list[dict]) -> None:
 
     print(f"Found {len(locals_only)} local wire articles:\n")
     for item in locals_only:
-        print(
-            f"- {item['id']} | domain={item['domain']} | "
-            f"provider={item['provider']}"
-        )
+        print(f"- {item['id']} | domain={item['domain']} | provider={item['provider']}")
         print(
             "  Status: {} | Existing provider: {}".format(
-                item['status'],
-                item['existing_provider'] or 'n/a',
+                item["status"],
+                item["existing_provider"] or "n/a",
             )
         )
         print(

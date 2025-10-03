@@ -13,10 +13,10 @@ from src.utils.byline_cleaner import BylineCleaner
 
 def debug_case(byline, description):
     """Debug a specific byline case with detailed output."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"DEBUGGING: {description}")
     print(f"Input: '{byline}'")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     cleaner = BylineCleaner(enable_telemetry=True)
 
@@ -39,6 +39,7 @@ def debug_case(byline, description):
 
     return result
 
+
 def main():
     """Test the specific problematic cases."""
 
@@ -57,21 +58,24 @@ def main():
 
     for byline, description in test_cases:
         result = debug_case(byline, description)
-        results.append((byline, result.get('authors', []), description))
+        results.append((byline, result.get("authors", []), description))
 
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print("SUMMARY OF ISSUES:")
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
 
     for byline, authors, description in results:
         status = "✅ OK" if authors else "❌ PROBLEM"
         print(f"{status} '{byline}' -> {authors}")
-        if not authors and any(keyword in description.lower() for keyword in ['wire service', 'person name']):
+        if not authors and any(
+            keyword in description.lower()
+            for keyword in ["wire service", "person name"]
+        ):
             print(f"    ⚠️  {description}")
 
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print("WIRE SERVICE DETECTION TEST:")
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
 
     cleaner = BylineCleaner()
     wire_services = ["Associated Press", "AP", "Reuters", "CNN Newsource", "Bloomberg"]
@@ -79,6 +83,7 @@ def main():
     for wire in wire_services:
         is_detected = cleaner._is_wire_service(wire)
         print(f"'{wire}' -> Wire service: {is_detected}")
+
 
 if __name__ == "__main__":
     main()

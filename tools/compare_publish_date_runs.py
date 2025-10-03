@@ -34,10 +34,7 @@ def summarize(label: str, results: list[dict]) -> None:
     total = len(results)
     successes = success_records(results)
     hit_rate = (len(successes) / total * 100) if total else 0.0
-    message = (
-        f"{label}: {len(successes)}/{total} publish dates found "
-        f"({hit_rate:.1f}%)"
-    )
+    message = f"{label}: {len(successes)}/{total} publish dates found ({hit_rate:.1f}%)"
     print(message)
 
     by_host = Counter(record.get("host") for record in successes)
@@ -59,11 +56,7 @@ def index_by_url(records: Iterable[dict]) -> dict[str, dict]:
 
 
 def describe_strategy(record: dict) -> str:
-    fallback = (
-        (record.get("metadata") or {})
-        .get("fallbacks", {})
-        .get("publish_date")
-    )
+    fallback = (record.get("metadata") or {}).get("fallbacks", {}).get("publish_date")
     if not fallback:
         return "n/a"
     source = fallback.get("source", "unknown")
@@ -97,15 +90,11 @@ def list_differences(
             # When reporting regressions, note previous strategy if available.
             record = index.get(url, {})
             fallback = (
-                (record.get("metadata") or {})
-                .get("fallbacks", {})
-                .get("publish_date")
+                (record.get("metadata") or {}).get("fallbacks", {}).get("publish_date")
             )
             strategy = fallback.get("strategy") if fallback else None
             source = fallback.get("source") if fallback else None
-            detail = (
-                ":".join(filter(None, [source, strategy])) if source else None
-            )
+            detail = ":".join(filter(None, [source, strategy])) if source else None
             previous = record.get("publish_date")
             if previous:
                 extra = f" (was {previous}"

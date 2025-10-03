@@ -320,7 +320,7 @@ def update_publisher_address(source_id: str, address_data: AddressEditRequest) -
 
         query = f"""
             UPDATE candidate_links
-            SET {', '.join(update_fields)}, last_modified = CURRENT_TIMESTAMP
+            SET {", ".join(update_fields)}, last_modified = CURRENT_TIMESTAMP
             WHERE id = ?
         """
 

@@ -9,7 +9,7 @@ import sys
 from typing import Any
 
 # Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 from utils.byline_cleaner import BylineCleaner
 
@@ -27,13 +27,13 @@ def clean_authors_in_database(db_path: str, dry_run: bool = True) -> dict[str, A
     conn = get_database_connection(db_path)
 
     stats = {
-        'total_articles': 0,
-        'articles_with_authors': 0,
-        'cleaned_count': 0,
-        'unchanged_count': 0,
-        'wire_services_count': 0,
-        'empty_results_count': 0,
-        'changes': []
+        "total_articles": 0,
+        "articles_with_authors": 0,
+        "cleaned_count": 0,
+        "unchanged_count": 0,
+        "wire_services_count": 0,
+        "empty_results_count": 0,
+        "changes": [],
     }
 
     try:
@@ -46,15 +46,15 @@ def clean_authors_in_database(db_path: str, dry_run: bool = True) -> dict[str, A
         """)
 
         articles = cursor.fetchall()
-        stats['total_articles'] = len(articles)
-        stats['articles_with_authors'] = len(articles)
+        stats["total_articles"] = len(articles)
+        stats["articles_with_authors"] = len(articles)
 
         print(f"Found {len(articles)} articles with author data")
         print("=" * 60)
 
         for article in articles:
-            article_id = article['id']
-            original_author = article['author']
+            article_id = article["id"]
+            original_author = article["author"]
 
             # Clean the author using byline cleaner
             cleaned_authors = cleaner.clean_byline(original_author)
@@ -64,39 +64,44 @@ def clean_authors_in_database(db_path: str, dry_run: bool = True) -> dict[str, A
                 if len(cleaned_authors) == 0:
                     # Empty result - likely titles only
                     new_author_value = None
-                    stats['empty_results_count'] += 1
+                    stats["empty_results_count"] += 1
                     status = "REMOVED (titles only)"
-                elif len(cleaned_authors) == 1 and cleaned_authors[0] == original_author.strip():
+                elif (
+                    len(cleaned_authors) == 1
+                    and cleaned_authors[0] == original_author.strip()
+                ):
                     # No change needed
                     new_author_value = original_author
-                    stats['unchanged_count'] += 1
+                    stats["unchanged_count"] += 1
                     continue  # Skip logging unchanged entries
                 else:
                     # Join multiple authors with comma separation
-                    new_author_value = ', '.join(cleaned_authors)
+                    new_author_value = ", ".join(cleaned_authors)
 
                     # Check if this is a wire service
-                    if any(ws.lower() in new_author_value.lower()
-                           for ws in ['associated press', 'reuters', 'ap', 'bloomberg']):
-                        stats['wire_services_count'] += 1
+                    if any(
+                        ws.lower() in new_author_value.lower()
+                        for ws in ["associated press", "reuters", "ap", "bloomberg"]
+                    ):
+                        stats["wire_services_count"] += 1
                         status = "WIRE SERVICE"
                     else:
-                        stats['cleaned_count'] += 1
+                        stats["cleaned_count"] += 1
                         status = "CLEANED"
             else:
                 # Unexpected result type
                 new_author_value = str(cleaned_authors)
-                stats['cleaned_count'] += 1
+                stats["cleaned_count"] += 1
                 status = "CONVERTED"
 
             # Log the change
             change_info = {
-                'id': article_id,
-                'original': original_author,
-                'cleaned': new_author_value,
-                'status': status
+                "id": article_id,
+                "original": original_author,
+                "cleaned": new_author_value,
+                "status": status,
             }
-            stats['changes'].append(change_info)
+            stats["changes"].append(change_info)
 
             print(f"ID: {article_id[:8]}...")
             print(f"  Original: {original_author}")
@@ -106,11 +111,14 @@ def clean_authors_in_database(db_path: str, dry_run: bool = True) -> dict[str, A
 
             # Update database if not dry run
             if not dry_run:
-                conn.execute("""
+                conn.execute(
+                    """
                     UPDATE articles 
                     SET author = ?, processed_at = CURRENT_TIMESTAMP
                     WHERE id = ?
-                """, (new_author_value, article_id))
+                """,
+                    (new_author_value, article_id),
+                )
 
         if not dry_run:
             conn.commit()
@@ -141,19 +149,25 @@ def print_summary(stats: dict[str, Any]) -> None:
     print(f"Empty results (removed):     {stats['empty_results_count']}")
     print(f"Total changes made:          {len(stats['changes'])}")
 
-    if stats['changes']:
+    if stats["changes"]:
         print("\nFirst 5 changes:")
-        for i, change in enumerate(stats['changes'][:5]):
-            print(f"  {i+1}. {change['original']} → {change['cleaned']} ({change['status']})")
+        for i, change in enumerate(stats["changes"][:5]):
+            print(
+                f"  {i + 1}. {change['original']} → {change['cleaned']} ({change['status']})"
+            )
 
 
 def main():
     """Main function."""
     import argparse
 
-    parser = argparse.ArgumentParser(description='Clean author column in articles table')
-    parser.add_argument('--db', default='data/mizzou.db', help='Database path')
-    parser.add_argument('--apply', action='store_true', help='Apply changes (default is dry run)')
+    parser = argparse.ArgumentParser(
+        description="Clean author column in articles table"
+    )
+    parser.add_argument("--db", default="data/mizzou.db", help="Database path")
+    parser.add_argument(
+        "--apply", action="store_true", help="Apply changes (default is dry run)"
+    )
 
     args = parser.parse_args()
 
@@ -172,7 +186,7 @@ def main():
         stats = clean_authors_in_database(db_path, dry_run=dry_run)
         print_summary(stats)
 
-        if dry_run and stats['changes']:
+        if dry_run and stats["changes"]:
             print(f"\nTo apply changes, run: python {__file__} --apply")
 
     except KeyboardInterrupt:

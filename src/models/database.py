@@ -210,7 +210,7 @@ def _commit_with_retry(session, retries: int = 4, backoff: float = 0.1):
                     session.rollback()
                 except Exception as rollback_exc:  # pragma: no cover
                     logger.error(
-                        ("Rollback after non-retryable commit failure " "failed: %s"),
+                        ("Rollback after non-retryable commit failure failed: %s"),
                         rollback_exc,
                     )
                 # Non-retryable error, re-raise
@@ -1008,8 +1008,7 @@ def bulk_insert_articles(
                 try:
                     conn.execute(
                         text(
-                            "ALTER TABLE articles ADD COLUMN "
-                            "candidate_link_id VARCHAR"
+                            "ALTER TABLE articles ADD COLUMN candidate_link_id VARCHAR"
                         )
                     )
                 except Exception:

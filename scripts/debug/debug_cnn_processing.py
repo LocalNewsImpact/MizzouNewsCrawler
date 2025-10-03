@@ -31,18 +31,22 @@ def debug_cnn_processing():
     print(f"   Detected services: {cleaner._detected_wire_services}")
 
     if is_wire:
-        detected_service = cleaner._detected_wire_services[-1] if cleaner._detected_wire_services else None
+        detected_service = (
+            cleaner._detected_wire_services[-1]
+            if cleaner._detected_wire_services
+            else None
+        )
         print(f"   Detected service: '{detected_service}'")
 
-        is_own_source = cleaner._is_wire_service_from_own_source(detected_service, source_name)
+        is_own_source = cleaner._is_wire_service_from_own_source(
+            detected_service, source_name
+        )
         print(f"   Is own source: {is_own_source}")
 
     print()
     print("2. Full cleaning process:")
     result = cleaner.clean_byline(
-        byline=byline,
-        return_json=True,
-        source_canonical_name=source_name
+        byline=byline, return_json=True, source_canonical_name=source_name
     )
 
     print(f"   Final authors: {result['authors']}")
@@ -60,6 +64,7 @@ def debug_cnn_processing():
     test_text = "tom reporter"
     authors = cleaner._extract_authors(test_text)
     print(f"   Extract authors from '{test_text}': {authors}")
+
 
 if __name__ == "__main__":
     debug_cnn_processing()

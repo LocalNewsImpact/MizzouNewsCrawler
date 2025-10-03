@@ -15,6 +15,7 @@ from src.models.database import DatabaseManager
 
 try:
     from storysniffer import StorySniffer
+
     STORYSNIFFER_AVAILABLE = True
 except ImportError:
     STORYSNIFFER_AVAILABLE = False
@@ -32,17 +33,17 @@ def analyze_specific_patterns():
 
     # Define patterns to test
     patterns = {
-        'calendars': '/calendar',
-        'obituaries': '/obituary',
-        'categories': '/category/',
-        'tags': '/tag/',
-        'search': '/search',
-        'contact': '/contact',
-        'about': '/about',
-        'css_files': '.css',
-        'image_files': '.jpg',
-        'feeds': '/feed',
-        'rss': '/rss'
+        "calendars": "/calendar",
+        "obituaries": "/obituary",
+        "categories": "/category/",
+        "tags": "/tag/",
+        "search": "/search",
+        "contact": "/contact",
+        "about": "/about",
+        "css_files": ".css",
+        "image_files": ".jpg",
+        "feeds": "/feed",
+        "rss": "/rss",
     }
 
     print("URL Pattern Analysis with StorySniffer")
@@ -52,9 +53,12 @@ def analyze_specific_patterns():
         print(f"\nAnalyzing URLs containing '{pattern}':")
 
         with db.engine.connect() as conn:
-            result = conn.execute(text(
-                "SELECT url FROM candidate_links WHERE status = 'discovered' AND url LIKE :pattern LIMIT 10"
-            ), {'pattern': f'%{pattern}%'})
+            result = conn.execute(
+                text(
+                    "SELECT url FROM candidate_links WHERE status = 'discovered' AND url LIKE :pattern LIMIT 10"
+                ),
+                {"pattern": f"%{pattern}%"},
+            )
             urls = [row[0] for row in result]
 
         if not urls:
@@ -79,7 +83,9 @@ def analyze_specific_patterns():
 
         if len(urls) > 0:
             non_article_pct = (non_article_count / len(urls)) * 100
-            print(f"  Results: {non_article_count}/{len(urls)} ({non_article_pct:.1f}%) identified as non-articles")
+            print(
+                f"  Results: {non_article_count}/{len(urls)} ({non_article_pct:.1f}%) identified as non-articles"
+            )
 
 
 if __name__ == "__main__":

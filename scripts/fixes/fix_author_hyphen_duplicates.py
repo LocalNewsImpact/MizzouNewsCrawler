@@ -15,8 +15,7 @@ from src.utils.byline_cleaner import BylineCleaner
 
 # Set up logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -24,10 +23,10 @@ logger = logging.getLogger(__name__)
 def find_hyphen_duplicates(authors: list[str]) -> list[str]:
     """
     Apply the same deduplication logic as the enhanced BylineCleaner.
-    
+
     Args:
         authors: List of author names that may contain hyphen/space duplicates
-        
+
     Returns:
         Deduplicated list with hyphenated duplicates removed
     """
@@ -39,11 +38,10 @@ def find_hyphen_duplicates(authors: list[str]) -> list[str]:
     return cleaner._deduplicate_authors(authors)
 
 
-def update_articles_with_hyphen_duplicates(
-        db_path: str, dry_run: bool = True) -> None:
+def update_articles_with_hyphen_duplicates(db_path: str, dry_run: bool = True) -> None:
     """
     Update articles that have hyphen/space duplicate authors.
-    
+
     Args:
         db_path: Path to the SQLite database
         dry_run: If True, only show what would be changed without making
@@ -67,7 +65,7 @@ def update_articles_with_hyphen_duplicates(
         articles_to_update = []
 
         for article_id, title, author_json in all_articles:
-            if not author_json or author_json.strip() in ['[]', 'null', '']:
+            if not author_json or author_json.strip() in ["[]", "null", ""]:
                 continue
 
             try:
@@ -79,12 +77,12 @@ def update_articles_with_hyphen_duplicates(
                         for j, author2 in enumerate(authors):
                             if i != j:
                                 # Compare after normalizing hyphens to spaces
-                                norm1 = author1.replace('-', ' ')
-                                norm1 = norm1.replace('–', ' ')
-                                norm1 = norm1.replace('—', ' ')
-                                norm2 = author2.replace('-', ' ')
-                                norm2 = norm2.replace('–', ' ')
-                                norm2 = norm2.replace('—', ' ')
+                                norm1 = author1.replace("-", " ")
+                                norm1 = norm1.replace("–", " ")
+                                norm1 = norm1.replace("—", " ")
+                                norm2 = author2.replace("-", " ")
+                                norm2 = norm2.replace("–", " ")
+                                norm2 = norm2.replace("—", " ")
                                 if norm1 == norm2:
                                     has_duplicates = True
                                     break
@@ -94,12 +92,14 @@ def update_articles_with_hyphen_duplicates(
                     if has_duplicates:
                         # Apply the fix
                         fixed_authors = find_hyphen_duplicates(authors)
-                        articles_to_update.append({
-                            'id': article_id,
-                            'title': title[:50] if title else 'No title',
-                            'original_authors': authors,
-                            'fixed_authors': fixed_authors
-                        })
+                        articles_to_update.append(
+                            {
+                                "id": article_id,
+                                "title": title[:50] if title else "No title",
+                                "original_authors": authors,
+                                "fixed_authors": fixed_authors,
+                            }
+                        )
 
             except (json.JSONDecodeError, TypeError) as e:
                 msg = f"Skipping article {article_id} due to JSON error: {e}"
@@ -119,8 +119,8 @@ def update_articles_with_hyphen_duplicates(
             logger.info(f"{i}. Article {article['id']}: {article['title']}...")
             logger.info(f"   Original: {article['original_authors']}")
             logger.info(f"   Fixed:    {article['fixed_authors']}")
-            orig_count = len(article['original_authors'])
-            fixed_count = len(article['fixed_authors'])
+            orig_count = len(article["original_authors"])
+            fixed_count = len(article["fixed_authors"])
             removed_count = orig_count - fixed_count
             logger.info(f"   Removed {removed_count} duplicate(s)")
 
@@ -139,17 +139,22 @@ def update_articles_with_hyphen_duplicates(
         updated_count = 0
         for article in articles_to_update:
             try:
-                fixed_json = json.dumps(article['fixed_authors'])
-                cursor.execute("""
+                fixed_json = json.dumps(article["fixed_authors"])
+                cursor.execute(
+                    """
                     UPDATE articles 
                     SET author = ? 
                     WHERE id = ?
-                """, (fixed_json, article['id']))
+                """,
+                    (fixed_json, article["id"]),
+                )
 
                 updated_count += 1
 
                 if updated_count % 10 == 0:
-                    logger.info(f"Updated {updated_count}/{len(articles_to_update)} articles...")
+                    logger.info(
+                        f"Updated {updated_count}/{len(articles_to_update)} articles..."
+                    )
 
             except Exception as e:
                 logger.error(f"Error updating article {article['id']}: {e}")
@@ -187,8 +192,16 @@ def update_articles_with_hyphen_duplicates(
                     for i, author1 in enumerate(authors):
                         for j, author2 in enumerate(authors):
                             if i != j:
-                                norm1 = author1.replace('-', ' ').replace('–', ' ').replace('—', ' ')
-                                norm2 = author2.replace('-', ' ').replace('–', ' ').replace('—', ' ')
+                                norm1 = (
+                                    author1.replace("-", " ")
+                                    .replace("–", " ")
+                                    .replace("—", " ")
+                                )
+                                norm2 = (
+                                    author2.replace("-", " ")
+                                    .replace("–", " ")
+                                    .replace("—", " ")
+                                )
                                 if norm1 == norm2:
                                     remaining_duplicates += 1
                                     break
@@ -198,11 +211,15 @@ def update_articles_with_hyphen_duplicates(
             except (json.JSONDecodeError, TypeError):
                 continue
 
-        logger.info(f"Remaining articles with hyphen duplicates: {remaining_duplicates}")
+        logger.info(
+            f"Remaining articles with hyphen duplicates: {remaining_duplicates}"
+        )
         logger.info(f"Total articles with authors: {total_with_authors}")
 
         if remaining_duplicates == 0:
-            logger.info("🎉 All hyphen/space duplicates have been successfully removed!")
+            logger.info(
+                "🎉 All hyphen/space duplicates have been successfully removed!"
+            )
 
     except Exception as e:
         logger.error(f"Error during processing: {e}")
@@ -212,17 +229,27 @@ def update_articles_with_hyphen_duplicates(
     finally:
         conn.close()
 
+
 def main():
     """Main function to run the fix."""
     import argparse
 
-    parser = argparse.ArgumentParser(description='Fix hyphen/space duplicate authors in articles table')
-    parser.add_argument('--db-path', default='data/mizzou.db',
-                       help='Path to the SQLite database (default: data/mizzou.db)')
-    parser.add_argument('--dry-run', action='store_true',
-                       help='Show what would be changed without making updates')
-    parser.add_argument('--apply', action='store_true',
-                       help='Apply the fixes to the database')
+    parser = argparse.ArgumentParser(
+        description="Fix hyphen/space duplicate authors in articles table"
+    )
+    parser.add_argument(
+        "--db-path",
+        default="data/mizzou.db",
+        help="Path to the SQLite database (default: data/mizzou.db)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be changed without making updates",
+    )
+    parser.add_argument(
+        "--apply", action="store_true", help="Apply the fixes to the database"
+    )
 
     args = parser.parse_args()
 
@@ -239,5 +266,6 @@ def main():
 
     update_articles_with_hyphen_duplicates(args.db_path, dry_run=dry_run)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

@@ -87,8 +87,7 @@ def main():
 
             except Exception as e:
                 logger.error(
-                    f"Error processing row for "
-                    f"{row.get('url_news', 'unknown')}: {e}"
+                    f"Error processing row for {row.get('url_news', 'unknown')}: {e}"
                 )
                 continue
 

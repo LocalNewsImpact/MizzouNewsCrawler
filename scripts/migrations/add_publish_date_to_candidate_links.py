@@ -155,7 +155,7 @@ def backfill_publish_dates(engine):
                 continue
             try:
                 update_sql = (
-                    "UPDATE candidate_links SET publish_date = :pd " "WHERE id = :id"
+                    "UPDATE candidate_links SET publish_date = :pd WHERE id = :id"
                 )
                 conn.execute(
                     text(update_sql),

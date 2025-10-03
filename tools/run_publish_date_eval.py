@@ -43,13 +43,9 @@ def build_record(entry: dict, extracted: dict, error: str | None) -> dict:
         "publish_date_found": bool(publish_date),
         "publish_date": publish_date,
         "extraction_method_publish_date": (
-            (metadata or {})
-            .get("extraction_methods", {})
-            .get("publish_date", "none")
+            (metadata or {}).get("extraction_methods", {}).get("publish_date", "none")
         ),
-        "fallback_metadata": (metadata or {})
-        .get("fallbacks", {})
-        .get("publish_date"),
+        "fallback_metadata": (metadata or {}).get("fallbacks", {}).get("publish_date"),
         "metadata": metadata,
         "error": error,
     }

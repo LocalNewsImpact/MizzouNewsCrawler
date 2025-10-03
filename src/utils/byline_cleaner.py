@@ -533,7 +533,6 @@ class BylineCleaner:
                         detected_wire_service, self._current_source_name
                     )
                 ):
-
                     # This is local content - continue with normal processing
                     # to extract author name
                     self.telemetry.log_transformation_step(
@@ -582,8 +581,7 @@ class BylineCleaner:
             special_extracted = self._extract_special_contributor(byline)
             if special_extracted:
                 logger.debug(
-                    f"Extracted using special contributor pattern: "
-                    f"{special_extracted}"
+                    f"Extracted using special contributor pattern: {special_extracted}"
                 )
 
                 # Clean the extracted name and skip most processing
@@ -1446,7 +1444,6 @@ class BylineCleaner:
                 and len(part_types) == 2
                 and all(ptype == "name" for _, ptype in part_types)
             ):
-
                 first_part = part_types[0][0]  # Potential last name
                 second_part = part_types[1][0]  # Potential first name(s)
 
@@ -1459,8 +1456,7 @@ class BylineCleaner:
                     # This looks like "Last, First" - reorder to "First Last"
                     reordered_name = f"{second_part} {first_part}"
                     logger.debug(
-                        f"Detected 'Last, First' format: "
-                        f"'{text}' -> '{reordered_name}'"
+                        f"Detected 'Last, First' format: '{text}' -> '{reordered_name}'"
                     )
                     return [reordered_name]
 
@@ -2548,7 +2544,6 @@ class BylineCleaner:
                             if word and word[0].isalpha()
                         )
                     ):
-
                         # This looks like a valid name - keep the longest one
                         if len(part) > len(best_name):
                             best_name = part

@@ -78,12 +78,18 @@ def backfill_discovery_attempted():
             AND discovery_attempted IS NULL
         """)
         effectiveness_updated = cursor.rowcount
-        print(f"   Updated {effectiveness_updated} sources from discovery_method_effectiveness")
+        print(
+            f"   Updated {effectiveness_updated} sources from discovery_method_effectiveness"
+        )
 
-        total_updated = outcomes_updated + candidate_links_updated + effectiveness_updated
+        total_updated = (
+            outcomes_updated + candidate_links_updated + effectiveness_updated
+        )
 
         # Check final status
-        cursor.execute("SELECT COUNT(*) FROM sources WHERE discovery_attempted IS NOT NULL")
+        cursor.execute(
+            "SELECT COUNT(*) FROM sources WHERE discovery_attempted IS NOT NULL"
+        )
         sources_with_attempts = cursor.fetchone()[0]
 
         cursor.execute("SELECT COUNT(*) FROM sources WHERE discovery_attempted IS NULL")
@@ -99,7 +105,7 @@ def backfill_discovery_attempted():
         print(f"Sources with discovery attempts: {sources_with_attempts}")
         print(f"Sources never attempted: {sources_never_attempted}")
         print(f"Total sources: {total_sources}")
-        print(f"Coverage: {sources_with_attempts/total_sources*100:.1f}%")
+        print(f"Coverage: {sources_with_attempts / total_sources * 100:.1f}%")
 
         return True
 
@@ -107,7 +113,7 @@ def backfill_discovery_attempted():
         print(f"Error during backfill: {e}")
         return False
     finally:
-        if 'conn' in locals():
+        if "conn" in locals():
             conn.close()
 
 

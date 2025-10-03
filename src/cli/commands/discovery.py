@@ -95,15 +95,14 @@ def add_discovery_parser(subparsers) -> argparse.ArgumentParser:
         action="store_true",
         default=True,
         help=(
-            "Only process sources due for discovery based on scheduling "
-            "(default: True)"
+            "Only process sources due for discovery based on scheduling (default: True)"
         ),
     )
 
     discover_parser.add_argument(
         "--force-all",
         action="store_true",
-        help=("Process all sources regardless of scheduling " "(disables due-only)"),
+        help=("Process all sources regardless of scheduling (disables due-only)"),
     )
 
     discover_parser.add_argument(
@@ -115,9 +114,7 @@ def add_discovery_parser(subparsers) -> argparse.ArgumentParser:
     discover_parser.add_argument(
         "--existing-article-limit",
         type=int,
-        help=(
-            "Skip sources that already have at least this many extracted " "articles"
-        ),
+        help=("Skip sources that already have at least this many extracted articles"),
     )
 
     discover_parser.set_defaults(func=handle_discovery_command)
@@ -197,8 +194,7 @@ def handle_discovery_command(args) -> int:
             print(f"Sources with no content: {stats['sources_no_content']}")
 
         print(
-            "Total candidate URLs discovered: "
-            f"{stats['total_candidates_discovered']}"
+            f"Total candidate URLs discovered: {stats['total_candidates_discovered']}"
         )
 
         if stats["sources_processed"] > 0:
@@ -229,14 +225,13 @@ def handle_discovery_command(args) -> int:
                     if failure_summary.get("total_failures", 0) > 0:
                         print("\n=== Failure Analysis ===")
                         print(
-                            "Total site failures: "
-                            f"{failure_summary['total_failures']}"
+                            f"Total site failures: {failure_summary['total_failures']}"
                         )
                         most_common = failure_summary.get(
                             "most_common_failure",
                             "Unknown",
                         )
-                        print("Most common failure type: " f"{most_common}")
+                        print(f"Most common failure type: {most_common}")
                         print("\nFailure breakdown:")
                         for failure_type, count in failure_summary[
                             "failure_types"
@@ -244,7 +239,7 @@ def handle_discovery_command(args) -> int:
                             percentage = (
                                 count / failure_summary["total_failures"]
                             ) * 100
-                            print(f"  {failure_type}: {count} " f"({percentage:.1f}%)")
+                            print(f"  {failure_type}: {count} ({percentage:.1f}%)")
 
         return 0
 

@@ -850,7 +850,7 @@ class NewsDiscovery:
 
                 if feeds:
                     logger.info(
-                        ("Found %d feed(s) on homepage; " "trying those first")
+                        ("Found %d feed(s) on homepage; trying those first")
                         % (len(feeds),)
                     )
                     _rss_ret = self.discover_with_rss_feeds(
@@ -1738,7 +1738,6 @@ class NewsDiscovery:
             source_filter=source_filter,
             days_back=self.days_back,
         ) as tracker:
-
             # Get sources to process (respect `due_only` scheduling)
             sources_df, source_stats = self.get_sources_to_process(
                 dataset_label=dataset_label,
@@ -1836,9 +1835,9 @@ class NewsDiscovery:
                     )
 
                     stats["sources_processed"] += 1
-                    stats[
-                        "total_candidates_discovered"
-                    ] += discovery_result.articles_new
+                    stats["total_candidates_discovered"] += (
+                        discovery_result.articles_new
+                    )
 
                     # Track different types of success
                     if discovery_result.is_technical_failure:
@@ -1907,11 +1906,11 @@ class NewsDiscovery:
                     tracker.update_progress(
                         processed=metrics.processed_items,
                         total=metrics.total_items,
-                        message=("Failed: " f"{source_row.get('name', 'Unknown')}"),
+                        message=(f"Failed: {source_row.get('name', 'Unknown')}"),
                     )
 
             logger.info(
-                "Discovery complete. Processed %s sources, found %s " "candidate URLs",
+                "Discovery complete. Processed %s sources, found %s candidate URLs",
                 stats["sources_processed"],
                 stats["total_candidates_discovered"],
             )
@@ -2053,6 +2052,4 @@ if __name__ == "__main__":
     print("\nDiscovery completed:")
     print(f"  Sources processed: {stats['sources_processed']}")
     print(f"  Candidates found: {stats['total_candidates_discovered']}")
-    print(
-        "  Success rate: " f"{stats['sources_succeeded']}/{stats['sources_processed']}"
-    )
+    print(f"  Success rate: {stats['sources_succeeded']}/{stats['sources_processed']}")

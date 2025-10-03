@@ -33,26 +33,29 @@ def print_operation_report(telemetry: ExtractionTelemetry, operation_id: str):
     print(f"\nOPERATION REPORT: {operation_id}")
     print("=" * 60)
 
-    total_articles = sum(stat['count'] for stat in stats)
-    total_time = sum(stat['count'] * stat['avg_time_ms'] for stat in stats)
+    total_articles = sum(stat["count"] for stat in stats)
+    total_time = sum(stat["count"] * stat["avg_time_ms"] for stat in stats)
 
     print(f"Total articles processed: {total_articles}")
-    print(f"Total processing time: {total_time/1000:.1f} seconds")
-    print(f"Average time per article: {total_time/total_articles:.1f}ms")
+    print(f"Total processing time: {total_time / 1000:.1f} seconds")
+    print(f"Average time per article: {total_time / total_articles:.1f}ms")
 
     # Success rate
-    successful = sum(stat['count'] for stat in stats
-                    if stat['outcome'] == 'CONTENT_EXTRACTED')
+    successful = sum(
+        stat["count"] for stat in stats if stat["outcome"] == "CONTENT_EXTRACTED"
+    )
     success_rate = (successful / total_articles * 100) if total_articles > 0 else 0
     print(f"Success rate: {success_rate:.1f}% ({successful}/{total_articles})")
 
     print("\nOutcome breakdown:")
     print("-" * 40)
-    for stat in sorted(stats, key=lambda x: x['count'], reverse=True):
-        pct = (stat['count'] / total_articles * 100) if total_articles > 0 else 0
-        print(f"{stat['outcome']:20} {stat['count']:4} ({pct:5.1f}%) "
-              f"avg: {stat['avg_time_ms']:6.1f}ms "
-              f"quality: {stat['avg_quality_score']:4.2f}")
+    for stat in sorted(stats, key=lambda x: x["count"], reverse=True):
+        pct = (stat["count"] / total_articles * 100) if total_articles > 0 else 0
+        print(
+            f"{stat['outcome']:20} {stat['count']:4} ({pct:5.1f}%) "
+            f"avg: {stat['avg_time_ms']:6.1f}ms "
+            f"quality: {stat['avg_quality_score']:4.2f}"
+        )
 
 
 def print_time_range_report(telemetry: ExtractionTelemetry, hours: int):
@@ -73,7 +76,8 @@ def print_time_range_report(telemetry: ExtractionTelemetry, hours: int):
         conn.row_factory = sqlite3.Row
 
         # Basic stats
-        result = conn.execute("""
+        result = conn.execute(
+            """
             SELECT 
                 COUNT(*) as total_extractions,
                 COUNT(DISTINCT operation_id) as operations,
@@ -81,9 +85,11 @@ def print_time_range_report(telemetry: ExtractionTelemetry, hours: int):
                 AVG(content_quality_score) as avg_quality
             FROM extraction_outcomes 
             WHERE timestamp > ?
-        """, (cutoff_time.isoformat(),)).fetchone()
+        """,
+            (cutoff_time.isoformat(),),
+        ).fetchone()
 
-        if result['total_extractions'] == 0:
+        if result["total_extractions"] == 0:
             print(f"No extractions found in the last {hours} hours")
             return
 
@@ -93,7 +99,8 @@ def print_time_range_report(telemetry: ExtractionTelemetry, hours: int):
         print(f"Average content quality: {result['avg_quality']:.2f}")
 
         # Outcome distribution
-        outcomes = conn.execute("""
+        outcomes = conn.execute(
+            """
             SELECT 
                 outcome,
                 COUNT(*) as count,
@@ -103,18 +110,23 @@ def print_time_range_report(telemetry: ExtractionTelemetry, hours: int):
             WHERE timestamp > ?
             GROUP BY outcome
             ORDER BY count DESC
-        """, (cutoff_time.isoformat(),)).fetchall()
+        """,
+            (cutoff_time.isoformat(),),
+        ).fetchall()
 
         print("\nOutcome distribution:")
         print("-" * 40)
         for outcome in outcomes:
-            pct = (outcome['count'] / result['total_extractions'] * 100)
-            print(f"{outcome['outcome']:20} {outcome['count']:4} ({pct:5.1f}%) "
-                  f"avg: {outcome['avg_time']:6.1f}ms "
-                  f"quality: {outcome['avg_quality']:4.2f}")
+            pct = outcome["count"] / result["total_extractions"] * 100
+            print(
+                f"{outcome['outcome']:20} {outcome['count']:4} ({pct:5.1f}%) "
+                f"avg: {outcome['avg_time']:6.1f}ms "
+                f"quality: {outcome['avg_quality']:4.2f}"
+            )
 
         # Error analysis for failures
-        errors = conn.execute("""
+        errors = conn.execute(
+            """
             SELECT 
                 http_status_code,
                 COUNT(*) as count
@@ -124,13 +136,17 @@ def print_time_range_report(telemetry: ExtractionTelemetry, hours: int):
             AND http_status_code IS NOT NULL
             GROUP BY http_status_code
             ORDER BY count DESC
-        """, (cutoff_time.isoformat(),)).fetchall()
+        """,
+            (cutoff_time.isoformat(),),
+        ).fetchall()
 
         if errors:
             print("\nHTTP error codes:")
             print("-" * 25)
             for error in errors:
-                print(f"HTTP {error['http_status_code']:3}: {error['count']} occurrences")
+                print(
+                    f"HTTP {error['http_status_code']:3}: {error['count']} occurrences"
+                )
 
 
 def print_summary_report(telemetry: ExtractionTelemetry):
@@ -159,7 +175,7 @@ def print_summary_report(telemetry: ExtractionTelemetry):
             FROM extraction_outcomes
         """).fetchone()
 
-        if result['total_extractions'] == 0:
+        if result["total_extractions"] == 0:
             print("No extraction data found")
             return
 
@@ -177,9 +193,11 @@ def print_summary_report(telemetry: ExtractionTelemetry):
             WHERE outcome = 'CONTENT_EXTRACTED'
         """).fetchone()
 
-        success_rate = (success['successful'] / result['total_extractions'] * 100)
-        print(f"Overall success rate: {success_rate:.1f}% "
-              f"({success['successful']}/{result['total_extractions']})")
+        success_rate = success["successful"] / result["total_extractions"] * 100
+        print(
+            f"Overall success rate: {success_rate:.1f}% "
+            f"({success['successful']}/{result['total_extractions']})"
+        )
 
         # Top failure reasons
         failures = conn.execute("""
@@ -197,7 +215,7 @@ def print_summary_report(telemetry: ExtractionTelemetry):
             print("\nTop failure reasons:")
             print("-" * 30)
             for failure in failures:
-                pct = (failure['count'] / result['total_extractions'] * 100)
+                pct = failure["count"] / result["total_extractions"] * 100
                 print(f"{failure['outcome']:20} {failure['count']:4} ({pct:4.1f}%)")
 
 
@@ -206,19 +224,12 @@ def main():
     parser = argparse.ArgumentParser(
         description="Generate extraction telemetry reports"
     )
+    parser.add_argument("--operation-id", help="Report on specific operation ID")
     parser.add_argument(
-        "--operation-id",
-        help="Report on specific operation ID"
+        "--last-hours", type=int, help="Report on extractions in last N hours"
     )
     parser.add_argument(
-        "--last-hours",
-        type=int,
-        help="Report on extractions in last N hours"
-    )
-    parser.add_argument(
-        "--summary",
-        action="store_true",
-        help="Show overall summary statistics"
+        "--summary", action="store_true", help="Show overall summary statistics"
     )
 
     args = parser.parse_args()

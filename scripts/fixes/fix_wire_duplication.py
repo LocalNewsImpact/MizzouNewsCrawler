@@ -15,7 +15,7 @@ import os
 import sys
 
 # Add the project root to Python path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from sqlalchemy import text
 
@@ -23,8 +23,7 @@ from src.models.database import DatabaseManager
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -32,7 +31,7 @@ logger = logging.getLogger(__name__)
 def fix_wire_service_duplication(dry_run: bool = True) -> None:
     """
     Fix articles where wire services appear in both author and wire fields.
-    
+
     Args:
         dry_run: If True, only show what would be changed without making
                  updates
@@ -41,26 +40,26 @@ def fix_wire_service_duplication(dry_run: bool = True) -> None:
 
     # Define wire service variations for filtering
     wire_service_patterns = {
-        'The Associated Press': [
-            'associated press', 'the associated press', 'ap'
-        ],
-        'CNN NewsSource': ['cnn', 'cnn newsource', 'cnn newssource'],
-        'Hearst': ['hearst', 'hearst stations inc'],
-        'ABC News': ['abc', 'abc news'],
-        'Reuters': ['reuters'],
-        'Bloomberg': ['bloomberg'],
-        'NPR': ['npr'],
-        'PBS': ['pbs']
+        "The Associated Press": ["associated press", "the associated press", "ap"],
+        "CNN NewsSource": ["cnn", "cnn newsource", "cnn newssource"],
+        "Hearst": ["hearst", "hearst stations inc"],
+        "ABC News": ["abc", "abc news"],
+        "Reuters": ["reuters"],
+        "Bloomberg": ["bloomberg"],
+        "NPR": ["npr"],
+        "PBS": ["pbs"],
     }
 
     try:
         with db.engine.begin() as conn:
             # Find articles with wire content that have authors
-            result = conn.execute(text(
-                "SELECT id, author, wire FROM articles "
-                "WHERE wire IS NOT NULL AND author IS NOT NULL "
-                "AND author != '[]'"
-            ))
+            result = conn.execute(
+                text(
+                    "SELECT id, author, wire FROM articles "
+                    "WHERE wire IS NOT NULL AND author IS NOT NULL "
+                    "AND author != '[]'"
+                )
+            )
 
             articles_with_issues = result.fetchall()
 
@@ -74,8 +73,7 @@ def fix_wire_service_duplication(dry_run: bool = True) -> None:
             for article_id, author_field, wire_field in articles_with_issues:
                 try:
                     # Parse the author field (it's stored as JSON array)
-                    if (author_field.startswith('[') and
-                            author_field.endswith(']')):
+                    if author_field.startswith("[") and author_field.endswith("]"):
                         authors = json.loads(author_field)
                     else:
                         # Handle non-JSON format
@@ -84,17 +82,16 @@ def fix_wire_service_duplication(dry_run: bool = True) -> None:
                     # Find wire service patterns in the wire field
                     wire_patterns_to_remove = set()
                     if wire_field:
-                        for canonical_name, patterns in (
-                                wire_service_patterns.items()):
-                            if (wire_field.lower().strip() in
-                                    [p.lower() for p in patterns] or
-                                    wire_field == canonical_name):
+                        for canonical_name, patterns in wire_service_patterns.items():
+                            if (
+                                wire_field.lower().strip()
+                                in [p.lower() for p in patterns]
+                                or wire_field == canonical_name
+                            ):
                                 wire_patterns_to_remove.update(
                                     [p.lower() for p in patterns]
                                 )
-                                wire_patterns_to_remove.add(
-                                    canonical_name.lower()
-                                )
+                                wire_patterns_to_remove.add(canonical_name.lower())
 
                     # Filter out wire service names from authors
                     original_authors = authors.copy()
@@ -115,18 +112,22 @@ def fix_wire_service_duplication(dry_run: bool = True) -> None:
                         if not dry_run:
                             # Update the author field with filtered authors
                             new_author_json = json.dumps(filtered_authors)
-                            conn.execute(text(
-                                "UPDATE articles SET author = :new_author "
-                                "WHERE id = :article_id"
-                            ), {"new_author": new_author_json,
-                                "article_id": article_id})
+                            conn.execute(
+                                text(
+                                    "UPDATE articles SET author = :new_author "
+                                    "WHERE id = :article_id"
+                                ),
+                                {
+                                    "new_author": new_author_json,
+                                    "article_id": article_id,
+                                },
+                            )
 
                         fixes_made += 1
 
                 except json.JSONDecodeError as e:
                     logger.warning(
-                        f"Could not parse author field for article "
-                        f"{article_id}: {e}"
+                        f"Could not parse author field for article {article_id}: {e}"
                     )
                     continue
                 except Exception as e:
@@ -143,12 +144,14 @@ def fix_wire_service_duplication(dry_run: bool = True) -> None:
                 logger.info(f"\nFix complete: {fixes_made} articles updated")
 
                 # Show some examples of the results
-                result = conn.execute(text(
-                    "SELECT id, author, wire FROM articles "
-                    "WHERE wire IS NOT NULL "
-                    "ORDER BY wire "
-                    "LIMIT 5"
-                ))
+                result = conn.execute(
+                    text(
+                        "SELECT id, author, wire FROM articles "
+                        "WHERE wire IS NOT NULL "
+                        "ORDER BY wire "
+                        "LIMIT 5"
+                    )
+                )
 
                 logger.info("\nSample of updated articles:")
                 for article_id, author_field, wire_field in result.fetchall():
@@ -169,9 +172,7 @@ if __name__ == "__main__":
         description="Fix wire service duplication in articles"
     )
     parser.add_argument(
-        "--execute",
-        action="store_true",
-        help="Execute the fixes (default is dry run)"
+        "--execute", action="store_true", help="Execute the fixes (default is dry run)"
     )
 
     args = parser.parse_args()

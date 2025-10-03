@@ -14,7 +14,7 @@ import sys
 from typing import Any
 
 # Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 from utils.byline_cleaner import BylineCleaner
 
@@ -40,9 +40,11 @@ def parse_author_json(author_data: Any) -> list[str]:
     else:
         return [str(author_data)]
 
+
 def format_author_json(authors: list[str]) -> str:
     """Format authors as JSON string for database storage."""
     return json.dumps(authors)
+
 
 def demonstrate_wire_detection():
     """Demonstrate wire service detection with real database integration."""
@@ -56,33 +58,33 @@ def demonstrate_wire_detection():
     # Test cases showing different wire service scenarios
     test_cases = [
         {
-            'name': 'Direct Wire Service',
-            'byline': 'Associated Press',
-            'expected_wire': 'associated press'
+            "name": "Direct Wire Service",
+            "byline": "Associated Press",
+            "expected_wire": "associated press",
         },
         {
-            'name': 'Person + Wire Service',
-            'byline': 'John Smith CNN',
-            'expected_authors': ['John Smith'],
-            'expected_wire': 'cnn'
+            "name": "Person + Wire Service",
+            "byline": "John Smith CNN",
+            "expected_authors": ["John Smith"],
+            "expected_wire": "cnn",
         },
         {
-            'name': 'Multi-word Wire Service',
-            'byline': 'Fox News',
-            'expected_wire': 'fox news'
+            "name": "Multi-word Wire Service",
+            "byline": "Fox News",
+            "expected_wire": "fox news",
         },
         {
-            'name': 'Person Name Only',
-            'byline': 'Sarah Johnson',
-            'expected_authors': ['Sarah Johnson'],
-            'expected_wire': None
+            "name": "Person Name Only",
+            "byline": "Sarah Johnson",
+            "expected_authors": ["Sarah Johnson"],
+            "expected_wire": None,
         },
         {
-            'name': 'Complex Wire + Person',
-            'byline': 'By David Chen, The New York Times',
-            'expected_authors': ['David Chen'],
-            'expected_wire': 'the new york times'
-        }
+            "name": "Complex Wire + Person",
+            "byline": "By David Chen, The New York Times",
+            "expected_authors": ["David Chen"],
+            "expected_wire": "the new york times",
+        },
     ]
 
     print("\n📋 Testing Wire Service Detection:")
@@ -93,26 +95,27 @@ def demonstrate_wire_detection():
         print(f"   Input: '{test['byline']}'")
 
         # Clean the byline with JSON output
-        result = cleaner.clean_byline(test['byline'], return_json=True)
+        result = cleaner.clean_byline(test["byline"], return_json=True)
 
-        authors = result.get('authors', [])
-        wire_services = result.get('wire_services', [])
-        primary_wire = result.get('primary_wire_service')
+        authors = result.get("authors", [])
+        wire_services = result.get("wire_services", [])
+        primary_wire = result.get("primary_wire_service")
 
         print(f"   Authors: {authors}")
         print(f"   Wire Services: {wire_services}")
         print(f"   Primary Wire: {primary_wire}")
 
         # Validate expectations
-        if 'expected_authors' in test:
-            authors_match = authors == test['expected_authors']
+        if "expected_authors" in test:
+            authors_match = authors == test["expected_authors"]
             print(f"   ✅ Authors correct: {authors_match}")
 
-        if 'expected_wire' in test:
-            wire_match = primary_wire == test['expected_wire']
+        if "expected_wire" in test:
+            wire_match = primary_wire == test["expected_wire"]
             print(f"   ✅ Wire service correct: {wire_match}")
 
     return True
+
 
 def demonstrate_database_integration():
     """Show how to integrate wire detection with database updates."""
@@ -122,7 +125,7 @@ def demonstrate_database_integration():
 
     # Connect to database
     try:
-        conn = sqlite3.connect('data/mizzou.db')
+        conn = sqlite3.connect("data/mizzou.db")
         cursor = conn.cursor()
 
         # Get some sample records with authors
@@ -162,15 +165,15 @@ def demonstrate_database_integration():
             detected_wire_services = []
 
             for author in current_authors:
-                if not author or author.strip() == '':
+                if not author or author.strip() == "":
                     continue
 
                 # Clean the author byline
                 result = cleaner.clean_byline(author, return_json=True)
 
                 # Extract results
-                cleaned_authors = result.get('authors', [])
-                wire_services = result.get('wire_services', [])
+                cleaned_authors = result.get("authors", [])
+                wire_services = result.get("wire_services", [])
 
                 # Add cleaned authors
                 new_authors.extend(cleaned_authors)
@@ -186,14 +189,16 @@ def demonstrate_database_integration():
                 wire_detected_count += 1
 
             # Store the processing results
-            processed_records.append({
-                'id': article_id,
-                'original_authors': current_authors,
-                'new_authors': new_authors,
-                'detected_wire_services': detected_wire_services,
-                'final_wire': final_wire,
-                'current_wire': current_wire
-            })
+            processed_records.append(
+                {
+                    "id": article_id,
+                    "original_authors": current_authors,
+                    "new_authors": new_authors,
+                    "detected_wire_services": detected_wire_services,
+                    "final_wire": final_wire,
+                    "current_wire": current_wire,
+                }
+            )
 
         # Display results
         print("\n📈 Processing Results:")
@@ -208,7 +213,7 @@ def demonstrate_database_integration():
             print(f"\n{i}. Article ID: {record['id'][:8]}...")
             print(f"   Original Authors: {record['original_authors']}")
             print(f"   Cleaned Authors: {record['new_authors']}")
-            if record['detected_wire_services']:
+            if record["detected_wire_services"]:
                 print(f"   🎯 Wire Services: {record['detected_wire_services']}")
                 print(f"   📝 Final Wire: {record['final_wire']}")
             else:
@@ -220,17 +225,20 @@ def demonstrate_database_integration():
 
         update_examples = []
         for record in processed_records:
-            if record['detected_wire_services'] or record['new_authors'] != record['original_authors']:
+            if (
+                record["detected_wire_services"]
+                or record["new_authors"] != record["original_authors"]
+            ):
                 update_examples.append(record)
 
         if update_examples:
             print("Example updates that would be performed:")
             for record in update_examples[:3]:
                 print("\nUPDATE articles SET")
-                if record['new_authors']:
-                    authors_json = format_author_json(record['new_authors'])
+                if record["new_authors"]:
+                    authors_json = format_author_json(record["new_authors"])
                     print(f"  author = '{authors_json}',")
-                if record['final_wire']:
+                if record["final_wire"]:
                     print(f"  wire = '{record['final_wire']}'")
                 print(f"WHERE id = '{record['id']}';")
         else:
@@ -242,6 +250,7 @@ def demonstrate_database_integration():
     except sqlite3.Error as e:
         print(f"❌ Database error: {e}")
         return False
+
 
 def demonstrate_convenience_methods():
     """Show the convenience methods for wire service access."""
@@ -255,7 +264,7 @@ def demonstrate_convenience_methods():
         "John Doe Associated Press",
         "Reuters",
         "Sarah Smith CNN NewsSource",
-        "Regular Author Name"
+        "Regular Author Name",
     ]
 
     for byline in test_bylines:
@@ -273,6 +282,7 @@ def demonstrate_convenience_methods():
         print(f"  JSON result: {result}")
         print(f"  Wire services: {wire_services}")
         print(f"  Primary wire: {primary_wire}")
+
 
 def main():
     """Run all demonstrations."""
@@ -305,7 +315,9 @@ def main():
     except Exception as e:
         print(f"❌ Error during demonstration: {e}")
         import traceback
+
         traceback.print_exc()
+
 
 if __name__ == "__main__":
     main()

@@ -56,22 +56,35 @@ def create_extraction_outcomes_table():
 
     # Create indexes for efficient querying
     indexes = [
-        ("CREATE INDEX IF NOT EXISTS idx_extraction_operation "
-         "ON extraction_outcomes (operation_id)"),
-        ("CREATE INDEX IF NOT EXISTS idx_extraction_article "
-         "ON extraction_outcomes (article_id)"),
-        ("CREATE INDEX IF NOT EXISTS idx_extraction_outcome "
-         "ON extraction_outcomes (outcome)"),
-        ("CREATE INDEX IF NOT EXISTS idx_extraction_success "
-         "ON extraction_outcomes (is_success)"),
-        ("CREATE INDEX IF NOT EXISTS idx_extraction_content_success "
-         "ON extraction_outcomes (is_content_success)"),
-        ("CREATE INDEX IF NOT EXISTS idx_extraction_timestamp "
-         "ON extraction_outcomes (timestamp)"),
-        ("CREATE INDEX IF NOT EXISTS idx_extraction_url "
-         "ON extraction_outcomes (url)"),
-        ("CREATE INDEX IF NOT EXISTS idx_extraction_quality "
-         "ON extraction_outcomes (content_quality_score)"),
+        (
+            "CREATE INDEX IF NOT EXISTS idx_extraction_operation "
+            "ON extraction_outcomes (operation_id)"
+        ),
+        (
+            "CREATE INDEX IF NOT EXISTS idx_extraction_article "
+            "ON extraction_outcomes (article_id)"
+        ),
+        (
+            "CREATE INDEX IF NOT EXISTS idx_extraction_outcome "
+            "ON extraction_outcomes (outcome)"
+        ),
+        (
+            "CREATE INDEX IF NOT EXISTS idx_extraction_success "
+            "ON extraction_outcomes (is_success)"
+        ),
+        (
+            "CREATE INDEX IF NOT EXISTS idx_extraction_content_success "
+            "ON extraction_outcomes (is_content_success)"
+        ),
+        (
+            "CREATE INDEX IF NOT EXISTS idx_extraction_timestamp "
+            "ON extraction_outcomes (timestamp)"
+        ),
+        ("CREATE INDEX IF NOT EXISTS idx_extraction_url ON extraction_outcomes (url)"),
+        (
+            "CREATE INDEX IF NOT EXISTS idx_extraction_quality "
+            "ON extraction_outcomes (content_quality_score)"
+        ),
     ]
 
     try:

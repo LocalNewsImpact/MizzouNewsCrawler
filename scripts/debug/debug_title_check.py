@@ -3,7 +3,7 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 from utils.byline_cleaner import BylineCleaner
 
@@ -12,7 +12,7 @@ def debug_title_check():
     """Debug the title removal check."""
     cleaner = BylineCleaner()
 
-    test_words = ['robert', 'davis', 'iii']
+    test_words = ["robert", "davis", "iii"]
 
     print("Checking TITLES_TO_REMOVE:")
     for word in test_words:
@@ -29,9 +29,11 @@ def debug_title_check():
             print(f"  '{word}' is NOT in JOURNALISM_NOUNS")
 
     # Test the actual check
-    has_title_words = any(word.lower() in cleaner.TITLES_TO_REMOVE or
-                         word.lower() in cleaner.JOURNALISM_NOUNS
-                         for word in test_words)
+    has_title_words = any(
+        word.lower() in cleaner.TITLES_TO_REMOVE
+        or word.lower() in cleaner.JOURNALISM_NOUNS
+        for word in test_words
+    )
     print(f"\nAny title words found: {has_title_words}")
 
     # Test other conditions

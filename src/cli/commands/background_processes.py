@@ -256,9 +256,7 @@ def _print_geographic_distribution(conn) -> None:
 def _print_process_table(processes: Iterable) -> None:
     print("Background Processes (most recent 20):")
     print("-" * 80)
-    print(
-        f"{'ID':<8} {'Status':<10} {'Command':<20} " f"{'Progress':<15} {'Started':<20}"
-    )
+    print(f"{'ID':<8} {'Status':<10} {'Command':<20} {'Progress':<15} {'Started':<20}")
     print("-" * 80)
 
     for process in processes:

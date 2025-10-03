@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Backfill wire service detection for articles that were extracted before 
+Backfill wire service detection for articles that were extracted before
 wire service detection was implemented.
 
 This script:
@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 def backfill_wire_service_detection(dry_run=True, limit=None):
     """
     Backfill wire service detection for extracted articles.
-    
+
     Args:
         dry_run: If True, only report what would be changed without making changes
         limit: Optional limit on number of articles to process
@@ -81,7 +81,7 @@ def backfill_wire_service_detection(dry_run=True, limit=None):
                 # Parse the author JSON
                 if author_json and author_json.strip():
                     # Handle both JSON array format and plain string
-                    if author_json.startswith('['):
+                    if author_json.startswith("["):
                         authors = json.loads(author_json)
                         if authors:
                             raw_author = authors[0]  # Use first author for detection
@@ -94,7 +94,7 @@ def backfill_wire_service_detection(dry_run=True, limit=None):
                     byline_result = byline_cleaner.clean_byline(
                         raw_author,
                         return_json=True,
-                        candidate_link_id=str(candidate_link_id)
+                        candidate_link_id=str(candidate_link_id),
                     )
 
                     # Check if wire services were detected
@@ -165,7 +165,7 @@ def backfill_wire_service_detection(dry_run=True, limit=None):
         return {
             "processed": processed_count,
             "wire_detected": wire_detected_count,
-            "dry_run": dry_run
+            "dry_run": dry_run,
         }
 
     except Exception as e:
@@ -187,18 +187,14 @@ def main():
         "--dry-run",
         action="store_true",
         default=True,
-        help="Only show what would be changed (default: True)"
+        help="Only show what would be changed (default: True)",
     )
     parser.add_argument(
         "--execute",
         action="store_true",
-        help="Actually perform the backfill (overrides --dry-run)"
+        help="Actually perform the backfill (overrides --dry-run)",
     )
-    parser.add_argument(
-        "--limit",
-        type=int,
-        help="Limit number of articles to process"
-    )
+    parser.add_argument("--limit", type=int, help="Limit number of articles to process")
 
     args = parser.parse_args()
 
@@ -207,10 +203,7 @@ def main():
 
     logger.info(f"Starting wire service backfill (dry_run={dry_run})")
 
-    result = backfill_wire_service_detection(
-        dry_run=dry_run,
-        limit=args.limit
-    )
+    result = backfill_wire_service_detection(dry_run=dry_run, limit=args.limit)
 
     return 0 if result else 1
 

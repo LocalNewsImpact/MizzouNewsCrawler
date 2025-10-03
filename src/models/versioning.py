@@ -362,8 +362,7 @@ def export_snapshot_for_version(
                 pass
 
             raise RuntimeError(
-                f"Failed to acquire Postgres advisory lock "
-                f"for DatasetVersion {dv.id}"
+                f"Failed to acquire Postgres advisory lock for DatasetVersion {dv.id}"
             )
 
     total_rows = 0

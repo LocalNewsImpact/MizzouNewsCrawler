@@ -44,7 +44,9 @@ def test_rate_limiting_functionality():
     print("✅ Error count resets correctly")
 
     # Test error result creation
-    error_result = extractor._create_error_result("test.com", "Test error", {"status": 429})
+    error_result = extractor._create_error_result(
+        "test.com", "Test error", {"status": 429}
+    )
     assert error_result["success"] is False
     assert error_result["error"] == "Test error"
     assert error_result["url"] == "test.com"
@@ -52,6 +54,7 @@ def test_rate_limiting_functionality():
 
     print("\n🎉 All rate limiting tests passed!")
     print("The system is ready to handle 429 errors and implement exponential backoff.")
+
 
 if __name__ == "__main__":
     test_rate_limiting_functionality()

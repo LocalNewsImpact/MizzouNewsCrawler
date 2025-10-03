@@ -54,7 +54,7 @@ class GazetteerTelemetry:
 
     def setup_logging(self):
         """Setup telemetry logging."""
-        self.logger = logging.getLogger('gazetteer_telemetry')
+        self.logger = logging.getLogger("gazetteer_telemetry")
         self.logger.setLevel(logging.INFO)
 
         # Remove existing handlers to avoid duplicates
@@ -66,7 +66,7 @@ class GazetteerTelemetry:
         file_handler.setLevel(logging.INFO)
 
         # JSON formatter for structured telemetry
-        formatter = logging.Formatter('%(message)s')
+        formatter = logging.Formatter("%(message)s")
         file_handler.setFormatter(formatter)
 
         self.logger.addHandler(file_handler)
@@ -81,27 +81,29 @@ class GazetteerTelemetry:
         # Allow propagation for pytest caplog to work
         self.logger.propagate = True
 
-    def log_enrichment_attempt(self, source_id: str, source_name: str,
-                               city: str, county: str, state: str):
+    def log_enrichment_attempt(
+        self, source_id: str, source_name: str, city: str, county: str, state: str
+    ):
         """Log the start of an enrichment attempt."""
         telemetry = {
             "timestamp": datetime.utcnow().isoformat(),
             "event": "enrichment_attempt",
             "source_id": source_id,
             "source_name": source_name,
-            "location_data": {
-                "city": city,
-                "county": county,
-                "state": state
-            }
+            "location_data": {"city": city, "county": county, "state": state},
         }
         self.logger.info(json.dumps(telemetry))
 
-    def log_geocoding_result(self, source_id: str, method: str,
-                             address_used: str, success: bool,
-                             lat: float | None = None,
-                             lon: float | None = None,
-                             error: str | None = None):
+    def log_geocoding_result(
+        self,
+        source_id: str,
+        method: str,
+        address_used: str,
+        success: bool,
+        lat: float | None = None,
+        lon: float | None = None,
+        error: str | None = None,
+    ):
         """Log geocoding attempt results."""
         telemetry = {
             "timestamp": datetime.utcnow().isoformat(),
@@ -112,20 +114,20 @@ class GazetteerTelemetry:
                 "method": method,
                 "address_used": address_used,
                 "success": success,
-                "coordinates": {
-                    "lat": lat,
-                    "lon": lon
-                } if success else None,
-                "error": error
-            }
+                "coordinates": {"lat": lat, "lon": lon} if success else None,
+                "error": error,
+            },
         }
         self.logger.info(json.dumps(telemetry))
 
-    def log_osm_query_result(self, source_id: str,
-                             total_elements: int,
-                             categories_data: dict[str, int],
-                             query_groups_used: int,
-                             radius_miles: int):
+    def log_osm_query_result(
+        self,
+        source_id: str,
+        total_elements: int,
+        categories_data: dict[str, int],
+        query_groups_used: int,
+        radius_miles: int,
+    ):
         """Log OSM query results."""
         telemetry = {
             "timestamp": datetime.utcnow().isoformat(),
@@ -135,17 +137,20 @@ class GazetteerTelemetry:
                 "total_elements": total_elements,
                 "categories": categories_data,
                 "query_groups_used": query_groups_used,
-                "radius_miles": radius_miles
-            }
+                "radius_miles": radius_miles,
+            },
         }
         self.logger.info(json.dumps(telemetry))
 
-    def log_enrichment_result(self, source_id: str, success: bool,
-                              total_inserted: int = 0,
-                              categories_inserted: dict[str, int] | None
-                              = None,
-                              failure_reason: str | None = None,
-                              processing_time_seconds: float | None = None):
+    def log_enrichment_result(
+        self,
+        source_id: str,
+        success: bool,
+        total_inserted: int = 0,
+        categories_inserted: dict[str, int] | None = None,
+        failure_reason: str | None = None,
+        processing_time_seconds: float | None = None,
+    ):
         """Log final enrichment results."""
         telemetry = {
             "timestamp": datetime.utcnow().isoformat(),
@@ -156,8 +161,8 @@ class GazetteerTelemetry:
                 "total_inserted": total_inserted,
                 "categories_inserted": categories_inserted or {},
                 "failure_reason": failure_reason,
-                "processing_time_seconds": processing_time_seconds
-            }
+                "processing_time_seconds": processing_time_seconds,
+            },
         }
         self.logger.info(json.dumps(telemetry))
 
@@ -396,8 +401,7 @@ def enrich_publisher_osm_data(
     return success
 
 
-def _process_single_source_osm(session, src, dataset_id, radius_miles,
-                               dry_run=False):
+def _process_single_source_osm(session, src, dataset_id, radius_miles, dry_run=False):
     """
     Process OSM data for a single source. Extracted for reuse between
     bulk processing and on-demand enrichment.
@@ -535,24 +539,33 @@ def _process_single_source_osm(session, src, dataset_id, radius_miles,
         address1 = meta.get("address1", "")
         # Convert to string and handle None/NaN values
         address1_str = str(address1) if address1 is not None else ""
-        if (address1_str and address1_str.strip() and
-                address1_str.lower() not in ["nan", "n/a", ""]):
+        if (
+            address1_str
+            and address1_str.strip()
+            and address1_str.lower() not in ["nan", "n/a", ""]
+        ):
             address_parts.append(address1_str.strip())
 
             # Add city if available
             city = src.get("city")
             # Convert to string and handle None/NaN values
             city_str = str(city) if city is not None else ""
-            if (city_str and city_str.strip() and
-                    city_str.lower() not in ["nan", "n/a", ""]):
+            if (
+                city_str
+                and city_str.strip()
+                and city_str.lower() not in ["nan", "n/a", ""]
+            ):
                 address_parts.append(city_str.strip())
             else:
                 # Fallback to canonical name if no city
                 name = src.get("canonical_name")
                 # Convert to string and handle None/NaN values
                 name_str = str(name) if name is not None else ""
-                if (name_str and name_str.strip() and
-                        name_str.lower() not in ["nan", "n/a", ""]):
+                if (
+                    name_str
+                    and name_str.strip()
+                    and name_str.lower() not in ["nan", "n/a", ""]
+                ):
                     address_parts.append(name_str.strip())
 
             # Add state
@@ -579,8 +592,7 @@ def _process_single_source_osm(session, src, dataset_id, radius_miles,
                 ):
                     latlon = (grow.lat, grow.lon)
                     telemetry.log_geocoding_result(
-                        source_id, "street_address", addr, True,
-                        grow.lat, grow.lon
+                        source_id, "street_address", addr, True, grow.lat, grow.lon
                     )
                 else:
                     # Geocode and cache the result
@@ -588,8 +600,12 @@ def _process_single_source_osm(session, src, dataset_id, radius_miles,
                     if gres:
                         latlon = (gres["lat"], gres["lon"])
                         telemetry.log_geocoding_result(
-                            source_id, "street_address", addr, True,
-                            gres["lat"], gres["lon"]
+                            source_id,
+                            "street_address",
+                            addr,
+                            True,
+                            gres["lat"],
+                            gres["lon"],
                         )
                         set_cached_geocode(
                             session,
@@ -620,15 +636,20 @@ def _process_single_source_osm(session, src, dataset_id, radius_miles,
             city_str = str(city) if city is not None else ""
             county_str = str(county) if county is not None else ""
 
-            if (city_str and city_str.strip() and
-                    city_str.lower() not in ["nan", "n/a", ""]):
-
+            if (
+                city_str
+                and city_str.strip()
+                and city_str.lower() not in ["nan", "n/a", ""]
+            ):
                 # Build city-based address
                 city_parts = [city_str.strip()]
 
                 # Add county if available
-                if (county_str and county_str.strip() and
-                        county_str.lower() not in ["nan", "n/a", ""]):
+                if (
+                    county_str
+                    and county_str.strip()
+                    and county_str.lower() not in ["nan", "n/a", ""]
+                ):
                     county_name = county_str.strip()
                     if not county_name.lower().endswith("county"):
                         county_name += " County"
@@ -642,12 +663,14 @@ def _process_single_source_osm(session, src, dataset_id, radius_miles,
 
                 # Try cached geocode first
                 grow = get_cached_geocode(session, "nominatim", city_addr)
-                if (grow and getattr(grow, "status", None) == "ready"
-                        and grow.lat is not None):
+                if (
+                    grow
+                    and getattr(grow, "status", None) == "ready"
+                    and grow.lat is not None
+                ):
                     latlon = (grow.lat, grow.lon)
                     telemetry.log_geocoding_result(
-                        source_id, "city_county", city_addr, True,
-                        grow.lat, grow.lon
+                        source_id, "city_county", city_addr, True, grow.lat, grow.lon
                     )
                 else:
                     # Geocode and cache the result
@@ -655,23 +678,40 @@ def _process_single_source_osm(session, src, dataset_id, radius_miles,
                     if gres:
                         latlon = (gres["lat"], gres["lon"])
                         telemetry.log_geocoding_result(
-                            source_id, "city_county", city_addr, True,
-                            gres["lat"], gres["lon"]
+                            source_id,
+                            "city_county",
+                            city_addr,
+                            True,
+                            gres["lat"],
+                            gres["lon"],
                         )
                         set_cached_geocode(
-                            session, "nominatim", city_addr,
-                            gres.get("lat"), gres.get("lon"),
-                            "city", gres
+                            session,
+                            "nominatim",
+                            city_addr,
+                            gres.get("lat"),
+                            gres.get("lon"),
+                            "city",
+                            gres,
                         )
                     else:
                         telemetry.log_geocoding_result(
-                            source_id, "city_county", city_addr, False,
-                            error="Nominatim geocoding failed"
+                            source_id,
+                            "city_county",
+                            city_addr,
+                            False,
+                            error="Nominatim geocoding failed",
                         )
                         # Failed to geocode - mark as error
                         set_cached_geocode(
-                            session, "nominatim", city_addr,
-                            None, None, None, None, success=False
+                            session,
+                            "nominatim",
+                            city_addr,
+                            None,
+                            None,
+                            None,
+                            None,
+                            success=False,
                         )
 
         # If city-based geocoding failed, try ZIP code lookup
@@ -689,13 +729,15 @@ def _process_single_source_osm(session, src, dataset_id, radius_miles,
                     if isinstance(zres, dict):
                         latlon = (zres["lat"], zres["lon"])
                         telemetry.log_geocoding_result(
-                            source_id, "zip_code", z, True,
-                            zres["lat"], zres["lon"]
+                            source_id, "zip_code", z, True, zres["lat"], zres["lon"]
                         )
                 else:
                     telemetry.log_geocoding_result(
-                        source_id, "zip_code", z, False,
-                        error="Zippopotamus lookup failed"
+                        source_id,
+                        "zip_code",
+                        z,
+                        False,
+                        error="Zippopotamus lookup failed",
                     )
 
         if not latlon:
@@ -703,15 +745,17 @@ def _process_single_source_osm(session, src, dataset_id, radius_miles,
             # Calculate processing time
             processing_time = (datetime.utcnow() - start_time).total_seconds()
             telemetry.log_enrichment_result(
-                source_id, False, failure_reason="No geocoding method succeeded",
-                processing_time_seconds=processing_time
+                source_id,
+                False,
+                failure_reason="No geocoding method succeeded",
+                processing_time_seconds=processing_time,
             )
             return False
 
         lat, lon = float(latlon[0]), float(latlon[1])
         coverage_miles = radius_miles or 20
 
-        print(f"      Geocoded to: {lat}, {lon} " f"(radius: {coverage_miles} miles)")
+        print(f"      Geocoded to: {lat}, {lon} (radius: {coverage_miles} miles)")
 
         # Use efficient grouped queries
         print("      Querying OSM data...")
@@ -723,26 +767,21 @@ def _process_single_source_osm(session, src, dataset_id, radius_miles,
 
         telemetry.log_osm_query_result(
             source_id=source_id,
-            total_elements=sum(
-                len(elements) for elements in all_results.values()
-            ),
-            categories_data={cat: len(all_results.get(cat, []))
-                             for cat in category_map.keys()},
+            total_elements=sum(len(elements) for elements in all_results.values()),
+            categories_data={
+                cat: len(all_results.get(cat, [])) for cat in category_map.keys()
+            },
             query_groups_used=len(category_map.keys()),
-            radius_miles=coverage_miles
+            radius_miles=coverage_miles,
         )
 
         # Process results for each category and insert into database
         for cat in category_map.keys():
             elements = all_results.get(cat, [])
-            print(f"      Processing category: {cat} "
-                  f"({len(elements)} elements)")
+            print(f"      Processing category: {cat} ({len(elements)} elements)")
 
             if dry_run:
-                print(
-                    f"        DRY-RUN: Would process {len(elements)} "
-                    f"items for {cat}"
-                )
+                print(f"        DRY-RUN: Would process {len(elements)} items for {cat}")
                 continue
 
             inserts = []
@@ -798,7 +837,7 @@ def _process_single_source_osm(session, src, dataset_id, radius_miles,
 
             # Insert into database if we have data
             if inserts:
-                print(f"        Inserting {len(inserts)} items " f"for category {cat}")
+                print(f"        Inserting {len(inserts)} items for category {cat}")
 
                 # Use ORM for idempotent inserts
                 from src.models import Gazetteer
@@ -840,9 +879,7 @@ def _process_single_source_osm(session, src, dataset_id, radius_miles,
                     try:
                         session.commit()
                         total_inserted += inserted_count
-                        print(
-                            f"        Successfully inserted " f"{inserted_count} items"
-                        )
+                        print(f"        Successfully inserted {inserted_count} items")
                     except Exception as e:
                         print(f"        Insert failed: {e}")
                         session.rollback()
@@ -866,7 +903,7 @@ def _process_single_source_osm(session, src, dataset_id, radius_miles,
                 success=True,
                 total_inserted=total_inserted,
                 processing_time_seconds=processing_time,
-                failure_reason=None
+                failure_reason=None,
             )
             print(
                 f"      ✓ Successfully enriched source with "
@@ -884,9 +921,9 @@ def _process_single_source_osm(session, src, dataset_id, radius_miles,
                     success=False,
                     total_inserted=0,
                     processing_time_seconds=processing_time,
-                    failure_reason="No OSM data found"
+                    failure_reason="No OSM data found",
                 )
-                print(f"      ⚠ No OSM data found in " f"{coverage_miles}-mile radius")
+                print(f"      ⚠ No OSM data found in {coverage_miles}-mile radius")
                 return False
             else:
                 telemetry.log_enrichment_result(
@@ -894,7 +931,7 @@ def _process_single_source_osm(session, src, dataset_id, radius_miles,
                     success=True,
                     total_inserted=total_elements,
                     processing_time_seconds=processing_time,
-                    failure_reason=None
+                    failure_reason=None,
                 )
                 print(
                     f"      ✓ Found {total_elements} OSM elements but "
@@ -911,7 +948,7 @@ def _process_single_source_osm(session, src, dataset_id, radius_miles,
             success=False,
             total_inserted=0,
             processing_time_seconds=processing_time,
-            failure_reason=str(e)
+            failure_reason=str(e),
         )
         print(f"      Error processing source: {e}")
         return False
@@ -955,9 +992,7 @@ def query_overpass(
     %s
     );
     out center tags;
-    """ % (
-        "\n".join(parts),
-    )
+    """ % ("\n".join(parts),)
 
     # Respectful delay
     time.sleep(1 + random.random() * 1.5)
@@ -1108,9 +1143,7 @@ def query_overpass_all_categories(
     %s
     );
     out center tags;
-    """ % (
-        "\n".join(parts),
-    )
+    """ % ("\n".join(parts),)
 
     # Respectful delay (single call instead of 11)
     time.sleep(1 + random.random() * 1.5)
@@ -1750,7 +1783,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--address",
         default=None,
-        help=("Explicit address to geocode and run Overpass against " "(optional)"),
+        help=("Explicit address to geocode and run Overpass against (optional)"),
     )
     parser.add_argument(
         "--radius",

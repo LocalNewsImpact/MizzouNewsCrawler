@@ -40,15 +40,12 @@ def _build_article_query(
 ) -> Query:
     """Return a SQLAlchemy query selecting article IDs that need entities."""
 
-    query = (
-        session.query(Article.id)
-        .join(CandidateLink, Article.candidate_link_id == CandidateLink.id)
+    query = session.query(Article.id).join(
+        CandidateLink, Article.candidate_link_id == CandidateLink.id
     )
 
     if not include_wire:
-        query = query.filter(
-            or_(Article.status.is_(None), Article.status != "wire")
-        )
+        query = query.filter(or_(Article.status.is_(None), Article.status != "wire"))
 
     if statuses:
         query = query.filter(Article.status.in_(list(statuses)))
@@ -63,9 +60,7 @@ def _build_article_query(
         query = query.filter(Article.extracted_at >= since)
 
     # Require text or content to exist to avoid wasting extractor cycles
-    query = query.filter(
-        or_(Article.text.isnot(None), Article.content.isnot(None))
-    )
+    query = query.filter(or_(Article.text.isnot(None), Article.content.isnot(None)))
 
     current_entities = (
         session.query(ArticleEntity.id)
@@ -127,9 +122,7 @@ def run_backfill(args: argparse.Namespace) -> None:
             )
             preview_n = min(args.preview, planned_total)
             if preview_n > 0:
-                preview_ids = [
-                    row[0] for row in effective_query.limit(preview_n).all()
-                ]
+                preview_ids = [row[0] for row in effective_query.limit(preview_n).all()]
             else:
                 preview_ids = []
             logger.info(

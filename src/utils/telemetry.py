@@ -507,9 +507,9 @@ class TelemetryReporter:
         if event.metrics:
             data["metrics"] = asdict(event.metrics)
             if event.metrics.estimated_completion:
-                data["metrics"][
-                    "estimated_completion"
-                ] = event.metrics.estimated_completion.isoformat()
+                data["metrics"]["estimated_completion"] = (
+                    event.metrics.estimated_completion.isoformat()
+                )
 
         return data
 
@@ -555,7 +555,7 @@ class OperationTracker:
             engine_url = getattr(candidate, "url", None)
             if engine_url is not None:
                 self.logger.debug(
-                    "Received engine; initializing dedicated TelemetryStore " "from %s",
+                    "Received engine; initializing dedicated TelemetryStore from %s",
                     engine_url,
                 )
                 return TelemetryStore(
@@ -721,7 +721,7 @@ class OperationTracker:
                 params["operation_id"] = operation_id
             else:
                 where_parts.append(
-                    "timestamp >= datetime('now', '-' || :hours_back || " " ' hours')"
+                    "timestamp >= datetime('now', '-' || :hours_back ||  ' hours')"
                 )
                 params["hours_back"] = hours_back
 
@@ -902,9 +902,9 @@ class OperationTracker:
         with self._lock:
             if operation_id in self.active_operations:
                 self.active_operations[operation_id]["metrics"] = metrics
-                self.active_operations[operation_id][
-                    "status"
-                ] = OperationStatus.IN_PROGRESS
+                self.active_operations[operation_id]["status"] = (
+                    OperationStatus.IN_PROGRESS
+                )
 
         self._update_job_record(
             operation_id,
@@ -924,9 +924,9 @@ class OperationTracker:
 
         with self._lock:
             if operation_id in self.active_operations:
-                self.active_operations[operation_id][
-                    "status"
-                ] = OperationStatus.COMPLETED
+                self.active_operations[operation_id]["status"] = (
+                    OperationStatus.COMPLETED
+                )
                 self.active_operations[operation_id]["end_time"] = datetime.now(
                     timezone.utc
                 )
@@ -1340,9 +1340,7 @@ class OperationTracker:
         report.append(f"Total failures: {summary['total_failures']}")
 
         if summary["most_common_failure"]:
-            report.append(
-                "Most common failure type: " f"{summary['most_common_failure']}"
-            )
+            report.append(f"Most common failure type: {summary['most_common_failure']}")
 
         report.append(f"Total retries attempted: {summary['total_retries']}")
         report.append(f"Average retries per failure: {summary['average_retries']:.1f}")
@@ -1356,13 +1354,13 @@ class OperationTracker:
             report.append("\n--- Common Failure Patterns ---")
             for i, pattern in enumerate(common_failures[:5], 1):
                 pattern_header = (
-                    f"{i}. {pattern['failure_type']}" f" ({pattern['count']} sites)"
+                    f"{i}. {pattern['failure_type']} ({pattern['count']} sites)"
                 )
                 report.append(pattern_header)
                 report.append(f"   Error: {pattern['error_pattern']}")
                 if pattern["avg_response_time"] > 0:
                     report.append(
-                        "   Avg response time: " f"{pattern['avg_response_time']:.0f}ms"
+                        f"   Avg response time: {pattern['avg_response_time']:.0f}ms"
                     )
                 if pattern["http_statuses"]:
                     report.append(f"   HTTP statuses: {pattern['http_statuses']}")

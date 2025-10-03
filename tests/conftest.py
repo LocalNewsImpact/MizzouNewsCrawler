@@ -67,8 +67,7 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
             percent = cov.report(morfs=[str(module_path)], file=buffer)
         except CoverageException as exc:  # pragma: no cover - defensive guard
             failures.append(
-                f"{module_path.relative_to(project_root)} "
-                f"coverage unavailable: {exc}"
+                f"{module_path.relative_to(project_root)} coverage unavailable: {exc}"
             )
             continue
 

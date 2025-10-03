@@ -102,7 +102,7 @@ class GazetteerMonitor:
         print(f"  Total sources: {total}")
         print(f"  Populated sources: {populated}")
         print(f"  Unpopulated sources: {len(unpopulated)}")
-        print(f"  Coverage: {populated/total*100:.1f}%")
+        print(f"  Coverage: {populated / total * 100:.1f}%")
 
         if unpopulated:
             print("\nUnpopulated sources (showing first 10):")
@@ -190,7 +190,6 @@ class GazetteerMonitor:
                     "trigger_time": datetime.utcnow().isoformat(),
                 },
             ) as process:
-
                 batch_failed_sources = []
 
                 for i, source in enumerate(batch, 1):

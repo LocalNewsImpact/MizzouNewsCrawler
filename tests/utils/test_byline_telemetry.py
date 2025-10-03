@@ -8,7 +8,7 @@ from src.utils import byline_telemetry as bt
 
 def _make_store(tmp_path):
     return TelemetryStore(
-        database=f"sqlite:///{tmp_path/'byline_telemetry.db'}",
+        database=f"sqlite:///{tmp_path / 'byline_telemetry.db'}",
         async_writes=False,
     )
 

@@ -177,25 +177,19 @@ def init_db():
     # Add secondary_rating column if missing
     if "secondary_rating" not in existing_cols:
         try:
-            cur.execute(
-                "ALTER TABLE reviews ADD COLUMN secondary_rating INTEGER"
-            )
+            cur.execute("ALTER TABLE reviews ADD COLUMN secondary_rating INTEGER")
         except Exception:
             pass
     # Add missing_locations column if missing
     if "missing_locations" not in existing_cols:
         try:
-            cur.execute(
-                "ALTER TABLE reviews ADD COLUMN missing_locations TEXT"
-            )
+            cur.execute("ALTER TABLE reviews ADD COLUMN missing_locations TEXT")
         except Exception:
             pass
     # Add incorrect_locations column if missing
     if "incorrect_locations" not in existing_cols:
         try:
-            cur.execute(
-                "ALTER TABLE reviews ADD COLUMN incorrect_locations TEXT"
-            )
+            cur.execute("ALTER TABLE reviews ADD COLUMN incorrect_locations TEXT")
         except Exception:
             pass
     # Add inferred_tags column if missing
@@ -207,9 +201,7 @@ def init_db():
     # Add mentioned_locations column if missing
     if "mentioned_locations" not in existing_cols:
         try:
-            cur.execute(
-                "ALTER TABLE reviews ADD COLUMN mentioned_locations TEXT"
-            )
+            cur.execute("ALTER TABLE reviews ADD COLUMN mentioned_locations TEXT")
         except Exception:
             pass
     # Add article_uid column if missing
@@ -222,16 +214,12 @@ def init_db():
     # Add missing_tags/incorrect_tags if missing
     if "missing_tags" not in existing_cols:
         try:
-            cur.execute(
-                "ALTER TABLE reviews ADD COLUMN missing_tags TEXT"
-            )
+            cur.execute("ALTER TABLE reviews ADD COLUMN missing_tags TEXT")
         except Exception:
             pass
     if "incorrect_tags" not in existing_cols:
         try:
-            cur.execute(
-                "ALTER TABLE reviews ADD COLUMN incorrect_tags TEXT"
-            )
+            cur.execute("ALTER TABLE reviews ADD COLUMN incorrect_tags TEXT")
         except Exception:
             pass
     # Add reviewed_at column to mark when a reviewer saved/marked
@@ -419,9 +407,7 @@ def _db_writer_worker():
             last_exc = None
             for attempt in range(1, attempts + 1):
                 try:
-                    conn = sqlite3.connect(
-                        DB_PATH, timeout=30.0
-                    )
+                    conn = sqlite3.connect(DB_PATH, timeout=30.0)
                     try:
                         conn.execute("PRAGMA journal_mode=WAL")
                     except Exception:
@@ -496,9 +482,7 @@ def shutdown_writer():
     _worker_stop_event.set()
     try:
         if _worker_thread is not None:
-            _worker_thread.join(
-                timeout=5.0
-            )
+            _worker_thread.join(timeout=5.0)
     except Exception:
         pass
 
@@ -520,16 +504,12 @@ def startup_gazetteer_tables():
 
 
 @app.get("/api/articles")
-def list_articles(
-    limit: int = 20, offset: int = 0, reviewer: str | None = None
-):
+def list_articles(limit: int = 20, offset: int = 0, reviewer: str | None = None):
     if not ARTICLES_CSV.exists():
         return {"count": 0, "results": []}
     df = pd.read_csv(ARTICLES_CSV)
     # replace infinite values and NaN with None for JSON safety
-    df = df.replace(
-        [np.inf, -np.inf], None
-    )
+    df = df.replace([np.inf, -np.inf], None)
     df = df.where(pd.notnull(df), None)
     # If caller provided a reviewer, filter out articles
     # already reviewed by that reviewer
@@ -636,9 +616,7 @@ def sanitize_record(rec: dict) -> dict:
     # include requested keys with sanitized values
     # (fall back to None)
     for k in wanted:
-        out[k] = (
-            sanitize_value(rec.get(k)) if k in rec else None
-        )
+        out[k] = sanitize_value(rec.get(k)) if k in rec else None
     # Also keep other keys present in the record so the frontend
     # can use them if needed
     for k, v in rec.items():
@@ -761,17 +739,11 @@ def post_review(idx: int, payload: ReviewIn):
         pass
     now = datetime.datetime.utcnow().isoformat()
     tags_str = ",".join(payload.tags) if payload.tags else None
-    body_str = (
-        ",".join(payload.body_errors) if payload.body_errors else None
-    )
+    body_str = ",".join(payload.body_errors) if payload.body_errors else None
     headline_str = (
         ",".join(payload.headline_errors) if payload.headline_errors else None
     )
-    author_str = (
-        ",".join(payload.author_errors)
-        if payload.author_errors
-        else None
-    )
+    author_str = ",".join(payload.author_errors) if payload.author_errors else None
     # Prefer an explicit article_uid if supplied in the payload;
     # otherwise attempt to map from the numeric CSV idx to the
     # article's `id` column.
@@ -890,9 +862,7 @@ def post_review(idx: int, payload: ReviewIn):
     # the row inserted by the most recent INSERT. This handles
     # the common case where the operation was an INSERT and we
     # can return that exact row.
-    created_id = (
-        cur.lastrowid if hasattr(cur, "lastrowid") else None
-    )
+    created_id = cur.lastrowid if hasattr(cur, "lastrowid") else None
     row = None
     if created_id:
         cur.execute(
@@ -907,15 +877,13 @@ def post_review(idx: int, payload: ReviewIn):
     if not row:
         if article_uid:
             cur.execute(
-                f"SELECT {cols_sql} FROM reviews "
-                "WHERE article_uid=? AND reviewer=?",
+                f"SELECT {cols_sql} FROM reviews WHERE article_uid=? AND reviewer=?",
                 (article_uid, payload.reviewer),
             )
             row = cur.fetchone()
         if not row:
             cur.execute(
-                f"SELECT {cols_sql} FROM reviews "
-                "WHERE article_idx=? AND reviewer=?",
+                f"SELECT {cols_sql} FROM reviews WHERE article_idx=? AND reviewer=?",
                 (idx, payload.reviewer),
             )
             row = cur.fetchone()
@@ -942,38 +910,24 @@ def post_review(idx: int, payload: ReviewIn):
         result = dict(zip(cols, row, strict=False))
         # Normalize CSV fields into arrays for API clients
         result["tags"] = _split_csv_field(result.get("tags"))
-        result["body_errors"] = _split_csv_field(
-            result.get("body_errors")
-        )
-        result["headline_errors"] = _split_csv_field(
-            result.get("headline_errors")
-        )
-        result["author_errors"] = _split_csv_field(
-            result.get("author_errors")
-        )
+        result["body_errors"] = _split_csv_field(result.get("body_errors"))
+        result["headline_errors"] = _split_csv_field(result.get("headline_errors"))
+        result["author_errors"] = _split_csv_field(result.get("author_errors"))
         # normalize mentioned_locations into an array
         result["mentioned_locations"] = _split_csv_field(
             result.get("mentioned_locations")
         )
         # normalize missing_locations into an array
-        result["missing_locations"] = _split_csv_field(
-            result.get("missing_locations")
-        )
+        result["missing_locations"] = _split_csv_field(result.get("missing_locations"))
         # normalize incorrect_locations into an array
         result["incorrect_locations"] = _split_csv_field(
             result.get("incorrect_locations")
         )
         # normalize inferred_tags
-        result["inferred_tags"] = _split_csv_field(
-            result.get("inferred_tags")
-        )
+        result["inferred_tags"] = _split_csv_field(result.get("inferred_tags"))
         # normalize missing_tags/incorrect_tags
-        result["missing_tags"] = _split_csv_field(
-            result.get("missing_tags")
-        )
-        result["incorrect_tags"] = _split_csv_field(
-            result.get("incorrect_tags")
-        )
+        result["missing_tags"] = _split_csv_field(result.get("missing_tags"))
+        result["incorrect_tags"] = _split_csv_field(result.get("incorrect_tags"))
     else:
         # As a last resort, return the id if we can find any row
         # for this (article_idx, reviewer) pair.
@@ -1050,9 +1004,7 @@ def post_review(idx: int, payload: ReviewIn):
             return stable_stringify(obj)
         except Exception:
             try:
-                return json.dumps(
-                    obj, sort_keys=True, separators=(",", ":")
-                )
+                return json.dumps(obj, sort_keys=True, separators=(",", ":"))
             except Exception:
                 return None
 
@@ -1062,9 +1014,7 @@ def post_review(idx: int, payload: ReviewIn):
     if result:
         try:
             result["canonical"] = build_canonical(result)
-            result["canonical_hash"] = canonical_hash(
-                result["canonical"]
-            )
+            result["canonical_hash"] = canonical_hash(result["canonical"])
         except Exception:
             pass
 
@@ -1158,10 +1108,7 @@ def update_review(rid: int, payload: ReviewIn):
 
 
 @app.get("/api/reviews")
-def get_reviews(
-    article_idx: int | None = None,
-    article_uid: str | None = None
-):
+def get_reviews(article_idx: int | None = None, article_uid: str | None = None):
     if not DB_PATH.exists():
         return []
     conn = sqlite3.connect(DB_PATH)
@@ -1176,25 +1123,14 @@ def get_reviews(
     )
     if article_uid:
         cur.execute(
-            (
-                f"SELECT {cols_sql} FROM reviews "
-                "WHERE article_uid=? ORDER BY id DESC"
-            ),
+            (f"SELECT {cols_sql} FROM reviews WHERE article_uid=? ORDER BY id DESC"),
             (article_uid,),
         )
     elif article_idx is None:
-        cur.execute(
-
-                f"SELECT {cols_sql} FROM reviews "
-                "ORDER BY id DESC LIMIT 200"
-
-        )
+        cur.execute(f"SELECT {cols_sql} FROM reviews ORDER BY id DESC LIMIT 200")
     else:
         cur.execute(
-            (
-                f"SELECT {cols_sql} FROM reviews "
-                "WHERE article_idx=? ORDER BY id DESC"
-            ),
+            (f"SELECT {cols_sql} FROM reviews WHERE article_idx=? ORDER BY id DESC"),
             (article_idx,),
         )
     rows = cur.fetchall()
@@ -1526,11 +1462,9 @@ def get_domain_issues():
     # Find hosts that have non-accepted candidates (flagged issues)
     # Exclude snapshots that have been reviewed (snapshots.reviewed_at IS NOT NULL)
     cur.execute(
-
-            "SELECT DISTINCT snapshots.host FROM candidates "
-            "JOIN snapshots ON candidates.snapshot_id=snapshots.id "
-            "WHERE candidates.accepted=0 AND (snapshots.reviewed_at IS NULL OR snapshots.reviewed_at='')"
-
+        "SELECT DISTINCT snapshots.host FROM candidates "
+        "JOIN snapshots ON candidates.snapshot_id=snapshots.id "
+        "WHERE candidates.accepted=0 AND (snapshots.reviewed_at IS NULL OR snapshots.reviewed_at='')"
     )
     host_rows = cur.fetchall()
     for (host,) in host_rows:
@@ -2232,6 +2166,7 @@ def commit_site_rule(payload: dict):
 
 # Gazetteer Telemetry API Endpoints
 
+
 @app.get("/api/gazetteer/stats")
 def get_gazetteer_telemetry_stats():
     """Get overall gazetteer telemetry statistics."""
@@ -2268,10 +2203,7 @@ def update_gazetteer_address(request: AddressEditRequest):
     try:
         success = update_publisher_address(request.source_id, request)
         if success:
-            return {
-                "status": "success",
-                "message": "Address updated successfully"
-            }
+            return {"status": "success", "message": "Address updated successfully"}
         else:
             raise HTTPException(status_code=404, detail="Publisher not found")
     except Exception as e:
@@ -2293,9 +2225,7 @@ def reprocess_gazetteer_sources(request: ReprocessRequest):
 # Telemetry API endpoints for React dashboard
 @app.get("/api/telemetry/http-errors")
 def get_http_errors(
-    days: int = 7,
-    host: str | None = None,
-    status_code: int | None = None
+    days: int = 7, host: str | None = None, status_code: int | None = None
 ):
     """Get HTTP error statistics for dashboard monitoring."""
     try:
@@ -2306,9 +2236,7 @@ def get_http_errors(
         params = []
 
         if days:
-            conditions.append(
-                f"last_seen >= datetime('now', '-{days} days')"
-            )
+            conditions.append(f"last_seen >= datetime('now', '-{days} days')")
 
         if host:
             conditions.append("host = ?")
@@ -2341,12 +2269,14 @@ def get_http_errors(
 
         results = []
         for row in rows:
-            results.append({
-                "host": row[0],
-                "status_code": row[1],
-                "error_count": row[2],
-                "last_seen": row[3]
-            })
+            results.append(
+                {
+                    "host": row[0],
+                    "status_code": row[1],
+                    "error_count": row[2],
+                    "last_seen": row[3],
+                }
+            )
 
         conn.close()
         return {"http_errors": results}
@@ -2360,9 +2290,7 @@ def get_http_errors(
 
 @app.get("/api/telemetry/method-performance")
 def get_method_performance(
-    days: int = 7,
-    method: str | None = None,
-    host: str | None = None
+    days: int = 7, method: str | None = None, host: str | None = None
 ):
     """Get extraction method performance statistics."""
     try:
@@ -2373,9 +2301,7 @@ def get_method_performance(
         params = []
 
         if days:
-            conditions.append(
-                f"created_at >= datetime('now', '-{days} days')"
-            )
+            conditions.append(f"created_at >= datetime('now', '-{days} days')")
 
         if method:
             conditions.append("method = ?")
@@ -2414,16 +2340,18 @@ def get_method_performance(
         results = []
         for row in rows:
             success_rate = (row[3] / row[2] * 100) if row[2] > 0 else 0
-            results.append({
-                "method": row[0],
-                "host": row[1],
-                "total_attempts": row[2],
-                "successful_attempts": row[3],
-                "success_rate": round(success_rate, 2),
-                "avg_duration": round(row[4], 2) if row[4] else 0,
-                "min_duration": round(row[5], 2) if row[5] else 0,
-                "max_duration": round(row[6], 2) if row[6] else 0
-            })
+            results.append(
+                {
+                    "method": row[0],
+                    "host": row[1],
+                    "total_attempts": row[2],
+                    "successful_attempts": row[3],
+                    "success_rate": round(success_rate, 2),
+                    "avg_duration": round(row[4], 2) if row[4] else 0,
+                    "min_duration": round(row[5], 2) if row[5] else 0,
+                    "max_duration": round(row[6], 2) if row[6] else 0,
+                }
+            )
 
         conn.close()
         return {"method_performance": results}
@@ -2436,11 +2364,7 @@ def get_method_performance(
 
 
 @app.get("/api/telemetry/publisher-stats")
-def get_publisher_stats(
-    days: int = 7,
-    host: str | None = None,
-    min_attempts: int = 5
-):
+def get_publisher_stats(days: int = 7, host: str | None = None, min_attempts: int = 5):
     """Get publisher performance statistics."""
     try:
         conn = sqlite3.connect(str(MAIN_DB_PATH))
@@ -2451,9 +2375,7 @@ def get_publisher_stats(
         params = []
 
         if days:
-            conditions.append(
-                f"created_at >= datetime('now', '-{days} days')"
-            )
+            conditions.append(f"created_at >= datetime('now', '-{days} days')")
 
         if host:
             conditions.append("host = ?")
@@ -2495,16 +2417,18 @@ def get_publisher_stats(
             else:
                 status = "fair"
 
-            results.append({
-                "host": row[0],
-                "total_extractions": row[1],
-                "successful_extractions": row[2],
-                "success_rate": round(success_rate, 2),
-                "avg_duration": round(row[3], 2) if row[3] else 0,
-                "methods_used": row[4],
-                "last_attempt": row[5],
-                "status": status,
-            })
+            results.append(
+                {
+                    "host": row[0],
+                    "total_extractions": row[1],
+                    "successful_extractions": row[2],
+                    "success_rate": round(success_rate, 2),
+                    "avg_duration": round(row[3], 2) if row[3] else 0,
+                    "methods_used": row[4],
+                    "last_attempt": row[5],
+                    "status": status,
+                }
+            )
 
         conn.close()
         return {"publisher_stats": results}
@@ -2521,7 +2445,7 @@ def get_field_extraction_stats(
     days: int = 7,
     field: str | None = None,
     method: str | None = None,
-    host: str | None = None
+    host: str | None = None,
 ):
     """Get field-level extraction statistics."""
     try:
@@ -2554,9 +2478,7 @@ def get_field_extraction_stats(
 
 @app.get("/api/telemetry/poor-performers")
 def get_poor_performing_sites(
-    days: int = 7,
-    min_attempts: int = 10,
-    max_success_rate: float = 50.0
+    days: int = 7, min_attempts: int = 10, max_success_rate: float = 50.0
 ):
     """Get sites with poor performance that may need attention."""
     try:
@@ -2592,22 +2514,26 @@ def get_poor_performing_sites(
 
         results = []
         for row in rows:
-            results.append({
-                "host": row[0],
-                "total_attempts": row[1],
-                "successful_attempts": row[2],
-                "success_rate": round(row[3], 2),
-                "avg_duration": round(row[4], 2) if row[4] else 0,
-                "last_attempt": row[5],
-                "methods_tried": row[6],
-                "recommendation": "pause" if row[3] < 25 else "monitor"
-            })
+            results.append(
+                {
+                    "host": row[0],
+                    "total_attempts": row[1],
+                    "successful_attempts": row[2],
+                    "success_rate": round(row[3], 2),
+                    "avg_duration": round(row[4], 2) if row[4] else 0,
+                    "last_attempt": row[5],
+                    "methods_tried": row[6],
+                    "recommendation": "pause" if row[3] < 25 else "monitor",
+                }
+            )
 
         conn.close()
         return {"poor_performers": results}
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching poor performers: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching poor performers: {str(e)}"
+        )
 
 
 @app.get("/api/telemetry/summary")
@@ -2647,12 +2573,14 @@ def get_telemetry_summary(days: int = 7):
         method_stats = []
         for row in cur.fetchall():
             method_success_rate = (row[2] / row[1] * 100) if row[1] > 0 else 0
-            method_stats.append({
-                "method": row[0],
-                "attempts": row[1],
-                "successful": row[2],
-                "success_rate": round(method_success_rate, 2)
-            })
+            method_stats.append(
+                {
+                    "method": row[0],
+                    "attempts": row[1],
+                    "successful": row[2],
+                    "success_rate": round(method_success_rate, 2),
+                }
+            )
 
         # HTTP error counts
         cur.execute(f"""
@@ -2666,7 +2594,9 @@ def get_telemetry_summary(days: int = 7):
         LIMIT 10
         """)
 
-        http_errors = [{"status_code": row[0], "count": row[1]} for row in cur.fetchall()]
+        http_errors = [
+            {"status_code": row[0], "count": row[1]} for row in cur.fetchall()
+        ]
 
         conn.close()
 
@@ -2679,12 +2609,14 @@ def get_telemetry_summary(days: int = 7):
                 "methods_used": overall[3],
                 "avg_duration": round(overall[4], 2) if overall[4] else 0,
                 "method_breakdown": method_stats,
-                "top_http_errors": http_errors
+                "top_http_errors": http_errors,
             }
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching telemetry summary: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching telemetry summary: {str(e)}"
+        )
 
 
 # Site Management API endpoints
@@ -2702,7 +2634,9 @@ def pause_site(request: SiteManagementRequest):
 
         # Add status column if it doesn't exist
         try:
-            cur.execute("ALTER TABLE sources ADD COLUMN status VARCHAR DEFAULT 'active'")
+            cur.execute(
+                "ALTER TABLE sources ADD COLUMN status VARCHAR DEFAULT 'active'"
+            )
         except sqlite3.OperationalError:
             # Column already exists
             pass
@@ -2716,21 +2650,31 @@ def pause_site(request: SiteManagementRequest):
             pass
 
         # Update the source status
-        cur.execute("""
+        cur.execute(
+            """
         UPDATE sources 
         SET status = 'paused', 
             paused_at = datetime('now'), 
             paused_reason = ?
         WHERE host = ?
-        """, [request.reason or "Poor performance detected", request.host])
+        """,
+            [request.reason or "Poor performance detected", request.host],
+        )
 
         if cur.rowcount == 0:
             # Source doesn't exist, create it
-            cur.execute("""
+            cur.execute(
+                """
             INSERT INTO sources (id, host, host_norm, status, paused_at, paused_reason)
             VALUES (?, ?, ?, 'paused', datetime('now'), ?)
-            """, [request.host, request.host, request.host.lower(),
-                  request.reason or "Poor performance detected"])
+            """,
+                [
+                    request.host,
+                    request.host,
+                    request.host.lower(),
+                    request.reason or "Poor performance detected",
+                ],
+            )
 
         conn.commit()
         conn.close()
@@ -2739,7 +2683,7 @@ def pause_site(request: SiteManagementRequest):
             "status": "success",
             "message": f"Site {request.host} has been paused",
             "paused_at": "now",
-            "reason": request.reason or "Poor performance detected"
+            "reason": request.reason or "Poor performance detected",
         }
 
     except Exception as e:
@@ -2754,24 +2698,26 @@ def resume_site(request: SiteManagementRequest):
         cur = conn.cursor()
 
         # Update the source status
-        cur.execute("""
+        cur.execute(
+            """
         UPDATE sources 
         SET status = 'active', 
             paused_at = NULL, 
             paused_reason = NULL
         WHERE host = ?
-        """, [request.host])
+        """,
+            [request.host],
+        )
 
         if cur.rowcount == 0:
-            raise HTTPException(status_code=404, detail=f"Site {request.host} not found")
+            raise HTTPException(
+                status_code=404, detail=f"Site {request.host} not found"
+            )
 
         conn.commit()
         conn.close()
 
-        return {
-            "status": "success",
-            "message": f"Site {request.host} has been resumed"
-        }
+        return {"status": "success", "message": f"Site {request.host} has been resumed"}
 
     except HTTPException as exc:
         raise exc
@@ -2798,17 +2744,15 @@ def get_paused_sites():
 
         paused_sites = []
         for row in cur.fetchall():
-            paused_sites.append({
-                "host": row[0],
-                "paused_at": row[1],
-                "reason": row[2]
-            })
+            paused_sites.append({"host": row[0], "paused_at": row[1], "reason": row[2]})
 
         conn.close()
         return {"paused_sites": paused_sites}
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching paused sites: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching paused sites: {str(e)}"
+        )
 
 
 @app.get("/api/site-management/status/{host}")
@@ -2818,11 +2762,14 @@ def get_site_status(host: str):
         conn = sqlite3.connect(str(MAIN_DB_PATH))
         cur = conn.cursor()
 
-        cur.execute("""
+        cur.execute(
+            """
         SELECT status, paused_at, paused_reason
         FROM sources
         WHERE host = ?
-        """, [host])
+        """,
+            [host],
+        )
 
         result = cur.fetchone()
         conn.close()
@@ -2832,15 +2779,17 @@ def get_site_status(host: str):
                 "host": host,
                 "status": result[0] or "active",
                 "paused_at": result[1],
-                "paused_reason": result[2]
+                "paused_reason": result[2],
             }
         else:
             return {
                 "host": host,
                 "status": "active",
                 "paused_at": None,
-                "paused_reason": None
+                "paused_reason": None,
             }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching site status: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching site status: {str(e)}"
+        )

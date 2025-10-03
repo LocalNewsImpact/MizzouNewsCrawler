@@ -180,11 +180,11 @@ class TelemetryContentExtractor:
             elif 400 <= response.status_code < 500:
                 if response.status_code == 404:
                     raise Exception(
-                        f"HTTP_ERROR: Page not found " f"({response.status_code})"
+                        f"HTTP_ERROR: Page not found ({response.status_code})"
                     )
                 else:
                     raise Exception(
-                        f"HTTP_ERROR: Client error " f"({response.status_code})"
+                        f"HTTP_ERROR: Client error ({response.status_code})"
                     )
             elif response.status_code >= 500:
                 raise Exception(f"HTTP_ERROR: Server error ({response.status_code})")

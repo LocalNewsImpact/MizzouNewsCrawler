@@ -655,9 +655,7 @@ def test_analyze_domain_with_repeated_pattern():
         },
         {
             "id": 2,
-            "content": (
-                "Intro paragraph.\n\n" f"{repeated_text}\n\n" "Closing thoughts."
-            ),
+            "content": (f"Intro paragraph.\n\n{repeated_text}\n\nClosing thoughts."),
         },
     ]
 

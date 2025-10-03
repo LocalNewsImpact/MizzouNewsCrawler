@@ -56,7 +56,7 @@ def test_extraction_metrics_tracks_methods(monkeypatch):
 
 def test_record_extraction_emits_content_type_detection(tmp_path):
     store = TelemetryStore(
-        database=f"sqlite:///{tmp_path/'telemetry.db'}",
+        database=f"sqlite:///{tmp_path / 'telemetry.db'}",
         async_writes=False,
     )
     telemetry = ct.ComprehensiveExtractionTelemetry(store=store)
@@ -112,7 +112,7 @@ def test_set_http_metrics_categorizes_errors():
 
 def test_comprehensive_telemetry_aggregates(tmp_path):
     store = TelemetryStore(
-        database=f"sqlite:///{tmp_path/'comprehensive.db'}",
+        database=f"sqlite:///{tmp_path / 'comprehensive.db'}",
         async_writes=False,
     )
     telemetry = ct.ComprehensiveExtractionTelemetry(store=store)

@@ -5,8 +5,7 @@ import pytest
 from src.utils.content_cleaner_twophase import TwoPhaseContentCleaner
 
 COMMON_SEGMENT = (
-    "Subscribe now for premium access to investigative reporting"
-    " and exclusive benefits"
+    "Subscribe now for premium access to investigative reporting and exclusive benefits"
 )
 
 

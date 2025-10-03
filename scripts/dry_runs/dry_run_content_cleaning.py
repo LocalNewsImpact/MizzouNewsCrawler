@@ -3,6 +3,7 @@
 Dry run analysis of content cleaning across all domains in the database.
 Shows removal statistics and examples without making any changes.
 """
+
 import argparse
 import sqlite3
 import sys
@@ -30,13 +31,13 @@ def get_domain_article_counts(db_path: str = "data/mizzou.db") -> dict:
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
-    cursor.execute('''
+    cursor.execute("""
         SELECT url, content
         FROM articles
         WHERE content IS NOT NULL
         AND content != ''
         AND LENGTH(content) > 100
-    ''')
+    """)
 
     domain_counts = {}
     for url, content in cursor.fetchall():
@@ -53,20 +54,35 @@ def get_domain_article_counts(db_path: str = "data/mizzou.db") -> dict:
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Dry run content cleaning analysis across all domains'
+        description="Dry run content cleaning analysis across all domains"
     )
-    parser.add_argument('--min-articles', type=int, default=3,
-                        help='Minimum articles per domain to analyze')
-    parser.add_argument('--max-domains', type=int, default=20,
-                        help='Maximum domains to analyze')
-    parser.add_argument('--sample-size', type=int, default=20,
-                        help='Sample size per domain for analysis')
-    parser.add_argument('--min-boundary-score', type=float, default=0.5,
-                        help='Minimum boundary score for segment removal')
-    parser.add_argument('--show-examples', action='store_true',
-                        help='Show example segments for each domain')
-    parser.add_argument('--verbose', action='store_true',
-                        help='Enable verbose output')
+    parser.add_argument(
+        "--min-articles",
+        type=int,
+        default=3,
+        help="Minimum articles per domain to analyze",
+    )
+    parser.add_argument(
+        "--max-domains", type=int, default=20, help="Maximum domains to analyze"
+    )
+    parser.add_argument(
+        "--sample-size",
+        type=int,
+        default=20,
+        help="Sample size per domain for analysis",
+    )
+    parser.add_argument(
+        "--min-boundary-score",
+        type=float,
+        default=0.5,
+        help="Minimum boundary score for segment removal",
+    )
+    parser.add_argument(
+        "--show-examples",
+        action="store_true",
+        help="Show example segments for each domain",
+    )
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
 
     args = parser.parse_args()
 
@@ -79,12 +95,14 @@ def main():
 
     # Filter and sort domains
     filtered_domains = {
-        domain: count for domain, count in domain_counts.items()
+        domain: count
+        for domain, count in domain_counts.items()
         if count >= args.min_articles
     }
 
-    sorted_domains = sorted(filtered_domains.items(),
-                            key=lambda x: x[1], reverse=True)[:args.max_domains]
+    sorted_domains = sorted(filtered_domains.items(), key=lambda x: x[1], reverse=True)[
+        : args.max_domains
+    ]
 
     print(f"Found {len(filtered_domains)} domains with sufficient articles")
     print(f"Analyzing top {len(sorted_domains)} domains")
@@ -105,53 +123,59 @@ def main():
         try:
             # Analyze domain
             result = cleaner.analyze_domain(
-                domain,
-                sample_size=args.sample_size,
-                min_occurrences=3
+                domain, sample_size=args.sample_size, min_occurrences=3
             )
 
-            if not result.get('segments'):
+            if not result.get("segments"):
                 print("    ❌ No boilerplate segments detected")
                 print()
                 continue
 
             # Filter segments by boundary score
             good_segments = [
-                s for s in result['segments']
-                if s['boundary_score'] >= args.min_boundary_score
+                s
+                for s in result["segments"]
+                if s["boundary_score"] >= args.min_boundary_score
             ]
 
             if not good_segments:
-                print(f"    ⚠️  {len(result['segments'])} segments found but "
-                      f"none meet boundary score threshold ({args.min_boundary_score})")
+                print(
+                    f"    ⚠️  {len(result['segments'])} segments found but "
+                    f"none meet boundary score threshold ({args.min_boundary_score})"
+                )
                 print()
                 continue
 
             # Calculate stats
-            stats = result['stats']
+            stats = result["stats"]
             segment_count = len(good_segments)
-            removal_chars = sum(s['length'] * s['occurrences'] for s in good_segments)
-            estimated_removal_pct = (removal_chars / stats['total_content_chars'] * 100
-                                     if stats['total_content_chars'] > 0 else 0)
+            removal_chars = sum(s["length"] * s["occurrences"] for s in good_segments)
+            estimated_removal_pct = (
+                removal_chars / stats["total_content_chars"] * 100
+                if stats["total_content_chars"] > 0
+                else 0
+            )
 
             total_segments += segment_count
             total_removable_chars += removal_chars
-            total_articles_analyzed += result['article_count']
+            total_articles_analyzed += result["article_count"]
 
             # Store results
             domain_result = {
-                'domain': domain,
-                'total_articles': total_articles,
-                'analyzed_articles': result['article_count'],
-                'segments': segment_count,
-                'removal_percentage': estimated_removal_pct,
-                'removable_chars': removal_chars,
-                'good_segments': good_segments
+                "domain": domain,
+                "total_articles": total_articles,
+                "analyzed_articles": result["article_count"],
+                "segments": segment_count,
+                "removal_percentage": estimated_removal_pct,
+                "removable_chars": removal_chars,
+                "good_segments": good_segments,
             }
             domain_results.append(domain_result)
 
             # Print summary for this domain
-            print(f"    ✅ {segment_count} segments (score >= {args.min_boundary_score})")
+            print(
+                f"    ✅ {segment_count} segments (score >= {args.min_boundary_score})"
+            )
             print(f"    📈 Estimated removal: {estimated_removal_pct:.1f}% of content")
             print(f"    📝 {removal_chars:,} characters removable")
 
@@ -160,16 +184,20 @@ def main():
                 print("    🔍 Top segments:")
                 for j, segment in enumerate(good_segments[:3], 1):
                     pattern_emoji = {
-                        'navigation': '🧭',
-                        'subscription': '💰',
-                        'footer': '🦶',
-                        'other': '❓'
-                    }.get(segment['pattern_type'], '❓')
+                        "navigation": "🧭",
+                        "subscription": "💰",
+                        "footer": "🦶",
+                        "other": "❓",
+                    }.get(segment["pattern_type"], "❓")
 
-                    print(f"       {j}. {pattern_emoji} Score: {segment['boundary_score']:.2f}, "
-                          f"Occurs: {segment['occurrences']}x")
-                    preview = segment['text'][:80].replace('\n', ' ')
-                    print(f"          \"{preview}{'...' if len(segment['text']) > 80 else ''}\"")
+                    print(
+                        f"       {j}. {pattern_emoji} Score: {segment['boundary_score']:.2f}, "
+                        f"Occurs: {segment['occurrences']}x"
+                    )
+                    preview = segment["text"][:80].replace("\n", " ")
+                    print(
+                        f'          "{preview}{"..." if len(segment["text"]) > 80 else ""}"'
+                    )
 
             print()
 
@@ -187,28 +215,36 @@ def main():
     print(f"Total removable characters: {total_removable_chars:,}")
 
     if domain_results:
-        avg_removal = sum(r['removal_percentage'] for r in domain_results) / len(domain_results)
+        avg_removal = sum(r["removal_percentage"] for r in domain_results) / len(
+            domain_results
+        )
         print(f"Average removal percentage: {avg_removal:.1f}%")
 
         print()
         print("🏆 TOP DOMAINS BY REMOVAL IMPACT:")
-        top_domains = sorted(domain_results,
-                             key=lambda x: x['removal_percentage'], reverse=True)[:10]
+        top_domains = sorted(
+            domain_results, key=lambda x: x["removal_percentage"], reverse=True
+        )[:10]
 
         for i, result in enumerate(top_domains, 1):
-            print(f"{i:2d}. {result['domain']:25} "
-                  f"{result['removal_percentage']:6.1f}% "
-                  f"({result['segments']} segments)")
+            print(
+                f"{i:2d}. {result['domain']:25} "
+                f"{result['removal_percentage']:6.1f}% "
+                f"({result['segments']} segments)"
+            )
 
         print()
         print("📈 DOMAINS WITH MOST SEGMENTS:")
-        segment_domains = sorted(domain_results,
-                                 key=lambda x: x['segments'], reverse=True)[:10]
+        segment_domains = sorted(
+            domain_results, key=lambda x: x["segments"], reverse=True
+        )[:10]
 
         for i, result in enumerate(segment_domains, 1):
-            print(f"{i:2d}. {result['domain']:25} "
-                  f"{result['segments']:3d} segments "
-                  f"({result['removal_percentage']:5.1f}%)")
+            print(
+                f"{i:2d}. {result['domain']:25} "
+                f"{result['segments']:3d} segments "
+                f"({result['removal_percentage']:5.1f}%)"
+            )
 
     print()
     print("✅ Dry run analysis complete - no changes were made to the database.")

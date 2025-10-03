@@ -260,7 +260,7 @@ class TestNavigationExtraction:
         )
 
         content_with_nav = (
-            "Home > News > Sports > Article Title\n" "This is the main article content."
+            "Home > News > Sports > Article Title\nThis is the main article content."
         )
 
         result = cleaner._extract_navigation_prefix(content_with_nav)

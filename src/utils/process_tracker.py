@@ -46,8 +46,7 @@ class ProcessTracker:
             session.refresh(process)
 
             logger.info(
-                f"Registered {process_type} process {process.id} "
-                f"(PID: {process.pid})"
+                f"Registered {process_type} process {process.id} (PID: {process.pid})"
             )
             return process
 

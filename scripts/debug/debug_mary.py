@@ -5,7 +5,7 @@ import os
 import sys
 
 # Add the project root to Python path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from src.utils.byline_cleaner import BylineCleaner
 
@@ -23,12 +23,11 @@ def debug_mary_johnson():
 
     # Test full cleaning
     result = cleaner.clean_byline(
-        byline=byline,
-        return_json=True,
-        source_name="The Times"
+        byline=byline, return_json=True, source_name="The Times"
     )
 
     print(f"Full cleaning result: {result}")
+
 
 if __name__ == "__main__":
     debug_mary_johnson()

@@ -1480,7 +1480,7 @@ class BalancedBoundaryContentCleaner:
             "facebook twitter whatsapp sms email print",
             "facebook twitter whatsapp sms email print copy",
             "facebook twitter whatsapp sms email print copy article link",
-            "facebook twitter whatsapp sms email print copy article link " "save",
+            "facebook twitter whatsapp sms email print copy article link save",
             "share on facebook twitter whatsapp",
             "share via facebook twitter whatsapp",
             "follow us on facebook twitter instagram",
@@ -1970,8 +1970,7 @@ class BalancedBoundaryContentCleaner:
             conn.commit()
 
             self.logger.info(
-                f"Marked article {article_id} as wire service: "
-                f"{wire_info['provider']}"
+                f"Marked article {article_id} as wire service: {wire_info['provider']}"
             )
 
         except Exception as e:

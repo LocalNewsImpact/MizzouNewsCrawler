@@ -11,7 +11,7 @@ import sys
 from collections import Counter, defaultdict
 
 # Add the src directory to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 try:
     from src.utils.byline_cleaner import BylineCleaner
@@ -31,7 +31,7 @@ def get_current_articles_with_authors(db_path: str) -> list[tuple]:
     print(f"Available columns: {columns}")
 
     # Check if we have 'author' column
-    if 'author' in columns:
+    if "author" in columns:
         query = """
         SELECT id, title, author
         FROM articles
@@ -54,26 +54,29 @@ def get_current_articles_with_authors(db_path: str) -> list[tuple]:
 def parse_authors_json(authors_json: str) -> list[str]:
     """Parse authors JSON string into list of author names."""
     try:
-        if not authors_json or authors_json.strip() == '':
+        if not authors_json or authors_json.strip() == "":
             return []
 
         # Handle JSON list format (now the standard format)
-        if authors_json.startswith('[') and authors_json.endswith(']'):
+        if authors_json.startswith("[") and authors_json.endswith("]"):
             authors = json.loads(authors_json)
-            return [str(author).strip() for author in authors
-                    if str(author).strip()]
+            return [str(author).strip() for author in authors if str(author).strip()]
         else:
             # Fallback for any remaining non-JSON format
-            if ',' in authors_json:
-                return [author.strip() for author in authors_json.split(',')
-                        if author.strip()]
+            if "," in authors_json:
+                return [
+                    author.strip()
+                    for author in authors_json.split(",")
+                    if author.strip()
+                ]
             else:
                 return [authors_json.strip()] if authors_json.strip() else []
     except (json.JSONDecodeError, ValueError):
         # Fallback: treat as simple string
-        if ',' in authors_json:
-            return [author.strip() for author in authors_json.split(',')
-                    if author.strip()]
+        if "," in authors_json:
+            return [
+                author.strip() for author in authors_json.split(",") if author.strip()
+            ]
         else:
             return [authors_json.strip()] if authors_json.strip() else []
 
@@ -88,39 +91,36 @@ def analyze_author_changes(current: list[str], new: list[str]) -> dict:
     current_quality = sum(1 for name in current if len(name.split()) >= 2)
 
     return {
-        'current_count': len(current),
-        'new_count': len(new),
-        'current_authors': current,
-        'new_authors': new,
-        'added': list(new_set - current_set),
-        'removed': list(current_set - new_set),
-        'unchanged': list(current_set & new_set),
-        'is_changed': current != new,
-        'is_improvement': (
-            len(new) > 0 and (
-                len(new) > len(current) or
-                new_quality > current_quality
-            )
-        )
+        "current_count": len(current),
+        "new_count": len(new),
+        "current_authors": current,
+        "new_authors": new,
+        "added": list(new_set - current_set),
+        "removed": list(current_set - new_set),
+        "unchanged": list(current_set & new_set),
+        "is_changed": current != new,
+        "is_improvement": (
+            len(new) > 0 and (len(new) > len(current) or new_quality > current_quality)
+        ),
     }
 
 
 def categorize_change(analysis: dict) -> str:
     """Categorize the type of change that occurred."""
-    if not analysis['is_changed']:
-        return 'no_change'
-    elif not analysis['current_authors'] and analysis['new_authors']:
-        return 'extraction_success'
-    elif analysis['current_authors'] and not analysis['new_authors']:
-        return 'removal'
-    elif len(analysis['new_authors']) > len(analysis['current_authors']):
-        return 'more_authors'
-    elif len(analysis['new_authors']) < len(analysis['current_authors']):
-        return 'fewer_authors'
-    elif analysis['added'] and analysis['removed']:
-        return 'different_authors'
+    if not analysis["is_changed"]:
+        return "no_change"
+    elif not analysis["current_authors"] and analysis["new_authors"]:
+        return "extraction_success"
+    elif analysis["current_authors"] and not analysis["new_authors"]:
+        return "removal"
+    elif len(analysis["new_authors"]) > len(analysis["current_authors"]):
+        return "more_authors"
+    elif len(analysis["new_authors"]) < len(analysis["current_authors"]):
+        return "fewer_authors"
+    elif analysis["added"] and analysis["removed"]:
+        return "different_authors"
     else:
-        return 'refinement'
+        return "refinement"
 
 
 def run_dry_run_analysis():
@@ -130,7 +130,7 @@ def run_dry_run_analysis():
     print("=" * 60)
 
     # Database path
-    db_path = os.path.join(os.path.dirname(__file__), 'data', 'mizzou.db')
+    db_path = os.path.join(os.path.dirname(__file__), "data", "mizzou.db")
     if not os.path.exists(db_path):
         print(f"❌ Database not found at {db_path}")
         return
@@ -187,16 +187,16 @@ def run_dry_run_analysis():
 
         # Store the analysis
         change_data = {
-            'article_id': article_id,
-            'raw_byline': raw_byline,
-            'analysis': analysis,
-            'category': category
+            "article_id": article_id,
+            "raw_byline": raw_byline,
+            "analysis": analysis,
+            "category": category,
         }
         changes_by_category[category].append(change_data)
 
         # Collect examples for reporting
-        if analysis['is_changed']:
-            if analysis['is_improvement']:
+        if analysis["is_changed"]:
+            if analysis["is_improvement"]:
                 if len(improvement_examples) < 10:
                     improvement_examples.append(change_data)
             else:
@@ -206,11 +206,11 @@ def run_dry_run_analysis():
         # Track byline patterns
         byline_length = len(raw_byline)
         if byline_length < 20:
-            byline_patterns['short'] += 1
+            byline_patterns["short"] += 1
         elif byline_length < 50:
-            byline_patterns['medium'] += 1
+            byline_patterns["medium"] += 1
         else:
-            byline_patterns['long'] += 1
+            byline_patterns["long"] += 1
 
     print(f"✅ Completed processing {processed_count} articles")
 
@@ -221,52 +221,55 @@ def run_dry_run_analysis():
 
     # Overall statistics
     total_articles = len(articles)
-    changed_count = sum(len(changes) for category, changes
-                       in changes_by_category.items()
-                       if category != 'no_change')
+    changed_count = sum(
+        len(changes)
+        for category, changes in changes_by_category.items()
+        if category != "no_change"
+    )
 
     print("\n📈 OVERALL IMPACT:")
     print(f"   Total articles analyzed: {total_articles:,}")
     print(f"   Articles that would change: {changed_count:,}")
-    print(f"   Percentage changed: {(changed_count/total_articles)*100:.1f}%")
+    print(f"   Percentage changed: {(changed_count / total_articles) * 100:.1f}%")
     print(f"   Articles unchanged: {len(changes_by_category['no_change']):,}")
 
     # Changes by category
     print("\n📋 CHANGES BY CATEGORY:")
-    category_items = sorted(changes_by_category.items(),
-                           key=lambda x: len(x[1]), reverse=True)
+    category_items = sorted(
+        changes_by_category.items(), key=lambda x: len(x[1]), reverse=True
+    )
     for category, changes in category_items:
         count = len(changes)
         percentage = (count / total_articles) * 100
-        category_name = category.replace('_', ' ').title()
+        category_name = category.replace("_", " ").title()
         print(f"   {category_name}: {count:,} articles ({percentage:.1f}%)")
 
     # Improvement examples
     if improvement_examples:
         print(f"\n✅ IMPROVEMENT EXAMPLES (showing {len(improvement_examples)}):")
         for i, example in enumerate(improvement_examples[:5], 1):
-            analysis = example['analysis']
+            analysis = example["analysis"]
             print(f"\n   Example {i} (Article ID: {example['article_id']}):")
-            print(f"   Raw byline: \"{example['raw_byline']}\"")
+            print(f'   Raw byline: "{example["raw_byline"]}"')
             print(f"   Current: {analysis['current_authors']}")
             print(f"   New: {analysis['new_authors']}")
-            if analysis['added']:
+            if analysis["added"]:
                 print(f"   ➕ Added: {analysis['added']}")
-            if analysis['removed']:
+            if analysis["removed"]:
                 print(f"   ➖ Removed: {analysis['removed']}")
 
     # Concerning examples
     if concerning_examples:
         print("\n⚠️  CONCERNING EXAMPLES:")
         for i, example in enumerate(concerning_examples[:5], 1):
-            analysis = example['analysis']
+            analysis = example["analysis"]
             print(f"\n   Example {i} (Article ID: {example['article_id']}):")
-            print(f"   Raw byline: \"{example['raw_byline']}\"")
+            print(f'   Raw byline: "{example["raw_byline"]}"')
             print(f"   Current: {analysis['current_authors']}")
             print(f"   New: {analysis['new_authors']}")
-            if analysis['added']:
+            if analysis["added"]:
                 print(f"   ➕ Added: {analysis['added']}")
-            if analysis['removed']:
+            if analysis["removed"]:
                 print(f"   ➖ Removed: {analysis['removed']}")
 
     # Byline pattern analysis
@@ -279,10 +282,12 @@ def run_dry_run_analysis():
     # Summary recommendations
     print("\n💡 RECOMMENDATIONS:")
 
-    improvement_count = sum(1 for category, changes
-                           in changes_by_category.items()
-                           for change in changes
-                           if change['analysis']['is_improvement'])
+    improvement_count = sum(
+        1
+        for category, changes in changes_by_category.items()
+        for change in changes
+        if change["analysis"]["is_improvement"]
+    )
 
     if improvement_count > changed_count * 0.7:
         print("   ✅ Algorithm shows significant improvements")
@@ -293,14 +298,14 @@ def run_dry_run_analysis():
 
     print("\n   Key metrics:")
     print(f"   - Improvements: {improvement_count:,}/{changed_count:,}")
-    success_rate = (improvement_count/max(changed_count, 1))*100
+    success_rate = (improvement_count / max(changed_count, 1)) * 100
     print(f"   - Success rate: {success_rate:.1f}%")
 
-    removal_rate = len(changes_by_category['removal']) / total_articles
+    removal_rate = len(changes_by_category["removal"]) / total_articles
     if removal_rate > 0.1:
         print("   ⚠️  High removal rate - verify if intended")
 
-    extraction_count = len(changes_by_category['extraction_success'])
+    extraction_count = len(changes_by_category["extraction_success"])
     if extraction_count > 0:
         print(f"   ✅ Found authors in {extraction_count} empty articles")
 
@@ -309,5 +314,5 @@ def run_dry_run_analysis():
     print("=" * 60)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     run_dry_run_analysis()

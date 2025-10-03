@@ -164,7 +164,7 @@ def apply_source_ids(conn, host_to_id, dry_run=False):
     for host, sid in host_to_id.items():
         # Update candidate_links where exact match on source_host_id.
         cur.execute(
-            "UPDATE candidate_links SET source_id = ? " "WHERE source_host_id = ?",
+            "UPDATE candidate_links SET source_id = ? WHERE source_host_id = ?",
             (sid, host),
         )
         total += cur.rowcount

@@ -329,10 +329,7 @@ def handle_analysis_command(args) -> int:
             print("\nDry-run mode: no labels were persisted.")
 
         logger.info(
-            (
-                "Classification complete: processed=%s labeled=%s "
-                "skipped=%s errors=%s"
-            ),
+            ("Classification complete: processed=%s labeled=%s skipped=%s errors=%s"),
             stats.processed,
             stats.labeled,
             stats.skipped,

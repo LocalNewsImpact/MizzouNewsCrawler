@@ -7,6 +7,7 @@ records which outlets and counties actually mention those entities. Results are
 written to a CSV summarizing the number of distinct articles mentioning each
 entity per (county, outlet, category) grouping.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -77,9 +78,7 @@ def fetch_entities_by_source(
           AND name IS NOT NULL
           AND source_id IS NOT NULL
     """
-    entities: dict[str, list[tuple[str, str, Pattern[str]]]] = (
-        defaultdict(list)
-    )
+    entities: dict[str, list[tuple[str, str, Pattern[str]]]] = defaultdict(list)
     for source_id, category, name in conn.execute(query, CATEGORIES):
         pattern = build_pattern(name)
         if pattern is None:
@@ -148,13 +147,15 @@ def write_results(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", newline="", encoding="utf-8") as fh:
         writer = csv.writer(fh)
-        writer.writerow([
-            "county",
-            "outlet",
-            "category",
-            "entity_name",
-            "article_count",
-        ])
+        writer.writerow(
+            [
+                "county",
+                "outlet",
+                "category",
+                "entity_name",
+                "article_count",
+            ]
+        )
         writer.writerows(rows)
 
 
@@ -197,9 +198,7 @@ def main(argv: Sequence[str]) -> int:
 
         mentions = map_mentions(conn, entities_by_source)
         write_results(output_path, mentions)
-        print(
-            f"Wrote {len(mentions)} county/outlet/entity rows to {output_path}"
-        )
+        print(f"Wrote {len(mentions)} county/outlet/entity rows to {output_path}")
     finally:
         conn.close()
 

@@ -312,8 +312,7 @@ def test_bulk_insert_candidate_links_non_sqlite_dataset_insert(monkeypatch):
         with manager.engine.connect() as conn:
             ds_rows = conn.execute(
                 text(
-                    "SELECT dataset_id, legacy_host_id, source_id "
-                    "FROM dataset_sources"
+                    "SELECT dataset_id, legacy_host_id, source_id FROM dataset_sources"
                 )
             ).fetchall()
 
@@ -669,7 +668,7 @@ def test_bulk_insert_articles_migrates_schema_and_adds_defaults():
 
         with manager.engine.connect() as conn:
             row = conn.execute(
-                text("SELECT candidate_link_id, status, created_at " "FROM articles")
+                text("SELECT candidate_link_id, status, created_at FROM articles")
             ).one()
             columns = {
                 info[1] for info in conn.execute(text("PRAGMA table_info(articles)"))
