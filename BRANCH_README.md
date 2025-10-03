@@ -35,15 +35,22 @@
 git add <files>
 git commit -m "message"
 
-# DO NOT push until phase complete or need backup
-# git push  # ❌ Avoid during active development
+# Push to remote at least daily for backup safety
+git push origin feature/gcp-kubernetes-deployment
 ```
 
 **When to push:**
-- ✅ Major phase milestone complete (want backup)
+- ✅ **At least once daily** for backup safety (RECOMMENDED)
+- ✅ End of work session (backup your work!)
+- ✅ Major phase milestone complete
 - ✅ Need to share work with others
-- ✅ End of work session (optional backup)
 - ✅ Ready for PR and code review
+
+**Why push regularly?**
+- 💾 Protects against local machine failure
+- 🔄 Enables work from multiple locations
+- 📊 Provides visible progress tracking
+- 🚫 Still avoids CI overhead (CI only runs on PR to main)
 
 ### Development Workflow
 
