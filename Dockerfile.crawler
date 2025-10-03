@@ -2,20 +2,19 @@
 # Handles discovery, extraction, and verification
 
 # Stage 1: Base image with system dependencies
-FROM python:3.11-slim as base
+FROM python:3.11-slim AS base
 
 # Install system dependencies (including those for spacy, playwright, etc.)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    g++ \
-    libpq-dev \
-    wget \
-    ca-certificates \
-    fonts-liberation \
-    libnss3 \
-    libxss1 \
-    xdg-utils \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* && \
+    apt-get update -o Acquire::Check-Valid-Until=false && \
+    (apt-get install -y --no-install-recommends --allow-unauthenticated \
+        gcc g++ libpq-dev wget ca-certificates fonts-liberation libnss3 \
+        libxss1 xdg-utils || \
+     apt-get install -y --no-install-recommends --fix-missing \
+        gcc g++ libpq-dev wget ca-certificates fonts-liberation libnss3 \
+        libxss1 xdg-utils) && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 

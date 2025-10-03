@@ -2,14 +2,17 @@
 # Optimized for size and layer caching
 
 # Stage 1: Base image with system dependencies
-FROM python:3.11-slim as base
+FROM python:3.11-slim AS base
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    g++ \
-    libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
+# Install system dependencies (retry with --fix-missing on hash errors)
+RUN apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* && \
+    apt-get update -o Acquire::Check-Valid-Until=false && \
+    (apt-get install -y --no-install-recommends --allow-unauthenticated \
+        gcc g++ libpq-dev || \
+     apt-get install -y --no-install-recommends --fix-missing \
+        gcc g++ libpq-dev) && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -38,6 +41,10 @@ RUN useradd -m -u 1000 appuser && \
 COPY --chown=appuser:appuser backend/ ./backend/
 COPY --chown=appuser:appuser src/ ./src/
 COPY --chown=appuser:appuser lookups/ ./lookups/
+COPY --chown=appuser:appuser web/ ./web/
+
+# Create data directory for SQLite databases
+RUN mkdir -p /app/data && chown -R appuser:appuser /app/data
 
 # Switch to non-root user
 USER appuser

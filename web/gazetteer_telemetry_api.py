@@ -9,12 +9,21 @@ Provides endpoints for:
 """
 
 import json
+import os
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel
+
+# Import psycopg2 for PostgreSQL support when available
+try:
+    import psycopg2
+    import psycopg2.extras
+    HAS_POSTGRES = True
+except ImportError:
+    HAS_POSTGRES = False
 
 
 class GazetteerStats(BaseModel):
@@ -82,11 +91,21 @@ class TelemetryLogEntry(BaseModel):
 
 
 def get_db_connection():
-    """Get database connection for gazetteer data."""
-    # Get the database path relative to the project root
-    base_dir = Path(__file__).resolve().parents[1]  # Go up to project root
-    db_path = base_dir / "data" / "mizzou.db"
-    return sqlite3.connect(str(db_path))
+    """Get database connection for gazetteer data.
+    
+    Uses PostgreSQL if DATABASE_URL environment variable is set,
+    otherwise falls back to SQLite for local development.
+    """
+    database_url = os.environ.get("DATABASE_URL")
+    
+    if database_url and HAS_POSTGRES:
+        # Use PostgreSQL connection
+        return psycopg2.connect(database_url)
+    else:
+        # Fall back to SQLite for local development
+        base_dir = Path(__file__).resolve().parents[1]  # Go up to project root
+        db_path = base_dir / "data" / "mizzou.db"
+        return sqlite3.connect(str(db_path))
 
 
 def parse_telemetry_log() -> list[TelemetryLogEntry]:
@@ -369,20 +388,36 @@ def ensure_address_updates_table():
     """Ensure the gazetteer_address_updates table exists."""
     conn = get_db_connection()
     cursor = conn.cursor()
-
-    cursor.execute(
+    
+    # Determine if we're using PostgreSQL or SQLite
+    is_postgres = os.environ.get("DATABASE_URL") and HAS_POSTGRES
+    
+    if is_postgres:
+        # PostgreSQL syntax
+        create_sql = """
+            CREATE TABLE IF NOT EXISTS gazetteer_address_updates (
+                id SERIAL PRIMARY KEY,
+                source_id TEXT NOT NULL,
+                old_address TEXT,
+                new_address TEXT,
+                notes TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
         """
-        CREATE TABLE IF NOT EXISTS gazetteer_address_updates (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            source_id TEXT NOT NULL,
-            old_address TEXT,
-            new_address TEXT,
-            notes TEXT,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (source_id) REFERENCES candidate_links (id)
-        )
-    """
-    )
-
+    else:
+        # SQLite syntax
+        create_sql = """
+            CREATE TABLE IF NOT EXISTS gazetteer_address_updates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                source_id TEXT NOT NULL,
+                old_address TEXT,
+                new_address TEXT,
+                notes TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (source_id) REFERENCES candidate_links (id)
+            )
+        """
+    
+    cursor.execute(create_sql)
     conn.commit()
     conn.close()
