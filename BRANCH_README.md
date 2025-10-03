@@ -48,10 +48,61 @@ git commit -m "message"
 ### Development Workflow
 
 1. **Work locally**: Make changes, commit frequently
-2. **Test locally**: Use `docker-compose`, pytest, manual testing
+2. **Test locally**: **REQUIRED before every commit**
 3. **Push milestone**: When phase complete or need backup
 4. **Create PR**: Only when fully ready for review and merge
 5. **CI runs**: Full testing happens during PR review
+
+### ✅ Required Tests Before Every Commit
+
+**Run these commands before `git commit`:**
+
+```bash
+# 1. Static analysis (linting)
+make lint
+# or individually:
+ruff check .
+ruff format --check .
+
+# 2. Type checking
+mypy src/ backend/ --ignore-missing-imports
+
+# 3. Unit tests
+pytest tests/ -v
+
+# 4. Quick smoke test (optional but recommended)
+pytest tests/ -v -k "not slow" --maxfail=3
+```
+
+**Why test locally?**
+- ✅ Catch errors immediately, not in PR review
+- ✅ Maintain code quality throughout development
+- ✅ Faster feedback loop than waiting for CI
+- ✅ Ensure tests pass before creating commits
+- ✅ Avoid "fix tests" commits cluttering history
+
+**Quick validation script:**
+
+```bash
+# Create this as scripts/pre-commit-checks.sh
+#!/bin/bash
+set -e
+
+echo "🔍 Running static analysis..."
+make lint
+
+echo "🔍 Running type checks..."
+mypy src/ backend/ --ignore-missing-imports
+
+echo "🧪 Running tests..."
+pytest tests/ -v
+
+echo "✅ All checks passed! Safe to commit."
+```
+
+Make it executable: `chmod +x scripts/pre-commit-checks.sh`
+
+Then before committing: `./scripts/pre-commit-checks.sh && git commit -m "message"`
 
 ---
 
@@ -125,6 +176,24 @@ git commit -m "message"
 ---
 
 ## Local Testing Commands
+
+### Quick Pre-Commit Validation
+
+**Use the automated script (RECOMMENDED):**
+
+```bash
+# Run all checks before committing
+./scripts/pre-commit-checks.sh
+
+# If all pass, commit
+git add <files>
+git commit -m "message"
+```
+
+This script runs:
+1. Static analysis (ruff)
+2. Type checking (mypy)
+3. Unit tests (pytest)
 
 ### Test Docker Images
 
