@@ -1,7 +1,6 @@
 # Exclude common unnecessary files and directories
 .git/
 .gitignore
-.gcloudignore
 __pycache__/
 *.pyc
 *.pyo
@@ -29,8 +28,6 @@ tests/
 artifacts/
 reports/
 docs/
-backend/
-web/
 telemetry_demo/
 
 # Exclude node modules and frontend
@@ -49,10 +46,11 @@ package-lock.json
 # Exclude large model files that will be downloaded
 models/
 
-# Include only what we need:
-# !src/
-# !orchestration/
-# !lookups/
-# !requirements.txt
-# !requirements-dev.txt
-# !Dockerfile.*
+# Keep these directories (needed for builds):
+# src/
+# orchestration/
+# lookups/
+# requirements.txt
+# requirements-dev.txt
+# Dockerfile.*
+# cloudbuild*.yaml
