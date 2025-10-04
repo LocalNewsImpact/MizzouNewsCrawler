@@ -77,6 +77,10 @@ DATABASE_PASSWORD: str | None = os.getenv("DATABASE_PASSWORD")
 DATABASE_SSLMODE: str | None = os.getenv("DATABASE_SSLMODE")
 DATABASE_REQUIRE_SSL: bool = _env_bool("DATABASE_REQUIRE_SSL", False)
 
+# Cloud SQL Connector configuration (replaces proxy sidecar)
+USE_CLOUD_SQL_CONNECTOR: bool = _env_bool("USE_CLOUD_SQL_CONNECTOR", False)
+CLOUD_SQL_INSTANCE: str | None = os.getenv("CLOUD_SQL_INSTANCE")  # Format: project:region:instance
+
 _database_url = os.getenv("DATABASE_URL")
 
 if not _database_url and all([DATABASE_HOST, DATABASE_NAME, DATABASE_USER]):
