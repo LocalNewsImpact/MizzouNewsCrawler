@@ -22,6 +22,26 @@ from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
 Base = declarative_base()
 
+# Import API backend models after Base declaration
+# These are imported here to ensure they're registered with Base.metadata
+from src.models.api_backend import (  # noqa: E402
+    BylineCleaningTelemetry,
+    BylineTransformationStep,
+    Candidate,
+    CodeReviewTelemetry,
+    DedupeAudit,
+    DomainFeedback,
+    ReextractionJob,
+    Review,
+    Snapshot,
+)
+from src.models.verification import (  # noqa: E402
+    URLVerification,
+    VerificationJob,
+    VerificationPattern,
+    VerificationTelemetry,
+)
+
 
 class CandidateLink(Base):
     """Links discovered during crawling with fetch status tracking."""

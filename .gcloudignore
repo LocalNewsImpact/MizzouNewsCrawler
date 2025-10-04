@@ -1,0 +1,58 @@
+# Exclude common unnecessary files and directories
+.git/
+.gitignore
+.gcloudignore
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+venv/
+env/
+ENV/
+
+# Exclude data and logs
+data/
+logs/
+*.log
+*.db
+*.db-shm
+*.db-wal
+
+# Exclude test and development files
+tests/
+artifacts/
+reports/
+docs/
+backend/
+web/
+telemetry_demo/
+
+# Exclude node modules and frontend
+node_modules/
+package.json
+package-lock.json
+
+# Exclude misc
+.DS_Store
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Exclude large model files that will be downloaded
+models/
+
+# Include only what we need:
+# !src/
+# !orchestration/
+# !lookups/
+# !requirements.txt
+# !requirements-dev.txt
+# !Dockerfile.*

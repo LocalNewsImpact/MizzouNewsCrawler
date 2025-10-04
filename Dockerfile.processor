@@ -55,6 +55,7 @@ RUN useradd -m -u 1000 appuser && \
 # Copy application code
 COPY --chown=appuser:appuser src/ ./src/
 COPY --chown=appuser:appuser lookups/ ./lookups/
+COPY --chown=appuser:appuser orchestration/ ./orchestration/
 
 # Create data directory
 RUN mkdir -p /app/data && chown -R appuser:appuser /app/data
