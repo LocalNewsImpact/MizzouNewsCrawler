@@ -1,11 +1,9 @@
 name: build-crawler-manual
-description: Manual/dev trigger to build crawler image
+description: Auto-build on main, manual for feature branches
 github:
   owner: LocalNewsImpact
   name: MizzouNewsCrawler
   push:
-    branch: ^(main|feature/.*)$
+    branch: ^main$
 filename: cloudbuild-crawler.yaml
-approvalConfig:
-  approvalRequired: true
 serviceAccount: projects/mizzou-news-crawler/serviceAccounts/145096615031-compute@developer.gserviceaccount.com

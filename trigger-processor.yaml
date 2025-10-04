@@ -1,9 +1,9 @@
 name: build-processor-manual
-description: Manual/dev trigger to build processor image (requires approval)
-repositoryEventConfig:
-  repository: projects/mizzou-news-crawler/locations/us-central1/connections/Mizzou_Crawler_Github/repositories/MizzouNewsCrawler
+description: Auto-build on main, manual for feature branches
+github:
+  owner: LocalNewsImpact
+  name: MizzouNewsCrawler
   push:
-    branch: ^feature/.*$
+    branch: ^main$
 filename: cloudbuild-processor-v1.2.2.yaml
-approvalConfig:
-  approvalRequired: true
+serviceAccount: projects/mizzou-news-crawler/serviceAccounts/145096615031-compute@developer.gserviceaccount.com
