@@ -1,0 +1,23 @@
+steps:
+  # Build the processor image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/processor:v1.2.2'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/processor:latest'
+      - '-f'
+      - 'Dockerfile.processor'
+      - '.'
+    timeout: 1200s
+
+images:
+  - 'gcr.io/$PROJECT_ID/processor:v1.2.2'
+  - 'gcr.io/$PROJECT_ID/processor:latest'
+
+options:
+  machineType: 'N1_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: 1800s
