@@ -62,23 +62,58 @@ class DatabaseManager:
 
     def __init__(self, database_url: str = "sqlite:///data/mizzou.db"):
         self.database_url = database_url
-        # For SQLite, set a timeout so connections wait for locks instead
-        # of immediately failing with 'database is locked'. Also keep
-        # check_same_thread disabled to allow multithreaded use.
-        connect_args = {}
-        if "sqlite" in database_url:
-            connect_args = {"check_same_thread": False, "timeout": 30}
+        
+        # Check if we should use Cloud SQL Python Connector
+        use_cloud_sql = self._should_use_cloud_sql_connector()
+        
+        if use_cloud_sql:
+            self.engine = self._create_cloud_sql_engine()
+        else:
+            # Traditional connection (SQLite or direct PostgreSQL)
+            connect_args = {}
+            if "sqlite" in database_url:
+                connect_args = {"check_same_thread": False, "timeout": 30}
 
-        self.engine = create_engine(
-            database_url,
-            connect_args=connect_args,
-            echo=False,
-        )
-        if "sqlite" in database_url:
-            _configure_sqlite_engine(self.engine, connect_args.get("timeout"))
+            self.engine = create_engine(
+                database_url,
+                connect_args=connect_args,
+                echo=False,
+            )
+            if "sqlite" in database_url:
+                _configure_sqlite_engine(self.engine, connect_args.get("timeout"))
+        
         Base.metadata.create_all(self.engine)
         Session = sessionmaker(bind=self.engine)
         self.session = Session()
+    
+    def _should_use_cloud_sql_connector(self) -> bool:
+        """Determine if Cloud SQL Python Connector should be used."""
+        try:
+            from src.config import USE_CLOUD_SQL_CONNECTOR, CLOUD_SQL_INSTANCE
+            return USE_CLOUD_SQL_CONNECTOR and bool(CLOUD_SQL_INSTANCE)
+        except ImportError:
+            return False
+    
+    def _create_cloud_sql_engine(self):
+        """Create database engine using Cloud SQL Python Connector."""
+        from src.config import (
+            CLOUD_SQL_INSTANCE,
+            DATABASE_USER,
+            DATABASE_PASSWORD,
+            DATABASE_NAME,
+        )
+        from src.models.cloud_sql_connector import create_cloud_sql_engine
+        
+        logger.info("Using Cloud SQL Python Connector (no proxy sidecar needed)")
+        
+        return create_cloud_sql_engine(
+            instance_connection_name=CLOUD_SQL_INSTANCE,
+            user=DATABASE_USER,
+            password=DATABASE_PASSWORD,
+            database=DATABASE_NAME,
+            driver="pg8000",
+            echo=False,
+        )
 
     def close(self):
         """Close database connection."""

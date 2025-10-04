@@ -27,23 +27,26 @@ spec:
           - name: processor
             image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
             env:
-            - name: DB_USER
+            # Cloud SQL Connector configuration (no proxy sidecar needed)
+            - name: USE_CLOUD_SQL_CONNECTOR
+              value: "true"
+            - name: CLOUD_SQL_INSTANCE
+              value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+            - name: DATABASE_USER
               valueFrom:
                 secretKeyRef:
                   name: cloudsql-db-credentials
                   key: username
-            - name: DB_PASSWORD
+            - name: DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: cloudsql-db-credentials
                   key: password
-            - name: DB_NAME
+            - name: DATABASE_NAME
               valueFrom:
                 secretKeyRef:
                   name: cloudsql-db-credentials
                   key: database
-            - name: DATABASE_URL
-              value: "postgresql://$(DB_USER):$(DB_PASSWORD)@127.0.0.1:5432/$(DB_NAME)"
             resources:
               requests:
                 cpu: 500m
@@ -51,21 +54,3 @@ spec:
               limits:
                 cpu: 1000m
                 memory: 2Gi
-          
-          # Cloud SQL Proxy sidecar
-          - name: cloud-sql-proxy
-            image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.14.2
-            args:
-              - "--structured-logs"
-              - "--port=5432"
-              - "mizzou-news-crawler:us-central1:mizzou-db-prod"
-            securityContext:
-              runAsNonRoot: true
-              allowPrivilegeEscalation: false
-            resources:
-              requests:
-                cpu: 100m
-                memory: 128Mi
-              limits:
-                cpu: 200m
-                memory: 256Mi
