@@ -37,6 +37,18 @@ from web.gazetteer_telemetry_api import (  # noqa: E402
     update_publisher_address,
 )
 
+# Add Cloud SQL imports for migration
+from src.models.database import DatabaseManager  # noqa: E402
+from src.models.api_backend import (  # noqa: E402
+    Review,
+    DomainFeedback,
+    Snapshot,
+    Candidate,
+    ReextractionJob,
+    DedupeAudit,
+)
+from backend.app.telemetry import verification, byline, code_review  # noqa: E402
+
 # pydantic.Field not used here
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -112,273 +124,26 @@ class CandidateIn(BaseModel):
 
 
 def init_db():
-    # Use a connection with a timeout and set busy timeout to allow SQLite
-    # to wait for transient locks. Retry on OperationalError 'locked'.
-    attempts = 6
-    backoff = 0.5
-    last_exc = None
-    for attempt in range(1, attempts + 1):
-        try:
-            conn = sqlite3.connect(DB_PATH, timeout=30.0)
-            try:
-                conn.execute("PRAGMA journal_mode=WAL")
-            except Exception:
-                pass
-            try:
-                conn.execute("PRAGMA busy_timeout=30000")
-            except Exception:
-                pass
-            cur = conn.cursor()
-            break
-        except (sqlite3.OperationalError, sqlite3.DatabaseError) as oe:
-            last_exc = oe
-            if "locked" in str(oe).lower() and attempt < attempts:
-                _time.sleep(backoff * (2 ** (attempt - 1)))
-                continue
-            raise
-    if last_exc is not None and cur is None:
-        # couldn't obtain DB connection
-        raise last_exc
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS reviews (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            article_idx INTEGER,
-                secondary_rating INTEGER,
-            article_uid TEXT,
-            reviewer TEXT,
-            rating INTEGER,
-            tags TEXT,
-            notes TEXT,
-            mentioned_locations TEXT,
-            missing_locations TEXT,
-            incorrect_locations TEXT,
-            'inferred_tags TEXT',
-            missing_tags TEXT,
-            incorrect_tags TEXT,
-            body_errors TEXT,
-            headline_errors TEXT,
-            author_errors TEXT,
-            created_at TEXT
-            ,
-            UNIQUE(article_idx, reviewer)
-        )
-        """
-    )
-    # Ensure older DBs get new columns if missing
-    cur.execute("PRAGMA table_info(reviews)")
-    existing_cols = [r[1] for r in cur.fetchall()]
-    for col in ("body_errors", "headline_errors", "author_errors"):
-        if col not in existing_cols:
-            try:
-                cur.execute(f"ALTER TABLE reviews ADD COLUMN {col} TEXT")
-            except Exception:
-                pass
-    # Add secondary_rating column if missing
-    if "secondary_rating" not in existing_cols:
-        try:
-            cur.execute("ALTER TABLE reviews ADD COLUMN secondary_rating INTEGER")
-        except Exception:
-            pass
-    # Add missing_locations column if missing
-    if "missing_locations" not in existing_cols:
-        try:
-            cur.execute("ALTER TABLE reviews ADD COLUMN missing_locations TEXT")
-        except Exception:
-            pass
-    # Add incorrect_locations column if missing
-    if "incorrect_locations" not in existing_cols:
-        try:
-            cur.execute("ALTER TABLE reviews ADD COLUMN incorrect_locations TEXT")
-        except Exception:
-            pass
-    # Add inferred_tags column if missing
-    if "inferred_tags" not in existing_cols:
-        try:
-            cur.execute("ALTER TABLE reviews ADD COLUMN inferred_tags TEXT")
-        except Exception:
-            pass
-    # Add mentioned_locations column if missing
-    if "mentioned_locations" not in existing_cols:
-        try:
-            cur.execute("ALTER TABLE reviews ADD COLUMN mentioned_locations TEXT")
-        except Exception:
-            pass
-    # Add article_uid column if missing
-    # (unique identifier from CSV 'id' column)
-    if "article_uid" not in existing_cols:
-        try:
-            cur.execute("ALTER TABLE reviews ADD COLUMN article_uid TEXT")
-        except Exception:
-            pass
-    # Add missing_tags/incorrect_tags if missing
-    if "missing_tags" not in existing_cols:
-        try:
-            cur.execute("ALTER TABLE reviews ADD COLUMN missing_tags TEXT")
-        except Exception:
-            pass
-    if "incorrect_tags" not in existing_cols:
-        try:
-            cur.execute("ALTER TABLE reviews ADD COLUMN incorrect_tags TEXT")
-        except Exception:
-            pass
-    # Add reviewed_at column to mark when a reviewer saved/marked
-    # the article as reviewed
-    if "reviewed_at" not in existing_cols:
-        try:
-            cur.execute("ALTER TABLE reviews ADD COLUMN reviewed_at TEXT")
-        except Exception:
-            pass
-    # Ensure a unique index exists for (article_idx, reviewer)
-    # so UPSERT targets it
-    try:
-        cur.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS "
-            "reviews_article_reviewer_idx "
-            "ON reviews(article_idx, reviewer)"
-        )
-    except Exception:
-        # ignore index creation errors on older SQLite versions
-        pass
-    # Also ensure a unique index exists for (article_uid, reviewer) for UPSERTs by uid
-    try:
-        cur.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS "
-            "reviews_articleuid_reviewer_idx "
-            "ON reviews(article_uid, reviewer)"
-        )
-    except Exception:
-        pass
-    conn.commit()
-    conn.close()
-
-    # Ensure domain_feedback table exists to store reviewer feedback per host
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        cur = conn.cursor()
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS domain_feedback (
-                host TEXT PRIMARY KEY,
-                priority TEXT,
-                needs_dev INTEGER DEFAULT 0,
-                assigned_to TEXT,
-                notes TEXT,
-                updated_at TEXT
-            )
-            """
-        )
-        conn.commit()
-    except Exception:
-        pass
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+    """Database initialization - now handled by Alembic migrations.
+    
+    This function has been converted to a no-op as part of the Cloud SQL migration.
+    Database schema is now managed by Alembic migrations (see alembic/versions/).
+    Tables are created automatically when DatabaseManager is first used.
+    """
+    # No-op: Schema creation handled by Alembic
+    pass
 
 
 def init_snapshot_tables():
-    # create snapshots and candidates tables if missing
-    # Open with a short timeout while initializing tables
-    conn = sqlite3.connect(DB_PATH, timeout=5.0)
-    cur = conn.cursor()
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS snapshots (
-            id TEXT PRIMARY KEY,
-            host TEXT,
-            url TEXT,
-            path TEXT,
-            pipeline_run_id TEXT,
-            failure_reason TEXT,
-            parsed_fields TEXT,
-            model_confidence REAL,
-            status TEXT,
-            created_at TEXT,
-            reviewed_at TEXT
-        )
-        """
-    )
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS candidates (
-            id TEXT PRIMARY KEY,
-            snapshot_id TEXT,
-            selector TEXT,
-            field TEXT,
-            score REAL,
-            words INTEGER,
-            snippet TEXT,
-            alts TEXT,
-            accepted INTEGER DEFAULT 0,
-            created_at TEXT
-        )
-        """
-    )
-    # lightweight job queue for re-extraction after committing a site rule
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS reextract_jobs (
-            id TEXT PRIMARY KEY,
-            host TEXT NOT NULL,
-            status TEXT NOT NULL DEFAULT 'pending',
-            result_json TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
+    """Snapshot tables initialization - now handled by Alembic migrations.
+    
+    This function has been converted to a no-op as part of the Cloud SQL migration.
+    Database schema is now managed by Alembic migrations (see alembic/versions/).
+    Tables (snapshots, candidates, reextract_jobs, dedupe_audit) are created
+    automatically when DatabaseManager is first used.
     """
-    )
-    # deduplication audit table to record pairwise similarity, flags and metadata
-    try:
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS dedupe_audit (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                article_uid TEXT,
-                neighbor_uid TEXT,
-                host TEXT,
-                similarity REAL,
-                dedupe_flag INTEGER,
-                category INTEGER,
-                stage TEXT,
-                details TEXT,
-                created_at TEXT
-            )
-        """
-        )
-        # helpful index for querying by article_uid or host
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS dedupe_audit_article_idx "
-            "ON dedupe_audit(article_uid)"
-        )
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS dedupe_audit_host_idx ON dedupe_audit(host)"
-        )
-    except Exception:
-        # ignore if another process created table concurrently
-        pass
-    # ensure older DBs get the 'alts' column if it was added later
-    try:
-        cur.execute("PRAGMA table_info(candidates)")
-        existing = [r[1] for r in cur.fetchall()]
-        if "alts" not in existing:
-            try:
-                cur.execute("ALTER TABLE candidates ADD COLUMN alts TEXT")
-            except Exception:
-                # ignore if another process added it concurrently
-                pass
-    except Exception:
-        pass
-    conn.commit()
-    # Enable WAL journal mode to reduce writer locking during concurrent access
-    try:
-        cur.execute("PRAGMA journal_mode=WAL")
-        cur.execute("PRAGMA synchronous=NORMAL")
-    except Exception:
-        pass
-    conn.commit()
-    conn.close()
+    # No-op: Schema creation handled by Alembic
+    pass
 
 
 # In-process queue and worker to serialize DB writes so HTTP handlers return
@@ -2792,4 +2557,163 @@ def get_site_status(host: str):
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Error fetching site status: {str(e)}"
+        )
+
+
+# ============================================================================
+# Telemetry API Endpoints (Cloud SQL Migration)
+# ============================================================================
+
+
+@app.get("/api/telemetry/verification/pending")
+async def get_pending_verification_reviews(limit: int = 50):
+    """Get URL verifications that need human review."""
+    try:
+        return {"items": verification.get_pending_verification_reviews(limit)}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching verification reviews: {str(e)}"
+        )
+
+
+@app.post("/api/telemetry/verification/feedback")
+async def submit_verification_feedback(feedback: dict):
+    """Submit human feedback for a URL verification result."""
+    try:
+        verification.submit_verification_feedback(feedback)
+        return {"status": "success", "message": "Feedback submitted"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error submitting feedback: {str(e)}"
+        )
+
+
+@app.get("/api/telemetry/verification/stats")
+async def get_verification_stats(days: int = 30):
+    """Get verification telemetry statistics."""
+    try:
+        return verification.get_verification_telemetry_stats(days)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching verification stats: {str(e)}"
+        )
+
+
+@app.get("/api/telemetry/verification/labeled_training_data")
+async def get_verification_training_data(limit: int = 1000):
+    """Get labeled verification data for model training."""
+    try:
+        return {"data": verification.get_labeled_verification_training_data(limit)}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching training data: {str(e)}"
+        )
+
+
+@app.post("/api/telemetry/verification/enhance")
+async def enhance_verification_with_content(verification_id: str):
+    """Enhance verification record with article content."""
+    try:
+        verification.enhance_verification_with_content(verification_id)
+        return {"status": "success", "message": "Verification enhanced"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error enhancing verification: {str(e)}"
+        )
+
+
+# Byline Telemetry Endpoints
+
+
+@app.get("/api/telemetry/byline/pending")
+async def get_pending_byline_reviews(limit: int = 50):
+    """Get byline extractions that need human review."""
+    try:
+        return {"items": byline.get_pending_byline_reviews(limit)}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching byline reviews: {str(e)}"
+        )
+
+
+@app.post("/api/telemetry/byline/feedback")
+async def submit_byline_feedback(feedback: dict):
+    """Submit human feedback for a byline cleaning result."""
+    try:
+        byline.submit_byline_feedback(feedback)
+        return {"status": "success", "message": "Feedback submitted"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error submitting feedback: {str(e)}"
+        )
+
+
+@app.get("/api/telemetry/byline/stats")
+async def get_byline_stats(days: int = 30):
+    """Get byline telemetry statistics."""
+    try:
+        return byline.get_byline_telemetry_stats(days)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching byline stats: {str(e)}"
+        )
+
+
+@app.get("/api/telemetry/byline/labeled_training_data")
+async def get_byline_training_data(limit: int = 1000):
+    """Get labeled byline data for model training."""
+    try:
+        return {"data": byline.get_labeled_training_data(limit)}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching training data: {str(e)}"
+        )
+
+
+# Code Review Telemetry Endpoints
+
+
+@app.get("/api/telemetry/code_review/pending")
+async def get_pending_code_reviews(limit: int = 50):
+    """Get code review items that need attention."""
+    try:
+        return {"items": code_review.get_pending_code_reviews(limit)}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching code reviews: {str(e)}"
+        )
+
+
+@app.post("/api/telemetry/code_review/feedback")
+async def submit_code_review_feedback(feedback: dict):
+    """Submit feedback for a code review item."""
+    try:
+        code_review.submit_code_review_feedback(feedback)
+        return {"status": "success", "message": "Feedback submitted"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error submitting feedback: {str(e)}"
+        )
+
+
+@app.get("/api/telemetry/code_review/stats")
+async def get_code_review_stats():
+    """Get code review telemetry statistics."""
+    try:
+        return code_review.get_code_review_stats()
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching code review stats: {str(e)}"
+        )
+
+
+@app.post("/api/telemetry/code_review/add")
+async def add_code_review_item(item: dict):
+    """Add a new code review item."""
+    try:
+        code_review.add_code_review_item(item)
+        return {"status": "success", "message": "Code review item added"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error adding code review item: {str(e)}"
         )
