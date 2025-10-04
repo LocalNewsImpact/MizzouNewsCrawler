@@ -1,0 +1,18 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-f'
+      - 'Dockerfile.processor'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:v1.2.0'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest'
+      - '.'
+images:
+  - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:v1.2.0'
+  - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest'
+timeout: 1800s
+options:
+  machineType: 'N1_HIGHCPU_8'
+  diskSizeGb: 100

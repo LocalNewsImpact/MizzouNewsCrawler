@@ -25,7 +25,7 @@ spec:
           containers:
           # Main processor container
           - name: processor
-            image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
+            image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:v1.2.0
             env:
             # Cloud SQL Connector configuration (no proxy sidecar needed)
             - name: USE_CLOUD_SQL_CONNECTOR

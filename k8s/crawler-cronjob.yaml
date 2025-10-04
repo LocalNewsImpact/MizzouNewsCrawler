@@ -25,7 +25,7 @@ spec:
           containers:
           # Main crawler container
           - name: crawler
-            image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:latest
+            image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:v1.2.0
             env:
             # Cloud SQL Connector configuration (no proxy sidecar needed)
             - name: USE_CLOUD_SQL_CONNECTOR

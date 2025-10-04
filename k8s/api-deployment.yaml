@@ -21,7 +21,7 @@ spec:
       containers:
       # Main API container
       - name: api
-        image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:latest
+        image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:v1.2.0
         ports:
         - containerPort: 8000
           name: http
