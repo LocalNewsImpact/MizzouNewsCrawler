@@ -40,14 +40,13 @@ RUN useradd -m -u 1000 appuser && \
 # Copy application code
 COPY --chown=appuser:appuser backend/ ./backend/
 COPY --chown=appuser:appuser src/ ./src/
-COPY --chown=appuser:appuser lookups/ ./lookups/
 COPY --chown=appuser:appuser web/ ./web/
 COPY --chown=appuser:appuser alembic/ ./alembic/
 COPY --chown=appuser:appuser alembic.ini ./alembic.ini
 
-# Create data directory (legacy SQLite support - will be removed in future version)
+# Create data and lookups directories
 # Note: New telemetry endpoints use Cloud SQL, legacy endpoints still use SQLite
-RUN mkdir -p /app/data && chown -R appuser:appuser /app/data
+RUN mkdir -p /app/data /app/lookups && chown -R appuser:appuser /app/data /app/lookups
 
 # Switch to non-root user
 USER appuser
