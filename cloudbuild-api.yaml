@@ -5,12 +5,12 @@ steps:
       - '-f'
       - 'Dockerfile.api'
       - '-t'
-      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:v1.2.0'
+      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:v1.3.0'
       - '-t'
       - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:latest'
       - '.'
 images:
-  - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:v1.2.0'
+  - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:v1.3.0'
   - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:latest'
 timeout: 1800s
 options:
