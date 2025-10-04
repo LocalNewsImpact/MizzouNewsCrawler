@@ -1,0 +1,9 @@
+name: build-processor-manual
+description: Manual/dev trigger to build processor image (requires approval)
+repositoryEventConfig:
+  repository: projects/mizzou-news-crawler/locations/us-central1/connections/Mizzou_Crawler_Github/repositories/MizzouNewsCrawler
+  push:
+    branch: ^feature/.*$
+filename: cloudbuild-processor-v1.2.2.yaml
+approvalConfig:
+  approvalRequired: true

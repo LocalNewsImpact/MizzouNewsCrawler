@@ -1,0 +1,11 @@
+name: build-api-manual
+description: Manual/dev trigger to build API image
+github:
+  owner: LocalNewsImpact
+  name: MizzouNewsCrawler
+  push:
+    branch: ^(main|feature/.*)$
+filename: cloudbuild-api.yaml
+approvalConfig:
+  approvalRequired: true
+serviceAccount: projects/mizzou-news-crawler/serviceAccounts/145096615031-compute@developer.gserviceaccount.com
