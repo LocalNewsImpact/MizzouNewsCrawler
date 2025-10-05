@@ -1000,7 +1000,7 @@ def get_domain_issues():
             Candidate, Candidate.snapshot_id == Snapshot.id
         ).filter(
             Candidate.accepted == False,
-            (Snapshot.reviewed_at.is_(None)) | (Snapshot.reviewed_at == '')
+            Snapshot.reviewed_at.is_(None)
         ).all()
         
         for (host,) in hosts:
@@ -1012,7 +1012,7 @@ def get_domain_issues():
             ).filter(
                 Snapshot.host == host,
                 Candidate.accepted == False,
-                (Snapshot.reviewed_at.is_(None)) | (Snapshot.reviewed_at == '')
+                Snapshot.reviewed_at.is_(None)
             ).group_by(Candidate.field).all()
             
             issues = {(f if f is not None else "unknown"): c for f, c in field_counts}
@@ -1020,7 +1020,7 @@ def get_domain_issues():
             # count distinct snapshots (urls) for host that are not reviewed
             total_urls = session.query(func.count(distinct(Snapshot.id))).filter(
                 Snapshot.host == host,
-                (Snapshot.reviewed_at.is_(None)) | (Snapshot.reviewed_at == '')
+                Snapshot.reviewed_at.is_(None)
             ).scalar()
             
             out[host] = {"issues": issues, "total_urls": total_urls}
@@ -1130,7 +1130,7 @@ def snapshots_by_host(host: str, include_reviewed: bool = False):
         query = session.query(Snapshot).filter(Snapshot.host == host)
         if not include_reviewed:
             query = query.filter(
-                (Snapshot.reviewed_at.is_(None)) | (Snapshot.reviewed_at == '')
+                Snapshot.reviewed_at.is_(None)
             )
         snapshots = query.order_by(Snapshot.created_at.desc()).all()
         
