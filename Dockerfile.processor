@@ -54,11 +54,10 @@ RUN useradd -m -u 1000 appuser && \
 
 # Copy application code
 COPY --chown=appuser:appuser src/ ./src/
-COPY --chown=appuser:appuser lookups/ ./lookups/
 COPY --chown=appuser:appuser orchestration/ ./orchestration/
 
-# Create data directory
-RUN mkdir -p /app/data && chown -R appuser:appuser /app/data
+# Create data and lookups directories
+RUN mkdir -p /app/data /app/lookups && chown -R appuser:appuser /app/data /app/lookups
 
 # Switch to non-root user
 USER appuser
