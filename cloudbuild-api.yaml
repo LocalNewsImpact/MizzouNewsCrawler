@@ -11,6 +11,8 @@ steps:
       - '-t'
       - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:${SHORT_SHA}'
       - '-t'
+      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:latest'
+      - '-t'
       - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:v1.3.1'
       - '-f'
       - 'Dockerfile.api'
