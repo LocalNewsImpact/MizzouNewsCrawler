@@ -85,6 +85,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for load balancer probes."""
+    return {"status": "healthy", "service": "api"}
+
+
 # Serve the simple static frontend (no build) at /web for quick local testing
 try:
     web_dir = str(BASE_DIR / "web")
