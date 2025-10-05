@@ -1,0 +1,35 @@
+# ML Base Image
+# Heavy ML dependencies (torch, transformers, etc.) that rarely change
+# Extends the base image and is used only by the processor
+
+# Use ARG to allow override of base image location
+ARG BASE_IMAGE=us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/base:latest
+
+FROM ${BASE_IMAGE}
+
+WORKDIR /app
+
+# Copy ML-specific requirements
+COPY requirements-ml.txt ./
+
+# Install ML packages (this is the slow part)
+# Use --no-cache-dir to reduce image size
+RUN pip install --no-cache-dir -r requirements-ml.txt
+
+# Pre-download commonly used models to speed up first run
+# This is optional but helpful for faster cold starts
+RUN python -c "from transformers import AutoTokenizer, AutoModel; \
+    model_name='bert-base-uncased'; \
+    AutoTokenizer.from_pretrained(model_name); \
+    AutoModel.from_pretrained(model_name)" || true
+
+# Create directories for models
+RUN mkdir -p /app/models
+
+# Metadata
+LABEL maintainer="LocalNewsImpact"
+LABEL description="ML base image with PyTorch, Transformers, and article extraction tools"
+LABEL version="1.0.0"
+
+# The application code will be added in the processor image
+CMD ["python", "--version"]

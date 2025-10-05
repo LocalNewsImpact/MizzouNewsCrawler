@@ -1,0 +1,66 @@
+# Cloud Build configuration for ML Base Image
+# This image contains heavy ML dependencies (torch, transformers, sklearn)
+# Built infrequently since ML dependencies rarely change
+
+steps:
+  # Step 1: Build ML base image
+  - id: 'build-ml-base'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '--build-arg'
+      - 'BASE_IMAGE=us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/base:latest'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ml-base:${SHORT_SHA}'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ml-base:latest'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ml-base:v1.0.0'
+      - '-f'
+      - 'Dockerfile.ml-base'
+      - '.'
+
+  # Step 2: Push all tags
+  - id: 'push-ml-base'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ml-base'
+    waitFor:
+      - 'build-ml-base'
+
+  # Step 3: Log completion
+  - id: 'log-completion'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "✅ ML Base image built and pushed"
+        echo "Image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ml-base:${SHORT_SHA}"
+        echo "This image contains: torch, transformers, sklearn, newspaper4k, selenium"
+        echo "Processor builds will now be much faster!"
+    waitFor:
+      - 'push-ml-base'
+
+# Build configuration
+options:
+  machineType: 'N1_HIGHCPU_8'
+  diskSizeGb: 100
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: '3600s'  # 1 hour (ML packages take time to install)
+
+# Images to be pushed
+images:
+  - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ml-base:${SHORT_SHA}'
+  - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ml-base:latest'
+  - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ml-base:v1.0.0'
+
+substitutions:
+  _BASE_IMAGE: 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/base:latest'
+
+tags:
+  - 'ml-base'
+  - 'infrastructure'

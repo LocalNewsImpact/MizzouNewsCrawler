@@ -1,33 +1,12 @@
 # Multi-stage Dockerfile for Background Processor
 # Handles extraction, cleaning, entity extraction, classification
-# Optimized using shared base image
+# Extends ML base image which contains heavy dependencies (torch, transformers)
 
-# Use ARG to allow override of base image location
-ARG BASE_IMAGE=mizzou-base:latest
+# Use ARG to allow override of ML base image location
+ARG ML_BASE_IMAGE=us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ml-base:latest
 
-# Stage 1: Install Processor-specific dependencies
-FROM ${BASE_IMAGE} AS deps
-
-WORKDIR /app
-
-# Copy only processor-specific requirements (ML packages like torch, transformers)
-COPY requirements-processor.txt ./
-
-# Install processor-specific Python packages
-RUN pip install --no-cache-dir -r requirements-processor.txt
-
-# Stage 2: Prepare for ML models (will be downloaded from GCS in production)
-FROM deps as models
-
-# Create directory for models
-RUN mkdir -p /app/models
-
-# Note: In production, models will be downloaded from GCS via init container
-# This stage prepares the directory structure for local development
-# Spacy model (en_core_web_sm) is already in base image
-
-# Stage 3: Final runtime image
-FROM ${BASE_IMAGE} AS runtime
+# Stage 1: Final runtime image (extends ML base)
+FROM ${ML_BASE_IMAGE} AS runtime
 
 WORKDIR /app
 

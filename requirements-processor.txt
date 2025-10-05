@@ -1,20 +1,8 @@
 # Processor-specific requirements
 # These packages are only needed for the background processor service
-# that handles ML classification, entity extraction, and analysis
+# Note: Heavy ML dependencies (torch, transformers, etc.) are in requirements-ml.txt
+# and installed in the ml-base image to speed up processor builds
 
-# ML/NLP
-scikit-learn==1.5.1  # Fixed version for StorySniffer compatibility
-transformers>=4.30.0
-torch>=2.1.0
-
-# Classification
-storysniffer>=1.0.0  # Compatible version
-
-# Crawler dependencies (processor CLI imports crawler code)
-# The processor needs these because it imports from src.crawler for extraction
-feedparser>=6.0.10  # RSS/Atom feed parsing
-newspaper4k>=0.9.2  # Article extraction (modern fork of newspaper3k)
-selenium>=4.10.0  # Browser automation for JavaScript sites
-undetected-chromedriver>=3.5.0  # Advanced anti-detection for Selenium
-selenium-stealth>=1.0.6  # Browser fingerprint masking
-cloudscraper>=1.2.71  # Bypass Cloudflare protection
+# Processor-specific utilities only
+# (Currently all heavy dependencies are in ml-base, so this file is minimal)
+# Add lightweight processor-specific packages here as needed

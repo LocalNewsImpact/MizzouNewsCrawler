@@ -2,16 +2,47 @@ steps:
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'build'
+      - '--build-arg'
+      - 'ML_BASE_IMAGE=${_ML_BASE_IMAGE}'
       - '-f'
       - 'Dockerfile.processor'
       - '-t'
-      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:v1.2.2'
+      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:${SHORT_SHA}'
       - '-t'
       - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest'
       - '.'
+    id: 'build-processor'
+  
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor'
+    id: 'push-processor'
+    waitFor:
+      - 'build-processor'
+  
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud deploy releases create processor-${SHORT_SHA} \
+          --delivery-pipeline=mizzou-news-crawler \
+          --region=us-central1 \
+          --annotations=commitId=${COMMIT_SHA},service=processor \
+          --images=processor=us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:${SHORT_SHA}
+        echo "✅ Created Cloud Deploy release for Processor"
+    id: 'create-release'
+    waitFor:
+      - 'push-processor'
+
 images:
-  - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:v1.2.2'
+  - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:${SHORT_SHA}'
   - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest'
+
+substitutions:
+  _ML_BASE_IMAGE: 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ml-base:latest'
 timeout: 1800s
 options:
   machineType: 'N1_HIGHCPU_8'

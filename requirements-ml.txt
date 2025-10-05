@@ -1,0 +1,19 @@
+# ML/AI Base Requirements
+# Heavy ML dependencies used only by processor
+# These are split into a separate base image to speed up processor builds
+
+# Core ML frameworks
+torch>=2.1.0  # PyTorch for deep learning models
+transformers>=4.30.0  # HuggingFace transformers for NLP
+
+# ML utilities
+scikit-learn==1.5.1  # Fixed version for StorySniffer compatibility
+storysniffer>=1.0.0  # News article classification
+
+# Crawler dependencies for article extraction (processor CLI imports crawler)
+feedparser>=6.0.10  # RSS/Atom feed parsing
+newspaper4k>=0.9.2  # Article extraction (modern fork of newspaper3k)
+selenium>=4.10.0  # Browser automation for JavaScript sites
+undetected-chromedriver>=3.5.0  # Advanced anti-detection for Selenium
+selenium-stealth>=1.0.6  # Browser fingerprint masking
+cloudscraper>=1.2.71  # Bypass Cloudflare protection
