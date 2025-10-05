@@ -9,8 +9,92 @@ import sqlite3
 import threading
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
+from typing import Any
+
+from sqlalchemy import create_engine, event, text
+from sqlalchemy.engine import Connection, Engine
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.pool import NullPool
 
 DEFAULT_DATABASE_URL = "sqlite:///data/mizzou.db"
+
+
+class _ConnectionWrapper:
+    """Wrapper that makes SQLAlchemy Connection behave like sqlite3.Connection.
+    
+    This provides backward compatibility for telemetry code that expects
+    sqlite3-style execute() calls with ? placeholders.
+    """
+    
+    def __init__(self, sqlalchemy_conn: Connection):
+        self._conn = sqlalchemy_conn
+        self._in_transaction = False
+    
+    def execute(self, sql: str, parameters: tuple | None = None):
+        """Execute SQL with sqlite3-style ? placeholders."""
+        # Wrap raw SQL in text() for SQLAlchemy
+        if parameters:
+            # Convert tuple parameters to dict for SQLAlchemy
+            # Count ? placeholders and create param dict
+            param_count = sql.count('?')
+            if param_count > 0 and parameters:
+                # Replace ? with :param0, :param1, etc.
+                adapted_sql = sql
+                params_dict = {}
+                for i, value in enumerate(parameters):
+                    adapted_sql = adapted_sql.replace('?', f':param{i}', 1)
+                    params_dict[f'param{i}'] = value
+                return self._conn.execute(text(adapted_sql), params_dict)
+            else:
+                return self._conn.execute(text(sql), parameters)
+        else:
+            return self._conn.execute(text(sql))
+    
+    def cursor(self):
+        """Return a cursor-like object for compatibility."""
+        return _CursorWrapper(self._conn)
+    
+    def commit(self):
+        """Commit the transaction."""
+        if self._in_transaction:
+            self._conn.commit()
+            self._in_transaction = False
+    
+    def rollback(self):
+        """Rollback the transaction."""
+        if self._in_transaction:
+            self._conn.rollback()
+            self._in_transaction = False
+    
+    def close(self):
+        """Close the connection."""
+        self._conn.close()
+
+
+class _CursorWrapper:
+    """Wrapper that makes SQLAlchemy Connection act like a cursor."""
+    
+    def __init__(self, sqlalchemy_conn: Connection):
+        self._conn = sqlalchemy_conn
+    
+    def execute(self, sql: str, parameters: tuple | None = None):
+        """Execute SQL with sqlite3-style ? placeholders."""
+        if parameters:
+            # Replace ? with :param0, :param1, etc.
+            adapted_sql = sql
+            params_dict = {}
+            param_count = sql.count('?')
+            for i in range(param_count):
+                if i < len(parameters):
+                    adapted_sql = adapted_sql.replace('?', f':param{i}', 1)
+                    params_dict[f'param{i}'] = parameters[i]
+            return self._conn.execute(text(adapted_sql), params_dict)
+        else:
+            return self._conn.execute(text(sql))
+    
+    def close(self):
+        """No-op for compatibility."""
+        pass
 
 
 def _resolve_sqlite_path(database: str) -> str:
@@ -22,8 +106,27 @@ def _resolve_sqlite_path(database: str) -> str:
     return database
 
 
+def _configure_sqlite_engine(engine: Engine, timeout: float) -> None:
+    """Enable WAL mode and pragmas for SQLite connections."""
+    busy_timeout_ms = int(timeout * 1000)
+
+    @event.listens_for(engine, "connect")
+    def set_sqlite_pragma(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.execute(f"PRAGMA busy_timeout={busy_timeout_ms}")
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
+
 class TelemetryStore:
-    """Centralized queue + connection manager for telemetry writers."""
+    """Centralized queue + connection manager for telemetry writers.
+    
+    Supports both SQLite (local development) and PostgreSQL (Cloud SQL)
+    via SQLAlchemy. Maintains backward compatibility with the original
+    sqlite3-based interface.
+    """
 
     _STOP = object()
 
@@ -36,10 +139,14 @@ class TelemetryStore:
         thread_name: str = "TelemetryStoreWriter",
     ) -> None:
         self.database_url = database
-        self.db_path = _resolve_sqlite_path(database)
         self.async_writes = async_writes
         self.timeout = timeout
         self._logger = logging.getLogger(__name__)
+        
+        # Create SQLAlchemy engine
+        self._engine = self._create_engine()
+        self._is_sqlite = "sqlite" in self.database_url.lower()
+        self._is_postgres = "postgres" in self.database_url.lower()
 
         self._queue: queue.Queue | None = None
         self._writer_thread: threading.Thread | None = None
@@ -58,16 +165,46 @@ class TelemetryStore:
             self._writer_thread.start()
             self._owns_thread = True
             atexit.register(self.shutdown)
+    
+    def _create_engine(self) -> Engine:
+        """Create SQLAlchemy engine based on database URL."""
+        connect_args: dict[str, Any] = {}
+        
+        if "sqlite" in self.database_url:
+            connect_args = {
+                "check_same_thread": False,
+                "timeout": self.timeout,
+            }
+        
+        # Use NullPool for async writes to avoid connection pool issues
+        engine = create_engine(
+            self.database_url,
+            connect_args=connect_args,
+            poolclass=NullPool if self.async_writes else None,
+            echo=False,
+        )
+        
+        # Configure SQLite-specific settings
+        if "sqlite" in self.database_url:
+            _configure_sqlite_engine(engine, self.timeout)
+        
+        return engine
 
     # ------------------------------------------------------------------
     # public API
     # ------------------------------------------------------------------
     def submit(
         self,
-        task: Callable[[sqlite3.Connection], None],
+        task: Callable[[Any], None],
         *,
         ensure: Sequence[str] | None = None,
     ) -> None:
+        """Submit a task to be executed against the database.
+        
+        Args:
+            task: Callable that accepts a connection-like object with execute() method
+            ensure: Optional list of DDL statements to execute before task
+        """
         job = (task, tuple(ensure) if ensure else tuple())
         if self.async_writes and self._queue is not None:
             self._queue.put(job)
@@ -75,10 +212,16 @@ class TelemetryStore:
             self._execute(job)
 
     def flush(self) -> None:
+        """Wait for all pending async writes to complete."""
         if self.async_writes and self._queue is not None:
             self._queue.join()
 
     def shutdown(self, wait: bool = False) -> None:
+        """Shutdown the async writer thread.
+        
+        Args:
+            wait: If True, wait for pending writes to complete before shutdown
+        """
         if not self.async_writes or self._queue is None or not self._owns_thread:
             return
 
@@ -89,9 +232,18 @@ class TelemetryStore:
         if self._writer_thread:
             self._writer_thread.join(timeout=5)
         self._owns_thread = False
+        
+        # Dispose of the engine
+        if hasattr(self, '_engine'):
+            self._engine.dispose()
 
     @contextmanager
-    def connection(self) -> Iterator[sqlite3.Connection]:
+    def connection(self) -> Iterator[Any]:
+        """Context manager for database connections.
+        
+        Yields:
+            Connection wrapper that provides sqlite3.Connection-compatible API
+        """
         conn = self._create_connection()
         try:
             yield conn
@@ -101,49 +253,111 @@ class TelemetryStore:
     # ------------------------------------------------------------------
     # internals
     # ------------------------------------------------------------------
-    def _create_connection(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(
-            self.db_path,
-            timeout=self.timeout,
-            check_same_thread=False,
-        )
-        conn.execute("PRAGMA foreign_keys=ON")
-        return conn
+    def _create_connection(self) -> _ConnectionWrapper:
+        """Create a database connection.
+        
+        Returns wrapped SQLAlchemy Connection that provides backward compatibility
+        with sqlite3.Connection API.
+        """
+        sqlalchemy_conn = self._engine.connect()
+        wrapper = _ConnectionWrapper(sqlalchemy_conn)
+        # Begin transaction
+        wrapper._in_transaction = True
+        return wrapper
 
-    def _ensure_schema(self, conn: sqlite3.Connection, ddls: Sequence[str]) -> None:
+    def _ensure_schema(
+        self, 
+        conn: Any, 
+        ddls: Sequence[str]
+    ) -> None:
+        """Execute DDL statements to ensure schema exists.
+        
+        Args:
+            conn: Database connection wrapper
+            ddls: List of DDL statements to execute
+        """
         if not ddls:
             return
 
         with self._ddl_lock:
-            cursor = conn.cursor()
-            try:
-                for ddl in ddls:
-                    if ddl not in self._ddl_cache:
-                        cursor.execute(ddl)
-                        self._ddl_cache.add(ddl)
-                conn.commit()
-            finally:
-                cursor.close()
+            for ddl in ddls:
+                if ddl not in self._ddl_cache:
+                    # Adapt DDL for PostgreSQL if needed
+                    adapted_ddl = self._adapt_ddl(ddl)
+                    
+                    # Execute using cursor for DDL
+                    cursor = conn.cursor()
+                    try:
+                        cursor.execute(adapted_ddl)
+                    finally:
+                        cursor.close()
+                    
+                    self._ddl_cache.add(ddl)
+    
+    def _adapt_ddl(self, ddl: str) -> str:
+        """Adapt DDL statement for the target database dialect.
+        
+        Args:
+            ddl: Original DDL statement (typically SQLite syntax)
+            
+        Returns:
+            Adapted DDL statement for the target database
+        """
+        if self._is_postgres:
+            # Convert SQLite-specific syntax to PostgreSQL
+            adapted = ddl
+            
+            # Replace AUTOINCREMENT with SERIAL
+            adapted = adapted.replace("AUTOINCREMENT", "")
+            adapted = adapted.replace("INTEGER PRIMARY KEY", "SERIAL PRIMARY KEY")
+            
+            # PostgreSQL uses BOOLEAN not BOOLEAN
+            # (already compatible, but ensure consistency)
+            
+            # Replace TIMESTAMP without timezone to use WITH TIME ZONE
+            # Only if not already specified
+            if "TIMESTAMP" in adapted and "TIME ZONE" not in adapted:
+                adapted = adapted.replace("TIMESTAMP", "TIMESTAMP")
+            
+            return adapted
+        
+        return ddl
 
     def _execute(
         self,
-        job: tuple[Callable[[sqlite3.Connection], None], tuple[str, ...]],
+        job: tuple[Callable[[Any], None], tuple[str, ...]],
     ) -> None:
+        """Execute a task with optional schema setup.
+        
+        Args:
+            job: Tuple of (task_callable, ddl_statements)
+        """
         task, ddls = job
         conn = self._create_connection()
         try:
             if ddls:
                 self._ensure_schema(conn, ddls)
+            
+            # Execute the task
             task(conn)
+            
+            # Commit the transaction
             conn.commit()
+                
         except Exception as exc:  # pragma: no cover - logged for diagnosis
-            conn.rollback()
+            # Rollback on error
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            
             self._logger.exception("Telemetry write failed", exc_info=exc)
             raise
         finally:
             conn.close()
 
     def _worker_loop(self) -> None:
+        """Background worker thread that processes queued tasks."""
         assert self._queue is not None
         while True:
             job = self._queue.get()

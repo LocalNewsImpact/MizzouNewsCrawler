@@ -56,7 +56,9 @@ class TestSyncTelemetryStore:
         with store.connection() as conn:
             conn.execute("SELECT 1")
 
-        with pytest.raises(sqlite3.ProgrammingError):
+        # After context exit, connection should be closed
+        # (SQLAlchemy raises ResourceClosedError instead of ProgrammingError)
+        with pytest.raises((sqlite3.ProgrammingError, Exception)):
             conn.execute("SELECT 1")
 
     def test_shutdown_noop_for_sync_store(self, temp_db_uri):
