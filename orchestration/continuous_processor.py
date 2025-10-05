@@ -194,16 +194,15 @@ def process_entity_extraction(count: int) -> bool:
     if count == 0:
         return False
 
-    limit = min(count, GAZETTEER_BATCH_SIZE)
-
+    # Note: populate-gazetteer doesn't accept --limit argument
+    # It processes all articles without entities in the database
+    # The GAZETTEER_BATCH_SIZE is not currently enforced
     command = [
         "populate-gazetteer",
-        "--limit",
-        str(limit),
     ]
 
     return run_cli_command(
-        command, f"Entity extraction ({count} pending, limit {limit})"
+        command, f"Entity extraction ({count} pending)"
     )
 
 

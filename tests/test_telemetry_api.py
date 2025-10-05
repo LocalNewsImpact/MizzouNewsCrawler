@@ -12,232 +12,182 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
+# Import models needed for testing
+from src.models.telemetry import ExtractionTelemetryV2, HttpErrorSummary
+from src.models import Source, Base
+
 
 class TestTelemetryAPIEndpoints:
     """Test the telemetry API endpoints."""
 
     @pytest.fixture
-    def temp_db(self, tmp_path):
-        """Create a temporary database with test data."""
+    def test_db_session(self, tmp_path):
+        """Create a temporary SQLAlchemy database with test data."""
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        
         db_path = tmp_path / "test_telemetry.db"
-
-        # Set up test database with schema
-        conn = sqlite3.connect(str(db_path))
-        cur = conn.cursor()
-
-        # Create extraction_telemetry_v2 table
-        cur.execute(
-            """
-        CREATE TABLE extraction_telemetry_v2 (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            operation_id TEXT NOT NULL,
-            article_id TEXT NOT NULL,
-            url TEXT NOT NULL,
-            publisher TEXT,
-            host TEXT,
-            start_time TIMESTAMP NOT NULL,
-            end_time TIMESTAMP,
-            total_duration_ms REAL,
-            http_status_code INTEGER,
-            http_error_type TEXT,
-            response_size_bytes INTEGER,
-            response_time_ms REAL,
-            methods_attempted TEXT,
-            successful_method TEXT,
-            method_timings TEXT,
-            method_success TEXT,
-            method_errors TEXT,
-            field_extraction TEXT,
-            extracted_fields TEXT,
-            content_length INTEGER,
-            is_success BOOLEAN,
-            error_message TEXT,
-            error_type TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-        """
-        )
-
-        # Create http_error_summary table
-        cur.execute(
-            """
-        CREATE TABLE http_error_summary (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            host TEXT NOT NULL,
-            status_code INTEGER NOT NULL,
-            error_type TEXT NOT NULL,
-            count INTEGER DEFAULT 1,
-            first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-        """
-        )
-
-        # Create sources table for site management
-        cur.execute(
-            """
-        CREATE TABLE sources (
-            id VARCHAR PRIMARY KEY,
-            host VARCHAR NOT NULL,
-            host_norm VARCHAR NOT NULL,
-            canonical_name VARCHAR,
-            city VARCHAR,
-            county VARCHAR,
-            owner VARCHAR,
-            type VARCHAR,
-            metadata JSON,
-            discovery_attempted TIMESTAMP,
-            status VARCHAR DEFAULT 'active',
-            paused_at TIMESTAMP,
-            paused_reason TEXT
-        )
-        """
-        )
+        engine = create_engine(f"sqlite:///{db_path}")
+        
+        # Create all tables using SQLAlchemy models
+        Base.metadata.create_all(engine)
+        
+        SessionLocal = sessionmaker(bind=engine)
+        session = SessionLocal()
 
         # Insert test data
         now = datetime.utcnow()
 
-        # Test extraction records
-        test_records = [
-            # Successful extractions
-            (
-                "op1",
-                "art1",
-                "https://good-site.com/article1",
-                "good-site.com",
-                "good-site.com",
-                200,
-                None,
-                "newspaper4k",
-                1,
-                2500,
-                '{"newspaper4k": {"title": true, "content": true}}',
+        # Insert extraction telemetry records
+        telemetry_records = [
+            ExtractionTelemetryV2(
+                operation_id="op1",
+                article_id="art1",
+                url="https://good-site.com/article1",
+                publisher="good-site.com",
+                host="good-site.com",
+                http_status_code=200,
+                successful_method="newspaper4k",
+                is_success=True,
+                total_duration_ms=2500,
+                field_extraction='{"newspaper4k":{"title":true,"content":true}}',
+                start_time=now - timedelta(hours=1),
+                end_time=now,
+                created_at=now,
             ),
-            (
-                "op2",
-                "art2",
-                "https://good-site.com/article2",
-                "good-site.com",
-                "good-site.com",
-                200,
-                None,
-                "beautifulsoup",
-                1,
-                3200,
-                '{"beautifulsoup": {"title": true, "content": false}}',
+            ExtractionTelemetryV2(
+                operation_id="op2",
+                article_id="art2",
+                url="https://good-site.com/article2",
+                publisher="good-site.com",
+                host="good-site.com",
+                http_status_code=200,
+                successful_method="beautifulsoup",
+                is_success=True,
+                total_duration_ms=3200,
+                field_extraction='{"beautifulsoup":{"title":true,"content":false}}',
+                start_time=now - timedelta(hours=1),
+                end_time=now,
+                created_at=now,
             ),
-            # Failed extractions with HTTP errors
-            (
-                "op3",
-                "art3",
-                "https://blocked-site.com/article1",
-                "blocked-site.com",
-                "blocked-site.com",
-                403,
-                "4xx_client_error",
-                None,
-                0,
-                1500,
-                '{"title": false, "content": false}',
+            ExtractionTelemetryV2(
+                operation_id="op3",
+                article_id="art3",
+                url="https://blocked-site.com/article1",
+                publisher="blocked-site.com",
+                host="blocked-site.com",
+                http_status_code=403,
+                http_error_type="4xx_client_error",
+                is_success=False,
+                total_duration_ms=1500,
+                field_extraction='{"title": false, "content": false}',
+                start_time=now - timedelta(hours=1),
+                end_time=now,
+                created_at=now,
             ),
-            (
-                "op4",
-                "art4",
-                "https://error-site.com/article1",
-                "error-site.com",
-                "error-site.com",
-                500,
-                "5xx_server_error",
-                None,
-                0,
-                5000,
-                '{"title": false, "content": false}',
+            ExtractionTelemetryV2(
+                operation_id="op4",
+                article_id="art4",
+                url="https://error-site.com/article1",
+                publisher="error-site.com",
+                host="error-site.com",
+                http_status_code=500,
+                http_error_type="5xx_server_error",
+                is_success=False,
+                total_duration_ms=5000,
+                field_extraction='{"title": false, "content": false}',
+                start_time=now - timedelta(hours=1),
+                end_time=now,
+                created_at=now,
             ),
-            (
-                "op5",
-                "art5",
-                "https://blocked-site.com/article2",
-                "blocked-site.com",
-                "blocked-site.com",
-                403,
-                "4xx_client_error",
-                None,
-                0,
-                1200,
-                '{"title": false, "content": false}',
+            ExtractionTelemetryV2(
+                operation_id="op5",
+                article_id="art5",
+                url="https://blocked-site.com/article2",
+                publisher="blocked-site.com",
+                host="blocked-site.com",
+                http_status_code=403,
+                http_error_type="4xx_client_error",
+                is_success=False,
+                total_duration_ms=1200,
+                field_extraction='{"title": false, "content": false}',
+                start_time=now - timedelta(hours=1),
+                end_time=now,
+                created_at=now,
             ),
         ]
-
-        for record in test_records:
-            cur.execute(
-                """
-            INSERT INTO extraction_telemetry_v2
-            (operation_id, article_id, url, publisher, host, http_status_code,
-             http_error_type, successful_method, is_success, total_duration_ms, field_extraction,
-             start_time, end_time, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-                record + (now - timedelta(hours=1), now, now),
-            )
+        session.add_all(telemetry_records)
 
         # Insert HTTP error summary data
         http_errors = [
-            ("blocked-site.com", 403, "4xx_client_error", 2),
-            ("error-site.com", 500, "5xx_server_error", 1),
+            HttpErrorSummary(
+                host="blocked-site.com",
+                status_code=403,
+                error_type="4xx_client_error",
+                count=2,
+                first_seen=now - timedelta(hours=2),
+                last_seen=now,
+            ),
+            HttpErrorSummary(
+                host="error-site.com",
+                status_code=500,
+                error_type="5xx_server_error",
+                count=1,
+                first_seen=now - timedelta(hours=2),
+                last_seen=now,
+            ),
         ]
-
-        for host, status, error_type, count in http_errors:
-            cur.execute(
-                """
-            INSERT INTO http_error_summary (host, status_code, error_type, count, first_seen, last_seen)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-                (host, status, error_type, count, now - timedelta(hours=2), now),
-            )
+        session.add_all(http_errors)
 
         # Insert test sources
         sources = [
-            ("good-site.com", "good-site.com", "good-site.com", "active", None, None),
-            (
-                "blocked-site.com",
-                "blocked-site.com",
-                "blocked-site.com",
-                "paused",
-                now,
-                "Poor performance",
+            Source(
+                id="good-site.com",
+                host="good-site.com",
+                host_norm="good-site.com",
+                status="active",
+            ),
+            Source(
+                id="blocked-site.com",
+                host="blocked-site.com",
+                host_norm="blocked-site.com",
+                status="paused",
+                paused_at=now,
+                paused_reason="Poor performance",
             ),
         ]
+        session.add_all(sources)
 
-        for source_id, host, host_norm, status, paused_at, reason in sources:
-            cur.execute(
-                """
-            INSERT INTO sources (id, host, host_norm, status, paused_at, paused_reason)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-                (source_id, host, host_norm, status, paused_at, reason),
-            )
-
-        conn.commit()
-        conn.close()
-
-        yield str(db_path)
-
-        # Cleanup (tmp_path handles cleanup automatically, but being explicit doesn't hurt)
-        db_path.unlink(missing_ok=True)
+        session.commit()
+        
+        yield session
+        
+        session.close()
+        engine.dispose()
 
     @pytest.fixture
-    def api_client(self, temp_db):
-        """Create a test client with mocked database path."""
-        # Mock the database paths in the FastAPI app
-        with patch("backend.app.main.MAIN_DB_PATH", temp_db):
-            from backend.app.main import app
-
+    def api_client(self, test_db_session):
+        """Create a test client with mocked DatabaseManager."""
+        from contextlib import contextmanager
+        from backend.app.main import app
+        from src.models.database import DatabaseManager
+        
+        # Mock DatabaseManager.get_session to return our test session
+        @contextmanager
+        def mock_get_session(self):
+            yield test_db_session
+        
+        with patch.object(
+            DatabaseManager, 'get_session', mock_get_session
+        ):
             client = TestClient(app)
             yield client
 
     def test_telemetry_summary_endpoint(self, api_client):
         """Test the telemetry summary endpoint."""
         response = api_client.get("/api/telemetry/summary?days=7")
+        if response.status_code != 200:
+            print(f"Error response: {response.text}")
         assert response.status_code == 200
 
         data = response.json()

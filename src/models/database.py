@@ -115,6 +115,27 @@ class DatabaseManager:
             echo=False,
         )
 
+    def get_session(self):
+        """Context manager for getting a database session.
+        
+        Usage:
+            with db_manager.get_session() as session:
+                # Use session here
+                pass
+        """
+        from contextlib import contextmanager
+        
+        @contextmanager
+        def session_context():
+            Session = sessionmaker(bind=self.engine)
+            session = Session()
+            try:
+                yield session
+            finally:
+                session.close()
+        
+        return session_context()
+
     def close(self):
         """Close database connection."""
         self.session.close()
