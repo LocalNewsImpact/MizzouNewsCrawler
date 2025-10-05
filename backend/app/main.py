@@ -251,62 +251,168 @@ def startup_gazetteer_tables():
 
 @app.get("/api/articles")
 def list_articles(limit: int = 20, offset: int = 0, reviewer: str | None = None):
-    if not ARTICLES_CSV.exists():
-        return {"count": 0, "results": []}
-    df = pd.read_csv(ARTICLES_CSV)
-    # replace infinite values and NaN with None for JSON safety
-    df = df.replace([np.inf, -np.inf], None)
-    df = df.where(pd.notnull(df), None)
-    # If caller provided a reviewer, filter out articles
-    # already reviewed by that reviewer
-    if reviewer:
-        try:
-            with db_manager.get_session() as session:
-                reviewed_rows = session.query(Review.article_idx).filter(
+    """List articles from database with pagination and optional reviewer filtering.
+    
+    Returns articles in a format compatible with the legacy CSV-based frontend.
+    Uses article database ID as __idx for review posting.
+    """
+    try:
+        from src.models import Article, CandidateLink
+        
+        with db_manager.get_session() as session:
+            # Start with base query joining with candidate_link to get source info
+            query = session.query(Article).join(
+                CandidateLink, 
+                Article.candidate_link_id == CandidateLink.id
+            )
+            
+            # If reviewer filter provided, exclude articles they've already reviewed
+            if reviewer:
+                reviewed_subquery = session.query(Review.article_uid).filter(
                     Review.reviewer == reviewer,
                     Review.reviewed_at.isnot(None)
-                ).distinct().all()
-                reviewed = {int(r.article_idx) for r in reviewed_rows if r.article_idx is not None}
-        except Exception:
-            reviewed = set()
-        # preserve original csv indices so frontend can POST back using the CSV index
-        df = df.reset_index()  # original indices in column 'index'
-        df = df[~df["index"].isin(reviewed)]
-        df = df.reset_index(drop=True)
-        # total and slicing apply to filtered df
-        total = len(df)
-        selected = df.iloc[offset : offset + limit]
-        rows = selected.to_dict(orient="records")
-        # attach original CSV index as __idx so frontend can reference it
-        safe_rows = []
-        for r in rows:
-            orig_idx = r.get("index") if "index" in r else None
-            sr = sanitize_record(r)
-            sr["__idx"] = int(orig_idx) if orig_idx is not None else None
-            safe_rows.append(sr)
-        return {"count": total, "results": safe_rows}
-    else:
-        total = len(df)
-        rows = df.iloc[offset : offset + limit].to_dict(orient="records")
-        safe_rows = [sanitize_record(r) for r in rows]
-        # also add __idx for consistency
-        for i, sr in enumerate(safe_rows):
-            sr["__idx"] = offset + i
-        return {"count": total, "results": safe_rows}
+                ).distinct().subquery()
+                
+                query = query.filter(~Article.id.in_(reviewed_subquery))
+            
+            # Get total count before pagination
+            total = query.count()
+            
+            # Apply pagination
+            articles = query.order_by(Article.created_at.desc()).offset(offset).limit(limit).all()
+            
+            # Convert articles to frontend-compatible format
+            safe_rows = []
+            for article in articles:
+                # Map database article to CSV-like structure expected by frontend
+                rec = {
+                    "id": article.id,
+                    "url": article.url,
+                    "title": article.title,
+                    "author": article.author,
+                    "date": article.publish_date.isoformat() if article.publish_date else None,
+                    "content": article.content or article.text,
+                    "hostname": article.candidate_link.source_host_id if article.candidate_link else None,
+                    "name": article.candidate_link.source_name if article.candidate_link else None,
+                    "domain": article.candidate_link.source_host_id if article.candidate_link else None,
+                    "county": article.candidate_link.source_county if article.candidate_link else None,
+                    "predictedlabel1": article.primary_label,
+                    "ALTpredictedlabel": article.alternate_label,
+                    "news": 1,  # Default assumption - can be refined with classification
+                    "inferred_tags": [],  # Would need separate entity extraction data
+                    "inferred_tags_set1": "",
+                    "locmentions": "",
+                    "wire": article.wire,  # JSON field with wire service info
+                }
+                sr = sanitize_record(rec)
+                # Use article ID as __idx for review posting (more stable than offset+i)
+                sr["__idx"] = article.id
+                safe_rows.append(sr)
+            
+            return {"count": total, "results": safe_rows}
+            
+    except Exception as e:
+        logger.error(f"Error in list_articles: {e}")
+        # Fallback to CSV if database query fails (for local development)
+        if ARTICLES_CSV.exists():
+            df = pd.read_csv(ARTICLES_CSV)
+            df = df.replace([np.inf, -np.inf], None)
+            df = df.where(pd.notnull(df), None)
+            
+            if reviewer:
+                try:
+                    with db_manager.get_session() as session:
+                        reviewed_rows = session.query(Review.article_idx).filter(
+                            Review.reviewer == reviewer,
+                            Review.reviewed_at.isnot(None)
+                        ).distinct().all()
+                        reviewed = {int(r.article_idx) for r in reviewed_rows if r.article_idx is not None}
+                except Exception:
+                    reviewed = set()
+                df = df.reset_index()
+                df = df[~df["index"].isin(reviewed)]
+                df = df.reset_index(drop=True)
+                total = len(df)
+                selected = df.iloc[offset : offset + limit]
+                rows = selected.to_dict(orient="records")
+                safe_rows = []
+                for r in rows:
+                    orig_idx = r.get("index") if "index" in r else None
+                    sr = sanitize_record(r)
+                    sr["__idx"] = int(orig_idx) if orig_idx is not None else None
+                    safe_rows.append(sr)
+                return {"count": total, "results": safe_rows}
+            else:
+                total = len(df)
+                rows = df.iloc[offset : offset + limit].to_dict(orient="records")
+                safe_rows = [sanitize_record(r) for r in rows]
+                for i, sr in enumerate(safe_rows):
+                    sr["__idx"] = offset + i
+                return {"count": total, "results": safe_rows}
+        
+        # If no CSV and database fails, return empty
+        return {"count": 0, "results": []}
 
 
 @app.get("/api/articles/{idx}")
-def get_article(idx: int):
-    if not ARTICLES_CSV.exists():
-        raise HTTPException(status_code=404, detail="Articles CSV not found")
-    df = pd.read_csv(ARTICLES_CSV)
-    # sanitize special float values before returning
-    df = df.replace([np.inf, -np.inf], None)
-    df = df.where(pd.notnull(df), None)
-    if idx < 0 or idx >= len(df):
+def get_article(idx: str):
+    """Get a single article by ID.
+    
+    The idx parameter can be either a database article ID (UUID string) or
+    a numeric CSV index for backward compatibility.
+    """
+    try:
+        from src.models import Article, CandidateLink
+        
+        with db_manager.get_session() as session:
+            # Try to find article by ID first (UUID string)
+            article = session.query(Article).filter(Article.id == idx).first()
+            
+            # If not found and idx is numeric, try finding by offset (less reliable)
+            if not article and idx.isdigit():
+                article = session.query(Article).order_by(Article.created_at.desc()).offset(int(idx)).limit(1).first()
+            
+            if not article:
+                raise HTTPException(status_code=404, detail="Article not found")
+            
+            # Convert to frontend format
+            rec = {
+                "id": article.id,
+                "url": article.url,
+                "title": article.title,
+                "author": article.author,
+                "date": article.publish_date.isoformat() if article.publish_date else None,
+                "content": article.content or article.text,
+                "hostname": article.candidate_link.source_host_id if article.candidate_link else None,
+                "name": article.candidate_link.source_name if article.candidate_link else None,
+                "domain": article.candidate_link.source_host_id if article.candidate_link else None,
+                "county": article.candidate_link.source_county if article.candidate_link else None,
+                "predictedlabel1": article.primary_label,
+                "ALTpredictedlabel": article.alternate_label,
+                "news": 1,
+                "inferred_tags": [],
+                "inferred_tags_set1": "",
+                "locmentions": "",
+                "wire": article.wire,
+            }
+            return sanitize_record(rec)
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in get_article: {e}")
+        # Fallback to CSV for backward compatibility
+        if ARTICLES_CSV.exists():
+            df = pd.read_csv(ARTICLES_CSV)
+            df = df.replace([np.inf, -np.inf], None)
+            df = df.where(pd.notnull(df), None)
+            idx_int = int(idx) if idx.isdigit() else -1
+            if idx_int < 0 or idx_int >= len(df):
+                raise HTTPException(status_code=404, detail="Article not found")
+            rec = df.iloc[idx_int].to_dict()
+            return sanitize_record(rec)
+        
         raise HTTPException(status_code=404, detail="Article not found")
-    rec = df.iloc[idx].to_dict()
-    return sanitize_record(rec)
 
 
 def sanitize_value(v):
@@ -1150,8 +1256,8 @@ def snapshots_by_host(host: str, include_reviewed: bool = False):
 @app.get("/api/ui_overview")
 def ui_overview():
     """Return simple aggregated counts for dashboard UI.
-    - total_articles: number of rows in processed CSV
-    - wire_count: rows where wire==1
+    - total_articles: number of articles in database
+    - wire_count: articles with wire service attribution
     - candidate_issues: count of non-accepted candidates
     - dedupe_near_misses: dedupe_audit rows with dedupe_flag=0 but similarity > 0.7
     """
@@ -1161,22 +1267,31 @@ def ui_overview():
         "candidate_issues": 0,
         "dedupe_near_misses": 0,
     }
-    # total and wire count from CSV
-    try:
-        if ARTICLES_CSV.exists():
-            df = pd.read_csv(ARTICLES_CSV)
-            res["total_articles"] = len(df)
-            if "wire" in df.columns:
-                # coerce wire truthy values (1, "1", or truthy booleans)
-                res["wire_count"] = int(
-                    ((df["wire"] == 1) | (df["wire"] == "1") | df["wire"]).sum()
-                )
-    except Exception:
-        pass
-
-    # candidate issues from DB (non-accepted)
+    
     try:
         with db_manager.get_session() as session:
+            # Get total article count from database
+            from src.models import Article
+            res["total_articles"] = session.query(Article).count()
+            
+            # Count articles with wire service attribution
+            # Wire column is JSON - manually check each article since JSON comparison is complex
+            wire_count = 0
+            for article in session.query(Article).filter(Article.wire.isnot(None)).all():
+                if article.wire and article.wire not in ("null", "[]", ""):
+                    # Parse JSON to check if array has elements
+                    try:
+                        import json
+                        wire_data = json.loads(article.wire) if isinstance(article.wire, str) else article.wire
+                        if wire_data and len(wire_data) > 0:
+                            wire_count += 1
+                    except (json.JSONDecodeError, TypeError):
+                        # If it's not valid JSON but has content, count it
+                        if len(article.wire) > 2:  # More than just "[]"
+                            wire_count += 1
+            res["wire_count"] = wire_count
+            
+            # candidate issues from DB (non-accepted)
             count = session.query(Candidate).filter(Candidate.accepted == False).count()
             res["candidate_issues"] = int(count)
             
@@ -1190,8 +1305,9 @@ def ui_overview():
             except Exception:
                 # if dedupe_audit missing or column types differ, ignore
                 pass
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(f"Error in ui_overview: {e}")
+        # Return zeros on error to avoid breaking dashboard
 
     return res
 
