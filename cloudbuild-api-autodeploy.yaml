@@ -1,0 +1,142 @@
+# Cloud Build configuration for API with automatic deployment
+# This builds the Docker image and automatically deploys it to GKE
+#
+# Usage:
+#   gcloud builds submit --config cloudbuild-api-autodeploy.yaml --region=us-central1
+#
+# Or set up a trigger:
+#   gcloud builds triggers create github \
+#     --name=api-auto-deploy \
+#     --repo-name=MizzouNewsCrawler \
+#     --repo-owner=LocalNewsImpact \
+#     --branch-pattern="^feature/gcp-kubernetes-deployment$" \
+#     --build-config=cloudbuild-api-autodeploy.yaml
+
+substitutions:
+  _VERSION: 'v1.3.2'  # Update this for each release
+  _CLUSTER_NAME: 'mizzou-cluster'
+  _CLUSTER_ZONE: 'us-central1-a'
+  _NAMESPACE: 'production'
+  _DEPLOYMENT_NAME: 'mizzou-api'
+
+steps:
+  # Step 1: Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-image'
+    args:
+      - 'build'
+      - '-f'
+      - 'Dockerfile.api'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/api:${_VERSION}'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/api:latest'
+      - '.'
+
+  # Step 2: Push the images
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-image'
+    args:
+      - 'push'
+      - '--all-tags'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/api'
+    waitFor: ['build-image']
+
+  # Step 3: Get GKE credentials
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'get-credentials'
+    args:
+      - 'container'
+      - 'clusters'
+      - 'get-credentials'
+      - '${_CLUSTER_NAME}'
+      - '--zone=${_CLUSTER_ZONE}'
+      - '--project=${PROJECT_ID}'
+    waitFor: ['push-image']
+
+  # Step 4: Update the deployment with new image
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'update-deployment'
+    args:
+      - 'set'
+      - 'image'
+      - 'deployment/${_DEPLOYMENT_NAME}'
+      - 'api=us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/api:${_VERSION}'
+      - '--namespace=${_NAMESPACE}'
+      - '--record'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=${_CLUSTER_ZONE}'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=${_CLUSTER_NAME}'
+    waitFor: ['get-credentials']
+
+  # Step 5: Wait for rollout to complete
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'wait-for-rollout'
+    args:
+      - 'rollout'
+      - 'status'
+      - 'deployment/${_DEPLOYMENT_NAME}'
+      - '--namespace=${_NAMESPACE}'
+      - '--timeout=5m'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=${_CLUSTER_ZONE}'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=${_CLUSTER_NAME}'
+    waitFor: ['update-deployment']
+
+  # Step 6: Verify deployment
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'verify-deployment'
+    args:
+      - 'get'
+      - 'pods'
+      - '--namespace=${_NAMESPACE}'
+      - '-l'
+      - 'app=${_DEPLOYMENT_NAME}'
+      - '-o'
+      - 'wide'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=${_CLUSTER_ZONE}'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=${_CLUSTER_NAME}'
+    waitFor: ['wait-for-rollout']
+
+  # Step 7: Test API health endpoint
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'test-health'
+    args:
+      - 'exec'
+      - '-n'
+      - '${_NAMESPACE}'
+      - 'deployment/${_DEPLOYMENT_NAME}'
+      - '--'
+      - 'curl'
+      - '-f'
+      - 'http://localhost:8000/api/articles'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=${_CLUSTER_ZONE}'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=${_CLUSTER_NAME}'
+    waitFor: ['verify-deployment']
+
+  # Step 8: Check recent logs for errors
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'check-logs'
+    args:
+      - 'logs'
+      - '--namespace=${_NAMESPACE}'
+      - '-l'
+      - 'app=${_DEPLOYMENT_NAME}'
+      - '--tail=50'
+      - '--since=2m'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=${_CLUSTER_ZONE}'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=${_CLUSTER_NAME}'
+    waitFor: ['test-health']
+
+images:
+  - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/api:${_VERSION}'
+  - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/api:latest'
+
+timeout: 2400s  # 40 minutes
+options:
+  machineType: 'N1_HIGHCPU_8'
+  diskSizeGb: 100
+  logging: CLOUD_LOGGING_ONLY

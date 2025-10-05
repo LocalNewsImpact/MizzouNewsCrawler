@@ -1,0 +1,99 @@
+# Cloud Build configuration for crawler with automatic deployment
+# This builds the Docker image and automatically updates CronJob
+#
+# Usage:
+#   gcloud builds submit --config cloudbuild-crawler-autodeploy.yaml --region=us-central1
+
+substitutions:
+  _VERSION: 'v1.2.1'  # Update this for each release
+  _CLUSTER_NAME: 'mizzou-cluster'
+  _CLUSTER_ZONE: 'us-central1-a'
+  _NAMESPACE: 'production'
+  _CRONJOB_NAME: 'mizzou-crawler'
+
+steps:
+  # Step 1: Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-image'
+    args:
+      - 'build'
+      - '-f'
+      - 'Dockerfile.crawler'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/crawler:${_VERSION}'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/crawler:latest'
+      - '.'
+
+  # Step 2: Push the images
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-image'
+    args:
+      - 'push'
+      - '--all-tags'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/crawler'
+    waitFor: ['build-image']
+
+  # Step 3: Get GKE credentials
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'get-credentials'
+    args:
+      - 'container'
+      - 'clusters'
+      - 'get-credentials'
+      - '${_CLUSTER_NAME}'
+      - '--zone=${_CLUSTER_ZONE}'
+      - '--project=${PROJECT_ID}'
+    waitFor: ['push-image']
+
+  # Step 4: Update the CronJob image
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'patch-cronjob'
+    args:
+      - 'patch'
+      - 'cronjob/${_CRONJOB_NAME}'
+      - '--namespace=${_NAMESPACE}'
+      - '--type=json'
+      - '-p=[{"op": "replace", "path": "/spec/jobTemplate/spec/template/spec/containers/0/image", "value": "us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/crawler:${_VERSION}"}]'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=${_CLUSTER_ZONE}'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=${_CLUSTER_NAME}'
+    waitFor: ['get-credentials']
+
+  # Step 5: Verify CronJob update
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'verify-cronjob'
+    args:
+      - 'get'
+      - 'cronjob/${_CRONJOB_NAME}'
+      - '--namespace=${_NAMESPACE}'
+      - '-o'
+      - 'yaml'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=${_CLUSTER_ZONE}'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=${_CLUSTER_NAME}'
+    waitFor: ['patch-cronjob']
+
+  # Step 6 (Optional): Trigger a manual job run to test
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'test-job'
+    args:
+      - 'create'
+      - 'job'
+      - 'test-crawler-${BUILD_ID}'
+      - '--from=cronjob/${_CRONJOB_NAME}'
+      - '--namespace=${_NAMESPACE}'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=${_CLUSTER_ZONE}'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=${_CLUSTER_NAME}'
+    waitFor: ['verify-cronjob']
+
+images:
+  - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/crawler:${_VERSION}'
+  - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/crawler:latest'
+
+timeout: 2400s  # 40 minutes
+options:
+  machineType: 'N1_HIGHCPU_8'
+  diskSizeGb: 100
+  logging: CLOUD_LOGGING_ONLY
