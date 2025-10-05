@@ -32,7 +32,7 @@ steps:
           --delivery-pipeline=mizzou-news-crawler \
           --region=us-central1 \
           --annotations=commitId=${REVISION_ID},service=processor \
-          --images=processor=us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/processor:${SHORT_SHA}
+          --images=processor=us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/processor:${SHORT_SHA}
         echo "✅ Created Cloud Deploy release for Processor"
     waitFor: ['push-processor']
 

@@ -30,7 +30,7 @@ steps:
           --delivery-pipeline=mizzou-news-crawler \
           --region=us-central1 \
           --annotations=commitId=${REVISION_ID},service=api \
-          --images=api=us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/api:${SHORT_SHA}
+          --images=api=us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/api:${SHORT_SHA}
         echo "✅ Created Cloud Deploy release for API"
     waitFor: ['push-api']
 
