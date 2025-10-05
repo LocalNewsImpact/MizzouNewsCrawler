@@ -1026,36 +1026,12 @@ def get_domain_issues():
 @app.get("/api/domain_feedback")
 def list_domain_feedback():
     """Return all saved domain feedback rows as a mapping keyed by host."""
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    # make handler tolerant to schema changes: older schema had priority/needs_dev/assigned_to
-    cur.execute("PRAGMA table_info(domain_feedback)")
-    cols = [r[1] for r in cur.fetchall()]
-    out = {}
-    if "priority" in cols:
-        cur.execute(
-            "SELECT host, priority, needs_dev, assigned_to, notes, updated_at FROM domain_feedback"
-        )
-        rows = cur.fetchall()
-        for host, priority, needs_dev, assigned_to, notes, updated_at in rows:
-            out[host] = {
-                "priority": priority,
-                "needs_dev": bool(needs_dev),
-                "assigned_to": assigned_to,
-                "notes": notes,
-                "updated_at": updated_at,
-            }
-    else:
-        # new compact schema: host, notes, updated_at
-        cur.execute("SELECT host, notes, updated_at FROM domain_feedback")
-        rows = cur.fetchall()
-        for host, notes, updated_at in rows:
-            out[host] = {
-                "notes": notes,
-                "updated_at": updated_at,
-            }
-    conn.close()
-    return out
+    with db_manager.get_session() as session:
+        feedbacks = session.query(DomainFeedback).all()
+        out = {}
+        for fb in feedbacks:
+            out[fb.host] = fb.to_dict()
+        return out
 
 
 @app.get("/api/crawl_errors")
@@ -1063,32 +1039,33 @@ def list_crawl_errors():
     """Return snapshots that failed to fetch or parse, grouped by host and failure reason.
     Aggregates unique failure reasons per host with a sample URL and count.
     """
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    out = {}
-    # Select snapshots that have a non-empty failure_reason
-    cur.execute(
-        "SELECT host, failure_reason, url, created_at FROM snapshots WHERE failure_reason IS NOT NULL AND failure_reason!='' ORDER BY created_at DESC"
-    )
-    rows = cur.fetchall()
-    for host, reason, url, created_at in rows:
-        if host not in out:
-            out[host] = {"errors": {}, "total": 0}
-        # normalize reason string
-        r = reason.strip() if reason else "unknown"
-        grp = out[host]["errors"].get(
-            r, {"count": 0, "example_url": url, "last_seen": created_at}
-        )
-        grp["count"] = grp.get("count", 0) + 1
-        # keep the earliest example (rows are ordered by created_at desc so preserve first seen)
-        if not grp.get("example_url"):
-            grp["example_url"] = url
-        # update last_seen to most recent
-        grp["last_seen"] = max(grp.get("last_seen") or "", created_at or "")
-        out[host]["errors"][r] = grp
-        out[host]["total"] += 1
-    conn.close()
-    return out
+    with db_manager.get_session() as session:
+        snapshots = session.query(Snapshot).filter(
+            Snapshot.failure_reason.isnot(None),
+            Snapshot.failure_reason != ''
+        ).order_by(Snapshot.created_at.desc()).all()
+        
+        out = {}
+        for snap in snapshots:
+            host = snap.host
+            if host not in out:
+                out[host] = {"errors": {}, "total": 0}
+            # normalize reason string
+            r = snap.failure_reason.strip() if snap.failure_reason else "unknown"
+            grp = out[host]["errors"].get(
+                r, {"count": 0, "example_url": snap.url, "last_seen": snap.created_at.isoformat() if snap.created_at else None}
+            )
+            grp["count"] = grp.get("count", 0) + 1
+            # keep the earliest example
+            if not grp.get("example_url"):
+                grp["example_url"] = snap.url
+            # update last_seen to most recent
+            current_time = snap.created_at.isoformat() if snap.created_at else ""
+            grp["last_seen"] = max(grp.get("last_seen") or "", current_time)
+            out[host]["errors"][r] = grp
+            out[host]["total"] += 1
+        
+        return out
 
 
 @app.get("/api/telemetry/queue")
@@ -1111,131 +1088,32 @@ def telemetry_queue():
 
 @app.post("/api/domain_feedback/{host}")
 def post_domain_feedback(host: str, payload: dict):
-    """Upsert feedback for a host. Expects JSON with priority, needs_dev, assigned_to, notes."""
-    init_db()
-    now = datetime.datetime.utcnow().isoformat()
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    # Be tolerant to schema: if old columns exist, write them; otherwise write compact row
-    cur.execute("PRAGMA table_info(domain_feedback)")
-    cols = [r[1] for r in cur.fetchall()]
-    if "priority" in cols:
-        cur.execute(
-            "INSERT OR REPLACE INTO domain_feedback (host, priority, needs_dev, assigned_to, notes, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (
-                host,
-                payload.get("priority"),
-                1 if payload.get("needs_dev") else 0,
-                payload.get("assigned_to"),
-                payload.get("notes"),
-                now,
-            ),
-        )
-    else:
-        cur.execute(
-            "INSERT OR REPLACE INTO domain_feedback (host, notes, updated_at) VALUES (?, ?, ?)",
-            (host, payload.get("notes"), now),
-        )
-    conn.commit()
-    conn.close()
-    return {"status": "ok", "host": host}
+    """Upsert feedback for a host. Expects JSON with notes."""
+    with db_manager.get_session() as session:
+        feedback = session.query(DomainFeedback).filter(DomainFeedback.host == host).first()
+        if feedback:
+            feedback.notes = payload.get("notes")
+            feedback.updated_at = datetime.datetime.utcnow()
+        else:
+            feedback = DomainFeedback(
+                host=host,
+                notes=payload.get("notes"),
+                updated_at=datetime.datetime.utcnow()
+            )
+            session.add(feedback)
+        session.commit()
+        return {"status": "ok", "host": host}
 
 
 @app.post("/api/migrate_domain_feedback")
 def migrate_domain_feedback(dry_run: bool | None = True):
-    """Migrate existing domain_feedback columns (priority, needs_dev, assigned_to)
-    into an audit table and recreate the `domain_feedback` table with only
-    (host, notes, updated_at). This endpoint is idempotent and safe to run
-    multiple times. By default it performs a dry-run; pass `?dry_run=false`
-    to execute the migration.
-    Returns a summary of actions performed.
+    """Migration endpoint for SQLite schema changes.
+    Now a no-op since schema is managed by Alembic migrations.
     """
-    init_db()
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    # check if domain_feedback exists
-    cur.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='domain_feedback'"
-    )
-    if not cur.fetchone():
-        conn.close()
-        return {"status": "noop", "reason": "domain_feedback table not found"}
-    # inspect columns
-    cur.execute("PRAGMA table_info(domain_feedback)")
-    cols = [r[1] for r in cur.fetchall()]
-    # if old columns not present, nothing to do
-    old_cols = {"priority", "needs_dev", "assigned_to"}
-    if not (old_cols & set(cols)):
-        conn.close()
-        return {
-            "status": "noop",
-            "reason": "migration already applied or columns absent",
-        }
-
-    # count rows to be migrated
-    cur.execute("SELECT COUNT(*) FROM domain_feedback")
-    total_rows = cur.fetchone()[0]
-
-    if dry_run:
-        conn.close()
-        return {"status": "dry_run", "rows_found": total_rows, "columns": cols}
-
-    now = datetime.datetime.utcnow().isoformat()
-    # create audit table if missing
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS domain_feedback_audit (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-    # Ensure existing databases get the new column if missing (safe ALTER)
-    try:
-        cur.execute("PRAGMA table_info(snapshots)")
-        cols = [r[1] for r in cur.fetchall()]
-        if 'reviewed_at' not in cols:
-            cur.execute('ALTER TABLE snapshots ADD COLUMN reviewed_at TEXT')
-            conn.commit()
-    except Exception:
-        # If ALTER fails (old SQLite versions or locked db), ignore; presence check in queries will handle it
-        pass
-            host TEXT,
-            priority TEXT,
-            needs_dev INTEGER,
-            assigned_to TEXT,
-            notes TEXT,
-            migrated_at TEXT
-        )
-        """
-    )
-    # copy existing rows into audit
-    cur.execute(
-        "INSERT INTO domain_feedback_audit (host, priority, needs_dev, assigned_to, notes, migrated_at) SELECT host, priority, needs_dev, assigned_to, notes, ? FROM domain_feedback",
-        (now,),
-    )
-    # create new compact domain_feedback table
-    cur.execute(
-        """
-        CREATE TABLE domain_feedback_new (
-            host TEXT PRIMARY KEY,
-            notes TEXT,
-            updated_at TEXT
-        )
-        """
-    )
-    # copy host, notes, updated_at into new table
-    cur.execute(
-        "INSERT INTO domain_feedback_new (host, notes, updated_at) SELECT host, notes, updated_at FROM domain_feedback"
-    )
-    # drop old table and rename new table
-    cur.execute("DROP TABLE domain_feedback")
-    cur.execute("ALTER TABLE domain_feedback_new RENAME TO domain_feedback")
-    conn.commit()
-
-    # return summary counts
-    cur.execute("SELECT COUNT(*) FROM domain_feedback")
-    new_count = cur.fetchone()[0]
-    cur.execute("SELECT COUNT(*) FROM domain_feedback_audit")
-    audit_count = cur.fetchone()[0]
-    conn.close()
-    return {"status": "ok", "migrated_rows": new_count, "audit_rows": audit_count}
+    return {
+        "status": "noop",
+        "reason": "Schema managed by Alembic migrations. No migration needed."
+    }
 
 
 @app.get("/api/snapshots_by_host/{host}")
@@ -1243,47 +1121,25 @@ def snapshots_by_host(host: str, include_reviewed: bool = False):
     """Return a short listing of snapshots for a host (id, url, status, parsed_fields, model_confidence).
     By default exclude snapshots that have been marked reviewed (reviewed_at is non-empty). Set include_reviewed=true to show all.
     """
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    if include_reviewed:
-        cur.execute(
-            (
-                "SELECT id, url, path, pipeline_run_id, failure_reason, parsed_fields, model_confidence, status, created_at "
-                "FROM snapshots WHERE host=? ORDER BY created_at DESC"
-            ),
-            (host,),
-        )
-    else:
-        cur.execute(
-            (
-                "SELECT id, url, path, pipeline_run_id, failure_reason, parsed_fields, model_confidence, status, created_at "
-                "FROM snapshots WHERE host=? AND (reviewed_at IS NULL OR reviewed_at='') ORDER BY created_at DESC"
-            ),
-            (host,),
-        )
-    rows = cur.fetchall()
-    cols = [
-        "id",
-        "url",
-        "path",
-        "pipeline_run_id",
-        "failure_reason",
-        "parsed_fields",
-        "model_confidence",
-        "status",
-        "created_at",
-    ]
-    out = []
-    for r in rows:
-        rec = dict(zip(cols, r, strict=False))
-        if rec.get("parsed_fields"):
-            try:
-                rec["parsed_fields"] = json.loads(rec["parsed_fields"])
-            except Exception:
-                rec["parsed_fields"] = None
-        out.append(rec)
-    conn.close()
-    return out
+    with db_manager.get_session() as session:
+        query = session.query(Snapshot).filter(Snapshot.host == host)
+        if not include_reviewed:
+            query = query.filter(
+                (Snapshot.reviewed_at.is_(None)) | (Snapshot.reviewed_at == '')
+            )
+        snapshots = query.order_by(Snapshot.created_at.desc()).all()
+        
+        out = []
+        for snap in snapshots:
+            rec = snap.to_dict()
+            if rec.get("parsed_fields"):
+                try:
+                    rec["parsed_fields"] = json.loads(rec["parsed_fields"])
+                except Exception:
+                    rec["parsed_fields"] = None
+            out.append(rec)
+        
+        return out
 
 
 @app.get("/api/ui_overview")
