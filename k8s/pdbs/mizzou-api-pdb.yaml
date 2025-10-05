@@ -1,0 +1,10 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: mizzou-api-pdb
+  namespace: production
+spec:
+  maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: mizzou-api
