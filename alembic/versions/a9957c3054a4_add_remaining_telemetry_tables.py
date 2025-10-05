@@ -21,62 +21,9 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Upgrade schema - add remaining telemetry tables."""
     
-    # Byline cleaning telemetry table
-    op.create_table(
-        'byline_cleaning_telemetry',
-        sa.Column('id', sa.String(), nullable=False),
-        sa.Column('article_id', sa.String(), nullable=True),
-        sa.Column('candidate_link_id', sa.String(), nullable=True),
-        sa.Column('source_id', sa.String(), nullable=True),
-        sa.Column('source_name', sa.String(), nullable=True),
-        sa.Column('raw_byline', sa.Text(), nullable=True),
-        sa.Column('raw_byline_length', sa.Integer(), nullable=True),
-        sa.Column('raw_byline_words', sa.Integer(), nullable=True),
-        sa.Column('extraction_timestamp', sa.DateTime(), nullable=True),
-        sa.Column('cleaning_method', sa.String(), nullable=True),
-        sa.Column('source_canonical_name', sa.String(), nullable=True),
-        sa.Column('final_authors_json', sa.Text(), nullable=True),
-        sa.Column('final_authors_count', sa.Integer(), nullable=True),
-        sa.Column('final_authors_display', sa.Text(), nullable=True),
-        sa.Column('confidence_score', sa.Float(), nullable=True),
-        sa.Column('processing_time_ms', sa.Float(), nullable=True),
-        sa.Column('has_wire_service', sa.Boolean(), nullable=True),
-        sa.Column('has_email', sa.Boolean(), nullable=True),
-        sa.Column('has_title', sa.Boolean(), nullable=True),
-        sa.Column('has_organization', sa.Boolean(), nullable=True),
-        sa.Column('source_name_removed', sa.Boolean(), nullable=True),
-        sa.Column('duplicates_removed_count', sa.Integer(), nullable=True),
-        sa.Column('likely_valid_authors', sa.Boolean(), nullable=True),
-        sa.Column('likely_noise', sa.Boolean(), nullable=True),
-        sa.Column('requires_manual_review', sa.Boolean(), nullable=True),
-        sa.Column('cleaning_errors', sa.Text(), nullable=True),
-        sa.Column('parsing_warnings', sa.Text(), nullable=True),
-        sa.Column('created_at', sa.DateTime(), server_default=sa.text('CURRENT_TIMESTAMP')),
-        sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_byline_cleaning_telemetry_article_id'), 'byline_cleaning_telemetry', ['article_id'], unique=False)
-    op.create_index(op.f('ix_byline_cleaning_telemetry_source_id'), 'byline_cleaning_telemetry', ['source_id'], unique=False)
+    # Add missing index on byline_cleaning_telemetry.created_at
+    # (table already created in migration e3114395bcc4)
     op.create_index(op.f('ix_byline_cleaning_telemetry_created_at'), 'byline_cleaning_telemetry', ['created_at'], unique=False)
-    
-    # Byline transformation steps table
-    op.create_table(
-        'byline_transformation_steps',
-        sa.Column('id', sa.String(), nullable=False),
-        sa.Column('telemetry_id', sa.String(), nullable=False),
-        sa.Column('step_number', sa.Integer(), nullable=False),
-        sa.Column('step_name', sa.String(), nullable=False),
-        sa.Column('input_text', sa.Text(), nullable=True),
-        sa.Column('output_text', sa.Text(), nullable=True),
-        sa.Column('removed_content', sa.Text(), nullable=True),
-        sa.Column('added_content', sa.Text(), nullable=True),
-        sa.Column('confidence_delta', sa.Float(), nullable=True),
-        sa.Column('notes', sa.Text(), nullable=True),
-        sa.Column('timestamp', sa.DateTime(), nullable=True),
-        sa.Column('created_at', sa.DateTime(), server_default=sa.text('CURRENT_TIMESTAMP')),
-        sa.PrimaryKeyConstraint('id'),
-        sa.ForeignKeyConstraint(['telemetry_id'], ['byline_cleaning_telemetry.id'], )
-    )
-    op.create_index(op.f('ix_byline_transformation_steps_telemetry_id'), 'byline_transformation_steps', ['telemetry_id'], unique=False)
     
     # Content cleaning sessions table
     op.create_table(
@@ -242,10 +189,5 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_content_cleaning_sessions_domain'), table_name='content_cleaning_sessions')
     op.drop_table('content_cleaning_sessions')
     
-    op.drop_index(op.f('ix_byline_transformation_steps_telemetry_id'), table_name='byline_transformation_steps')
-    op.drop_table('byline_transformation_steps')
-    
+    # Drop only the index we added (tables are handled by migration e3114395bcc4)
     op.drop_index(op.f('ix_byline_cleaning_telemetry_created_at'), table_name='byline_cleaning_telemetry')
-    op.drop_index(op.f('ix_byline_cleaning_telemetry_source_id'), table_name='byline_cleaning_telemetry')
-    op.drop_index(op.f('ix_byline_cleaning_telemetry_article_id'), table_name='byline_cleaning_telemetry')
-    op.drop_table('byline_cleaning_telemetry')

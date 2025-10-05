@@ -21,7 +21,9 @@ from src.utils.telemetry import (
 def tracker_factory(tmp_path):
     def _factory(name: str) -> tuple[OperationTracker, TelemetryStore, str]:
         db_path = tmp_path / name
-        store = TelemetryStore(database=str(db_path), async_writes=False)
+        # TelemetryStore expects a proper SQLite URL, not a raw path
+        db_url = f"sqlite:///{db_path}"
+        store = TelemetryStore(database=db_url, async_writes=False)
         tracker = OperationTracker(store=store)
         return tracker, store, str(db_path)
 

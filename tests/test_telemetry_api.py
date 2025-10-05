@@ -395,13 +395,20 @@ class TestSiteManagementAPI:
         db_path.unlink(missing_ok=True)
 
     @pytest.fixture
-    def api_client(self, temp_db):
-        """Create a test client with mocked database path."""
-        with patch("backend.app.main.MAIN_DB_PATH", temp_db):
-            from backend.app.main import app
-
-            client = TestClient(app)
-            yield client
+    def api_client(self, temp_db, monkeypatch):
+        """Create a test client with mocked database."""
+        from backend.app.main import app, db_manager
+        from sqlalchemy import create_engine
+        
+        # Create engine for the test database
+        db_url = f"sqlite:///{temp_db}"
+        test_engine = create_engine(db_url, connect_args={"check_same_thread": False})
+        
+        # Mock the DatabaseManager's engine with our test engine
+        monkeypatch.setattr(db_manager, "engine", test_engine)
+        
+        client = TestClient(app)
+        yield client
 
     def test_pause_site_endpoint(self, api_client):
         """Test pausing a site."""
@@ -496,18 +503,22 @@ class TestSiteManagementAPI:
 class TestAPIErrorHandling:
     """Test error handling in API endpoints."""
 
-    def test_telemetry_endpoints_with_invalid_database(self):
+    def test_telemetry_endpoints_with_invalid_database(self, monkeypatch):
         """Test API endpoints with invalid database path."""
-        with patch("backend.app.main.MAIN_DB_PATH", "/nonexistent/path/db.sqlite"):
-            from backend.app.main import app
+        from backend.app.main import app, db_manager
+        from sqlalchemy import create_engine
+        
+        # Create an invalid engine that will fail
+        invalid_engine = create_engine("sqlite:////nonexistent/path/db.sqlite")
+        monkeypatch.setattr(db_manager, "engine", invalid_engine)
+        
+        client = TestClient(app)
+        
+        response = client.get("/api/telemetry/summary")
+        assert response.status_code == 500
+        assert "Error fetching telemetry summary" in response.json()["detail"]
 
-            client = TestClient(app)
-
-            response = client.get("/api/telemetry/summary")
-            assert response.status_code == 500
-            assert "Error fetching telemetry summary" in response.json()["detail"]
-
-    def test_site_management_with_invalid_data(self):
+    def test_site_management_with_invalid_data(self, monkeypatch):
         """Test site management endpoints with invalid request data."""
         # Create a temporary valid database
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
@@ -531,22 +542,29 @@ class TestAPIErrorHandling:
         conn.close()
 
         try:
-            with patch("backend.app.main.MAIN_DB_PATH", db_path):
-                from backend.app.main import app
-
-                client = TestClient(app)
-
-                # Test pause with missing host
-                response = client.post("/api/site-management/pause", json={})
-                assert response.status_code == 422  # Validation error
-
-                # Test pause with invalid JSON
-                response = client.post(
-                    "/api/site-management/pause",
-                    data="invalid json",
-                    headers={"Content-Type": "application/json"},
-                )
-                assert response.status_code == 422
+            from backend.app.main import app, db_manager
+            from sqlalchemy import create_engine
+            
+            # Create engine for the test database
+            db_url = f"sqlite:///{db_path}"
+            test_engine = create_engine(db_url, connect_args={"check_same_thread": False})
+            
+            # Mock the DatabaseManager's engine with our test engine
+            monkeypatch.setattr(db_manager, "engine", test_engine)
+            
+            client = TestClient(app)
+            
+            # Test pause with missing host
+            response = client.post("/api/site-management/pause", json={})
+            assert response.status_code == 422  # Validation error
+            
+            # Test pause with invalid JSON
+            response = client.post(
+                "/api/site-management/pause",
+                data="invalid json",
+                headers={"Content-Type": "application/json"},
+            )
+            assert response.status_code == 422
 
         finally:
             Path(db_path).unlink(missing_ok=True)
@@ -641,9 +659,15 @@ class TestCompleteAPIWorkflow:
             conn.commit()
             conn.close()
 
-            with patch("backend.app.main.MAIN_DB_PATH", db_path):
-                from backend.app.main import app
-
+            from backend.app.main import app, db_manager
+            from sqlalchemy import create_engine
+            
+            # Create engine for the test database
+            db_url = f"sqlite:///{db_path}"
+            test_engine = create_engine(db_url, connect_args={"check_same_thread": False})
+            
+            # Mock the DatabaseManager's engine with our test engine
+            with patch.object(db_manager, "engine", test_engine):
                 client = TestClient(app)
 
                 # 1. Check poor performers
