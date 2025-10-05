@@ -25,10 +25,6 @@ logger = logging.getLogger(__name__)
 # Add gazetteer telemetry imports
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(BASE_DIR))
-# Add comprehensive telemetry imports
-from src.utils.comprehensive_telemetry import (  # noqa: E402
-    ComprehensiveExtractionTelemetry,
-)
 from web.gazetteer_telemetry_api import (  # noqa: E402
     AddressEditRequest,
     ReprocessRequest,
@@ -50,6 +46,12 @@ from src.models.api_backend import (  # noqa: E402
     ReextractionJob,
     DedupeAudit,
 )
+from src.models.telemetry import (  # noqa: E402
+    ExtractionTelemetryV2,
+    HttpErrorSummary,
+)
+from src.models import Source  # noqa: E402
+from sqlalchemy import func, case, desc, and_, or_  # noqa: E402
 from backend.app.telemetry import verification, byline, code_review  # noqa: E402
 
 # pydantic.Field not used here
@@ -58,8 +60,6 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 # point to the full processed CSV with labels and geo
 ARTICLES_CSV = BASE_DIR / "processed" / "articleslabelledgeo_8.csv"
 DB_PATH = BASE_DIR / "backend" / "reviews.db"
-# Main database path for telemetry data
-MAIN_DB_PATH = BASE_DIR / "data" / "mizzou.db"
 
 app = FastAPI(title="MizzouNewsCrawler Reviewer API")
 
@@ -1588,57 +1588,44 @@ def get_http_errors(
 ):
     """Get HTTP error statistics for dashboard monitoring."""
     try:
-        ComprehensiveExtractionTelemetry(str(MAIN_DB_PATH))
-
-        # Build WHERE conditions based on parameters
-        conditions = []
-        params = []
-
-        if days:
-            conditions.append(f"last_seen >= datetime('now', '-{days} days')")
-
-        if host:
-            conditions.append("host = ?")
-            params.append(host)
-
-        if status_code:
-            conditions.append("status_code = ?")
-            params.append(status_code)
-
-        where_clause = " AND ".join(conditions) if conditions else "1=1"
-
-        conn = sqlite3.connect(str(MAIN_DB_PATH))
-        cur = conn.cursor()
-
-        # Get error counts by status code and host
-        query = f"""
-        SELECT
-            host,
-            status_code,
-            SUM(count) as error_count,
-            MAX(last_seen) as last_seen
-        FROM http_error_summary
-        WHERE {where_clause}
-        GROUP BY host, status_code
-        ORDER BY error_count DESC
-        """
-
-        cur.execute(query, params)
-        rows = cur.fetchall()
-
-        results = []
-        for row in rows:
-            results.append(
-                {
-                    "host": row[0],
-                    "status_code": row[1],
-                    "error_count": row[2],
-                    "last_seen": row[3],
-                }
+        with db_manager.get_session() as session:
+            # Build query with filters
+            query = session.query(
+                HttpErrorSummary.host,
+                HttpErrorSummary.status_code,
+                func.sum(HttpErrorSummary.count).label('error_count'),
+                func.max(HttpErrorSummary.last_seen).label('last_seen')
             )
 
-        conn.close()
-        return {"http_errors": results}
+            # Apply filters
+            if days:
+                cutoff_date = datetime.datetime.utcnow() - datetime.timedelta(days=days)
+                query = query.filter(HttpErrorSummary.last_seen >= cutoff_date)
+
+            if host:
+                query = query.filter(HttpErrorSummary.host == host)
+
+            if status_code:
+                query = query.filter(HttpErrorSummary.status_code == status_code)
+
+            # Group and order
+            query = query.group_by(
+                HttpErrorSummary.host,
+                HttpErrorSummary.status_code
+            ).order_by(desc('error_count'))
+
+            results = []
+            for row in query.all():
+                results.append(
+                    {
+                        "host": row.host,
+                        "status_code": row.status_code,
+                        "error_count": row.error_count,
+                        "last_seen": row.last_seen.isoformat() if row.last_seen else None,
+                    }
+                )
+
+            return {"http_errors": results}
 
     except Exception as e:
         raise HTTPException(
@@ -1653,67 +1640,57 @@ def get_method_performance(
 ):
     """Get extraction method performance statistics."""
     try:
-        ComprehensiveExtractionTelemetry(str(MAIN_DB_PATH))
-
-        # Build WHERE conditions
-        conditions = []
-        params = []
-
-        if days:
-            conditions.append(f"created_at >= datetime('now', '-{days} days')")
-
-        if method:
-            conditions.append("method = ?")
-            params.append(method)
-
-        if host:
-            conditions.append("host = ?")
-            params.append(host)
-
-        where_clause = " AND ".join(conditions) if conditions else "1=1"
-
-        conn = sqlite3.connect(str(MAIN_DB_PATH))
-        cur = conn.cursor()
-
-        # Get method performance stats
-        query = f"""
-        SELECT
-            COALESCE(successful_method, 'failed') as method,
-            host,
-            COUNT(*) as total_attempts,
-            SUM(
-                CASE WHEN is_success = 1 THEN 1 ELSE 0 END
-            ) as successful_attempts,
-            AVG(total_duration_ms) as avg_duration,
-            MIN(total_duration_ms) as min_duration,
-            MAX(total_duration_ms) as max_duration
-        FROM extraction_telemetry_v2
-        WHERE {where_clause}
-        GROUP BY COALESCE(successful_method, 'failed'), host
-        ORDER BY total_attempts DESC
-        """
-
-        cur.execute(query, params)
-        rows = cur.fetchall()
-
-        results = []
-        for row in rows:
-            success_rate = (row[3] / row[2] * 100) if row[2] > 0 else 0
-            results.append(
-                {
-                    "method": row[0],
-                    "host": row[1],
-                    "total_attempts": row[2],
-                    "successful_attempts": row[3],
-                    "success_rate": round(success_rate, 2),
-                    "avg_duration": round(row[4], 2) if row[4] else 0,
-                    "min_duration": round(row[5], 2) if row[5] else 0,
-                    "max_duration": round(row[6], 2) if row[6] else 0,
-                }
+        with db_manager.get_session() as session:
+            # Build query with COALESCE for successful_method
+            method_col = func.coalesce(ExtractionTelemetryV2.successful_method, 'failed')
+            
+            query = session.query(
+                method_col.label('method'),
+                ExtractionTelemetryV2.host,
+                func.count().label('total_attempts'),
+                func.sum(
+                    case((ExtractionTelemetryV2.is_success == True, 1), else_=0)
+                ).label('successful_attempts'),
+                func.avg(ExtractionTelemetryV2.total_duration_ms).label('avg_duration'),
+                func.min(ExtractionTelemetryV2.total_duration_ms).label('min_duration'),
+                func.max(ExtractionTelemetryV2.total_duration_ms).label('max_duration')
             )
 
-        conn.close()
-        return {"method_performance": results}
+            # Apply filters
+            if days:
+                cutoff_date = datetime.datetime.utcnow() - datetime.timedelta(days=days)
+                query = query.filter(ExtractionTelemetryV2.created_at >= cutoff_date)
+
+            if method:
+                query = query.filter(method_col == method)
+
+            if host:
+                query = query.filter(ExtractionTelemetryV2.host == host)
+
+            # Group and order
+            query = query.group_by(method_col, ExtractionTelemetryV2.host)
+            query = query.order_by(desc('total_attempts'))
+
+            results = []
+            for row in query.all():
+                total_attempts = row.total_attempts or 0
+                successful_attempts = row.successful_attempts or 0
+                success_rate = (successful_attempts / total_attempts * 100) if total_attempts > 0 else 0
+                
+                results.append(
+                    {
+                        "method": row.method,
+                        "host": row.host,
+                        "total_attempts": total_attempts,
+                        "successful_attempts": successful_attempts,
+                        "success_rate": round(success_rate, 2),
+                        "avg_duration": round(row.avg_duration, 2) if row.avg_duration else 0,
+                        "min_duration": round(row.min_duration, 2) if row.min_duration else 0,
+                        "max_duration": round(row.max_duration, 2) if row.max_duration else 0,
+                    }
+                )
+
+            return {"method_performance": results}
 
     except Exception as e:
         raise HTTPException(
@@ -1726,71 +1703,60 @@ def get_method_performance(
 def get_publisher_stats(days: int = 7, host: str | None = None, min_attempts: int = 5):
     """Get publisher performance statistics."""
     try:
-        conn = sqlite3.connect(str(MAIN_DB_PATH))
-        cur = conn.cursor()
-
-        # Build WHERE conditions
-        conditions = []
-        params = []
-
-        if days:
-            conditions.append(f"created_at >= datetime('now', '-{days} days')")
-
-        if host:
-            conditions.append("host = ?")
-            params.append(host)
-
-        where_clause = " AND ".join(conditions) if conditions else "1=1"
-
-        # Get comprehensive publisher stats
-        query = f"""
-        SELECT
-            host,
-            COUNT(*) as total_extractions,
-            SUM(
-                CASE WHEN is_success = 1 THEN 1 ELSE 0 END
-            ) as successful_extractions,
-            AVG(total_duration_ms) as avg_duration,
-            COUNT(
-                DISTINCT COALESCE(successful_method, 'failed')
-            ) as methods_used,
-            MAX(created_at) as last_attempt
-        FROM extraction_telemetry_v2
-        WHERE {where_clause}
-        GROUP BY host
-        HAVING COUNT(*) >= ?
-        ORDER BY total_extractions DESC
-        """
-
-        params.append(min_attempts)
-        cur.execute(query, params)
-        rows = cur.fetchall()
-
-        results = []
-        for row in rows:
-            success_rate = (row[2] / row[1] * 100) if row[1] > 0 else 0
-            if success_rate < 50:
-                status = "poor"
-            elif success_rate > 80:
-                status = "good"
-            else:
-                status = "fair"
-
-            results.append(
-                {
-                    "host": row[0],
-                    "total_extractions": row[1],
-                    "successful_extractions": row[2],
-                    "success_rate": round(success_rate, 2),
-                    "avg_duration": round(row[3], 2) if row[3] else 0,
-                    "methods_used": row[4],
-                    "last_attempt": row[5],
-                    "status": status,
-                }
+        with db_manager.get_session() as session:
+            method_col = func.coalesce(ExtractionTelemetryV2.successful_method, 'failed')
+            
+            query = session.query(
+                ExtractionTelemetryV2.host,
+                func.count().label('total_extractions'),
+                func.sum(
+                    case((ExtractionTelemetryV2.is_success == True, 1), else_=0)
+                ).label('successful_extractions'),
+                func.avg(ExtractionTelemetryV2.total_duration_ms).label('avg_duration'),
+                func.count(func.distinct(method_col)).label('methods_used'),
+                func.max(ExtractionTelemetryV2.created_at).label('last_attempt')
             )
 
-        conn.close()
-        return {"publisher_stats": results}
+            # Apply filters
+            if days:
+                cutoff_date = datetime.datetime.utcnow() - datetime.timedelta(days=days)
+                query = query.filter(ExtractionTelemetryV2.created_at >= cutoff_date)
+
+            if host:
+                query = query.filter(ExtractionTelemetryV2.host == host)
+
+            # Group by host and apply HAVING clause
+            query = query.group_by(ExtractionTelemetryV2.host)
+            query = query.having(func.count() >= min_attempts)
+            query = query.order_by(desc('total_extractions'))
+
+            results = []
+            for row in query.all():
+                total = row.total_extractions or 0
+                successful = row.successful_extractions or 0
+                success_rate = (successful / total * 100) if total > 0 else 0
+                
+                if success_rate < 50:
+                    status = "poor"
+                elif success_rate > 80:
+                    status = "good"
+                else:
+                    status = "fair"
+
+                results.append(
+                    {
+                        "host": row.host,
+                        "total_extractions": total,
+                        "successful_extractions": successful,
+                        "success_rate": round(success_rate, 2),
+                        "avg_duration": round(row.avg_duration, 2) if row.avg_duration else 0,
+                        "methods_used": row.methods_used,
+                        "last_attempt": row.last_attempt.isoformat() if row.last_attempt else None,
+                        "status": status,
+                    }
+                )
+
+            return {"publisher_stats": results}
 
     except Exception as e:
         raise HTTPException(
@@ -1808,25 +1774,90 @@ def get_field_extraction_stats(
 ):
     """Get field-level extraction statistics."""
     try:
-        telemetry = ComprehensiveExtractionTelemetry(str(MAIN_DB_PATH))
-        stats = telemetry.get_field_extraction_stats(
-            publisher=host,
-            method=method,
-        )
+        with db_manager.get_session() as session:
+            # Build query
+            query = session.query(
+                ExtractionTelemetryV2.field_extraction,
+                ExtractionTelemetryV2.methods_attempted,
+                ExtractionTelemetryV2.successful_method
+            )
 
-        if field:
-            filtered = []
-            for entry in stats:
-                counts = {
-                    "title": entry.get("title_success", 0),
-                    "author": entry.get("author_success", 0),
-                    "content": entry.get("content_success", 0),
-                    "publish_date": entry.get("date_success", 0),
+            # Apply filters
+            if days:
+                cutoff_date = datetime.datetime.utcnow() - datetime.timedelta(days=days)
+                query = query.filter(ExtractionTelemetryV2.created_at >= cutoff_date)
+
+            if host:
+                query = query.filter(ExtractionTelemetryV2.publisher == host)
+
+            # Process results to calculate field extraction stats
+            method_field_stats = {}
+            
+            for row in query.all():
+                field_extraction_json = row.field_extraction
+                methods_json = row.methods_attempted
+                
+                try:
+                    methods = json.loads(methods_json) if methods_json else []
+                    field_data = json.loads(field_extraction_json) if field_extraction_json else {}
+                except (json.JSONDecodeError, TypeError):
+                    continue
+
+                for method_name in methods:
+                    if method and method_name != method:
+                        continue
+
+                    stats = method_field_stats.setdefault(
+                        method_name,
+                        {
+                            "count": 0,
+                            "title_success": 0,
+                            "author_success": 0,
+                            "content_success": 0,
+                            "date_success": 0,
+                        },
+                    )
+
+                    stats["count"] += 1
+                    method_fields = field_data.get(method_name, {})
+                    if method_fields.get("title"):
+                        stats["title_success"] += 1
+                    if method_fields.get("author"):
+                        stats["author_success"] += 1
+                    if method_fields.get("content"):
+                        stats["content_success"] += 1
+                    if method_fields.get("publish_date"):
+                        stats["date_success"] += 1
+
+            # Format results
+            results = []
+            for method_name, stats in method_field_stats.items():
+                count = stats["count"]
+                denominator = count if count else 1
+                entry = {
+                    "method": method_name,
+                    "count": count,
+                    "title_success_rate": stats["title_success"] / denominator,
+                    "author_success_rate": stats["author_success"] / denominator,
+                    "content_success_rate": stats["content_success"] / denominator,
+                    "date_success_rate": stats["date_success"] / denominator,
                 }
-                if counts.get(field):
-                    filtered.append(entry)
-            stats = filtered
-        return {"field_extraction_stats": stats}
+                
+                # Filter by field if specified
+                if field:
+                    field_counts = {
+                        "title": stats["title_success"],
+                        "author": stats["author_success"],
+                        "content": stats["content_success"],
+                        "publish_date": stats["date_success"],
+                    }
+                    if field_counts.get(field, 0) > 0:
+                        results.append(entry)
+                else:
+                    results.append(entry)
+
+            results.sort(key=lambda item: item["count"], reverse=True)
+            return {"field_extraction_stats": results}
 
     except Exception as e:
         raise HTTPException(
@@ -1841,53 +1872,59 @@ def get_poor_performing_sites(
 ):
     """Get sites with poor performance that may need attention."""
     try:
-        conn = sqlite3.connect(str(MAIN_DB_PATH))
-        cur = conn.cursor()
-
-        # Find sites with low success rates
-        query = f"""
-        SELECT
-            host,
-            COUNT(*) as total_attempts,
-            SUM(
-                CASE WHEN is_success = 1 THEN 1 ELSE 0 END
-            ) as successful_attempts,
-            (
-                SUM(CASE WHEN is_success = 1 THEN 1 ELSE 0 END) * 100.0
-                / COUNT(*)
-            ) as success_rate,
-            AVG(total_duration_ms) as avg_duration,
-            MAX(created_at) as last_attempt,
-            COUNT(
-                DISTINCT COALESCE(successful_method, 'failed')
-            ) as methods_tried
-        FROM extraction_telemetry_v2
-        WHERE created_at >= datetime('now', '-{days} days')
-        GROUP BY host
-        HAVING COUNT(*) >= ? AND success_rate <= ?
-        ORDER BY success_rate ASC, total_attempts DESC
-        """
-
-        cur.execute(query, [min_attempts, max_success_rate])
-        rows = cur.fetchall()
-
-        results = []
-        for row in rows:
-            results.append(
-                {
-                    "host": row[0],
-                    "total_attempts": row[1],
-                    "successful_attempts": row[2],
-                    "success_rate": round(row[3], 2),
-                    "avg_duration": round(row[4], 2) if row[4] else 0,
-                    "last_attempt": row[5],
-                    "methods_tried": row[6],
-                    "recommendation": "pause" if row[3] < 25 else "monitor",
-                }
+        with db_manager.get_session() as session:
+            method_col = func.coalesce(ExtractionTelemetryV2.successful_method, 'failed')
+            
+            # Calculate success rate in the query
+            success_rate_calc = (
+                func.sum(case((ExtractionTelemetryV2.is_success == True, 1), else_=0)) * 100.0
+                / func.count()
+            )
+            
+            query = session.query(
+                ExtractionTelemetryV2.host,
+                func.count().label('total_attempts'),
+                func.sum(
+                    case((ExtractionTelemetryV2.is_success == True, 1), else_=0)
+                ).label('successful_attempts'),
+                success_rate_calc.label('success_rate'),
+                func.avg(ExtractionTelemetryV2.total_duration_ms).label('avg_duration'),
+                func.max(ExtractionTelemetryV2.created_at).label('last_attempt'),
+                func.count(func.distinct(method_col)).label('methods_tried')
             )
 
-        conn.close()
-        return {"poor_performers": results}
+            # Apply filters
+            cutoff_date = datetime.datetime.utcnow() - datetime.timedelta(days=days)
+            query = query.filter(ExtractionTelemetryV2.created_at >= cutoff_date)
+
+            # Group by host and apply HAVING clauses
+            query = query.group_by(ExtractionTelemetryV2.host)
+            query = query.having(and_(
+                func.count() >= min_attempts,
+                success_rate_calc <= max_success_rate
+            ))
+            query = query.order_by(
+                success_rate_calc.asc(),
+                desc('total_attempts')
+            )
+
+            results = []
+            for row in query.all():
+                success_rate = row.success_rate or 0
+                results.append(
+                    {
+                        "host": row.host,
+                        "total_attempts": row.total_attempts,
+                        "successful_attempts": row.successful_attempts or 0,
+                        "success_rate": round(success_rate, 2),
+                        "avg_duration": round(row.avg_duration, 2) if row.avg_duration else 0,
+                        "last_attempt": row.last_attempt.isoformat() if row.last_attempt else None,
+                        "methods_tried": row.methods_tried,
+                        "recommendation": "pause" if success_rate < 25 else "monitor",
+                    }
+                )
+
+            return {"poor_performers": results}
 
     except Exception as e:
         raise HTTPException(
@@ -1899,78 +1936,79 @@ def get_poor_performing_sites(
 def get_telemetry_summary(days: int = 7):
     """Get overall telemetry summary for dashboard overview."""
     try:
-        conn = sqlite3.connect(str(MAIN_DB_PATH))
-        cur = conn.cursor()
+        with db_manager.get_session() as session:
+            cutoff_date = datetime.datetime.utcnow() - datetime.timedelta(days=days)
+            
+            # Overall extraction stats
+            method_col = func.coalesce(ExtractionTelemetryV2.successful_method, 'failed')
+            
+            overall_query = session.query(
+                func.count().label('total_extractions'),
+                func.sum(
+                    case((ExtractionTelemetryV2.is_success == True, 1), else_=0)
+                ).label('successful_extractions'),
+                func.count(func.distinct(ExtractionTelemetryV2.host)).label('unique_hosts'),
+                func.count(func.distinct(method_col)).label('methods_used'),
+                func.avg(ExtractionTelemetryV2.total_duration_ms).label('avg_duration')
+            ).filter(ExtractionTelemetryV2.created_at >= cutoff_date)
+            
+            overall = overall_query.first()
+            total = overall.total_extractions or 0
+            successful = overall.successful_extractions or 0
+            success_rate = (successful / total * 100) if total > 0 else 0
 
-        # Overall extraction stats
-        cur.execute(f"""
-        SELECT 
-            COUNT(*) as total_extractions,
-            SUM(CASE WHEN is_success = 1 THEN 1 ELSE 0 END) as successful_extractions,
-            COUNT(DISTINCT host) as unique_hosts,
-            COUNT(DISTINCT COALESCE(successful_method, 'failed')) as methods_used,
-            AVG(total_duration_ms) as avg_duration
-        FROM extraction_telemetry_v2 
-        WHERE created_at >= datetime('now', '-{days} days')
-        """)
+            # Method breakdown
+            method_query = session.query(
+                method_col.label('method'),
+                func.count().label('count'),
+                func.sum(
+                    case((ExtractionTelemetryV2.is_success == True, 1), else_=0)
+                ).label('successful')
+            ).filter(
+                ExtractionTelemetryV2.created_at >= cutoff_date
+            ).group_by(method_col).order_by(desc('count'))
 
-        overall = cur.fetchone()
-        success_rate = (overall[1] / overall[0] * 100) if overall[0] > 0 else 0
+            method_stats = []
+            for row in method_query.all():
+                count = row.count or 0
+                successful_count = row.successful or 0
+                method_success_rate = (successful_count / count * 100) if count > 0 else 0
+                method_stats.append(
+                    {
+                        "method": row.method,
+                        "attempts": count,
+                        "successful": successful_count,
+                        "success_rate": round(method_success_rate, 2),
+                    }
+                )
 
-        # Method breakdown
-        cur.execute(f"""
-        SELECT 
-            COALESCE(successful_method, 'failed') as method,
-            COUNT(*) as count,
-            SUM(CASE WHEN is_success = 1 THEN 1 ELSE 0 END) as successful
-        FROM extraction_telemetry_v2 
-        WHERE created_at >= datetime('now', '-{days} days')
-        GROUP BY COALESCE(successful_method, 'failed')
-        ORDER BY count DESC
-        """)
+            # HTTP error counts
+            error_query = session.query(
+                HttpErrorSummary.status_code,
+                func.sum(HttpErrorSummary.count).label('count')
+            ).filter(
+                HttpErrorSummary.last_seen >= cutoff_date
+            ).group_by(
+                HttpErrorSummary.status_code
+            ).order_by(desc('count')).limit(10)
 
-        method_stats = []
-        for row in cur.fetchall():
-            method_success_rate = (row[2] / row[1] * 100) if row[1] > 0 else 0
-            method_stats.append(
-                {
-                    "method": row[0],
-                    "attempts": row[1],
-                    "successful": row[2],
-                    "success_rate": round(method_success_rate, 2),
+            http_errors = [
+                {"status_code": row.status_code, "count": row.count}
+                for row in error_query.all()
+            ]
+
+            return {
+                "summary": {
+                    "total_extractions": total,
+                    "successful_extractions": successful,
+                    "success_rate": round(success_rate, 2),
+                    "unique_hosts": overall.unique_hosts or 0,
+                    "methods_used": overall.methods_used or 0,
+                    "avg_duration": round(overall.avg_duration, 2) if overall.avg_duration else 0,
+                    "method_breakdown": method_stats,
+                    "top_http_errors": http_errors,
                 }
-            )
-
-        # HTTP error counts
-        cur.execute(f"""
-        SELECT
-            status_code,
-            SUM(count) as count
-        FROM http_error_summary
-        WHERE last_seen >= datetime('now', '-{days} days')
-        GROUP BY status_code
-        ORDER BY count DESC
-        LIMIT 10
-        """)
-
-        http_errors = [
-            {"status_code": row[0], "count": row[1]} for row in cur.fetchall()
-        ]
-
-        conn.close()
-
-        return {
-            "summary": {
-                "total_extractions": overall[0],
-                "successful_extractions": overall[1],
-                "success_rate": round(success_rate, 2),
-                "unique_hosts": overall[2],
-                "methods_used": overall[3],
-                "avg_duration": round(overall[4], 2) if overall[4] else 0,
-                "method_breakdown": method_stats,
-                "top_http_errors": http_errors,
             }
-        }
 
     except Exception as e:
         raise HTTPException(
@@ -1988,62 +2026,38 @@ class SiteManagementRequest(BaseModel):
 def pause_site(request: SiteManagementRequest):
     """Pause a site from further crawling due to poor performance."""
     try:
-        conn = sqlite3.connect(str(MAIN_DB_PATH))
-        cur = conn.cursor()
+        with db_manager.get_session() as session:
+            # Try to find existing source
+            source = session.query(Source).filter(Source.host == request.host).first()
+            
+            now = datetime.datetime.utcnow()
+            reason = request.reason or "Poor performance detected"
+            
+            if source:
+                # Update existing source
+                source.status = 'paused'
+                source.paused_at = now
+                source.paused_reason = reason
+            else:
+                # Create new source
+                source = Source(
+                    id=str(uuid.uuid4()),
+                    host=request.host,
+                    host_norm=request.host.lower(),
+                    status='paused',
+                    paused_at=now,
+                    paused_reason=reason
+                )
+                session.add(source)
+            
+            session.commit()
 
-        # Add status column if it doesn't exist
-        try:
-            cur.execute(
-                "ALTER TABLE sources ADD COLUMN status VARCHAR DEFAULT 'active'"
-            )
-        except sqlite3.OperationalError:
-            # Column already exists
-            pass
-
-        # Add paused_at and paused_reason columns if they don't exist
-        try:
-            cur.execute("ALTER TABLE sources ADD COLUMN paused_at TIMESTAMP")
-            cur.execute("ALTER TABLE sources ADD COLUMN paused_reason TEXT")
-        except sqlite3.OperationalError:
-            # Columns already exist
-            pass
-
-        # Update the source status
-        cur.execute(
-            """
-        UPDATE sources 
-        SET status = 'paused', 
-            paused_at = datetime('now'), 
-            paused_reason = ?
-        WHERE host = ?
-        """,
-            [request.reason or "Poor performance detected", request.host],
-        )
-
-        if cur.rowcount == 0:
-            # Source doesn't exist, create it
-            cur.execute(
-                """
-            INSERT INTO sources (id, host, host_norm, status, paused_at, paused_reason)
-            VALUES (?, ?, ?, 'paused', datetime('now'), ?)
-            """,
-                [
-                    request.host,
-                    request.host,
-                    request.host.lower(),
-                    request.reason or "Poor performance detected",
-                ],
-            )
-
-        conn.commit()
-        conn.close()
-
-        return {
-            "status": "success",
-            "message": f"Site {request.host} has been paused",
-            "paused_at": "now",
-            "reason": request.reason or "Poor performance detected",
-        }
+            return {
+                "status": "success",
+                "message": f"Site {request.host} has been paused",
+                "paused_at": now.isoformat(),
+                "reason": reason,
+            }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error pausing site: {str(e)}")
@@ -2053,30 +2067,23 @@ def pause_site(request: SiteManagementRequest):
 def resume_site(request: SiteManagementRequest):
     """Resume a previously paused site."""
     try:
-        conn = sqlite3.connect(str(MAIN_DB_PATH))
-        cur = conn.cursor()
+        with db_manager.get_session() as session:
+            # Find the source
+            source = session.query(Source).filter(Source.host == request.host).first()
 
-        # Update the source status
-        cur.execute(
-            """
-        UPDATE sources 
-        SET status = 'active', 
-            paused_at = NULL, 
-            paused_reason = NULL
-        WHERE host = ?
-        """,
-            [request.host],
-        )
+            if not source:
+                raise HTTPException(
+                    status_code=404, detail=f"Site {request.host} not found"
+                )
 
-        if cur.rowcount == 0:
-            raise HTTPException(
-                status_code=404, detail=f"Site {request.host} not found"
-            )
+            # Update the source status
+            source.status = 'active'
+            source.paused_at = None
+            source.paused_reason = None
+            
+            session.commit()
 
-        conn.commit()
-        conn.close()
-
-        return {"status": "success", "message": f"Site {request.host} has been resumed"}
+            return {"status": "success", "message": f"Site {request.host} has been resumed"}
 
     except HTTPException as exc:
         raise exc
@@ -2091,22 +2098,20 @@ def resume_site(request: SiteManagementRequest):
 def get_paused_sites():
     """Get list of currently paused sites."""
     try:
-        conn = sqlite3.connect(str(MAIN_DB_PATH))
-        cur = conn.cursor()
+        with db_manager.get_session() as session:
+            paused_sources = session.query(Source).filter(
+                Source.status == 'paused'
+            ).order_by(desc(Source.paused_at)).all()
 
-        cur.execute("""
-        SELECT host, paused_at, paused_reason
-        FROM sources
-        WHERE status = 'paused'
-        ORDER BY paused_at DESC
-        """)
+            paused_sites = []
+            for source in paused_sources:
+                paused_sites.append({
+                    "host": source.host,
+                    "paused_at": source.paused_at.isoformat() if source.paused_at else None,
+                    "reason": source.paused_reason
+                })
 
-        paused_sites = []
-        for row in cur.fetchall():
-            paused_sites.append({"host": row[0], "paused_at": row[1], "reason": row[2]})
-
-        conn.close()
-        return {"paused_sites": paused_sites}
+            return {"paused_sites": paused_sites}
 
     except Exception as e:
         raise HTTPException(
@@ -2118,35 +2123,23 @@ def get_paused_sites():
 def get_site_status(host: str):
     """Get the current status of a specific site."""
     try:
-        conn = sqlite3.connect(str(MAIN_DB_PATH))
-        cur = conn.cursor()
+        with db_manager.get_session() as session:
+            source = session.query(Source).filter(Source.host == host).first()
 
-        cur.execute(
-            """
-        SELECT status, paused_at, paused_reason
-        FROM sources
-        WHERE host = ?
-        """,
-            [host],
-        )
-
-        result = cur.fetchone()
-        conn.close()
-
-        if result:
-            return {
-                "host": host,
-                "status": result[0] or "active",
-                "paused_at": result[1],
-                "paused_reason": result[2],
-            }
-        else:
-            return {
-                "host": host,
-                "status": "active",
-                "paused_at": None,
-                "paused_reason": None,
-            }
+            if source:
+                return {
+                    "host": host,
+                    "status": source.status or "active",
+                    "paused_at": source.paused_at.isoformat() if source.paused_at else None,
+                    "paused_reason": source.paused_reason,
+                }
+            else:
+                return {
+                    "host": host,
+                    "status": "active",
+                    "paused_at": None,
+                    "paused_reason": None,
+                }
 
     except Exception as e:
         raise HTTPException(

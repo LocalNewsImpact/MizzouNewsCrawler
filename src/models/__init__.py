@@ -41,6 +41,10 @@ from src.models.verification import (  # noqa: E402
     VerificationPattern,
     VerificationTelemetry,
 )
+from src.models.telemetry import (  # noqa: E402
+    ExtractionTelemetryV2,
+    HttpErrorSummary,
+)
 
 
 class CandidateLink(Base):
@@ -374,6 +378,11 @@ class Source(Base):
     # Stored in DB as `metadata` column; attribute named `meta` to avoid
     # conflict with SQLAlchemy's class-level `metadata` attribute.
     meta = Column("metadata", JSON)
+
+    # Site management fields for pause/resume functionality
+    status = Column(String, default="active", index=True)
+    paused_at = Column(DateTime)
+    paused_reason = Column(Text)
 
     # Backref to candidate links
     # candidate_links = relationship('CandidateLink', backref='source')
