@@ -33,7 +33,9 @@ class ContentCleaningTelemetry:
         self.enable_telemetry = enable_telemetry
         self.session_id = str(uuid.uuid4())
         self.detection_counter = 0
-        self._store: TelemetryStore = store or get_store(database_url)
+        self._store: TelemetryStore | None = store
+        self._database_url = database_url
+        self._tables_initialized = False
 
         # Current cleaning session data
         self.current_session: dict[str, Any] | None = None
@@ -41,6 +43,21 @@ class ContentCleaningTelemetry:
         self.wire_detection_events: list[dict[str, Any]] = []
         self.locality_detection_events: list[dict[str, Any]] = []
         self._last_boundary_assessment: dict[str, Any] | None = None
+
+    @property
+    def store(self) -> TelemetryStore:
+        """Lazy-load the store only when needed."""
+        if not self.enable_telemetry:
+            raise RuntimeError("Telemetry is disabled")
+        
+        # Skip telemetry store creation for PostgreSQL (Cloud SQL)
+        # Telemetry store only supports SQLite
+        if self._database_url and self._database_url.startswith("postgresql"):
+            raise RuntimeError("Telemetry store does not support PostgreSQL yet")
+        
+        if self._store is None:
+            self._store = get_store(self._database_url)
+        return self._store
 
     def start_cleaning_session(
         self,
@@ -267,12 +284,20 @@ class ContentCleaningTelemetry:
         def writer(conn: sqlite3.Connection) -> None:
             self._write_payload_to_database(conn, payload)
 
-        self._store.submit(writer)
+        try:
+            self.store.submit(writer)
+        except RuntimeError:
+            # Telemetry disabled or not supported
+            pass
 
     def flush(self) -> None:
         """Block until all queued telemetry writes have been processed."""
         if self.enable_telemetry:
-            self._store.flush()
+            try:
+                self.store.flush()
+            except RuntimeError:
+                # Telemetry disabled or not supported
+                pass
 
     def shutdown(self, wait: bool = False) -> None:
         """Signal the writer thread to terminate and optionally wait for it."""
@@ -448,7 +473,13 @@ class ContentCleaningTelemetry:
     def get_persistent_patterns(self, domain: str) -> list[dict]:
         """Get persistent boilerplate patterns for a domain."""
         try:
-            with self._store.connection() as conn:
+            store = self.store
+        except RuntimeError:
+            # Telemetry disabled or not supported
+            return []
+        
+        try:
+            with store.connection() as conn:
                 self._ensure_persistent_patterns_table(conn)
                 cursor = conn.cursor()
                 try:
@@ -488,7 +519,7 @@ class ContentCleaningTelemetry:
     def get_ml_training_patterns(self, domain: str | None = None) -> list[dict]:
         """Get ML training patterns (excludes dynamic ones)."""
         try:
-            with self._store.connection() as conn:
+            with self.store.connection() as conn:
                 self._ensure_persistent_patterns_table(conn)
                 cursor = conn.cursor()
                 try:
@@ -547,7 +578,7 @@ class ContentCleaningTelemetry:
     ) -> list[dict]:
         """Get telemetry patterns, optionally including dynamic types."""
         try:
-            with self._store.connection() as conn:
+            with self.store.connection() as conn:
                 self._ensure_persistent_patterns_table(conn)
                 cursor = conn.cursor()
                 try:
@@ -877,7 +908,7 @@ class ContentCleaningTelemetry:
             return {}
 
         try:
-            with self._store.connection() as conn:
+            with self.store.connection() as conn:
                 self._ensure_tables_exist(conn)
                 cursor = conn.cursor()
                 try:

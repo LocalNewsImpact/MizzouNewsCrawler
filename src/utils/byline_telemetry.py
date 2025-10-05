@@ -33,16 +33,40 @@ class BylineCleaningTelemetry:
         self.enable_telemetry = enable_telemetry
         self.session_id = str(uuid.uuid4())
         self.step_counter = 0
-        self._store: TelemetryStore = store or get_store(database_url)
+        self._store: TelemetryStore | None = store
+        self._database_url = database_url
+        self._tables_initialized = False
 
         # Current cleaning session data
         self.current_session: dict[str, Any] | None = None
         self.transformation_steps: list[dict[str, Any]] = []
 
-        self._ensure_tables()
+    @property
+    def store(self) -> TelemetryStore:
+        """Lazy-load the store only when needed."""
+        if not self.enable_telemetry:
+            raise RuntimeError("Telemetry is disabled")
+        
+        # Skip telemetry store creation for PostgreSQL (Cloud SQL)
+        # Telemetry store only supports SQLite
+        if self._database_url and self._database_url.startswith("postgresql"):
+            raise RuntimeError("Telemetry store does not support PostgreSQL yet")
+        
+        if self._store is None:
+            self._store = get_store(self._database_url)
+        if not self._tables_initialized:
+            self._ensure_tables()
+            self._tables_initialized = True
+        return self._store
 
     def _ensure_tables(self) -> None:
-        with self._store.connection() as conn:
+        try:
+            store = self.store
+        except RuntimeError:
+            # Telemetry disabled or not supported (e.g., PostgreSQL)
+            return
+        
+        with store.connection() as conn:
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS byline_cleaning_telemetry (
@@ -387,14 +411,22 @@ class BylineCleaningTelemetry:
                 cursor.close()
 
         try:
-            self._store.submit(writer)
+            store = self.store
+            store.submit(writer)
+        except RuntimeError:
+            # Telemetry disabled or not supported
+            pass
         except Exception as exc:  # pragma: no cover - telemetry best effort
             print(f"Warning: Failed to store telemetry data: {exc}")
             # Don't fail the cleaning process due to telemetry issues
 
     def flush(self) -> None:
         if self.enable_telemetry:
-            self._store.flush()
+            try:
+                self.store.flush()
+            except RuntimeError:
+                # Telemetry disabled or not supported
+                pass
 
     def get_session_summary(self) -> dict[str, Any] | None:
         """Get a summary of the current cleaning session."""
