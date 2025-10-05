@@ -4,7 +4,7 @@ metadata:
   name: mizzou-processor-pdb
   namespace: production
 spec:
-  maxUnavailable: 0
+  maxUnavailable: 1
   selector:
     matchLabels:
       app: mizzou-processor
