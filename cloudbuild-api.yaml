@@ -24,7 +24,7 @@ steps:
       - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api'
     waitFor: ['build-api']
 
-  # Create Cloud Deploy release for API only
+  # Create Cloud Deploy release for API with all current images
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'create-release'
     entrypoint: 'bash'
@@ -35,7 +35,7 @@ steps:
           --delivery-pipeline=mizzou-news-crawler \
           --region=us-central1 \
           --annotations=commitId=${REVISION_ID},service=api \
-          --images=api=us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/api:${SHORT_SHA}
+          --images=api=us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/api:${SHORT_SHA},processor=us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/processor:latest,crawler=us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/crawler:latest
         echo "✅ Created Cloud Deploy release for API"
     waitFor: ['push-api']
 
