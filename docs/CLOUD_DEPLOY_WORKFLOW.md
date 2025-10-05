@@ -20,26 +20,23 @@ Cloud Deploy:
 ✅ Done! All services deployed
 ```
 
-### Feature Branch (Build Only - Manual Deploy)
+### Feature Branch Workflow (Manual Build + Deploy)
 
 ```
 git push origin feature/my-branch
     ↓
-GitHub webhook triggers Cloud Build
+❌ NO automatic build (saves Cloud Build resources!)
     ↓
-Cloud Build:
-  1. Builds all 3 Docker images
-  2. Pushes to Artifact Registry
-  3. Prints manual deploy command
-  4. STOPS (no deployment)
-    ↓
-⚠️  Images ready but NOT deployed
+When ready to test, manually trigger:
 
-To deploy manually:
-gcloud deploy releases create release-abc123 \
-  --delivery-pipeline=mizzou-news-crawler \
-  --region=us-central1 \
-  --images=processor=...,api=...,crawler=...
+Step 1 - Build images:
+  gcloud builds submit --config=cloudbuild.yaml
+    ↓
+Step 2 - Deploy (after build completes):
+  gcloud deploy releases create release-abc123 \
+    --delivery-pipeline=mizzou-news-crawler \
+    --region=us-central1 \
+    --images=processor=...,api=...,crawler=...
 ```
 
 ## Key Features

@@ -68,7 +68,7 @@ This script:
 # 1. Make changes and push to main
 git add .
 git commit -m "feat: your feature"
-git push origin main  # ← Triggers build + automatic deployment!
+git push origin main  # ← Triggers automatic build + deployment!
 
 # 2. Watch Cloud Build (builds images)
 # https://console.cloud.google.com/cloud-build/builds?project=mizzou-news-crawler
@@ -80,25 +80,26 @@ git push origin main  # ← Triggers build + automatic deployment!
 kubectl get pods -n production -w
 ```
 
-### Feature Branch Workflow (Build + Manual Deploy)
+### Feature Branch Workflow (Manual Build + Deploy)
 
 ```bash
-# 1. Push feature branch - builds automatically
+# 1. Push feature branch (NO automatic build - saves resources!)
 git checkout -b feature/my-feature
 git add .
 git commit -m "feat: your feature"
-git push origin feature/my-feature  # ← Builds images (doesn't deploy)
+git push origin feature/my-feature  # ← Just pushes code, no build
 
-# 2. Images are ready in Artifact Registry!
+# 2. Manually trigger build when ready to test
+gcloud builds submit --config=cloudbuild.yaml
 
-# 3. Manually create Cloud Deploy release to test
+# 3. After build completes, manually create Cloud Deploy release
 COMMIT_SHA=$(git rev-parse --short HEAD)
 gcloud deploy releases create release-$COMMIT_SHA \
   --delivery-pipeline=mizzou-news-crawler \
   --region=us-central1 \
   --images=processor=us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-news-crawler/processor:$COMMIT_SHA,api=us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-news-crawler/api:$COMMIT_SHA,crawler=us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-news-crawler/crawler:$COMMIT_SHA
 
-# 4. Merge to main when ready - auto-deploys latest build
+# 4. Merge to main when ready - triggers automatic build + deploy
 ```
 
 ## Deploying Individual Services

@@ -133,29 +133,30 @@ apply_cloud_deploy() {
 create_build_trigger() {
     log_info "Creating Cloud Build trigger..."
     
-    TRIGGER_NAME="build-on-push"
+    TRIGGER_NAME="build-deploy-main"
+    PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')
+    SERVICE_ACCOUNT="$PROJECT_NUMBER-compute@developer.gserviceaccount.com"
     
-    # Delete if exists
-    if gcloud builds triggers describe "$TRIGGER_NAME" --region="$REGION" &>/dev/null; then
+    # Delete if exists (check global location like existing triggers)
+    if gcloud builds triggers describe "$TRIGGER_NAME" &>/dev/null; then
         log_warning "Trigger $TRIGGER_NAME already exists. Deleting..."
-        gcloud builds triggers delete "$TRIGGER_NAME" --region="$REGION" --quiet
+        gcloud builds triggers delete "$TRIGGER_NAME" --quiet
     fi
     
-    # Create trigger that builds on any push
+    # Create trigger ONLY for main branch (no wasteful feature branch builds)
     gcloud builds triggers create github \
         --name="$TRIGGER_NAME" \
-        --region="$REGION" \
         --repo-name="$REPO_NAME" \
         --repo-owner="$REPO_OWNER" \
-        --branch-pattern=".*" \
+        --branch-pattern="^main$" \
         --build-config="cloudbuild.yaml" \
-        --description="Build images on any branch push" \
-        --include-logs-with-status
+        --description="Auto-build and deploy on push to main branch only" \
+        --service-account="projects/$PROJECT_ID/serviceAccounts/$SERVICE_ACCOUNT"
     
     log_success "Build trigger created"
-    log_info "  → Builds on ALL branches"
-    log_info "  → Auto-deploys only when pushing to 'main'"
-    log_info "  → Feature branches build but don't deploy"
+    log_info "  → Builds ONLY on main branch (saves resources)"
+    log_info "  → Auto-deploys to production"
+    log_info "  → Feature branches: Manual trigger only"
 }
 
 # Display next steps
@@ -167,14 +168,18 @@ show_next_steps() {
     echo ""
     log_info "Deployment Workflow:"
     echo ""
-    echo "  1️⃣  Push to GitHub (any branch)"
-    echo "     └─> Builds Docker images automatically"
+    echo "  🚀 Main Branch (Automatic):"
+    echo "     git push origin main"
+    echo "     └─> Auto-builds images"
+    echo "     └─> Auto-creates Cloud Deploy release"
+    echo "     └─> Auto-deploys to production"
     echo ""
-    echo "  2️⃣  On main branch: Auto-creates release & deploys"
-    echo "     └─> Cloud Deploy → Production"
-    echo ""
-    echo "  3️⃣  On feature branch: Build only (manual deploy)"
-    echo "     └─> Use: gcloud deploy releases create ..."
+    echo "  🔧 Feature Branch (Manual):"
+    echo "     1. Push code (no automatic build)"
+    echo "     2. Manually trigger build:"
+    echo "        gcloud builds submit --config=cloudbuild.yaml"
+    echo "     3. Manually create release:"
+    echo "        gcloud deploy releases create release-xyz ..."
     echo ""
     log_info "View Cloud Deploy:"
     echo "  https://console.cloud.google.com/deploy/delivery-pipelines?project=$PROJECT_ID"
