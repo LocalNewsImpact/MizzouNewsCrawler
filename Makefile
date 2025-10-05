@@ -1,4 +1,4 @@
-.PHONY: coverage lint format security type-check test-full ci-check
+.PHONY: coverage lint format security type-check test-full test-migrations test-alembic ci-check
 
 coverage:
 	python -m pytest --cov=src --cov-report=term-missing --cov-fail-under=45
@@ -33,6 +33,13 @@ type-check:
 
 test-full:
 	python -m pytest --cov=src --cov-report=html --cov-report=term-missing --cov-fail-under=70
+
+test-migrations:
+	@echo "=== Running Alembic migration tests ==="
+	python -m pytest tests/alembic/ -v
+
+test-alembic: test-migrations
+	@echo "Alias for test-migrations"
 
 ci-check:
 	@echo "=== Running all CI checks locally ==="
