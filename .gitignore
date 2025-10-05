@@ -53,6 +53,8 @@ gazetteer_backfill_full.log
 *.db-wal
 *.db.backup*
 data/
+!lookups/
+!lookups/**/*.db
 
 # Node
 node_modules/
