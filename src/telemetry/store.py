@@ -44,11 +44,14 @@ class _ConnectionWrapper:
                 for i, value in enumerate(parameters):
                     adapted_sql = adapted_sql.replace('?', f':param{i}', 1)
                     params_dict[f'param{i}'] = value
-                return self._conn.execute(text(adapted_sql), params_dict)
+                result = self._conn.execute(text(adapted_sql), params_dict)
             else:
-                return self._conn.execute(text(sql), parameters)
+                result = self._conn.execute(text(sql), parameters)
         else:
-            return self._conn.execute(text(sql))
+            result = self._conn.execute(text(sql))
+        
+        # Wrap result to provide sqlite3-like interface
+        return _ResultWrapper(result)
     
     def cursor(self):
         """Return a cursor-like object for compatibility."""
@@ -76,6 +79,7 @@ class _CursorWrapper:
     
     def __init__(self, sqlalchemy_conn: Connection):
         self._conn = sqlalchemy_conn
+        self._last_result = None
     
     def execute(self, sql: str, parameters: tuple | None = None):
         """Execute SQL with sqlite3-style ? placeholders."""
@@ -88,13 +92,53 @@ class _CursorWrapper:
                 if i < len(parameters):
                     adapted_sql = adapted_sql.replace('?', f':param{i}', 1)
                     params_dict[f'param{i}'] = parameters[i]
-            return self._conn.execute(text(adapted_sql), params_dict)
+            self._last_result = self._conn.execute(text(adapted_sql), params_dict)
         else:
-            return self._conn.execute(text(sql))
+            self._last_result = self._conn.execute(text(sql))
+        
+        # Create a wrapper that provides sqlite3-like cursor behavior
+        return _ResultWrapper(self._last_result)
     
     def close(self):
         """No-op for compatibility."""
         pass
+
+
+class _ResultWrapper:
+    """Wrapper that makes SQLAlchemy CursorResult behave like sqlite3.Cursor."""
+    
+    def __init__(self, result):
+        self._result = result
+        self._cached_description = None
+    
+    @property
+    def description(self):
+        """Provide sqlite3-style description attribute."""
+        if self._cached_description is None:
+            # Get column names from the result
+            if hasattr(self._result, 'keys'):
+                keys = self._result.keys()
+                # Format as [(name, None, None, None, None, None, None), ...]
+                # to match sqlite3.Cursor.description format
+                self._cached_description = [
+                    (key, None, None, None, None, None, None) for key in keys
+                ]
+            else:
+                self._cached_description = []
+        return self._cached_description
+    
+    def fetchone(self):
+        """Fetch one row."""
+        return self._result.fetchone()
+    
+    def fetchall(self):
+        """Fetch all rows."""
+        return self._result.fetchall()
+    
+    def close(self):
+        """Close the result."""
+        if hasattr(self._result, 'close'):
+            self._result.close()
 
 
 def _resolve_sqlite_path(database: str) -> str:

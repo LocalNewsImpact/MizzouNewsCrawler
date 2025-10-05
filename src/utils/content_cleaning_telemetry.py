@@ -50,11 +50,6 @@ class ContentCleaningTelemetry:
         if not self.enable_telemetry:
             raise RuntimeError("Telemetry is disabled")
         
-        # Skip telemetry store creation for PostgreSQL (Cloud SQL)
-        # Telemetry store only supports SQLite
-        if self._database_url and self._database_url.startswith("postgresql"):
-            raise RuntimeError("Telemetry store does not support PostgreSQL yet")
-        
         if self._store is None:
             self._store = get_store(self._database_url)
         return self._store
