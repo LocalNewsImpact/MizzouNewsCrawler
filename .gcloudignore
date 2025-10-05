@@ -22,6 +22,8 @@ logs/
 *.db
 *.db-shm
 *.db-wal
+!lookups/
+!lookups/**
 
 # Exclude test and development files
 tests/
