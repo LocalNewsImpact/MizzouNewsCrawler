@@ -9,3 +9,6 @@ torch>=2.1.0
 
 # Classification
 storysniffer>=1.0.0  # Compatible version
+
+# Crawler dependencies (processor CLI imports crawler code)
+feedparser>=6.0.10  # RSS/Atom feed parsing
