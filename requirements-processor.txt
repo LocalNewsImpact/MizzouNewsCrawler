@@ -1,0 +1,11 @@
+# Processor-specific requirements
+# These packages are only needed for the background processor service
+# that handles ML classification, entity extraction, and analysis
+
+# ML/NLP
+scikit-learn==1.5.1  # Fixed version for StorySniffer compatibility
+transformers>=4.30.0
+torch>=2.1.0
+
+# Classification
+storysniffer>=1.0.0  # Compatible version

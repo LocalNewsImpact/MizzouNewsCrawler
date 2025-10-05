@@ -1,0 +1,6 @@
+# Manual trigger for base image build
+# Use: gcloud builds triggers run build-base-manual
+
+name: build-base-manual
+description: Manually build shared base image with common dependencies
+filename: cloudbuild-base.yaml

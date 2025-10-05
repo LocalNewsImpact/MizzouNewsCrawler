@@ -1,0 +1,29 @@
+# Cloud Build configuration for base image
+# This base image contains common dependencies used by all services
+# Should be rebuilt manually when base dependencies change
+
+steps:
+  # Build base image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/mizzou-crawler/base:latest'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/mizzou-crawler/base:$SHORT_SHA'
+      - '-f'
+      - 'Dockerfile.base'
+      - '.'
+    id: 'build-base'
+
+  # Push both tags to Artifact Registry
+images:
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/mizzou-crawler/base:latest'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/mizzou-crawler/base:$SHORT_SHA'
+
+# Base image build takes longer (10-15 minutes first time, ~5 minutes cached)
+timeout: 1200s
+
+options:
+  machineType: 'N1_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY

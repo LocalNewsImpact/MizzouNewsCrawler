@@ -1,41 +1,32 @@
 # Multi-stage Dockerfile for FastAPI backend
-# Optimized for size and layer caching
+# Optimized for size and layer caching using shared base image
 
-# Stage 1: Base image with system dependencies
-FROM python:3.11-slim AS base
+# Use ARG to allow override of base image location
+ARG BASE_IMAGE=mizzou-base:latest
 
-# Install system dependencies (retry with --fix-missing on hash errors)
-RUN apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* && \
-    apt-get update -o Acquire::Check-Valid-Until=false && \
-    (apt-get install -y --no-install-recommends --allow-unauthenticated \
-        gcc g++ libpq-dev || \
-     apt-get install -y --no-install-recommends --fix-missing \
-        gcc g++ libpq-dev) && \
-    rm -rf /var/lib/apt/lists/*
+# Stage 1: Install API-specific dependencies
+FROM ${BASE_IMAGE} AS deps
 
 WORKDIR /app
 
-# Stage 2: Install Python dependencies
-FROM base as deps
+# Copy only API-specific requirements
+COPY requirements-api.txt ./
 
-# Copy only requirements first for better layer caching
-COPY requirements.txt requirements-dev.txt ./
+# Install API-specific Python packages
+RUN pip install --no-cache-dir -r requirements-api.txt
 
-# Install Python packages
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# Stage 2: Final runtime image
+FROM ${BASE_IMAGE} AS runtime
 
-# Stage 3: Final runtime image
-FROM base as runtime
+WORKDIR /app
 
-# Copy installed packages from deps stage
+# Copy API-specific packages from deps stage
+# Base packages are already in the base image
 COPY --from=deps /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=deps /usr/local/bin /usr/local/bin
 
-# Create non-root user for security
-RUN useradd -m -u 1000 appuser && \
-    chown -R appuser:appuser /app
+# appuser already created in base image, just set ownership
+RUN chown -R appuser:appuser /app
 
 # Copy application code
 COPY --chown=appuser:appuser backend/ ./backend/
