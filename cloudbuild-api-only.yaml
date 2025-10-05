@@ -1,0 +1,31 @@
+# Cloud Build configuration for building ONLY the API service
+# Usage: gcloud builds submit --config=cloudbuild-api-only.yaml
+
+steps:
+  # Build API
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-api'
+    args:
+      - 'build'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/api:${SHORT_SHA}'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/api:latest'
+      - '-f'
+      - 'Dockerfile.api'
+      - '.'
+
+  # Push API
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-api'
+    args:
+      - 'push'
+      - '--all-tags'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/api'
+    waitFor: ['build-api']
+
+options:
+  machineType: 'N1_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: '900s'  # 15 minutes
