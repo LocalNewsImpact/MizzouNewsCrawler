@@ -1,34 +1,22 @@
 # Multi-stage Dockerfile for Background Processor
 # Handles extraction, cleaning, entity extraction, classification
+# Optimized using shared base image
 
-# Stage 1: Base image with system dependencies
-FROM python:3.11-slim AS base
+# Use ARG to allow override of base image location
+ARG BASE_IMAGE=mizzou-base:latest
 
-# Install system dependencies
-RUN apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* && \
-    apt-get update -o Acquire::Check-Valid-Until=false && \
-    (apt-get install -y --no-install-recommends --allow-unauthenticated \
-        gcc g++ libpq-dev || \
-     apt-get install -y --no-install-recommends --fix-missing \
-        gcc g++ libpq-dev) && \
-    rm -rf /var/lib/apt/lists/*
+# Stage 1: Install Processor-specific dependencies
+FROM ${BASE_IMAGE} AS deps
 
 WORKDIR /app
 
-# Stage 2: Install Python dependencies and download ML models
-FROM base as deps
+# Copy only processor-specific requirements (ML packages like torch, transformers)
+COPY requirements-processor.txt ./
 
-COPY requirements.txt requirements-dev.txt ./
+# Install processor-specific Python packages
+RUN pip install --no-cache-dir -r requirements-processor.txt
 
-# Install Python packages
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
-
-# Download spacy model
-RUN python -m spacy download en_core_web_sm
-
-# Stage 3: Prepare for ML models (will be downloaded from GCS in production)
+# Stage 2: Prepare for ML models (will be downloaded from GCS in production)
 FROM deps as models
 
 # Create directory for models
@@ -36,21 +24,24 @@ RUN mkdir -p /app/models
 
 # Note: In production, models will be downloaded from GCS via init container
 # This stage prepares the directory structure for local development
+# Spacy model (en_core_web_sm) is already in base image
 
-# Stage 4: Final runtime image
-FROM base as runtime
+# Stage 3: Final runtime image
+FROM ${BASE_IMAGE} AS runtime
 
-# Copy installed packages from deps stage
+WORKDIR /app
+
+# Copy processor-specific packages from deps stage
+# Base packages and spacy model are already in the base image
 COPY --from=deps /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=deps /usr/local/bin /usr/local/bin
 COPY --from=deps /root/.cache /root/.cache
 
-# Copy models (if available)
+# Copy models directory structure (if available)
 COPY --from=models /app/models /app/models
 
-# Create non-root user
-RUN useradd -m -u 1000 appuser && \
-    chown -R appuser:appuser /app
+# appuser already created in base image, just set ownership
+RUN chown -R appuser:appuser /app
 
 # Copy application code
 COPY --chown=appuser:appuser src/ ./src/

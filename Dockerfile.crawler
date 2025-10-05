@@ -1,46 +1,49 @@
 # Multi-stage Dockerfile for Crawler services
 # Handles discovery, extraction, and verification
+# Optimized using shared base image
 
-# Stage 1: Base image with system dependencies
-FROM python:3.11-slim AS base
+# Use ARG to allow override of base image location
+ARG BASE_IMAGE=mizzou-base:latest
 
-# Install system dependencies (including those for spacy, playwright, etc.)
+# Stage 1: Base with additional crawler system dependencies
+FROM ${BASE_IMAGE} AS base-crawler
+
+# Install additional system dependencies for browser automation (Playwright, Selenium)
+# Base image has gcc, g++, libpq-dev, wget, ca-certificates
+# We add browser-specific packages here
 RUN apt-get clean && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* && \
     apt-get update -o Acquire::Check-Valid-Until=false && \
     (apt-get install -y --no-install-recommends --allow-unauthenticated \
-        gcc g++ libpq-dev wget ca-certificates fonts-liberation libnss3 \
-        libxss1 xdg-utils || \
+        fonts-liberation libnss3 libxss1 xdg-utils || \
      apt-get install -y --no-install-recommends --fix-missing \
-        gcc g++ libpq-dev wget ca-certificates fonts-liberation libnss3 \
-        libxss1 xdg-utils) && \
+        fonts-liberation libnss3 libxss1 xdg-utils) && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Stage 2: Install Python dependencies
-FROM base as deps
+# Stage 2: Install Crawler-specific dependencies
+FROM base-crawler AS deps
 
-COPY requirements.txt requirements-dev.txt ./
+# Copy only crawler-specific requirements (selenium, newspaper4k, etc.)
+COPY requirements-crawler.txt ./
 
-# Install Python packages
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
-
-# Download spacy model
-RUN python -m spacy download en_core_web_sm
+# Install crawler-specific Python packages
+RUN pip install --no-cache-dir -r requirements-crawler.txt
 
 # Stage 3: Final runtime image
-FROM base as runtime
+FROM base-crawler AS runtime
 
-# Copy installed packages from deps stage
+WORKDIR /app
+
+# Copy crawler-specific packages from deps stage
+# Base packages and spacy model are already in the base image
 COPY --from=deps /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=deps /usr/local/bin /usr/local/bin
 COPY --from=deps /root/.cache /root/.cache
 
-# Create non-root user
-RUN useradd -m -u 1000 appuser && \
-    chown -R appuser:appuser /app
+# appuser already created in base image, just set ownership
+RUN chown -R appuser:appuser /app
 
 # Copy application code
 COPY --chown=appuser:appuser src/ ./src/

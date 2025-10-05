@@ -4,6 +4,15 @@
 version: '3.8'
 
 services:
+  # Shared base image (build once, use for all services)
+  base:
+    build:
+      context: .
+      dockerfile: Dockerfile.base
+    image: mizzou-base:latest
+    profiles:
+      - base  # Build with: docker-compose --profile base build base
+
   # PostgreSQL database (replaces SQLite)
   postgres:
     image: postgres:16
@@ -27,6 +36,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.api
+      args:
+        BASE_IMAGE: mizzou-base:latest
     container_name: mizzou-api
     ports:
       - "8000:8000"
@@ -49,6 +60,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.crawler
+      args:
+        BASE_IMAGE: mizzou-base:latest
     container_name: mizzou-crawler
     environment:
       DATABASE_URL: postgresql://mizzou_user:mizzou_pass@postgres:5432/mizzou
@@ -71,6 +84,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.processor
+      args:
+        BASE_IMAGE: mizzou-base:latest
     container_name: mizzou-processor
     environment:
       DATABASE_URL: postgresql://mizzou_user:mizzou_pass@postgres:5432/mizzou

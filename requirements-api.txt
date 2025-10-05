@@ -1,0 +1,10 @@
+# API-specific requirements
+# These packages are only needed for the FastAPI backend service
+
+# Web API framework
+fastapi>=0.103.0
+uvicorn[standard]>=0.23.0
+
+# Notebook support (for report generation)
+papermill>=2.4.0
+jupyterlab>=4.0.0

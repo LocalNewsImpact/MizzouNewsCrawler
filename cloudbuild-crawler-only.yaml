@@ -1,12 +1,18 @@
 # Cloud Build configuration for building ONLY the crawler service
 # Usage: gcloud builds submit --config=cloudbuild-crawler-only.yaml
+# Note: Uses shared base image from Artifact Registry
+
+substitutions:
+  _BASE_IMAGE: us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/base:latest
 
 steps:
-  # Build Crawler
+  # Build Crawler (using shared base image)
   - name: 'gcr.io/cloud-builders/docker'
     id: 'build-crawler'
     args:
       - 'build'
+      - '--build-arg'
+      - 'BASE_IMAGE=${_BASE_IMAGE}'
       - '-t'
       - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/crawler:${SHORT_SHA}'
       - '-t'
@@ -28,4 +34,4 @@ options:
   machineType: 'N1_HIGHCPU_8'
   logging: CLOUD_LOGGING_ONLY
 
-timeout: '900s'  # 15 minutes
+timeout: '300s'  # 5 minutes (reduced from 15 due to base image optimization)
