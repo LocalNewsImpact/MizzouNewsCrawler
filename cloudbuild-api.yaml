@@ -2,15 +2,13 @@ steps:
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'build'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:v1.3.1'
       - '-f'
       - 'Dockerfile.api'
-      - '-t'
-      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:v1.3.0'
-      - '-t'
-      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:latest'
       - '.'
 images:
-  - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:v1.3.0'
+  - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:v1.3.1'
   - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:latest'
 timeout: 1800s
 options:
