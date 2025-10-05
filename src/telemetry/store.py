@@ -82,18 +82,22 @@ class _CursorWrapper:
         self._last_result = None
         self._result_wrapper = None
     
-    def execute(self, sql: str, parameters: tuple | None = None):
-        """Execute SQL with sqlite3-style ? placeholders."""
+    def execute(self, sql: str, parameters: tuple | dict | None = None):
+        """Execute SQL with sqlite3-style ? placeholders or :named placeholders."""
         if parameters:
-            # Replace ? with :param0, :param1, etc.
-            adapted_sql = sql
-            params_dict = {}
-            param_count = sql.count('?')
-            for i in range(param_count):
-                if i < len(parameters):
-                    adapted_sql = adapted_sql.replace('?', f':param{i}', 1)
-                    params_dict[f'param{i}'] = parameters[i]
-            self._last_result = self._conn.execute(text(adapted_sql), params_dict)
+            if isinstance(parameters, dict):
+                # Named parameters: already in SQLAlchemy format
+                self._last_result = self._conn.execute(text(sql), parameters)
+            else:
+                # Positional parameters: Replace ? with :param0, :param1, etc.
+                adapted_sql = sql
+                params_dict = {}
+                param_count = sql.count('?')
+                for i in range(param_count):
+                    if i < len(parameters):
+                        adapted_sql = adapted_sql.replace('?', f':param{i}', 1)
+                        params_dict[f'param{i}'] = parameters[i]
+                self._last_result = self._conn.execute(text(adapted_sql), params_dict)
         else:
             self._last_result = self._conn.execute(text(sql))
         
