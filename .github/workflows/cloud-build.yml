@@ -1,11 +1,13 @@
 name: 'GCP Cloud Build CI'
 
+# DISABLED: Use manual gcloud builds submit or Cloud Build triggers instead
+# This workflow was causing duplicate builds
 on:
-  push:
-    branches:
-      - 'main'
-      - 'feature/**'
-  workflow_dispatch: {}
+  # push:
+  #   branches:
+  #     - 'main'
+  #     - 'feature/**'
+  workflow_dispatch: {}  # Keep manual trigger option
 
 jobs:
   cloud-build:
