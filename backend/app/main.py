@@ -947,43 +947,36 @@ def get_snapshot_html(sid: str):
 
 @app.post("/api/snapshots/{sid}/candidates")
 def post_candidates(sid: str, payload: list[CandidateIn]):
-    init_snapshot_tables()
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    now = datetime.datetime.utcnow().isoformat()
-    inserted = []
-    for c in payload:
-        cid = str(uuid.uuid4())
-        # prepare alts as JSON if present
-        alts_json = None
-        try:
-            if getattr(c, "alts", None) is not None:
-                alts_json = json.dumps(c.alts)
-        except Exception:
+    with db_manager.get_session() as session:
+        now = datetime.datetime.utcnow()
+        inserted = []
+        for c in payload:
+            cid = str(uuid.uuid4())
+            # prepare alts as JSON if present
             alts_json = None
-        cur.execute(
-            (
-                "INSERT INTO candidates (id, snapshot_id, selector, field, "
-                "score, words, snippet, alts, accepted, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-            ),
-            (
-                cid,
-                sid,
-                c.selector,
-                getattr(c, "field", None),
-                c.score,
-                c.words,
-                getattr(c, "snippet", None),
-                alts_json,
-                0,
-                now,
-            ),
-        )
-        inserted.append(cid)
-    conn.commit()
-    conn.close()
-    return {"inserted": inserted}
+            try:
+                if getattr(c, "alts", None) is not None:
+                    alts_json = json.dumps(c.alts)
+            except Exception:
+                alts_json = None
+            
+            candidate = Candidate(
+                id=cid,
+                snapshot_id=sid,
+                selector=c.selector,
+                field=getattr(c, "field", None),
+                score=c.score,
+                words=c.words,
+                snippet=getattr(c, "snippet", None),
+                alts=alts_json,
+                accepted=False,
+                created_at=now
+            )
+            session.add(candidate)
+            inserted.append(cid)
+        
+        session.commit()
+        return {"inserted": inserted}
 
 
 @app.get("/api/domain_issues")
@@ -1171,25 +1164,20 @@ def ui_overview():
 
     # candidate issues from DB (non-accepted)
     try:
-        conn = sqlite3.connect(DB_PATH)
-        cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM candidates WHERE accepted=0")
-        r = cur.fetchone()
-        if r:
-            res["candidate_issues"] = int(r[0])
-        # dedupe near-misses: dedupe_audit rows where dedupe_flag is 0 and similarity > 0.7
-        try:
-            cur.execute(
-                "SELECT COUNT(*) FROM dedupe_audit WHERE (dedupe_flag IS NULL OR dedupe_flag=0) AND similarity>?",
-                (0.7,),
-            )
-            rr = cur.fetchone()
-            if rr:
-                res["dedupe_near_misses"] = int(rr[0])
-        except Exception:
-            # if dedupe_audit missing or column types differ, ignore
-            pass
-        conn.close()
+        with db_manager.get_session() as session:
+            count = session.query(Candidate).filter(Candidate.accepted == False).count()
+            res["candidate_issues"] = int(count)
+            
+            # dedupe near-misses: dedupe_audit rows where dedupe_flag is 0 and similarity > 0.7
+            try:
+                near_miss_count = session.query(DedupeAudit).filter(
+                    (DedupeAudit.dedupe_flag.is_(None)) | (DedupeAudit.dedupe_flag == 0),
+                    DedupeAudit.similarity > 0.7
+                ).count()
+                res["dedupe_near_misses"] = int(near_miss_count)
+            except Exception:
+                # if dedupe_audit missing or column types differ, ignore
+                pass
     except Exception:
         pass
 
@@ -1203,48 +1191,46 @@ def post_dedupe_records(payload: list[dict]):
     dedupe_flag (0/1), category (int), stage (str), details (dict or str).
     Returns inserted count and sample ids.
     """
-    init_snapshot_tables()
     if not isinstance(payload, list):
         records = [payload]
     else:
         records = payload
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    now = datetime.datetime.utcnow().isoformat()
-    inserted = 0
-    samples = []
-    for r in records:
-        try:
-            cur.execute(
-                "INSERT INTO dedupe_audit (article_uid, neighbor_uid, host, similarity, dedupe_flag, category, stage, details, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    r.get("article_uid"),
-                    r.get("neighbor_uid"),
-                    r.get("host"),
-                    r.get("similarity"),
-                    (
+    
+    with db_manager.get_session() as session:
+        now = datetime.datetime.utcnow()
+        inserted = 0
+        samples = []
+        for r in records:
+            try:
+                audit = DedupeAudit(
+                    article_uid=r.get("article_uid"),
+                    neighbor_uid=r.get("neighbor_uid"),
+                    host=r.get("host"),
+                    similarity=r.get("similarity"),
+                    dedupe_flag=(
                         int(r.get("dedupe_flag"))
                         if r.get("dedupe_flag") is not None
                         else None
                     ),
-                    int(r.get("category")) if r.get("category") is not None else None,
-                    r.get("stage"),
-                    (
+                    category=int(r.get("category")) if r.get("category") is not None else None,
+                    stage=r.get("stage"),
+                    details=(
                         json.dumps(r.get("details"))
                         if r.get("details") is not None
                         else None
                     ),
-                    now,
-                ),
-            )
-            inserted += 1
-            samples.append(cur.lastrowid)
-        except Exception:
-            # skip problematic rows but continue
-            continue
-    conn.commit()
-    conn.close()
-    return {"inserted": inserted, "sample_ids": samples}
+                    created_at=now
+                )
+                session.add(audit)
+                session.flush()  # Get the ID
+                inserted += 1
+                samples.append(audit.id)
+            except Exception:
+                # skip problematic rows but continue
+                continue
+        
+        session.commit()
+        return {"inserted": inserted, "sample_ids": samples}
 
 
 @app.get("/api/dedupe_records")
@@ -1255,49 +1241,29 @@ def get_dedupe_records(
     offset: int = 0,
 ):
     """Query dedupe audit rows filtered by article_uid or host. Returns rows ordered by created_at desc."""
-    if not DB_PATH.exists():
-        return {"count": 0, "results": []}
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    base_sql = "SELECT id, article_uid, neighbor_uid, host, similarity, dedupe_flag, category, stage, details, created_at FROM dedupe_audit"
-    params = []
-    where = []
-    if article_uid:
-        where.append("article_uid=?")
-        params.append(article_uid)
-    if host:
-        where.append("host=?")
-        params.append(host)
-    if where:
-        base_sql = base_sql + " WHERE " + " AND ".join(where)
-    base_sql = base_sql + " ORDER BY created_at DESC LIMIT ? OFFSET ?"
-    params.extend([limit, offset])
-    cur.execute(base_sql, tuple(params))
-    rows = cur.fetchall()
-    conn.close()
-    cols = [
-        "id",
-        "article_uid",
-        "neighbor_uid",
-        "host",
-        "similarity",
-        "dedupe_flag",
-        "category",
-        "stage",
-        "details",
-        "created_at",
-    ]
-    out = []
-    for r in rows:
-        d = dict(zip(cols, r, strict=False))
-        # attempt to parse details JSON
-        if d.get("details"):
-            try:
-                d["details"] = json.loads(d["details"])
-            except Exception:
-                pass
-        out.append(d)
-    return {"count": len(out), "results": out}
+    with db_manager.get_session() as session:
+        query = session.query(DedupeAudit)
+        
+        if article_uid:
+            query = query.filter(DedupeAudit.article_uid == article_uid)
+        if host:
+            query = query.filter(DedupeAudit.host == host)
+        
+        query = query.order_by(DedupeAudit.created_at.desc()).limit(limit).offset(offset)
+        records = query.all()
+        
+        out = []
+        for record in records:
+            d = record.to_dict()
+            # attempt to parse details JSON
+            if d.get("details"):
+                try:
+                    d["details"] = json.loads(d["details"])
+                except Exception:
+                    pass
+            out.append(d)
+        
+        return {"count": len(out), "results": out}
 
 
 @app.post("/api/import_dupes_csv")
