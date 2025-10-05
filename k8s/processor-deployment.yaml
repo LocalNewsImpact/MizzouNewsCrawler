@@ -20,7 +20,7 @@ spec:
       serviceAccountName: mizzou-app
       containers:
       - name: processor
-        image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:v1.2.2
+        image: processor
         command:
           - python
           - orchestration/continuous_processor.py
