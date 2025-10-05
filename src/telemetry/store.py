@@ -80,24 +80,42 @@ class _CursorWrapper:
     def __init__(self, sqlalchemy_conn: Connection):
         self._conn = sqlalchemy_conn
         self._last_result = None
+        self._result_wrapper = None
     
-    def execute(self, sql: str, parameters: tuple | None = None):
-        """Execute SQL with sqlite3-style ? placeholders."""
+    def execute(self, sql: str, parameters: tuple | dict | None = None):
+        """Execute SQL with sqlite3-style ? placeholders or :named placeholders."""
         if parameters:
-            # Replace ? with :param0, :param1, etc.
-            adapted_sql = sql
-            params_dict = {}
-            param_count = sql.count('?')
-            for i in range(param_count):
-                if i < len(parameters):
-                    adapted_sql = adapted_sql.replace('?', f':param{i}', 1)
-                    params_dict[f'param{i}'] = parameters[i]
-            self._last_result = self._conn.execute(text(adapted_sql), params_dict)
+            if isinstance(parameters, dict):
+                # Named parameters: already in SQLAlchemy format
+                self._last_result = self._conn.execute(text(sql), parameters)
+            else:
+                # Positional parameters: Replace ? with :param0, :param1, etc.
+                adapted_sql = sql
+                params_dict = {}
+                param_count = sql.count('?')
+                for i in range(param_count):
+                    if i < len(parameters):
+                        adapted_sql = adapted_sql.replace('?', f':param{i}', 1)
+                        params_dict[f'param{i}'] = parameters[i]
+                self._last_result = self._conn.execute(text(adapted_sql), params_dict)
         else:
             self._last_result = self._conn.execute(text(sql))
         
         # Create a wrapper that provides sqlite3-like cursor behavior
-        return _ResultWrapper(self._last_result)
+        self._result_wrapper = _ResultWrapper(self._last_result)
+        return self._result_wrapper
+    
+    def fetchone(self):
+        """Fetch one row from the last executed statement."""
+        if self._result_wrapper is None:
+            return None
+        return self._result_wrapper.fetchone()
+    
+    def fetchall(self):
+        """Fetch all rows from the last executed statement."""
+        if self._result_wrapper is None:
+            return []
+        return self._result_wrapper.fetchall()
     
     def close(self):
         """No-op for compatibility."""

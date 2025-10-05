@@ -62,15 +62,19 @@ class TestMigrationWorkflow:
         
         # Insert test data to verify database is functional
         with engine.connect() as conn:
-            # Insert a test source
+            # Insert a test source (correct schema: canonical_name, host)
             conn.execute(text("""
-                INSERT INTO sources (name, url, source_type, active)
-                VALUES (:name, :url, :type, :active)
+                INSERT INTO sources
+                    (id, host, host_norm, canonical_name, city, county, type)
+                VALUES (:id, :host, :host_norm, :name, :city, :county, :type)
             """), {
+                "id": "test-source-1",
+                "host": "test.com",
+                "host_norm": "test.com",
                 "name": "Test Source",
-                "url": "https://test.com",
-                "type": "news",
-                "active": True
+                "city": "Test City",
+                "county": "Test County",
+                "type": "news"
             })
             conn.commit()
             
@@ -113,28 +117,64 @@ class TestMigrationWorkflow:
         }
         
         with engine.connect() as conn:
-            # Insert test source
+            # Insert test source (correct schema)
             result = conn.execute(text("""
-                INSERT INTO sources (name, url, source_type, active)
-                VALUES (:name, :url, :type, :active)
+                INSERT INTO sources
+                    (id, host, host_norm, canonical_name, city, county, type)
+                VALUES
+                    (:id, :host, :host_norm, :name, :city, :county, :type)
                 RETURNING id
             """), {
+                "id": "test-source-2",
+                "host": "testnews.com",
+                "host_norm": "testnews.com",
                 "name": test_data["source_name"],
-                "url": test_data["source_url"],
-                "type": "news",
-                "active": True
+                "city": "Test City",
+                "county": "Test County",
+                "type": "news"
             })
             source_id = result.scalar()
             
-            # Insert test article
+            # Insert test candidate_link
+            import uuid
+            from datetime import datetime
+            candidate_link_id = str(uuid.uuid4())
             conn.execute(text("""
-                INSERT INTO articles (url, title, source_id, status)
-                VALUES (:url, :title, :source_id, :status)
+                INSERT INTO candidate_links (
+                    id, url, source, source_id, status, discovered_at
+                )
+                VALUES (
+                    :id, :url, :source, :source_id, :status, :discovered_at
+                )
             """), {
+                "id": candidate_link_id,
+                "url": test_data["article_url"],
+                "source": test_data["source_name"],
+                "source_id": source_id,
+                "status": "fetched",
+                "discovered_at": datetime.utcnow()
+            })
+            
+            # Insert test article
+            article_id = str(uuid.uuid4())
+            now = datetime.utcnow()
+            conn.execute(text("""
+                INSERT INTO articles (
+                    id, url, title, candidate_link_id, status,
+                    extracted_at, created_at
+                )
+                VALUES (
+                    :id, :url, :title, :candidate_link_id, :status,
+                    :extracted_at, :created_at
+                )
+            """), {
+                "id": article_id,
                 "url": test_data["article_url"],
                 "title": "Test Article",
-                "source_id": source_id,
-                "status": "extracted"
+                "candidate_link_id": candidate_link_id,
+                "status": "extracted",
+                "extracted_at": now,
+                "created_at": now
             })
             conn.commit()
         
@@ -153,14 +193,16 @@ class TestMigrationWorkflow:
         # Verify data still exists
         engine = create_engine(database_url)
         with engine.connect() as conn:
-            # Check source data
+            # Check source data (uses canonical_name, host, not name, url)
             result = conn.execute(text("""
-                SELECT name, url FROM sources WHERE name = :name
-            """), {"name": test_data["source_name"]})
+                SELECT canonical_name, host
+                FROM sources
+                WHERE canonical_name = :canonical_name
+            """), {"canonical_name": test_data["source_name"]})
             row = result.fetchone()
             assert row is not None, "Source data was lost during migration"
             assert row[0] == test_data["source_name"]
-            assert row[1] == test_data["source_url"]
+            assert row[1] == "testnews.com"
             
             # Check article data
             result = conn.execute(text("""
@@ -200,26 +242,33 @@ class TestMigrationWorkflow:
         engine = create_engine(database_url)
         inspector = inspect(engine)
         
-        # Check sources table schema
-        sources_columns = {col["name"]: col for col in inspector.get_columns("sources")}
+        # Check sources table schema (current schema uses canonical_name not name)
+        sources_columns = {
+            col["name"]: col for col in inspector.get_columns("sources")
+        }
         assert "id" in sources_columns
-        assert "name" in sources_columns
-        assert "url" in sources_columns
-        assert "source_type" in sources_columns
-        assert "active" in sources_columns
+        assert "canonical_name" in sources_columns
+        assert "host" in sources_columns
+        assert "host_norm" in sources_columns
+        assert "type" in sources_columns
+        assert "status" in sources_columns
         
         # Check articles table schema
-        articles_columns = {col["name"]: col for col in inspector.get_columns("articles")}
+        articles_columns = {
+            col["name"]: col for col in inspector.get_columns("articles")
+        }
         assert "id" in articles_columns
         assert "url" in articles_columns
         assert "title" in articles_columns
-        assert "source_id" in articles_columns
+        assert "candidate_link_id" in articles_columns
         assert "status" in articles_columns
         
         # Check that foreign keys exist
         articles_fks = inspector.get_foreign_keys("articles")
         fk_columns = [fk["constrained_columns"][0] for fk in articles_fks]
-        assert "source_id" in fk_columns, "articles.source_id foreign key missing"
+        assert (
+            "candidate_link_id" in fk_columns
+        ), "articles.candidate_link_id foreign key missing"
         
         # Check telemetry tables exist with correct columns
         telemetry_tables = [
@@ -232,9 +281,12 @@ class TestMigrationWorkflow:
             columns = inspector.get_columns(table)
             assert len(columns) > 0, f"Table {table} has no columns"
             
-            # All telemetry tables should have an id column
+            # All telemetry tables should have a primary key (id or telemetry_id)
             column_names = [col["name"] for col in columns]
-            assert "id" in column_names, f"Table {table} missing id column"
+            has_pk = "id" in column_names or "telemetry_id" in column_names
+            assert has_pk, (
+                f"Table {table} missing primary key column (id or telemetry_id)"
+            )
         
         engine.dispose()
 

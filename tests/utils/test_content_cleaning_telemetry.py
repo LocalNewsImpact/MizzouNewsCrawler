@@ -122,11 +122,14 @@ class TestContentCleaningTelemetryInit:
 
     @patch("src.utils.content_cleaning_telemetry.get_store")
     def test_init_creates_default_store(self, mock_get_store):
-        """Should create default store when none provided."""
+        """Should create default store when none provided (lazy loading)."""
         mock_store = Mock()
         mock_get_store.return_value = mock_store
 
         telemetry = ContentCleaningTelemetry(database_url="test://custom_db")
+
+        # Store is lazy-loaded, so access it to trigger get_store call
+        _ = telemetry.store
 
         mock_get_store.assert_called_once_with("test://custom_db")
         assert telemetry._store == mock_store

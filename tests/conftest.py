@@ -3,11 +3,26 @@
 from __future__ import annotations
 
 import io
+import os
 from pathlib import Path
 
 import pytest
 from coverage import Coverage
 from coverage.exceptions import CoverageException
+
+# Force tests to use SQLite instead of PostgreSQL/Cloud SQL
+# Set BEFORE any imports of src.config to prevent loading production settings
+# Tests that need Cloud SQL/PostgreSQL can set PYTEST_KEEP_DB_ENV=true
+if "USE_CLOUD_SQL_CONNECTOR" not in os.environ:
+    os.environ["USE_CLOUD_SQL_CONNECTOR"] = "false"
+if "DATABASE_URL" not in os.environ:
+    os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+# Clear PostgreSQL env vars that might cause unwanted connections
+# Prevents src.config from building PostgreSQL URL when running tests locally
+for key in ["DATABASE_HOST", "DATABASE_PORT", "DATABASE_NAME",
+            "DATABASE_USER", "DATABASE_PASSWORD", "CLOUD_SQL_INSTANCE"]:
+    if key in os.environ and os.environ.get("PYTEST_KEEP_DB_ENV") != "true":
+        os.environ.pop(key, None)
 
 pytest_plugins = [
     "tests.helpers.sqlite",

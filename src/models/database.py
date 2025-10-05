@@ -88,6 +88,12 @@ class DatabaseManager:
     
     def _should_use_cloud_sql_connector(self) -> bool:
         """Determine if Cloud SQL Python Connector should be used."""
+        import os
+        
+        # Check environment variable first (for test control)
+        if os.getenv("USE_CLOUD_SQL_CONNECTOR", "").lower() in ("false", "0", "no"):
+            return False
+        
         try:
             from src.config import USE_CLOUD_SQL_CONNECTOR, CLOUD_SQL_INSTANCE
             return USE_CLOUD_SQL_CONNECTOR and bool(CLOUD_SQL_INSTANCE)
@@ -102,18 +108,31 @@ class DatabaseManager:
             DATABASE_PASSWORD,
             DATABASE_NAME,
         )
-        from src.models.cloud_sql_connector import create_cloud_sql_engine
         
-        logger.info("Using Cloud SQL Python Connector (no proxy sidecar needed)")
-        
-        return create_cloud_sql_engine(
-            instance_connection_name=CLOUD_SQL_INSTANCE,
-            user=DATABASE_USER,
-            password=DATABASE_PASSWORD,
-            database=DATABASE_NAME,
-            driver="pg8000",
-            echo=False,
-        )
+        try:
+            from src.models.cloud_sql_connector import create_cloud_sql_engine
+            
+            logger.info("Using Cloud SQL Python Connector (no proxy sidecar needed)")
+            
+            return create_cloud_sql_engine(
+                instance_connection_name=CLOUD_SQL_INSTANCE,
+                user=DATABASE_USER,
+                password=DATABASE_PASSWORD,
+                database=DATABASE_NAME,
+                driver="pg8000",
+                echo=False,
+            )
+        except ImportError as e:
+            logger.warning(
+                "Cloud SQL connector not available, "
+                "falling back to direct connection. Error: %s", e
+            )
+            # Fall back to direct PostgreSQL connection
+            connection_url = (
+                f"postgresql://{DATABASE_USER}:{DATABASE_PASSWORD}"
+                f"@/{DATABASE_NAME}"
+            )
+            return create_engine(connection_url, echo=False)
 
     def get_session(self):
         """Context manager for getting a database session.

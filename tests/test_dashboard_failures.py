@@ -59,6 +59,53 @@ def dashboard_fixture(tmp_path: Path):
     ]
     session.add_all(snapshots)
     
+    # Create candidate_links (needed for articles)
+    from src.models import CandidateLink, Article
+    import json
+    
+    candidate_links = [
+        CandidateLink(
+            id="link-1",
+            url="https://broken.local/article1",
+            source="broken.local",
+            discovered_at=now,
+            status="fetched"
+        ),
+        CandidateLink(
+            id="link-2",
+            url="https://broken.local/article2",
+            source="broken.local",
+            discovered_at=now,
+            status="fetched"
+        ),
+    ]
+    session.add_all(candidate_links)
+    
+    # Create articles (2 total, 1 with wire attribution)
+    articles = [
+        Article(
+            id="art-1",
+            candidate_link_id="link-1",
+            url="https://broken.local/article1",
+            title="Article with Wire",
+            status="extracted",
+            wire=json.dumps([{"name": "Associated Press", "score": 0.95}]),
+            extracted_at=now,
+            created_at=now
+        ),
+        Article(
+            id="art-2",
+            candidate_link_id="link-2",
+            url="https://broken.local/article2",
+            title="Regular Article",
+            status="extracted",
+            wire=None,
+            extracted_at=now,
+            created_at=now
+        ),
+    ]
+    session.add_all(articles)
+    
     # Create candidates (2 with accepted=False for the test)
     candidates = [
         Candidate(
