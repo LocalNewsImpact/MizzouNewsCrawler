@@ -982,38 +982,43 @@ def post_candidates(sid: str, payload: list[CandidateIn]):
 @app.get("/api/domain_issues")
 def get_domain_issues():
     """Aggregate issues by host for the domain reports UI."""
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    out = {}
-    # Find hosts that have non-accepted candidates (flagged issues)
-    # Exclude snapshots that have been reviewed (snapshots.reviewed_at IS NOT NULL)
-    cur.execute(
-        "SELECT DISTINCT snapshots.host FROM candidates "
-        "JOIN snapshots ON candidates.snapshot_id=snapshots.id "
-        "WHERE candidates.accepted=0 AND (snapshots.reviewed_at IS NULL OR snapshots.reviewed_at='')"
-    )
-    host_rows = cur.fetchall()
-    for (host,) in host_rows:
-        # aggregate candidate counts by field for this host (only non-accepted)
-        cur.execute(
-            (
-                "SELECT candidates.field, COUNT(*) "
-                "FROM candidates JOIN snapshots ON candidates.snapshot_id=snapshots.id "
-                "WHERE snapshots.host=? AND candidates.accepted=0 AND (snapshots.reviewed_at IS NULL OR snapshots.reviewed_at='') GROUP BY candidates.field"
-            ),
-            (host,),
-        )
-        cand_rows = cur.fetchall()
-        issues = {(f if f is not None else "unknown"): c for f, c in cand_rows}
-        # count distinct snapshots (urls) for host that are not reviewed
-        cur.execute(
-            "SELECT COUNT(DISTINCT id) FROM snapshots WHERE host=? AND (reviewed_at IS NULL OR reviewed_at='')",
-            (host,),
-        )
-        total_urls = cur.fetchone()[0]
-        out[host] = {"issues": issues, "total_urls": total_urls}
-    conn.close()
-    return out
+    from sqlalchemy import func, distinct
+    
+    with db_manager.get_session() as session:
+        out = {}
+        
+        # Find hosts that have non-accepted candidates (flagged issues)
+        # Exclude snapshots that have been reviewed
+        hosts = session.query(distinct(Snapshot.host)).join(
+            Candidate, Candidate.snapshot_id == Snapshot.id
+        ).filter(
+            Candidate.accepted == False,
+            (Snapshot.reviewed_at.is_(None)) | (Snapshot.reviewed_at == '')
+        ).all()
+        
+        for (host,) in hosts:
+            # aggregate candidate counts by field for this host (only non-accepted)
+            field_counts = session.query(
+                Candidate.field, func.count(Candidate.id)
+            ).join(
+                Snapshot, Candidate.snapshot_id == Snapshot.id
+            ).filter(
+                Snapshot.host == host,
+                Candidate.accepted == False,
+                (Snapshot.reviewed_at.is_(None)) | (Snapshot.reviewed_at == '')
+            ).group_by(Candidate.field).all()
+            
+            issues = {(f if f is not None else "unknown"): c for f, c in field_counts}
+            
+            # count distinct snapshots (urls) for host that are not reviewed
+            total_urls = session.query(func.count(distinct(Snapshot.id))).filter(
+                Snapshot.host == host,
+                (Snapshot.reviewed_at.is_(None)) | (Snapshot.reviewed_at == '')
+            ).scalar()
+            
+            out[host] = {"issues": issues, "total_urls": total_urls}
+        
+        return out
 
 
 @app.get("/api/domain_feedback")
@@ -1308,30 +1313,26 @@ def import_dupes_csv(payload: dict, dry_run: bool | None = True):
                 )
             # if not dry_run, insert into dedupe_audit table
             if not dry_run:
-                conn = sqlite3.connect(DB_PATH)
-                cur = conn.cursor()
-                now = datetime.datetime.utcnow().isoformat()
                 try:
-                    cur.execute(
-                        "INSERT INTO dedupe_audit (article_uid, neighbor_uid, host, similarity, dedupe_flag, category, stage, details, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        (
-                            row.get("id"),
-                            None,
-                            row.get("hostname"),
-                            None,
-                            dup_flag,
-                            None,
-                            "imported_csv",
-                            json.dumps(
+                    with db_manager.get_session() as session:
+                        now = datetime.datetime.utcnow()
+                        audit = DedupeAudit(
+                            article_uid=row.get("id"),
+                            neighbor_uid=None,
+                            host=row.get("hostname"),
+                            similarity=None,
+                            dedupe_flag=dup_flag,
+                            category=None,
+                            stage="imported_csv",
+                            details=json.dumps(
                                 {"url": row.get("url"), "title": row.get("title")}
                             ),
-                            now,
-                        ),
-                    )
+                            created_at=now
+                        )
+                        session.add(audit)
+                        session.commit()
                 except Exception:
                     pass
-                conn.commit()
-                conn.close()
     summary = {"rows_seen": total, "dup_counts": dup_counts, "samples": sample_rows}
     if dry_run:
         return {"status": "dry_run", **summary}
@@ -1343,15 +1344,17 @@ def accept_candidate(cid: str, payload: dict | None = None):
     """Mark a candidate as accepted (accepted=1) or rejected (accepted=0).
     Payload optional: {"accepted": true|false}
     """
-    val = 1
+    val = True
     if payload is not None:
-        val = 1 if payload.get("accepted", True) else 0
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("UPDATE candidates SET accepted=? WHERE id=?", (val, cid))
-    conn.commit()
-    conn.close()
-    return {"status": "ok", "id": cid, "accepted": bool(val)}
+        val = payload.get("accepted", True)
+    
+    with db_manager.get_session() as session:
+        candidate = session.query(Candidate).filter(Candidate.id == cid).first()
+        if not candidate:
+            raise HTTPException(status_code=404, detail="candidate not found")
+        candidate.accepted = val
+        session.commit()
+        return {"status": "ok", "id": cid, "accepted": bool(val)}
 
 
 @app.post("/api/reextract_jobs")
@@ -1362,44 +1365,45 @@ def create_reextract_job(payload: dict):
     host = payload.get("host")
     if not host:
         raise HTTPException(status_code=400, detail="host required")
-    import time
-    import uuid
-
+    
     job_id = str(uuid.uuid4())
-    now = time.strftime("%Y-%m-%dT%H:%M:%S")
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute(
-        "INSERT INTO reextract_jobs (id, host, status, created_at, updated_at) VALUES (?,?,?,?,?)",
-        (job_id, host, "pending", now, now),
-    )
-    conn.commit()
-    conn.close()
-    return {"status": "ok", "job_id": job_id}
+    now = datetime.datetime.utcnow()
+    
+    with db_manager.get_session() as session:
+        job = ReextractionJob(
+            id=job_id,
+            host=host,
+            status="pending",
+            created_at=now,
+            updated_at=now
+        )
+        session.add(job)
+        session.commit()
+        return {"status": "ok", "job_id": job_id}
 
 
 @app.get("/api/reextract_jobs/{job_id}")
 def get_reextract_job(job_id: str):
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT id, host, status, result_json, created_at, updated_at FROM reextract_jobs WHERE id=?",
-        (job_id,),
-    )
-    row = cur.fetchone()
-    conn.close()
-    if not row:
-        raise HTTPException(status_code=404, detail="job not found")
-    import json
-
-    return {
-        "id": row[0],
-        "host": row[1],
-        "status": row[2],
-        "result": json.loads(row[3]) if row[3] else None,
-        "created_at": row[4],
-        "updated_at": row[5],
-    }
+    with db_manager.get_session() as session:
+        job = session.query(ReextractionJob).filter(ReextractionJob.id == job_id).first()
+        if not job:
+            raise HTTPException(status_code=404, detail="job not found")
+        
+        result_data = None
+        if job.result_json:
+            try:
+                result_data = json.loads(job.result_json)
+            except Exception:
+                result_data = job.result_json
+        
+        return {
+            "id": job.id,
+            "host": job.host,
+            "status": job.status,
+            "result": result_data,
+            "created_at": job.created_at.isoformat() if job.created_at else None,
+            "updated_at": job.updated_at.isoformat() if job.updated_at else None,
+        }
 
 
 @app.post("/api/site_rules/commit")
