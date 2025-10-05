@@ -106,6 +106,9 @@ def run_cli_command(command: list[str], description: str) -> bool:
 
         if result.returncode == 0:
             logger.info("✅ %s completed successfully", description)
+            # Log stdout if present for debugging
+            if result.stdout:
+                logger.debug("Command output: %s", result.stdout[:1000])
             return True
         else:
             logger.error(
@@ -113,8 +116,13 @@ def run_cli_command(command: list[str], description: str) -> bool:
                 description,
                 result.returncode,
             )
+            # Always log both stdout and stderr for failed commands
+            if result.stdout:
+                logger.error("Command stdout: %s", result.stdout[:1000])
             if result.stderr:
-                logger.error("Error output: %s", result.stderr[:500])
+                logger.error("Command stderr: %s", result.stderr[:1000])
+            if not result.stdout and not result.stderr:
+                logger.error("No output captured from command")
             return False
 
     except subprocess.TimeoutExpired:
