@@ -164,9 +164,8 @@ _worker_thread = None
 
 
 def _db_writer_worker():
-    """Background thread that serially writes snapshot rows to SQLite.
-    Each queue item is a dict with keys matching the previous insert.
-    The worker performs the same retry/backoff on 'database is locked'.
+    """Background thread that serially writes snapshot rows to Cloud SQL.
+    Each queue item is a dict with keys matching the snapshot insert.
     """
     while not _worker_stop_event.is_set():
         try:
@@ -175,63 +174,29 @@ def _db_writer_worker():
             # timeout, check stop flag again
             continue
         try:
-            sid = item.get("id")
-            attempts = 8
-            backoff = 0.5
-            last_exc = None
-            for attempt in range(1, attempts + 1):
-                try:
-                    conn = sqlite3.connect(DB_PATH, timeout=30.0)
-                    try:
-                        conn.execute("PRAGMA journal_mode=WAL")
-                    except Exception:
-                        pass
-                    try:
-                        conn.execute("PRAGMA busy_timeout=30000")
-                    except Exception:
-                        pass
-                    cur = conn.cursor()
-                    cur.execute(
-                        (
-                            "INSERT INTO snapshots (id, host, url, path, pipeline_run_id, "
-                            "failure_reason, parsed_fields, "
-                            "model_confidence, status, created_at) "
-                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-                        ),
-                        (
-                            sid,
-                            item.get("host"),
-                            item.get("url"),
-                            item.get("path"),
-                            item.get("pipeline_run_id"),
-                            item.get("failure_reason"),
-                            (
-                                json.dumps(item.get("parsed_fields"))
-                                if item.get("parsed_fields") is not None
-                                else None
-                            ),
-                            item.get("model_confidence"),
-                            item.get("status") or "pending",
-                            item.get("created_at"),
-                        ),
-                    )
-                    conn.commit()
-                    conn.close()
-                    last_exc = None
-                    break
-                except (sqlite3.OperationalError, sqlite3.DatabaseError) as oe:
-                    last_exc = oe
-                    msg = str(oe).lower()
-                    if "locked" in msg and attempt < attempts:
-                        _time.sleep(backoff * (2 ** (attempt - 1)))
-                        continue
-                    # give up on other DB errors
-                    break
-            if last_exc is not None:
-                # Failed after retries: log to server console for diagnostics
-                import traceback
-
-                traceback.print_exc()
+            with db_manager.get_session() as session:
+                snapshot = Snapshot(
+                    id=item.get("id"),
+                    host=item.get("host"),
+                    url=item.get("url"),
+                    path=item.get("path"),
+                    pipeline_run_id=item.get("pipeline_run_id"),
+                    failure_reason=item.get("failure_reason"),
+                    parsed_fields=(
+                        json.dumps(item.get("parsed_fields"))
+                        if item.get("parsed_fields") is not None
+                        else None
+                    ),
+                    model_confidence=item.get("model_confidence"),
+                    status=item.get("status") or "pending",
+                    created_at=item.get("created_at")
+                )
+                session.add(snapshot)
+                session.commit()
+        except Exception as exc:
+            import traceback
+            logger.exception("Snapshot write failed", exc_info=exc)
+            traceback.print_exc()
         finally:
             try:
                 snapshots_queue.task_done()
@@ -289,15 +254,12 @@ def list_articles(limit: int = 20, offset: int = 0, reviewer: str | None = None)
     # already reviewed by that reviewer
     if reviewer:
         try:
-            # use a longer timeout to wait for transient locks to clear
-            conn = sqlite3.connect(DB_PATH, timeout=30.0)
-            cur = conn.cursor()
-            cur.execute(
-                "SELECT DISTINCT article_idx FROM reviews WHERE reviewer=? AND reviewed_at IS NOT NULL",
-                (reviewer,),
-            )
-            reviewed = {int(r[0]) for r in cur.fetchall() if r and r[0] is not None}
-            conn.close()
+            with db_manager.get_session() as session:
+                reviewed_rows = session.query(Review.article_idx).filter(
+                    Review.reviewer == reviewer,
+                    Review.reviewed_at.isnot(None)
+                ).distinct().all()
+                reviewed = {int(r.article_idx) for r in reviewed_rows if r.article_idx is not None}
         except Exception:
             reviewed = set()
         # preserve original csv indices so frontend can POST back using the CSV index
@@ -871,7 +833,6 @@ def post_snapshot(payload: SnapshotIn):
     Enqueue the snapshot for background DB write and return 202 with snapshot id/path.
     """
     # Save HTML to disk immediately (fast filesystem op) and enqueue DB write
-    init_snapshot_tables()
     sid = str(uuid.uuid4())
     host_dir = BASE_DIR / "lookups" / "snapshots" / payload.host
     host_dir.mkdir(parents=True, exist_ok=True)
@@ -907,33 +868,25 @@ def post_snapshot(payload: SnapshotIn):
     # best-effort synchronous write so the snapshot is immediately queryable.
     try:
         if _worker_thread is None or not _worker_thread.is_alive():
-            conn = sqlite3.connect(DB_PATH)
-            cur = conn.cursor()
-            cur.execute(
-                (
-                    "INSERT OR REPLACE INTO snapshots (id, host, url, path, pipeline_run_id, "
-                    "failure_reason, parsed_fields, model_confidence, status, created_at) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-                ),
-                (
-                    sid,
-                    payload.host,
-                    payload.url,
-                    path,
-                    payload.pipeline_run_id,
-                    payload.failure_reason,
-                    (
+            with db_manager.get_session() as session:
+                snapshot = Snapshot(
+                    id=sid,
+                    host=payload.host,
+                    url=payload.url,
+                    path=path,
+                    pipeline_run_id=payload.pipeline_run_id,
+                    failure_reason=payload.failure_reason,
+                    parsed_fields=(
                         json.dumps(payload.parsed_fields)
                         if payload.parsed_fields is not None
                         else None
                     ),
-                    payload.model_confidence,
-                    "pending",
-                    now,
-                ),
-            )
-            conn.commit()
-            conn.close()
+                    model_confidence=payload.model_confidence,
+                    status="pending",
+                    created_at=datetime.datetime.fromisoformat(now)
+                )
+                session.add(snapshot)
+                session.commit()
     except Exception:
         # best-effort: if sync write fails, rely on background worker
         pass
@@ -945,90 +898,51 @@ def post_snapshot(payload: SnapshotIn):
 
 @app.get("/api/snapshots/{sid}")
 def get_snapshot(sid: str):
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute(
-        (
-            "SELECT id, host, url, path, pipeline_run_id, failure_reason, "
-            "parsed_fields, model_confidence, status, created_at "
-            "FROM snapshots WHERE id=?"
-        ),
-        (sid,),
-    )
-    row = cur.fetchone()
-    if not row:
-        raise HTTPException(status_code=404, detail="snapshot not found")
-    cols = [
-        "id",
-        "host",
-        "url",
-        "path",
-        "pipeline_run_id",
-        "failure_reason",
-        "parsed_fields",
-        "model_confidence",
-        "status",
-        "created_at",
-    ]
-    rec = dict(zip(cols, row, strict=False))
-    # load candidates
-    cur.execute(
-        (
-            "SELECT id, selector, field, score, words, snippet, accepted, "
-            "created_at, alts FROM candidates WHERE snapshot_id=?"
-        ),
-        (sid,),
-    )
-    cand_rows = cur.fetchall()
-    cand_cols = [
-        "id",
-        "selector",
-        "field",
-        "score",
-        "words",
-        "snippet",
-        "accepted",
-        "created_at",
-        "alts",
-    ]
-    rec["candidates"] = []
-    for r in cand_rows:
-        obj = dict(zip(cand_cols, r, strict=False))
-        # attempt to parse alts JSON
-        if obj.get("alts"):
+    with db_manager.get_session() as session:
+        snapshot = session.query(Snapshot).filter(Snapshot.id == sid).first()
+        if not snapshot:
+            raise HTTPException(status_code=404, detail="snapshot not found")
+        
+        rec = snapshot.to_dict()
+        
+        # load candidates
+        candidates = session.query(Candidate).filter(Candidate.snapshot_id == sid).all()
+        rec["candidates"] = []
+        for cand in candidates:
+            obj = cand.to_dict()
+            # attempt to parse alts JSON
+            if obj.get("alts"):
+                try:
+                    obj["alts"] = json.loads(obj["alts"])
+                except Exception:
+                    # leave raw string if parsing fails
+                    pass
+            rec["candidates"].append(obj)
+        
+        # parse parsed_fields JSON
+        if rec.get("parsed_fields"):
             try:
-                obj["alts"] = json.loads(obj["alts"])
+                rec["parsed_fields"] = json.loads(rec["parsed_fields"])
             except Exception:
-                # leave raw string if parsing fails
-                pass
-        rec["candidates"].append(obj)
-    # parse parsed_fields JSON
-    if rec.get("parsed_fields"):
-        try:
-            rec["parsed_fields"] = json.loads(rec["parsed_fields"])
-        except Exception:
-            rec["parsed_fields"] = None
-    conn.close()
-    return rec
+                rec["parsed_fields"] = None
+        
+        return rec
 
 
 @app.get("/api/snapshots/{sid}/html")
 def get_snapshot_html(sid: str):
     """Return the saved raw HTML for a snapshot if present."""
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("SELECT path FROM snapshots WHERE id=?", (sid,))
-    row = cur.fetchone()
-    conn.close()
-    if not row:
-        raise HTTPException(status_code=404, detail="snapshot not found")
-    path = row[0]
-    try:
-        content = Path(path).read_text(encoding="utf-8")
-        return HTMLResponse(content=content)
-    except Exception:
-        # failed to read the snapshot file from disk
-        raise HTTPException(status_code=500, detail="failed to read snapshot html")
+    with db_manager.get_session() as session:
+        snapshot = session.query(Snapshot).filter(Snapshot.id == sid).first()
+        if not snapshot:
+            raise HTTPException(status_code=404, detail="snapshot not found")
+        path = snapshot.path
+        try:
+            content = Path(path).read_text(encoding="utf-8")
+            return HTMLResponse(content=content)
+        except Exception:
+            # failed to read the snapshot file from disk
+            raise HTTPException(status_code=500, detail="failed to read snapshot html")
 
 
 @app.post("/api/snapshots/{sid}/candidates")
