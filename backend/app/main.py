@@ -495,34 +495,15 @@ def post_review(idx: int, payload: ReviewIn):
     The route accepts the CSV index (idx) for convenience but the payload may
     include `article_uid` to bind the review to the article's stable unique id.
     """
-    init_db()
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    # ensure migration: reviews.reviewed_at column exists
-    try:
-        cur.execute("PRAGMA table_info(reviews)")
-        cols = [r[1] for r in cur.fetchall()]
-        if "reviewed_at" not in cols:
-            try:
-                cur.execute("ALTER TABLE reviews ADD COLUMN reviewed_at TEXT")
-                conn.commit()
-            except Exception:
-                # ignore concurrent/migration failures
-                pass
-    except Exception:
-        pass
-    now = datetime.datetime.utcnow().isoformat()
+    now = datetime.datetime.utcnow()
     tags_str = ",".join(payload.tags) if payload.tags else None
     body_str = ",".join(payload.body_errors) if payload.body_errors else None
     headline_str = (
         ",".join(payload.headline_errors) if payload.headline_errors else None
     )
     author_str = ",".join(payload.author_errors) if payload.author_errors else None
-    # Prefer an explicit article_uid if supplied in the payload;
-    # otherwise attempt to map from the numeric CSV idx to the
-    # article's `id` column.
-    # Prefer explicit article_uid from the incoming payload
-    # when provided.
+    
+    # Prefer an explicit article_uid if supplied in the payload
     article_uid = getattr(payload, "article_uid", None) or None
     # try to read the CSV to map idx -> id if available
     try:
@@ -532,418 +513,130 @@ def post_review(idx: int, payload: ReviewIn):
                 article_uid = article_uid or df.iloc[idx].get("id")
     except Exception:
         pass
-
-    # DEBUG: print SQL and params length to help diagnose
-    # placeholder mismatch. include reviewed_at so saving a review
-    # marks it reviewed for that reviewer
-    sql_stmt = (
-        "INSERT INTO reviews ("
-        "article_idx, article_uid, reviewer, rating, "
-        "secondary_rating, tags, notes, "
-        "mentioned_locations, missing_locations, "
-        "incorrect_locations, inferred_tags, missing_tags, "
-        "incorrect_tags, body_errors, headline_errors, "
-        "author_errors, reviewed_at, created_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
-        "?, ?, ?, ?, ?) "
-        "ON CONFLICT(article_uid, reviewer) DO UPDATE SET "
-        "rating=excluded.rating, "
-        "secondary_rating=excluded.secondary_rating, "
-        "tags=excluded.tags, "
-        "notes=excluded.notes, "
-        "mentioned_locations=excluded.mentioned_locations, "
-        "missing_locations=excluded.missing_locations, "
-        "incorrect_locations=excluded.incorrect_locations, "
-        "inferred_tags=excluded.inferred_tags, "
-        "missing_tags=excluded.missing_tags, "
-        "incorrect_tags=excluded.incorrect_tags, "
-        "body_errors=excluded.body_errors, "
-        "headline_errors=excluded.headline_errors, "
-        "author_errors=excluded.author_errors, "
-        "reviewed_at=excluded.reviewed_at, "
-        "created_at=excluded.created_at"
-    )
-
-    params = (
-        idx,
-        article_uid,
-        payload.reviewer,
-        payload.rating,
-        payload.secondary_rating,
-        tags_str,
-        payload.notes,
-        # store mentioned_locations as CSV text
-        (
-            ",".join(payload.mentioned_locations)
-            if payload.mentioned_locations
-            else None
-        ),
-        # store missing_locations as CSV text
-        (
-            ",".join(payload.missing_locations)
-            if getattr(payload, "missing_locations", None)
-            else None
-        ),
-        # store incorrect_locations as CSV text
-        (
-            ",".join(payload.incorrect_locations)
-            if getattr(payload, "incorrect_locations", None)
-            else None
-        ),
-        # store inferred_tags as CSV text
-        (
-            ",".join(payload.inferred_tags)
-            if getattr(payload, "inferred_tags", None)
-            else None
-        ),
-        # store missing_tags as CSV text
-        (
-            ",".join(payload.missing_tags)
-            if getattr(payload, "missing_tags", None)
-            else None
-        ),
-        # store incorrect_tags as CSV text
-        (
-            ",".join(payload.incorrect_tags)
-            if getattr(payload, "incorrect_tags", None)
-            else None
-        ),
-        body_str,
-        headline_str,
-        author_str,
-        # reviewed_at: mark review as reviewed on save
-        now,
-        now,
-    )
-
-    # end debug
-
-    cur.execute(sql_stmt, params)
-    conn.commit()
-    # Retrieve the canonical row for this review so callers
-    # receive the authoritative, server-normalized representation
-    # immediately.
-    cols_sql = (
-        "id, article_idx, article_uid, reviewer, rating, "
-        "secondary_rating, "
-        "tags, notes, mentioned_locations, missing_locations, "
-        "incorrect_locations, inferred_tags, missing_tags, "
-        "incorrect_tags, body_errors, headline_errors, "
-        "author_errors, created_at"
-    )
-
-    # Try to use the sqlite cursor's lastrowid which points to
-    # the row inserted by the most recent INSERT. This handles
-    # the common case where the operation was an INSERT and we
-    # can return that exact row.
-    created_id = cur.lastrowid if hasattr(cur, "lastrowid") else None
-    row = None
-    if created_id:
-        cur.execute(
-            f"SELECT {cols_sql} FROM reviews WHERE id=?",
-            (created_id,),
-        )
-        row = cur.fetchone()
-
-    # If lastrowid wasn't available (e.g. the statement performed
-    # an UPDATE as part of an upsert), fall back to selecting by
-    # article_uid+reviewer or article_idx+reviewer.
-    if not row:
+    
+    with db_manager.get_session() as session:
+        # Try to find existing review for upsert
+        existing_review = None
         if article_uid:
-            cur.execute(
-                f"SELECT {cols_sql} FROM reviews WHERE article_uid=? AND reviewer=?",
-                (article_uid, payload.reviewer),
+            existing_review = session.query(Review).filter(
+                Review.article_uid == article_uid,
+                Review.reviewer == payload.reviewer
+            ).first()
+        if not existing_review:
+            existing_review = session.query(Review).filter(
+                Review.article_idx == idx,
+                Review.reviewer == payload.reviewer
+            ).first()
+        
+        if existing_review:
+            # Update existing review
+            existing_review.rating = payload.rating
+            existing_review.secondary_rating = payload.secondary_rating
+            existing_review.tags = tags_str
+            existing_review.notes = payload.notes
+            existing_review.mentioned_locations = (
+                ",".join(payload.mentioned_locations) if payload.mentioned_locations else None
             )
-            row = cur.fetchone()
-        if not row:
-            cur.execute(
-                f"SELECT {cols_sql} FROM reviews WHERE article_idx=? AND reviewer=?",
-                (idx, payload.reviewer),
+            existing_review.missing_locations = (
+                ",".join(payload.missing_locations) if getattr(payload, "missing_locations", None) else None
             )
-            row = cur.fetchone()
-
-    result = None
-
-    # helper to split comma-separated stored strings into lists
-    def _split_csv_field(s):
-        if s is None:
-            return []
-        if not isinstance(s, str):
-            return s
-        s = s.strip()
-        if s == "":
-            return []
-        # Treat literal 'NONE' or 'None' as empty as some
-        # older records had that
-        if s.upper() == "NONE" or s == "None":
-            return []
-        return [p for p in s.split(",") if p]
-
-    if row:
-        cols = cols_sql.split(", ")
-        result = dict(zip(cols, row, strict=False))
+            existing_review.incorrect_locations = (
+                ",".join(payload.incorrect_locations) if getattr(payload, "incorrect_locations", None) else None
+            )
+            existing_review.inferred_tags = (
+                ",".join(payload.inferred_tags) if getattr(payload, "inferred_tags", None) else None
+            )
+            existing_review.missing_tags = (
+                ",".join(payload.missing_tags) if getattr(payload, "missing_tags", None) else None
+            )
+            existing_review.incorrect_tags = (
+                ",".join(payload.incorrect_tags) if getattr(payload, "incorrect_tags", None) else None
+            )
+            existing_review.body_errors = body_str
+            existing_review.headline_errors = headline_str
+            existing_review.author_errors = author_str
+            existing_review.reviewed_at = now
+            review_obj = existing_review
+        else:
+            # Create new review
+            review_obj = Review(
+                article_idx=idx,
+                article_uid=article_uid,
+                reviewer=payload.reviewer,
+                rating=payload.rating,
+                secondary_rating=payload.secondary_rating,
+                tags=tags_str,
+                notes=payload.notes,
+                mentioned_locations=(
+                    ",".join(payload.mentioned_locations) if payload.mentioned_locations else None
+                ),
+                missing_locations=(
+                    ",".join(payload.missing_locations) if getattr(payload, "missing_locations", None) else None
+                ),
+                incorrect_locations=(
+                    ",".join(payload.incorrect_locations) if getattr(payload, "incorrect_locations", None) else None
+                ),
+                inferred_tags=(
+                    ",".join(payload.inferred_tags) if getattr(payload, "inferred_tags", None) else None
+                ),
+                missing_tags=(
+                    ",".join(payload.missing_tags) if getattr(payload, "missing_tags", None) else None
+                ),
+                incorrect_tags=(
+                    ",".join(payload.incorrect_tags) if getattr(payload, "incorrect_tags", None) else None
+                ),
+                body_errors=body_str,
+                headline_errors=headline_str,
+                author_errors=author_str,
+                reviewed_at=now,
+                created_at=now
+            )
+            session.add(review_obj)
+        
+        session.commit()
+        session.refresh(review_obj)
+        
+        # Convert to dict and split CSV fields
+        result = review_obj.to_dict()
+        
+        # helper to split comma-separated stored strings into lists
+        def _split_csv_field(s):
+            if s is None:
+                return []
+            if not isinstance(s, str):
+                return s
+            s = s.strip()
+            if s == "":
+                return []
+            if s.upper() == "NONE" or s == "None":
+                return []
+            return [p for p in s.split(",") if p]
+        
         # Normalize CSV fields into arrays for API clients
         result["tags"] = _split_csv_field(result.get("tags"))
         result["body_errors"] = _split_csv_field(result.get("body_errors"))
         result["headline_errors"] = _split_csv_field(result.get("headline_errors"))
         result["author_errors"] = _split_csv_field(result.get("author_errors"))
-        # normalize mentioned_locations into an array
-        result["mentioned_locations"] = _split_csv_field(
-            result.get("mentioned_locations")
-        )
-        # normalize missing_locations into an array
+        result["mentioned_locations"] = _split_csv_field(result.get("mentioned_locations"))
         result["missing_locations"] = _split_csv_field(result.get("missing_locations"))
-        # normalize incorrect_locations into an array
-        result["incorrect_locations"] = _split_csv_field(
-            result.get("incorrect_locations")
-        )
-        # normalize inferred_tags
+        result["incorrect_locations"] = _split_csv_field(result.get("incorrect_locations"))
         result["inferred_tags"] = _split_csv_field(result.get("inferred_tags"))
-        # normalize missing_tags/incorrect_tags
         result["missing_tags"] = _split_csv_field(result.get("missing_tags"))
         result["incorrect_tags"] = _split_csv_field(result.get("incorrect_tags"))
-    else:
-        # As a last resort, return the id if we can find any row
-        # for this (article_idx, reviewer) pair.
-        cur.execute(
-            "SELECT id FROM reviews WHERE article_idx=? AND reviewer=?",
-            (idx, payload.reviewer),
-        )
-        rid_row = cur.fetchone()
-        created_id = rid_row[0] if rid_row else None
-        result = {"id": created_id}
-
-    # Build a canonical payload object that mirrors what the frontend's
-    # `buildServerPayloadFromUI` expects so callers can use the server
-    # authoritative representation to compute savedness/deduping.
-    def build_canonical(r):
-        if not r:
-            return None
-        # rating vs primary naming: prefer primary_rating if present on row
-        primary = r.get("rating") if r.get("rating") is not None else r.get("rating")
-        # Some rows may include 'secondary_rating' already
-        secondary = (
-            r.get("secondary_rating")
-            if r.get("secondary_rating") is not None
-            else r.get("secondary_rating")
-        )
-
-        # Build tags from explicit tag arrays if present, otherwise derive from error arrays
-        body = r.get("body_errors") or []
-        headline = r.get("headline_errors") or []
-        author = r.get("author_errors") or []
-        # combine and normalize tags as frontend does (dedupe, remove NONE, sort)
-        tags = []
-        try:
-            tags = list(
-                {
-                    str(t)
-                    for t in (
-                        [*(body or []), *(headline or []), *(author or [])]
-                        if True
-                        else []
-                    )
-                    if t and str(t).upper() not in ("NONE", "None")
-                }
-            )
-            tags.sort()
-        except Exception:
-            tags = []
-
-        canonical = {
-            "article_uid": r.get("article_uid"),
-            "reviewer": r.get("reviewer"),
-            "primary_rating": primary if primary is not None else 3,
-            "secondary_rating": secondary if secondary is not None else 3,
-            "body": list(body) if isinstance(body, (list, tuple)) else body or [],
-            "headline": (
-                list(headline)
-                if isinstance(headline, (list, tuple))
-                else headline or []
-            ),
-            "author": (
-                list(author) if isinstance(author, (list, tuple)) else author or []
-            ),
-            "tags": tags,
-            "notes": r.get("notes") or "",
-            "mentioned_locations": r.get("mentioned_locations") or [],
-            "missing_locations": r.get("missing_locations") or [],
-            "inferred_tags": r.get("inferred_tags") or [],
-            "missing_tags": r.get("missing_tags") or [],
-        }
-        return canonical
-
-    def canonical_hash(obj):
-        try:
-            return stable_stringify(obj)
-        except Exception:
-            try:
-                return json.dumps(obj, sort_keys=True, separators=(",", ":"))
-            except Exception:
+        
+        # Build canonical payload
+        def build_canonical(r):
+            if not r:
                 return None
-
-    # Attach canonical payload and hash to the returned row so
-    # the frontend can rely on a server-authoritative
-    # representation for savedness checks.
-    if result:
-        try:
-            result["canonical"] = build_canonical(result)
-            result["canonical_hash"] = canonical_hash(result["canonical"])
-        except Exception:
-            pass
-
-    conn.close()
-    return result
-
-
-@app.put("/api/reviews/{rid}")
-def update_review(rid: int, payload: ReviewIn):
-    """Update an existing review by id.
-    Returns 404 if the review does not exist.
-    """
-    if not DB_PATH.exists():
-        raise HTTPException(status_code=404, detail="DB not found")
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("SELECT id FROM reviews WHERE id=?", (rid,))
-    row = cur.fetchone()
-    if not row:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Review not found")
-    # ensure reviewed_at column exists (no-op if present)
-    try:
-        cur.execute("PRAGMA table_info(reviews)")
-        cols = [r[1] for r in cur.fetchall()]
-        if "reviewed_at" not in cols:
-            try:
-                cur.execute("ALTER TABLE reviews ADD COLUMN reviewed_at TEXT")
-                conn.commit()
-            except Exception:
-                pass
-    except Exception:
-        pass
-
-    cur.execute(
-        (
-            "UPDATE reviews SET reviewer=?, rating=?, "
-            "secondary_rating=?, tags=?, notes=?, "
-            "mentioned_locations=?, missing_locations=?, "
-            "incorrect_locations=?, inferred_tags=?, "
-            "missing_tags=?, incorrect_tags=?, body_errors=?, "
-            "headline_errors=?, author_errors=?, reviewed_at=? "
-            "WHERE id=?"
-        ),
-        (
-            payload.reviewer,
-            payload.rating,
-            payload.secondary_rating,
-            ",".join(payload.tags) if payload.tags else None,
-            payload.notes,
-            (
-                ",".join(payload.mentioned_locations)
-                if payload.mentioned_locations
-                else None
-            ),
-            (
-                ",".join(payload.missing_locations)
-                if getattr(payload, "missing_locations", None)
-                else None
-            ),
-            (
-                ",".join(payload.incorrect_locations)
-                if getattr(payload, "incorrect_locations", None)
-                else None
-            ),
-            (
-                ",".join(payload.inferred_tags)
-                if getattr(payload, "inferred_tags", None)
-                else None
-            ),
-            (
-                ",".join(payload.missing_tags)
-                if getattr(payload, "missing_tags", None)
-                else None
-            ),
-            (
-                ",".join(payload.incorrect_tags)
-                if getattr(payload, "incorrect_tags", None)
-                else None
-            ),
-            ",".join(payload.body_errors) if payload.body_errors else None,
-            ",".join(payload.headline_errors) if payload.headline_errors else None,
-            ",".join(payload.author_errors) if payload.author_errors else None,
-            datetime.datetime.utcnow().isoformat(),
-            rid,
-        ),
-    )
-    conn.commit()
-    conn.close()
-    return {"status": "ok", "id": rid}
-
-
-@app.get("/api/reviews")
-def get_reviews(article_idx: int | None = None, article_uid: str | None = None):
-    if not DB_PATH.exists():
-        return []
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cols_sql = (
-        "id, article_idx, article_uid, reviewer, rating, "
-        "secondary_rating, "
-        "tags, notes, mentioned_locations, missing_locations, "
-        "incorrect_locations, inferred_tags, missing_tags, "
-        "incorrect_tags, body_errors, headline_errors, "
-        "author_errors, created_at"
-    )
-    if article_uid:
-        cur.execute(
-            (f"SELECT {cols_sql} FROM reviews WHERE article_uid=? ORDER BY id DESC"),
-            (article_uid,),
-        )
-    elif article_idx is None:
-        cur.execute(f"SELECT {cols_sql} FROM reviews ORDER BY id DESC LIMIT 200")
-    else:
-        cur.execute(
-            (f"SELECT {cols_sql} FROM reviews WHERE article_idx=? ORDER BY id DESC"),
-            (article_idx,),
-        )
-    rows = cur.fetchall()
-    conn.close()
-
-    cols = cols_sql.split(", ")
-
-    def _split_csv_field(s):
-        if s is None:
-            return []
-        if not isinstance(s, str):
-            return s
-        s = s.strip()
-        if s == "":
-            return []
-        if s.upper() == "NONE" or s == "None":
-            return []
-        return [p for p in s.split(",") if p]
-
-    results = []
-    for r in rows:
-        d = dict(zip(cols, r, strict=False))
-        # normalize CSV-stored fields to arrays to match POST/PUT responses
-        d["tags"] = _split_csv_field(d.get("tags"))
-        d["body_errors"] = _split_csv_field(d.get("body_errors"))
-        d["headline_errors"] = _split_csv_field(d.get("headline_errors"))
-        d["author_errors"] = _split_csv_field(d.get("author_errors"))
-        d["mentioned_locations"] = _split_csv_field(d.get("mentioned_locations"))
-        d["inferred_tags"] = _split_csv_field(d.get("inferred_tags"))
-        d["missing_locations"] = _split_csv_field(d.get("missing_locations"))
-        d["incorrect_locations"] = _split_csv_field(d.get("incorrect_locations"))
-        d["missing_tags"] = _split_csv_field(d.get("missing_tags"))
-        d["incorrect_tags"] = _split_csv_field(d.get("incorrect_tags"))
-
-        # Build canonical payload for each row similar to POST response
-        try:
-            body = d.get("body_errors") or []
-            headline = d.get("headline_errors") or []
-            author = d.get("author_errors") or []
+            primary = r.get("rating") if r.get("rating") is not None else r.get("rating")
+            secondary = (
+                r.get("secondary_rating")
+                if r.get("secondary_rating") is not None
+                else r.get("secondary_rating")
+            )
+            body = r.get("body_errors") or []
+            headline = r.get("headline_errors") or []
+            author = r.get("author_errors") or []
             tags = []
             try:
                 tags = list(
@@ -960,15 +653,12 @@ def get_reviews(article_idx: int | None = None, article_uid: str | None = None):
                 tags.sort()
             except Exception:
                 tags = []
+            
             canonical = {
-                "article_uid": d.get("article_uid"),
-                "reviewer": d.get("reviewer"),
-                "primary_rating": d.get("rating") if d.get("rating") is not None else 3,
-                "secondary_rating": (
-                    d.get("secondary_rating")
-                    if d.get("secondary_rating") is not None
-                    else 3
-                ),
+                "article_uid": r.get("article_uid"),
+                "reviewer": r.get("reviewer"),
+                "primary_rating": primary if primary is not None else 3,
+                "secondary_rating": secondary if secondary is not None else 3,
                 "body": list(body) if isinstance(body, (list, tuple)) else body or [],
                 "headline": (
                     list(headline)
@@ -979,26 +669,181 @@ def get_reviews(article_idx: int | None = None, article_uid: str | None = None):
                     list(author) if isinstance(author, (list, tuple)) else author or []
                 ),
                 "tags": tags,
-                "notes": d.get("notes") or "",
-                "mentioned_locations": d.get("mentioned_locations") or [],
-                "missing_locations": d.get("missing_locations") or [],
-                "inferred_tags": d.get("inferred_tags") or [],
-                "missing_tags": d.get("missing_tags") or [],
+                "notes": r.get("notes") or "",
+                "mentioned_locations": r.get("mentioned_locations") or [],
+                "missing_locations": r.get("missing_locations") or [],
+                "inferred_tags": r.get("inferred_tags") or [],
+                "missing_tags": r.get("missing_tags") or [],
             }
-            # Attach canonical object and a stable canonical_hash string
-            d["canonical"] = canonical
+            return canonical
+        
+        def canonical_hash(obj):
             try:
-                d["canonical_hash"] = json.dumps(
-                    canonical, sort_keys=True, separators=(",", ":")
-                )
+                return stable_stringify(obj)
             except Exception:
-                d["canonical_hash"] = None
+                try:
+                    return json.dumps(obj, sort_keys=True, separators=(",", ":"))
+                except Exception:
+                    return None
+        
+        # Attach canonical payload and hash
+        try:
+            result["canonical"] = build_canonical(result)
+            result["canonical_hash"] = canonical_hash(result["canonical"])
         except Exception:
-            d["canonical"] = None
-            d["canonical_hash"] = None
-        results.append(d)
+            pass
+        
+        return result
 
-    return results
+
+@app.put("/api/reviews/{rid}")
+def update_review(rid: str, payload: ReviewIn):
+    """Update an existing review by id.
+    Returns 404 if the review does not exist.
+    """
+    with db_manager.get_session() as session:
+        review = session.query(Review).filter(Review.id == rid).first()
+        if not review:
+            raise HTTPException(status_code=404, detail="Review not found")
+        
+        # Update fields
+        review.reviewer = payload.reviewer
+        review.rating = payload.rating
+        review.secondary_rating = payload.secondary_rating
+        review.tags = ",".join(payload.tags) if payload.tags else None
+        review.notes = payload.notes
+        review.mentioned_locations = (
+            ",".join(payload.mentioned_locations) if payload.mentioned_locations else None
+        )
+        review.missing_locations = (
+            ",".join(payload.missing_locations) if getattr(payload, "missing_locations", None) else None
+        )
+        review.incorrect_locations = (
+            ",".join(payload.incorrect_locations) if getattr(payload, "incorrect_locations", None) else None
+        )
+        review.inferred_tags = (
+            ",".join(payload.inferred_tags) if getattr(payload, "inferred_tags", None) else None
+        )
+        review.missing_tags = (
+            ",".join(payload.missing_tags) if getattr(payload, "missing_tags", None) else None
+        )
+        review.incorrect_tags = (
+            ",".join(payload.incorrect_tags) if getattr(payload, "incorrect_tags", None) else None
+        )
+        review.body_errors = ",".join(payload.body_errors) if payload.body_errors else None
+        review.headline_errors = ",".join(payload.headline_errors) if payload.headline_errors else None
+        review.author_errors = ",".join(payload.author_errors) if payload.author_errors else None
+        review.reviewed_at = datetime.datetime.utcnow()
+        
+        session.commit()
+        return {"status": "ok", "id": rid}
+
+
+@app.get("/api/reviews")
+def get_reviews(article_idx: int | None = None, article_uid: str | None = None):
+    with db_manager.get_session() as session:
+        query = session.query(Review)
+        
+        if article_uid:
+            query = query.filter(Review.article_uid == article_uid)
+        elif article_idx is not None:
+            query = query.filter(Review.article_idx == article_idx)
+        else:
+            query = query.limit(200)
+        
+        query = query.order_by(Review.id.desc())
+        reviews = query.all()
+        
+        if not reviews:
+            return []
+        
+        def _split_csv_field(s):
+            if s is None:
+                return []
+            if not isinstance(s, str):
+                return s
+            s = s.strip()
+            if s == "":
+                return []
+            if s.upper() == "NONE" or s == "None":
+                return []
+            return [p for p in s.split(",") if p]
+        
+        results = []
+        for review in reviews:
+            d = review.to_dict()
+            # normalize CSV-stored fields to arrays to match POST/PUT responses
+            d["tags"] = _split_csv_field(d.get("tags"))
+            d["body_errors"] = _split_csv_field(d.get("body_errors"))
+            d["headline_errors"] = _split_csv_field(d.get("headline_errors"))
+            d["author_errors"] = _split_csv_field(d.get("author_errors"))
+            d["mentioned_locations"] = _split_csv_field(d.get("mentioned_locations"))
+            d["inferred_tags"] = _split_csv_field(d.get("inferred_tags"))
+            d["missing_locations"] = _split_csv_field(d.get("missing_locations"))
+            d["incorrect_locations"] = _split_csv_field(d.get("incorrect_locations"))
+            d["missing_tags"] = _split_csv_field(d.get("missing_tags"))
+            d["incorrect_tags"] = _split_csv_field(d.get("incorrect_tags"))
+            
+            # Build canonical payload for each row similar to POST response
+            try:
+                body = d.get("body_errors") or []
+                headline = d.get("headline_errors") or []
+                author = d.get("author_errors") or []
+                tags = []
+                try:
+                    tags = list(
+                        {
+                            str(t)
+                            for t in (
+                                [*(body or []), *(headline or []), *(author or [])]
+                                if True
+                                else []
+                            )
+                            if t and str(t).upper() not in ("NONE", "None")
+                        }
+                    )
+                    tags.sort()
+                except Exception:
+                    tags = []
+                canonical = {
+                    "article_uid": d.get("article_uid"),
+                    "reviewer": d.get("reviewer"),
+                    "primary_rating": d.get("rating") if d.get("rating") is not None else 3,
+                    "secondary_rating": (
+                        d.get("secondary_rating")
+                        if d.get("secondary_rating") is not None
+                        else 3
+                    ),
+                    "body": list(body) if isinstance(body, (list, tuple)) else body or [],
+                    "headline": (
+                        list(headline)
+                        if isinstance(headline, (list, tuple))
+                        else headline or []
+                    ),
+                    "author": (
+                        list(author) if isinstance(author, (list, tuple)) else author or []
+                    ),
+                    "tags": tags,
+                    "notes": d.get("notes") or "",
+                    "mentioned_locations": d.get("mentioned_locations") or [],
+                    "missing_locations": d.get("missing_locations") or [],
+                    "inferred_tags": d.get("inferred_tags") or [],
+                    "missing_tags": d.get("missing_tags") or [],
+                }
+                # Attach canonical object and a stable canonical_hash string
+                d["canonical"] = canonical
+                try:
+                    d["canonical_hash"] = json.dumps(
+                        canonical, sort_keys=True, separators=(",", ":")
+                    )
+                except Exception:
+                    d["canonical_hash"] = None
+            except Exception:
+                d["canonical"] = None
+                d["canonical_hash"] = None
+            results.append(d)
+        
+        return results
 
 
 @app.exception_handler(Exception)
