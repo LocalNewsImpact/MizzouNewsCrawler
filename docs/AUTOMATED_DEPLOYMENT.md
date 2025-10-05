@@ -2,29 +2,46 @@
 
 ## Overview
 
-This project uses **Google Cloud Build triggers** for CI/CD with a safe deployment strategy:
+This project uses **Google Cloud Deploy** for managed CI/CD with a clean separation of concerns:
 
 ### Deployment Strategy
 
 **🚀 Main Branch (Production):**
-- ✅ Automatic deployment on `git push`
-- Triggers auto-deploy to GKE when code is merged to `main`
-- Version tags use branch name + commit SHA
+- ✅ Automatic build → release → deploy on `git push`
+- Cloud Build creates Docker images
+- Cloud Deploy automatically deploys to GKE
+- Built-in rollback and promotion capabilities
 
 **🔧 Feature Branches:**
-- ⚠️ Manual deployment only
-- Use `gcloud builds submit` or helper script
-- Prevents accidental deployment of unreviewed code
+- ✅ Automatic build on `git push` (images ready)
+- ⚠️ Manual deployment (explicit release creation)
+- Test builds before merging to main
+- Prevents accidental production deployment
 
-### Deployment Pipeline
+### Architecture
 
-1. 🔔 Receives webhook from GitHub (main branch only)
-2. 📥 Pulls your code in the cloud
-3. 🏗️ Builds Docker images
-4. 📤 Pushes to Artifact Registry
-5. 🚀 Deploys to GKE
-6. ✅ Verifies deployment
-7. 📊 Reports status
+```
+GitHub Push (any branch)
+    ↓
+Cloud Build (builds images)
+    ↓
+Artifact Registry (stores images)
+    ↓
+Cloud Deploy Release
+    ├─ Main branch: Auto-created ✅
+    └─ Feature branch: Manual 🔧
+    ↓
+Production (GKE)
+```
+
+### Why Cloud Deploy?
+
+- **Separation of concerns**: Build once, deploy many times
+- **Individual service deployment**: Deploy processor, API, or crawler independently
+- **Better rollbacks**: Promote previous releases easily
+- **Deployment verification**: Automated health checks
+- **Progressive delivery**: Ready for canary/blue-green deployments
+- **Audit trail**: Track who deployed what and when
 
 **Everything happens in Google Cloud - no local builds required!**
 
@@ -33,48 +50,55 @@ This project uses **Google Cloud Build triggers** for CI/CD with a safe deployme
 ### One-Time Setup
 
 ```bash
-# Run the setup script to create auto-deploy triggers for main branch
-./scripts/setup-triggers.sh
+# Run the setup script to configure Cloud Deploy
+./scripts/setup-cloud-deploy.sh
 ```
 
-This creates triggers for all three services (processor, api, crawler) that automatically deploy when you push to the `main` branch.
+This script:
 
-### Production Deployment (Main Branch)
+- Enables required Google Cloud APIs
+- Creates the Cloud Deploy delivery pipeline
+- Sets up Cloud Build trigger (builds on any branch)
+- Grants necessary permissions
+- Configures automatic deployment for main branch
+
+### Daily Workflow - Production Deployment (Main Branch)
 
 ```bash
-# 1. Create feature branch and make changes
-git checkout -b feature/my-feature
+# 1. Make changes and push to main
 git add .
 git commit -m "feat: your feature"
-git push origin feature/my-feature
+git push origin main  # ← Triggers build + automatic deployment!
 
-# 2. Create PR and get reviews
-# (Create PR on GitHub)
-
-# 3. Merge to main - triggers automatic deployment
-git checkout main
-git pull origin main
-git merge feature/my-feature
-git push origin main  # ← This triggers auto-deploy!
-
-# 4. Watch the magic happen in Cloud Console:
+# 2. Watch Cloud Build (builds images)
 # https://console.cloud.google.com/cloud-build/builds?project=mizzou-news-crawler
 
-# 5. Verify deployment
+# 3. Watch Cloud Deploy (deploys to GKE)
+# https://console.cloud.google.com/deploy/delivery-pipelines?project=mizzou-news-crawler
+
+# 4. Verify deployment
 kubectl get pods -n production -w
 ```
 
-### Feature Branch Deployment (Manual Testing)
+### Feature Branch Workflow (Build + Manual Deploy)
 
 ```bash
-# Option A: Use helper script
-./scripts/deploy.sh processor feature-v1.2.3 --auto-deploy
+# 1. Push feature branch - builds automatically
+git checkout -b feature/my-feature
+git add .
+git commit -m "feat: your feature"
+git push origin feature/my-feature  # ← Builds images (doesn't deploy)
 
-# Option B: Use gcloud directly
-gcloud builds submit \
-  --config=cloudbuild-processor-autodeploy.yaml \
+# 2. Images are ready in Artifact Registry!
+
+# 3. Manually create Cloud Deploy release to test
+COMMIT_SHA=$(git rev-parse --short HEAD)
+gcloud deploy releases create release-$COMMIT_SHA \
+  --delivery-pipeline=mizzou-news-crawler \
   --region=us-central1 \
-  --substitutions="_VERSION=feature-test-v1"
+  --images=processor=us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-news-crawler/processor:$COMMIT_SHA,api=us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-news-crawler/api:$COMMIT_SHA,crawler=us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-news-crawler/crawler:$COMMIT_SHA
+
+# 4. Merge to main when ready - auto-deploys latest build
 ```
 
 ## Deploying Individual Services
