@@ -11,4 +11,10 @@ torch>=2.1.0
 storysniffer>=1.0.0  # Compatible version
 
 # Crawler dependencies (processor CLI imports crawler code)
+# The processor needs these because it imports from src.crawler for extraction
 feedparser>=6.0.10  # RSS/Atom feed parsing
+newspaper4k>=0.9.2  # Article extraction (modern fork of newspaper3k)
+selenium>=4.10.0  # Browser automation for JavaScript sites
+undetected-chromedriver>=3.5.0  # Advanced anti-detection for Selenium
+selenium-stealth>=1.0.6  # Browser fingerprint masking
+cloudscraper>=1.2.71  # Bypass Cloudflare protection
