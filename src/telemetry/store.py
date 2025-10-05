@@ -80,6 +80,7 @@ class _CursorWrapper:
     def __init__(self, sqlalchemy_conn: Connection):
         self._conn = sqlalchemy_conn
         self._last_result = None
+        self._result_wrapper = None
     
     def execute(self, sql: str, parameters: tuple | None = None):
         """Execute SQL with sqlite3-style ? placeholders."""
@@ -97,7 +98,20 @@ class _CursorWrapper:
             self._last_result = self._conn.execute(text(sql))
         
         # Create a wrapper that provides sqlite3-like cursor behavior
-        return _ResultWrapper(self._last_result)
+        self._result_wrapper = _ResultWrapper(self._last_result)
+        return self._result_wrapper
+    
+    def fetchone(self):
+        """Fetch one row from the last executed statement."""
+        if self._result_wrapper is None:
+            return None
+        return self._result_wrapper.fetchone()
+    
+    def fetchall(self):
+        """Fetch all rows from the last executed statement."""
+        if self._result_wrapper is None:
+            return []
+        return self._result_wrapper.fetchall()
     
     def close(self):
         """No-op for compatibility."""
