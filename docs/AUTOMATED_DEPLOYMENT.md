@@ -77,6 +77,79 @@ gcloud builds submit \
   --substitutions="_VERSION=feature-test-v1"
 ```
 
+## Deploying Individual Services
+
+**Each service has its own independent build configuration** - you never have to rebuild all three!
+
+### Automatic Path-Based Deployment (Main Branch)
+
+When you run `./scripts/setup-triggers.sh`, you'll be asked about **smart path-based triggers**. If enabled:
+
+**Only modified services rebuild automatically!**
+
+```bash
+# Scenario 1: You only modified the API
+git commit -m "fix: Update API endpoint"
+git push origin main
+# → ONLY the API rebuilds and deploys
+# → Processor and crawler stay unchanged ✓
+
+# Scenario 2: You modified processor code
+git commit -m "feat: Add new extraction logic"
+git push origin main
+# → ONLY the processor rebuilds and deploys
+# → API and crawler stay unchanged ✓
+
+# Scenario 3: You modified shared code in src/
+git push origin main
+# → Both processor and crawler rebuild (they use src/)
+# → API is unchanged (doesn't use src/) ✓
+```
+
+### Manual Deployment of Individual Services
+
+From feature branches or for testing, deploy any single service:
+
+```bash
+# Deploy ONLY the processor
+./scripts/deploy.sh processor v1.2.3 --auto-deploy
+
+# Deploy ONLY the API
+./scripts/deploy.sh api v1.3.2 --auto-deploy
+
+# Deploy ONLY the crawler
+./scripts/deploy.sh crawler v1.2.1 --auto-deploy
+
+# Or use gcloud directly for one service
+gcloud builds submit \
+  --config=cloudbuild-processor-autodeploy.yaml \
+  --region=us-central1 \
+  --substitutions="_VERSION=hotfix-v1.2.4"
+```
+
+### Which Files Trigger Which Service?
+
+**Processor** (`cloudbuild-processor-autodeploy.yaml`):
+- `Dockerfile.processor`
+- `orchestration/**` - continuous processor code
+- `src/**` - shared utilities
+- `requirements.txt`, `pyproject.toml`
+
+**API** (`cloudbuild-api-autodeploy.yaml`):
+- `Dockerfile.api`
+- `backend/**` - FastAPI application
+- `requirements.txt`
+
+**Crawler** (`cloudbuild-crawler-autodeploy.yaml`):
+- `Dockerfile.crawler`
+- `src/**` - crawler source
+- `requirements.txt`, `pyproject.toml`
+
+**Shared files** (trigger multiple services):
+- `requirements.txt` - triggers all three
+- `src/**` - triggers processor + crawler
+- `backend/**` - triggers only API
+
 ## How It Works
 
 ### Architecture

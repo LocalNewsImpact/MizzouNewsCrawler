@@ -95,6 +95,7 @@ create_trigger() {
     local branch=$3
     local require_approval=${4:-false}
     local version_sub=${5:-"latest"}
+    local use_path_filters=${6:-false}
     
     log_info "Creating trigger: $name"
     
@@ -116,6 +117,22 @@ create_trigger() {
         --include-logs-with-status
         --substitutions="_VERSION=${version_sub}"
     )
+    
+    # Add path filters to only trigger on relevant file changes
+    if [ "$use_path_filters" = true ]; then
+        case $service in
+            "processor")
+                CMD+=(--included-files="Dockerfile.processor,orchestration/**,src/**,requirements.txt,pyproject.toml,.dockerignore")
+                ;;
+            "api")
+                CMD+=(--included-files="Dockerfile.api,backend/**,requirements.txt,.dockerignore")
+                ;;
+            "crawler")
+                CMD+=(--included-files="Dockerfile.crawler,src/**,requirements.txt,pyproject.toml,.dockerignore")
+                ;;
+        esac
+        log_info "  → Only triggers on ${service}-related file changes"
+    fi
     
     # Add approval requirement for production
     if [ "$require_approval" = true ]; then
@@ -142,14 +159,34 @@ create_all_triggers() {
     log_info "These will automatically deploy when you push to main branch"
     log_info ""
     
+    # Ask about path-based filtering
+    log_info "Path-based filtering: Only build services when their files change"
+    log_info "  Example: Processor only rebuilds when Dockerfile.processor or src/ changes"
+    log_info ""
+    read -p "Enable smart path-based triggers (recommended)? (y/n) " -n 1 -r
+    echo
+    USE_PATH_FILTERS=false
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        USE_PATH_FILTERS=true
+        log_success "Path-based filtering enabled! Services build only when their files change."
+    else
+        log_info "All services will rebuild on every push to main."
+    fi
+    echo ""
+    
     read -p "Create production (main branch) auto-deploy triggers? (y/n) " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        create_trigger "processor-autodeploy-main" "processor" "$MAIN_BRANCH" false '\${BRANCH_NAME}-\${SHORT_SHA}'
-        create_trigger "api-autodeploy-main" "api" "$MAIN_BRANCH" false '\${BRANCH_NAME}-\${SHORT_SHA}'
-        create_trigger "crawler-autodeploy-main" "crawler" "$MAIN_BRANCH" false '\${BRANCH_NAME}-\${SHORT_SHA}'
+        create_trigger "processor-autodeploy-main" "processor" "$MAIN_BRANCH" false '\${BRANCH_NAME}-\${SHORT_SHA}' "$USE_PATH_FILTERS"
+        create_trigger "api-autodeploy-main" "api" "$MAIN_BRANCH" false '\${BRANCH_NAME}-\${SHORT_SHA}' "$USE_PATH_FILTERS"
+        create_trigger "crawler-autodeploy-main" "crawler" "$MAIN_BRANCH" false '\${BRANCH_NAME}-\${SHORT_SHA}' "$USE_PATH_FILTERS"
         
-        log_success "Production triggers created! These auto-deploy on push to main."
+        log_success "Production triggers created!"
+        if [ "$USE_PATH_FILTERS" = true ]; then
+            log_info "  → Smart triggers: Each service builds only when its files change"
+        else
+            log_info "  → All services build on every push to main"
+        fi
     fi
     
     log_info ""

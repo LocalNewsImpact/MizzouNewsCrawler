@@ -127,27 +127,40 @@ gcloud builds submit \
 ./scripts/deploy.sh all feature-v1.2.3 --auto-deploy
 ```
 
-### 4. Path-Based Triggers (Optional - Advanced)
+### 4. Smart Path-Based Triggers (Recommended)
 
-Trigger builds only when specific files change:
+**Only rebuild services when their files change!**
 
+The setup script will ask if you want path-based filtering. If enabled, each service only builds when its relevant files are modified:
+
+**Processor triggers on:**
+- `Dockerfile.processor`
+- `orchestration/**` (continuous processor code)
+- `src/**` (shared source code)
+- `requirements.txt`, `pyproject.toml`
+
+**API triggers on:**
+- `Dockerfile.api`
+- `backend/**` (API backend code)
+- `requirements.txt`
+
+**Crawler triggers on:**
+- `Dockerfile.crawler`
+- `src/**` (crawler source code)
+- `requirements.txt`, `pyproject.toml`
+
+**Benefits:**
+- ✅ Faster deployments (only build what changed)
+- ✅ Less cloud build time (saves costs)
+- ✅ Fewer unnecessary deployments
+- ✅ Easier to track what actually deployed
+
+**Example:**
 ```bash
-# Trigger processor build only when processor files change
-gcloud builds triggers create github \
-  --name=processor-autodeploy-smart \
-  --repo-name=MizzouNewsCrawler \
-  --repo-owner=LocalNewsImpact \
-  --branch-pattern="^feature/.*$" \
-  --build-config=cloudbuild-processor-autodeploy.yaml \
-  --included-files="Dockerfile.processor,orchestration/**,src/**,requirements.txt" \
-  --description="Smart processor deployment - only on relevant file changes"
-
-# Trigger API build only when API files change
-gcloud builds triggers create github \
-  --name=api-autodeploy-smart \
-  --repo-name=MizzouNewsCrawler \
-  --repo-owner=LocalNewsImpact \
-  --branch-pattern="^feature/.*$" \
+# You only modified backend/app/routers/articles.py
+git push origin main
+# → Only the API rebuilds and deploys
+# → Processor and crawler are unchanged ✓ \
   --build-config=cloudbuild-api-autodeploy.yaml \
   --included-files="Dockerfile.api,backend/**,src/models/**,requirements.txt" \
   --description="Smart API deployment - only on relevant file changes"
