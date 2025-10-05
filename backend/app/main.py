@@ -1,5 +1,6 @@
 import datetime
 import json
+import logging
 import math
 import os
 import queue as pyqueue
@@ -18,6 +19,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 # Add gazetteer telemetry imports
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -59,6 +62,12 @@ DB_PATH = BASE_DIR / "backend" / "reviews.db"
 MAIN_DB_PATH = BASE_DIR / "data" / "mizzou.db"
 
 app = FastAPI(title="MizzouNewsCrawler Reviewer API")
+
+# Initialize database connection using DatabaseManager
+# This will use Cloud SQL connector if USE_CLOUD_SQL_CONNECTOR=true
+from src import config as app_config
+db_manager = DatabaseManager(app_config.DATABASE_URL)
+logger.info(f"Database initialized: {app_config.DATABASE_URL[:50]}...")
 
 # CORS configuration - allow origins can be configured via
 # ALLOWED_ORIGINS env var (comma-separated)

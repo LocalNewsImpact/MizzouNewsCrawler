@@ -21,16 +21,18 @@ spec:
       containers:
       # Main API container
       - name: api
-        image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:v1.2.0
+        image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:v1.3.0
         ports:
         - containerPort: 8000
           name: http
         env:
-        # Cloud SQL Connector configuration (no proxy sidecar needed)
-        - name: USE_CLOUD_SQL_CONNECTOR
-          value: "true"
-        - name: CLOUD_SQL_INSTANCE
-          value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+        # Database configuration
+        - name: DATABASE_ENGINE
+          value: "postgresql+psycopg2"
+        - name: DATABASE_HOST
+          value: "127.0.0.1"
+        - name: DATABASE_PORT
+          value: "5432"
         - name: DATABASE_USER
           valueFrom:
             secretKeyRef:
@@ -46,6 +48,11 @@ spec:
             secretKeyRef:
               name: cloudsql-db-credentials
               key: database
+        # Cloud SQL Connector configuration (no proxy sidecar needed)
+        - name: USE_CLOUD_SQL_CONNECTOR
+          value: "true"
+        - name: CLOUD_SQL_INSTANCE
+          value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
         - name: PORT
           value: "8000"
         resources:
@@ -57,7 +64,7 @@ spec:
             memory: 512Mi
         livenessProbe:
           httpGet:
-            path: /health
+            path: /api/articles
             port: 8000
           initialDelaySeconds: 30
           periodSeconds: 10
@@ -65,7 +72,7 @@ spec:
           failureThreshold: 3
         readinessProbe:
           httpGet:
-            path: /health
+            path: /api/articles
             port: 8000
           initialDelaySeconds: 10
           periodSeconds: 5
