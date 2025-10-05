@@ -1,8 +1,13 @@
+substitutions:
+  _BASE_IMAGE: us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/base:latest
+
 steps:
   - name: 'gcr.io/cloud-builders/docker'
     id: 'build-processor'
     args:
       - 'build'
+      - '--build-arg'
+      - 'BASE_IMAGE=${_BASE_IMAGE}'
       - '-f'
       - 'Dockerfile.processor'
       - '-t'

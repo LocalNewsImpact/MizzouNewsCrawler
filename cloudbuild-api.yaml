@@ -1,8 +1,13 @@
+substitutions:
+  _BASE_IMAGE: us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/base:latest
+
 steps:
   - name: 'gcr.io/cloud-builders/docker'
     id: 'build-api'
     args:
       - 'build'
+      - '--build-arg'
+      - 'BASE_IMAGE=${_BASE_IMAGE}'
       - '-t'
       - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:${SHORT_SHA}'
       - '-t'
