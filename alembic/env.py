@@ -69,11 +69,26 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    # Check if we should use Cloud SQL Python Connector
+    use_cloud_sql = (getattr(app_config, 'USE_CLOUD_SQL_CONNECTOR', False) and
+                     getattr(app_config, 'CLOUD_SQL_INSTANCE', None))
+    
+    if use_cloud_sql:
+        # Use Cloud SQL Python Connector (no proxy needed)
+        from src.models.cloud_sql_connector import create_cloud_sql_engine
+        connectable = create_cloud_sql_engine(
+            instance_connection_name=app_config.CLOUD_SQL_INSTANCE,
+            user=app_config.DATABASE_USER,
+            password=app_config.DATABASE_PASSWORD,
+            database=app_config.DATABASE_NAME
+        )
+    else:
+        # Use standard connection via DATABASE_URL
+        connectable = engine_from_config(
+            config.get_section(config.config_ini_section, {}),
+            prefix="sqlalchemy.",
+            poolclass=pool.NullPool,
+        )
 
     with connectable.connect() as connection:
         context.configure(
