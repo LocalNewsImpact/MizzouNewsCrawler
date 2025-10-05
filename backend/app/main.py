@@ -25,10 +25,6 @@ logger = logging.getLogger(__name__)
 # Add gazetteer telemetry imports
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(BASE_DIR))
-# Add comprehensive telemetry imports
-from src.utils.comprehensive_telemetry import (  # noqa: E402
-    ComprehensiveExtractionTelemetry,
-)
 from web.gazetteer_telemetry_api import (  # noqa: E402
     AddressEditRequest,
     ReprocessRequest,
@@ -64,8 +60,6 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 # point to the full processed CSV with labels and geo
 ARTICLES_CSV = BASE_DIR / "processed" / "articleslabelledgeo_8.csv"
 DB_PATH = BASE_DIR / "backend" / "reviews.db"
-# Main database path for telemetry data
-MAIN_DB_PATH = BASE_DIR / "data" / "mizzou.db"
 
 app = FastAPI(title="MizzouNewsCrawler Reviewer API")
 
@@ -1780,25 +1774,90 @@ def get_field_extraction_stats(
 ):
     """Get field-level extraction statistics."""
     try:
-        telemetry = ComprehensiveExtractionTelemetry(str(MAIN_DB_PATH))
-        stats = telemetry.get_field_extraction_stats(
-            publisher=host,
-            method=method,
-        )
+        with db_manager.get_session() as session:
+            # Build query
+            query = session.query(
+                ExtractionTelemetryV2.field_extraction,
+                ExtractionTelemetryV2.methods_attempted,
+                ExtractionTelemetryV2.successful_method
+            )
 
-        if field:
-            filtered = []
-            for entry in stats:
-                counts = {
-                    "title": entry.get("title_success", 0),
-                    "author": entry.get("author_success", 0),
-                    "content": entry.get("content_success", 0),
-                    "publish_date": entry.get("date_success", 0),
+            # Apply filters
+            if days:
+                cutoff_date = datetime.datetime.utcnow() - datetime.timedelta(days=days)
+                query = query.filter(ExtractionTelemetryV2.created_at >= cutoff_date)
+
+            if host:
+                query = query.filter(ExtractionTelemetryV2.publisher == host)
+
+            # Process results to calculate field extraction stats
+            method_field_stats = {}
+            
+            for row in query.all():
+                field_extraction_json = row.field_extraction
+                methods_json = row.methods_attempted
+                
+                try:
+                    methods = json.loads(methods_json) if methods_json else []
+                    field_data = json.loads(field_extraction_json) if field_extraction_json else {}
+                except (json.JSONDecodeError, TypeError):
+                    continue
+
+                for method_name in methods:
+                    if method and method_name != method:
+                        continue
+
+                    stats = method_field_stats.setdefault(
+                        method_name,
+                        {
+                            "count": 0,
+                            "title_success": 0,
+                            "author_success": 0,
+                            "content_success": 0,
+                            "date_success": 0,
+                        },
+                    )
+
+                    stats["count"] += 1
+                    method_fields = field_data.get(method_name, {})
+                    if method_fields.get("title"):
+                        stats["title_success"] += 1
+                    if method_fields.get("author"):
+                        stats["author_success"] += 1
+                    if method_fields.get("content"):
+                        stats["content_success"] += 1
+                    if method_fields.get("publish_date"):
+                        stats["date_success"] += 1
+
+            # Format results
+            results = []
+            for method_name, stats in method_field_stats.items():
+                count = stats["count"]
+                denominator = count if count else 1
+                entry = {
+                    "method": method_name,
+                    "count": count,
+                    "title_success_rate": stats["title_success"] / denominator,
+                    "author_success_rate": stats["author_success"] / denominator,
+                    "content_success_rate": stats["content_success"] / denominator,
+                    "date_success_rate": stats["date_success"] / denominator,
                 }
-                if counts.get(field):
-                    filtered.append(entry)
-            stats = filtered
-        return {"field_extraction_stats": stats}
+                
+                # Filter by field if specified
+                if field:
+                    field_counts = {
+                        "title": stats["title_success"],
+                        "author": stats["author_success"],
+                        "content": stats["content_success"],
+                        "publish_date": stats["date_success"],
+                    }
+                    if field_counts.get(field, 0) > 0:
+                        results.append(entry)
+                else:
+                    results.append(entry)
+
+            results.sort(key=lambda item: item["count"], reverse=True)
+            return {"field_extraction_stats": results}
 
     except Exception as e:
         raise HTTPException(
