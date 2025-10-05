@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mizzou-processor
+  namespace: production
+  labels:
+    app: mizzou-processor
+    component: processor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mizzou-processor
+  template:
+    metadata:
+      labels:
+        app: mizzou-processor
+        component: processor
+    spec:
+      serviceAccountName: mizzou-app
+      containers:
+      - name: processor
+        image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:v1.2.2
+        command:
+          - python
+          - orchestration/continuous_processor.py
+        env:
+        # Database configuration
+        - name: DATABASE_ENGINE
+          value: "postgresql+psycopg2"
+        - name: DATABASE_HOST
+          value: "127.0.0.1"
+        - name: DATABASE_PORT
+          value: "5432"
+        - name: DATABASE_USER
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: username
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: password
+        - name: DATABASE_NAME
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: database
+        # Cloud SQL Connector configuration
+        - name: USE_CLOUD_SQL_CONNECTOR
+          value: "true"
+        - name: CLOUD_SQL_INSTANCE
+          value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+        # Processor configuration
+        - name: POLL_INTERVAL
+          value: "60"
+        - name: VERIFICATION_BATCH_SIZE
+          value: "10"
+        - name: EXTRACTION_BATCH_SIZE
+          value: "20"
+        - name: ANALYSIS_BATCH_SIZE
+          value: "16"
+        - name: GAZETTEER_BATCH_SIZE
+          value: "50"
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 1
+            memory: 2Gi
+        livenessProbe:
+          exec:
+            command:
+              - python
+              - -c
+              - "import sys; sys.exit(0)"
+          initialDelaySeconds: 30
+          periodSeconds: 60
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+              - python
+              - -c
+              - "import sys; sys.exit(0)"
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3

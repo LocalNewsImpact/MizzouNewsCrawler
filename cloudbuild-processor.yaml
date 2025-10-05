@@ -5,12 +5,12 @@ steps:
       - '-f'
       - 'Dockerfile.processor'
       - '-t'
-      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:v1.2.0'
+      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:v1.2.2'
       - '-t'
       - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest'
       - '.'
 images:
-  - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:v1.2.0'
+  - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:v1.2.2'
   - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest'
 timeout: 1800s
 options:
