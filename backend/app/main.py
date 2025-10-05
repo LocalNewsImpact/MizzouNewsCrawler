@@ -164,9 +164,8 @@ _worker_thread = None
 
 
 def _db_writer_worker():
-    """Background thread that serially writes snapshot rows to SQLite.
-    Each queue item is a dict with keys matching the previous insert.
-    The worker performs the same retry/backoff on 'database is locked'.
+    """Background thread that serially writes snapshot rows to Cloud SQL.
+    Each queue item is a dict with keys matching the snapshot insert.
     """
     while not _worker_stop_event.is_set():
         try:
@@ -175,63 +174,29 @@ def _db_writer_worker():
             # timeout, check stop flag again
             continue
         try:
-            sid = item.get("id")
-            attempts = 8
-            backoff = 0.5
-            last_exc = None
-            for attempt in range(1, attempts + 1):
-                try:
-                    conn = sqlite3.connect(DB_PATH, timeout=30.0)
-                    try:
-                        conn.execute("PRAGMA journal_mode=WAL")
-                    except Exception:
-                        pass
-                    try:
-                        conn.execute("PRAGMA busy_timeout=30000")
-                    except Exception:
-                        pass
-                    cur = conn.cursor()
-                    cur.execute(
-                        (
-                            "INSERT INTO snapshots (id, host, url, path, pipeline_run_id, "
-                            "failure_reason, parsed_fields, "
-                            "model_confidence, status, created_at) "
-                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-                        ),
-                        (
-                            sid,
-                            item.get("host"),
-                            item.get("url"),
-                            item.get("path"),
-                            item.get("pipeline_run_id"),
-                            item.get("failure_reason"),
-                            (
-                                json.dumps(item.get("parsed_fields"))
-                                if item.get("parsed_fields") is not None
-                                else None
-                            ),
-                            item.get("model_confidence"),
-                            item.get("status") or "pending",
-                            item.get("created_at"),
-                        ),
-                    )
-                    conn.commit()
-                    conn.close()
-                    last_exc = None
-                    break
-                except (sqlite3.OperationalError, sqlite3.DatabaseError) as oe:
-                    last_exc = oe
-                    msg = str(oe).lower()
-                    if "locked" in msg and attempt < attempts:
-                        _time.sleep(backoff * (2 ** (attempt - 1)))
-                        continue
-                    # give up on other DB errors
-                    break
-            if last_exc is not None:
-                # Failed after retries: log to server console for diagnostics
-                import traceback
-
-                traceback.print_exc()
+            with db_manager.get_session() as session:
+                snapshot = Snapshot(
+                    id=item.get("id"),
+                    host=item.get("host"),
+                    url=item.get("url"),
+                    path=item.get("path"),
+                    pipeline_run_id=item.get("pipeline_run_id"),
+                    failure_reason=item.get("failure_reason"),
+                    parsed_fields=(
+                        json.dumps(item.get("parsed_fields"))
+                        if item.get("parsed_fields") is not None
+                        else None
+                    ),
+                    model_confidence=item.get("model_confidence"),
+                    status=item.get("status") or "pending",
+                    created_at=item.get("created_at")
+                )
+                session.add(snapshot)
+                session.commit()
+        except Exception as exc:
+            import traceback
+            logger.exception("Snapshot write failed", exc_info=exc)
+            traceback.print_exc()
         finally:
             try:
                 snapshots_queue.task_done()
@@ -289,15 +254,12 @@ def list_articles(limit: int = 20, offset: int = 0, reviewer: str | None = None)
     # already reviewed by that reviewer
     if reviewer:
         try:
-            # use a longer timeout to wait for transient locks to clear
-            conn = sqlite3.connect(DB_PATH, timeout=30.0)
-            cur = conn.cursor()
-            cur.execute(
-                "SELECT DISTINCT article_idx FROM reviews WHERE reviewer=? AND reviewed_at IS NOT NULL",
-                (reviewer,),
-            )
-            reviewed = {int(r[0]) for r in cur.fetchall() if r and r[0] is not None}
-            conn.close()
+            with db_manager.get_session() as session:
+                reviewed_rows = session.query(Review.article_idx).filter(
+                    Review.reviewer == reviewer,
+                    Review.reviewed_at.isnot(None)
+                ).distinct().all()
+                reviewed = {int(r.article_idx) for r in reviewed_rows if r.article_idx is not None}
         except Exception:
             reviewed = set()
         # preserve original csv indices so frontend can POST back using the CSV index
@@ -495,34 +457,15 @@ def post_review(idx: int, payload: ReviewIn):
     The route accepts the CSV index (idx) for convenience but the payload may
     include `article_uid` to bind the review to the article's stable unique id.
     """
-    init_db()
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    # ensure migration: reviews.reviewed_at column exists
-    try:
-        cur.execute("PRAGMA table_info(reviews)")
-        cols = [r[1] for r in cur.fetchall()]
-        if "reviewed_at" not in cols:
-            try:
-                cur.execute("ALTER TABLE reviews ADD COLUMN reviewed_at TEXT")
-                conn.commit()
-            except Exception:
-                # ignore concurrent/migration failures
-                pass
-    except Exception:
-        pass
-    now = datetime.datetime.utcnow().isoformat()
+    now = datetime.datetime.utcnow()
     tags_str = ",".join(payload.tags) if payload.tags else None
     body_str = ",".join(payload.body_errors) if payload.body_errors else None
     headline_str = (
         ",".join(payload.headline_errors) if payload.headline_errors else None
     )
     author_str = ",".join(payload.author_errors) if payload.author_errors else None
-    # Prefer an explicit article_uid if supplied in the payload;
-    # otherwise attempt to map from the numeric CSV idx to the
-    # article's `id` column.
-    # Prefer explicit article_uid from the incoming payload
-    # when provided.
+    
+    # Prefer an explicit article_uid if supplied in the payload
     article_uid = getattr(payload, "article_uid", None) or None
     # try to read the CSV to map idx -> id if available
     try:
@@ -532,418 +475,130 @@ def post_review(idx: int, payload: ReviewIn):
                 article_uid = article_uid or df.iloc[idx].get("id")
     except Exception:
         pass
-
-    # DEBUG: print SQL and params length to help diagnose
-    # placeholder mismatch. include reviewed_at so saving a review
-    # marks it reviewed for that reviewer
-    sql_stmt = (
-        "INSERT INTO reviews ("
-        "article_idx, article_uid, reviewer, rating, "
-        "secondary_rating, tags, notes, "
-        "mentioned_locations, missing_locations, "
-        "incorrect_locations, inferred_tags, missing_tags, "
-        "incorrect_tags, body_errors, headline_errors, "
-        "author_errors, reviewed_at, created_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
-        "?, ?, ?, ?, ?) "
-        "ON CONFLICT(article_uid, reviewer) DO UPDATE SET "
-        "rating=excluded.rating, "
-        "secondary_rating=excluded.secondary_rating, "
-        "tags=excluded.tags, "
-        "notes=excluded.notes, "
-        "mentioned_locations=excluded.mentioned_locations, "
-        "missing_locations=excluded.missing_locations, "
-        "incorrect_locations=excluded.incorrect_locations, "
-        "inferred_tags=excluded.inferred_tags, "
-        "missing_tags=excluded.missing_tags, "
-        "incorrect_tags=excluded.incorrect_tags, "
-        "body_errors=excluded.body_errors, "
-        "headline_errors=excluded.headline_errors, "
-        "author_errors=excluded.author_errors, "
-        "reviewed_at=excluded.reviewed_at, "
-        "created_at=excluded.created_at"
-    )
-
-    params = (
-        idx,
-        article_uid,
-        payload.reviewer,
-        payload.rating,
-        payload.secondary_rating,
-        tags_str,
-        payload.notes,
-        # store mentioned_locations as CSV text
-        (
-            ",".join(payload.mentioned_locations)
-            if payload.mentioned_locations
-            else None
-        ),
-        # store missing_locations as CSV text
-        (
-            ",".join(payload.missing_locations)
-            if getattr(payload, "missing_locations", None)
-            else None
-        ),
-        # store incorrect_locations as CSV text
-        (
-            ",".join(payload.incorrect_locations)
-            if getattr(payload, "incorrect_locations", None)
-            else None
-        ),
-        # store inferred_tags as CSV text
-        (
-            ",".join(payload.inferred_tags)
-            if getattr(payload, "inferred_tags", None)
-            else None
-        ),
-        # store missing_tags as CSV text
-        (
-            ",".join(payload.missing_tags)
-            if getattr(payload, "missing_tags", None)
-            else None
-        ),
-        # store incorrect_tags as CSV text
-        (
-            ",".join(payload.incorrect_tags)
-            if getattr(payload, "incorrect_tags", None)
-            else None
-        ),
-        body_str,
-        headline_str,
-        author_str,
-        # reviewed_at: mark review as reviewed on save
-        now,
-        now,
-    )
-
-    # end debug
-
-    cur.execute(sql_stmt, params)
-    conn.commit()
-    # Retrieve the canonical row for this review so callers
-    # receive the authoritative, server-normalized representation
-    # immediately.
-    cols_sql = (
-        "id, article_idx, article_uid, reviewer, rating, "
-        "secondary_rating, "
-        "tags, notes, mentioned_locations, missing_locations, "
-        "incorrect_locations, inferred_tags, missing_tags, "
-        "incorrect_tags, body_errors, headline_errors, "
-        "author_errors, created_at"
-    )
-
-    # Try to use the sqlite cursor's lastrowid which points to
-    # the row inserted by the most recent INSERT. This handles
-    # the common case where the operation was an INSERT and we
-    # can return that exact row.
-    created_id = cur.lastrowid if hasattr(cur, "lastrowid") else None
-    row = None
-    if created_id:
-        cur.execute(
-            f"SELECT {cols_sql} FROM reviews WHERE id=?",
-            (created_id,),
-        )
-        row = cur.fetchone()
-
-    # If lastrowid wasn't available (e.g. the statement performed
-    # an UPDATE as part of an upsert), fall back to selecting by
-    # article_uid+reviewer or article_idx+reviewer.
-    if not row:
+    
+    with db_manager.get_session() as session:
+        # Try to find existing review for upsert
+        existing_review = None
         if article_uid:
-            cur.execute(
-                f"SELECT {cols_sql} FROM reviews WHERE article_uid=? AND reviewer=?",
-                (article_uid, payload.reviewer),
+            existing_review = session.query(Review).filter(
+                Review.article_uid == article_uid,
+                Review.reviewer == payload.reviewer
+            ).first()
+        if not existing_review:
+            existing_review = session.query(Review).filter(
+                Review.article_idx == idx,
+                Review.reviewer == payload.reviewer
+            ).first()
+        
+        if existing_review:
+            # Update existing review
+            existing_review.rating = payload.rating
+            existing_review.secondary_rating = payload.secondary_rating
+            existing_review.tags = tags_str
+            existing_review.notes = payload.notes
+            existing_review.mentioned_locations = (
+                ",".join(payload.mentioned_locations) if payload.mentioned_locations else None
             )
-            row = cur.fetchone()
-        if not row:
-            cur.execute(
-                f"SELECT {cols_sql} FROM reviews WHERE article_idx=? AND reviewer=?",
-                (idx, payload.reviewer),
+            existing_review.missing_locations = (
+                ",".join(payload.missing_locations) if getattr(payload, "missing_locations", None) else None
             )
-            row = cur.fetchone()
-
-    result = None
-
-    # helper to split comma-separated stored strings into lists
-    def _split_csv_field(s):
-        if s is None:
-            return []
-        if not isinstance(s, str):
-            return s
-        s = s.strip()
-        if s == "":
-            return []
-        # Treat literal 'NONE' or 'None' as empty as some
-        # older records had that
-        if s.upper() == "NONE" or s == "None":
-            return []
-        return [p for p in s.split(",") if p]
-
-    if row:
-        cols = cols_sql.split(", ")
-        result = dict(zip(cols, row, strict=False))
+            existing_review.incorrect_locations = (
+                ",".join(payload.incorrect_locations) if getattr(payload, "incorrect_locations", None) else None
+            )
+            existing_review.inferred_tags = (
+                ",".join(payload.inferred_tags) if getattr(payload, "inferred_tags", None) else None
+            )
+            existing_review.missing_tags = (
+                ",".join(payload.missing_tags) if getattr(payload, "missing_tags", None) else None
+            )
+            existing_review.incorrect_tags = (
+                ",".join(payload.incorrect_tags) if getattr(payload, "incorrect_tags", None) else None
+            )
+            existing_review.body_errors = body_str
+            existing_review.headline_errors = headline_str
+            existing_review.author_errors = author_str
+            existing_review.reviewed_at = now
+            review_obj = existing_review
+        else:
+            # Create new review
+            review_obj = Review(
+                article_idx=idx,
+                article_uid=article_uid,
+                reviewer=payload.reviewer,
+                rating=payload.rating,
+                secondary_rating=payload.secondary_rating,
+                tags=tags_str,
+                notes=payload.notes,
+                mentioned_locations=(
+                    ",".join(payload.mentioned_locations) if payload.mentioned_locations else None
+                ),
+                missing_locations=(
+                    ",".join(payload.missing_locations) if getattr(payload, "missing_locations", None) else None
+                ),
+                incorrect_locations=(
+                    ",".join(payload.incorrect_locations) if getattr(payload, "incorrect_locations", None) else None
+                ),
+                inferred_tags=(
+                    ",".join(payload.inferred_tags) if getattr(payload, "inferred_tags", None) else None
+                ),
+                missing_tags=(
+                    ",".join(payload.missing_tags) if getattr(payload, "missing_tags", None) else None
+                ),
+                incorrect_tags=(
+                    ",".join(payload.incorrect_tags) if getattr(payload, "incorrect_tags", None) else None
+                ),
+                body_errors=body_str,
+                headline_errors=headline_str,
+                author_errors=author_str,
+                reviewed_at=now,
+                created_at=now
+            )
+            session.add(review_obj)
+        
+        session.commit()
+        session.refresh(review_obj)
+        
+        # Convert to dict and split CSV fields
+        result = review_obj.to_dict()
+        
+        # helper to split comma-separated stored strings into lists
+        def _split_csv_field(s):
+            if s is None:
+                return []
+            if not isinstance(s, str):
+                return s
+            s = s.strip()
+            if s == "":
+                return []
+            if s.upper() == "NONE" or s == "None":
+                return []
+            return [p for p in s.split(",") if p]
+        
         # Normalize CSV fields into arrays for API clients
         result["tags"] = _split_csv_field(result.get("tags"))
         result["body_errors"] = _split_csv_field(result.get("body_errors"))
         result["headline_errors"] = _split_csv_field(result.get("headline_errors"))
         result["author_errors"] = _split_csv_field(result.get("author_errors"))
-        # normalize mentioned_locations into an array
-        result["mentioned_locations"] = _split_csv_field(
-            result.get("mentioned_locations")
-        )
-        # normalize missing_locations into an array
+        result["mentioned_locations"] = _split_csv_field(result.get("mentioned_locations"))
         result["missing_locations"] = _split_csv_field(result.get("missing_locations"))
-        # normalize incorrect_locations into an array
-        result["incorrect_locations"] = _split_csv_field(
-            result.get("incorrect_locations")
-        )
-        # normalize inferred_tags
+        result["incorrect_locations"] = _split_csv_field(result.get("incorrect_locations"))
         result["inferred_tags"] = _split_csv_field(result.get("inferred_tags"))
-        # normalize missing_tags/incorrect_tags
         result["missing_tags"] = _split_csv_field(result.get("missing_tags"))
         result["incorrect_tags"] = _split_csv_field(result.get("incorrect_tags"))
-    else:
-        # As a last resort, return the id if we can find any row
-        # for this (article_idx, reviewer) pair.
-        cur.execute(
-            "SELECT id FROM reviews WHERE article_idx=? AND reviewer=?",
-            (idx, payload.reviewer),
-        )
-        rid_row = cur.fetchone()
-        created_id = rid_row[0] if rid_row else None
-        result = {"id": created_id}
-
-    # Build a canonical payload object that mirrors what the frontend's
-    # `buildServerPayloadFromUI` expects so callers can use the server
-    # authoritative representation to compute savedness/deduping.
-    def build_canonical(r):
-        if not r:
-            return None
-        # rating vs primary naming: prefer primary_rating if present on row
-        primary = r.get("rating") if r.get("rating") is not None else r.get("rating")
-        # Some rows may include 'secondary_rating' already
-        secondary = (
-            r.get("secondary_rating")
-            if r.get("secondary_rating") is not None
-            else r.get("secondary_rating")
-        )
-
-        # Build tags from explicit tag arrays if present, otherwise derive from error arrays
-        body = r.get("body_errors") or []
-        headline = r.get("headline_errors") or []
-        author = r.get("author_errors") or []
-        # combine and normalize tags as frontend does (dedupe, remove NONE, sort)
-        tags = []
-        try:
-            tags = list(
-                {
-                    str(t)
-                    for t in (
-                        [*(body or []), *(headline or []), *(author or [])]
-                        if True
-                        else []
-                    )
-                    if t and str(t).upper() not in ("NONE", "None")
-                }
-            )
-            tags.sort()
-        except Exception:
-            tags = []
-
-        canonical = {
-            "article_uid": r.get("article_uid"),
-            "reviewer": r.get("reviewer"),
-            "primary_rating": primary if primary is not None else 3,
-            "secondary_rating": secondary if secondary is not None else 3,
-            "body": list(body) if isinstance(body, (list, tuple)) else body or [],
-            "headline": (
-                list(headline)
-                if isinstance(headline, (list, tuple))
-                else headline or []
-            ),
-            "author": (
-                list(author) if isinstance(author, (list, tuple)) else author or []
-            ),
-            "tags": tags,
-            "notes": r.get("notes") or "",
-            "mentioned_locations": r.get("mentioned_locations") or [],
-            "missing_locations": r.get("missing_locations") or [],
-            "inferred_tags": r.get("inferred_tags") or [],
-            "missing_tags": r.get("missing_tags") or [],
-        }
-        return canonical
-
-    def canonical_hash(obj):
-        try:
-            return stable_stringify(obj)
-        except Exception:
-            try:
-                return json.dumps(obj, sort_keys=True, separators=(",", ":"))
-            except Exception:
+        
+        # Build canonical payload
+        def build_canonical(r):
+            if not r:
                 return None
-
-    # Attach canonical payload and hash to the returned row so
-    # the frontend can rely on a server-authoritative
-    # representation for savedness checks.
-    if result:
-        try:
-            result["canonical"] = build_canonical(result)
-            result["canonical_hash"] = canonical_hash(result["canonical"])
-        except Exception:
-            pass
-
-    conn.close()
-    return result
-
-
-@app.put("/api/reviews/{rid}")
-def update_review(rid: int, payload: ReviewIn):
-    """Update an existing review by id.
-    Returns 404 if the review does not exist.
-    """
-    if not DB_PATH.exists():
-        raise HTTPException(status_code=404, detail="DB not found")
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("SELECT id FROM reviews WHERE id=?", (rid,))
-    row = cur.fetchone()
-    if not row:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Review not found")
-    # ensure reviewed_at column exists (no-op if present)
-    try:
-        cur.execute("PRAGMA table_info(reviews)")
-        cols = [r[1] for r in cur.fetchall()]
-        if "reviewed_at" not in cols:
-            try:
-                cur.execute("ALTER TABLE reviews ADD COLUMN reviewed_at TEXT")
-                conn.commit()
-            except Exception:
-                pass
-    except Exception:
-        pass
-
-    cur.execute(
-        (
-            "UPDATE reviews SET reviewer=?, rating=?, "
-            "secondary_rating=?, tags=?, notes=?, "
-            "mentioned_locations=?, missing_locations=?, "
-            "incorrect_locations=?, inferred_tags=?, "
-            "missing_tags=?, incorrect_tags=?, body_errors=?, "
-            "headline_errors=?, author_errors=?, reviewed_at=? "
-            "WHERE id=?"
-        ),
-        (
-            payload.reviewer,
-            payload.rating,
-            payload.secondary_rating,
-            ",".join(payload.tags) if payload.tags else None,
-            payload.notes,
-            (
-                ",".join(payload.mentioned_locations)
-                if payload.mentioned_locations
-                else None
-            ),
-            (
-                ",".join(payload.missing_locations)
-                if getattr(payload, "missing_locations", None)
-                else None
-            ),
-            (
-                ",".join(payload.incorrect_locations)
-                if getattr(payload, "incorrect_locations", None)
-                else None
-            ),
-            (
-                ",".join(payload.inferred_tags)
-                if getattr(payload, "inferred_tags", None)
-                else None
-            ),
-            (
-                ",".join(payload.missing_tags)
-                if getattr(payload, "missing_tags", None)
-                else None
-            ),
-            (
-                ",".join(payload.incorrect_tags)
-                if getattr(payload, "incorrect_tags", None)
-                else None
-            ),
-            ",".join(payload.body_errors) if payload.body_errors else None,
-            ",".join(payload.headline_errors) if payload.headline_errors else None,
-            ",".join(payload.author_errors) if payload.author_errors else None,
-            datetime.datetime.utcnow().isoformat(),
-            rid,
-        ),
-    )
-    conn.commit()
-    conn.close()
-    return {"status": "ok", "id": rid}
-
-
-@app.get("/api/reviews")
-def get_reviews(article_idx: int | None = None, article_uid: str | None = None):
-    if not DB_PATH.exists():
-        return []
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cols_sql = (
-        "id, article_idx, article_uid, reviewer, rating, "
-        "secondary_rating, "
-        "tags, notes, mentioned_locations, missing_locations, "
-        "incorrect_locations, inferred_tags, missing_tags, "
-        "incorrect_tags, body_errors, headline_errors, "
-        "author_errors, created_at"
-    )
-    if article_uid:
-        cur.execute(
-            (f"SELECT {cols_sql} FROM reviews WHERE article_uid=? ORDER BY id DESC"),
-            (article_uid,),
-        )
-    elif article_idx is None:
-        cur.execute(f"SELECT {cols_sql} FROM reviews ORDER BY id DESC LIMIT 200")
-    else:
-        cur.execute(
-            (f"SELECT {cols_sql} FROM reviews WHERE article_idx=? ORDER BY id DESC"),
-            (article_idx,),
-        )
-    rows = cur.fetchall()
-    conn.close()
-
-    cols = cols_sql.split(", ")
-
-    def _split_csv_field(s):
-        if s is None:
-            return []
-        if not isinstance(s, str):
-            return s
-        s = s.strip()
-        if s == "":
-            return []
-        if s.upper() == "NONE" or s == "None":
-            return []
-        return [p for p in s.split(",") if p]
-
-    results = []
-    for r in rows:
-        d = dict(zip(cols, r, strict=False))
-        # normalize CSV-stored fields to arrays to match POST/PUT responses
-        d["tags"] = _split_csv_field(d.get("tags"))
-        d["body_errors"] = _split_csv_field(d.get("body_errors"))
-        d["headline_errors"] = _split_csv_field(d.get("headline_errors"))
-        d["author_errors"] = _split_csv_field(d.get("author_errors"))
-        d["mentioned_locations"] = _split_csv_field(d.get("mentioned_locations"))
-        d["inferred_tags"] = _split_csv_field(d.get("inferred_tags"))
-        d["missing_locations"] = _split_csv_field(d.get("missing_locations"))
-        d["incorrect_locations"] = _split_csv_field(d.get("incorrect_locations"))
-        d["missing_tags"] = _split_csv_field(d.get("missing_tags"))
-        d["incorrect_tags"] = _split_csv_field(d.get("incorrect_tags"))
-
-        # Build canonical payload for each row similar to POST response
-        try:
-            body = d.get("body_errors") or []
-            headline = d.get("headline_errors") or []
-            author = d.get("author_errors") or []
+            primary = r.get("rating") if r.get("rating") is not None else r.get("rating")
+            secondary = (
+                r.get("secondary_rating")
+                if r.get("secondary_rating") is not None
+                else r.get("secondary_rating")
+            )
+            body = r.get("body_errors") or []
+            headline = r.get("headline_errors") or []
+            author = r.get("author_errors") or []
             tags = []
             try:
                 tags = list(
@@ -960,15 +615,12 @@ def get_reviews(article_idx: int | None = None, article_uid: str | None = None):
                 tags.sort()
             except Exception:
                 tags = []
+            
             canonical = {
-                "article_uid": d.get("article_uid"),
-                "reviewer": d.get("reviewer"),
-                "primary_rating": d.get("rating") if d.get("rating") is not None else 3,
-                "secondary_rating": (
-                    d.get("secondary_rating")
-                    if d.get("secondary_rating") is not None
-                    else 3
-                ),
+                "article_uid": r.get("article_uid"),
+                "reviewer": r.get("reviewer"),
+                "primary_rating": primary if primary is not None else 3,
+                "secondary_rating": secondary if secondary is not None else 3,
                 "body": list(body) if isinstance(body, (list, tuple)) else body or [],
                 "headline": (
                     list(headline)
@@ -979,26 +631,181 @@ def get_reviews(article_idx: int | None = None, article_uid: str | None = None):
                     list(author) if isinstance(author, (list, tuple)) else author or []
                 ),
                 "tags": tags,
-                "notes": d.get("notes") or "",
-                "mentioned_locations": d.get("mentioned_locations") or [],
-                "missing_locations": d.get("missing_locations") or [],
-                "inferred_tags": d.get("inferred_tags") or [],
-                "missing_tags": d.get("missing_tags") or [],
+                "notes": r.get("notes") or "",
+                "mentioned_locations": r.get("mentioned_locations") or [],
+                "missing_locations": r.get("missing_locations") or [],
+                "inferred_tags": r.get("inferred_tags") or [],
+                "missing_tags": r.get("missing_tags") or [],
             }
-            # Attach canonical object and a stable canonical_hash string
-            d["canonical"] = canonical
+            return canonical
+        
+        def canonical_hash(obj):
             try:
-                d["canonical_hash"] = json.dumps(
-                    canonical, sort_keys=True, separators=(",", ":")
-                )
+                return stable_stringify(obj)
             except Exception:
-                d["canonical_hash"] = None
+                try:
+                    return json.dumps(obj, sort_keys=True, separators=(",", ":"))
+                except Exception:
+                    return None
+        
+        # Attach canonical payload and hash
+        try:
+            result["canonical"] = build_canonical(result)
+            result["canonical_hash"] = canonical_hash(result["canonical"])
         except Exception:
-            d["canonical"] = None
-            d["canonical_hash"] = None
-        results.append(d)
+            pass
+        
+        return result
 
-    return results
+
+@app.put("/api/reviews/{rid}")
+def update_review(rid: str, payload: ReviewIn):
+    """Update an existing review by id.
+    Returns 404 if the review does not exist.
+    """
+    with db_manager.get_session() as session:
+        review = session.query(Review).filter(Review.id == rid).first()
+        if not review:
+            raise HTTPException(status_code=404, detail="Review not found")
+        
+        # Update fields
+        review.reviewer = payload.reviewer
+        review.rating = payload.rating
+        review.secondary_rating = payload.secondary_rating
+        review.tags = ",".join(payload.tags) if payload.tags else None
+        review.notes = payload.notes
+        review.mentioned_locations = (
+            ",".join(payload.mentioned_locations) if payload.mentioned_locations else None
+        )
+        review.missing_locations = (
+            ",".join(payload.missing_locations) if getattr(payload, "missing_locations", None) else None
+        )
+        review.incorrect_locations = (
+            ",".join(payload.incorrect_locations) if getattr(payload, "incorrect_locations", None) else None
+        )
+        review.inferred_tags = (
+            ",".join(payload.inferred_tags) if getattr(payload, "inferred_tags", None) else None
+        )
+        review.missing_tags = (
+            ",".join(payload.missing_tags) if getattr(payload, "missing_tags", None) else None
+        )
+        review.incorrect_tags = (
+            ",".join(payload.incorrect_tags) if getattr(payload, "incorrect_tags", None) else None
+        )
+        review.body_errors = ",".join(payload.body_errors) if payload.body_errors else None
+        review.headline_errors = ",".join(payload.headline_errors) if payload.headline_errors else None
+        review.author_errors = ",".join(payload.author_errors) if payload.author_errors else None
+        review.reviewed_at = datetime.datetime.utcnow()
+        
+        session.commit()
+        return {"status": "ok", "id": rid}
+
+
+@app.get("/api/reviews")
+def get_reviews(article_idx: int | None = None, article_uid: str | None = None):
+    with db_manager.get_session() as session:
+        query = session.query(Review)
+        
+        if article_uid:
+            query = query.filter(Review.article_uid == article_uid)
+        elif article_idx is not None:
+            query = query.filter(Review.article_idx == article_idx)
+        else:
+            query = query.limit(200)
+        
+        query = query.order_by(Review.id.desc())
+        reviews = query.all()
+        
+        if not reviews:
+            return []
+        
+        def _split_csv_field(s):
+            if s is None:
+                return []
+            if not isinstance(s, str):
+                return s
+            s = s.strip()
+            if s == "":
+                return []
+            if s.upper() == "NONE" or s == "None":
+                return []
+            return [p for p in s.split(",") if p]
+        
+        results = []
+        for review in reviews:
+            d = review.to_dict()
+            # normalize CSV-stored fields to arrays to match POST/PUT responses
+            d["tags"] = _split_csv_field(d.get("tags"))
+            d["body_errors"] = _split_csv_field(d.get("body_errors"))
+            d["headline_errors"] = _split_csv_field(d.get("headline_errors"))
+            d["author_errors"] = _split_csv_field(d.get("author_errors"))
+            d["mentioned_locations"] = _split_csv_field(d.get("mentioned_locations"))
+            d["inferred_tags"] = _split_csv_field(d.get("inferred_tags"))
+            d["missing_locations"] = _split_csv_field(d.get("missing_locations"))
+            d["incorrect_locations"] = _split_csv_field(d.get("incorrect_locations"))
+            d["missing_tags"] = _split_csv_field(d.get("missing_tags"))
+            d["incorrect_tags"] = _split_csv_field(d.get("incorrect_tags"))
+            
+            # Build canonical payload for each row similar to POST response
+            try:
+                body = d.get("body_errors") or []
+                headline = d.get("headline_errors") or []
+                author = d.get("author_errors") or []
+                tags = []
+                try:
+                    tags = list(
+                        {
+                            str(t)
+                            for t in (
+                                [*(body or []), *(headline or []), *(author or [])]
+                                if True
+                                else []
+                            )
+                            if t and str(t).upper() not in ("NONE", "None")
+                        }
+                    )
+                    tags.sort()
+                except Exception:
+                    tags = []
+                canonical = {
+                    "article_uid": d.get("article_uid"),
+                    "reviewer": d.get("reviewer"),
+                    "primary_rating": d.get("rating") if d.get("rating") is not None else 3,
+                    "secondary_rating": (
+                        d.get("secondary_rating")
+                        if d.get("secondary_rating") is not None
+                        else 3
+                    ),
+                    "body": list(body) if isinstance(body, (list, tuple)) else body or [],
+                    "headline": (
+                        list(headline)
+                        if isinstance(headline, (list, tuple))
+                        else headline or []
+                    ),
+                    "author": (
+                        list(author) if isinstance(author, (list, tuple)) else author or []
+                    ),
+                    "tags": tags,
+                    "notes": d.get("notes") or "",
+                    "mentioned_locations": d.get("mentioned_locations") or [],
+                    "missing_locations": d.get("missing_locations") or [],
+                    "inferred_tags": d.get("inferred_tags") or [],
+                    "missing_tags": d.get("missing_tags") or [],
+                }
+                # Attach canonical object and a stable canonical_hash string
+                d["canonical"] = canonical
+                try:
+                    d["canonical_hash"] = json.dumps(
+                        canonical, sort_keys=True, separators=(",", ":")
+                    )
+                except Exception:
+                    d["canonical_hash"] = None
+            except Exception:
+                d["canonical"] = None
+                d["canonical_hash"] = None
+            results.append(d)
+        
+        return results
 
 
 @app.exception_handler(Exception)
@@ -1026,7 +833,6 @@ def post_snapshot(payload: SnapshotIn):
     Enqueue the snapshot for background DB write and return 202 with snapshot id/path.
     """
     # Save HTML to disk immediately (fast filesystem op) and enqueue DB write
-    init_snapshot_tables()
     sid = str(uuid.uuid4())
     host_dir = BASE_DIR / "lookups" / "snapshots" / payload.host
     host_dir.mkdir(parents=True, exist_ok=True)
@@ -1062,33 +868,25 @@ def post_snapshot(payload: SnapshotIn):
     # best-effort synchronous write so the snapshot is immediately queryable.
     try:
         if _worker_thread is None or not _worker_thread.is_alive():
-            conn = sqlite3.connect(DB_PATH)
-            cur = conn.cursor()
-            cur.execute(
-                (
-                    "INSERT OR REPLACE INTO snapshots (id, host, url, path, pipeline_run_id, "
-                    "failure_reason, parsed_fields, model_confidence, status, created_at) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-                ),
-                (
-                    sid,
-                    payload.host,
-                    payload.url,
-                    path,
-                    payload.pipeline_run_id,
-                    payload.failure_reason,
-                    (
+            with db_manager.get_session() as session:
+                snapshot = Snapshot(
+                    id=sid,
+                    host=payload.host,
+                    url=payload.url,
+                    path=path,
+                    pipeline_run_id=payload.pipeline_run_id,
+                    failure_reason=payload.failure_reason,
+                    parsed_fields=(
                         json.dumps(payload.parsed_fields)
                         if payload.parsed_fields is not None
                         else None
                     ),
-                    payload.model_confidence,
-                    "pending",
-                    now,
-                ),
-            )
-            conn.commit()
-            conn.close()
+                    model_confidence=payload.model_confidence,
+                    status="pending",
+                    created_at=datetime.datetime.fromisoformat(now)
+                )
+                session.add(snapshot)
+                session.commit()
     except Exception:
         # best-effort: if sync write fails, rely on background worker
         pass
@@ -1100,203 +898,138 @@ def post_snapshot(payload: SnapshotIn):
 
 @app.get("/api/snapshots/{sid}")
 def get_snapshot(sid: str):
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute(
-        (
-            "SELECT id, host, url, path, pipeline_run_id, failure_reason, "
-            "parsed_fields, model_confidence, status, created_at "
-            "FROM snapshots WHERE id=?"
-        ),
-        (sid,),
-    )
-    row = cur.fetchone()
-    if not row:
-        raise HTTPException(status_code=404, detail="snapshot not found")
-    cols = [
-        "id",
-        "host",
-        "url",
-        "path",
-        "pipeline_run_id",
-        "failure_reason",
-        "parsed_fields",
-        "model_confidence",
-        "status",
-        "created_at",
-    ]
-    rec = dict(zip(cols, row, strict=False))
-    # load candidates
-    cur.execute(
-        (
-            "SELECT id, selector, field, score, words, snippet, accepted, "
-            "created_at, alts FROM candidates WHERE snapshot_id=?"
-        ),
-        (sid,),
-    )
-    cand_rows = cur.fetchall()
-    cand_cols = [
-        "id",
-        "selector",
-        "field",
-        "score",
-        "words",
-        "snippet",
-        "accepted",
-        "created_at",
-        "alts",
-    ]
-    rec["candidates"] = []
-    for r in cand_rows:
-        obj = dict(zip(cand_cols, r, strict=False))
-        # attempt to parse alts JSON
-        if obj.get("alts"):
+    with db_manager.get_session() as session:
+        snapshot = session.query(Snapshot).filter(Snapshot.id == sid).first()
+        if not snapshot:
+            raise HTTPException(status_code=404, detail="snapshot not found")
+        
+        rec = snapshot.to_dict()
+        
+        # load candidates
+        candidates = session.query(Candidate).filter(Candidate.snapshot_id == sid).all()
+        rec["candidates"] = []
+        for cand in candidates:
+            obj = cand.to_dict()
+            # attempt to parse alts JSON
+            if obj.get("alts"):
+                try:
+                    obj["alts"] = json.loads(obj["alts"])
+                except Exception:
+                    # leave raw string if parsing fails
+                    pass
+            rec["candidates"].append(obj)
+        
+        # parse parsed_fields JSON
+        if rec.get("parsed_fields"):
             try:
-                obj["alts"] = json.loads(obj["alts"])
+                rec["parsed_fields"] = json.loads(rec["parsed_fields"])
             except Exception:
-                # leave raw string if parsing fails
-                pass
-        rec["candidates"].append(obj)
-    # parse parsed_fields JSON
-    if rec.get("parsed_fields"):
-        try:
-            rec["parsed_fields"] = json.loads(rec["parsed_fields"])
-        except Exception:
-            rec["parsed_fields"] = None
-    conn.close()
-    return rec
+                rec["parsed_fields"] = None
+        
+        return rec
 
 
 @app.get("/api/snapshots/{sid}/html")
 def get_snapshot_html(sid: str):
     """Return the saved raw HTML for a snapshot if present."""
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("SELECT path FROM snapshots WHERE id=?", (sid,))
-    row = cur.fetchone()
-    conn.close()
-    if not row:
-        raise HTTPException(status_code=404, detail="snapshot not found")
-    path = row[0]
-    try:
-        content = Path(path).read_text(encoding="utf-8")
-        return HTMLResponse(content=content)
-    except Exception:
-        # failed to read the snapshot file from disk
-        raise HTTPException(status_code=500, detail="failed to read snapshot html")
+    with db_manager.get_session() as session:
+        snapshot = session.query(Snapshot).filter(Snapshot.id == sid).first()
+        if not snapshot:
+            raise HTTPException(status_code=404, detail="snapshot not found")
+        path = snapshot.path
+        try:
+            content = Path(path).read_text(encoding="utf-8")
+            return HTMLResponse(content=content)
+        except Exception:
+            # failed to read the snapshot file from disk
+            raise HTTPException(status_code=500, detail="failed to read snapshot html")
 
 
 @app.post("/api/snapshots/{sid}/candidates")
 def post_candidates(sid: str, payload: list[CandidateIn]):
-    init_snapshot_tables()
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    now = datetime.datetime.utcnow().isoformat()
-    inserted = []
-    for c in payload:
-        cid = str(uuid.uuid4())
-        # prepare alts as JSON if present
-        alts_json = None
-        try:
-            if getattr(c, "alts", None) is not None:
-                alts_json = json.dumps(c.alts)
-        except Exception:
+    with db_manager.get_session() as session:
+        now = datetime.datetime.utcnow()
+        inserted = []
+        for c in payload:
+            cid = str(uuid.uuid4())
+            # prepare alts as JSON if present
             alts_json = None
-        cur.execute(
-            (
-                "INSERT INTO candidates (id, snapshot_id, selector, field, "
-                "score, words, snippet, alts, accepted, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-            ),
-            (
-                cid,
-                sid,
-                c.selector,
-                getattr(c, "field", None),
-                c.score,
-                c.words,
-                getattr(c, "snippet", None),
-                alts_json,
-                0,
-                now,
-            ),
-        )
-        inserted.append(cid)
-    conn.commit()
-    conn.close()
-    return {"inserted": inserted}
+            try:
+                if getattr(c, "alts", None) is not None:
+                    alts_json = json.dumps(c.alts)
+            except Exception:
+                alts_json = None
+            
+            candidate = Candidate(
+                id=cid,
+                snapshot_id=sid,
+                selector=c.selector,
+                field=getattr(c, "field", None),
+                score=c.score,
+                words=c.words,
+                snippet=getattr(c, "snippet", None),
+                alts=alts_json,
+                accepted=False,
+                created_at=now
+            )
+            session.add(candidate)
+            inserted.append(cid)
+        
+        session.commit()
+        return {"inserted": inserted}
 
 
 @app.get("/api/domain_issues")
 def get_domain_issues():
     """Aggregate issues by host for the domain reports UI."""
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    out = {}
-    # Find hosts that have non-accepted candidates (flagged issues)
-    # Exclude snapshots that have been reviewed (snapshots.reviewed_at IS NOT NULL)
-    cur.execute(
-        "SELECT DISTINCT snapshots.host FROM candidates "
-        "JOIN snapshots ON candidates.snapshot_id=snapshots.id "
-        "WHERE candidates.accepted=0 AND (snapshots.reviewed_at IS NULL OR snapshots.reviewed_at='')"
-    )
-    host_rows = cur.fetchall()
-    for (host,) in host_rows:
-        # aggregate candidate counts by field for this host (only non-accepted)
-        cur.execute(
-            (
-                "SELECT candidates.field, COUNT(*) "
-                "FROM candidates JOIN snapshots ON candidates.snapshot_id=snapshots.id "
-                "WHERE snapshots.host=? AND candidates.accepted=0 AND (snapshots.reviewed_at IS NULL OR snapshots.reviewed_at='') GROUP BY candidates.field"
-            ),
-            (host,),
-        )
-        cand_rows = cur.fetchall()
-        issues = {(f if f is not None else "unknown"): c for f, c in cand_rows}
-        # count distinct snapshots (urls) for host that are not reviewed
-        cur.execute(
-            "SELECT COUNT(DISTINCT id) FROM snapshots WHERE host=? AND (reviewed_at IS NULL OR reviewed_at='')",
-            (host,),
-        )
-        total_urls = cur.fetchone()[0]
-        out[host] = {"issues": issues, "total_urls": total_urls}
-    conn.close()
-    return out
+    from sqlalchemy import func, distinct
+    
+    with db_manager.get_session() as session:
+        out = {}
+        
+        # Find hosts that have non-accepted candidates (flagged issues)
+        # Exclude snapshots that have been reviewed
+        hosts = session.query(distinct(Snapshot.host)).join(
+            Candidate, Candidate.snapshot_id == Snapshot.id
+        ).filter(
+            Candidate.accepted == False,
+            (Snapshot.reviewed_at.is_(None)) | (Snapshot.reviewed_at == '')
+        ).all()
+        
+        for (host,) in hosts:
+            # aggregate candidate counts by field for this host (only non-accepted)
+            field_counts = session.query(
+                Candidate.field, func.count(Candidate.id)
+            ).join(
+                Snapshot, Candidate.snapshot_id == Snapshot.id
+            ).filter(
+                Snapshot.host == host,
+                Candidate.accepted == False,
+                (Snapshot.reviewed_at.is_(None)) | (Snapshot.reviewed_at == '')
+            ).group_by(Candidate.field).all()
+            
+            issues = {(f if f is not None else "unknown"): c for f, c in field_counts}
+            
+            # count distinct snapshots (urls) for host that are not reviewed
+            total_urls = session.query(func.count(distinct(Snapshot.id))).filter(
+                Snapshot.host == host,
+                (Snapshot.reviewed_at.is_(None)) | (Snapshot.reviewed_at == '')
+            ).scalar()
+            
+            out[host] = {"issues": issues, "total_urls": total_urls}
+        
+        return out
 
 
 @app.get("/api/domain_feedback")
 def list_domain_feedback():
     """Return all saved domain feedback rows as a mapping keyed by host."""
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    # make handler tolerant to schema changes: older schema had priority/needs_dev/assigned_to
-    cur.execute("PRAGMA table_info(domain_feedback)")
-    cols = [r[1] for r in cur.fetchall()]
-    out = {}
-    if "priority" in cols:
-        cur.execute(
-            "SELECT host, priority, needs_dev, assigned_to, notes, updated_at FROM domain_feedback"
-        )
-        rows = cur.fetchall()
-        for host, priority, needs_dev, assigned_to, notes, updated_at in rows:
-            out[host] = {
-                "priority": priority,
-                "needs_dev": bool(needs_dev),
-                "assigned_to": assigned_to,
-                "notes": notes,
-                "updated_at": updated_at,
-            }
-    else:
-        # new compact schema: host, notes, updated_at
-        cur.execute("SELECT host, notes, updated_at FROM domain_feedback")
-        rows = cur.fetchall()
-        for host, notes, updated_at in rows:
-            out[host] = {
-                "notes": notes,
-                "updated_at": updated_at,
-            }
-    conn.close()
-    return out
+    with db_manager.get_session() as session:
+        feedbacks = session.query(DomainFeedback).all()
+        out = {}
+        for fb in feedbacks:
+            out[fb.host] = fb.to_dict()
+        return out
 
 
 @app.get("/api/crawl_errors")
@@ -1304,32 +1037,33 @@ def list_crawl_errors():
     """Return snapshots that failed to fetch or parse, grouped by host and failure reason.
     Aggregates unique failure reasons per host with a sample URL and count.
     """
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    out = {}
-    # Select snapshots that have a non-empty failure_reason
-    cur.execute(
-        "SELECT host, failure_reason, url, created_at FROM snapshots WHERE failure_reason IS NOT NULL AND failure_reason!='' ORDER BY created_at DESC"
-    )
-    rows = cur.fetchall()
-    for host, reason, url, created_at in rows:
-        if host not in out:
-            out[host] = {"errors": {}, "total": 0}
-        # normalize reason string
-        r = reason.strip() if reason else "unknown"
-        grp = out[host]["errors"].get(
-            r, {"count": 0, "example_url": url, "last_seen": created_at}
-        )
-        grp["count"] = grp.get("count", 0) + 1
-        # keep the earliest example (rows are ordered by created_at desc so preserve first seen)
-        if not grp.get("example_url"):
-            grp["example_url"] = url
-        # update last_seen to most recent
-        grp["last_seen"] = max(grp.get("last_seen") or "", created_at or "")
-        out[host]["errors"][r] = grp
-        out[host]["total"] += 1
-    conn.close()
-    return out
+    with db_manager.get_session() as session:
+        snapshots = session.query(Snapshot).filter(
+            Snapshot.failure_reason.isnot(None),
+            Snapshot.failure_reason != ''
+        ).order_by(Snapshot.created_at.desc()).all()
+        
+        out = {}
+        for snap in snapshots:
+            host = snap.host
+            if host not in out:
+                out[host] = {"errors": {}, "total": 0}
+            # normalize reason string
+            r = snap.failure_reason.strip() if snap.failure_reason else "unknown"
+            grp = out[host]["errors"].get(
+                r, {"count": 0, "example_url": snap.url, "last_seen": snap.created_at.isoformat() if snap.created_at else None}
+            )
+            grp["count"] = grp.get("count", 0) + 1
+            # keep the earliest example
+            if not grp.get("example_url"):
+                grp["example_url"] = snap.url
+            # update last_seen to most recent
+            current_time = snap.created_at.isoformat() if snap.created_at else ""
+            grp["last_seen"] = max(grp.get("last_seen") or "", current_time)
+            out[host]["errors"][r] = grp
+            out[host]["total"] += 1
+        
+        return out
 
 
 @app.get("/api/telemetry/queue")
@@ -1352,131 +1086,32 @@ def telemetry_queue():
 
 @app.post("/api/domain_feedback/{host}")
 def post_domain_feedback(host: str, payload: dict):
-    """Upsert feedback for a host. Expects JSON with priority, needs_dev, assigned_to, notes."""
-    init_db()
-    now = datetime.datetime.utcnow().isoformat()
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    # Be tolerant to schema: if old columns exist, write them; otherwise write compact row
-    cur.execute("PRAGMA table_info(domain_feedback)")
-    cols = [r[1] for r in cur.fetchall()]
-    if "priority" in cols:
-        cur.execute(
-            "INSERT OR REPLACE INTO domain_feedback (host, priority, needs_dev, assigned_to, notes, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (
-                host,
-                payload.get("priority"),
-                1 if payload.get("needs_dev") else 0,
-                payload.get("assigned_to"),
-                payload.get("notes"),
-                now,
-            ),
-        )
-    else:
-        cur.execute(
-            "INSERT OR REPLACE INTO domain_feedback (host, notes, updated_at) VALUES (?, ?, ?)",
-            (host, payload.get("notes"), now),
-        )
-    conn.commit()
-    conn.close()
-    return {"status": "ok", "host": host}
+    """Upsert feedback for a host. Expects JSON with notes."""
+    with db_manager.get_session() as session:
+        feedback = session.query(DomainFeedback).filter(DomainFeedback.host == host).first()
+        if feedback:
+            feedback.notes = payload.get("notes")
+            feedback.updated_at = datetime.datetime.utcnow()
+        else:
+            feedback = DomainFeedback(
+                host=host,
+                notes=payload.get("notes"),
+                updated_at=datetime.datetime.utcnow()
+            )
+            session.add(feedback)
+        session.commit()
+        return {"status": "ok", "host": host}
 
 
 @app.post("/api/migrate_domain_feedback")
 def migrate_domain_feedback(dry_run: bool | None = True):
-    """Migrate existing domain_feedback columns (priority, needs_dev, assigned_to)
-    into an audit table and recreate the `domain_feedback` table with only
-    (host, notes, updated_at). This endpoint is idempotent and safe to run
-    multiple times. By default it performs a dry-run; pass `?dry_run=false`
-    to execute the migration.
-    Returns a summary of actions performed.
+    """Migration endpoint for SQLite schema changes.
+    Now a no-op since schema is managed by Alembic migrations.
     """
-    init_db()
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    # check if domain_feedback exists
-    cur.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='domain_feedback'"
-    )
-    if not cur.fetchone():
-        conn.close()
-        return {"status": "noop", "reason": "domain_feedback table not found"}
-    # inspect columns
-    cur.execute("PRAGMA table_info(domain_feedback)")
-    cols = [r[1] for r in cur.fetchall()]
-    # if old columns not present, nothing to do
-    old_cols = {"priority", "needs_dev", "assigned_to"}
-    if not (old_cols & set(cols)):
-        conn.close()
-        return {
-            "status": "noop",
-            "reason": "migration already applied or columns absent",
-        }
-
-    # count rows to be migrated
-    cur.execute("SELECT COUNT(*) FROM domain_feedback")
-    total_rows = cur.fetchone()[0]
-
-    if dry_run:
-        conn.close()
-        return {"status": "dry_run", "rows_found": total_rows, "columns": cols}
-
-    now = datetime.datetime.utcnow().isoformat()
-    # create audit table if missing
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS domain_feedback_audit (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-    # Ensure existing databases get the new column if missing (safe ALTER)
-    try:
-        cur.execute("PRAGMA table_info(snapshots)")
-        cols = [r[1] for r in cur.fetchall()]
-        if 'reviewed_at' not in cols:
-            cur.execute('ALTER TABLE snapshots ADD COLUMN reviewed_at TEXT')
-            conn.commit()
-    except Exception:
-        # If ALTER fails (old SQLite versions or locked db), ignore; presence check in queries will handle it
-        pass
-            host TEXT,
-            priority TEXT,
-            needs_dev INTEGER,
-            assigned_to TEXT,
-            notes TEXT,
-            migrated_at TEXT
-        )
-        """
-    )
-    # copy existing rows into audit
-    cur.execute(
-        "INSERT INTO domain_feedback_audit (host, priority, needs_dev, assigned_to, notes, migrated_at) SELECT host, priority, needs_dev, assigned_to, notes, ? FROM domain_feedback",
-        (now,),
-    )
-    # create new compact domain_feedback table
-    cur.execute(
-        """
-        CREATE TABLE domain_feedback_new (
-            host TEXT PRIMARY KEY,
-            notes TEXT,
-            updated_at TEXT
-        )
-        """
-    )
-    # copy host, notes, updated_at into new table
-    cur.execute(
-        "INSERT INTO domain_feedback_new (host, notes, updated_at) SELECT host, notes, updated_at FROM domain_feedback"
-    )
-    # drop old table and rename new table
-    cur.execute("DROP TABLE domain_feedback")
-    cur.execute("ALTER TABLE domain_feedback_new RENAME TO domain_feedback")
-    conn.commit()
-
-    # return summary counts
-    cur.execute("SELECT COUNT(*) FROM domain_feedback")
-    new_count = cur.fetchone()[0]
-    cur.execute("SELECT COUNT(*) FROM domain_feedback_audit")
-    audit_count = cur.fetchone()[0]
-    conn.close()
-    return {"status": "ok", "migrated_rows": new_count, "audit_rows": audit_count}
+    return {
+        "status": "noop",
+        "reason": "Schema managed by Alembic migrations. No migration needed."
+    }
 
 
 @app.get("/api/snapshots_by_host/{host}")
@@ -1484,47 +1119,25 @@ def snapshots_by_host(host: str, include_reviewed: bool = False):
     """Return a short listing of snapshots for a host (id, url, status, parsed_fields, model_confidence).
     By default exclude snapshots that have been marked reviewed (reviewed_at is non-empty). Set include_reviewed=true to show all.
     """
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    if include_reviewed:
-        cur.execute(
-            (
-                "SELECT id, url, path, pipeline_run_id, failure_reason, parsed_fields, model_confidence, status, created_at "
-                "FROM snapshots WHERE host=? ORDER BY created_at DESC"
-            ),
-            (host,),
-        )
-    else:
-        cur.execute(
-            (
-                "SELECT id, url, path, pipeline_run_id, failure_reason, parsed_fields, model_confidence, status, created_at "
-                "FROM snapshots WHERE host=? AND (reviewed_at IS NULL OR reviewed_at='') ORDER BY created_at DESC"
-            ),
-            (host,),
-        )
-    rows = cur.fetchall()
-    cols = [
-        "id",
-        "url",
-        "path",
-        "pipeline_run_id",
-        "failure_reason",
-        "parsed_fields",
-        "model_confidence",
-        "status",
-        "created_at",
-    ]
-    out = []
-    for r in rows:
-        rec = dict(zip(cols, r, strict=False))
-        if rec.get("parsed_fields"):
-            try:
-                rec["parsed_fields"] = json.loads(rec["parsed_fields"])
-            except Exception:
-                rec["parsed_fields"] = None
-        out.append(rec)
-    conn.close()
-    return out
+    with db_manager.get_session() as session:
+        query = session.query(Snapshot).filter(Snapshot.host == host)
+        if not include_reviewed:
+            query = query.filter(
+                (Snapshot.reviewed_at.is_(None)) | (Snapshot.reviewed_at == '')
+            )
+        snapshots = query.order_by(Snapshot.created_at.desc()).all()
+        
+        out = []
+        for snap in snapshots:
+            rec = snap.to_dict()
+            if rec.get("parsed_fields"):
+                try:
+                    rec["parsed_fields"] = json.loads(rec["parsed_fields"])
+                except Exception:
+                    rec["parsed_fields"] = None
+            out.append(rec)
+        
+        return out
 
 
 @app.get("/api/ui_overview")
@@ -1556,25 +1169,20 @@ def ui_overview():
 
     # candidate issues from DB (non-accepted)
     try:
-        conn = sqlite3.connect(DB_PATH)
-        cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM candidates WHERE accepted=0")
-        r = cur.fetchone()
-        if r:
-            res["candidate_issues"] = int(r[0])
-        # dedupe near-misses: dedupe_audit rows where dedupe_flag is 0 and similarity > 0.7
-        try:
-            cur.execute(
-                "SELECT COUNT(*) FROM dedupe_audit WHERE (dedupe_flag IS NULL OR dedupe_flag=0) AND similarity>?",
-                (0.7,),
-            )
-            rr = cur.fetchone()
-            if rr:
-                res["dedupe_near_misses"] = int(rr[0])
-        except Exception:
-            # if dedupe_audit missing or column types differ, ignore
-            pass
-        conn.close()
+        with db_manager.get_session() as session:
+            count = session.query(Candidate).filter(Candidate.accepted == False).count()
+            res["candidate_issues"] = int(count)
+            
+            # dedupe near-misses: dedupe_audit rows where dedupe_flag is 0 and similarity > 0.7
+            try:
+                near_miss_count = session.query(DedupeAudit).filter(
+                    (DedupeAudit.dedupe_flag.is_(None)) | (DedupeAudit.dedupe_flag == 0),
+                    DedupeAudit.similarity > 0.7
+                ).count()
+                res["dedupe_near_misses"] = int(near_miss_count)
+            except Exception:
+                # if dedupe_audit missing or column types differ, ignore
+                pass
     except Exception:
         pass
 
@@ -1588,48 +1196,46 @@ def post_dedupe_records(payload: list[dict]):
     dedupe_flag (0/1), category (int), stage (str), details (dict or str).
     Returns inserted count and sample ids.
     """
-    init_snapshot_tables()
     if not isinstance(payload, list):
         records = [payload]
     else:
         records = payload
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    now = datetime.datetime.utcnow().isoformat()
-    inserted = 0
-    samples = []
-    for r in records:
-        try:
-            cur.execute(
-                "INSERT INTO dedupe_audit (article_uid, neighbor_uid, host, similarity, dedupe_flag, category, stage, details, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    r.get("article_uid"),
-                    r.get("neighbor_uid"),
-                    r.get("host"),
-                    r.get("similarity"),
-                    (
+    
+    with db_manager.get_session() as session:
+        now = datetime.datetime.utcnow()
+        inserted = 0
+        samples = []
+        for r in records:
+            try:
+                audit = DedupeAudit(
+                    article_uid=r.get("article_uid"),
+                    neighbor_uid=r.get("neighbor_uid"),
+                    host=r.get("host"),
+                    similarity=r.get("similarity"),
+                    dedupe_flag=(
                         int(r.get("dedupe_flag"))
                         if r.get("dedupe_flag") is not None
                         else None
                     ),
-                    int(r.get("category")) if r.get("category") is not None else None,
-                    r.get("stage"),
-                    (
+                    category=int(r.get("category")) if r.get("category") is not None else None,
+                    stage=r.get("stage"),
+                    details=(
                         json.dumps(r.get("details"))
                         if r.get("details") is not None
                         else None
                     ),
-                    now,
-                ),
-            )
-            inserted += 1
-            samples.append(cur.lastrowid)
-        except Exception:
-            # skip problematic rows but continue
-            continue
-    conn.commit()
-    conn.close()
-    return {"inserted": inserted, "sample_ids": samples}
+                    created_at=now
+                )
+                session.add(audit)
+                session.flush()  # Get the ID
+                inserted += 1
+                samples.append(audit.id)
+            except Exception:
+                # skip problematic rows but continue
+                continue
+        
+        session.commit()
+        return {"inserted": inserted, "sample_ids": samples}
 
 
 @app.get("/api/dedupe_records")
@@ -1640,49 +1246,29 @@ def get_dedupe_records(
     offset: int = 0,
 ):
     """Query dedupe audit rows filtered by article_uid or host. Returns rows ordered by created_at desc."""
-    if not DB_PATH.exists():
-        return {"count": 0, "results": []}
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    base_sql = "SELECT id, article_uid, neighbor_uid, host, similarity, dedupe_flag, category, stage, details, created_at FROM dedupe_audit"
-    params = []
-    where = []
-    if article_uid:
-        where.append("article_uid=?")
-        params.append(article_uid)
-    if host:
-        where.append("host=?")
-        params.append(host)
-    if where:
-        base_sql = base_sql + " WHERE " + " AND ".join(where)
-    base_sql = base_sql + " ORDER BY created_at DESC LIMIT ? OFFSET ?"
-    params.extend([limit, offset])
-    cur.execute(base_sql, tuple(params))
-    rows = cur.fetchall()
-    conn.close()
-    cols = [
-        "id",
-        "article_uid",
-        "neighbor_uid",
-        "host",
-        "similarity",
-        "dedupe_flag",
-        "category",
-        "stage",
-        "details",
-        "created_at",
-    ]
-    out = []
-    for r in rows:
-        d = dict(zip(cols, r, strict=False))
-        # attempt to parse details JSON
-        if d.get("details"):
-            try:
-                d["details"] = json.loads(d["details"])
-            except Exception:
-                pass
-        out.append(d)
-    return {"count": len(out), "results": out}
+    with db_manager.get_session() as session:
+        query = session.query(DedupeAudit)
+        
+        if article_uid:
+            query = query.filter(DedupeAudit.article_uid == article_uid)
+        if host:
+            query = query.filter(DedupeAudit.host == host)
+        
+        query = query.order_by(DedupeAudit.created_at.desc()).limit(limit).offset(offset)
+        records = query.all()
+        
+        out = []
+        for record in records:
+            d = record.to_dict()
+            # attempt to parse details JSON
+            if d.get("details"):
+                try:
+                    d["details"] = json.loads(d["details"])
+                except Exception:
+                    pass
+            out.append(d)
+        
+        return {"count": len(out), "results": out}
 
 
 @app.post("/api/import_dupes_csv")
@@ -1727,30 +1313,26 @@ def import_dupes_csv(payload: dict, dry_run: bool | None = True):
                 )
             # if not dry_run, insert into dedupe_audit table
             if not dry_run:
-                conn = sqlite3.connect(DB_PATH)
-                cur = conn.cursor()
-                now = datetime.datetime.utcnow().isoformat()
                 try:
-                    cur.execute(
-                        "INSERT INTO dedupe_audit (article_uid, neighbor_uid, host, similarity, dedupe_flag, category, stage, details, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        (
-                            row.get("id"),
-                            None,
-                            row.get("hostname"),
-                            None,
-                            dup_flag,
-                            None,
-                            "imported_csv",
-                            json.dumps(
+                    with db_manager.get_session() as session:
+                        now = datetime.datetime.utcnow()
+                        audit = DedupeAudit(
+                            article_uid=row.get("id"),
+                            neighbor_uid=None,
+                            host=row.get("hostname"),
+                            similarity=None,
+                            dedupe_flag=dup_flag,
+                            category=None,
+                            stage="imported_csv",
+                            details=json.dumps(
                                 {"url": row.get("url"), "title": row.get("title")}
                             ),
-                            now,
-                        ),
-                    )
+                            created_at=now
+                        )
+                        session.add(audit)
+                        session.commit()
                 except Exception:
                     pass
-                conn.commit()
-                conn.close()
     summary = {"rows_seen": total, "dup_counts": dup_counts, "samples": sample_rows}
     if dry_run:
         return {"status": "dry_run", **summary}
@@ -1762,15 +1344,17 @@ def accept_candidate(cid: str, payload: dict | None = None):
     """Mark a candidate as accepted (accepted=1) or rejected (accepted=0).
     Payload optional: {"accepted": true|false}
     """
-    val = 1
+    val = True
     if payload is not None:
-        val = 1 if payload.get("accepted", True) else 0
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("UPDATE candidates SET accepted=? WHERE id=?", (val, cid))
-    conn.commit()
-    conn.close()
-    return {"status": "ok", "id": cid, "accepted": bool(val)}
+        val = payload.get("accepted", True)
+    
+    with db_manager.get_session() as session:
+        candidate = session.query(Candidate).filter(Candidate.id == cid).first()
+        if not candidate:
+            raise HTTPException(status_code=404, detail="candidate not found")
+        candidate.accepted = val
+        session.commit()
+        return {"status": "ok", "id": cid, "accepted": bool(val)}
 
 
 @app.post("/api/reextract_jobs")
@@ -1781,44 +1365,45 @@ def create_reextract_job(payload: dict):
     host = payload.get("host")
     if not host:
         raise HTTPException(status_code=400, detail="host required")
-    import time
-    import uuid
-
+    
     job_id = str(uuid.uuid4())
-    now = time.strftime("%Y-%m-%dT%H:%M:%S")
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute(
-        "INSERT INTO reextract_jobs (id, host, status, created_at, updated_at) VALUES (?,?,?,?,?)",
-        (job_id, host, "pending", now, now),
-    )
-    conn.commit()
-    conn.close()
-    return {"status": "ok", "job_id": job_id}
+    now = datetime.datetime.utcnow()
+    
+    with db_manager.get_session() as session:
+        job = ReextractionJob(
+            id=job_id,
+            host=host,
+            status="pending",
+            created_at=now,
+            updated_at=now
+        )
+        session.add(job)
+        session.commit()
+        return {"status": "ok", "job_id": job_id}
 
 
 @app.get("/api/reextract_jobs/{job_id}")
 def get_reextract_job(job_id: str):
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT id, host, status, result_json, created_at, updated_at FROM reextract_jobs WHERE id=?",
-        (job_id,),
-    )
-    row = cur.fetchone()
-    conn.close()
-    if not row:
-        raise HTTPException(status_code=404, detail="job not found")
-    import json
-
-    return {
-        "id": row[0],
-        "host": row[1],
-        "status": row[2],
-        "result": json.loads(row[3]) if row[3] else None,
-        "created_at": row[4],
-        "updated_at": row[5],
-    }
+    with db_manager.get_session() as session:
+        job = session.query(ReextractionJob).filter(ReextractionJob.id == job_id).first()
+        if not job:
+            raise HTTPException(status_code=404, detail="job not found")
+        
+        result_data = None
+        if job.result_json:
+            try:
+                result_data = json.loads(job.result_json)
+            except Exception:
+                result_data = job.result_json
+        
+        return {
+            "id": job.id,
+            "host": job.host,
+            "status": job.status,
+            "result": result_data,
+            "created_at": job.created_at.isoformat() if job.created_at else None,
+            "updated_at": job.updated_at.isoformat() if job.updated_at else None,
+        }
 
 
 @app.post("/api/site_rules/commit")
