@@ -532,6 +532,81 @@ def stable_stringify(obj):
         return json.dumps(None, separators=(",", ":"))
 
 
+@app.get("/api/options/counties")
+def get_counties():
+    """Get distinct county values from articles in the database.
+    
+    Returns:
+        List of distinct county names, sorted alphabetically
+    """
+    try:
+        from src.models import Article, CandidateLink
+        
+        with db_manager.get_session() as session:
+            # Query distinct counties from CandidateLink (joined with Article)
+            counties = (
+                session.query(CandidateLink.source_county)
+                .join(Article, Article.candidate_link_id == CandidateLink.id)
+                .filter(CandidateLink.source_county.isnot(None))
+                .filter(CandidateLink.source_county != "")
+                .distinct()
+                .order_by(CandidateLink.source_county)
+                .all()
+            )
+            return [c[0] for c in counties]
+    except Exception as e:
+        logger.error(f"Error getting counties: {e}")
+        raise HTTPException(status_code=500, detail="Database error")
+
+
+@app.get("/api/options/sources")
+def get_sources():
+    """Get distinct source names from the database.
+    
+    Returns:
+        List of distinct source names, sorted alphabetically
+    """
+    try:
+        with db_manager.get_session() as session:
+            # Query distinct source names from Source table
+            sources = (
+                session.query(Source.canonical_name)
+                .filter(Source.canonical_name.isnot(None))
+                .filter(Source.canonical_name != "")
+                .distinct()
+                .order_by(Source.canonical_name)
+                .all()
+            )
+            return [s[0] for s in sources]
+    except Exception as e:
+        logger.error(f"Error getting sources: {e}")
+        raise HTTPException(status_code=500, detail="Database error")
+
+
+@app.get("/api/options/reviewers")
+def get_reviewers():
+    """Get distinct reviewer names from the database.
+    
+    Returns:
+        List of distinct reviewer names who have created reviews, sorted alphabetically
+    """
+    try:
+        with db_manager.get_session() as session:
+            # Query distinct reviewers from Review table
+            reviewers = (
+                session.query(Review.reviewer)
+                .filter(Review.reviewer.isnot(None))
+                .filter(Review.reviewer != "")
+                .distinct()
+                .order_by(Review.reviewer)
+                .all()
+            )
+            return [r[0] for r in reviewers]
+    except Exception as e:
+        logger.error(f"Error getting reviewers: {e}")
+        raise HTTPException(status_code=500, detail="Database error")
+
+
 @app.get("/api/options/{opt_name}")
 def get_options(opt_name: str):
     """Provide simple option lists expected by the frontend for local testing.
