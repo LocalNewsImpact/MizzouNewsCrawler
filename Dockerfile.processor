@@ -10,14 +10,10 @@ FROM ${ML_BASE_IMAGE} AS runtime
 
 WORKDIR /app
 
-# Copy processor-specific packages from deps stage
-# Base packages and spacy model are already in the base image
-COPY --from=deps /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY --from=deps /usr/local/bin /usr/local/bin
-COPY --from=deps /root/.cache /root/.cache
-
-# Copy models directory structure (if available)
-COPY --from=models /app/models /app/models
+# Install processor-specific requirements (if any)
+# Most heavy ML dependencies are already in ml-base
+COPY requirements-processor.txt ./
+RUN pip install --no-cache-dir -r requirements-processor.txt
 
 # appuser already created in base image, just set ownership
 RUN chown -R appuser:appuser /app
