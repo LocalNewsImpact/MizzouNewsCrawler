@@ -1,13 +1,41 @@
 steps:
   - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-api'
     args:
       - 'build'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:${SHORT_SHA}'
       - '-t'
       - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:v1.3.1'
       - '-f'
       - 'Dockerfile.api'
       - '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-api'
+    args:
+      - 'push'
+      - '--all-tags'
+      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api'
+    waitFor: ['build-api']
+
+  # Create Cloud Deploy release for API only
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'create-release'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud deploy releases create api-${SHORT_SHA} \
+          --delivery-pipeline=mizzou-news-crawler \
+          --region=us-central1 \
+          --annotations=commitId=${REVISION_ID},service=api \
+          --images=api=us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/api:${SHORT_SHA}
+        echo "✅ Created Cloud Deploy release for API"
+    waitFor: ['push-api']
+
 images:
+  - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:${SHORT_SHA}'
   - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:v1.3.1'
 timeout: 1800s
 options:
