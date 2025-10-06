@@ -26,20 +26,46 @@ steps:
       - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api'
     waitFor: ['build-api']
 
-  # Create Cloud Deploy release for API with all current images
+  # Create Cloud Deploy release with current running tags for other services
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'get-current-tags'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        # Get currently deployed image tags from kubernetes
+        PROCESSOR_IMAGE=$(kubectl get deployment mizzou-processor -n production -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || echo "us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest")
+        CRAWLER_IMAGE=$(kubectl get cronjob mizzou-crawler -n production -o jsonpath='{.spec.jobTemplate.spec.template.spec.containers[0].image}' 2>/dev/null || echo "us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:latest")
+        
+        echo "Current processor: $PROCESSOR_IMAGE" > /workspace/current-tags.txt
+        echo "Current crawler: $CRAWLER_IMAGE" >> /workspace/current-tags.txt
+        
+        cat /workspace/current-tags.txt
+    waitFor: ['push-api']
+
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'create-release'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
+        # Read current tags
+        PROCESSOR_IMAGE=$(grep "processor:" /workspace/current-tags.txt | cut -d' ' -f3)
+        CRAWLER_IMAGE=$(grep "crawler:" /workspace/current-tags.txt | cut -d' ' -f3)
+        
+        echo "Creating release with:"
+        echo "  API: us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/api:${SHORT_SHA}"
+        echo "  Processor: $PROCESSOR_IMAGE"
+        echo "  Crawler: $CRAWLER_IMAGE"
+        
         gcloud deploy releases create api-${SHORT_SHA} \
           --delivery-pipeline=mizzou-news-crawler \
           --region=us-central1 \
           --annotations=commitId=${REVISION_ID},service=api \
-          --images=api=us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/api:${SHORT_SHA},processor=us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/processor:latest,crawler=us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/crawler:latest
+          --images=api=us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/api:${SHORT_SHA},processor=$PROCESSOR_IMAGE,crawler=$CRAWLER_IMAGE
+        
         echo "✅ Created Cloud Deploy release for API"
-    waitFor: ['push-api']
+    waitFor: ['get-current-tags']
 
 images:
   - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:${SHORT_SHA}'

@@ -1,5 +1,7 @@
 steps:
-  - name: 'gcr.io/cloud-builders/docker'
+  - name: 'gcr.io  # Note: Individual service builds no longer auto-deploy
+  # Use a coordinated deployment script or manually create releases with correct tags
+  # This prevents race conditions where builds overwrite each other's deploymentss/docker'
     args:
       - 'build'
       - '--build-arg'
@@ -22,20 +24,46 @@ steps:
     waitFor:
       - 'build-processor'
   
+  # Create Cloud Deploy release with current running tags for other services
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'get-current-tags'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
+        # Get currently deployed image tags from kubernetes
+        API_IMAGE=$(kubectl get deployment mizzou-api -n production -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || echo "us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:latest")
+        CRAWLER_IMAGE=$(kubectl get cronjob mizzou-crawler -n production -o jsonpath='{.spec.jobTemplate.spec.template.spec.containers[0].image}' 2>/dev/null || echo "us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:latest")
+        
+        echo "Current api: $API_IMAGE" > /workspace/current-tags.txt
+        echo "Current crawler: $CRAWLER_IMAGE" >> /workspace/current-tags.txt
+        
+        cat /workspace/current-tags.txt
+    waitFor: ['push-processor']
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'create-release'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        # Read current tags
+        API_IMAGE=$(grep "api:" /workspace/current-tags.txt | cut -d' ' -f3)
+        CRAWLER_IMAGE=$(grep "crawler:" /workspace/current-tags.txt | cut -d' ' -f3)
+        
+        echo "Creating release with:"
+        echo "  Processor: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:${SHORT_SHA}"
+        echo "  API: $API_IMAGE"
+        echo "  Crawler: $CRAWLER_IMAGE"
+        
         gcloud deploy releases create processor-${SHORT_SHA} \
           --delivery-pipeline=mizzou-news-crawler \
           --region=us-central1 \
           --annotations=commitId=${COMMIT_SHA},service=processor \
-          --images=processor=us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:${SHORT_SHA},api=us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:latest,crawler=us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:latest
+          --images=processor=us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:${SHORT_SHA},api=$API_IMAGE,crawler=$CRAWLER_IMAGE
+        
         echo "✅ Created Cloud Deploy release for Processor"
-    id: 'create-release'
-    waitFor:
-      - 'push-processor'
+    waitFor: ['get-current-tags']
 
 images:
   - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:${SHORT_SHA}'
