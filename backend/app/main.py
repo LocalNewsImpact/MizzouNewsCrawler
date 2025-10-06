@@ -52,7 +52,12 @@ from src.models.telemetry import (  # noqa: E402
 )
 from src.models import Source  # noqa: E402
 from sqlalchemy import func, case, desc, and_, or_  # noqa: E402
-from backend.app.telemetry import verification, byline, code_review  # noqa: E402
+from backend.app.telemetry import (  # noqa: E402
+    verification,
+    byline,
+    code_review,
+    operations,
+)
 
 # pydantic.Field not used here
 
@@ -2502,3 +2507,7 @@ async def add_code_review_item(item: dict):
         raise HTTPException(
             status_code=500, detail=f"Error adding code review item: {str(e)}"
         )
+
+
+# Include operations telemetry router for real-time pod monitoring
+app.include_router(operations.router)
