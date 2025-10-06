@@ -132,6 +132,12 @@ OAUTH_REDIRECT_URI: str | None = os.getenv("OAUTH_REDIRECT_URI")
 REQUEST_TIMEOUT: int = int(os.getenv("REQUEST_TIMEOUT", "20"))
 REQUEST_DELAY: float = float(os.getenv("REQUEST_DELAY", "1.0"))
 
+# Proxy configuration
+USE_ORIGIN_PROXY: bool = _env_bool("USE_ORIGIN_PROXY", False)
+ORIGIN_PROXY_URL: str | None = os.getenv("ORIGIN_PROXY_URL")
+ORIGIN_PROXY_AUTH_USER: str | None = os.getenv("ORIGIN_PROXY_AUTH_USER")
+ORIGIN_PROXY_AUTH_PASS: str | None = os.getenv("ORIGIN_PROXY_AUTH_PASS")
+
 # LLM / Generative AI integration
 OPENAI_API_KEY: str | None = os.getenv("OPENAI_API_KEY")
 OPENAI_ORGANIZATION: str | None = os.getenv("OPENAI_ORGANIZATION")

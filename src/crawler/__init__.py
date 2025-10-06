@@ -20,6 +20,9 @@ from bs4 import BeautifulSoup
 from bs4.element import Tag
 from dateutil import parser as dateparser
 
+from src import config
+from src.utils.proxy_adapter import OriginProxyAdapter
+
 
 class RateLimitError(Exception):
     """Exception raised when a domain is rate limited."""
@@ -448,6 +451,9 @@ class ContentExtractor:
 
         # Set headers with some randomization
         self._set_session_headers()
+        
+        # Apply origin-style proxy adapter if enabled
+        self._apply_origin_proxy(self.session)
 
     def _set_session_headers(self):
         """Set randomized headers for the current session."""
@@ -472,6 +478,19 @@ class ContentExtractor:
         logger.debug(
             f"Updated session headers with UA: {self.current_user_agent[:50]}..."
         )
+    
+    def _apply_origin_proxy(self, session: requests.Session) -> None:
+        """Apply origin-style proxy adapter to a session if configured."""
+        if config.USE_ORIGIN_PROXY and config.ORIGIN_PROXY_URL:
+            adapter = OriginProxyAdapter(
+                proxy_url=config.ORIGIN_PROXY_URL,
+                username=config.ORIGIN_PROXY_AUTH_USER,
+                password=config.ORIGIN_PROXY_AUTH_PASS,
+            )
+            adapter.wrap_session(session)
+            logger.info(
+                f"Applied origin-style proxy adapter: {config.ORIGIN_PROXY_URL}"
+            )
 
     def _get_domain_session(self, url: str):
         """Get or create a domain-specific session with user agent rotation."""
@@ -546,12 +565,17 @@ class ContentExtractor:
             new_session.headers.update(headers)
 
             # Assign sticky proxy per domain when pool provided
-            proxy = self._choose_proxy_for_domain(domain)
-            if proxy:
-                new_session.proxies.update({
-                    "http": proxy,
-                    "https": proxy,
-                })
+            # Note: origin-style proxy takes precedence over standard proxy pool
+            if not config.USE_ORIGIN_PROXY:
+                proxy = self._choose_proxy_for_domain(domain)
+                if proxy:
+                    new_session.proxies.update({
+                        "http": proxy,
+                        "https": proxy,
+                    })
+            
+            # Apply origin-style proxy adapter if enabled
+            self._apply_origin_proxy(new_session)
 
             # Store new session and user agent for this domain
             self.domain_sessions[domain] = new_session

@@ -43,7 +43,9 @@ try:
 except Exception:
     _parse_date = None
 
+from src import config
 from src.utils.discovery_outcomes import DiscoveryResult
+from src.utils.proxy_adapter import OriginProxyAdapter
 from src.utils.telemetry import (
     DiscoveryMethod,
     DiscoveryMethodStatus,
@@ -179,6 +181,19 @@ class NewsDiscovery:
             )
         else:
             logger.info("No proxy pool configured, using direct connections")
+        
+        # Apply origin-style proxy adapter if enabled
+        if config.USE_ORIGIN_PROXY and config.ORIGIN_PROXY_URL:
+            adapter = OriginProxyAdapter(
+                proxy_url=config.ORIGIN_PROXY_URL,
+                username=config.ORIGIN_PROXY_AUTH_USER,
+                password=config.ORIGIN_PROXY_AUTH_PASS,
+            )
+            adapter.wrap_session(self.session)
+            logger.info(
+                f"Applied origin-style proxy adapter to discovery session: "
+                f"{config.ORIGIN_PROXY_URL}"
+            )
 
         # Initialize storysniffer client (if available)
         self.storysniffer = None
