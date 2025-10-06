@@ -1,5 +1,6 @@
 substitutions:
   _BASE_IMAGE: us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/base:latest
+  _REGISTRY: us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler
 
 steps:
   - name: 'gcr.io/cloud-builders/docker'
@@ -9,11 +10,11 @@ steps:
       - '--build-arg'
       - 'BASE_IMAGE=${_BASE_IMAGE}'
       - '-t'
-      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:${SHORT_SHA}'
+      - '${_REGISTRY}/api:${SHORT_SHA}'
       - '-t'
-      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:latest'
+      - '${_REGISTRY}/api:latest'
       - '-t'
-      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:v1.3.1'
+      - '${_REGISTRY}/api:v1.3.1'
       - '-f'
       - 'Dockerfile.api'
       - '.'
@@ -23,7 +24,7 @@ steps:
     args:
       - 'push'
       - '--all-tags'
-      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api'
+      - '${_REGISTRY}/api'
     waitFor: ['build-api']
 
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -33,7 +34,7 @@ steps:
       - '-c'
       - |
         set -euo pipefail
-        REGISTRY="us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler"
+        REGISTRY="${_REGISTRY}"
         DEFAULT_PROCESSOR="$REGISTRY/processor:latest"
         DEFAULT_CRAWLER="$REGISTRY/crawler:latest"
 
@@ -67,7 +68,7 @@ steps:
         set -euo pipefail
         source /workspace/current-tags.env
 
-        API_IMAGE="us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/api:${SHORT_SHA}"
+        API_IMAGE="${_REGISTRY}/api:${SHORT_SHA}"
 
         echo "Creating Cloud Deploy release with:"
         echo "  API: ${API_IMAGE}"
@@ -84,8 +85,8 @@ steps:
     waitFor: ['resolve-current-tags']
 
 images:
-  - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:${SHORT_SHA}'
-  - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:v1.3.1'
+  - '${_REGISTRY}/api:${SHORT_SHA}'
+  - '${_REGISTRY}/api:v1.3.1'
 timeout: 1800s
 options:
   machineType: 'N1_HIGHCPU_8'
