@@ -228,19 +228,20 @@ def get_recent_errors(hours: int = 1, limit: int = 50) -> dict[str, Any]:
     with DatabaseManager() as db:
         cutoff = datetime.datetime.utcnow() - datetime.timedelta(hours=hours)
         
-        # Articles with extraction errors (use created_at/extracted_at as timestamp)
+        # Articles with extraction errors: join candidate_links to get error_message
         article_errors = db.session.execute(
             text(
                 """
                 SELECT
-                    url,
-                    error_message,
-                    COALESCE(extracted_at, created_at) as timestamp,
-                    'extraction' as error_type
-                FROM articles
-                WHERE status = 'error'
-                AND COALESCE(extracted_at, created_at) >= :cutoff
-                ORDER BY COALESCE(extracted_at, created_at) DESC
+                    a.url AS url,
+                    cl.error_message AS error_message,
+                    COALESCE(a.extracted_at, a.created_at) AS timestamp,
+                    'extraction' AS error_type
+                FROM articles a
+                LEFT JOIN candidate_links cl ON cl.id = a.candidate_link_id
+                WHERE a.status = 'error'
+                AND COALESCE(a.extracted_at, a.created_at) >= :cutoff
+                ORDER BY COALESCE(a.extracted_at, a.created_at) DESC
                 LIMIT :limit
                 """
             ),

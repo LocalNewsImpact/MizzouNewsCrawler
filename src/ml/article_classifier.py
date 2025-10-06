@@ -7,6 +7,7 @@ from collections import OrderedDict
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+import os
 from typing import cast
 
 import torch
@@ -61,7 +62,9 @@ class ArticleClassifier:
         self.model_path = str(model_path)
         self.device = -1 if device is None else device
 
-        resolved = Path(model_path)
+        # Allow env override if caller passed a placeholder like "models"
+        env_model_path = os.getenv("MODEL_PATH")
+        resolved = Path(env_model_path or self.model_path)
         candidate_paths: list[str] = []
         pt_candidates: list[Path] = []
 
@@ -90,10 +93,16 @@ class ArticleClassifier:
                     exc,
                 )
         else:
+            # Consider common model directories only if they exist
             if resolved.is_dir():
                 candidate_paths.append(str(resolved))
             elif resolved.exists() and resolved.parent.is_dir():
                 candidate_paths.append(str(resolved.parent))
+
+            # Also consider /app/models and ./models if present
+            for extra in ("/app/models", "./models"):
+                if os.path.isdir(extra) and extra not in candidate_paths:
+                    candidate_paths.append(extra)
 
             candidate_paths.append(default_model)
 

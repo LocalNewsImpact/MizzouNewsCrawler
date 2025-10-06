@@ -5,6 +5,7 @@
 import hashlib
 import json
 import logging
+import os
 import random
 import re
 import time
@@ -48,6 +49,7 @@ except ImportError:
 try:
     from selenium import webdriver
     from selenium.webdriver.chrome.options import Options as ChromeOptions
+    from selenium.webdriver.chrome.service import Service as ChromeService
     from selenium.webdriver.common.by import By
     from selenium.webdriver.support import expected_conditions as EC
     from selenium.webdriver.support.ui import WebDriverWait
@@ -1400,15 +1402,34 @@ class ContentExtractor:
 
         # Realistic user agent (automatically handled by undetected-chrome)
 
+        # Read optional binary paths from environment
+        # Common envs: CHROME_BIN, GOOGLE_CHROME_BIN, CHROMEDRIVER_PATH
+        chrome_bin = (
+            os.getenv("CHROME_BIN")
+            or os.getenv("GOOGLE_CHROME_BIN")
+            or None
+        )
+        driver_path = os.getenv("CHROMEDRIVER_PATH") or None
+
+        if chrome_bin:
+            # Ensure it's a string (avoid Selenium "Binary Location Must be a String")
+            options.binary_location = str(chrome_bin)
+
         # Create driver with version management
         try:
-            driver = uc.Chrome(
-                options=options,
-                version_main=None,  # Auto-detect
-                headless=True,
-                use_subprocess=True,
-                log_level=3,  # Suppress logs
-            )
+            uc_kwargs = {
+                "options": options,
+                "version_main": None,  # Auto-detect
+                "headless": True,
+                "use_subprocess": True,
+                "log_level": 3,  # Suppress logs
+            }
+            if driver_path:
+                uc_kwargs["driver_executable_path"] = str(driver_path)
+            if chrome_bin:
+                uc_kwargs["browser_executable_path"] = str(chrome_bin)
+
+            driver = uc.Chrome(**uc_kwargs)
         except Exception as e:
             logger.warning(f"Failed to create undetected driver: {e}")
             raise
@@ -1467,7 +1488,21 @@ class ContentExtractor:
         chrome_options.add_experimental_option("prefs", prefs)
 
         # Create driver
-        driver = webdriver.Chrome(options=chrome_options)
+        chrome_bin = (
+            os.getenv("CHROME_BIN")
+            or os.getenv("GOOGLE_CHROME_BIN")
+            or None
+        )
+        driver_path = os.getenv("CHROMEDRIVER_PATH") or None
+
+        if chrome_bin:
+            chrome_options.binary_location = str(chrome_bin)
+
+        if driver_path:
+            service = ChromeService(executable_path=str(driver_path))
+            driver = webdriver.Chrome(service=service, options=chrome_options)
+        else:
+            driver = webdriver.Chrome(options=chrome_options)
 
         # Apply selenium-stealth if available
         if SELENIUM_STEALTH_AVAILABLE:

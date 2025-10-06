@@ -286,7 +286,10 @@ def handle_analysis_command(args) -> int:
     filtered_statuses = _filtered_statuses(resolved_statuses)
     batch_size = max(1, args.batch_size or 16)
     top_k = max(1, args.top_k or 2)
-    model_path = Path(args.model_path or "models").expanduser()
+    import os
+    model_path = Path(
+        args.model_path or os.getenv("MODEL_PATH") or "models"
+    ).expanduser()
     collect_diff = bool(args.report_path)
 
     try:

@@ -18,6 +18,7 @@ transient errors.
 """
 
 import argparse
+import uuid
 import json
 import logging
 import random
@@ -31,7 +32,6 @@ import requests  # type: ignore
 from sqlalchemy import (  # type: ignore
     MetaData,
     Table,
-    create_engine,
     insert,
     select,
     text,
@@ -233,8 +233,8 @@ def has_existing_osm_data(session, dataset_id, source_id, min_categories=3):
             """
             SELECT COUNT(DISTINCT category) as category_count,
                    COUNT(*) as total_entities
-            FROM gazetteer 
-            WHERE dataset_id = :dataset_id 
+            FROM gazetteer
+            WHERE dataset_id = :dataset_id
             AND source_id = :source_id
         """
         )
@@ -247,17 +247,20 @@ def has_existing_osm_data(session, dataset_id, source_id, min_categories=3):
             category_count = result.category_count or 0
             total_entities = result.total_entities or 0
 
-            # Consider data sufficient if we have multiple categories and reasonable entity count
+            # Consider data sufficient if we have multiple categories and
+            # a reasonable entity count
             has_sufficient = category_count >= min_categories and total_entities >= 10
 
             if has_sufficient:
                 print(
-                    f"    ✓ Existing OSM data found: {category_count} categories, {total_entities} entities"
+                    "    ✓ Existing OSM data found: %s categories, %s entities"
+                    % (category_count, total_entities)
                 )
                 return True
             else:
                 print(
-                    f"    ⚠ Insufficient OSM data: {category_count} categories, {total_entities} entities"
+                    "    ⚠ Insufficient OSM data: %s categories, %s entities"
+                    % (category_count, total_entities)
                 )
                 return False
 
@@ -338,8 +341,6 @@ def enrich_publisher_osm_data(
 
     Args:
         session: Database session
-        dataset_id: ID of the dataset
-        source_id: ID of the source to enrich
         force: If True, skip existing data check and re-process
         radius_miles: Coverage radius for OSM queries
 
@@ -354,8 +355,6 @@ def enrich_publisher_osm_data(
         return False
 
     # Get source details
-    from sqlalchemy import text
-
     query = text(
         """
         SELECT s.*, ds.legacy_host_id
@@ -743,7 +742,7 @@ def _process_single_source_osm(session, src, dataset_id, radius_miles, dry_run=F
         if not latlon:
             print("      Could not determine centroid for source; skipping")
             # Calculate processing time
-            processing_time = (datetime.utcnow() - start_time).total_seconds()
+            processing_time = time.time() - start_time
             telemetry.log_enrichment_result(
                 source_id,
                 False,
@@ -813,7 +812,7 @@ def _process_single_source_osm(session, src, dataset_id, radius_miles, dry_run=F
 
                 inserts.append(
                     {
-                        "id": None,  # let DB generate UUID default
+                        "id": str(uuid.uuid4()),
                         "dataset_id": dataset_id,
                         "dataset_label": dataset_label,
                         "source_id": src.get("id"),
@@ -856,7 +855,10 @@ def _process_single_source_osm(session, src, dataset_id, radius_miles, dry_run=F
                     if exists:
                         continue
 
+                    # Explicitly set a UUID for the primary key to avoid situations
+                    # where ORM-side defaults are not applied and id=None is sent.
                     g = Gazetteer(
+                        id=str(uuid.uuid4()),
                         dataset_id=row.get("dataset_id"),
                         dataset_label=row.get("dataset_label"),
                         source_id=row.get("source_id"),
@@ -1665,7 +1667,7 @@ def main(
 
                     inserts.append(
                         {
-                            "id": None,  # let DB generate UUID default
+                            "id": str(uuid.uuid4()),
                             "dataset_id": ds.id,
                             "dataset_label": ds.label,
                             "source_id": src.get("id"),

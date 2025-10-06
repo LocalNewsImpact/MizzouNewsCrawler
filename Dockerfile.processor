@@ -10,6 +10,17 @@ FROM ${ML_BASE_IMAGE} AS runtime
 
 WORKDIR /app
 
+# Install system dependencies for headless Chrome/Chromedriver
+USER root
+RUN apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* && \
+    apt-get update -o Acquire::Check-Valid-Until=false && \
+    (apt-get install -y --no-install-recommends --allow-unauthenticated \
+        chromium chromium-driver fonts-liberation libnss3 libxss1 xdg-utils || \
+     apt-get install -y --no-install-recommends --fix-missing \
+        chromium chromium-driver fonts-liberation libnss3 libxss1 xdg-utils) && \
+    rm -rf /var/lib/apt/lists/*
+
 # Install processor-specific requirements (if any)
 # Most heavy ML dependencies are already in ml-base
 COPY requirements-processor.txt ./
@@ -22,6 +33,7 @@ RUN chown -R appuser:appuser /app
 COPY --chown=appuser:appuser src/ ./src/
 COPY --chown=appuser:appuser orchestration/ ./orchestration/
 COPY --chown=appuser:appuser scripts/ ./scripts/
+COPY --chown=appuser:appuser models/ ./models/
 
 # Create data and lookups directories
 RUN mkdir -p /app/data /app/lookups && chown -R appuser:appuser /app/data /app/lookups
@@ -32,7 +44,10 @@ USER appuser
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    MODEL_PATH=/app/models
+    MODEL_PATH=/app/models \
+    CHROME_BIN=/usr/bin/chromium \
+    GOOGLE_CHROME_BIN=/usr/bin/chromium \
+    CHROMEDRIVER_PATH=/usr/bin/chromedriver
 
 # Default command (can be overridden in Kubernetes)
 CMD ["python", "-m", "src.cli.main", "extract", "--limit", "10"]

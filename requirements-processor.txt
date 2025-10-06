@@ -6,3 +6,8 @@
 # Processor-specific utilities only
 # (Currently all heavy dependencies are in ml-base, so this file is minimal)
 # Add lightweight processor-specific packages here as needed
+
+# Browser automation used for last-resort extraction in processor
+selenium>=4.10.0
+undetected-chromedriver>=3.5.0
+selenium-stealth>=1.0.6

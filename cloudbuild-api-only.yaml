@@ -4,6 +4,8 @@
 
 substitutions:
   _BASE_IMAGE: us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/base:latest
+  _REGISTRY: us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler
+  _RELEASE_VERSION: '1.3.1'
 
 steps:
   # Build API (using shared base image)
@@ -14,9 +16,11 @@ steps:
       - '--build-arg'
       - 'BASE_IMAGE=${_BASE_IMAGE}'
       - '-t'
-      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/api:${SHORT_SHA}'
+      - '${_REGISTRY}/api:${SHORT_SHA}'
       - '-t'
-      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/api:latest'
+      - '${_REGISTRY}/api:latest'
+      - '-t'
+      - '${_REGISTRY}/api:v${_RELEASE_VERSION}'
       - '-f'
       - 'Dockerfile.api'
       - '.'
@@ -27,7 +31,7 @@ steps:
     args:
       - 'push'
       - '--all-tags'
-      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/api'
+      - '${_REGISTRY}/api'
     waitFor: ['build-api']
 
 options:

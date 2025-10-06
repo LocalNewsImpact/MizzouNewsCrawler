@@ -1,5 +1,7 @@
 substitutions:
   _BASE_IMAGE: us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/base:latest
+  _REGISTRY: us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler
+  _RELEASE_VERSION: '1.3.1'
 
 steps:
   - name: 'gcr.io/cloud-builders/docker'
@@ -10,13 +12,16 @@ steps:
       - '-f'
       - 'Dockerfile.crawler'
       - '-t'
-      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:v1.2.0'
+      - '${_REGISTRY}/crawler:${SHORT_SHA}'
       - '-t'
-      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:latest'
+      - '${_REGISTRY}/crawler:latest'
+      - '-t'
+      - '${_REGISTRY}/crawler:v${_RELEASE_VERSION}'
       - '.'
 images:
-  - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:v1.2.0'
-  - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:latest'
+  - '${_REGISTRY}/crawler:${SHORT_SHA}'
+  - '${_REGISTRY}/crawler:v${_RELEASE_VERSION}'
+  - '${_REGISTRY}/crawler:latest'
 timeout: 1800s
 options:
   machineType: 'N1_HIGHCPU_8'
