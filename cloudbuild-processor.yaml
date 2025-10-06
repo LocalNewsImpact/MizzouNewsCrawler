@@ -1,7 +1,6 @@
 steps:
-  - name: 'gcr.io  # Note: Individual service builds no longer auto-deploy
-  # Use a coordinated deployment script or manually create releases with correct tags
-  # This prevents race conditions where builds overwrite each other's deploymentss/docker'
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-processor'
     args:
       - 'build'
       - '--build-arg'
@@ -13,32 +12,46 @@ steps:
       - '-t'
       - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest'
       - '.'
-    id: 'build-processor'
-  
+
   - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-processor'
     args:
       - 'push'
       - '--all-tags'
       - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor'
-    id: 'push-processor'
     waitFor:
       - 'build-processor'
-  
-  # Create Cloud Deploy release with current running tags for other services
+
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    id: 'get-current-tags'
+    id: 'resolve-current-tags'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
-        # Get currently deployed image tags from kubernetes
-        API_IMAGE=$(kubectl get deployment mizzou-api -n production -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || echo "us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:latest")
-        CRAWLER_IMAGE=$(kubectl get cronjob mizzou-crawler -n production -o jsonpath='{.spec.jobTemplate.spec.template.spec.containers[0].image}' 2>/dev/null || echo "us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:latest")
-        
-        echo "Current api: $API_IMAGE" > /workspace/current-tags.txt
-        echo "Current crawler: $CRAWLER_IMAGE" >> /workspace/current-tags.txt
-        
-        cat /workspace/current-tags.txt
+        set -euo pipefail
+        REGISTRY="us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler"
+        DEFAULT_API="${REGISTRY}/api:latest"
+        DEFAULT_CRAWLER="${REGISTRY}/crawler:latest"
+
+        LAST_RELEASE=$(gcloud deploy releases list \
+          --delivery-pipeline=mizzou-news-crawler \
+          --region=us-central1 \
+          --sort-by="~createTime" \
+          --limit=1 \
+          --format="value(name)")
+
+        if [ -n "${LAST_RELEASE}" ]; then
+          gcloud deploy releases describe "${LAST_RELEASE}" \
+            --delivery-pipeline=mizzou-news-crawler \
+            --region=us-central1 \
+            --format=json > /workspace/last_release.json
+
+          python -c "import json, sys; from pathlib import Path; registry, default_api, default_crawler = sys.argv[1:]; data=json.load(open('/workspace/last_release.json')); artifacts={item.get('image'): item.get('tag') for item in data.get('buildArtifacts', [])}; api=artifacts.get('api', default_api); crawler=artifacts.get('crawler', default_crawler); Path('/workspace/current-tags.env').write_text(f'API_IMAGE={api}\\nCRAWLER_IMAGE={crawler}\\n')" "${REGISTRY}" "${DEFAULT_API}" "${DEFAULT_CRAWLER}"
+        else
+          printf 'API_IMAGE=%s\nCRAWLER_IMAGE=%s\n' "${DEFAULT_API}" "${DEFAULT_CRAWLER}" > /workspace/current-tags.env
+        fi
+
+        echo "Resolved tags:" && cat /workspace/current-tags.env
     waitFor: ['push-processor']
 
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -47,23 +60,24 @@ steps:
     args:
       - '-c'
       - |
-        # Read current tags
-        API_IMAGE=$(grep "api:" /workspace/current-tags.txt | cut -d' ' -f3)
-        CRAWLER_IMAGE=$(grep "crawler:" /workspace/current-tags.txt | cut -d' ' -f3)
-        
-        echo "Creating release with:"
-        echo "  Processor: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:${SHORT_SHA}"
-        echo "  API: $API_IMAGE"
-        echo "  Crawler: $CRAWLER_IMAGE"
-        
+        set -euo pipefail
+        source /workspace/current-tags.env
+
+        PROCESSOR_IMAGE="us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/processor:${SHORT_SHA}"
+
+        echo "Creating Cloud Deploy release with:"
+        echo "  Processor: ${PROCESSOR_IMAGE}"
+        echo "  API: ${API_IMAGE}"
+        echo "  Crawler: ${CRAWLER_IMAGE}"
+
         gcloud deploy releases create processor-${SHORT_SHA} \
           --delivery-pipeline=mizzou-news-crawler \
           --region=us-central1 \
           --annotations=commitId=${COMMIT_SHA},service=processor \
-          --images=processor=us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:${SHORT_SHA},api=$API_IMAGE,crawler=$CRAWLER_IMAGE
-        
+          --images=processor=${PROCESSOR_IMAGE},api=${API_IMAGE},crawler=${CRAWLER_IMAGE}
+
         echo "✅ Created Cloud Deploy release for Processor"
-    waitFor: ['get-current-tags']
+    waitFor: ['resolve-current-tags']
 
 images:
   - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:${SHORT_SHA}'
