@@ -84,8 +84,8 @@ steps:
         source /workspace/current-tags.env
 
         # Allow an optional override tag for the release name to avoid duplicates on re-runs
-        RELEASE_TAG="${_IMAGE_TAG:-${SHORT_SHA}}"
-        RELEASE_NAME="processor-${RELEASE_TAG}"
+        TAG="${_IMAGE_TAG:-${SHORT_SHA}}"
+        RELEASE_NAME="processor-${TAG}"
         PROCESSOR_IMAGE="${_REGISTRY}/processor:${SHORT_SHA}"
 
         echo "Preparing Cloud Deploy release: $${RELEASE_NAME}"
