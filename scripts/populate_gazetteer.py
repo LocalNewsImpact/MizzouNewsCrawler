@@ -1344,7 +1344,13 @@ def main(
     dry_run: bool = False,
     publisher: str | None = None,
 ):
-    engine = create_engine(database_url)
+    # Import DatabaseManager to handle Cloud SQL connector properly
+    from src.models.database import DatabaseManager
+    
+    # Use DatabaseManager instead of direct create_engine
+    # This ensures Cloud SQL connector is used when needed
+    db_manager = DatabaseManager(database_url)
+    engine = db_manager.engine  # Keep engine variable for downstream code
     Session = sessionmaker(bind=engine)
     session = Session()
 
@@ -1766,7 +1772,8 @@ def main(
             print(f"    Sources skipped (existing data): {skipped_count}")
             print(f"    Total sources: {total_sources}")
             print(
-                f"    API call reduction: {skipped_count}/{total_sources} sources had existing data"
+                f"    API call reduction: {skipped_count}/{total_sources} "
+                f"sources had existing data"
             )
 
     session.close()
