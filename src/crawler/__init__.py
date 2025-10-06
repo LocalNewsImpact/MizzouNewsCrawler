@@ -648,8 +648,19 @@ class ContentExtractor:
             try:
                 # Try undetected-chromedriver first (most advanced)
                 if UNDETECTED_CHROME_AVAILABLE:
-                    self._persistent_driver = self._create_undetected_driver()
-                    self._driver_method = "undetected-chromedriver"
+                    try:
+                        self._persistent_driver = self._create_undetected_driver()
+                        self._driver_method = "undetected-chromedriver"
+                    except Exception as uc_err:
+                        logger.warning(
+                            f"undetected-chromedriver failed to initialize: {uc_err}; "
+                            "falling back to selenium-stealth"
+                        )
+                        if SELENIUM_AVAILABLE:
+                            self._persistent_driver = self._create_stealth_driver()
+                            self._driver_method = "selenium-stealth"
+                        else:
+                            raise
                 elif SELENIUM_AVAILABLE:
                     self._persistent_driver = self._create_stealth_driver()
                     self._driver_method = "selenium-stealth"

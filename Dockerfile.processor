@@ -46,7 +46,20 @@ ENV PYTHONUNBUFFERED=1 \
     MODEL_PATH=/app/models \
     CHROME_BIN=/usr/bin/chromium \
     GOOGLE_CHROME_BIN=/usr/bin/chromium \
-    CHROMEDRIVER_PATH=/usr/bin/chromedriver
+    CHROMEDRIVER_PATH=/app/bin/chromedriver
+
+# Provide a writable copy of chromedriver for undetected-chromedriver patching
+# (uc patches the driver in-place; /usr/bin is not writable for appuser)
+USER root
+RUN mkdir -p /app/bin \
+    && (if [ -f /usr/bin/chromedriver ]; then cp /usr/bin/chromedriver /app/bin/chromedriver; \
+        elif [ -f /usr/lib/chromium/chromedriver ]; then cp /usr/lib/chromium/chromedriver /app/bin/chromedriver; \
+        else echo "chromedriver not found in standard locations" && exit 1; fi) \
+    && chown -R appuser:appuser /app/bin \
+    && chmod u+w /app/bin/chromedriver
+
+# Switch back to non-root user
+USER appuser
 
 # Default command (can be overridden in Kubernetes)
 CMD ["python", "-m", "src.cli.main", "extract", "--limit", "10"]
