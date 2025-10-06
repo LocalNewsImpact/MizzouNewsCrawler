@@ -24,6 +24,8 @@ manifests:
     - k8s/processor-deployment.yaml
     - k8s/api-deployment.yaml
     - k8s/crawler-cronjob.yaml
+    - k8s/pdbs/mizzou-api-pdb.yaml
+    - k8s/pdbs/mizzou-processor-pdb.yaml
 
 # Deploy to Kubernetes
 deploy:
@@ -37,3 +39,5 @@ profiles:
         - k8s/processor-deployment.yaml
         - k8s/api-deployment.yaml
         - k8s/crawler-cronjob.yaml
+        - k8s/pdbs/mizzou-api-pdb.yaml
+        - k8s/pdbs/mizzou-processor-pdb.yaml
