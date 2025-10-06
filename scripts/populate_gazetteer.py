@@ -1687,6 +1687,9 @@ def main(
                             "lon": el_lon,
                             "tags": tags,
                             "distance_miles": distance,
+                            # Ensure NOT NULL constraint for direct
+                            # INSERT path in Postgres
+                            "created_at": datetime.utcnow(),
                         }
                     )
 
@@ -1757,6 +1760,10 @@ def main(
                             print(f"      ORM bulk insert failed: {e}")
                             session.rollback()
                     else:
+                        # Defensive: ensure created_at exists for all rows
+                        now_ts = datetime.utcnow()
+                        for r in inserts:
+                            r.setdefault("created_at", now_ts)
                         session.execute(insert(gaz_tbl), inserts)
                         session.commit()
                 except Exception as e:
