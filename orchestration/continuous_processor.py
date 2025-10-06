@@ -90,46 +90,50 @@ class WorkQueue:
 
 
 def run_cli_command(command: list[str], description: str) -> bool:
-    """Execute a CLI command and return True if successful."""
+    """Execute a CLI command, streaming output to logs, and return True if successful.
+
+    This improves observability in Kubernetes by emitting child process output
+    directly to the pod logs instead of buffering it. We also log elapsed time.
+    """
     logger.info("▶️  %s", description)
     cmd = [sys.executable, "-m", CLI_MODULE, *command]
+    logger.info("🧰 Running: %s", " ".join(cmd))
 
+    env = os.environ.copy()
+    # Ensure unbuffered child output so we see logs in real time
+    env.setdefault("PYTHONUNBUFFERED", "1")
+
+    start = time.time()
     try:
-        result = subprocess.run(
+        with subprocess.Popen(
             cmd,
             cwd=PROJECT_ROOT,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             text=True,
-            check=False,
-            timeout=3600,  # 1 hour timeout
-        )
+            bufsize=1,  # line-buffered
+            env=env,
+        ) as proc:
+            assert proc.stdout is not None
+            for line in proc.stdout:
+                logger.info("%s | %s", description, line.rstrip())
+            rc = proc.wait()
 
-        if result.returncode == 0:
-            logger.info("✅ %s completed successfully", description)
-            # Log stdout if present for debugging
-            if result.stdout:
-                logger.debug("Command output: %s", result.stdout[:1000])
+        elapsed = time.time() - start
+        if rc == 0:
+            logger.info("✅ %s completed successfully (%.1fs)", description, elapsed)
             return True
         else:
             logger.error(
-                "❌ %s failed with exit code %d",
-                description,
-                result.returncode,
+                "❌ %s failed with exit code %d (%.1fs)", description, rc, elapsed
             )
-            # Always log both stdout and stderr for failed commands
-            if result.stdout:
-                logger.error("Command stdout: %s", result.stdout[:1000])
-            if result.stderr:
-                logger.error("Command stderr: %s", result.stderr[:1000])
-            if not result.stdout and not result.stderr:
-                logger.error("No output captured from command")
             return False
 
-    except subprocess.TimeoutExpired:
-        logger.error("⏱️  %s timed out after 1 hour", description)
-        return False
     except Exception as exc:
-        logger.exception("💥 %s raised exception: %s", description, exc)
+        elapsed = time.time() - start
+        logger.exception(
+            "💥 %s raised exception after %.1fs: %s", description, elapsed, exc
+        )
         return False
 
 
