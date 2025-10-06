@@ -34,8 +34,8 @@ steps:
       - |
         set -euo pipefail
         REGISTRY="us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler"
-        DEFAULT_PROCESSOR="${REGISTRY}/processor:latest"
-        DEFAULT_CRAWLER="${REGISTRY}/crawler:latest"
+        DEFAULT_PROCESSOR="$REGISTRY/processor:latest"
+        DEFAULT_CRAWLER="$REGISTRY/crawler:latest"
 
         LAST_RELEASE=$(gcloud deploy releases list \
           --delivery-pipeline=mizzou-news-crawler \
@@ -50,9 +50,9 @@ steps:
             --region=us-central1 \
             --format=json > /workspace/last_release.json
 
-          python -c "import json, sys; from pathlib import Path; registry, default_processor, default_crawler = sys.argv[1:]; data=json.load(open('/workspace/last_release.json')); artifacts={item.get('image'): item.get('tag') for item in data.get('buildArtifacts', [])}; processor=artifacts.get('processor', default_processor); crawler=artifacts.get('crawler', default_crawler); Path('/workspace/current-tags.env').write_text(f'PROCESSOR_IMAGE={processor}\\nCRAWLER_IMAGE={crawler}\\n')" "${REGISTRY}" "${DEFAULT_PROCESSOR}" "${DEFAULT_CRAWLER}"
+          python -c "import json, sys; from pathlib import Path; registry, default_processor, default_crawler = sys.argv[1:]; data=json.load(open('/workspace/last_release.json')); artifacts={item.get('image'): item.get('tag') for item in data.get('buildArtifacts', [])}; processor=artifacts.get('processor', default_processor); crawler=artifacts.get('crawler', default_crawler); Path('/workspace/current-tags.env').write_text(f'PROCESSOR_IMAGE={processor}\nCRAWLER_IMAGE={crawler}\n')" "$REGISTRY" "$DEFAULT_PROCESSOR" "$DEFAULT_CRAWLER"
         else
-          printf 'PROCESSOR_IMAGE=%s\nCRAWLER_IMAGE=%s\n' "${DEFAULT_PROCESSOR}" "${DEFAULT_CRAWLER}" > /workspace/current-tags.env
+          printf 'PROCESSOR_IMAGE=%s\nCRAWLER_IMAGE=%s\n' "$DEFAULT_PROCESSOR" "$DEFAULT_CRAWLER" > /workspace/current-tags.env
         fi
 
         echo "Resolved tags:" && cat /workspace/current-tags.env
