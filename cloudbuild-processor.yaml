@@ -69,15 +69,15 @@ steps:
         PROCESSOR_IMAGE="${_REGISTRY}/processor:${SHORT_SHA}"
 
         echo "Creating Cloud Deploy release with:"
-        echo "  Processor: ${PROCESSOR_IMAGE}"
-        echo "  API: ${API_IMAGE}"
-        echo "  Crawler: ${CRAWLER_IMAGE}"
+        echo "  Processor: $${PROCESSOR_IMAGE}"
+        echo "  API: $${API_IMAGE}"
+        echo "  Crawler: $${CRAWLER_IMAGE}"
 
         gcloud deploy releases create processor-${SHORT_SHA} \
           --delivery-pipeline=mizzou-news-crawler \
           --region=us-central1 \
           --annotations=commitId=${REVISION_ID},service=processor \
-          --images=processor=${PROCESSOR_IMAGE},api=${API_IMAGE},crawler=${CRAWLER_IMAGE}
+          --images=processor=$${PROCESSOR_IMAGE},api=$${API_IMAGE},crawler=$${CRAWLER_IMAGE}
 
         echo "✅ Created Cloud Deploy release for Processor"
     waitFor: ['resolve-current-tags']
