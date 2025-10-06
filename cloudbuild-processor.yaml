@@ -1,6 +1,7 @@
 substitutions:
   _ML_BASE_IMAGE: us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/ml-base:latest
   _REGISTRY: us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler
+  _RELEASE_VERSION: '1.3.1'
 
 steps:
   - name: 'gcr.io/cloud-builders/docker'
@@ -15,7 +16,9 @@ steps:
       - '${_REGISTRY}/processor:${SHORT_SHA}'
       - '-t'
       - '${_REGISTRY}/processor:latest'
-      - '.'
+  - '-t'
+  - '${_REGISTRY}/processor:v${_RELEASE_VERSION}'
+  - '.'
 
   - name: 'gcr.io/cloud-builders/docker'
     id: 'push-processor'
@@ -84,7 +87,7 @@ steps:
 
 images:
   - '${_REGISTRY}/processor:${SHORT_SHA}'
-  - '${_REGISTRY}/processor:latest'
+  - '${_REGISTRY}/processor:v${_RELEASE_VERSION}'
 timeout: 1800s
 options:
   machineType: 'N1_HIGHCPU_8'
