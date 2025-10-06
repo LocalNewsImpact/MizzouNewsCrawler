@@ -9,6 +9,7 @@ import os
 import random
 import re
 import time
+import threading
 from copy import deepcopy
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -380,12 +381,49 @@ class ContentExtractor:
         self.request_counts = {}
         self.last_request_times = {}
 
+        # Per-domain concurrency lock (ensure single in-flight per domain)
+        self.domain_locks = {}
+
         # Rate limiting and backoff management
         self.domain_request_times = {}  # Track request timestamps per domain
         self.domain_backoff_until = {}  # Track when domain is available again
         self.domain_error_counts = {}  # Track consecutive errors per domain
-        self.base_delay = 1.0  # Base delay between requests (seconds)
+        # Base inter-request delay (env tunable)
+        try:
+            self.inter_request_min = float(os.getenv("INTER_REQUEST_MIN", "1.5"))
+            self.inter_request_max = float(os.getenv("INTER_REQUEST_MAX", "3.5"))
+        except Exception:
+            self.inter_request_min, self.inter_request_max = 1.5, 3.5
+        self.base_delay = max(self.inter_request_min, 0.5)
         self.max_backoff = 300  # Maximum backoff time (5 minutes)
+
+        # CAPTCHA-aware backoff configuration
+        try:
+            self.captcha_backoff_base = int(os.getenv("CAPTCHA_BACKOFF_BASE", "600"))
+            self.captcha_backoff_max = int(os.getenv("CAPTCHA_BACKOFF_MAX", "5400"))
+        except Exception:
+            self.captcha_backoff_base, self.captcha_backoff_max = 600, 5400
+
+        # UA rotation policy (less frequent rotation)
+        try:
+            self.ua_rotation_base = int(os.getenv("UA_ROTATE_BASE", "9"))
+            self.ua_rotation_jitter = float(os.getenv("UA_ROTATE_JITTER", "0.25"))
+        except Exception:
+            self.ua_rotation_base, self.ua_rotation_jitter = 9, 0.25
+
+        # Negative cache for dead URLs (404/410)
+        self.dead_urls = {}
+        try:
+            self.dead_url_ttl = int(os.getenv("DEAD_URL_TTL_SECONDS", "604800"))
+        except Exception:
+            self.dead_url_ttl = 604800
+
+        # Optional proxy pool routing for requests
+        pool_env = (os.getenv("PROXY_POOL", "") or "").strip()
+        self.proxy_pool = (
+            [p.strip() for p in pool_env.split(",") if p.strip()] if pool_env else []
+        )
+        self.domain_proxies = {}
 
         # Set initial user agent
         self.current_user_agent = user_agent or random.choice(self.user_agent_pool)
@@ -459,9 +497,9 @@ class ContentExtractor:
             # Check rotation conditions
             self.request_counts[domain] += 1
 
-            # Rotate every 5 article calls with 20% jitter (4-6 requests)
-            base_threshold = 5
-            jitter = int(base_threshold * 0.2)  # 20% jitter = 1 request
+            # Rotate every ~UA_ROTATE_BASE calls with jitter
+            base_threshold = max(int(self.ua_rotation_base), 2)
+            jitter = max(1, int(base_threshold * float(self.ua_rotation_jitter)))
             rotation_threshold = random.randint(
                 base_threshold - jitter, base_threshold + jitter
             )
@@ -470,7 +508,7 @@ class ContentExtractor:
                 self.request_counts[domain] = 0
                 logger.info(
                     f"Rotating user agent for {domain} after "
-                    f"{rotation_threshold} article calls (5±20% jitter)"
+                    f"{rotation_threshold} article calls"
                 )
 
         if should_rotate:
@@ -491,7 +529,10 @@ class ContentExtractor:
             # Set randomized headers
             headers = {
                 "User-Agent": new_user_agent,
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                "Accept": (
+                    "text/html,application/xhtml+xml,application/xml;"
+                    "q=0.9,image/webp,*/*;q=0.8"
+                ),
                 "Accept-Language": random.choice(self.accept_language_pool),
                 "Accept-Encoding": random.choice(self.accept_encoding_pool),
                 "Connection": "keep-alive",
@@ -503,6 +544,14 @@ class ContentExtractor:
                 "DNT": "1",
             }
             new_session.headers.update(headers)
+
+            # Assign sticky proxy per domain when pool provided
+            proxy = self._choose_proxy_for_domain(domain)
+            if proxy:
+                new_session.proxies.update({
+                    "http": proxy,
+                    "https": proxy,
+                })
 
             # Store new session and user agent for this domain
             self.domain_sessions[domain] = new_session
@@ -517,6 +566,25 @@ class ContentExtractor:
         self._apply_rate_limit(domain)
 
         return self.domain_sessions[domain]
+
+    def _choose_proxy_for_domain(self, domain: str) -> Optional[str]:
+        """Pick or return a sticky proxy for a domain if a pool is configured."""
+        if not self.proxy_pool:
+            return None
+        proxy = self.domain_proxies.get(domain)
+        if not proxy:
+            proxy = random.choice(self.proxy_pool)
+            self.domain_proxies[domain] = proxy
+            logger.info(f"Assigned proxy for {domain}")
+        return proxy
+
+    def _get_domain_lock(self, domain: str) -> threading.Lock:
+        """Return a lock object for the domain to cap concurrency to 1."""
+        lock = self.domain_locks.get(domain)
+        if lock is None:
+            lock = threading.Lock()
+            self.domain_locks[domain] = lock
+        return lock
 
     def get_rotation_stats(self) -> Dict[str, any]:
         """Get statistics about user agent rotation and session management."""
@@ -551,7 +619,9 @@ class ContentExtractor:
 
         if delay is None:
             # Standard inter-request delay
-            delay = random.uniform(1.0, 2.5)
+            low = max(0.1, float(getattr(self, "inter_request_min", 1.0)))
+            high = max(low, float(getattr(self, "inter_request_max", 2.5)))
+            delay = random.uniform(low, high)
 
         # Apply delay if needed
         if domain in self.domain_request_times:
@@ -615,6 +685,20 @@ class ContentExtractor:
         """Reset error count for successful requests."""
         if domain in self.domain_error_counts:
             self.domain_error_counts[domain] = 0
+
+    def _handle_captcha_backoff(self, domain: str) -> None:
+        """Apply extended backoff for CAPTCHA/challenge detections."""
+        now = time.time()
+        count = self.domain_error_counts.get(domain, 0) + 1
+        self.domain_error_counts[domain] = count
+        base = int(getattr(self, "captcha_backoff_base", 600))
+        cap = int(getattr(self, "captcha_backoff_max", 5400))
+        delay = min(base * (2 ** (count - 1)), cap)
+        delay *= random.uniform(0.9, 1.3)
+        self.domain_backoff_until[domain] = now + delay
+        logger.warning(
+            f"CAPTCHA backoff for {domain}: {int(delay)}s (attempt {count})"
+        )
 
     def _create_error_result(
         self, url: str, error_msg: str, metadata: Dict = None
@@ -882,6 +966,11 @@ class ContentExtractor:
                 if metrics:
                     metrics.start_method("selenium")
 
+                # Respect domain backoff before attempting Selenium
+                dom = urlparse(url).netloc
+                if self._check_rate_limit(dom):
+                    raise RateLimitError(f"Domain {dom} is rate limited; skip Selenium")
+
                 selenium_result = self._extract_with_selenium(url)
 
                 if selenium_result:
@@ -1145,6 +1234,14 @@ class ContentExtractor:
 
     def _extract_with_newspaper(self, url: str, html: str = None) -> Dict[str, any]:
         """Extract content using newspaper4k library with cloudscraper support."""
+        # Skip if known-dead URL
+        ttl = getattr(self, "dead_url_ttl", 0)
+        if ttl and url in getattr(self, "dead_urls", {}):
+            if time.time() < self.dead_urls[url]:
+                logger.info(f"Skipping dead URL (cached): {url}")
+                meta = {"status": 404}
+                return self._create_error_result(url, "dead_url_cached", meta)
+
         article = NewspaperArticle(url)
         http_status = None
 
@@ -1155,9 +1252,14 @@ class ContentExtractor:
             # Use domain-specific session to fetch HTML
             try:
                 session = self._get_domain_session(url)
-                response = session.get(url, timeout=self.timeout)
-                http_status = response.status_code
                 domain = urlparse(url).netloc
+                # Respect domain backoff
+                if self._check_rate_limit(domain):
+                    raise RateLimitError(f"Domain {domain} is rate limited")
+                # Single in-flight per domain
+                with self._get_domain_lock(domain):
+                    response = session.get(url, timeout=self.timeout)
+                http_status = response.status_code
 
                 # Check for rate limiting
                 if response.status_code == 429:
@@ -1177,6 +1279,19 @@ class ContentExtractor:
                     return self._create_error_result(
                         url,
                         f"Bot detection ({response.status_code})",
+                        {"status": response.status_code},
+                    )
+
+                # Permanent missing -> cache as dead URL
+                if response.status_code in (404, 410):
+                    if ttl:
+                        self.dead_urls[url] = time.time() + ttl
+                    logger.warning(
+                        f"Permanent missing ({response.status_code}) for {url}; caching"
+                    )
+                    return self._create_error_result(
+                        url,
+                        f"Not found ({response.status_code})",
                         {"status": response.status_code},
                     )
 
@@ -1235,7 +1350,9 @@ class ContentExtractor:
                         if status_match:
                             http_status = int(status_match.group(1))
                             logger.warning(
-                                f"Newspaper4k download failed with status {http_status}: {error_str}"
+                                "Newspaper4k download failed with status %s: %s",
+                                http_status,
+                                error_str,
                             )
                     raise download_e
 
@@ -1293,11 +1410,23 @@ class ContentExtractor:
                 session.headers.update(headers)
 
                 try:
-                    resp = session.get(url, timeout=self.timeout)
+                    domain = urlparse(url).netloc
+                    if self._check_rate_limit(domain):
+                        raise RateLimitError(f"Domain {domain} is rate limited")
+                    with self._get_domain_lock(domain):
+                        resp = session.get(url, timeout=self.timeout)
+
+                    if resp.status_code in (404, 410):
+                        if getattr(self, "dead_url_ttl", 0):
+                            self.dead_urls[url] = time.time() + self.dead_url_ttl
+                        logger.warning(
+                            f"Permanent missing ({resp.status_code}) for {url}; caching"
+                        )
+                        return {}
+
                     resp.raise_for_status()
                     page_html = resp.text
 
-                    domain = urlparse(url).netloc
                     ua = self.domain_user_agents.get(domain, "Unknown")
                     is_cloudscraper = (
                         CLOUDSCRAPER_AVAILABLE and cloudscraper is not None
@@ -1413,6 +1542,11 @@ class ContentExtractor:
 
         # Realistic user agent (automatically handled by undetected-chrome)
 
+        # Optional proxy for Selenium
+        selenium_proxy = os.getenv("SELENIUM_PROXY")
+        if selenium_proxy:
+            options.add_argument(f"--proxy-server={selenium_proxy}")
+
         # Read optional binary paths from environment
         # Common envs: CHROME_BIN, GOOGLE_CHROME_BIN, CHROMEDRIVER_PATH
         chrome_bin = (
@@ -1481,6 +1615,11 @@ class ContentExtractor:
             "Chrome/120.0.0.0 Safari/537.36"
         )
         chrome_options.add_argument(f"--user-agent={realistic_ua}")
+
+        # Optional proxy for Selenium
+        selenium_proxy = os.getenv("SELENIUM_PROXY")
+        if selenium_proxy:
+            chrome_options.add_argument(f"--proxy-server={selenium_proxy}")
 
         # Exclude automation switches
         chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
@@ -1566,7 +1705,11 @@ class ContentExtractor:
         """Navigate to URL with minimal delays for faster content extraction."""
         try:
             # Navigate directly to target URL (no need for about:blank delay)
-            driver.get(url)
+            domain = urlparse(url).netloc
+            # Ensure single Selenium navigation per domain
+            lock = self._get_domain_lock(domain)
+            with lock:
+                driver.get(url)
 
             # Wait for basic page load with shorter timeout
             WebDriverWait(driver, 5).until(  # Reduced from 10
@@ -1579,6 +1722,36 @@ class ContentExtractor:
             # Check for CAPTCHA or other challenges
             if self._detect_captcha_or_challenge(driver):
                 logger.warning(f"CAPTCHA or challenge detected on {url}")
+                # Try to close common modal overlays before giving up
+                try:
+                    close_selectors = [
+                        "button[aria-label*='close']",
+                        "button[title*='close']",
+                        "[data-dismiss='modal']",
+                        ".modal-close, .close, .close-button, .c-close",
+                        "button[aria-label*='dismiss']",
+                    ]
+                    for sel in close_selectors:
+                        elements = driver.find_elements(By.CSS_SELECTOR, sel)
+                        if elements:
+                            elements[0].click()
+                            time.sleep(0.5)
+                            if not self._detect_captcha_or_challenge(driver):
+                                logger.info(
+                                    "Closed a modal/challenge overlay; continuing"
+                                )
+                                return True
+                except Exception:
+                    pass
+
+                # Still challenged: set CAPTCHA backoff for domain
+                try:
+                    domain = urlparse(url).netloc
+                    # Backoff longer to avoid repeated blocks
+                    if hasattr(self, "_handle_captcha_backoff"):
+                        self._handle_captcha_backoff(domain)
+                except Exception:
+                    pass
                 return False
 
             return True

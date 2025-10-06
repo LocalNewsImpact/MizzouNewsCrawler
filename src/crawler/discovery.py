@@ -11,6 +11,8 @@ Designed for SQLite with future Postgres migration in mind.
 
 import json
 import logging
+import os
+import random
 import time
 from datetime import datetime, timedelta
 from typing import Any
@@ -60,6 +62,7 @@ def _newspaper_build_worker(
     target_url: str,
     out_path: str,
     fetch_images_flag: bool,
+    proxy: str | None = None,
 ):
     """Worker function executed in a separate process to perform
     `newspaper.build` and write discovered article URLs to `out_path`.
@@ -68,6 +71,13 @@ def _newspaper_build_worker(
     'spawn' start method (macOS).
     """
     try:
+        # Set proxy environment variables if provided
+        if proxy:
+            os.environ["HTTP_PROXY"] = proxy
+            os.environ["HTTPS_PROXY"] = proxy
+            os.environ["http_proxy"] = proxy
+            os.environ["https_proxy"] = proxy
+
         # Construct a minimal Config instance inside child process
         cfg = Config()
         try:
@@ -148,6 +158,27 @@ class NewsDiscovery:
             self.session = requests.Session()
             self.session.headers.update({"User-Agent": self.user_agent})
             logger.info("Using standard requests session")
+
+        # Configure proxy pool if provided
+        proxy_pool_env = (os.getenv("PROXY_POOL", "") or "").strip()
+        self.proxy_pool = (
+            [p.strip() for p in proxy_pool_env.split(",") if p.strip()]
+            if proxy_pool_env else []
+        )
+        if self.proxy_pool:
+            # Use a random proxy for all requests (or could implement
+            # per-domain like the other crawler)
+            proxy = random.choice(self.proxy_pool)
+            self.session.proxies.update({
+                "http": proxy,
+                "https": proxy,
+            })
+            logger.info(
+                f"Configured proxy pool with {len(self.proxy_pool)} proxies, "
+                f"using {proxy}"
+            )
+        else:
+            logger.info("No proxy pool configured, using direct connections")
 
         # Initialize storysniffer client (if available)
         self.storysniffer = None
@@ -992,9 +1023,14 @@ class NewsDiscovery:
                     except Exception:
                         fetch_images_flag = False
 
+                    # Choose proxy for this source
+                    proxy = None
+                    if self.proxy_pool:
+                        proxy = random.choice(self.proxy_pool)
+
                     proc = Process(
                         target=_newspaper_build_worker,
-                        args=(source_url, tmp_path, fetch_images_flag),
+                        args=(source_url, tmp_path, fetch_images_flag, proxy),
                     )
                     proc.start()
                     proc.join(timeout=build_timeout)
@@ -1232,8 +1268,25 @@ class NewsDiscovery:
         try:
             logger.info(f"Using storysniffer for: {source_url}")
 
+            # Set proxy environment variables if pool available
+            original_env = {}
+            if self.proxy_pool:
+                proxy = random.choice(self.proxy_pool)
+                env_vars = ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"]
+                for env_var in env_vars:
+                    original_env[env_var] = os.environ.get(env_var)
+                    os.environ[env_var] = proxy
+                logger.debug(f"Set proxy for storysniffer: {proxy}")
+
             # Use storysniffer to detect article URLs
             results = self.storysniffer.guess(source_url)
+
+            # Restore original environment
+            for env_var, value in original_env.items():
+                if value is None:
+                    os.environ.pop(env_var, None)
+                else:
+                    os.environ[env_var] = value
 
             # StorySniffer.guess() returns a list of URLs
             for item in results if isinstance(results, list) else []:
