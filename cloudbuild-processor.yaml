@@ -46,7 +46,7 @@ steps:
             --region=us-central1 \
             --format=json > /workspace/last_release.json
 
-          python -c "import json, sys; from pathlib import Path; registry, default_api, default_crawler = sys.argv[1:]; data=json.load(open('/workspace/last_release.json')); artifacts={item.get('image'): item.get('tag') for item in data.get('buildArtifacts', [])}; api=artifacts.get('api', default_api); crawler=artifacts.get('crawler', default_crawler); Path('/workspace/current-tags.env').write_text(f'API_IMAGE={api}\nCRAWLER_IMAGE={crawler}\n')" "$${REGISTRY}" "$${DEFAULT_API}" "$${DEFAULT_CRAWLER}"
+          python3 -c "import json, sys; from pathlib import Path; registry, default_api, default_crawler = sys.argv[1:]; data=json.load(open('/workspace/last_release.json')); artifacts={item.get('image'): item.get('tag') for item in data.get('buildArtifacts', [])}; api=artifacts.get('api', default_api); crawler=artifacts.get('crawler', default_crawler); Path('/workspace/current-tags.env').write_text(f'API_IMAGE={api}\nCRAWLER_IMAGE={crawler}\n')" "$${REGISTRY}" "$${DEFAULT_API}" "$${DEFAULT_CRAWLER}"
         else
           printf 'API_IMAGE=%s\nCRAWLER_IMAGE=%s\n' "$${DEFAULT_API}" "$${DEFAULT_CRAWLER}" > /workspace/current-tags.env
         fi
