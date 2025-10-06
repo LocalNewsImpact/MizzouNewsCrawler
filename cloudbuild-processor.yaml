@@ -1,3 +1,7 @@
+substitutions:
+  _ML_BASE_IMAGE: us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/ml-base:latest
+  _REGISTRY: us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler
+
 steps:
   - name: 'gcr.io/cloud-builders/docker'
     id: 'build-processor'
@@ -8,9 +12,9 @@ steps:
       - '-f'
       - 'Dockerfile.processor'
       - '-t'
-      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:${SHORT_SHA}'
+      - '${_REGISTRY}/processor:${SHORT_SHA}'
       - '-t'
-      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest'
+      - '${_REGISTRY}/processor:latest'
       - '.'
 
   - name: 'gcr.io/cloud-builders/docker'
@@ -18,7 +22,7 @@ steps:
     args:
       - 'push'
       - '--all-tags'
-      - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor'
+      - '${_REGISTRY}/processor'
     waitFor:
       - 'build-processor'
 
@@ -29,24 +33,23 @@ steps:
       - '-c'
       - |
         set -euo pipefail
-        REGISTRY="us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler"
-        DEFAULT_API="${REGISTRY}/api:latest"
-        DEFAULT_CRAWLER="${REGISTRY}/crawler:latest"
+        DEFAULT_API="${_REGISTRY}/api:latest"
+        DEFAULT_CRAWLER="${_REGISTRY}/crawler:latest"
 
-        LAST_RELEASE=$(gcloud deploy releases list \
+        LAST_RELEASE=$$(gcloud deploy releases list \
           --delivery-pipeline=mizzou-news-crawler \
           --region=us-central1 \
           --sort-by="~createTime" \
           --limit=1 \
           --format="value(name)")
 
-        if [ -n "${LAST_RELEASE}" ]; then
-          gcloud deploy releases describe "${LAST_RELEASE}" \
+        if [ -n "$${LAST_RELEASE}" ]; then
+          gcloud deploy releases describe "$${LAST_RELEASE}" \
             --delivery-pipeline=mizzou-news-crawler \
             --region=us-central1 \
             --format=json > /workspace/last_release.json
 
-          python3 -c "import json, sys; from pathlib import Path; registry, default_api, default_crawler = sys.argv[1:]; data=json.load(open('/workspace/last_release.json')); artifacts={item.get('image'): item.get('tag') for item in data.get('buildArtifacts', [])}; api=artifacts.get('api', default_api); crawler=artifacts.get('crawler', default_crawler); Path('/workspace/current-tags.env').write_text(f'API_IMAGE={api}\nCRAWLER_IMAGE={crawler}\n')" "${REGISTRY}" "${DEFAULT_API}" "${DEFAULT_CRAWLER}"
+          python3 -c "import json, sys; from pathlib import Path; registry, default_api, default_crawler = sys.argv[1:]; data=json.load(open('/workspace/last_release.json')); artifacts={item.get('image'): item.get('tag') for item in data.get('buildArtifacts', [])}; api=artifacts.get('api', default_api); crawler=artifacts.get('crawler', default_crawler); Path('/workspace/current-tags.env').write_text(f'API_IMAGE={api}\nCRAWLER_IMAGE={crawler}\n')" "${_REGISTRY}" "${DEFAULT_API}" "${DEFAULT_CRAWLER}"
         else
           printf 'API_IMAGE=%s\nCRAWLER_IMAGE=%s\n' "${DEFAULT_API}" "${DEFAULT_CRAWLER}" > /workspace/current-tags.env
         fi
@@ -63,7 +66,7 @@ steps:
         set -euo pipefail
         source /workspace/current-tags.env
 
-        PROCESSOR_IMAGE="us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/processor:${SHORT_SHA}"
+        PROCESSOR_IMAGE="${_REGISTRY}/processor:${SHORT_SHA}"
 
         echo "Creating Cloud Deploy release with:"
         echo "  Processor: ${PROCESSOR_IMAGE}"
@@ -73,18 +76,15 @@ steps:
         gcloud deploy releases create processor-${SHORT_SHA} \
           --delivery-pipeline=mizzou-news-crawler \
           --region=us-central1 \
-          --annotations=commitId=${COMMIT_SHA},service=processor \
+          --annotations=commitId=${REVISION_ID},service=processor \
           --images=processor=${PROCESSOR_IMAGE},api=${API_IMAGE},crawler=${CRAWLER_IMAGE}
 
         echo "✅ Created Cloud Deploy release for Processor"
     waitFor: ['resolve-current-tags']
 
 images:
-  - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:${SHORT_SHA}'
-  - 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest'
-
-substitutions:
-  _ML_BASE_IMAGE: 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ml-base:latest'
+  - '${_REGISTRY}/processor:${SHORT_SHA}'
+  - '${_REGISTRY}/processor:latest'
 timeout: 1800s
 options:
   machineType: 'N1_HIGHCPU_8'
