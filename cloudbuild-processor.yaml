@@ -16,9 +16,9 @@ steps:
       - '${_REGISTRY}/processor:${SHORT_SHA}'
       - '-t'
       - '${_REGISTRY}/processor:latest'
-  - '-t'
-  - '${_REGISTRY}/processor:v${_RELEASE_VERSION}'
-  - '.'
+      - '-t'
+      - '${_REGISTRY}/processor:v${_RELEASE_VERSION}'
+      - '.'
 
   - name: 'gcr.io/cloud-builders/docker'
     id: 'push-processor'
