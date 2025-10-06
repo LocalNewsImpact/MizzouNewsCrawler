@@ -83,20 +83,31 @@ steps:
         set -euo pipefail
         source /workspace/current-tags.env
 
+        # Allow an optional override tag for the release name to avoid duplicates on re-runs
+        RELEASE_TAG="${_IMAGE_TAG:-${SHORT_SHA}}"
+        RELEASE_NAME="processor-${RELEASE_TAG}"
         PROCESSOR_IMAGE="${_REGISTRY}/processor:${SHORT_SHA}"
 
-        echo "Creating Cloud Deploy release with:"
+        echo "Preparing Cloud Deploy release: $${RELEASE_NAME}"
         echo "  Processor: $${PROCESSOR_IMAGE}"
         echo "  API: $${API_IMAGE}"
         echo "  Crawler: $${CRAWLER_IMAGE}"
 
-        gcloud deploy releases create processor-${SHORT_SHA} \
+        # If a release with this name already exists, treat as idempotent and exit successfully
+        if gcloud deploy releases describe "$${RELEASE_NAME}" \
+              --delivery-pipeline=mizzou-news-crawler \
+              --region=us-central1 >/dev/null 2>&1; then
+          echo "Release $${RELEASE_NAME} already exists; skipping create (idempotent)."
+          exit 0
+        fi
+
+        gcloud deploy releases create "$${RELEASE_NAME}" \
           --delivery-pipeline=mizzou-news-crawler \
           --region=us-central1 \
           --annotations=commitId=${REVISION_ID},service=processor \
           --images=processor=$${PROCESSOR_IMAGE},api=$${API_IMAGE},crawler=$${CRAWLER_IMAGE}
 
-        echo "✅ Created Cloud Deploy release for Processor"
+        echo "✅ Created Cloud Deploy release $${RELEASE_NAME} for Processor"
     waitFor: ['resolve-current-tags']
 
 images:
