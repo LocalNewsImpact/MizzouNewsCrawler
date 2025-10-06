@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import datetime
 from typing import Any
+import logging
 
 from fastapi import APIRouter
 from sqlalchemy import text
@@ -18,6 +19,36 @@ from sqlalchemy import text
 from src.models.database import DatabaseManager
 
 router = APIRouter(prefix="/api/telemetry/operations", tags=["operations"])
+
+logger = logging.getLogger(__name__)
+
+
+def _safe_count(
+    db,
+    sql: str,
+    params: dict[str, Any],
+    *,
+    fallback_sql: str | None = None,
+) -> int:
+    """Execute a COUNT(*) query, tolerating schema drift.
+
+    If the primary query fails due to missing columns/tables (for example, a
+    production DB not yet migrated), log at debug level and try an optional
+    fallback query. If both fail, return 0.
+    """
+    try:
+        return db.session.execute(text(sql), params).scalar() or 0
+    except Exception as exc:
+        logger.debug("primary count query failed; sql=%s error=%s", sql, exc)
+        if not fallback_sql:
+            return 0
+        try:
+            return db.session.execute(text(fallback_sql), params).scalar() or 0
+        except Exception as exc2:
+            logger.debug(
+                "fallback count query failed; sql=%s error=%s", fallback_sql, exc2
+            )
+            return 0
 
 
 @router.get("/queue-status")
@@ -80,32 +111,46 @@ def get_recent_activity(minutes: int = 5) -> dict[str, Any]:
         
     # Articles extracted in timeframe
     # Use extracted_at when set, otherwise fallback to created_at
-        articles_extracted = db.session.execute(
-            text(
+        articles_extracted = _safe_count(
+            db,
+            (
                 "SELECT COUNT(*) FROM articles "
                 "WHERE COALESCE(extracted_at, created_at) >= :cutoff"
             ),
-            {"cutoff": cutoff}
-        ).scalar() or 0
+            {"cutoff": cutoff},
+            fallback_sql=(
+                # Fallback for DBs without extracted_at column
+                "SELECT COUNT(*) FROM articles WHERE created_at >= :cutoff"
+            ),
+        )
         
         # URLs verified in timeframe (from url_verifications)
-        urls_verified = db.session.execute(
-            text(
+        urls_verified = _safe_count(
+            db,
+            (
                 "SELECT COUNT(*) FROM url_verifications "
                 "WHERE verified_at >= :cutoff"
             ),
-            {"cutoff": cutoff}
-        ).scalar() or 0
-        
-        # ML analysis completed in timeframe (use labels_updated_at timestamp)
-        analysis_completed = db.session.execute(
-            text(
-                "SELECT COUNT(*) FROM articles "
-                "WHERE primary_label IS NOT NULL "
-                "AND labels_updated_at >= :cutoff"
+            {"cutoff": cutoff},
+            fallback_sql=(
+                # Conservative fallback when url_verifications table doesn't exist
+                # or verified_at is unavailable. We return 0 rather than guessing
+                # from candidate_links.
+                "SELECT 0"
             ),
-            {"cutoff": cutoff}
-        ).scalar() or 0
+        )
+        
+        # ML analysis completed in timeframe (use versioned labels table)
+        # Count rows in article_labels where applied_at >= cutoff. This exists
+        # across environments and reflects label application time accurately.
+        analysis_completed = _safe_count(
+            db,
+            (
+                "SELECT COUNT(*) FROM article_labels "
+                "WHERE applied_at >= :cutoff"
+            ),
+            {"cutoff": cutoff},
+        )
         
         return {
             "timeframe_minutes": minutes,
@@ -183,21 +228,23 @@ def get_recent_errors(hours: int = 1, limit: int = 50) -> dict[str, Any]:
     with DatabaseManager() as db:
         cutoff = datetime.datetime.utcnow() - datetime.timedelta(hours=hours)
         
-        # Articles with extraction errors
+        # Articles with extraction errors (use created_at/extracted_at as timestamp)
         article_errors = db.session.execute(
-            text("""
+            text(
+                """
                 SELECT
                     url,
                     error_message,
-                    updated_at as timestamp,
+                    COALESCE(extracted_at, created_at) as timestamp,
                     'extraction' as error_type
                 FROM articles
                 WHERE status = 'error'
-                AND updated_at >= :cutoff
-                ORDER BY updated_at DESC
+                AND COALESCE(extracted_at, created_at) >= :cutoff
+                ORDER BY COALESCE(extracted_at, created_at) DESC
                 LIMIT :limit
-            """),
-            {"cutoff": cutoff, "limit": limit}
+                """
+            ),
+            {"cutoff": cutoff, "limit": limit},
         )
         
         errors = []
@@ -279,21 +326,31 @@ def get_pipeline_health() -> dict[str, Any]:
         # Get error rate over last hour
         hour_ago = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
         
-        total_recent = db.session.execute(
-            text(
+        total_recent = _safe_count(
+            db,
+            (
                 "SELECT COUNT(*) FROM articles "
                 "WHERE COALESCE(extracted_at, created_at) >= :cutoff"
             ),
-            {"cutoff": hour_ago}
-        ).scalar() or 0
+            {"cutoff": hour_ago},
+            fallback_sql=(
+                "SELECT COUNT(*) FROM articles WHERE created_at >= :cutoff"
+            ),
+        )
         
-        errors_recent = db.session.execute(
-            text(
+        errors_recent = _safe_count(
+            db,
+            (
                 "SELECT COUNT(*) FROM articles "
                 "WHERE status = 'error' AND created_at >= :cutoff"
             ),
-            {"cutoff": hour_ago}
-        ).scalar() or 0
+            {"cutoff": hour_ago},
+            fallback_sql=(
+                # As a last resort, try updated_at for older schemas
+                "SELECT COUNT(*) FROM articles "
+                "WHERE status = 'error' AND updated_at >= :cutoff"
+            ),
+        )
         
         error_rate = (errors_recent / total_recent * 100) if total_recent > 0 else 0
         
