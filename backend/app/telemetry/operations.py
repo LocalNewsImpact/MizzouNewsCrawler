@@ -78,30 +78,31 @@ def get_recent_activity(minutes: int = 5) -> dict[str, Any]:
     with DatabaseManager() as db:
         cutoff = datetime.datetime.utcnow() - datetime.timedelta(minutes=minutes)
         
-        # Articles extracted in timeframe
+    # Articles extracted in timeframe
+    # Use extracted_at when set, otherwise fallback to created_at
         articles_extracted = db.session.execute(
             text(
                 "SELECT COUNT(*) FROM articles "
-                "WHERE created_at >= :cutoff"
+                "WHERE COALESCE(extracted_at, created_at) >= :cutoff"
             ),
             {"cutoff": cutoff}
         ).scalar() or 0
         
-        # URLs verified in timeframe
+        # URLs verified in timeframe (from url_verifications)
         urls_verified = db.session.execute(
             text(
-                "SELECT COUNT(*) FROM candidate_links "
+                "SELECT COUNT(*) FROM url_verifications "
                 "WHERE verified_at >= :cutoff"
             ),
             {"cutoff": cutoff}
         ).scalar() or 0
         
-        # ML analysis completed in timeframe
+        # ML analysis completed in timeframe (use labels_updated_at timestamp)
         analysis_completed = db.session.execute(
             text(
                 "SELECT COUNT(*) FROM articles "
                 "WHERE primary_label IS NOT NULL "
-                "AND updated_at >= :cutoff"
+                "AND labels_updated_at >= :cutoff"
             ),
             {"cutoff": cutoff}
         ).scalar() or 0
@@ -279,14 +280,17 @@ def get_pipeline_health() -> dict[str, Any]:
         hour_ago = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
         
         total_recent = db.session.execute(
-            text("SELECT COUNT(*) FROM articles WHERE created_at >= :cutoff"),
+            text(
+                "SELECT COUNT(*) FROM articles "
+                "WHERE COALESCE(extracted_at, created_at) >= :cutoff"
+            ),
             {"cutoff": hour_ago}
         ).scalar() or 0
         
         errors_recent = db.session.execute(
             text(
                 "SELECT COUNT(*) FROM articles "
-                "WHERE status = 'error' AND updated_at >= :cutoff"
+                "WHERE status = 'error' AND created_at >= :cutoff"
             ),
             {"cutoff": hour_ago}
         ).scalar() or 0
