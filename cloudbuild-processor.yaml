@@ -29,26 +29,26 @@ steps:
       - '-c'
       - |
         set -euo pipefail
-        REGISTRY="us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler"
-        DEFAULT_API="${REGISTRY}/api:latest"
-        DEFAULT_CRAWLER="${REGISTRY}/crawler:latest"
+        REGISTRY="us-central1-docker.pkg.dev/$${PROJECT_ID}/mizzou-crawler"
+        DEFAULT_API="$${REGISTRY}/api:latest"
+        DEFAULT_CRAWLER="$${REGISTRY}/crawler:latest"
 
-        LAST_RELEASE=$(gcloud deploy releases list \
+        LAST_RELEASE=$$(gcloud deploy releases list \
           --delivery-pipeline=mizzou-news-crawler \
           --region=us-central1 \
           --sort-by="~createTime" \
           --limit=1 \
           --format="value(name)")
 
-        if [ -n "${LAST_RELEASE}" ]; then
-          gcloud deploy releases describe "${LAST_RELEASE}" \
+        if [ -n "$${LAST_RELEASE}" ]; then
+          gcloud deploy releases describe "$${LAST_RELEASE}" \
             --delivery-pipeline=mizzou-news-crawler \
             --region=us-central1 \
             --format=json > /workspace/last_release.json
 
-          python -c "import json, sys; from pathlib import Path; registry, default_api, default_crawler = sys.argv[1:]; data=json.load(open('/workspace/last_release.json')); artifacts={item.get('image'): item.get('tag') for item in data.get('buildArtifacts', [])}; api=artifacts.get('api', default_api); crawler=artifacts.get('crawler', default_crawler); Path('/workspace/current-tags.env').write_text(f'API_IMAGE={api}\\nCRAWLER_IMAGE={crawler}\\n')" "${REGISTRY}" "${DEFAULT_API}" "${DEFAULT_CRAWLER}"
+          python -c "import json, sys; from pathlib import Path; registry, default_api, default_crawler = sys.argv[1:]; data=json.load(open('/workspace/last_release.json')); artifacts={item.get('image'): item.get('tag') for item in data.get('buildArtifacts', [])}; api=artifacts.get('api', default_api); crawler=artifacts.get('crawler', default_crawler); Path('/workspace/current-tags.env').write_text(f'API_IMAGE={api}\nCRAWLER_IMAGE={crawler}\n')" "$${REGISTRY}" "$${DEFAULT_API}" "$${DEFAULT_CRAWLER}"
         else
-          printf 'API_IMAGE=%s\nCRAWLER_IMAGE=%s\n' "${DEFAULT_API}" "${DEFAULT_CRAWLER}" > /workspace/current-tags.env
+          printf 'API_IMAGE=%s\nCRAWLER_IMAGE=%s\n' "$${DEFAULT_API}" "$${DEFAULT_CRAWLER}" > /workspace/current-tags.env
         fi
 
         echo "Resolved tags:" && cat /workspace/current-tags.env
@@ -63,18 +63,18 @@ steps:
         set -euo pipefail
         source /workspace/current-tags.env
 
-        PROCESSOR_IMAGE="us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/processor:${SHORT_SHA}"
+        PROCESSOR_IMAGE="us-central1-docker.pkg.dev/$${PROJECT_ID}/mizzou-crawler/processor:${SHORT_SHA}"
 
         echo "Creating Cloud Deploy release with:"
-        echo "  Processor: ${PROCESSOR_IMAGE}"
-        echo "  API: ${API_IMAGE}"
-        echo "  Crawler: ${CRAWLER_IMAGE}"
+        echo "  Processor: $${PROCESSOR_IMAGE}"
+        echo "  API: $${API_IMAGE}"
+        echo "  Crawler: $${CRAWLER_IMAGE}"
 
         gcloud deploy releases create processor-${SHORT_SHA} \
           --delivery-pipeline=mizzou-news-crawler \
           --region=us-central1 \
           --annotations=commitId=${COMMIT_SHA},service=processor \
-          --images=processor=${PROCESSOR_IMAGE},api=${API_IMAGE},crawler=${CRAWLER_IMAGE}
+          --images=processor=$${PROCESSOR_IMAGE},api=$${API_IMAGE},crawler=$${CRAWLER_IMAGE}
 
         echo "✅ Created Cloud Deploy release for Processor"
     waitFor: ['resolve-current-tags']
@@ -90,3 +90,4 @@ options:
   machineType: 'N1_HIGHCPU_8'
   diskSizeGb: 100
   logging: CLOUD_LOGGING_ONLY
+  substitutionOption: 'ALLOW_LOOSE'
