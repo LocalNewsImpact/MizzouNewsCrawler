@@ -68,8 +68,16 @@ DB_PATH = BASE_DIR / "backend" / "reviews.db"
 
 app = FastAPI(title="MizzouNewsCrawler Reviewer API")
 
+# Set up lifecycle handlers for centralized resource management
+# This initializes telemetry, database, HTTP session, and origin proxy
+from backend.app.lifecycle import setup_lifecycle_handlers  # noqa: E402
+setup_lifecycle_handlers(app)
+
 # Initialize database connection using DatabaseManager
 # This will use Cloud SQL connector if USE_CLOUD_SQL_CONNECTOR=true
+# NOTE: This is kept for backward compatibility with existing code that
+# uses the module-level db_manager. New code should use dependency injection
+# via get_db_manager() from backend.app.lifecycle
 from src import config as app_config
 db_manager = DatabaseManager(app_config.DATABASE_URL)
 logger.info(f"Database initialized: {app_config.DATABASE_URL[:50]}...")
@@ -95,6 +103,59 @@ app.add_middleware(
 async def health_check():
     """Health check endpoint for load balancer probes."""
     return {"status": "healthy", "service": "api"}
+
+
+@app.get("/ready")
+async def readiness_check():
+    """Readiness check endpoint for orchestration systems.
+    
+    Returns 200 if the application is ready to serve traffic:
+    - Startup completed successfully
+    - Database is accessible
+    - Critical resources are initialized
+    
+    Returns 503 if not ready.
+    """
+    from fastapi import Request, HTTPException, Depends
+    from backend.app.lifecycle import (
+        is_ready,
+        get_db_manager,
+        check_db_health,
+        get_telemetry_store,
+    )
+    
+    # This is a workaround since we can't use Depends in the signature
+    # when defined inline. Instead we'll access app.state directly
+    ready = getattr(app.state, "ready", False)
+    
+    if not ready:
+        raise HTTPException(
+            status_code=503,
+            detail="Application not ready: startup incomplete"
+        )
+    
+    # Check database health
+    db = getattr(app.state, "db_manager", None)
+    db_healthy, db_message = check_db_health(db)
+    
+    if not db_healthy:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Application not ready: {db_message}"
+        )
+    
+    telemetry = getattr(app.state, "telemetry_store", None)
+    http_session = getattr(app.state, "http_session", None)
+    
+    return {
+        "status": "ready",
+        "service": "api",
+        "resources": {
+            "database": "available" if db_healthy else "unavailable",
+            "telemetry": "available" if telemetry else "unavailable",
+            "http_session": "available" if http_session else "unavailable",
+        }
+    }
 
 
 # Serve the simple static frontend (no build) at /web for quick local testing

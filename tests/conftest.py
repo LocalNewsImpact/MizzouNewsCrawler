@@ -24,10 +24,55 @@ for key in ["DATABASE_HOST", "DATABASE_PORT", "DATABASE_NAME",
     if key in os.environ and os.environ.get("PYTEST_KEEP_DB_ENV") != "true":
         os.environ.pop(key, None)
 
+# Force telemetry to use synchronous writes in tests to avoid background
+# thread issues and make tests deterministic
+if "TELEMETRY_ASYNC_WRITES" not in os.environ:
+    os.environ["TELEMETRY_ASYNC_WRITES"] = "false"
+
 pytest_plugins = [
     "tests.helpers.sqlite",
     "tests.helpers.filesystem",
 ]
+
+
+@pytest.fixture
+def clean_app_state():
+    """Fixture to ensure FastAPI app.state is clean between tests.
+    
+    This is useful for backend tests that interact with the FastAPI
+    application lifecycle. It ensures that any resources attached to
+    app.state during one test don't leak into subsequent tests.
+    
+    Usage:
+        def test_something(clean_app_state):
+            from backend.app.main import app
+            # Test code that modifies app.state
+            # Cleanup happens automatically after test
+    """
+    from backend.app.main import app
+    
+    # Store original state
+    original_state = {}
+    for key in dir(app.state):
+        if not key.startswith("_"):
+            original_state[key] = getattr(app.state, key, None)
+    
+    yield app
+    
+    # Restore original state and clean up any new attributes
+    current_keys = [k for k in dir(app.state) if not k.startswith("_")]
+    for key in current_keys:
+        if key in original_state:
+            setattr(app.state, key, original_state[key])
+        else:
+            # New attribute added during test, remove it
+            try:
+                delattr(app.state, key)
+            except AttributeError:
+                pass
+    
+    # Also clear any dependency overrides
+    app.dependency_overrides.clear()
 
 # Module-level coverage thresholds expressed as percentages. The paths are
 # relative to the project root (session.config.rootpath) so the check works
