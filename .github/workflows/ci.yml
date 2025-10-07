@@ -134,7 +134,9 @@ jobs:
           TELEMETRY_DATABASE_URL: "sqlite:///:memory:"
           PYTEST_ADDOPTS: "-q --maxfail=1"
         run: |
-          pytest $PYTEST_ADDOPTS tests/test_origin_proxy.py tests/test_integration_proxy.py
+          # Avoid repo-level coverage gating for the smoke run by overriding
+          # addopts. The integration job still enforces coverage for the full run.
+          pytest --override-ini addopts="" $PYTEST_ADDOPTS tests/test_origin_proxy.py tests/test_integration_proxy.py
 
   integration:
     name: Integration & Coverage
