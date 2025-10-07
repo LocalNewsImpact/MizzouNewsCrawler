@@ -54,6 +54,7 @@ from src.utils.telemetry import (
 from src.utils.url_utils import normalize_url
 
 from ..models.database import DatabaseManager
+from .origin_proxy import enable_origin_proxy
 
 logger = logging.getLogger(__name__)
 
@@ -158,6 +159,12 @@ class NewsDiscovery:
             self.session = requests.Session()
             self.session.headers.update({"User-Agent": self.user_agent})
             logger.info("Using standard requests session")
+
+        # Optionally enable origin-style proxy adapter on the session
+        try:
+            enable_origin_proxy(self.session)
+        except Exception:
+            logger.debug("Origin proxy adapter not installed for discovery session")
 
         # Configure proxy pool if provided
         proxy_pool_env = (os.getenv("PROXY_POOL", "") or "").strip()

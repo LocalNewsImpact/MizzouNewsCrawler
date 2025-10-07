@@ -19,6 +19,7 @@ import requests
 from bs4 import BeautifulSoup
 from bs4.element import Tag
 from dateutil import parser as dateparser
+from .origin_proxy import enable_origin_proxy
 
 
 class RateLimitError(Exception):
@@ -469,6 +470,14 @@ class ContentExtractor:
         }
 
         self.session.headers.update(headers)
+        # Optionally enable origin-style proxy adapter which rewrites
+        # outgoing URLs to the origin proxy endpoint when
+        # USE_ORIGIN_PROXY env var is set.
+        try:
+            enable_origin_proxy(self.session)
+        except Exception:
+            # Don't fail session creation for test environments
+            logger.debug("Failed to install origin proxy adapter; continuing")
         logger.debug(
             f"Updated session headers with UA: {self.current_user_agent[:50]}..."
         )
