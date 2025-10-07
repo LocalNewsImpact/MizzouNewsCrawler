@@ -327,7 +327,7 @@ def test_origin_proxy_installed_when_env_var_set():
 
 
 def test_origin_proxy_not_installed_when_env_var_unset():
-    """Test that origin proxy adapter is not installed when USE_ORIGIN_PROXY is unset."""
+    """Test origin proxy adapter not installed when USE_ORIGIN_PROXY unset."""
     from backend.app.lifecycle import setup_lifecycle_handlers
     
     with patch.dict("os.environ", {"USE_ORIGIN_PROXY": ""}, clear=True):
