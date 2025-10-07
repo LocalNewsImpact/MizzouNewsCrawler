@@ -19,6 +19,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from src.telemetry.store import get_store as get_telemetry_store
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -70,8 +72,64 @@ app = FastAPI(title="MizzouNewsCrawler Reviewer API")
 
 # Set up lifecycle handlers for centralized resource management
 # This initializes telemetry, database, HTTP session, and origin proxy
-from backend.app.lifecycle import setup_lifecycle_handlers  # noqa: E402
-setup_lifecycle_handlers(app)
+try:
+    from backend.app.lifecycle import setup_lifecycle_handlers  # noqa: E402
+
+    setup_lifecycle_handlers(app)
+except Exception:
+    # If lifecycle wiring isn't present (e.g., in minimal test environments),
+    # fall back to the legacy startup/shutdown wiring to keep the app usable.
+    def _install_origin_proxy_if_enabled(session: requests.Session) -> None:
+        try:
+            from src.crawler.origin_proxy import enable_origin_proxy
+
+            if os.environ.get("USE_ORIGIN_PROXY", "false").lower() in ("1", "true", "yes"):
+                enable_origin_proxy(session)
+        except Exception:
+            logger.debug("Origin proxy adapter not installed or failed to enable.")
+
+
+    @app.on_event("startup")
+    def app_startup_resources():
+        # Telemetry store: allow tests to override DATABASE_URL via env
+        database_url = os.environ.get("TELEMETRY_DATABASE_URL", None)
+        if database_url:
+            telemetry = get_telemetry_store(database=database_url)
+        else:
+            telemetry = get_telemetry_store()
+
+        app.state.telemetry_store = telemetry
+
+        # Ensure DatabaseManager is present on state for endpoints/tests to use.
+        try:
+            # db_manager already initialized at module import; store a reference
+            app.state.db_manager = db_manager
+        except Exception:
+            app.state.db_manager = None
+
+        # Shared HTTP session used by handlers that perform outbound requests
+        shared = requests.Session()
+        _install_origin_proxy_if_enabled(shared)
+        app.state.shared_session = shared
+
+
+    @app.on_event("shutdown")
+    def app_shutdown_resources():
+        # Flush and shutdown telemetry store if present
+        try:
+            ts = getattr(app.state, "telemetry_store", None)
+            if ts is not None:
+                ts.shutdown(wait=True)
+        except Exception:
+            logger.exception("Error shutting down telemetry store")
+
+        # Close shared session
+        try:
+            sess = getattr(app.state, "shared_session", None)
+            if sess is not None:
+                sess.close()
+        except Exception:
+            logger.exception("Error closing shared_session")
 
 # Initialize database connection using DatabaseManager
 # This will use Cloud SQL connector if USE_CLOUD_SQL_CONNECTOR=true
