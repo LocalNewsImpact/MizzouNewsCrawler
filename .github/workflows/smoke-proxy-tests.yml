@@ -8,6 +8,9 @@ on:
 jobs:
   smoke-proxy-tests:
     runs-on: ubuntu-latest
+    env:
+      # Set to 'true' to use a minimal install (only pytest + pytest-asyncio)
+      MINIMAL_SMOKE_INSTALL: 'false'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -17,11 +20,28 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Cache pip downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
       - name: Install deps
+        env:
+          PIP_CACHE_DIR: ~/.cache/pip
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest
+          # If MINIMAL_SMOKE_INSTALL is true, install only pytest and pytest-asyncio
+          if [ "${MINIMAL_SMOKE_INSTALL:-false}" = "true" ]; then
+            echo "Minimal smoke install: installing pytest and pytest-asyncio"
+            pip install --cache-dir "$PIP_CACHE_DIR" pytest pytest-asyncio
+          else
+            echo "Full smoke install: installing requirements and dev requirements"
+            pip install --cache-dir "$PIP_CACHE_DIR" -r requirements.txt
+            pip install --cache-dir "$PIP_CACHE_DIR" -r requirements-dev.txt
+          fi
 
       - name: Run proxy smoke tests
         env:

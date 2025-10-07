@@ -27,6 +27,27 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# Expose enable_origin_proxy at module level so tests can patch it.
+try:  # pragma: no cover - best-effort import
+    from src.crawler.origin_proxy import enable_origin_proxy  # type: ignore
+except Exception:
+    enable_origin_proxy = None
+
+
+# Expose TelemetryStore and DatabaseManager module symbols so tests can
+# patch them. If the imports fail, set to None (startup will attempt
+# to import locally as well).
+try:  # pragma: no cover - best-effort import
+    from src.telemetry.store import TelemetryStore  # type: ignore
+except Exception:
+    TelemetryStore = None
+
+try:  # pragma: no cover - best-effort import
+    from src.models.database import DatabaseManager  # type: ignore
+except Exception:
+    DatabaseManager = None
+
+
 def setup_lifecycle_handlers(app: FastAPI) -> None:
     """Register startup and shutdown handlers for the FastAPI app.
     
@@ -44,42 +65,57 @@ def setup_lifecycle_handlers(app: FastAPI) -> None:
         """Initialize shared resources and attach to app.state."""
         logger.info("Starting resource initialization...")
         
-        # 1. Initialize TelemetryStore
+        # 1. Initialize TelemetryStore (unless already provided by tests)
         try:
-            from src.telemetry.store import TelemetryStore
-            from src import config as app_config
-            
-            # Determine if async writes should be enabled
-            # Default to True for production, can be overridden via env
-            async_writes = os.getenv("TELEMETRY_ASYNC_WRITES", "true").lower() in (
-                "true", "1", "yes"
-            )
-            
-            telemetry_store = TelemetryStore(
-                database=app_config.DATABASE_URL,
-                async_writes=async_writes,
-                timeout=30.0,
-                thread_name="TelemetryStoreWriter",
-            )
-            app.state.telemetry_store = telemetry_store
-            logger.info(
-                f"TelemetryStore initialized (async_writes={async_writes})"
-            )
+            if not hasattr(app.state, "telemetry_store") or getattr(
+                app.state, "telemetry_store"
+            ) is None:
+                from src.telemetry.store import TelemetryStore
+                from src import config as app_config
+
+                # Determine if async writes should be enabled
+                # Default to True for production, can be overridden via env
+                async_writes = os.getenv(
+                    "TELEMETRY_ASYNC_WRITES", "true"
+                ).lower() in ("true", "1", "yes")
+
+                telemetry_store = TelemetryStore(
+                    database=app_config.DATABASE_URL,
+                    async_writes=async_writes,
+                    timeout=30.0,
+                    thread_name="TelemetryStoreWriter",
+                )
+                app.state.telemetry_store = telemetry_store
+                logger.info(
+                    f"TelemetryStore initialized (async_writes={async_writes})"
+                )
+            else:
+                logger.info(
+                    "TelemetryStore already provided on app.state; skipping init"
+                )
         except Exception as exc:
             logger.exception("Failed to initialize TelemetryStore", exc_info=exc)
             # Continue without telemetry rather than failing startup
             app.state.telemetry_store = None
         
-        # 2. Initialize DatabaseManager
+        # 2. Initialize DatabaseManager (unless already provided by tests)
         try:
-            from src.models.database import DatabaseManager
-            from src import config as app_config
-            
-            db_manager = DatabaseManager(app_config.DATABASE_URL)
-            app.state.db_manager = db_manager
-            logger.info(
-                f"DatabaseManager initialized: {app_config.DATABASE_URL[:50]}..."
-            )
+            if (
+                not hasattr(app.state, "db_manager")
+                or getattr(app.state, "db_manager") is None
+            ):
+                from src.models.database import DatabaseManager
+                from src import config as app_config
+
+                db_manager = DatabaseManager(app_config.DATABASE_URL)
+                app.state.db_manager = db_manager
+                logger.info(
+                    f"DatabaseManager initialized: {app_config.DATABASE_URL[:50]}..."
+                )
+            else:
+                logger.info(
+                    "DatabaseManager already provided on app.state; skipping init"
+                )
         except Exception as exc:
             logger.exception("Failed to initialize DatabaseManager", exc_info=exc)
             # Allow startup to continue; endpoints will fail if DB is needed
@@ -87,21 +123,43 @@ def setup_lifecycle_handlers(app: FastAPI) -> None:
         
         # 3. Initialize shared HTTP session with optional origin proxy
         try:
-            session = requests.Session()
-            
-            # Install origin proxy adapter if enabled
-            use_origin_proxy = os.getenv("USE_ORIGIN_PROXY", "").lower() in (
-                "1", "true", "yes"
-            )
-            
-            if use_origin_proxy:
-                from src.crawler.origin_proxy import enable_origin_proxy
-                
-                enable_origin_proxy(session)
-                logger.info("Origin proxy adapter installed on shared session")
-            
-            app.state.http_session = session
-            logger.info("HTTP session initialized")
+            # Only create an HTTP session if not already provided by tests
+            if (
+                not hasattr(app.state, "http_session")
+                or getattr(app.state, "http_session") is None
+            ):
+                session = requests.Session()
+
+                # Install origin proxy adapter if enabled
+                use_origin_proxy = os.getenv("USE_ORIGIN_PROXY", "").lower() in (
+                    "1", "true", "yes"
+                )
+
+                if use_origin_proxy:
+                    try:
+                        # Prefer the module-level symbol which tests can patch.
+                        if enable_origin_proxy:
+                            enable_origin_proxy(session)
+                        else:
+                            # Fall back to importing the implementation
+                            from src.crawler.origin_proxy import (
+                                enable_origin_proxy as _enable_origin_proxy,
+                            )
+
+                            _enable_origin_proxy(session)
+
+                        logger.info(
+                            "Origin proxy adapter installed on shared session"
+                        )
+                    except Exception as exc:
+                        logger.exception(
+                            "Failed to install origin proxy adapter", exc_info=exc
+                        )
+
+                app.state.http_session = session
+                logger.info("HTTP session initialized")
+            else:
+                logger.info("HTTP session already provided on app.state; skipping init")
         except Exception as exc:
             logger.exception("Failed to initialize HTTP session", exc_info=exc)
             app.state.http_session = None

@@ -32,6 +32,9 @@ if "TELEMETRY_ASYNC_WRITES" not in os.environ:
 pytest_plugins = [
     "tests.helpers.sqlite",
     "tests.helpers.filesystem",
+    # Export backend fixtures via a dedicated plugin wrapper so integration
+    # tests can access cloud_sql_* fixtures without double-registration.
+    "tests.plugins.backend_fixtures",
 ]
 
 
@@ -73,10 +76,13 @@ def clean_app_state():
     
     # Also clear any dependency overrides
     app.dependency_overrides.clear()
+# ensure spacing per PEP8
+
 
 # Module-level coverage thresholds expressed as percentages. The paths are
 # relative to the project root (session.config.rootpath) so the check works
 # both locally and in CI environments.
+
 MODULE_COVERAGE_THRESHOLDS: dict[Path, float] = {
     Path("src/utils/byline_cleaner.py"): 80.0,
     Path("src/utils/content_cleaner_balanced.py"): 80.0,
