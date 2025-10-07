@@ -26,9 +26,9 @@ jobs:
       - name: Run proxy smoke tests
         env:
           PYTHONPATH: ${{ github.workspace }}
+          # Keep pytest quiet and fail fast; we run explicit files to avoid
+          # collecting the entire test suite which would trigger coverage gating.
+          PYTEST_ADDOPTS: "-q --maxfail=1"
         run: |
-          # Run only the two new proxy tests and bypass repo pytest.ini by
-          # passing -c /dev/null so coverage gating doesn't force a full run.
-          pytest -q -c /dev/null \
-            tests/test_origin_proxy.py::test_enable_origin_proxy_rewrites_url_and_sets_auth \
-            tests/test_integration_proxy.py::test_integration_origin_proxy
+          # Run the targeted test files directly (no -c /dev/null bypass).
+          pytest $PYTEST_ADDOPTS tests/test_origin_proxy.py tests/test_integration_proxy.py
