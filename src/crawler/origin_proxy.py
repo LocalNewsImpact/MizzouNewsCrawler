@@ -60,6 +60,11 @@ def _should_bypass(url: Any) -> bool:
     if not host:
         return False
 
+    # CRITICAL: Always bypass requests TO the proxy server itself
+    # to prevent infinite recursion
+    if host == "proxy.kiesow.net":
+        return True
+
     bypass_hosts = _parse_bypass_hosts()
 
     if host in bypass_hosts:
