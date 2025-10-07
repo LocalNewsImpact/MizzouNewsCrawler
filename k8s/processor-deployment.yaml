@@ -18,12 +18,22 @@ spec:
         component: processor
     spec:
       serviceAccountName: mizzou-app
+      volumes:
+      - name: origin-sitecustomize
+        configMap:
+          name: origin-sitecustomize
+          items:
+          - key: sitecustomize.py
+            path: sitecustomize.py
       containers:
       - name: processor
-        image: processor
+        image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
         command:
           - python
           - orchestration/continuous_processor.py
+        envFrom:
+        - secretRef:
+            name: origin-proxy-credentials
         env:
         # Database configuration
         - name: DATABASE_ENGINE
@@ -63,13 +73,27 @@ spec:
           value: "16"
         - name: GAZETTEER_BATCH_SIZE
           value: "50"
+        - name: USE_ORIGIN_PROXY
+          value: "true"
+        - name: ORIGIN_PROXY_URL
+          value: "http://proxy.kiesow.net:23432"
+        - name: SELENIUM_PROXY
+          valueFrom:
+            secretKeyRef:
+              name: origin-proxy-credentials
+              key: selenium-proxy-url
         resources:
           requests:
-            cpu: 200m
+            cpu: 100m
             memory: 512Mi
           limits:
-            cpu: 1
+            cpu: 750m
             memory: 2Gi
+        volumeMounts:
+        - name: origin-sitecustomize
+          mountPath: /usr/local/lib/python3.11/site-packages/sitecustomize.py
+          subPath: sitecustomize.py
+          readOnly: true
         livenessProbe:
           exec:
             command:
