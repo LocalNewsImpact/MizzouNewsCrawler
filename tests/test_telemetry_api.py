@@ -166,22 +166,23 @@ class TestTelemetryAPIEndpoints:
         engine.dispose()
 
     @pytest.fixture
-    def api_client(self, test_db_session):
-        """Create a test client with mocked DatabaseManager."""
-        from contextlib import contextmanager
-        from backend.app.main import app
-        from src.models.database import DatabaseManager
-        
-        # Mock DatabaseManager.get_session to return our test session
-        @contextmanager
-        def mock_get_session(self):
-            yield test_db_session
-        
-        with patch.object(
-            DatabaseManager, 'get_session', mock_get_session
-        ):
-            client = TestClient(app)
-            yield client
+    def api_client(self, test_db_session, monkeypatch):
+        """Create a test client with the DatabaseManager engine patched to the test engine.
+
+        Patching the engine is more robust than replacing the get_session method
+        because some tests mutate global DatabaseManager state; forcing the
+        module-level db_manager to use the same engine guarantees endpoints
+        create sessions against the test DB.
+        """
+        from backend.app.main import app, db_manager
+
+        test_engine = test_db_session.bind
+        # Replace the module-level db_manager's engine so sessions created by
+        # DatabaseManager use the test sqlite file.
+        monkeypatch.setattr(db_manager, "engine", test_engine)
+
+        client = TestClient(app)
+        yield client
 
     def test_telemetry_summary_endpoint(self, api_client):
         """Test the telemetry summary endpoint."""

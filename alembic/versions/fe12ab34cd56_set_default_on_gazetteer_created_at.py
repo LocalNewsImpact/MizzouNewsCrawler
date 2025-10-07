@@ -19,22 +19,43 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Set server default to NOW() to avoid NOT NULL violations on direct inserts
-    op.alter_column(
-        'gazetteer',
-        'created_at',
-        existing_type=sa.DateTime(),
-        server_default=sa.text('NOW()'),
-        existing_nullable=False,
-    )
+    # Set server default to NOW() / CURRENT_TIMESTAMP to avoid NOT NULL violations on direct inserts
+    bind = op.get_bind()
+    if bind.dialect.name == 'sqlite':
+        # SQLite does not support ALTER COLUMN; use batch_alter_table which recreates the table safely.
+        with op.batch_alter_table('gazetteer') as batch_op:
+            batch_op.alter_column(
+                'created_at',
+                existing_type=sa.DateTime(),
+                server_default=sa.text('CURRENT_TIMESTAMP'),
+                existing_nullable=False,
+            )
+    else:
+        op.alter_column(
+            'gazetteer',
+            'created_at',
+            existing_type=sa.DateTime(),
+            server_default=sa.text('NOW()'),
+            existing_nullable=False,
+        )
 
 
 def downgrade() -> None:
     # Remove server default
-    op.alter_column(
-        'gazetteer',
-        'created_at',
-        existing_type=sa.DateTime(),
-        server_default=None,
-        existing_nullable=False,
-    )
+    bind = op.get_bind()
+    if bind.dialect.name == 'sqlite':
+        with op.batch_alter_table('gazetteer') as batch_op:
+            batch_op.alter_column(
+                'created_at',
+                existing_type=sa.DateTime(),
+                server_default=None,
+                existing_nullable=False,
+            )
+    else:
+        op.alter_column(
+            'gazetteer',
+            'created_at',
+            existing_type=sa.DateTime(),
+            server_default=None,
+            existing_nullable=False,
+        )

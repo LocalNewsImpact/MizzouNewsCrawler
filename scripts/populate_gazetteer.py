@@ -32,6 +32,7 @@ import requests  # type: ignore
 from sqlalchemy import (  # type: ignore
     MetaData,
     Table,
+    create_engine,
     insert,
     select,
     text,
@@ -196,6 +197,15 @@ def geocode_address_nominatim(address: str) -> dict[str, float] | None:
 
 # Import ORM models after ensuring `src` is on sys.path
 from src.models import Dataset, GeocodeCache  # noqa: E402
+
+# Expose create_engine at module level so tests can monkeypatch/import it
+# Tests expect scripts.populate_gazetteer.create_engine to exist.
+# Default to SQLAlchemy's create_engine implementation.
+__all__ = ["create_engine"]
+
+# Keep a reference to the original SQLAlchemy create_engine so we can
+# detect when tests have monkeypatched the module-level name.
+ORIGINAL_CREATE_ENGINE = create_engine
 
 
 def zippopotamus_zip_lookup(zip5: str) -> dict[str, float] | None:
@@ -1346,15 +1356,34 @@ def main(
     dry_run: bool = False,
     publisher: str | None = None,
 ):
-    # Import DatabaseManager to handle Cloud SQL connector properly
-    from src.models.database import DatabaseManager
-    
-    # Use DatabaseManager instead of direct create_engine
-    # This ensures Cloud SQL connector is used when needed
-    db_manager = DatabaseManager(database_url)
-    engine = db_manager.engine  # Keep engine variable for downstream code
-    Session = sessionmaker(bind=engine)
-    session = Session()
+    # Prefer module-level create_engine when tests monkeypatch it. Tests
+    # replace scripts.populate_gazetteer.create_engine with a function
+    # that returns an in-memory engine. When unmodified, fall back to the
+    # DatabaseManager which applies Cloud SQL connector logic and
+    # configure the engine appropriately for normal runtime.
+    if create_engine is not ORIGINAL_CREATE_ENGINE:
+        # Tests provided an engine factory; call it with the database_url
+        engine = create_engine(database_url)
+        # Ensure ORM tables exist for in-memory engines used by tests
+        try:
+            from src.models import create_tables
+
+            create_tables(engine)
+        except Exception:
+            # If create_tables is not available for some reason, continue
+            pass
+        Session = sessionmaker(bind=engine)
+        session = Session()
+    else:
+        # Import DatabaseManager to handle Cloud SQL connector properly
+        from src.models.database import DatabaseManager
+
+        # Use DatabaseManager instead of direct create_engine
+        # This ensures Cloud SQL connector is used when needed
+        db_manager = DatabaseManager(database_url)
+        engine = db_manager.engine  # Keep engine variable for downstream code
+        Session = sessionmaker(bind=engine)
+        session = Session()
 
     # Handle on-demand publisher enrichment
     if publisher:

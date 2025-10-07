@@ -1275,10 +1275,13 @@ class NewsDiscovery:
         try:
             logger.info(f"Using storysniffer for: {source_url}")
 
-            # Set proxy environment variables if pool available
+            # Set proxy environment variables if a proxy pool is configured.
+            # Some tests create lightweight discovery stubs that may not have
+            # the `proxy_pool` attribute, so use getattr with a safe default.
             original_env = {}
-            if self.proxy_pool:
-                proxy = random.choice(self.proxy_pool)
+            proxy_pool = getattr(self, "proxy_pool", []) or []
+            if proxy_pool:
+                proxy = random.choice(proxy_pool)
                 env_vars = ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"]
                 for env_var in env_vars:
                     original_env[env_var] = os.environ.get(env_var)

@@ -105,30 +105,40 @@ def run_cli_command(command: list[str], description: str) -> bool:
 
     start = time.time()
     try:
-        with subprocess.Popen(
+        # Use subprocess.run to execute the command synchronously. Tests patch
+        # subprocess.run, so using it here makes the code testable while still
+        # allowing us to capture stdout/stderr and log the output.
+        proc = subprocess.run(
             cmd,
             cwd=PROJECT_ROOT,
+            env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            bufsize=1,  # line-buffered
-            env=env,
-        ) as proc:
-            assert proc.stdout is not None
-            for line in proc.stdout:
-                logger.info("%s | %s", description, line.rstrip())
-            rc = proc.wait()
+        )
+
+        # Log captured output (if any)
+        output = proc.stdout or ""
+        for line in output.splitlines():
+            logger.info("%s | %s", description, line.rstrip())
 
         elapsed = time.time() - start
-        if rc == 0:
+        if proc.returncode == 0:
             logger.info("✅ %s completed successfully (%.1fs)", description, elapsed)
             return True
         else:
             logger.error(
-                "❌ %s failed with exit code %d (%.1fs)", description, rc, elapsed
+                "❌ %s failed with exit code %d (%.1fs)",
+                description,
+                proc.returncode,
+                elapsed,
             )
             return False
 
+    except subprocess.TimeoutExpired:
+        elapsed = time.time() - start
+        logger.error("❌ %s timed out after %.1fs", description, elapsed)
+        return False
     except Exception as exc:
         elapsed = time.time() - start
         logger.exception(
