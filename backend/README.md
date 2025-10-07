@@ -14,6 +14,26 @@ The server will expose endpoints under /api/* and a tiny static UI is provided a
 
 DB: an SQLite DB will be created at backend/reviews.db by the app on first run.
 
+## Lifecycle Management
+
+The backend uses centralized lifecycle management for shared resources (database, telemetry, HTTP sessions). This ensures:
+
+- Proper initialization on startup
+- Graceful cleanup on shutdown
+- Easy dependency injection in route handlers
+- Testable components
+
+See [docs/LIFECYCLE_MANAGEMENT.md](../docs/LIFECYCLE_MANAGEMENT.md) for detailed documentation on:
+- How to use dependency injection in route handlers
+- How to override dependencies in tests
+- Configuration options
+- Migration guide for existing code
+
+### Health Checks
+
+- `GET /health` - Basic health check (always returns 200 OK)
+- `GET /ready` - Readiness check (returns 503 if resources unavailable)
+
 Cloud deployment notes
 ----------------------
 
