@@ -36,17 +36,25 @@ If you use `pipx` or Conda, adapt the environment step accordingly. The repo shi
 
 ### First Run Checklist
 
-1. Seed the SQLite database with crawler sources:
+1. **Set up pre-deployment validation** (prevents deployment bugs):
 
-  ```bash
-  python -m src.cli load-sources --csv sources/publinks.csv
-  ```
+   ```bash
+   ./scripts/setup-git-hooks.sh
+   ```
 
-1. Discover a small batch of URLs to confirm the pipeline wiring:
+   This installs a pre-push hook that validates your changes before pushing.
 
-  ```bash
-  python -m src.cli discover-urls --source-limit 10 --dry-run
-  ```
+2. Seed the SQLite database with crawler sources:
+
+   ```bash
+   python -m src.cli load-sources --csv sources/publinks.csv
+   ```
+
+3. Discover a small batch of URLs to confirm the pipeline wiring:
+
+   ```bash
+   python -m src.cli discover-urls --source-limit 10 --dry-run
+   ```
 
 1. Extract content and inspect the new telemetry-rich content cleaner output:
 
