@@ -36,6 +36,9 @@ spec:
         - secretRef:
             name: origin-proxy-credentials
         env:
+        # Ensure sitecustomize is reliably imported regardless of Python minor version
+        - name: PYTHONPATH
+          value: "/opt/origin-shim"
         # Database configuration
         - name: DATABASE_ENGINE
           value: "postgresql+psycopg2"
@@ -93,6 +96,14 @@ spec:
         volumeMounts:
         - name: origin-sitecustomize
           mountPath: /usr/local/lib/python3.11/site-packages/sitecustomize.py
+          subPath: sitecustomize.py
+          readOnly: true
+        - name: origin-sitecustomize
+          mountPath: /usr/local/lib/python3.10/site-packages/sitecustomize.py
+          subPath: sitecustomize.py
+          readOnly: true
+        - name: origin-sitecustomize
+          mountPath: /opt/origin-shim/sitecustomize.py
           subPath: sitecustomize.py
           readOnly: true
         livenessProbe:

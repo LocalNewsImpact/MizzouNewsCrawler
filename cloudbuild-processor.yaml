@@ -104,6 +104,7 @@ steps:
           --delivery-pipeline=mizzou-news-crawler \
           --region=us-central1 \
           --annotations=commitId=${REVISION_ID},service=processor \
+          --skaffold-file=skaffold.yaml \
           --images=processor=$${PROCESSOR_IMAGE},api=$${API_IMAGE},crawler=$${CRAWLER_IMAGE}
 
         echo "✅ Created Cloud Deploy release $${RELEASE_NAME} for Processor"
