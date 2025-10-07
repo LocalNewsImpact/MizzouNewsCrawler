@@ -22,11 +22,49 @@ spec:
         spec:
           serviceAccountName: mizzou-app
           restartPolicy: OnFailure
+          volumes:
+          - name: origin-sitecustomize
+            configMap:
+              name: origin-sitecustomize
+              items:
+              - key: sitecustomize.py
+                path: sitecustomize.py
           containers:
           # Main crawler container
           - name: crawler
             image: crawler
+            volumeMounts:
+            - name: origin-sitecustomize
+              mountPath: /usr/local/lib/python3.12/site-packages/sitecustomize.py
+              subPath: sitecustomize.py
             env:
+            # Proxy configuration
+            - name: USE_ORIGIN_PROXY
+              value: "true"
+            - name: ORIGIN_PROXY_URL
+              valueFrom:
+                secretKeyRef:
+                  name: origin-proxy-credentials
+                  key: ORIGIN_PROXY_URL
+                  optional: true
+            - name: PROXY_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: origin-proxy-credentials
+                  key: PROXY_USERNAME
+                  optional: true
+            - name: PROXY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: origin-proxy-credentials
+                  key: PROXY_PASSWORD
+                  optional: true
+            - name: SELENIUM_PROXY
+              valueFrom:
+                secretKeyRef:
+                  name: origin-proxy-credentials
+                  key: SELENIUM_PROXY
+                  optional: true
             # Cloud SQL Connector configuration (no proxy sidecar needed)
             - name: USE_CLOUD_SQL_CONNECTOR
               value: "true"

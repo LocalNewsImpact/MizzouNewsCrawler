@@ -1,0 +1,55 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: origin-sitecustomize
+  namespace: production
+  labels:
+    app: mizzou-crawler
+    component: proxy-shim
+data:
+  sitecustomize.py: |
+    # sitecustomize.py
+    # Global shim to route outgoing requests through an origin-style proxy
+    # Activated when USE_ORIGIN_PROXY is truthy and ORIGIN_PROXY_URL is set.
+    import os
+    import base64
+    import urllib.parse
+    import logging
+
+    LOG = logging.getLogger("origin-shim")
+
+    USE = os.getenv("USE_ORIGIN_PROXY", "").lower() in ("1", "true", "yes")
+    ORIGIN = os.getenv("ORIGIN_PROXY_URL") or os.getenv("ORIGIN_PROXY")
+    USER = os.getenv("PROXY_USERNAME")
+    PWD = os.getenv("PROXY_PASSWORD")
+
+    if USE and ORIGIN:
+        try:
+            import requests
+            from requests.sessions import Session
+            _orig_request = Session.request
+
+            def _proxied_request(self, method, url, *args, **kwargs):
+                try:
+                    # Only rewrite absolute HTTP/HTTPS requests
+                    if isinstance(url, str) and (url.startswith("http://") or url.startswith("https://")):
+                        proxied = ORIGIN.rstrip("/") + "?url=" + urllib.parse.quote_plus(url)
+                        # Prepare headers - don't mutate the caller's dict
+                        headers = dict(kwargs.get("headers") or {})
+                        if USER and PWD:
+                            creds = base64.b64encode(f"{USER}:{PWD}".encode("utf-8")).decode("ascii")
+                            # Only set Authorization if caller hasn't already provided one
+                            headers.setdefault("Authorization", "Basic " + creds)
+                        kwargs["headers"] = headers
+                        url = proxied
+                except Exception as e:
+                    # Do not break the request on shim errors
+                    LOG.exception("origin-shim error, proceeding without proxy: %s", e)
+                return _orig_request(self, method, url, *args, **kwargs)
+
+            # Patch Session.request once
+            Session.request = _proxied_request
+            LOG.info("origin-shim enabled: routing requests through %s (USE_ORIGIN_PROXY=%s)", ORIGIN, USE)
+        except Exception:
+            # If requests isn't available or patch fails, fail-safe: do nothing
+            LOG.exception("origin-shim failed to initialize")

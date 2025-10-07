@@ -114,6 +114,57 @@ Rows missing any required field are skipped, and duplicate `url_news` hosts coll
 
 For a fuller walkthrough (including the end-to-end workflow script and advanced tools), see the "Quick local setup and run" section further down in this document.
 
+## Proxy Configuration (Optional)
+
+The crawler supports routing all HTTP requests through an origin-style proxy. This is useful for:
+- Bypassing IP-based rate limiting
+- Routing traffic through a specific geographic location
+- Centralizing HTTP traffic monitoring
+
+### Local Development
+
+To enable proxy support locally, set these environment variables:
+
+```bash
+export USE_ORIGIN_PROXY=true
+export ORIGIN_PROXY_URL=http://proxy.example.com:23432
+export PROXY_USERNAME=your_username
+export PROXY_PASSWORD=your_password
+```
+
+The proxy adapter will automatically route all requests made via `requests`, `cloudscraper`, and other libraries that use `requests.Session`.
+
+### Kubernetes Deployment
+
+For production Kubernetes deployments, the proxy is configured via:
+
+1. **ConfigMap**: Contains `sitecustomize.py` that patches `requests.Session` at Python startup
+2. **Secret**: Stores proxy credentials securely
+3. **Deployment updates**: Mounts the ConfigMap and references the Secret
+
+See detailed deployment instructions in:
+- [k8s/PROXY_README.md](k8s/PROXY_README.md) - Quick reference
+- [docs/PROXY_DEPLOYMENT_GUIDE.md](docs/PROXY_DEPLOYMENT_GUIDE.md) - Complete guide
+
+### Helper Scripts
+
+- `scripts/encode_proxy_password.py` - URL-encode passwords for SELENIUM_PROXY environment variable
+
+### Testing
+
+Run proxy-specific tests:
+
+```bash
+# Unit tests for the origin proxy adapter
+python -m pytest tests/test_origin_proxy.py -v
+
+# Integration tests with a mock proxy server
+python -m pytest tests/test_integration_proxy.py -v
+
+# Standalone tests for sitecustomize shim
+python tests/test_sitecustomize_standalone.py
+```
+
 ## Recent Maintenance (2025-09-27)
 
 ### Obituary and opinion detection
