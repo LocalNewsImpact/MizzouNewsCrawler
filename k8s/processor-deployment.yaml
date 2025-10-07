@@ -38,7 +38,7 @@ spec:
         env:
         # Ensure sitecustomize is reliably imported regardless of Python minor version
         - name: PYTHONPATH
-          value: "/opt/origin-shim"
+          value: "/app:/opt/origin-shim"
         # Database configuration
         - name: DATABASE_ENGINE
           value: "postgresql+psycopg2"
