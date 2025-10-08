@@ -687,7 +687,7 @@ class NewsDiscovery:
             where_sql = " AND ".join(where_clauses)
 
             query = f"""
-            SELECT DISTINCT
+            SELECT DISTINCT ON (s.id)
                 s.id,
                 s.canonical_name as name,
                 'https://' || s.host as url,
@@ -704,7 +704,7 @@ class NewsDiscovery:
             LEFT JOIN candidate_links cl ON s.id = cl.source_host_id
             {join_clause}
             WHERE {where_sql}
-            ORDER BY discovery_attempted ASC, s.canonical_name ASC
+            ORDER BY s.id, discovery_attempted ASC, s.canonical_name ASC
             """
 
             if limit:
