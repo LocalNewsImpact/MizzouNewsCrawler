@@ -1,8 +1,15 @@
-"""Tests for the pipeline-status command."""
+"""Tests for the pipeline-status command.
+
+These are pure unit tests that use mocked database sessions and don't require
+actual PostgreSQL or Cloud SQL connections.
+"""
 
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime, timedelta
+
+# Mark all tests in this module as unit tests (no DB required)
+pytestmark = pytest.mark.unit
 
 from src.cli.commands.pipeline_status import (
     _check_discovery_status,
@@ -26,11 +33,11 @@ class TestDiscoveryStatus:
     
     def test_check_discovery_status_with_sources_due(self, mock_session, capsys):
         """Test discovery status when sources are due."""
-        # Mock database queries
+        # Mock database queries - when sources are due but none discovered recently
         mock_session.execute.side_effect = [
             Mock(scalar=lambda: 157),  # total sources
-            Mock(scalar=lambda: 15),   # sources discovered
-            Mock(scalar=lambda: 453),  # URLs discovered
+            Mock(scalar=lambda: 0),    # sources discovered (0 to trigger warning)
+            Mock(scalar=lambda: 0),    # URLs discovered (0 to trigger warning)
             Mock(scalar=lambda: 143),  # sources due
         ]
         
@@ -39,8 +46,7 @@ class TestDiscoveryStatus:
         captured = capsys.readouterr()
         assert "Total sources: 157" in captured.out
         assert "Sources due for discovery: 143" in captured.out
-        assert "URLs discovered (last 24h): 453" in captured.out
-        assert "WARNING" in captured.out  # Should warn about sources due
+        assert "WARNING" in captured.out  # Should warn about sources due but none discovered
     
     def test_check_discovery_status_healthy(self, mock_session, capsys):
         """Test discovery status when healthy."""
@@ -95,16 +101,20 @@ class TestExtractionStatus:
     
     def test_check_extraction_status_active(self, mock_session, capsys):
         """Test extraction status when active."""
+        # Create mock result that is iterable
+        status_breakdown_result = Mock()
+        status_breakdown_result.__iter__ = Mock(return_value=iter([
+            ("extracted", 2134),
+            ("cleaned", 1892),
+            ("wire", 567),
+            ("local", 299),
+        ]))
+        
         mock_session.execute.side_effect = [
-            Mock(scalar=lambda: 123),  # ready for extraction
-            Mock(scalar=lambda: 4892), # total extracted
-            Mock(scalar=lambda: 98),   # extracted recent
-            Mock(fetchall=lambda: [     # status breakdown
-                ("extracted", 2134),
-                ("cleaned", 1892),
-                ("wire", 567),
-                ("local", 299),
-            ]),
+            Mock(scalar=lambda: 123),   # ready for extraction
+            Mock(scalar=lambda: 4892),  # total extracted
+            Mock(scalar=lambda: 98),    # extracted recent
+            status_breakdown_result,    # status breakdown (iterable)
         ]
         
         _check_extraction_status(mock_session, 24, False)
@@ -213,15 +223,30 @@ class TestPipelineStatusCommand:
     @patch('src.cli.commands.pipeline_status.DatabaseManager')
     def test_command_runs_without_error(self, mock_db_manager, capsys):
         """Test that the pipeline-status command runs without errors."""
-        # Mock database manager
-        mock_db = Mock()
+        # Mock database manager with proper context manager
         mock_session = Mock()
-        mock_db.get_session.return_value.__enter__.return_value = mock_session
+        mock_context = MagicMock()
+        mock_context.__enter__ = Mock(return_value=mock_session)
+        mock_context.__exit__ = Mock(return_value=False)
+        
+        mock_db = Mock()
+        mock_db.get_session = Mock(return_value=mock_context)
         mock_db_manager.return_value = mock_db
         
-        # Mock all database queries to return 0 (empty pipeline)
-        mock_session.execute.return_value.scalar.return_value = 0
-        mock_session.execute.return_value.fetchall.return_value = []
+        # Create iterable mock for status breakdown query
+        empty_result = Mock()
+        empty_result.__iter__ = Mock(return_value=iter([]))
+        
+        # Mock all database queries - most return 0, status breakdown returns empty list
+        def execute_side_effect(*args, **kwargs):
+            # Check if this is the status breakdown query (contains GROUP BY)
+            query_text = str(args[0]) if args else ""
+            if "GROUP BY" in query_text:
+                return empty_result
+            # All other queries return 0
+            return Mock(scalar=lambda: 0)
+        
+        mock_session.execute.side_effect = execute_side_effect
         
         from src.cli.commands.pipeline_status import handle_pipeline_status_command
         

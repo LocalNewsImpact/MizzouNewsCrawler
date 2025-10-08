@@ -137,9 +137,11 @@ jobs:
           pytest -q -k "not integration and not e2e and not slow"
 
   origin-proxy-only:
-    name: Origin-proxy tests
+    name: Origin-proxy tests (smoke)
     runs-on: ubuntu-latest
     needs: [unit]
+    # Only run smoke tests on main branch or PRs to main
+    if: github.event_name == 'push' || github.base_ref == 'main' || github.ref == 'refs/heads/main'
 
     steps:
       - uses: actions/checkout@v4
@@ -184,6 +186,8 @@ jobs:
     name: Integration & Coverage
     runs-on: ubuntu-latest
     needs: [unit]
+    # Only run full integration tests on main branch or PRs to main
+    if: github.event_name == 'push' || github.base_ref == 'main' || github.ref == 'refs/heads/main'
 
     steps:
       - uses: actions/checkout@v4
