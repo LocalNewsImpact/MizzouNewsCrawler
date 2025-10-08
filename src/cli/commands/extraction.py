@@ -103,21 +103,35 @@ def add_extraction_parser(subparsers):
         "--limit", type=int, default=10, help="Articles per batch"
     )
     extract_parser.add_argument(
-        "--batches", type=int, default=1, help="Number of batches"
+        "--batches",
+        type=int,
+        default=None,
+        help="Number of batches (default: process all available)",
     )
     extract_parser.add_argument("--source", type=str, help="Limit to a specific source")
+    extract_parser.add_argument(
+        "--no-exhaust-queue",
+        dest="exhaust_queue",
+        action="store_false",
+        default=True,
+        help="Stop after --batches instead of processing all available articles",
+    )
 
     extract_parser.set_defaults(func=handle_extraction_command)
 
 
 def handle_extraction_command(args) -> int:
     """Execute extraction command logic."""
-    batches = getattr(args, "batches", 1)
+    batches = getattr(args, "batches", None)  # None means "process all available"
     per_batch = getattr(args, "limit", 10)
+    exhaust_queue = getattr(args, "exhaust_queue", True)  # Default to exhausting queue
 
     # Print to stdout immediately for visibility
     print(f"🚀 Starting content extraction...")
-    print(f"   Batches: {batches}")
+    if batches is None or exhaust_queue:
+        print(f"   Mode: Process ALL available articles")
+    else:
+        print(f"   Batches: {batches}")
     print(f"   Articles per batch: {per_batch}")
     print()
 
@@ -130,8 +144,18 @@ def handle_extraction_command(args) -> int:
 
     try:
         domains_for_cleaning = defaultdict(list)
-        for batch_num in range(1, batches + 1):
-            print(f"📄 Processing batch {batch_num}/{batches}...")
+        batch_num = 0
+        total_processed = 0
+        
+        # Continue processing batches until no articles remain (or batch limit reached if specified)
+        while True:
+            batch_num += 1
+            
+            # If batches specified and exhaust_queue is False, respect the limit
+            if batches is not None and not exhaust_queue and batch_num > batches:
+                break
+            
+            print(f"📄 Processing batch {batch_num}...")
             result = _process_batch(
                 args,
                 extractor,
@@ -142,12 +166,22 @@ def handle_extraction_command(args) -> int:
                 host_403_tracker,
                 domains_for_cleaning,
             )
-            print(f"✓ Batch {batch_num} complete: {result['processed']} articles extracted")
+            
+            articles_processed = result['processed']
+            total_processed += articles_processed
+            
+            print(f"✓ Batch {batch_num} complete: {articles_processed} articles extracted")
             if result.get('skipped_domains', 0) > 0:
                 print(f"  ⚠️  {result['skipped_domains']} domains skipped due to rate limits")
             logger.info(f"Batch {batch_num}: {result}")
-            if batch_num < batches:
-                time.sleep(0.1)
+            
+            # Stop if no articles were processed (queue is empty)
+            if articles_processed == 0:
+                print(f"📭 No more articles available to extract")
+                break
+            
+            # Brief pause between batches
+            time.sleep(0.1)
 
         if domains_for_cleaning:
             print()
@@ -168,7 +202,9 @@ def handle_extraction_command(args) -> int:
             )
 
         print()
-        print("✅ Extraction completed successfully!")
+        print(f"✅ Extraction completed successfully!")
+        print(f"   Total batches processed: {batch_num}")
+        print(f"   Total articles extracted: {total_processed}")
         return 0
     except Exception:
         logger.exception("Extraction failed")
