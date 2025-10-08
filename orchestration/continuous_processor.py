@@ -212,19 +212,28 @@ def process_analysis(count: int) -> bool:
 
 
 def process_entity_extraction(count: int) -> bool:
-    """Run gazetteer/entity extraction for articles."""
+    """Run entity extraction on articles that have content but no entities.
+
+    This command extracts location entities from article text and stores
+    them in the article_entities table. The gazetteer data (OSM locations
+    for each source) should already be populated via the populate-gazetteer
+    command during initial setup.
+    """
     if count == 0:
         return False
 
-    # Note: populate-gazetteer doesn't accept --limit argument
-    # It processes all articles without entities in the database
-    # The GAZETTEER_BATCH_SIZE is not currently enforced
+    # Process up to GAZETTEER_BATCH_SIZE articles per run
+    # (or all pending if less than batch size)
+    limit = min(count, GAZETTEER_BATCH_SIZE)
+    
     command = [
-        "populate-gazetteer",
+        "extract-entities",
+        "--limit",
+        str(limit),
     ]
 
     return run_cli_command(
-        command, f"Entity extraction ({count} pending)"
+        command, f"Entity extraction ({count} pending, limit {limit})"
     )
 
 

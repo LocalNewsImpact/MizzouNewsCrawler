@@ -32,6 +32,10 @@ from .commands.discovery_report import (  # noqa: F401
     add_discovery_report_parser,
     handle_discovery_report_command,
 )
+from .commands.entity_extraction import (  # noqa: F401
+    add_entity_extraction_parser,
+    handle_entity_extraction_command,
+)
 from .commands.extraction import (  # noqa: F401
     add_extraction_parser,
     handle_extraction_command,
@@ -86,6 +90,7 @@ COMMAND_HANDLER_ATTRS: dict[str, str] = {
     "verify-urls": "handle_verification_command",
     "discover-urls": "handle_discovery_command",
     "extract": "handle_extraction_command",
+    "extract-entities": "handle_entity_extraction_command",
     "analyze": "handle_analysis_command",
     "load-sources": "handle_load_sources_command",
     "list-sources": "handle_list_sources_command",
@@ -127,6 +132,7 @@ def create_parser() -> argparse.ArgumentParser:
     add_verification_parser(subparsers)
     add_discovery_parser(subparsers)
     add_extraction_parser(subparsers)
+    add_entity_extraction_parser(subparsers)
     
     # Analysis parser requires ML dependencies (torch) - only load if available
     try:
