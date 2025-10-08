@@ -115,6 +115,12 @@ def handle_extraction_command(args) -> int:
     batches = getattr(args, "batches", 1)
     per_batch = getattr(args, "limit", 10)
 
+    # Print to stdout immediately for visibility
+    print(f"🚀 Starting content extraction...")
+    print(f"   Batches: {batches}")
+    print(f"   Articles per batch: {per_batch}")
+    print()
+
     extractor = ContentExtractor()
     byline_cleaner = BylineCleaner()
     telemetry = ComprehensiveExtractionTelemetry()
@@ -125,6 +131,7 @@ def handle_extraction_command(args) -> int:
     try:
         domains_for_cleaning = defaultdict(list)
         for batch_num in range(1, batches + 1):
+            print(f"📄 Processing batch {batch_num}/{batches}...")
             result = _process_batch(
                 args,
                 extractor,
@@ -135,22 +142,33 @@ def handle_extraction_command(args) -> int:
                 host_403_tracker,
                 domains_for_cleaning,
             )
+            print(f"✓ Batch {batch_num} complete: {result['processed']} articles extracted")
+            if result.get('skipped_domains', 0) > 0:
+                print(f"  ⚠️  {result['skipped_domains']} domains skipped due to rate limits")
             logger.info(f"Batch {batch_num}: {result}")
             if batch_num < batches:
                 time.sleep(0.1)
 
         if domains_for_cleaning:
+            print()
+            print(f"🧹 Running post-extraction cleaning for {len(domains_for_cleaning)} domains...")
             _run_post_extraction_cleaning(domains_for_cleaning)
+            print("✓ Cleaning complete")
 
         # Log driver usage stats before cleanup
         driver_stats = extractor.get_driver_stats()
         if driver_stats["has_persistent_driver"]:
+            print()
+            print(f"📊 ChromeDriver efficiency: {driver_stats['driver_reuse_count']} reuses, "
+                  f"{driver_stats['driver_creation_count']} creations")
             logger.info(
                 "ChromeDriver efficiency: %s reuses, %s creations",
                 driver_stats["driver_reuse_count"],
                 driver_stats["driver_creation_count"],
             )
 
+        print()
+        print("✅ Extraction completed successfully!")
         return 0
     except Exception:
         logger.exception("Extraction failed")

@@ -140,6 +140,8 @@ def handle_discovery_command(args) -> int:
     try:
         from src.crawler.discovery import NewsDiscovery
 
+        # Print to stdout immediately for visibility in cloud logs
+        print("🚀 Starting URL discovery pipeline...")
         logger.info("Starting URL discovery pipeline")
 
         uuid_list = _collect_source_uuids(
@@ -164,6 +166,13 @@ def handle_discovery_command(args) -> int:
         due_only_enabled = getattr(args, "due_only", True) and not getattr(
             args, "force_all", False
         )
+        
+        # Show configuration immediately
+        print(f"   Dataset: {getattr(args, 'dataset', 'all')}")
+        print(f"   Source limit: {getattr(args, 'source_limit', 'none')}")
+        print(f"   Due only: {due_only_enabled}")
+        print(f"   Force all: {getattr(args, 'force_all', False)}")
+        print()
 
         stats = discovery.run_discovery(
             dataset_label=getattr(args, "dataset", None),
@@ -215,6 +224,8 @@ def handle_discovery_command(args) -> int:
             print(f"Average candidates per source: {avg_candidates:.1f}")
 
         if stats["sources_failed"] > 0:
+            print()
+            print("⚠️  Errors encountered during discovery")
             active_ops = discovery.telemetry.list_active_operations()
             if active_ops:
                 recent_op_id = active_ops[-1].get("operation_id")

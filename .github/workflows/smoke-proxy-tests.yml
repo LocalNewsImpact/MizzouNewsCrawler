@@ -1,8 +1,10 @@
 name: Smoke — Proxy adapter tests
 
 on:
+  push:
+    branches: [main]
   pull_request:
-    branches: [feature/gcp-kubernetes-deployment, main]
+    branches: [main]
   workflow_dispatch: {}
 
 jobs:

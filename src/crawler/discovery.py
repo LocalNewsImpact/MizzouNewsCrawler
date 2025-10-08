@@ -1837,6 +1837,15 @@ class NewsDiscovery:
                 )
                 sources_df = sources_df[mask]
 
+            # Print source stats immediately to stdout
+            print(f"📊 Source Discovery Status:")
+            print(f"   Sources available: {source_stats.get('sources_available', 0)}")
+            print(f"   Sources due for discovery: {source_stats.get('sources_due', 0)}")
+            if source_stats.get('sources_skipped', 0) > 0:
+                print(f"   Sources skipped (not due): {source_stats.get('sources_skipped', 0)}")
+            print(f"   Sources to process: {len(sources_df)}")
+            print()
+            
             logger.info(f"Processing {len(sources_df)} sources")
 
             # Initialize telemetry metrics
@@ -1921,6 +1930,13 @@ class NewsDiscovery:
                         message=(f"Processed {source_row['name']}"),
                     )
 
+                    # Print progress to stdout for real-time visibility
+                    print(
+                        f"✓ [{stats['sources_processed']}/{len(sources_df)}] "
+                        f"{source_row['name']}: "
+                        f"{discovery_result.articles_new} new URLs"
+                    )
+                    
                     logger.info(
                         f"Progress: {stats['sources_processed']}/"
                         f"{len(sources_df)} sources"
@@ -1948,6 +1964,12 @@ class NewsDiscovery:
                         )
 
                 except Exception as e:
+                    # Print error to stdout for visibility
+                    print(
+                        f"✗ [{stats['sources_processed'] + 1}/{len(sources_df)}] "
+                        f"{source_row.get('name')}: ERROR - {str(e)[:100]}"
+                    )
+                    
                     logger.error(
                         "Failed to process source %s: %s",
                         source_row.get("name"),
