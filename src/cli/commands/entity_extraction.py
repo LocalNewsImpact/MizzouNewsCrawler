@@ -64,16 +64,18 @@ def handle_entity_extraction_command(args) -> int:
     try:
         with db.get_session() as session:
             # Query for articles with content but no entities
+            # Join with candidate_links to get source_id and dataset_id
             query = sql_text("""
-                SELECT a.id, a.text, a.text_hash, a.source_id, a.dataset_id
+                SELECT a.id, a.text, a.text_hash, cl.source_id, cl.dataset_id
                 FROM articles a
+                JOIN candidate_links cl ON a.candidate_link_id = cl.id
                 WHERE a.content IS NOT NULL
                 AND a.text IS NOT NULL
                 AND NOT EXISTS (
                     SELECT 1 FROM article_entities ae WHERE ae.article_id = a.id
                 )
                 AND a.status != 'error'
-                """ + ("AND a.source = :source" if source else "") + """
+                """ + ("AND cl.source = :source" if source else "") + """
                 LIMIT :limit
             """)
             
@@ -154,7 +156,7 @@ def handle_entity_extraction_command(args) -> int:
             session.commit()
             
             print()
-            print(f"✅ Entity extraction completed!")
+            print("✅ Entity extraction completed!")
             print(f"   Processed: {processed} articles")
             print(f"   Errors: {errors}")
             
