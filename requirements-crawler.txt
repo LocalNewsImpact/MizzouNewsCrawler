@@ -11,5 +11,9 @@ selenium-stealth>=1.0.6  # Browser fingerprint masking
 newspaper4k>=0.9.2  # Use newspaper4k (modern fork)
 feedparser>=6.0.10
 
+# Article classification
+scikit-learn==1.5.1  # Fixed version for StorySniffer compatibility
+storysniffer>=1.0.0  # News article classification
+
 # Anti-bot bypass
 cloudscraper>=1.2.71  # Bypass Cloudflare protection
