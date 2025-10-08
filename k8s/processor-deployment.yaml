@@ -77,6 +77,15 @@ spec:
           value: "16"
         - name: GAZETTEER_BATCH_SIZE
           value: "50"
+        # CAPTCHA and rate limit handling
+        - name: CAPTCHA_BACKOFF_BASE
+          value: "900"  # 15 minutes (increased from 10 minutes)
+        - name: CAPTCHA_BACKOFF_MAX
+          value: "7200"  # 2 hours (increased from 90 minutes)
+        - name: INTER_REQUEST_MIN
+          value: "2.0"  # Slower requests to avoid bot detection
+        - name: INTER_REQUEST_MAX
+          value: "4.5"
         - name: USE_ORIGIN_PROXY
           value: "true"
         - name: ORIGIN_PROXY_URL
@@ -86,6 +95,11 @@ spec:
             secretKeyRef:
               name: origin-proxy-credentials
               key: selenium-proxy-url
+        # Bypass proxy for HuggingFace model downloads and internal services
+        - name: NO_PROXY
+          value: "localhost,127.0.0.1,metadata.google.internal,huggingface.co,*.huggingface.co,cdn-lfs.huggingface.co,cdn.huggingface.co"
+        - name: no_proxy
+          value: "localhost,127.0.0.1,metadata.google.internal,huggingface.co,*.huggingface.co,cdn-lfs.huggingface.co,cdn.huggingface.co"
         resources:
           requests:
             cpu: 100m
