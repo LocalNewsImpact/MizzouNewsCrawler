@@ -127,11 +127,11 @@ def _check_discovery_status(session, hours, detailed):
             WHERE s.host IS NOT NULL
             AND (
                 cl.processed_at IS NULL
-                OR cl.processed_at < datetime('now', '-7 days')
+                OR cl.processed_at < NOW() - INTERVAL '7 days'
                 OR NOT EXISTS (
                     SELECT 1 FROM candidate_links cl2
                     WHERE cl2.source_host_id = s.id
-                    AND cl2.processed_at >= datetime('now', '-7 days')
+                    AND cl2.processed_at >= NOW() - INTERVAL '7 days'
                 )
             )
         """)
