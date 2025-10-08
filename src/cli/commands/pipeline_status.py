@@ -188,7 +188,7 @@ def _check_verification_status(session, hours, detailed):
             SELECT COUNT(*)
             FROM candidate_links
             WHERE status IN ('article', 'not_article', 'error')
-            AND verified_at >= :cutoff
+            AND processed_at >= :cutoff
         """),
         {"cutoff": cutoff}
     )
@@ -383,7 +383,7 @@ def _check_overall_health(session, hours):
     result = session.execute(
         text("""
             SELECT COUNT(*) FROM candidate_links
-            WHERE verified_at >= :cutoff
+            WHERE processed_at >= :cutoff
         """),
         {"cutoff": cutoff}
     )
