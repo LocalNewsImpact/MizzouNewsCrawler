@@ -8,10 +8,12 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 
-from .commands.analysis import (  # noqa: F401
-    add_analysis_parser,
-    handle_analysis_command,
-)
+# Lazy import for analysis commands to avoid importing torch in crawler image
+# (analysis commands require ML dependencies that only exist in processor image)
+# from .commands.analysis import (  # noqa: F401
+#     add_analysis_parser,
+#     handle_analysis_command,
+# )
 from .commands.background_processes import (  # noqa: F401
     add_queue_parser,
     add_status_parser,
@@ -125,7 +127,14 @@ def create_parser() -> argparse.ArgumentParser:
     add_verification_parser(subparsers)
     add_discovery_parser(subparsers)
     add_extraction_parser(subparsers)
-    add_analysis_parser(subparsers)
+    
+    # Analysis parser requires ML dependencies (torch) - only load if available
+    try:
+        from .commands.analysis import add_analysis_parser
+        add_analysis_parser(subparsers)
+    except (ImportError, ModuleNotFoundError):
+        pass  # ML dependencies not available (crawler image)
+    
     add_load_sources_parser(subparsers)
     add_list_sources_parser(subparsers)
     add_crawl_parser(subparsers)
@@ -165,6 +174,14 @@ def _resolve_handler(
     handler = globals().get(attr_name)
     if callable(handler):
         return cast(CommandHandler, handler)
+    
+    # Lazy load analysis handler if ML dependencies are available
+    if command == "analyze" and attr_name == "handle_analysis_command":
+        try:
+            from .commands.analysis import handle_analysis_command
+            return cast(CommandHandler, handle_analysis_command)
+        except (ImportError, ModuleNotFoundError):
+            return None  # ML dependencies not available
 
     return None
 

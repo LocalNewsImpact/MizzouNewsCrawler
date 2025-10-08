@@ -17,7 +17,13 @@ from src.models.versioning import (
 )
 
 from .cli_modular import main as _modular_main
-from .commands.analysis import handle_analysis_command as analyze_command
+
+# Lazy import for analysis to avoid importing torch in crawler image
+try:
+    from .commands.analysis import handle_analysis_command as analyze_command
+except (ImportError, ModuleNotFoundError):
+    analyze_command = None  # type: ignore
+
 from .commands.background_processes import handle_queue_command as queue_command
 from .commands.background_processes import handle_status_command as status_command
 from .commands.crawl import handle_crawl_command as crawl_command
@@ -70,7 +76,6 @@ def main() -> int:
         "crawl": crawl_command,
         "extract": extract_command,
         "telemetry": telemetry_command,
-        "analyze": analyze_command,
         "populate-gazetteer": populate_gazetteer_command,
         "discover-urls": discover_urls_command,
         "discovery-report": discovery_report_command,
@@ -79,6 +84,10 @@ def main() -> int:
         "dump-http-status": dump_http_status_command,
         "llm": llm_command,
     }
+    
+    # Add analyze command if ML dependencies are available
+    if analyze_command is not None:
+        handler_overrides["analyze"] = analyze_command
 
     try:
         return _modular_main(
