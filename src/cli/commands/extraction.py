@@ -150,17 +150,25 @@ def handle_extraction_command(args) -> int:
                 time.sleep(0.1)
 
         if domains_for_cleaning:
+            print()
+            print(f"🧹 Running post-extraction cleaning for {len(domains_for_cleaning)} domains...")
             _run_post_extraction_cleaning(domains_for_cleaning)
+            print("✓ Cleaning complete")
 
         # Log driver usage stats before cleanup
         driver_stats = extractor.get_driver_stats()
         if driver_stats["has_persistent_driver"]:
+            print()
+            print(f"📊 ChromeDriver efficiency: {driver_stats['driver_reuse_count']} reuses, "
+                  f"{driver_stats['driver_creation_count']} creations")
             logger.info(
                 "ChromeDriver efficiency: %s reuses, %s creations",
                 driver_stats["driver_reuse_count"],
                 driver_stats["driver_creation_count"],
             )
 
+        print()
+        print("✅ Extraction completed successfully!")
         return 0
     except Exception:
         logger.exception("Extraction failed")

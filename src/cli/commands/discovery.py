@@ -224,6 +224,8 @@ def handle_discovery_command(args) -> int:
             print(f"Average candidates per source: {avg_candidates:.1f}")
 
         if stats["sources_failed"] > 0:
+            print()
+            print("⚠️  Errors encountered during discovery")
             active_ops = discovery.telemetry.list_active_operations()
             if active_ops:
                 recent_op_id = active_ops[-1].get("operation_id")

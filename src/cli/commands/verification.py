@@ -108,11 +108,14 @@ def run_verification_service(
     """Run the verification service."""
     try:
         if max_batches:
+            print(f"🚀 Starting verification service (max {max_batches} batches)...")
             logging.info(f"Starting verification service (max {max_batches} batches)")
         else:
+            print("🚀 Starting continuous verification service...")
             logging.info("Starting continuous verification service")
 
         service.run_verification_loop(max_batches=max_batches)
+        print("✅ Verification completed successfully!")
         return 0
 
     except KeyboardInterrupt:

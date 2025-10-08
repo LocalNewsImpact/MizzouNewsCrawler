@@ -416,6 +416,7 @@ class URLVerificationService:
                     time.sleep(self.sleep_interval)
                     continue
 
+                print(f"📄 Processing batch {batch_count + 1}: {len(candidates)} URLs...")
                 self.logger.info(
                     f"Processing batch {batch_count + 1} of {len(candidates)} URLs..."
                 )
@@ -426,7 +427,14 @@ class URLVerificationService:
                 # Save telemetry
                 self.save_telemetry_summary(batch_metrics, candidates, job_name)
 
-                # Log progress
+                # Log progress to stdout and logger
+                print(
+                    f"✓ Batch {batch_count + 1} complete: "
+                    f"{batch_metrics['verified_articles']} articles, "
+                    f"{batch_metrics['verified_non_articles']} non-articles, "
+                    f"{batch_metrics['verification_errors']} errors "
+                    f"(avg: {batch_metrics['avg_verification_time_ms']:.1f}ms)"
+                )
                 self.logger.info(
                     f"Batch complete: "
                     f"{batch_metrics['verified_articles']} articles, "
