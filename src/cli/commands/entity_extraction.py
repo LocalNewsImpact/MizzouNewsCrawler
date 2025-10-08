@@ -48,6 +48,13 @@ def handle_entity_extraction_command(args) -> int:
     limit = getattr(args, "limit", 100)
     source = getattr(args, "source", None)
     
+    # Print to stdout immediately for visibility
+    print(f"🚀 Starting entity extraction...")
+    print(f"   Processing limit: {limit} articles")
+    if source:
+        print(f"   Source filter: {source}")
+    print()
+    
     logger.info("Starting entity extraction for articles without entities")
     logger.info("Processing limit: %d articles", limit)
     
@@ -78,9 +85,11 @@ def handle_entity_extraction_command(args) -> int:
             rows = result.fetchall()
             
             if not rows:
+                print("✓ No articles found needing entity extraction")
                 logger.info("No articles found needing entity extraction")
                 return 0
             
+            print(f"📊 Found {len(rows)} articles needing entity extraction")
             logger.info("Found %d articles needing entity extraction", len(rows))
             
             processed = 0
@@ -124,6 +133,7 @@ def handle_entity_extraction_command(args) -> int:
                     processed += 1
                     
                     if processed % 10 == 0:
+                        print(f"✓ Progress: {processed}/{len(rows)} articles processed")
                         logger.info(
                             "Progress: %d/%d articles processed",
                             processed,
@@ -142,6 +152,11 @@ def handle_entity_extraction_command(args) -> int:
             
             # Final commit
             session.commit()
+            
+            print()
+            print(f"✅ Entity extraction completed!")
+            print(f"   Processed: {processed} articles")
+            print(f"   Errors: {errors}")
             
             logger.info(
                 "Entity extraction completed: %d processed, %d errors",

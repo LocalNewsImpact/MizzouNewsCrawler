@@ -60,6 +60,10 @@ from .commands.load_sources import (  # noqa: F401
     add_load_sources_parser,
     handle_load_sources_command,
 )
+from .commands.pipeline_status import (  # noqa: F401
+    add_pipeline_status_parser,
+    handle_pipeline_status_command,
+)
 from .commands.reports import (  # noqa: F401
     add_reports_parser,
     handle_county_report_command,
@@ -107,6 +111,7 @@ COMMAND_HANDLER_ATTRS: dict[str, str] = {
     "queue": "handle_queue_command",
     "dump-http-status": "handle_http_status_command",
     "llm": "handle_llm_command",
+    "pipeline-status": "handle_pipeline_status_command",
 }
 
 
@@ -153,6 +158,7 @@ def create_parser() -> argparse.ArgumentParser:
     add_status_parser(subparsers)
     add_queue_parser(subparsers)
     add_llm_parser(subparsers)
+    add_pipeline_status_parser(subparsers)
 
     return parser
 

@@ -115,6 +115,12 @@ def handle_extraction_command(args) -> int:
     batches = getattr(args, "batches", 1)
     per_batch = getattr(args, "limit", 10)
 
+    # Print to stdout immediately for visibility
+    print(f"🚀 Starting content extraction...")
+    print(f"   Batches: {batches}")
+    print(f"   Articles per batch: {per_batch}")
+    print()
+
     extractor = ContentExtractor()
     byline_cleaner = BylineCleaner()
     telemetry = ComprehensiveExtractionTelemetry()
@@ -125,6 +131,7 @@ def handle_extraction_command(args) -> int:
     try:
         domains_for_cleaning = defaultdict(list)
         for batch_num in range(1, batches + 1):
+            print(f"📄 Processing batch {batch_num}/{batches}...")
             result = _process_batch(
                 args,
                 extractor,
@@ -135,6 +142,9 @@ def handle_extraction_command(args) -> int:
                 host_403_tracker,
                 domains_for_cleaning,
             )
+            print(f"✓ Batch {batch_num} complete: {result['processed']} articles extracted")
+            if result.get('skipped_domains', 0) > 0:
+                print(f"  ⚠️  {result['skipped_domains']} domains skipped due to rate limits")
             logger.info(f"Batch {batch_num}: {result}")
             if batch_num < batches:
                 time.sleep(0.1)
