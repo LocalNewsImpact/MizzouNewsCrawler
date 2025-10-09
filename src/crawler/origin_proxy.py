@@ -1,8 +1,11 @@
 import base64
+import logging
 import os
 from types import MethodType
 from typing import Any
 from urllib.parse import quote_plus, urlparse
+
+logger = logging.getLogger(__name__)
 
 
 METADATA_HOSTS = {
@@ -106,31 +109,72 @@ def enable_origin_proxy(session):
 
     def _wrapped_request(self, method, url, *args, **kwargs):
         use = os.getenv("USE_ORIGIN_PROXY", "").lower() in ("1", "true", "yes")
-        if use and not _should_bypass(url):
-            proxy_base = (
-                os.getenv("ORIGIN_PROXY_URL")
-                or os.getenv("PROXY_HOST")
-                or os.getenv("PROXY_URL")
-                or "http://127.0.0.1:23432"
-            )
-            proxied = proxy_base.rstrip("/") + "/?url=" + quote_plus(str(url))
+        original_url = str(url)
+        proxy_used = False
+        bypass_reason = None
+        
+        if use:
+            if _should_bypass(url):
+                bypass_reason = "bypassed (internal/metadata host or proxy.kiesow.net)"
+                logger.debug(f"Origin proxy {bypass_reason} for {original_url[:80]}")
+            else:
+                proxy_base = (
+                    os.getenv("ORIGIN_PROXY_URL")
+                    or os.getenv("PROXY_HOST")
+                    or os.getenv("PROXY_URL")
+                    or "http://127.0.0.1:23432"
+                )
+                proxied = proxy_base.rstrip("/") + "/?url=" + quote_plus(str(url))
 
-            # If no explicit auth for this request, attach proxy basic auth
-            if "auth" not in kwargs:
+                # If no explicit auth for this request, attach proxy basic auth
                 user = os.getenv("PROXY_USERNAME")
-                pwd = os.getenv("PROXY_PASSWORD")
-                if user is not None:
-                    kwargs["auth"] = (user, pwd or "")
-                    headers = kwargs.setdefault("headers", {})
-                    if "Proxy-Authorization" not in headers:
-                        headers["Proxy-Authorization"] = _basic_auth_value(user, pwd)
-                    if "Authorization" not in headers:
-                        headers["Authorization"] = _basic_auth_value(user, pwd)
+                has_auth = user is not None
+                
+                if "auth" not in kwargs:
+                    pwd = os.getenv("PROXY_PASSWORD")
+                    if has_auth:
+                        kwargs["auth"] = (user, pwd or "")
+                        headers = kwargs.setdefault("headers", {})
+                        if "Proxy-Authorization" not in headers:
+                            headers["Proxy-Authorization"] = _basic_auth_value(user, pwd)
+                        if "Authorization" not in headers:
+                            headers["Authorization"] = _basic_auth_value(user, pwd)
 
-            # Replace the outgoing URL with the proxied URL
-            url = proxied
+                # Replace the outgoing URL with the proxied URL
+                url = proxied
+                proxy_used = True
+                
+                # Log proxy usage with auth status
+                parsed = urlparse(original_url)
+                domain = parsed.netloc
+                logger.info(
+                    f"🔀 Proxying {method} {domain} via {proxy_base} "
+                    f"(auth: {'yes' if has_auth else 'NO - MISSING CREDENTIALS'})"
+                )
+        else:
+            logger.debug(f"Origin proxy disabled (USE_ORIGIN_PROXY not set) for {original_url[:80]}")
 
-        return session._origin_original_request(method, url, *args, **kwargs)
+        try:
+            response = session._origin_original_request(method, url, *args, **kwargs)
+            
+            # Log response status when using proxy
+            if proxy_used:
+                parsed = urlparse(original_url)
+                domain = parsed.netloc
+                logger.info(
+                    f"✓ Proxy response {response.status_code} for {domain}"
+                )
+            
+            return response
+        except Exception as e:
+            # Log errors when using proxy
+            if proxy_used:
+                parsed = urlparse(original_url)
+                domain = parsed.netloc
+                logger.error(
+                    f"✗ Proxy request failed for {domain}: {type(e).__name__}: {str(e)[:100]}"
+                )
+            raise
 
     # Bind wrapper to the session instance
     session.request = MethodType(_wrapped_request, session)

@@ -1,5 +1,7 @@
 import os
+import logging
 import requests
+import pytest
 
 from src.crawler.origin_proxy import enable_origin_proxy, disable_origin_proxy
 
@@ -98,5 +100,186 @@ def test_metadata_prepared_request_bypasses_proxy(monkeypatch):
     s.request('GET', prepared)  # type: ignore[arg-type]
 
     assert captured['url'] is prepared
+
+    disable_origin_proxy(s)
+
+
+def test_proxy_usage_is_logged(monkeypatch, caplog):
+    """Test that proxy usage is logged with authentication status."""
+    s = requests.Session()
+
+    def fake_request(method, url, *args, **kwargs):
+
+        class R:
+            status_code = 200
+            text = 'ok'
+
+        return R()
+
+    s.request = fake_request  # type: ignore[assignment]
+
+    monkeypatch.setenv('USE_ORIGIN_PROXY', '1')
+    monkeypatch.setenv('ORIGIN_PROXY_URL', 'http://proxy.test:9999')
+    monkeypatch.setenv('PROXY_USERNAME', 'user1')
+    monkeypatch.setenv('PROXY_PASSWORD', 'pw')
+
+    enable_origin_proxy(s)
+
+    with caplog.at_level(logging.INFO):
+        _ = s.get('https://example.com/path?x=1')
+
+    # Check that proxy usage is logged
+    assert any('🔀 Proxying GET' in record.message for record in caplog.records)
+    assert any('example.com' in record.message for record in caplog.records)
+    assert any('auth: yes' in record.message for record in caplog.records)
+    assert any('✓ Proxy response 200' in record.message for record in caplog.records)
+
+    disable_origin_proxy(s)
+
+
+def test_missing_credentials_logged(monkeypatch, caplog):
+    """Test that missing credentials are flagged in logs."""
+    s = requests.Session()
+
+    def fake_request(method, url, *args, **kwargs):
+
+        class R:
+            status_code = 200
+            text = 'ok'
+
+        return R()
+
+    s.request = fake_request  # type: ignore[assignment]
+
+    monkeypatch.setenv('USE_ORIGIN_PROXY', '1')
+    monkeypatch.setenv('ORIGIN_PROXY_URL', 'http://proxy.test:9999')
+    monkeypatch.delenv('PROXY_USERNAME', raising=False)
+    monkeypatch.delenv('PROXY_PASSWORD', raising=False)
+
+    enable_origin_proxy(s)
+
+    with caplog.at_level(logging.INFO):
+        _ = s.get('https://example.com/path?x=1')
+
+    # Check that missing credentials are logged
+    missing_creds_logged = any(
+        'NO - MISSING CREDENTIALS' in record.message
+        for record in caplog.records
+    )
+    assert missing_creds_logged
+
+    disable_origin_proxy(s)
+
+
+def test_bypass_decision_logged(monkeypatch, caplog):
+    """Test that bypass decisions are logged."""
+    s = requests.Session()
+
+    def fake_request(method, url, *args, **kwargs):
+
+        class R:
+            status_code = 200
+            text = 'ok'
+
+        return R()
+
+    s.request = fake_request  # type: ignore[assignment]
+
+    monkeypatch.setenv('USE_ORIGIN_PROXY', 'true')
+
+    enable_origin_proxy(s)
+
+    with caplog.at_level(logging.DEBUG):
+        _ = s.get('http://metadata.google.internal/computeMetadata/v1')
+
+    # Check that bypass is logged
+    assert any('Origin proxy bypassed' in record.message for record in caplog.records)
+
+    disable_origin_proxy(s)
+
+
+def test_proxy_error_logged(monkeypatch, caplog):
+    """Test that proxy errors are logged with details."""
+    s = requests.Session()
+
+    def fake_request(method, url, *args, **kwargs):
+        raise requests.exceptions.ConnectionError("Connection refused")
+
+    s.request = fake_request  # type: ignore[assignment]
+
+    monkeypatch.setenv('USE_ORIGIN_PROXY', '1')
+    monkeypatch.setenv('ORIGIN_PROXY_URL', 'http://proxy.test:9999')
+    monkeypatch.setenv('PROXY_USERNAME', 'user1')
+    monkeypatch.setenv('PROXY_PASSWORD', 'pw')
+
+    enable_origin_proxy(s)
+
+    with caplog.at_level(logging.ERROR):
+        with pytest.raises(requests.exceptions.ConnectionError):
+            s.get('https://example.com/path')
+
+    # Check that error is logged
+    assert any('✗ Proxy request failed' in record.message for record in caplog.records)
+    assert any('example.com' in record.message for record in caplog.records)
+    assert any('ConnectionError' in record.message for record in caplog.records)
+
+    disable_origin_proxy(s)
+
+
+def test_proxy_disabled_logged(monkeypatch, caplog):
+    """Test that disabled proxy is logged."""
+    s = requests.Session()
+
+    def fake_request(method, url, *args, **kwargs):
+
+        class R:
+            status_code = 200
+            text = 'ok'
+
+        return R()
+
+    s.request = fake_request  # type: ignore[assignment]
+
+    # Don't set USE_ORIGIN_PROXY
+    monkeypatch.delenv('USE_ORIGIN_PROXY', raising=False)
+
+    enable_origin_proxy(s)
+
+    with caplog.at_level(logging.DEBUG):
+        _ = s.get('https://example.com/path')
+
+    # Check that proxy disabled is logged
+    assert any('Origin proxy disabled' in record.message for record in caplog.records)
+
+    disable_origin_proxy(s)
+
+
+def test_proxy_kiesow_bypassed(monkeypatch):
+    """Test that proxy.kiesow.net itself is always bypassed to prevent recursion."""
+    s = requests.Session()
+
+    captured = {}
+
+    def fake_request(method, url, *args, **kwargs):
+        captured['url'] = url
+
+        class R:
+            status_code = 200
+            text = ''
+
+        return R()
+
+    s.request = fake_request  # type: ignore[assignment]
+
+    monkeypatch.setenv('USE_ORIGIN_PROXY', 'true')
+    monkeypatch.setenv('ORIGIN_PROXY_URL', 'http://proxy.kiesow.net:23432')
+
+    enable_origin_proxy(s)
+
+    # Request to proxy.kiesow.net itself should be bypassed
+    s.get('http://proxy.kiesow.net:23432/?url=test')
+
+    # URL should not be rewritten (not proxied through itself)
+    assert captured['url'] == 'http://proxy.kiesow.net:23432/?url=test'
 
     disable_origin_proxy(s)
