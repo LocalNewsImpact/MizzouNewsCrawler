@@ -442,10 +442,10 @@ class ContentExtractor:
         # Initialize cloudscraper session for better Cloudflare handling
         if CLOUDSCRAPER_AVAILABLE and cloudscraper is not None:
             self.session = cloudscraper.create_scraper()
-            logger.debug("Created new cloudscraper session")
+            logger.info("🔧 Created new cloudscraper session (anti-Cloudflare enabled)")
         else:
             self.session = requests.Session()
-            logger.debug("Created new requests session")
+            logger.info("🔧 Created new requests session (cloudscraper NOT available)")
 
         # Set headers with some randomization
         self._set_session_headers()
@@ -473,11 +473,20 @@ class ContentExtractor:
         # Optionally enable origin-style proxy adapter which rewrites
         # outgoing URLs to the origin proxy endpoint when
         # USE_ORIGIN_PROXY env var is set.
+        use_proxy = os.getenv("USE_ORIGIN_PROXY", "").lower() in ("1", "true", "yes")
+        proxy_url = os.getenv("ORIGIN_PROXY_URL") or os.getenv("PROXY_HOST") or os.getenv("PROXY_URL")
+        
         try:
             enable_origin_proxy(self.session)
-        except Exception:
+            if use_proxy:
+                logger.info(
+                    f"🔀 Origin proxy adapter installed (proxy: {proxy_url or 'default'})"
+                )
+            else:
+                logger.debug("Origin proxy adapter installed but USE_ORIGIN_PROXY not enabled")
+        except Exception as e:
             # Don't fail session creation for test environments
-            logger.debug("Failed to install origin proxy adapter; continuing")
+            logger.warning(f"Failed to install origin proxy adapter: {e}")
         logger.debug(
             f"Updated session headers with UA: {self.current_user_agent[:50]}..."
         )
@@ -530,10 +539,13 @@ class ContentExtractor:
             new_user_agent = random.choice(available_agents)
 
             # Create new session with clean cookies
+            session_type = None
             if CLOUDSCRAPER_AVAILABLE and cloudscraper is not None:
                 new_session = cloudscraper.create_scraper()
+                session_type = "cloudscraper"
             else:
                 new_session = requests.Session()
+                session_type = "requests"
 
             # Set randomized headers
             headers = {
@@ -553,6 +565,13 @@ class ContentExtractor:
                 "DNT": "1",
             }
             new_session.headers.update(headers)
+            
+            # Enable origin proxy for this session
+            use_proxy = os.getenv("USE_ORIGIN_PROXY", "").lower() in ("1", "true", "yes")
+            try:
+                enable_origin_proxy(new_session)
+            except Exception as e:
+                logger.debug(f"Failed to install origin proxy on domain session for {domain}: {e}")
 
             # Assign sticky proxy per domain when pool provided
             proxy = self._choose_proxy_for_domain(domain)
@@ -567,7 +586,9 @@ class ContentExtractor:
             self.domain_user_agents[domain] = new_user_agent
 
             logger.info(
-                f"Created new session for {domain} with UA: {new_user_agent[:50]}..."
+                f"🔧 Created {session_type} session for {domain} "
+                f"(proxy: {'enabled' if use_proxy else 'disabled'}, "
+                f"UA: {new_user_agent[:50]}...)"
             )
             logger.debug(f"Cleared cookies for domain {domain}")
 
@@ -1267,8 +1288,15 @@ class ContentExtractor:
                     raise RateLimitError(f"Domain {domain} is rate limited")
                 # Single in-flight per domain
                 with self._get_domain_lock(domain):
+                    logger.info(f"📡 Fetching {url[:80]}... via session for {domain}")
                     response = session.get(url, timeout=self.timeout)
                 http_status = response.status_code
+                
+                # Log response details
+                logger.info(
+                    f"📥 Received {http_status} for {domain} "
+                    f"(content: {len(response.text) if response.text else 0} bytes)"
+                )
 
                 # Check for rate limiting
                 if response.status_code == 429:
@@ -1282,7 +1310,8 @@ class ContentExtractor:
                 elif response.status_code in [403, 503, 502, 504]:
                     # Possible rate limiting or bot detection
                     logger.warning(
-                        f"Possible bot detection ({response.status_code}) by {domain}"
+                        f"🚫 Bot detection ({response.status_code}) by {domain} "
+                        f"- response preview: {response.text[:200] if response.text else 'empty'}"
                     )
                     self._handle_rate_limit_error(domain, response)
                     return self._create_error_result(
@@ -1312,8 +1341,9 @@ class ContentExtractor:
                     # Use the downloaded HTML content to parse the article
                     article.html = response.text
                     ua = self.domain_user_agents.get(domain, "Unknown")
-                    logger.debug(
-                        f"Successfully fetched content for {url} with UA: {ua[:30]}..."
+                    logger.info(
+                        f"✅ Successfully fetched {len(response.text)} bytes from {domain} "
+                        f"(UA: {ua[:30]}...)"
                     )
                 else:
                     logger.warning(
