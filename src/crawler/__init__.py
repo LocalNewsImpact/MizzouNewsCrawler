@@ -1274,6 +1274,14 @@ class ContentExtractor:
 
         article = NewspaperArticle(url)
         http_status = None
+        # Initialize proxy metadata (will be populated if proxy is used)
+        proxy_metadata = {
+            "proxy_used": False,
+            "proxy_url": None,
+            "proxy_authenticated": False,
+            "proxy_status": None,
+            "proxy_error": None,
+        }
 
         if html:
             # Use provided HTML
@@ -1291,6 +1299,17 @@ class ContentExtractor:
                     logger.info(f"📡 Fetching {url[:80]}... via session for {domain}")
                     response = session.get(url, timeout=self.timeout)
                 http_status = response.status_code
+                
+                # Capture proxy metadata from response if available
+                proxy_metadata = {
+                    "proxy_used": getattr(response, "_proxy_used", False),
+                    "proxy_url": getattr(response, "_proxy_url", None),
+                    "proxy_authenticated": getattr(
+                        response, "_proxy_authenticated", False
+                    ),
+                    "proxy_status": getattr(response, "_proxy_status", None),
+                    "proxy_error": getattr(response, "_proxy_error", None),
+                }
                 
                 # Log response details
                 logger.info(
@@ -1415,6 +1434,7 @@ class ContentExtractor:
                 "cloudscraper_used": CLOUDSCRAPER_AVAILABLE
                 and cloudscraper is not None,
                 "http_status": http_status,
+                **proxy_metadata,  # Include proxy metrics
             },
             "extracted_at": datetime.utcnow().isoformat(),
         }

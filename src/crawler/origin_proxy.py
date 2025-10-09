@@ -112,6 +112,8 @@ def enable_origin_proxy(session):
         original_url = str(url)
         proxy_used = False
         bypass_reason = None
+        proxy_base = None
+        has_auth = False
         
         if use:
             if _should_bypass(url):
@@ -132,13 +134,17 @@ def enable_origin_proxy(session):
                 
                 if "auth" not in kwargs:
                     pwd = os.getenv("PROXY_PASSWORD")
-                    if has_auth:
+                    if has_auth and user:  # Type narrowing for user
                         kwargs["auth"] = (user, pwd or "")
                         headers = kwargs.setdefault("headers", {})
                         if "Proxy-Authorization" not in headers:
-                            headers["Proxy-Authorization"] = _basic_auth_value(user, pwd)
+                            headers["Proxy-Authorization"] = (
+                                _basic_auth_value(user, pwd)
+                            )
                         if "Authorization" not in headers:
-                            headers["Authorization"] = _basic_auth_value(user, pwd)
+                            headers["Authorization"] = (
+                                _basic_auth_value(user, pwd)
+                            )
 
                 # Replace the outgoing URL with the proxied URL
                 url = proxied
@@ -152,10 +158,25 @@ def enable_origin_proxy(session):
                     f"(auth: {'yes' if has_auth else 'NO - MISSING CREDENTIALS'})"
                 )
         else:
-            logger.debug(f"Origin proxy disabled (USE_ORIGIN_PROXY not set) for {original_url[:80]}")
+            logger.debug(
+                f"Origin proxy disabled (USE_ORIGIN_PROXY not set) "
+                f"for {original_url[:80]}"
+            )
 
         try:
             response = session._origin_original_request(method, url, *args, **kwargs)
+            
+            # Attach proxy metadata to response for telemetry
+            response._proxy_used = proxy_used
+            response._proxy_url = proxy_base if proxy_used else None
+            response._proxy_authenticated = has_auth if proxy_used else False
+            if proxy_used:
+                response._proxy_status = "success"
+            elif use and _should_bypass(original_url):
+                response._proxy_status = "bypassed"
+            else:
+                response._proxy_status = "disabled"
+            response._proxy_error = None
             
             # Log response status when using proxy
             if proxy_used:
@@ -171,8 +192,9 @@ def enable_origin_proxy(session):
             if proxy_used:
                 parsed = urlparse(original_url)
                 domain = parsed.netloc
+                error_str = f"{type(e).__name__}: {str(e)[:100]}"
                 logger.error(
-                    f"✗ Proxy request failed for {domain}: {type(e).__name__}: {str(e)[:100]}"
+                    f"✗ Proxy request failed for {domain}: {error_str}"
                 )
             raise
 

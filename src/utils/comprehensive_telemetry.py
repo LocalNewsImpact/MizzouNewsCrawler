@@ -70,6 +70,13 @@ class ExtractionMetrics:
         # Content type detection
         self.content_type_detection: dict[str, Any] | None = None
 
+        # Proxy metrics
+        self.proxy_used: bool = False
+        self.proxy_url: str | None = None
+        self.proxy_authenticated: bool = False
+        self.proxy_status: str | None = None  # success, failed, bypassed, disabled
+        self.proxy_error: str | None = None
+
     def start_method(self, method_name: str):
         """Start timing a specific extraction method."""
         self.methods_attempted.append(method_name)
@@ -109,6 +116,21 @@ class ExtractionMetrics:
             if http_status and self.http_status_code is None:
                 # Use first HTTP status we encounter
                 self.set_http_metrics(http_status, 0, 0)
+
+            # Extract proxy info from metadata if available
+            if (
+                "proxy_used" in metadata
+                and not self.proxy_used
+            ):
+                self.set_proxy_metrics(
+                    proxy_used=metadata.get("proxy_used", False),
+                    proxy_url=metadata.get("proxy_url"),
+                    proxy_authenticated=metadata.get(
+                        "proxy_authenticated", False
+                    ),
+                    proxy_status=metadata.get("proxy_status"),
+                    proxy_error=metadata.get("proxy_error"),
+                )
 
     def record_alternative_extraction(
         self,
@@ -153,6 +175,31 @@ class ExtractionMetrics:
             self.http_error_type = "4xx_client_error"
         elif status_code >= 500:
             self.http_error_type = "5xx_server_error"
+
+    def set_proxy_metrics(
+        self,
+        proxy_used: bool,
+        proxy_url: str | None = None,
+        proxy_authenticated: bool = False,
+        proxy_status: str | None = None,
+        proxy_error: str | None = None,
+    ):
+        """Record proxy-level metrics.
+        
+        Args:
+            proxy_used: Whether proxy was used for this request
+            proxy_url: The proxy URL if used
+            proxy_authenticated: Whether proxy credentials were present
+            proxy_status: Status of proxy usage: success, failed, bypassed, disabled
+            proxy_error: Error message if proxy failed
+        """
+        self.proxy_used = proxy_used
+        self.proxy_url = proxy_url
+        self.proxy_authenticated = proxy_authenticated
+        self.proxy_status = proxy_status
+        if proxy_error:
+            # Truncate long error messages
+            self.proxy_error = proxy_error[:500]
 
     def finalize(self, final_result: dict[str, Any]):
         """Finalize metrics with the overall extraction result."""
@@ -231,6 +278,13 @@ class ComprehensiveExtractionTelemetry:
                     response_size_bytes INTEGER,
                     response_time_ms REAL,
 
+                    -- Proxy metrics
+                    proxy_used BOOLEAN,
+                    proxy_url TEXT,
+                    proxy_authenticated BOOLEAN,
+                    proxy_status TEXT,
+                    proxy_error TEXT,
+
                     -- Method tracking
                     methods_attempted TEXT,
                     successful_method TEXT,
@@ -267,6 +321,27 @@ class ComprehensiveExtractionTelemetry:
             except Exception:
                 # Column already exists
                 pass
+
+            # Add proxy metrics columns if they don't exist
+            proxy_columns = [
+                ("proxy_used", "BOOLEAN"),
+                ("proxy_url", "TEXT"),
+                ("proxy_authenticated", "BOOLEAN"),
+                ("proxy_status", "TEXT"),
+                ("proxy_error", "TEXT"),
+            ]
+            for column_name, column_type in proxy_columns:
+                try:
+                    conn.execute(
+                        f"""
+                        ALTER TABLE extraction_telemetry_v2
+                        ADD COLUMN {column_name} {column_type}
+                        """
+                    )
+                    print(f"Added {column_name} column")
+                except Exception:
+                    # Column already exists
+                    pass
 
             # HTTP error tracking
             conn.execute(
@@ -335,13 +410,15 @@ class ComprehensiveExtractionTelemetry:
                     start_time, end_time, total_duration_ms,
                     http_status_code, http_error_type,
                     response_size_bytes, response_time_ms,
+                    proxy_used, proxy_url, proxy_authenticated,
+                    proxy_status, proxy_error,
                     methods_attempted, successful_method,
                     method_timings, method_success, method_errors,
                     field_extraction, extracted_fields,
                     final_field_attribution, alternative_extractions,
                     content_length, is_success, error_message, error_type
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                         ?, ?, ?, ?, ?, ?, ?, ?)
+                         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     metrics.operation_id,
@@ -356,6 +433,19 @@ class ComprehensiveExtractionTelemetry:
                     metrics.http_error_type,
                     metrics.response_size_bytes,
                     metrics.response_time_ms,
+                    (
+                        int(metrics.proxy_used)
+                        if metrics.proxy_used is not None
+                        else None
+                    ),
+                    metrics.proxy_url,
+                    (
+                        int(metrics.proxy_authenticated)
+                        if metrics.proxy_authenticated is not None
+                        else None
+                    ),
+                    metrics.proxy_status,
+                    metrics.proxy_error,
                     json.dumps(metrics.methods_attempted),
                     metrics.successful_method,
                     json.dumps(metrics.method_timings),
