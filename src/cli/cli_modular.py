@@ -3,86 +3,17 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 
-# Lazy import for analysis commands to avoid importing torch in crawler image
-# (analysis commands require ML dependencies that only exist in processor image)
-# from .commands.analysis import (  # noqa: F401
-#     add_analysis_parser,
-#     handle_analysis_command,
-# )
-from .commands.background_processes import (  # noqa: F401
-    add_queue_parser,
-    add_status_parser,
-    handle_queue_command,
-    handle_status_command,
-)
-from .commands.crawl import handle_crawl_command  # noqa: F401
-from .commands.crawl import (
-    add_crawl_parser,
-)
-from .commands.discovery import (  # noqa: F401
-    add_discovery_parser,
-    handle_discovery_command,
-)
-from .commands.discovery_report import (  # noqa: F401
-    add_discovery_report_parser,
-    handle_discovery_report_command,
-)
-from .commands.entity_extraction import (  # noqa: F401
-    add_entity_extraction_parser,
-    handle_entity_extraction_command,
-)
-from .commands.extraction import (  # noqa: F401
-    add_extraction_parser,
-    handle_extraction_command,
-)
-from .commands.gazetteer import handle_gazetteer_command  # noqa: F401
-from .commands.gazetteer import (
-    add_gazetteer_parser,
-)
-from .commands.http_status import (  # noqa: F401
-    add_http_status_parser,
-    handle_http_status_command,
-)
-from .commands.list_sources import (  # noqa: F401
-    add_list_sources_parser,
-    handle_list_sources_command,
-)
-from .commands.llm import handle_llm_command  # noqa: F401
-from .commands.llm import (
-    add_llm_parser,
-)
-from .commands.load_sources import (  # noqa: F401
-    add_load_sources_parser,
-    handle_load_sources_command,
-)
-from .commands.pipeline_status import (  # noqa: F401
-    add_pipeline_status_parser,
-    handle_pipeline_status_command,
-)
-from .commands.reports import (  # noqa: F401
-    add_reports_parser,
-    handle_county_report_command,
-)
-from .commands.telemetry import (  # noqa: F401
-    add_telemetry_parser,
-    handle_telemetry_command,
-)
-from .commands.verification import (  # noqa: F401
-    add_verification_parser,
-    handle_verification_command,
-)
-from .commands.versioning import (  # noqa: F401
-    add_versioning_parsers,
-    handle_create_version_command,
-    handle_export_snapshot_command,
-    handle_export_version_command,
-    handle_list_versions_command,
-)
+# ALL command modules are now lazy-loaded - nothing imported at module level
+# This makes CLI startup instant (~0.1s instead of ~15s with spacy/ML imports)
+# Commands are imported on-demand in _load_command_parser()
+
+logger = logging.getLogger(__name__)
 
 # Ensure project root is discoverable when invoked via ``python -m``
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -116,10 +47,11 @@ COMMAND_HANDLER_ATTRS: dict[str, str] = {
 
 
 def create_parser() -> argparse.ArgumentParser:
-    """Create the main argument parser with all subcommands."""
+    """Create minimal parser - commands loaded on-demand in main()."""
     parser = argparse.ArgumentParser(
         prog="news-crawler",
         description="MizzouNewsCrawler - News discovery and verification",
+        add_help=False,  # We'll handle help per-command
     )
 
     parser.add_argument(
@@ -128,39 +60,80 @@ def create_parser() -> argparse.ArgumentParser:
         help="Logging level (e.g. INFO, DEBUG)",
     )
 
-    subparsers = parser.add_subparsers(
-        dest="command",
-        help="Available commands",
-        required=False,
+    # Just capture the command name, don't load subparsers yet
+    parser.add_argument(
+        "command",
+        nargs="?",
+        help="Command to run (use 'COMMAND --help' for command-specific help)",
     )
 
-    add_verification_parser(subparsers)
-    add_discovery_parser(subparsers)
-    add_extraction_parser(subparsers)
-    add_entity_extraction_parser(subparsers)
-    
-    # Analysis parser requires ML dependencies (torch) - only load if available
-    try:
-        from .commands.analysis import add_analysis_parser
-        add_analysis_parser(subparsers)
-    except (ImportError, ModuleNotFoundError):
-        pass  # ML dependencies not available (crawler image)
-    
-    add_load_sources_parser(subparsers)
-    add_list_sources_parser(subparsers)
-    add_crawl_parser(subparsers)
-    add_discovery_report_parser(subparsers)
-    add_http_status_parser(subparsers)
-    add_telemetry_parser(subparsers)
-    add_reports_parser(subparsers)
-    add_gazetteer_parser(subparsers)
-    add_versioning_parsers(subparsers)
-    add_status_parser(subparsers)
-    add_queue_parser(subparsers)
-    add_llm_parser(subparsers)
-    add_pipeline_status_parser(subparsers)
-
     return parser
+
+
+def _load_command_parser(command: str) -> tuple[Callable, Callable] | None:
+    """Load parser and handler for a specific command on-demand.
+    
+    Returns: (add_parser_func, handle_command_func) or None if not found
+    """
+    command_modules = {
+        "verify-urls": "verification",
+        "discover-urls": "discovery",
+        "extract": "extraction",
+        "extract-entities": "entity_extraction",
+        "analyze": "analysis",
+        "load-sources": "load_sources",
+        "list-sources": "list_sources",
+        "crawl": "crawl",
+        "discovery-report": "discovery_report",
+        "telemetry": "telemetry",
+        "county-report": "reports",
+        "populate-gazetteer": "gazetteer",
+        "create-version": "versioning",
+        "list-versions": "versioning",
+        "export-version": "versioning",
+        "export-snapshot": "versioning",
+        "status": "background_processes",
+        "queue": "background_processes",
+        "dump-http-status": "http_status",
+        "llm": "llm",
+        "pipeline-status": "pipeline_status",
+    }
+
+    module_name = command_modules.get(command)
+    if not module_name:
+        return None
+
+    try:
+        # Dynamic import of just the needed command module
+        module = __import__(
+            f"src.cli.commands.{module_name}",
+            fromlist=["*"],
+        )
+
+        # Get the parser and handler functions
+        parser_func = None
+        handler_func = None
+
+        # Try to find add_*_parser function
+        for attr in dir(module):
+            if attr.startswith("add_") and attr.endswith("_parser"):
+                parser_func = getattr(module, attr)
+                break
+
+        # Try to find handle_*_command function
+        for attr in dir(module):
+            if attr.startswith("handle_") and attr.endswith("_command"):
+                handler_func = getattr(module, attr)
+                break
+
+        if parser_func and handler_func:
+            return (parser_func, handler_func)
+
+    except (ImportError, ModuleNotFoundError) as e:
+        logger.warning(f"Failed to load command '{command}': {e}")
+        return None
+
+    return None
 
 
 def _resolve_handler(
@@ -187,6 +160,28 @@ def _resolve_handler(
     if callable(handler):
         return cast(CommandHandler, handler)
     
+    # Lazy load extraction handler to avoid slow spacy import (~14s)
+    if command == "extract" and attr_name == "handle_extraction_command":
+        try:
+            from .commands.extraction import handle_extraction_command
+            return cast(CommandHandler, handle_extraction_command)
+        except (ImportError, ModuleNotFoundError):
+            return None  # spacy not available
+    
+    # Lazy load entity extraction handler - avoid slow spacy (~14s)
+    if (
+        command == "extract-entities"
+        and attr_name == "handle_entity_extraction_command"
+    ):
+        try:
+            from .commands.entity_extraction import (
+                handle_entity_extraction_command,
+            )
+
+            return cast(CommandHandler, handle_entity_extraction_command)
+        except (ImportError, ModuleNotFoundError):
+            return None  # spacy not available
+    
     # Lazy load analysis handler if ML dependencies are available
     if command == "analyze" and attr_name == "handle_analysis_command":
         try:
@@ -204,10 +199,11 @@ def main(
     setup_logging_func: Callable[[str], None] | None = None,
     handler_overrides: dict[str, CommandHandler] | None = None,
 ) -> int:
-    """Main CLI entry point."""
+    """Main CLI entry point with on-demand command loading."""
 
+    # Parse just enough to get command and log level
     parser = create_parser()
-    args = parser.parse_args(argv)
+    args, remaining = parser.parse_known_args(argv)
 
     log_level = getattr(args, "log_level", "INFO") or "INFO"
     if setup_logging_func is None:
@@ -217,12 +213,51 @@ def main(
 
     setup_logging_func(log_level)
 
-    handler = _resolve_handler(args, overrides=handler_overrides)
-    if handler is None:
-        parser.print_help()
+    command = args.command
+    if not command:
+        print("Available commands:", file=sys.stderr)
+        print("  pipeline-status  - Show pipeline status")
+        print("  discover-urls    - Discover URLs from news sources")
+        print("  verify-urls      - Verify discovered URLs")
+        print("  extract          - Extract article content")
+        print("  analyze          - Analyze articles with ML")
+        print("  status           - Show background process status")
+        print("Use: news-crawler COMMAND --help for more info")
         return 1
 
-    return handler(args)
+    # Check for overrides first
+    if handler_overrides and command in handler_overrides:
+        handler = handler_overrides[command]
+        # Re-parse with full args
+        full_parser = argparse.ArgumentParser()
+        full_parser.add_argument("command")
+        full_args = full_parser.parse_args(argv)
+        return handler(full_args)
+
+    # Load the specific command module on-demand
+    result = _load_command_parser(command)
+    if result is None:
+        print(f"Unknown command: {command}", file=sys.stderr)
+        return 1
+
+    add_parser_func, handle_func = result
+
+    # Create a new parser with the specific command
+    full_parser = argparse.ArgumentParser(
+        prog=f"news-crawler {command}",
+        description=f"Run {command} command",
+    )
+    full_parser.add_argument("--log-level", default="INFO")
+
+    # Let the command add its own arguments
+    subparsers = full_parser.add_subparsers(dest="command")
+    add_parser_func(subparsers)
+
+    # Re-parse with the command-specific parser
+    full_args = full_parser.parse_args([command] + remaining)
+
+    # Run the command handler
+    return handle_func(full_args)
 
 
 if __name__ == "__main__":
