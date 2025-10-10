@@ -89,6 +89,11 @@ class ProxyManager:
         self.configs = {}
         self._load_configurations()
         self._active_provider = self._get_active_provider()
+    
+    @property
+    def active_provider(self) -> ProxyProvider:
+        """Get the currently active proxy provider."""
+        return self._active_provider
         
     def _load_configurations(self):
         """Load all proxy configurations from environment."""
@@ -174,14 +179,16 @@ class ProxyManager:
         decodo_password = os.getenv("DECODO_PASSWORD", "qg_hJ7reok8e5F7BHg")
         decodo_host = os.getenv("DECODO_HOST", "isp.decodo.com")
         decodo_port = os.getenv("DECODO_PORT", "10000")
-        decodo_url = f"http://{decodo_username}:{decodo_password}@{decodo_host}:{decodo_port}"
+        # Decodo URL with credentials - using HTTPS for encrypted proxy auth
+        decodo_url = f"https://{decodo_username}:{decodo_password}@{decodo_host}:{decodo_port}"
         
         self.configs[ProxyProvider.DECODO] = ProxyConfig(
             provider=ProxyProvider.DECODO,
             enabled=True,  # Always available with default credentials
             url=decodo_url,
-            username=decodo_username,
-            password=decodo_password,
+            # Don't set username/password here - already in URL
+            username=None,
+            password=None,
             options={
                 "country": os.getenv("DECODO_COUNTRY", "us"),
                 "host": decodo_host,
