@@ -797,6 +797,55 @@ class ContentExtractor:
         if domain in self.domain_error_counts:
             self.domain_error_counts[domain] = 0
 
+    def _detect_bot_protection_in_response(self, response: requests.Response) -> Optional[str]:
+        """Detect bot protection mechanisms in HTTP response.
+        
+        Returns a string identifying the protection type, or None if not detected.
+        """
+        if not response or not response.text:
+            return None
+        
+        text_lower = response.text.lower()
+        
+        # Cloudflare protection indicators
+        cloudflare_indicators = [
+            "checking your browser",
+            "cloudflare ray id",
+            "ddos protection by cloudflare",
+            "under attack mode",
+            "attention required! | cloudflare",
+            "just a moment...",
+            "cf-ray",
+        ]
+        
+        # Generic bot protection indicators
+        bot_protection_indicators = [
+            "access denied",
+            "blocked by",
+            "bot protection",
+            "security check",
+            "please wait while we verify",
+            "browser check",
+            "are you a robot",
+            "please verify you are human",
+            "captcha",
+            "recaptcha",
+        ]
+        
+        # Check for Cloudflare first (most common)
+        if any(indicator in text_lower for indicator in cloudflare_indicators):
+            return "cloudflare"
+        
+        # Check for general bot protection
+        if any(indicator in text_lower for indicator in bot_protection_indicators):
+            return "bot_protection"
+        
+        # Check for suspiciously short responses (often challenge pages)
+        if len(response.text) < 500 and response.status_code in [403, 503]:
+            return "suspicious_short_response"
+        
+        return None
+    
     def _handle_captcha_backoff(self, domain: str) -> None:
         """Apply extended backoff for CAPTCHA/challenge detections."""
         now = time.time()
@@ -1416,17 +1465,37 @@ class ContentExtractor:
                         url, "Rate limited", {"status": 429}
                     )
                 elif response.status_code in [403, 503, 502, 504]:
-                    # Possible rate limiting or bot detection
-                    logger.warning(
-                        f"🚫 Bot detection ({response.status_code}) by {domain} "
-                        f"- response preview: {response.text[:200] if response.text else 'empty'}"
-                    )
-                    self._handle_rate_limit_error(domain, response)
-                    return self._create_error_result(
-                        url,
-                        f"Bot detection ({response.status_code})",
-                        {"status": response.status_code},
-                    )
+                    # Detect specific bot protection type
+                    protection_type = self._detect_bot_protection_in_response(response)
+                    
+                    if protection_type:
+                        logger.warning(
+                            f"🚫 Bot protection detected ({response.status_code}, {protection_type}) by {domain} "
+                            f"- response preview: {response.text[:200] if response.text else 'empty'}"
+                        )
+                        # Use CAPTCHA backoff for confirmed bot protection
+                        if protection_type in ["cloudflare", "bot_protection"]:
+                            self._handle_captcha_backoff(domain)
+                        else:
+                            self._handle_rate_limit_error(domain, response)
+                        
+                        return self._create_error_result(
+                            url,
+                            f"Bot protection: {protection_type} ({response.status_code})",
+                            {"status": response.status_code, "protection": protection_type},
+                        )
+                    else:
+                        # Generic server error without bot protection indicators
+                        logger.warning(
+                            f"Server error ({response.status_code}) by {domain} "
+                            f"- response preview: {response.text[:200] if response.text else 'empty'}"
+                        )
+                        self._handle_rate_limit_error(domain, response)
+                        return self._create_error_result(
+                            url,
+                            f"Server error ({response.status_code})",
+                            {"status": response.status_code},
+                        )
 
                 # Permanent missing -> cache as dead URL
                 if response.status_code in (404, 410):
@@ -1443,6 +1512,20 @@ class ContentExtractor:
 
                 # Check if request was successful
                 if response.status_code == 200:
+                    # Check for bot protection even in 200 responses (Cloudflare sometimes does this)
+                    protection_type = self._detect_bot_protection_in_response(response)
+                    if protection_type:
+                        logger.warning(
+                            f"🚫 Bot protection detected in 200 response ({protection_type}) by {domain}"
+                        )
+                        # Use CAPTCHA backoff for confirmed bot protection
+                        self._handle_captcha_backoff(domain)
+                        return self._create_error_result(
+                            url,
+                            f"Bot protection in 200 response: {protection_type}",
+                            {"status": 200, "protection": protection_type},
+                        )
+                    
                     # Reset error count on successful request
                     self._reset_error_count(domain)
 
