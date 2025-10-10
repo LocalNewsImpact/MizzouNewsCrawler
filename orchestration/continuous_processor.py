@@ -100,10 +100,11 @@ class WorkQueue:
 
 
 def run_cli_command(command: list[str], description: str) -> bool:
-    """Execute a CLI command, streaming output to logs, and return True if successful.
-
-    This improves observability in Kubernetes by emitting child process output
-    directly to the pod logs instead of buffering it. We also log elapsed time.
+    """Execute a CLI command, streaming output to logs in real-time.
+    
+    Returns True if successful. This improves observability in Kubernetes
+    by emitting child process output directly to the pod logs instead of
+    buffering it. We also log elapsed time.
     """
     logger.info("▶️  %s", description)
     cmd = [sys.executable, "-m", CLI_MODULE, *command]
@@ -115,32 +116,35 @@ def run_cli_command(command: list[str], description: str) -> bool:
 
     start = time.time()
     try:
-        # Use subprocess.run to execute the command synchronously. Tests patch
-        # subprocess.run, so using it here makes the code testable while still
-        # allowing us to capture stdout/stderr and log the output.
-        proc = subprocess.run(
+        # Use Popen with real-time streaming for better observability
+        proc = subprocess.Popen(
             cmd,
             cwd=PROJECT_ROOT,
             env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            bufsize=1,  # Line buffered
         )
 
-        # Log captured output (if any)
-        output = proc.stdout or ""
-        for line in output.splitlines():
-            logger.info("%s | %s", description, line.rstrip())
+        # Stream output line by line in real-time
+        if proc.stdout:
+            for line in iter(proc.stdout.readline, ''):
+                if line:
+                    logger.info("%s | %s", description, line.rstrip())
+        
+        # Wait for process to complete
+        returncode = proc.wait()
 
         elapsed = time.time() - start
-        if proc.returncode == 0:
+        if returncode == 0:
             logger.info("✅ %s completed successfully (%.1fs)", description, elapsed)
             return True
         else:
             logger.error(
                 "❌ %s failed with exit code %d (%.1fs)",
                 description,
-                proc.returncode,
+                returncode,
                 elapsed,
             )
             return False
