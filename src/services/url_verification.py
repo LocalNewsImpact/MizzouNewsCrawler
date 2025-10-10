@@ -94,7 +94,32 @@ class URLVerificationService:
 
         with self.db.engine.connect() as conn:
             result = conn.execute(text(query))
-            return [dict(row._mapping) for row in result.fetchall()]
+            urls = [dict(row._mapping) for row in result.fetchall()]
+            
+        # Pre-filter obvious non-articles by URL pattern before StorySniffer
+        from src.utils.url_classifier import is_likely_article_url
+        filtered_urls = []
+        for url_record in urls:
+            if not is_likely_article_url(url_record['url']):
+                # Mark as not_article without running StorySniffer
+                self._mark_url_as_non_article(
+                    url_record['id'],
+                    reason="url_pattern_filter"
+                )
+                self.logger.debug(
+                    "Pre-filtered non-article by URL pattern: %s",
+                    url_record['url']
+                )
+            else:
+                filtered_urls.append(url_record)
+                
+        if len(urls) != len(filtered_urls):
+            self.logger.info(
+                "Pre-filtered %d non-article URLs by pattern matching",
+                len(urls) - len(filtered_urls)
+            )
+            
+        return filtered_urls
 
     def _prepare_http_session(self) -> None:
         """Ensure the HTTP session advertises browser-like headers."""
@@ -276,6 +301,16 @@ class URLVerificationService:
 
         return result
 
+    def _mark_url_as_non_article(
+        self, candidate_id: str, reason: str = "url_pattern"
+    ):
+        """Mark a URL as not an article without running StorySniffer."""
+        self.update_candidate_status(
+            candidate_id,
+            "not_article",
+            error_message=f"Filtered by {reason}"
+        )
+    
     def update_candidate_status(
         self, candidate_id: str, new_status: str, error_message: str | None = None
     ):
@@ -416,9 +451,13 @@ class URLVerificationService:
                     time.sleep(self.sleep_interval)
                     continue
 
-                print(f"📄 Processing batch {batch_count + 1}: {len(candidates)} URLs...")
+                print(
+                    f"📄 Processing batch {batch_count + 1}: "
+                    f"{len(candidates)} URLs..."
+                )
                 self.logger.info(
-                    f"Processing batch {batch_count + 1} of {len(candidates)} URLs..."
+                    f"Processing batch {batch_count + 1} of "
+                    f"{len(candidates)} URLs..."
                 )
 
                 # Process batch
