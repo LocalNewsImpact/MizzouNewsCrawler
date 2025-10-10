@@ -11,7 +11,7 @@ from typing import Any
 from fastapi import APIRouter, Query
 from sqlalchemy import text
 
-from backend.app.database import get_db
+from src.models.database import DatabaseManager
 
 router = APIRouter(prefix="/telemetry/proxy", tags=["telemetry", "proxy"])
 
@@ -25,67 +25,67 @@ async def get_proxy_summary(
     Returns aggregate statistics including total requests, proxy usage percentage,
     success rates, and authentication status.
     """
-    db = next(get_db())
     cutoff = datetime.utcnow() - timedelta(days=days)
 
-    query = text(
-        """
-        SELECT
-            COUNT(*) as total_requests,
-            SUM(CASE WHEN proxy_used = 1 THEN 1 ELSE 0 END) as proxy_requests,
-            SUM(CASE WHEN proxy_used = 0 THEN 1 ELSE 0 END) as direct_requests,
-            ROUND(100.0 * SUM(CASE WHEN proxy_used = 1 THEN 1 ELSE 0 END)
-                  / COUNT(*), 2) as proxy_percentage,
-            SUM(CASE WHEN proxy_status = 'success' THEN 1 ELSE 0 END)
-                as proxy_successes,
-            SUM(CASE WHEN proxy_status = 'failed' THEN 1 ELSE 0 END)
-                as proxy_failures,
-            SUM(CASE WHEN proxy_status = 'bypassed' THEN 1 ELSE 0 END)
-                as proxy_bypassed,
-            ROUND(100.0 * SUM(CASE WHEN proxy_status = 'success'
-                                   THEN 1 ELSE 0 END)
-                  / NULLIF(SUM(CASE WHEN proxy_used = 1
-                                    THEN 1 ELSE 0 END), 0), 2)
-                as proxy_success_rate,
-            SUM(CASE WHEN proxy_authenticated = 1 THEN 1 ELSE 0 END)
-                as authenticated_requests,
-            SUM(CASE WHEN proxy_authenticated = 0 AND proxy_used = 1
-                     THEN 1 ELSE 0 END) as missing_auth_requests
-        FROM extraction_telemetry_v2
-        WHERE created_at >= :cutoff
-        """
-    )
+    with DatabaseManager() as db:
+        query = text(
+            """
+            SELECT
+                COUNT(*) as total_requests,
+                SUM(CASE WHEN proxy_used = 1 THEN 1 ELSE 0 END) as proxy_requests,
+                SUM(CASE WHEN proxy_used = 0 THEN 1 ELSE 0 END) as direct_requests,
+                ROUND(100.0 * SUM(CASE WHEN proxy_used = 1 THEN 1 ELSE 0 END)
+                      / COUNT(*), 2) as proxy_percentage,
+                SUM(CASE WHEN proxy_status = 'success' THEN 1 ELSE 0 END)
+                    as proxy_successes,
+                SUM(CASE WHEN proxy_status = 'failed' THEN 1 ELSE 0 END)
+                    as proxy_failures,
+                SUM(CASE WHEN proxy_status = 'bypassed' THEN 1 ELSE 0 END)
+                    as proxy_bypassed,
+                ROUND(100.0 * SUM(CASE WHEN proxy_status = 'success'
+                                       THEN 1 ELSE 0 END)
+                      / NULLIF(SUM(CASE WHEN proxy_used = 1
+                                        THEN 1 ELSE 0 END), 0), 2)
+                    as proxy_success_rate,
+                SUM(CASE WHEN proxy_authenticated = 1 THEN 1 ELSE 0 END)
+                    as authenticated_requests,
+                SUM(CASE WHEN proxy_authenticated = 0 AND proxy_used = 1
+                         THEN 1 ELSE 0 END) as missing_auth_requests
+            FROM extraction_telemetry_v2
+            WHERE created_at >= :cutoff
+            """
+        )
 
-    result = db.execute(query, {"cutoff": cutoff}).fetchone()
+        result = db.session.execute(query, {"cutoff": cutoff}).fetchone()
 
-    if not result:
+        if not result:
+            return {
+                "total_requests": 0,
+                "proxy_requests": 0,
+                "direct_requests": 0,
+                "proxy_percentage": 0.0,
+                "proxy_successes": 0,
+                "proxy_failures": 0,
+                "proxy_bypassed": 0,
+                "proxy_success_rate": 0.0,
+                "authenticated_requests": 0,
+                "missing_auth_requests": 0,
+                "days": days,
+            }
+
         return {
-            "total_requests": 0,
-            "proxy_requests": 0,
-            "direct_requests": 0,
-            "proxy_percentage": 0.0,
-            "proxy_successes": 0,
-            "proxy_failures": 0,
-            "proxy_bypassed": 0,
-            "proxy_success_rate": 0.0,
-            "authenticated_requests": 0,
-            "missing_auth_requests": 0,
+            "total_requests": result[0] or 0,
+            "proxy_requests": result[1] or 0,
+            "direct_requests": result[2] or 0,
+            "proxy_percentage": float(result[3] or 0.0),
+            "proxy_successes": result[4] or 0,
+            "proxy_failures": result[5] or 0,
+            "proxy_bypassed": result[6] or 0,
+            "proxy_success_rate": float(result[7] or 0.0),
+            "authenticated_requests": result[8] or 0,
+            "missing_auth_requests": result[9] or 0,
             "days": days,
         }
-
-    return {
-        "total_requests": result[0] or 0,
-        "proxy_requests": result[1] or 0,
-        "direct_requests": result[2] or 0,
-        "proxy_percentage": float(result[3] or 0.0),
-        "proxy_successes": result[4] or 0,
-        "proxy_failures": result[5] or 0,
-        "proxy_bypassed": result[6] or 0,
-        "proxy_success_rate": float(result[7] or 0.0),
-        "authenticated_requests": result[8] or 0,
-        "missing_auth_requests": result[9] or 0,
-        "days": days,
-    }
 
 
 @router.get("/trends")
@@ -97,10 +97,10 @@ async def get_proxy_trends(
     Returns time-series data showing proxy usage, success rates, and authentication
     status over time.
     """
-    db = next(get_db())
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    with DatabaseManager() as db:
+        cutoff = datetime.utcnow() - timedelta(days=days)
 
-    query = text(
+        query = text(
         """
         SELECT
             DATE(created_at) as date,
@@ -119,11 +119,11 @@ async def get_proxy_trends(
         GROUP BY DATE(created_at)
         ORDER BY date DESC
         """
-    )
+        )
 
-    results = db.execute(query, {"cutoff": cutoff}).fetchall()
+        results = db.session.execute(query, {"cutoff": cutoff}).fetchall()
 
-    return {
+        return {
         "days": days,
         "data": [
             {
@@ -136,7 +136,7 @@ async def get_proxy_trends(
             }
             for row in results
         ],
-    }
+        }
 
 
 @router.get("/domains")
@@ -151,10 +151,10 @@ async def get_proxy_domains(
 
     Returns per-domain proxy usage, success rates, and failure counts.
     """
-    db = next(get_db())
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    with DatabaseManager() as db:
+        cutoff = datetime.utcnow() - timedelta(days=days)
 
-    query = text(
+        query = text(
         """
         SELECT
             host,
@@ -177,13 +177,13 @@ async def get_proxy_domains(
         ORDER BY proxy_requests DESC
         LIMIT :limit
         """
-    )
+        )
 
-    results = db.execute(
+        results = db.session.execute(
         query, {"cutoff": cutoff, "min_requests": min_requests, "limit": limit}
-    ).fetchall()
+        ).fetchall()
 
-    return {
+        return {
         "days": days,
         "limit": limit,
         "min_requests": min_requests,
@@ -200,7 +200,7 @@ async def get_proxy_domains(
             }
             for row in results
         ],
-    }
+        }
 
 
 @router.get("/errors")
@@ -213,10 +213,10 @@ async def get_proxy_errors(
     Returns most frequent proxy error patterns with occurrence counts and
     affected domains.
     """
-    db = next(get_db())
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    with DatabaseManager() as db:
+        cutoff = datetime.utcnow() - timedelta(days=days)
 
-    query = text(
+        query = text(
         """
         SELECT
             SUBSTR(proxy_error, 1, 150) as error_pattern,
@@ -231,11 +231,11 @@ async def get_proxy_errors(
         ORDER BY occurrence_count DESC
         LIMIT :limit
         """
-    )
+        )
 
-    results = db.execute(query, {"cutoff": cutoff, "limit": limit}).fetchall()
+        results = db.session.execute(query, {"cutoff": cutoff, "limit": limit}).fetchall()
 
-    return {
+        return {
         "days": days,
         "limit": limit,
         "errors": [
@@ -247,7 +247,7 @@ async def get_proxy_errors(
             }
             for row in results
         ],
-    }
+        }
 
 
 @router.get("/authentication")
@@ -259,10 +259,10 @@ async def get_authentication_stats(
     Returns comparison of requests with and without authentication credentials,
     including success rates.
     """
-    db = next(get_db())
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    with DatabaseManager() as db:
+        cutoff = datetime.utcnow() - timedelta(days=days)
 
-    query = text(
+        query = text(
         """
         SELECT
             CASE WHEN proxy_authenticated = 1
@@ -279,11 +279,11 @@ async def get_authentication_stats(
         GROUP BY proxy_authenticated
         ORDER BY proxy_authenticated DESC
         """
-    )
+        )
 
-    results = db.execute(query, {"cutoff": cutoff}).fetchall()
+        results = db.session.execute(query, {"cutoff": cutoff}).fetchall()
 
-    return {
+        return {
         "days": days,
         "stats": [
             {
@@ -295,7 +295,7 @@ async def get_authentication_stats(
             }
             for row in results
         ],
-    }
+        }
 
 
 @router.get("/comparison")
@@ -307,10 +307,10 @@ async def get_proxy_vs_direct_comparison(
     Returns side-by-side comparison of proxy and direct connections including
     success rates, response times, and HTTP status code distributions.
     """
-    db = next(get_db())
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    with DatabaseManager() as db:
+        cutoff = datetime.utcnow() - timedelta(days=days)
 
-    query = text(
+        query = text(
         """
         SELECT
             CASE WHEN proxy_used = 1
@@ -331,11 +331,11 @@ async def get_proxy_vs_direct_comparison(
         GROUP BY proxy_used
         ORDER BY connection_type
         """
-    )
+        )
 
-    results = db.execute(query, {"cutoff": cutoff}).fetchall()
+        results = db.session.execute(query, {"cutoff": cutoff}).fetchall()
 
-    return {
+        return {
         "days": days,
         "comparison": [
             {
@@ -350,7 +350,7 @@ async def get_proxy_vs_direct_comparison(
             }
             for row in results
         ],
-    }
+        }
 
 
 @router.get("/status-distribution")
@@ -362,10 +362,10 @@ async def get_proxy_status_distribution(
     Returns breakdown of proxy_status values (success, failed, bypassed, disabled)
     with counts and percentages.
     """
-    db = next(get_db())
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    with DatabaseManager() as db:
+        cutoff = datetime.utcnow() - timedelta(days=days)
 
-    query = text(
+        query = text(
         """
         SELECT
             COALESCE(proxy_status, 'null') as status,
@@ -376,12 +376,12 @@ async def get_proxy_status_distribution(
         GROUP BY proxy_status
         ORDER BY count DESC
         """
-    )
+        )
 
-    results = db.execute(query, {"cutoff": cutoff}).fetchall()
-    total = sum(row[1] for row in results)
+        results = db.session.execute(query, {"cutoff": cutoff}).fetchall()
+        total = sum(row[1] for row in results)
 
-    return {
+        return {
         "days": days,
         "total_requests": total,
         "distribution": [
@@ -395,7 +395,7 @@ async def get_proxy_status_distribution(
             }
             for row in results
         ],
-    }
+        }
 
 
 @router.get("/recent-failures")
@@ -408,10 +408,10 @@ async def get_recent_proxy_failures(
     Returns detailed information about recent proxy failures including URLs,
     error messages, and HTTP status codes.
     """
-    db = next(get_db())
-    cutoff = datetime.utcnow() - timedelta(hours=hours)
+    with DatabaseManager() as db:
+        cutoff = datetime.utcnow() - timedelta(hours=hours)
 
-    query = text(
+        query = text(
         """
         SELECT
             created_at,
@@ -427,11 +427,11 @@ async def get_recent_proxy_failures(
         ORDER BY created_at DESC
         LIMIT :limit
         """
-    )
+        )
 
-    results = db.execute(query, {"cutoff": cutoff, "limit": limit}).fetchall()
+        results = db.session.execute(query, {"cutoff": cutoff, "limit": limit}).fetchall()
 
-    return {
+        return {
         "hours": hours,
         "limit": limit,
         "failures": [
@@ -446,7 +446,7 @@ async def get_recent_proxy_failures(
             }
             for row in results
         ],
-    }
+        }
 
 
 @router.get("/bot-detection")
@@ -459,10 +459,10 @@ async def get_bot_detection_analysis(
     Returns domains with high bot detection rates, comparing proxy vs direct
     connection effectiveness.
     """
-    db = next(get_db())
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    with DatabaseManager() as db:
+        cutoff = datetime.utcnow() - timedelta(days=days)
 
-    query = text(
+        query = text(
         """
         SELECT
             host,
@@ -492,11 +492,11 @@ async def get_bot_detection_analysis(
         ORDER BY direct_403_rate DESC, direct_total DESC
         LIMIT :limit
         """
-    )
+        )
 
-    results = db.execute(query, {"cutoff": cutoff, "limit": limit}).fetchall()
+        results = db.session.execute(query, {"cutoff": cutoff, "limit": limit}).fetchall()
 
-    return {
+        return {
         "days": days,
         "limit": limit,
         "domains": [
@@ -511,4 +511,4 @@ async def get_bot_detection_analysis(
             }
             for row in results
         ],
-    }
+        }
