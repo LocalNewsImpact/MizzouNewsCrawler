@@ -108,13 +108,10 @@ def handle_cleaning_command(args) -> int:
 
             # Process each domain
             for domain, domain_articles in articles_by_domain.items():
-                try:
-                    cleaner.analyze_domain(domain)
-                except Exception:
-                    logger.exception(f"Domain analysis failed for {domain}")
-                    errors += len(domain_articles)
-                    continue
-
+                # NOTE: We don't call analyze_domain() because it tries to query
+                # the database with SQLite. Instead, process_single_article() will
+                # handle cleaning using the content we already have.
+                
                 for article_id, original_content, current_status in domain_articles:
                     try:
                         cleaned_content, metadata = cleaner.process_single_article(
