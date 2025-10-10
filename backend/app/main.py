@@ -59,6 +59,7 @@ from backend.app.telemetry import (  # noqa: E402
     byline,
     code_review,
     operations,
+    proxy,
 )
 
 # pydantic.Field not used here
@@ -2681,5 +2682,6 @@ async def add_code_review_item(item: dict):
         )
 
 
-# Include operations telemetry router for real-time pod monitoring
-app.include_router(operations.router)
+# Include telemetry routers
+app.include_router(operations.router)  # Real-time pod monitoring
+app.include_router(proxy.router)  # Proxy usage metrics and analysis
