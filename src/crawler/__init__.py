@@ -427,6 +427,11 @@ class ContentExtractor:
         self.domain_request_times = {}  # Track request timestamps per domain
         self.domain_backoff_until = {}  # Track when domain is available again
         self.domain_error_counts = {}  # Track consecutive errors per domain
+        
+        # Selenium-specific failure tracking (separate from requests failures)
+        # This prevents disabling Selenium for CAPTCHA-protected domains
+        self._selenium_failure_counts = {}  # Track Selenium failures per domain
+        
         # Base inter-request delay (env tunable)
         try:
             self.inter_request_min = float(os.getenv("INTER_REQUEST_MIN", "1.5"))
@@ -1126,22 +1131,44 @@ class ContentExtractor:
                 if metrics:
                     metrics.start_method("selenium")
 
-                # Respect domain backoff before attempting Selenium
+                # NOTE: Selenium is specifically for bypassing CAPTCHA/bot protection,
+                # so we intentionally DO NOT check rate limits here. If the requests-based
+                # approach triggered a CAPTCHA backoff, Selenium is our chance to bypass it.
+                # Only check if Selenium itself has failed repeatedly on this domain.
                 dom = urlparse(url).netloc
-                if self._check_rate_limit(dom):
-                    raise RateLimitError(f"Domain {dom} is rate limited; skip Selenium")
+                selenium_failures = getattr(self, "_selenium_failure_counts", {})
+                if selenium_failures.get(dom, 0) >= 3:
+                    logger.warning(
+                        f"Skipping Selenium for {dom} - already failed {selenium_failures[dom]} times"
+                    )
+                    raise RateLimitError(
+                        f"Selenium repeatedly failed for {dom}; skipping"
+                    )
 
                 selenium_result = self._extract_with_selenium(url)
 
-                if selenium_result:
+                if selenium_result and selenium_result.get("content"):
                     # Only copy still-missing fields
                     self._merge_extraction_results(
                         result, selenium_result, "selenium", missing_fields, metrics
                     )
-                    logger.info(f"Selenium extraction completed for {url}")
+                    logger.info(f"✅ Selenium extraction succeeded for {url}")
+                    
+                    # Reset failure count on success
+                    if dom in self._selenium_failure_counts:
+                        del self._selenium_failure_counts[dom]
+                    
                     if metrics:
                         metrics.end_method("selenium", True, None, selenium_result)
                 else:
+                    # Selenium returned empty result - track as failure
+                    self._selenium_failure_counts[dom] = (
+                        self._selenium_failure_counts.get(dom, 0) + 1
+                    )
+                    logger.warning(
+                        f"❌ Selenium returned empty result for {url} "
+                        f"(failure #{self._selenium_failure_counts[dom]})"
+                    )
                     if metrics:
                         metrics.end_method(
                             "selenium",
@@ -1151,7 +1178,14 @@ class ContentExtractor:
                         )
 
             except Exception as e:
-                logger.info(f"Selenium extraction failed for {url}: {e}")
+                # Track Selenium exception as failure
+                self._selenium_failure_counts[dom] = (
+                    self._selenium_failure_counts.get(dom, 0) + 1
+                )
+                logger.info(
+                    f"❌ Selenium extraction failed for {url}: {e} "
+                    f"(failure #{self._selenium_failure_counts[dom]})"
+                )
                 if metrics:
                     metrics.end_method("selenium", False, str(e), {})
 
