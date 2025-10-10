@@ -141,7 +141,12 @@ class NewsCrawler:
     """Main crawler class for discovering and fetching news articles."""
 
     def __init__(self, user_agent: str = None, timeout: int = 20, delay: float = 1.0):
-        self.user_agent = user_agent or "Mozilla/5.0 (compatible; MizzouCrawler/1.0)"
+        # Use a realistic default User-Agent instead of identifying as a crawler
+        self.user_agent = user_agent or (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/129.0.0.0 Safari/537.36"
+        )
         self.timeout = timeout
         self.delay = delay
         self.session = requests.Session()
@@ -310,70 +315,103 @@ class ContentExtractor:
         self._driver_creation_count = 0
         self._driver_reuse_count = 0
 
-        # User agent pool for rotation
+        # User agent pool for rotation - updated with latest browser versions
+        # for better anti-detection (October 2025)
         self.user_agent_pool = [
-            # Chrome on Windows
+            # Chrome on Windows (most common desktop browser)
             (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
+                "Chrome/129.0.0.0 Safari/537.36"
             ),
             (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/119.0.0.0 Safari/537.36"
+                "Chrome/128.0.0.0 Safari/537.36"
+            ),
+            (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/127.0.0.0 Safari/537.36"
             ),
             # Chrome on macOS
             (
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
+                "Chrome/129.0.0.0 Safari/537.36"
             ),
             (
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/119.0.0.0 Safari/537.36"
+                "Chrome/128.0.0.0 Safari/537.36"
+            ),
+            # Chrome on Linux
+            (
+                "Mozilla/5.0 (X11; Linux x86_64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/129.0.0.0 Safari/537.36"
             ),
             # Firefox on Windows
             (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) "
-                "Gecko/20100101 Firefox/121.0"
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:130.0) "
+                "Gecko/20100101 Firefox/130.0"
             ),
             (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) "
-                "Gecko/20100101 Firefox/120.0"
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:131.0) "
+                "Gecko/20100101 Firefox/131.0"
             ),
             # Firefox on macOS
             (
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) "
-                "Gecko/20100101 Firefox/121.0"
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:130.0) "
+                "Gecko/20100101 Firefox/130.0"
             ),
-            # Safari on macOS
+            # Firefox on Linux
+            (
+                "Mozilla/5.0 (X11; Linux x86_64; rv:130.0) "
+                "Gecko/20100101 Firefox/130.0"
+            ),
+            # Safari on macOS (latest versions)
             (
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                 "AppleWebKit/605.1.15 (KHTML, like Gecko) "
-                "Version/17.1 Safari/605.1.15"
+                "Version/18.0 Safari/605.1.15"
             ),
             (
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                 "AppleWebKit/605.1.15 (KHTML, like Gecko) "
-                "Version/17.0 Safari/605.1.15"
+                "Version/17.6 Safari/605.1.15"
+            ),
+            # Edge on Windows
+            (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/129.0.0.0 Safari/537.36 Edg/129.0.0.0"
             ),
         ]
 
-        # Header variation pools
+        # Header variation pools for more realistic browser behavior
         self.accept_language_pool = [
             "en-US,en;q=0.9",
             "en-GB,en;q=0.9",
+            "en-US,en;q=0.9,es;q=0.8",
+            "en-US,en;q=0.9,fr;q=0.8,de;q=0.7",
             "en;q=0.9",
-            "en-US,en;q=0.8,fr;q=0.6",
-            "en-US,en;q=0.5",
+            "en-US,en;q=0.8",
+            "en-US,en;q=0.7",
         ]
 
         self.accept_encoding_pool = [
+            "gzip, deflate, br, zstd",
             "gzip, deflate, br",
             "gzip, deflate",
-            "gzip, deflate, br, zstd",
+        ]
+        
+        # More realistic Accept header variations
+        self.accept_header_pool = [
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         ]
 
         # Track domain-specific sessions and user agents
@@ -454,10 +492,7 @@ class ContentExtractor:
         """Set randomized headers for the current session."""
         headers = {
             "User-Agent": self.current_user_agent,
-            "Accept": (
-                "text/html,application/xhtml+xml,application/xml;"
-                "q=0.9,image/webp,*/*;q=0.8"
-            ),
+            "Accept": random.choice(self.accept_header_pool),
             "Accept-Language": random.choice(self.accept_language_pool),
             "Accept-Encoding": random.choice(self.accept_encoding_pool),
             "Connection": "keep-alive",
@@ -465,9 +500,13 @@ class ContentExtractor:
             "Sec-Fetch-Dest": "document",
             "Sec-Fetch-Mode": "navigate",
             "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
             "Cache-Control": "max-age=0",
-            "DNT": "1",
         }
+        
+        # Randomly include DNT header (not all browsers send it)
+        if random.random() > 0.3:  # 70% chance
+            headers["DNT"] = "1"
 
         self.session.headers.update(headers)
         # Optionally enable origin-style proxy adapter which rewrites
@@ -547,13 +586,10 @@ class ContentExtractor:
                 new_session = requests.Session()
                 session_type = "requests"
 
-            # Set randomized headers
+            # Set randomized headers with more variation
             headers = {
                 "User-Agent": new_user_agent,
-                "Accept": (
-                    "text/html,application/xhtml+xml,application/xml;"
-                    "q=0.9,image/webp,*/*;q=0.8"
-                ),
+                "Accept": random.choice(self.accept_header_pool),
                 "Accept-Language": random.choice(self.accept_language_pool),
                 "Accept-Encoding": random.choice(self.accept_encoding_pool),
                 "Connection": "keep-alive",
@@ -561,9 +597,14 @@ class ContentExtractor:
                 "Sec-Fetch-Dest": "document",
                 "Sec-Fetch-Mode": "navigate",
                 "Sec-Fetch-Site": "none",
+                "Sec-Fetch-User": "?1",
                 "Cache-Control": "max-age=0",
-                "DNT": "1",
             }
+            
+            # Randomly include DNT header (not all browsers send it)
+            if random.random() > 0.3:  # 70% chance
+                headers["DNT"] = "1"
+            
             new_session.headers.update(headers)
             
             # Enable origin proxy for this session
@@ -607,6 +648,46 @@ class ContentExtractor:
             self.domain_proxies[domain] = proxy
             logger.info(f"Assigned proxy for {domain}")
         return proxy
+    
+    def _generate_referer(self, url: str) -> Optional[str]:
+        """Generate a realistic Referer header for the target URL.
+        
+        This makes requests look more natural, as if the user navigated
+        from the site's homepage or another page on the same domain.
+        """
+        try:
+            parsed = urlparse(url)
+            scheme = parsed.scheme or "https"
+            domain = parsed.netloc
+            
+            if not domain:
+                return None
+            
+            # Randomly choose between different referer strategies
+            strategy = random.choice([
+                "homepage",      # 40% - from homepage
+                "homepage",
+                "same_domain",   # 30% - from another page on same domain
+                "same_domain",
+                "google",        # 20% - from Google search
+                "none",          # 10% - no referer
+            ])
+            
+            if strategy == "homepage":
+                return f"{scheme}://{domain}/"
+            elif strategy == "same_domain":
+                # Reference another path on the same domain
+                paths = ["/news", "/articles", "/local", "/sports", ""]
+                return f"{scheme}://{domain}{random.choice(paths)}"
+            elif strategy == "google":
+                # Simulate coming from Google search
+                return "https://www.google.com/"
+            else:
+                # No referer
+                return None
+                
+        except Exception:
+            return None
 
     def _get_domain_lock(self, domain: str) -> threading.Lock:
         """Return a lock object for the domain to cap concurrency to 1."""
@@ -1297,7 +1378,15 @@ class ContentExtractor:
                 # Single in-flight per domain
                 with self._get_domain_lock(domain):
                     logger.info(f"📡 Fetching {url[:80]}... via session for {domain}")
-                    response = session.get(url, timeout=self.timeout)
+                    
+                    # Add Referer header for this specific request to look more natural
+                    request_headers = {}
+                    referer = self._generate_referer(url)
+                    if referer:
+                        request_headers["Referer"] = referer
+                        logger.debug(f"Using Referer: {referer}")
+                    
+                    response = session.get(url, timeout=self.timeout, headers=request_headers)
                 http_status = response.status_code
                 
                 # Capture proxy metadata from response if available
