@@ -20,6 +20,7 @@ from bs4 import BeautifulSoup
 from bs4.element import Tag
 from dateutil import parser as dateparser
 from .origin_proxy import enable_origin_proxy
+from .proxy_config import get_proxy_manager
 
 
 class RateLimitError(Exception):
@@ -469,6 +470,13 @@ class ContentExtractor:
         )
         self.domain_proxies = {}
 
+        # Initialize multi-proxy manager
+        self.proxy_manager = get_proxy_manager()
+        logger.info(
+            f"🔀 Proxy manager initialized with provider: "
+            f"{self.proxy_manager.active_provider.value}"
+        )
+
         # Set initial user agent
         self.current_user_agent = user_agent or random.choice(self.user_agent_pool)
 
@@ -514,23 +522,43 @@ class ContentExtractor:
             headers["DNT"] = "1"
 
         self.session.headers.update(headers)
-        # Optionally enable origin-style proxy adapter which rewrites
-        # outgoing URLs to the origin proxy endpoint when
-        # USE_ORIGIN_PROXY env var is set.
-        use_proxy = os.getenv("USE_ORIGIN_PROXY", "").lower() in ("1", "true", "yes")
-        proxy_url = os.getenv("ORIGIN_PROXY_URL") or os.getenv("PROXY_HOST") or os.getenv("PROXY_URL")
         
-        try:
-            enable_origin_proxy(self.session)
-            if use_proxy:
-                logger.info(
-                    f"🔀 Origin proxy adapter installed (proxy: {proxy_url or 'default'})"
+        # Configure proxy based on active provider
+        active_provider = self.proxy_manager.active_provider
+        
+        # Check if we should use origin proxy (backward compatibility)
+        use_origin = os.getenv("USE_ORIGIN_PROXY", "").lower() in ("1", "true", "yes")
+        
+        if active_provider.value == "origin" or use_origin:
+            # Use origin-style proxy adapter (URL rewriting)
+            try:
+                enable_origin_proxy(self.session)
+                proxy_url = (
+                    os.getenv("ORIGIN_PROXY_URL") 
+                    or os.getenv("PROXY_HOST") 
+                    or os.getenv("PROXY_URL")
                 )
-            else:
-                logger.debug("Origin proxy adapter installed but USE_ORIGIN_PROXY not enabled")
-        except Exception as e:
-            # Don't fail session creation for test environments
-            logger.warning(f"Failed to install origin proxy adapter: {e}")
+                logger.info(
+                    f"🔀 Origin proxy adapter enabled "
+                    f"(proxy: {proxy_url or 'default'})"
+                )
+            except Exception as e:
+                logger.warning(f"Failed to install origin proxy adapter: {e}")
+        
+        elif active_provider.value != "direct":
+            # Use standard proxies from ProxyManager (HTTP/HTTPS/SOCKS5)
+            proxies = self.proxy_manager.get_requests_proxies()
+            if proxies:
+                self.session.proxies.update(proxies)
+                logger.info(
+                    f"🔀 Standard proxy enabled: {active_provider.value} "
+                    f"({list(proxies.keys())})"
+                )
+        
+        else:
+            # Direct connection (no proxy)
+            logger.info("🔀 Direct connection (no proxy)")
+        
         logger.debug(
             f"Updated session headers with UA: {self.current_user_agent[:50]}..."
         )
@@ -612,14 +640,30 @@ class ContentExtractor:
             
             new_session.headers.update(headers)
             
-            # Enable origin proxy for this session
-            use_proxy = os.getenv("USE_ORIGIN_PROXY", "").lower() in ("1", "true", "yes")
-            try:
-                enable_origin_proxy(new_session)
-            except Exception as e:
-                logger.debug(f"Failed to install origin proxy on domain session for {domain}: {e}")
-
-            # Assign sticky proxy per domain when pool provided
+            # Configure proxy based on active provider
+            active_provider = self.proxy_manager.active_provider
+            use_origin = (
+                os.getenv("USE_ORIGIN_PROXY", "").lower() 
+                in ("1", "true", "yes")
+            )
+            
+            if active_provider.value == "origin" or use_origin:
+                # Use origin-style proxy adapter
+                try:
+                    enable_origin_proxy(new_session)
+                except Exception as e:
+                    logger.debug(
+                        f"Failed to install origin proxy on domain "
+                        f"session for {domain}: {e}"
+                    )
+            
+            elif active_provider.value != "direct":
+                # Use standard proxies from ProxyManager
+                proxies = self.proxy_manager.get_requests_proxies()
+                if proxies:
+                    new_session.proxies.update(proxies)
+            
+            # Assign sticky proxy per domain when pool provided (legacy)
             proxy = self._choose_proxy_for_domain(domain)
             if proxy:
                 new_session.proxies.update({
@@ -633,7 +677,7 @@ class ContentExtractor:
 
             logger.info(
                 f"🔧 Created {session_type} session for {domain} "
-                f"(proxy: {'enabled' if use_proxy else 'disabled'}, "
+                f"(proxy: {active_provider.value}, "
                 f"UA: {new_user_agent[:50]}...)"
             )
             logger.debug(f"Cleared cookies for domain {domain}")
@@ -869,6 +913,13 @@ class ContentExtractor:
         self, url: str, error_msg: str, metadata: Dict = None
     ) -> Dict[str, any]:
         """Create a standardized error result."""
+        # Record proxy failure for network/bot blocking errors
+        if any(
+            err in error_msg.lower()
+            for err in ["bot protection", "cloudflare", "captcha", "403", "429"]
+        ):
+            self.proxy_manager.record_failure()
+        
         return {
             "url": url,
             "title": "",
@@ -1562,6 +1613,10 @@ class ContentExtractor:
                     
                     # Reset error count on successful request
                     self._reset_error_count(domain)
+                    
+                    # Record proxy success
+                    response_time = response.elapsed.total_seconds()
+                    self.proxy_manager.record_success(response_time=response_time)
 
                     # Use the downloaded HTML content to parse the article
                     article.html = response.text
