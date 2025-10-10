@@ -32,32 +32,34 @@ Once the server is running, test the endpoints:
 
 ```bash
 # Get proxy usage summary (last 7 days)
-curl http://localhost:8000/telemetry/proxy/summary?days=7
+curl 'http://localhost:8000/telemetry/proxy/summary?days=7'
 
 # Get daily trends (last 30 days)
-curl http://localhost:8000/telemetry/proxy/trends?days=30
+curl 'http://localhost:8000/telemetry/proxy/trends?days=30'
 
 # Get top domains using proxy
-curl http://localhost:8000/telemetry/proxy/domains?limit=20
+curl 'http://localhost:8000/telemetry/proxy/domains?limit=20'
 
 # Get common proxy errors
-curl http://localhost:8000/telemetry/proxy/errors?limit=20
+curl 'http://localhost:8000/telemetry/proxy/errors?limit=20'
 
 # Get authentication statistics
-curl http://localhost:8000/telemetry/proxy/authentication?days=7
+curl 'http://localhost:8000/telemetry/proxy/authentication?days=7'
 
 # Compare proxy vs direct performance
-curl http://localhost:8000/telemetry/proxy/comparison?days=7
+curl 'http://localhost:8000/telemetry/proxy/comparison?days=7'
 
 # Get proxy status distribution
-curl http://localhost:8000/telemetry/proxy/status-distribution?days=7
+curl 'http://localhost:8000/telemetry/proxy/status-distribution?days=7'
 
 # Get recent failures (last 24 hours)
-curl http://localhost:8000/telemetry/proxy/recent-failures?hours=24
+curl 'http://localhost:8000/telemetry/proxy/recent-failures?hours=24'
 
 # Analyze bot detection patterns
-curl http://localhost:8000/telemetry/proxy/bot-detection?days=7
+curl 'http://localhost:8000/telemetry/proxy/bot-detection?days=7'
 ```
+
+**Note for zsh users:** Always quote URLs with query parameters (the `?` character) to prevent zsh glob expansion errors.
 
 ## API Documentation
 
