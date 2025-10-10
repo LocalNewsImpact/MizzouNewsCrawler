@@ -49,6 +49,7 @@ class WorkQueue:
         counts = {
             "verification_pending": 0,
             "extraction_pending": 0,
+            "cleaning_pending": 0,
             "analysis_pending": 0,
             "entity_extraction_pending": 0,
         }
@@ -65,6 +66,15 @@ class WorkQueue:
                 text("SELECT COUNT(*) FROM candidate_links WHERE status = 'article'")
             )
             counts["extraction_pending"] = result.scalar() or 0
+
+            # Count articles needing cleaning (status = extracted)
+            result = db.session.execute(
+                text(
+                    "SELECT COUNT(*) FROM articles "
+                    "WHERE status = 'extracted' AND content IS NOT NULL"
+                )
+            )
+            counts["cleaning_pending"] = result.scalar() or 0
 
             # Count articles without ML analysis (no primary_label)
             result = db.session.execute(
@@ -206,9 +216,33 @@ def process_analysis(count: int) -> bool:
         str(ANALYSIS_BATCH_SIZE),
         "--top-k",
         "2",
+        "--status",
+        "extracted",
+        "--status",
+        "cleaned",
     ]
 
     return run_cli_command(command, f"ML analysis ({count} pending, limit {limit})")
+
+
+def process_cleaning(count: int) -> bool:
+    """Run content cleaning for extracted articles."""
+    if count == 0:
+        return False
+
+    limit = min(count, 100)  # Process up to 100 articles per cycle
+
+    command = [
+        "clean-articles",
+        "--limit",
+        str(limit),
+        "--status",
+        "extracted",
+    ]
+
+    return run_cli_command(
+        command, f"Content cleaning ({count} pending, limit {limit})"
+    )
 
 
 def process_entity_extraction(count: int) -> bool:
@@ -245,7 +279,7 @@ def process_cycle() -> None:
         counts = WorkQueue.get_counts()
         logger.info("Work queue status: %s", counts)
 
-        # Priority order: verification → extraction → analysis → entities
+        # Priority order: verification → extraction → cleaning → analysis → entities
         # This ensures we process the pipeline in the correct sequence
 
         if counts["verification_pending"] > 0:
@@ -253,6 +287,9 @@ def process_cycle() -> None:
 
         if counts["extraction_pending"] > 0:
             process_extraction(counts["extraction_pending"])
+
+        if counts["cleaning_pending"] > 0:
+            process_cleaning(counts["cleaning_pending"])
 
         if counts["analysis_pending"] > 0:
             process_analysis(counts["analysis_pending"])

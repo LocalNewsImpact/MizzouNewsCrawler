@@ -624,6 +624,25 @@ def save_article_entities(
         session.add(record)
         records.append(record)
 
+    # If no entities extracted, add sentinel to mark extraction complete
+    # This prevents infinite reprocessing of articles with no entities
+    if not records:
+        sentinel = ArticleEntity(
+            article_id=article_id,
+            article_text_hash=article_text_hash,
+            entity_text="__NO_ENTITIES_FOUND__",
+            entity_norm="__no_entities_found__",
+            entity_label="SENTINEL",
+            extractor_version=extractor_version,
+            confidence=1.0,
+            meta={
+                "sentinel": True,
+                "reason": "No location entities found in article text",
+            },
+        )
+        session.add(sentinel)
+        records.append(sentinel)
+
     _commit_with_retry(session)
     return records
 

@@ -141,7 +141,12 @@ class NewsCrawler:
     """Main crawler class for discovering and fetching news articles."""
 
     def __init__(self, user_agent: str = None, timeout: int = 20, delay: float = 1.0):
-        self.user_agent = user_agent or "Mozilla/5.0 (compatible; MizzouCrawler/1.0)"
+        # Use a realistic default User-Agent instead of identifying as a crawler
+        self.user_agent = user_agent or (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/129.0.0.0 Safari/537.36"
+        )
         self.timeout = timeout
         self.delay = delay
         self.session = requests.Session()
@@ -310,70 +315,103 @@ class ContentExtractor:
         self._driver_creation_count = 0
         self._driver_reuse_count = 0
 
-        # User agent pool for rotation
+        # User agent pool for rotation - updated with latest browser versions
+        # for better anti-detection (October 2025)
         self.user_agent_pool = [
-            # Chrome on Windows
+            # Chrome on Windows (most common desktop browser)
             (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
+                "Chrome/129.0.0.0 Safari/537.36"
             ),
             (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/119.0.0.0 Safari/537.36"
+                "Chrome/128.0.0.0 Safari/537.36"
+            ),
+            (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/127.0.0.0 Safari/537.36"
             ),
             # Chrome on macOS
             (
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
+                "Chrome/129.0.0.0 Safari/537.36"
             ),
             (
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/119.0.0.0 Safari/537.36"
+                "Chrome/128.0.0.0 Safari/537.36"
+            ),
+            # Chrome on Linux
+            (
+                "Mozilla/5.0 (X11; Linux x86_64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/129.0.0.0 Safari/537.36"
             ),
             # Firefox on Windows
             (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) "
-                "Gecko/20100101 Firefox/121.0"
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:130.0) "
+                "Gecko/20100101 Firefox/130.0"
             ),
             (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) "
-                "Gecko/20100101 Firefox/120.0"
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:131.0) "
+                "Gecko/20100101 Firefox/131.0"
             ),
             # Firefox on macOS
             (
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) "
-                "Gecko/20100101 Firefox/121.0"
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:130.0) "
+                "Gecko/20100101 Firefox/130.0"
             ),
-            # Safari on macOS
+            # Firefox on Linux
+            (
+                "Mozilla/5.0 (X11; Linux x86_64; rv:130.0) "
+                "Gecko/20100101 Firefox/130.0"
+            ),
+            # Safari on macOS (latest versions)
             (
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                 "AppleWebKit/605.1.15 (KHTML, like Gecko) "
-                "Version/17.1 Safari/605.1.15"
+                "Version/18.0 Safari/605.1.15"
             ),
             (
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                 "AppleWebKit/605.1.15 (KHTML, like Gecko) "
-                "Version/17.0 Safari/605.1.15"
+                "Version/17.6 Safari/605.1.15"
+            ),
+            # Edge on Windows
+            (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/129.0.0.0 Safari/537.36 Edg/129.0.0.0"
             ),
         ]
 
-        # Header variation pools
+        # Header variation pools for more realistic browser behavior
         self.accept_language_pool = [
             "en-US,en;q=0.9",
             "en-GB,en;q=0.9",
+            "en-US,en;q=0.9,es;q=0.8",
+            "en-US,en;q=0.9,fr;q=0.8,de;q=0.7",
             "en;q=0.9",
-            "en-US,en;q=0.8,fr;q=0.6",
-            "en-US,en;q=0.5",
+            "en-US,en;q=0.8",
+            "en-US,en;q=0.7",
         ]
 
         self.accept_encoding_pool = [
+            "gzip, deflate, br, zstd",
             "gzip, deflate, br",
             "gzip, deflate",
-            "gzip, deflate, br, zstd",
+        ]
+        
+        # More realistic Accept header variations
+        self.accept_header_pool = [
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         ]
 
         # Track domain-specific sessions and user agents
@@ -389,6 +427,11 @@ class ContentExtractor:
         self.domain_request_times = {}  # Track request timestamps per domain
         self.domain_backoff_until = {}  # Track when domain is available again
         self.domain_error_counts = {}  # Track consecutive errors per domain
+        
+        # Selenium-specific failure tracking (separate from requests failures)
+        # This prevents disabling Selenium for CAPTCHA-protected domains
+        self._selenium_failure_counts = {}  # Track Selenium failures per domain
+        
         # Base inter-request delay (env tunable)
         try:
             self.inter_request_min = float(os.getenv("INTER_REQUEST_MIN", "1.5"))
@@ -454,10 +497,7 @@ class ContentExtractor:
         """Set randomized headers for the current session."""
         headers = {
             "User-Agent": self.current_user_agent,
-            "Accept": (
-                "text/html,application/xhtml+xml,application/xml;"
-                "q=0.9,image/webp,*/*;q=0.8"
-            ),
+            "Accept": random.choice(self.accept_header_pool),
             "Accept-Language": random.choice(self.accept_language_pool),
             "Accept-Encoding": random.choice(self.accept_encoding_pool),
             "Connection": "keep-alive",
@@ -465,9 +505,13 @@ class ContentExtractor:
             "Sec-Fetch-Dest": "document",
             "Sec-Fetch-Mode": "navigate",
             "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
             "Cache-Control": "max-age=0",
-            "DNT": "1",
         }
+        
+        # Randomly include DNT header (not all browsers send it)
+        if random.random() > 0.3:  # 70% chance
+            headers["DNT"] = "1"
 
         self.session.headers.update(headers)
         # Optionally enable origin-style proxy adapter which rewrites
@@ -547,13 +591,10 @@ class ContentExtractor:
                 new_session = requests.Session()
                 session_type = "requests"
 
-            # Set randomized headers
+            # Set randomized headers with more variation
             headers = {
                 "User-Agent": new_user_agent,
-                "Accept": (
-                    "text/html,application/xhtml+xml,application/xml;"
-                    "q=0.9,image/webp,*/*;q=0.8"
-                ),
+                "Accept": random.choice(self.accept_header_pool),
                 "Accept-Language": random.choice(self.accept_language_pool),
                 "Accept-Encoding": random.choice(self.accept_encoding_pool),
                 "Connection": "keep-alive",
@@ -561,9 +602,14 @@ class ContentExtractor:
                 "Sec-Fetch-Dest": "document",
                 "Sec-Fetch-Mode": "navigate",
                 "Sec-Fetch-Site": "none",
+                "Sec-Fetch-User": "?1",
                 "Cache-Control": "max-age=0",
-                "DNT": "1",
             }
+            
+            # Randomly include DNT header (not all browsers send it)
+            if random.random() > 0.3:  # 70% chance
+                headers["DNT"] = "1"
+            
             new_session.headers.update(headers)
             
             # Enable origin proxy for this session
@@ -607,6 +653,46 @@ class ContentExtractor:
             self.domain_proxies[domain] = proxy
             logger.info(f"Assigned proxy for {domain}")
         return proxy
+    
+    def _generate_referer(self, url: str) -> Optional[str]:
+        """Generate a realistic Referer header for the target URL.
+        
+        This makes requests look more natural, as if the user navigated
+        from the site's homepage or another page on the same domain.
+        """
+        try:
+            parsed = urlparse(url)
+            scheme = parsed.scheme or "https"
+            domain = parsed.netloc
+            
+            if not domain:
+                return None
+            
+            # Randomly choose between different referer strategies
+            strategy = random.choice([
+                "homepage",      # 40% - from homepage
+                "homepage",
+                "same_domain",   # 30% - from another page on same domain
+                "same_domain",
+                "google",        # 20% - from Google search
+                "none",          # 10% - no referer
+            ])
+            
+            if strategy == "homepage":
+                return f"{scheme}://{domain}/"
+            elif strategy == "same_domain":
+                # Reference another path on the same domain
+                paths = ["/news", "/articles", "/local", "/sports", ""]
+                return f"{scheme}://{domain}{random.choice(paths)}"
+            elif strategy == "google":
+                # Simulate coming from Google search
+                return "https://www.google.com/"
+            else:
+                # No referer
+                return None
+                
+        except Exception:
+            return None
 
     def _get_domain_lock(self, domain: str) -> threading.Lock:
         """Return a lock object for the domain to cap concurrency to 1."""
@@ -716,6 +802,55 @@ class ContentExtractor:
         if domain in self.domain_error_counts:
             self.domain_error_counts[domain] = 0
 
+    def _detect_bot_protection_in_response(self, response: requests.Response) -> Optional[str]:
+        """Detect bot protection mechanisms in HTTP response.
+        
+        Returns a string identifying the protection type, or None if not detected.
+        """
+        if not response or not response.text:
+            return None
+        
+        text_lower = response.text.lower()
+        
+        # Cloudflare protection indicators
+        cloudflare_indicators = [
+            "checking your browser",
+            "cloudflare ray id",
+            "ddos protection by cloudflare",
+            "under attack mode",
+            "attention required! | cloudflare",
+            "just a moment...",
+            "cf-ray",
+        ]
+        
+        # Generic bot protection indicators
+        bot_protection_indicators = [
+            "access denied",
+            "blocked by",
+            "bot protection",
+            "security check",
+            "please wait while we verify",
+            "browser check",
+            "are you a robot",
+            "please verify you are human",
+            "captcha",
+            "recaptcha",
+        ]
+        
+        # Check for Cloudflare first (most common)
+        if any(indicator in text_lower for indicator in cloudflare_indicators):
+            return "cloudflare"
+        
+        # Check for general bot protection
+        if any(indicator in text_lower for indicator in bot_protection_indicators):
+            return "bot_protection"
+        
+        # Check for suspiciously short responses (often challenge pages)
+        if len(response.text) < 500 and response.status_code in [403, 503]:
+            return "suspicious_short_response"
+        
+        return None
+    
     def _handle_captcha_backoff(self, domain: str) -> None:
         """Apply extended backoff for CAPTCHA/challenge detections."""
         now = time.time()
@@ -996,22 +1131,44 @@ class ContentExtractor:
                 if metrics:
                     metrics.start_method("selenium")
 
-                # Respect domain backoff before attempting Selenium
+                # NOTE: Selenium is specifically for bypassing CAPTCHA/bot protection,
+                # so we intentionally DO NOT check rate limits here. If the requests-based
+                # approach triggered a CAPTCHA backoff, Selenium is our chance to bypass it.
+                # Only check if Selenium itself has failed repeatedly on this domain.
                 dom = urlparse(url).netloc
-                if self._check_rate_limit(dom):
-                    raise RateLimitError(f"Domain {dom} is rate limited; skip Selenium")
+                selenium_failures = getattr(self, "_selenium_failure_counts", {})
+                if selenium_failures.get(dom, 0) >= 3:
+                    logger.warning(
+                        f"Skipping Selenium for {dom} - already failed {selenium_failures[dom]} times"
+                    )
+                    raise RateLimitError(
+                        f"Selenium repeatedly failed for {dom}; skipping"
+                    )
 
                 selenium_result = self._extract_with_selenium(url)
 
-                if selenium_result:
+                if selenium_result and selenium_result.get("content"):
                     # Only copy still-missing fields
                     self._merge_extraction_results(
                         result, selenium_result, "selenium", missing_fields, metrics
                     )
-                    logger.info(f"Selenium extraction completed for {url}")
+                    logger.info(f"✅ Selenium extraction succeeded for {url}")
+                    
+                    # Reset failure count on success
+                    if dom in self._selenium_failure_counts:
+                        del self._selenium_failure_counts[dom]
+                    
                     if metrics:
                         metrics.end_method("selenium", True, None, selenium_result)
                 else:
+                    # Selenium returned empty result - track as failure
+                    self._selenium_failure_counts[dom] = (
+                        self._selenium_failure_counts.get(dom, 0) + 1
+                    )
+                    logger.warning(
+                        f"❌ Selenium returned empty result for {url} "
+                        f"(failure #{self._selenium_failure_counts[dom]})"
+                    )
                     if metrics:
                         metrics.end_method(
                             "selenium",
@@ -1021,7 +1178,14 @@ class ContentExtractor:
                         )
 
             except Exception as e:
-                logger.info(f"Selenium extraction failed for {url}: {e}")
+                # Track Selenium exception as failure
+                self._selenium_failure_counts[dom] = (
+                    self._selenium_failure_counts.get(dom, 0) + 1
+                )
+                logger.info(
+                    f"❌ Selenium extraction failed for {url}: {e} "
+                    f"(failure #{self._selenium_failure_counts[dom]})"
+                )
                 if metrics:
                     metrics.end_method("selenium", False, str(e), {})
 
@@ -1297,7 +1461,15 @@ class ContentExtractor:
                 # Single in-flight per domain
                 with self._get_domain_lock(domain):
                     logger.info(f"📡 Fetching {url[:80]}... via session for {domain}")
-                    response = session.get(url, timeout=self.timeout)
+                    
+                    # Add Referer header for this specific request to look more natural
+                    request_headers = {}
+                    referer = self._generate_referer(url)
+                    if referer:
+                        request_headers["Referer"] = referer
+                        logger.debug(f"Using Referer: {referer}")
+                    
+                    response = session.get(url, timeout=self.timeout, headers=request_headers)
                 http_status = response.status_code
                 
                 # Capture proxy metadata from response if available
@@ -1327,17 +1499,37 @@ class ContentExtractor:
                         url, "Rate limited", {"status": 429}
                     )
                 elif response.status_code in [403, 503, 502, 504]:
-                    # Possible rate limiting or bot detection
-                    logger.warning(
-                        f"🚫 Bot detection ({response.status_code}) by {domain} "
-                        f"- response preview: {response.text[:200] if response.text else 'empty'}"
-                    )
-                    self._handle_rate_limit_error(domain, response)
-                    return self._create_error_result(
-                        url,
-                        f"Bot detection ({response.status_code})",
-                        {"status": response.status_code},
-                    )
+                    # Detect specific bot protection type
+                    protection_type = self._detect_bot_protection_in_response(response)
+                    
+                    if protection_type:
+                        logger.warning(
+                            f"🚫 Bot protection detected ({response.status_code}, {protection_type}) by {domain} "
+                            f"- response preview: {response.text[:200] if response.text else 'empty'}"
+                        )
+                        # Use CAPTCHA backoff for confirmed bot protection
+                        if protection_type in ["cloudflare", "bot_protection"]:
+                            self._handle_captcha_backoff(domain)
+                        else:
+                            self._handle_rate_limit_error(domain, response)
+                        
+                        return self._create_error_result(
+                            url,
+                            f"Bot protection: {protection_type} ({response.status_code})",
+                            {"status": response.status_code, "protection": protection_type},
+                        )
+                    else:
+                        # Generic server error without bot protection indicators
+                        logger.warning(
+                            f"Server error ({response.status_code}) by {domain} "
+                            f"- response preview: {response.text[:200] if response.text else 'empty'}"
+                        )
+                        self._handle_rate_limit_error(domain, response)
+                        return self._create_error_result(
+                            url,
+                            f"Server error ({response.status_code})",
+                            {"status": response.status_code},
+                        )
 
                 # Permanent missing -> cache as dead URL
                 if response.status_code in (404, 410):
@@ -1354,6 +1546,20 @@ class ContentExtractor:
 
                 # Check if request was successful
                 if response.status_code == 200:
+                    # Check for bot protection even in 200 responses (Cloudflare sometimes does this)
+                    protection_type = self._detect_bot_protection_in_response(response)
+                    if protection_type:
+                        logger.warning(
+                            f"🚫 Bot protection detected in 200 response ({protection_type}) by {domain}"
+                        )
+                        # Use CAPTCHA backoff for confirmed bot protection
+                        self._handle_captcha_backoff(domain)
+                        return self._create_error_result(
+                            url,
+                            f"Bot protection in 200 response: {protection_type}",
+                            {"status": 200, "protection": protection_type},
+                        )
+                    
                     # Reset error count on successful request
                     self._reset_error_count(domain)
 
