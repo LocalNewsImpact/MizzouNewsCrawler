@@ -94,32 +94,7 @@ class URLVerificationService:
 
         with self.db.engine.connect() as conn:
             result = conn.execute(text(query))
-            urls = [dict(row._mapping) for row in result.fetchall()]
-            
-        # Pre-filter obvious non-articles by URL pattern before StorySniffer
-        from src.utils.url_classifier import is_likely_article_url
-        filtered_urls = []
-        for url_record in urls:
-            if not is_likely_article_url(url_record['url']):
-                # Mark as not_article without running StorySniffer
-                self._mark_url_as_non_article(
-                    url_record['id'],
-                    reason="url_pattern_filter"
-                )
-                self.logger.debug(
-                    "Pre-filtered non-article by URL pattern: %s",
-                    url_record['url']
-                )
-            else:
-                filtered_urls.append(url_record)
-                
-        if len(urls) != len(filtered_urls):
-            self.logger.info(
-                "Pre-filtered %d non-article URLs by pattern matching",
-                len(urls) - len(filtered_urls)
-            )
-            
-        return filtered_urls
+            return [dict(row._mapping) for row in result.fetchall()]
 
     def _prepare_http_session(self) -> None:
         """Ensure the HTTP session advertises browser-like headers."""
@@ -248,7 +223,11 @@ class URLVerificationService:
                     close_fn()
 
     def verify_url(self, url: str) -> dict:
-        """Verify a single URL with StorySniffer.
+        """Verify a single URL with pattern matching and StorySniffer.
+
+        Uses a two-stage verification process:
+        1. Fast URL pattern matching to filter obvious non-articles
+        2. StorySniffer ML model for remaining URLs
 
         Returns:
             Dict with verification results and timing info
@@ -261,8 +240,24 @@ class URLVerificationService:
             "error": None,
             "http_status": None,
             "http_attempts": 0,
+            "pattern_filtered": False,
         }
 
+        # Stage 1: Fast URL pattern check
+        from src.utils.url_classifier import is_likely_article_url
+        
+        if not is_likely_article_url(url):
+            # URL matches non-article pattern (gallery, category, etc.)
+            result["storysniffer_result"] = False
+            result["pattern_filtered"] = True
+            result["verification_time_ms"] = (time.time() - start_time) * 1000
+            self.logger.debug(
+                f"Filtered non-article by URL pattern: {url} "
+                f"({result['verification_time_ms']:.1f}ms)"
+            )
+            return result
+
+        # Stage 2: HTTP health check
         health = self._check_http_health(url)
         http_ok, http_status, http_error, http_attempts = health
         result["http_status"] = http_status
@@ -282,8 +277,8 @@ class URLVerificationService:
                 http_attempts,
             )
 
+        # Stage 3: StorySniffer ML verification
         try:
-            # Run StorySniffer verification
             is_article = self.sniffer.guess(url)
             result["storysniffer_result"] = bool(is_article)
             result["verification_time_ms"] = (time.time() - start_time) * 1000
@@ -301,16 +296,6 @@ class URLVerificationService:
 
         return result
 
-    def _mark_url_as_non_article(
-        self, candidate_id: str, reason: str = "url_pattern"
-    ):
-        """Mark a URL as not an article without running StorySniffer."""
-        self.update_candidate_status(
-            candidate_id,
-            "not_article",
-            error_message=f"Filtered by {reason}"
-        )
-    
     def update_candidate_status(
         self, candidate_id: str, new_status: str, error_message: str | None = None
     ):
