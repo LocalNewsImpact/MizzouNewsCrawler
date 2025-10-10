@@ -139,8 +139,12 @@ def handle_cleaning_command(args) -> int:
                         elif current_status == "extracted":
                             new_status = "cleaned"
 
-                        # Update article if content changed
-                        if cleaned_content != original_content:
+                        # Determine if we need to update the article
+                        content_changed = cleaned_content != original_content
+                        status_changed = new_status != current_status
+                        
+                        # Update if content changed OR status changed
+                        if content_changed or status_changed:
                             new_hash = (
                                 calculate_content_hash(cleaned_content)
                                 if cleaned_content
@@ -167,8 +171,9 @@ def handle_cleaning_command(args) -> int:
                                 f"status {current_status} → {new_status}"
                             )
 
-                            cleaned += 1
-                            if new_status != current_status:
+                            if content_changed:
+                                cleaned += 1
+                            if status_changed:
                                 status_changes[f"{current_status}→{new_status}"] += 1
 
                         processed += 1
