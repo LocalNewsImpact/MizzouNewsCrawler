@@ -26,6 +26,9 @@ RUN python -c "from transformers import AutoTokenizer, AutoModel; \
 # Create directories for models
 RUN mkdir -p /app/models
 
+# Copy trained ML model
+COPY --chown=appuser:appuser models/productionmodel.pt /app/models/
+
 # Metadata
 LABEL maintainer="LocalNewsImpact"
 LABEL description="ML base image with PyTorch, Transformers, and article extraction tools"

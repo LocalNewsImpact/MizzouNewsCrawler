@@ -34,11 +34,8 @@ COPY --chown=appuser:appuser src/ ./src/
 COPY --chown=appuser:appuser orchestration/ ./orchestration/
 COPY --chown=appuser:appuser scripts/ ./scripts/
 
-# Create data and lookups directories
-RUN mkdir -p /app/data /app/lookups /app/models && chown -R appuser:appuser /app/data /app/lookups /app/models
-
-# Copy ML model
-COPY --chown=appuser:appuser models/productionmodel.pt /app/models/
+# Create data and lookups directories (models already in ml-base)
+RUN mkdir -p /app/data /app/lookups && chown -R appuser:appuser /app/data /app/lookups
 
 # Switch to non-root user
 USER appuser
