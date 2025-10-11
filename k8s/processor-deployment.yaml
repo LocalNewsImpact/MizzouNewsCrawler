@@ -77,15 +77,17 @@ spec:
           value: "16"
         - name: GAZETTEER_BATCH_SIZE
           value: "50"
-        # CAPTCHA and rate limit handling
+        # CAPTCHA and rate limit handling - AGGRESSIVE SETTINGS
         - name: CAPTCHA_BACKOFF_BASE
-          value: "900"  # 15 minutes (increased from 10 minutes)
+          value: "1800"  # 30 minutes (aggressive)
         - name: CAPTCHA_BACKOFF_MAX
-          value: "7200"  # 2 hours (increased from 90 minutes)
+          value: "7200"  # 2 hours (aggressive)
         - name: INTER_REQUEST_MIN
-          value: "2.0"  # Slower requests to avoid bot detection
+          value: "8.0"  # 8 seconds minimum (very conservative)
         - name: INTER_REQUEST_MAX
-          value: "4.5"
+          value: "15.0"  # 15 seconds maximum (very conservative)
+        - name: BATCH_SLEEP_SECONDS
+          value: "30.0"  # 30 second pause between batches
         # Proxy configuration - using Decodo ISP proxy directly
         - name: PROXY_PROVIDER
           value: "decodo"
