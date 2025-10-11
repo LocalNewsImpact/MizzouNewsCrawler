@@ -25,9 +25,9 @@ spec:
           - --dataset
           - Penn-State-Lehigh
           - --limit
-          - "5"
+          - "3"  # Reduced from 5 to avoid pattern detection
           - --batches
-          - "250"
+          - "300"  # Increased to accommodate smaller batch size
         envFrom:
         - secretRef:
             name: origin-proxy-credentials
@@ -69,17 +69,18 @@ spec:
             secretKeyRef:
               name: origin-proxy-credentials
               key: selenium-proxy-url
-        # Aggressive rate limiting settings
+        # Ultra-conservative rate limiting for aggressive bot detection
+        # Lehigh Valley News has robust protection, requires very slow extraction
         - name: INTER_REQUEST_MIN
-          value: "15.0"
+          value: "30.0"  # Increased from 15.0
         - name: INTER_REQUEST_MAX
-          value: "25.0"
+          value: "45.0"  # Increased from 25.0
         - name: CAPTCHA_BACKOFF_BASE
           value: "2400"
         - name: CAPTCHA_BACKOFF_MAX
           value: "7200"
         - name: BATCH_SLEEP_SECONDS
-          value: "60.0"
+          value: "180.0"  # Increased from 60.0 (3 minutes between batches)
         # User agent rotation (rotate every 3-5 requests)
         - name: UA_ROTATE_BASE
           value: "4"
