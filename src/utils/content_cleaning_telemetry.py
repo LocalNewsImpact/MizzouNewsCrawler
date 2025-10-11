@@ -11,8 +11,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from src.config import DATABASE_URL
-from src.telemetry.store import TelemetryStore, get_store
+from src.telemetry.store import DEFAULT_DATABASE_URL, TelemetryStore, get_store
 
 
 class ContentCleaningTelemetry:
@@ -22,7 +21,7 @@ class ContentCleaningTelemetry:
         self,
         enable_telemetry: bool = True,
         store: TelemetryStore | None = None,
-        database_url: str = DATABASE_URL,
+        database_url: str = DEFAULT_DATABASE_URL,
     ):
         """
         Initialize telemetry collector.
