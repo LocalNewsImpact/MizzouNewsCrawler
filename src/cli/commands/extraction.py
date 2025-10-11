@@ -593,11 +593,18 @@ def _run_post_extraction_cleaning(domains_to_articles):
 
             try:
                 cleaner.analyze_domain(domain)
-            except Exception:
-                logger.exception(
-                    "Domain analysis failed before cleaning for %s", domain
-                )
-                continue
+            except Exception as e:
+                # Domain analysis is optional optimization - skip on Cloud SQL
+                if "no such table: articles" in str(e):
+                    logger.debug(
+                        "Skipping domain analysis for %s (Cloud SQL incompatibility)",
+                        domain
+                    )
+                else:
+                    logger.warning(
+                        "Domain analysis failed for %s: %s", domain, str(e)
+                    )
+                # Continue with cleaning even if analysis fails
 
             for article_id in article_ids:
                 try:
