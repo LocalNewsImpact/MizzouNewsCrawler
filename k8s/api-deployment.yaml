@@ -18,6 +18,7 @@ spec:
         component: backend
     spec:
       serviceAccountName: mizzou-app
+      priorityClassName: service-critical  # Highest priority, can preempt batch jobs
       containers:
       # Main API container
       - name: api

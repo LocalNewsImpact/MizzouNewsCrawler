@@ -1,0 +1,75 @@
+---
+# Priority Classes for Workload Management
+# Higher value = higher priority, can preempt lower priority pods
+#
+# Priority Hierarchy:
+# 1. system-critical (1000000) - Core infrastructure (already exists in K8s)
+# 2. service-critical (10000) - API, always-on services
+# 3. service-standard (5000) - Processor deployment, monitoring
+# 4. scheduled-high (1000) - Important cron jobs (discovery, extraction)
+# 5. scheduled-standard (500) - Regular cron jobs (cleaning, analysis)
+# 6. batch-high (100) - Important one-time batch jobs
+# 7. batch-standard (50) - Standard batch jobs (default)
+# 8. batch-low (10) - Low priority background tasks
+
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: service-critical
+value: 10000
+globalDefault: false
+description: "Critical user-facing services (API). Can preempt all non-critical workloads."
+
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: service-standard
+value: 5000
+globalDefault: false
+description: "Standard always-on services (processor deployment, monitoring)."
+
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: scheduled-high
+value: 1000
+globalDefault: false
+description: "High-priority scheduled jobs (discovery, extraction cron jobs)."
+
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: scheduled-standard
+value: 500
+globalDefault: false
+description: "Standard scheduled jobs (cleaning, analysis cron jobs)."
+
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: batch-high
+value: 100
+globalDefault: false
+description: "High-priority batch jobs (urgent dataset processing)."
+
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: batch-standard
+value: 50
+globalDefault: true  # Make this the default for all pods without priority
+description: "Standard batch jobs (dataset extraction, processing)."
+
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: batch-low
+value: 10
+globalDefault: false
+description: "Low-priority background tasks (cleanup, maintenance)."

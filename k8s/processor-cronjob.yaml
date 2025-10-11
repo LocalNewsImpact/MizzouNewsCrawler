@@ -21,6 +21,7 @@ spec:
             component: processor
         spec:
           serviceAccountName: mizzou-app
+          priorityClassName: scheduled-standard  # Can preempt batch jobs
           restartPolicy: OnFailure
           containers:
           # Main processor container
@@ -49,8 +50,8 @@ spec:
                   key: database
             resources:
               requests:
-                cpu: 500m
+                cpu: 150m
                 memory: 1Gi
               limits:
-                cpu: 1000m
+                cpu: 750m
                 memory: 2Gi

@@ -18,6 +18,7 @@ spec:
         component: processor
     spec:
       serviceAccountName: mizzou-app
+      priorityClassName: service-standard  # High priority, can preempt batch jobs
       volumes:
       - name: origin-sitecustomize
         configMap:

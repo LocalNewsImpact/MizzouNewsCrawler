@@ -11,6 +11,7 @@ spec:
         app: lehigh-extraction
     spec:
       serviceAccountName: mizzou-app
+      priorityClassName: batch-standard  # Can be preempted by services/cron jobs
       restartPolicy: Never
       containers:
       - name: extraction
@@ -92,8 +93,8 @@ spec:
           value: "localhost,127.0.0.1,metadata.google.internal,huggingface.co,*.huggingface.co"
         resources:
           requests:
-            cpu: 250m
-            memory: 1Gi
+            cpu: 100m
+            memory: 768Mi
           limits:
-            cpu: 1000m
-            memory: 3Gi
+            cpu: 500m
+            memory: 2Gi
