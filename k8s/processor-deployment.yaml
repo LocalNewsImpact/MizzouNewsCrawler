@@ -86,10 +86,11 @@ spec:
           value: "2.0"  # Slower requests to avoid bot detection
         - name: INTER_REQUEST_MAX
           value: "4.5"
+        # Proxy configuration - using Decodo provider via proxy switcher
+        - name: PROXY_PROVIDER
+          value: "decodo"
         - name: USE_ORIGIN_PROXY
           value: "true"
-        - name: ORIGIN_PROXY_URL
-          value: "http://proxy.kiesow.net:23432"
         - name: SELENIUM_PROXY
           valueFrom:
             secretKeyRef:
