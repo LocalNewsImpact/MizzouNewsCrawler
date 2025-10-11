@@ -1321,81 +1321,76 @@ class BalancedBoundaryContentCleaner:
         article_id: str,
     ) -> None:  # pragma: no cover
         """Remove existing wire metadata for an article."""
-        conn = None
         try:
-            conn = self._connect_to_db()
-            cursor = conn.cursor()
-            cursor.execute(
-                "UPDATE articles SET wire = NULL WHERE id = ?",
-                (article_id,),
-            )
-            conn.commit()
+            db = DatabaseManager()
+            with db.get_session() as session:
+                session.execute(
+                    sql_text("UPDATE articles SET wire = NULL WHERE id = :article_id"),
+                    {"article_id": article_id},
+                )
+                session.commit()
         except Exception as exc:  # pylint: disable=broad-except
             self.logger.debug(
                 "Failed to clear wire metadata for article %s: %s",
                 article_id,
                 exc,
             )
-        finally:
-            if conn:
-                conn.close()
 
     def _get_article_authors(
         self,
         article_id: str,
     ) -> list[str]:  # pragma: no cover
         """Fetch authors for an article and normalize to a string list."""
-        conn = None
         try:
-            conn = self._connect_to_db()
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT author FROM articles WHERE id = ?",
-                (article_id,),
-            )
-            row = cursor.fetchone()
-            if not row:
-                return []
-
-            raw_author = row[0]
-            if raw_author in (None, ""):
-                return []
-
-            if isinstance(raw_author, bytes):
-                try:
-                    raw_author = raw_author.decode("utf-8")
-                except UnicodeDecodeError:
+            db = DatabaseManager()
+            with db.get_session() as session:
+                result = session.execute(
+                    sql_text("SELECT author FROM articles WHERE id = :article_id"),
+                    {"article_id": article_id},
+                )
+                row = result.fetchone()
+                if not row:
                     return []
 
-            if isinstance(raw_author, list):
-                return [str(item).strip() for item in raw_author if str(item).strip()]
-
-            if isinstance(raw_author, str):
-                text = raw_author.strip()
-                if not text:
+                raw_author = row[0]
+                if raw_author in (None, ""):
                     return []
 
-                try:
-                    parsed = json.loads(text)
-                except json.JSONDecodeError:
-                    parsed = None
+                if isinstance(raw_author, bytes):
+                    try:
+                        raw_author = raw_author.decode("utf-8")
+                    except UnicodeDecodeError:
+                        return []
 
-                if isinstance(parsed, list):
-                    return [str(item).strip() for item in parsed if str(item).strip()]
+                if isinstance(raw_author, list):
+                    return [str(item).strip() for item in raw_author if str(item).strip()]
 
-                if isinstance(parsed, str):
-                    parsed = parsed.strip()
-                    return [parsed] if parsed else []
+                if isinstance(raw_author, str):
+                    text = raw_author.strip()
+                    if not text:
+                        return []
 
-                # Fallback: split on common separators
-                candidates = re.split(r"[|;,]+", text)
-                return [
-                    candidate.strip()
-                    for candidate in candidates
-                    if candidate and candidate.strip()
-                ]
+                    try:
+                        parsed = json.loads(text)
+                    except json.JSONDecodeError:
+                        parsed = None
 
-            return []
+                    if isinstance(parsed, list):
+                        return [str(item).strip() for item in parsed if str(item).strip()]
+
+                    if isinstance(parsed, str):
+                        parsed = parsed.strip()
+                        return [parsed] if parsed else []
+
+                    # Fallback: split on common separators
+                    candidates = re.split(r"[|;,]+", text)
+                    return [
+                        candidate.strip()
+                        for candidate in candidates
+                        if candidate and candidate.strip()
+                    ]
+
+                return []
         except Exception as exc:  # pylint: disable=broad-except
             self.logger.debug(
                 "Failed to load authors for article %s: %s",
@@ -1403,9 +1398,6 @@ class BalancedBoundaryContentCleaner:
                 exc,
             )
             return []
-        finally:
-            if conn:
-                conn.close()
 
     def _detect_local_byline_override(
         self,
@@ -1651,47 +1643,46 @@ class BalancedBoundaryContentCleaner:
         article_id: str,
     ) -> dict[str, str | None]:
         """Load publisher metadata linked to an article for locality flags."""
-        conn = None
         try:
-            conn = self._connect_to_db()
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                SELECT a.candidate_link_id,
-                       cl.source,
-                       cl.source_name,
-                       cl.source_city,
-                       cl.source_county,
-                       cl.source_type,
-                       s.canonical_name,
-                       s.city,
-                       s.county
-                FROM articles a
-                LEFT JOIN candidate_links cl ON a.candidate_link_id = cl.id
-                LEFT JOIN sources s ON cl.source_id = s.id
-                WHERE a.id = ?
-                """,
-                (article_id,),
-            )
-            row = cursor.fetchone()
-            if not row:
-                return {}
+            db = DatabaseManager()
+            with db.get_session() as session:
+                result = session.execute(
+                    sql_text("""
+                    SELECT a.candidate_link_id,
+                           cl.source,
+                           cl.source_name,
+                           cl.source_city,
+                           cl.source_county,
+                           cl.source_type,
+                           s.canonical_name,
+                           s.city,
+                           s.county
+                    FROM articles a
+                    LEFT JOIN candidate_links cl ON a.candidate_link_id = cl.id
+                    LEFT JOIN sources s ON cl.source_id = s.id
+                    WHERE a.id = :article_id
+                    """),
+                    {"article_id": article_id},
+                )
+                row = result.fetchone()
+                if not row:
+                    return {}
 
-            context = {
-                "candidate_link_id": row[0],
-                "publisher_slug": row[1],
-                "publisher_name": row[2] or row[6],
-                "publisher_city": row[3] or row[7],
-                "publisher_county": row[4] or row[8],
-                "publisher_type": row[5],
-                "canonical_name": row[6],
-                "canonical_city": row[7],
-                "canonical_county": row[8],
-            }
+                context = {
+                    "candidate_link_id": row[0],
+                    "publisher_slug": row[1],
+                    "publisher_name": row[2] or row[6],
+                    "publisher_city": row[3] or row[7],
+                    "publisher_county": row[4] or row[8],
+                    "publisher_type": row[5],
+                    "canonical_name": row[6],
+                    "canonical_city": row[7],
+                    "canonical_county": row[8],
+                }
 
-            return {
-                key: value for key, value in context.items() if value not in (None, "")
-            }
+                return {
+                    key: value for key, value in context.items() if value not in (None, "")
+                }
         except Exception as exc:  # pylint: disable=broad-except
             self.logger.debug(
                 "Failed to load source context for article %s: %s",
@@ -1699,9 +1690,6 @@ class BalancedBoundaryContentCleaner:
                 exc,
             )
             return {}
-        finally:
-            if conn:
-                conn.close()
 
     def _assess_locality(
         self,
@@ -1896,82 +1884,77 @@ class BalancedBoundaryContentCleaner:
         source_context: dict | None = None,
     ) -> None:  # pragma: no cover
         """Mark article as wire service content in database."""
-        conn = None
         try:
-            conn = self._connect_to_db()
-            cursor = conn.cursor()
-
-            cursor.execute(
-                "SELECT wire FROM articles WHERE id = ?",
-                (article_id,),
-            )
-            existing_wire = cursor.fetchone()
-            existing_payload: dict = {}
-            if existing_wire and existing_wire[0]:
-                try:
-                    existing_payload = json.loads(existing_wire[0])
-                except json.JSONDecodeError:
+            db = DatabaseManager()
+            with db.get_session() as session:
+                result = session.execute(
+                    sql_text("SELECT wire FROM articles WHERE id = :article_id"),
+                    {"article_id": article_id},
+                )
+                existing_wire = result.fetchone()
+                existing_payload: dict = {}
+                if existing_wire and existing_wire[0]:
+                    try:
+                        existing_payload = json.loads(existing_wire[0])
+                    except json.JSONDecodeError:
+                        existing_payload = {}
+                    except TypeError:
+                        existing_payload = {}
+                if not isinstance(existing_payload, dict):
                     existing_payload = {}
-                except TypeError:
-                    existing_payload = {}
-            if not isinstance(existing_payload, dict):
-                existing_payload = {}
 
-            # Update the wire column with JSON info about the wire service
-            wire_payload: dict[str, Any] = existing_payload.copy()
-            wire_payload.update(
-                {
-                    "provider": wire_info.get("provider"),
-                    "confidence": wire_info.get("confidence"),
-                    "detection_method": wire_info.get("detection_method"),
-                }
-            )
+                # Update the wire column with JSON info about the wire service
+                wire_payload: dict[str, Any] = existing_payload.copy()
+                wire_payload.update(
+                    {
+                        "provider": wire_info.get("provider"),
+                        "confidence": wire_info.get("confidence"),
+                        "detection_method": wire_info.get("detection_method"),
+                    }
+                )
 
-            if not wire_payload.get("detected_at"):
-                wire_payload["detected_at"] = datetime.utcnow().date().isoformat()
+                if not wire_payload.get("detected_at"):
+                    wire_payload["detected_at"] = datetime.utcnow().date().isoformat()
 
-            if locality:
-                sanitized_locality = {
-                    "is_local": locality.get("is_local", False),
-                    "confidence": locality.get("confidence"),
-                    "signals": locality.get("signals", []),
-                    "threshold": locality.get("threshold"),
-                }
-                wire_payload["locality"] = sanitized_locality
+                if locality:
+                    sanitized_locality = {
+                        "is_local": locality.get("is_local", False),
+                        "confidence": locality.get("confidence"),
+                        "signals": locality.get("signals", []),
+                        "threshold": locality.get("threshold"),
+                    }
+                    wire_payload["locality"] = sanitized_locality
 
-            if source_context:
-                allowed_keys = {
-                    "publisher_slug",
-                    "publisher_name",
-                    "publisher_city",
-                    "publisher_county",
-                    "publisher_type",
-                    "canonical_name",
-                    "canonical_city",
-                    "canonical_county",
-                }
-                sanitized_source = {
-                    key: value
-                    for key, value in source_context.items()
-                    if key in allowed_keys and value
-                }
-                if sanitized_source:
-                    wire_payload["source_context"] = sanitized_source
+                if source_context:
+                    allowed_keys = {
+                        "publisher_slug",
+                        "publisher_name",
+                        "publisher_city",
+                        "publisher_county",
+                        "publisher_type",
+                        "canonical_name",
+                        "canonical_city",
+                        "canonical_county",
+                    }
+                    sanitized_source = {
+                        key: value
+                        for key, value in source_context.items()
+                        if key in allowed_keys and value
+                    }
+                    if sanitized_source:
+                        wire_payload["source_context"] = sanitized_source
 
-            wire_data = json.dumps(wire_payload)
+                wire_data = json.dumps(wire_payload)
 
-            cursor.execute(
-                "UPDATE articles SET wire = ? WHERE id = ?", (wire_data, article_id)
-            )
+                session.execute(
+                    sql_text("UPDATE articles SET wire = :wire WHERE id = :article_id"),
+                    {"wire": wire_data, "article_id": article_id},
+                )
+                session.commit()
 
-            conn.commit()
-
-            self.logger.info(
-                f"Marked article {article_id} as wire service: {wire_info['provider']}"
-            )
+                self.logger.info(
+                    f"Marked article {article_id} as wire service: {wire_info['provider']}"
+                )
 
         except Exception as e:
             self.logger.error(f"Failed to mark article {article_id} as wire: {e}")
-        finally:
-            if conn:
-                conn.close()
