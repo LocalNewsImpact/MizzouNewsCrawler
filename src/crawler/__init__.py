@@ -1487,7 +1487,7 @@ class ContentExtractor:
                 meta = {"status": 404}
                 return self._create_error_result(url, "dead_url_cached", meta)
 
-        article = NewspaperArticle(url)
+        article = NewspaperArticle(url, fetch_images=False)
         http_status = None
         # Initialize proxy metadata (will be populated if proxy is used)
         proxy_metadata = {
