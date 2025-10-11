@@ -6,12 +6,19 @@ Created a complete workflow for processing articles from a separate source list 
 
 ## Files Created
 
-### 1. Main Script
+### 1. Main Scripts
 - **`scripts/custom_sourcelist_workflow.py`** - Complete workflow manager with 4 commands:
   - `create-dataset` - Initialize dataset and source
   - `import-urls` - Bulk import URLs from file
   - `extract` - Run full extraction pipeline
   - `export` - Generate Excel report
+
+- **`scripts/launch_dataset_job.py`** - Kubernetes Job orchestration (NEW):
+  - Launch isolated extraction jobs per dataset
+  - Custom resource limits and batching
+  - Automatic job cleanup after 24 hours
+  - Dry-run mode for testing manifests
+  - Independent logging with dataset labels
 
 ### 2. Documentation
 - **`docs/CUSTOM_SOURCELIST_WORKFLOW.md`** - Comprehensive guide (500+ lines)
@@ -47,6 +54,8 @@ All CLI commands support `--dataset` filtering:
 
 ## Complete Workflow
 
+### Local/Manual Processing
+
 ```bash
 # 1. Setup (one time)
 python scripts/custom_sourcelist_workflow.py create-dataset \
@@ -71,6 +80,41 @@ python scripts/custom_sourcelist_workflow.py export \
     --output results.xlsx
 ```
 
+### Kubernetes Job Processing (Recommended for Large Datasets)
+
+For datasets with hundreds or thousands of URLs, use the Kubernetes Job launcher for better isolation and resource management:
+
+```bash
+# 1. Setup and import URLs (same as above)
+python scripts/custom_sourcelist_workflow.py create-dataset ...
+python scripts/custom_sourcelist_workflow.py import-urls ...
+
+# 2. Launch isolated extraction job in Kubernetes
+python scripts/launch_dataset_job.py \
+    --dataset "client-project-2025" \
+    --batches 60 \
+    --limit 20
+
+# 3. Monitor job progress
+kubectl logs -n production -l dataset=client-project-2025 --follow
+
+# 4. Check job status
+kubectl get job extract-client-project-2025 -n production
+
+# 5. Export results (after job completes)
+python scripts/custom_sourcelist_workflow.py export \
+    --dataset-slug "client-project-2025" \
+    --output results.xlsx
+```
+
+**Benefits of Kubernetes Jobs:**
+- ✅ Isolated pod per dataset (failures don't affect other jobs)
+- ✅ Independent logging with dataset labels
+- ✅ Custom resource limits per dataset
+- ✅ Parallel processing of multiple datasets
+- ✅ Automatic cleanup after 24 hours
+- ✅ No interference with Missouri continuous processor
+
 ## What Each Step Does
 
 ### Extract Pipeline
@@ -90,6 +134,67 @@ Output includes:
 - Primary/Secondary ML classifications with confidence scores
 - Wire service attribution
 - Processing metadata
+
+## Job Launcher Details
+
+The `launch_dataset_job.py` script creates Kubernetes Jobs dynamically:
+
+### Usage Examples
+
+```bash
+# Test with dry-run (see the manifest without applying)
+python scripts/launch_dataset_job.py \
+    --dataset client-project-2025 \
+    --batches 60 \
+    --dry-run
+
+# Launch with default settings (60 batches × 20 articles)
+python scripts/launch_dataset_job.py \
+    --dataset client-project-2025 \
+    --batches 60
+
+# Large dataset with more resources
+python scripts/launch_dataset_job.py \
+    --dataset large-dataset \
+    --batches 100 \
+    --limit 50 \
+    --cpu-request 500m \
+    --memory-request 2Gi \
+    --memory-limit 4Gi
+
+# Custom image version
+python scripts/launch_dataset_job.py \
+    --dataset test-dataset \
+    --batches 10 \
+    --image us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:v1.2.3
+```
+
+### Monitoring Jobs
+
+```bash
+# Watch live logs
+kubectl logs -n production -l dataset=client-project-2025 --follow
+
+# Check job status
+kubectl get job extract-client-project-2025 -n production
+
+# Detailed job information
+kubectl describe job extract-client-project-2025 -n production
+
+# List all extraction jobs
+kubectl get jobs -n production -l type=extraction
+
+# Delete a job manually (if needed)
+kubectl delete job extract-client-project-2025 -n production
+```
+
+### Job Features
+
+- **Automatic Cleanup**: Jobs are deleted 24 hours after completion (configurable with `--ttl-seconds`)
+- **Resource Limits**: Prevents runaway resource usage
+- **Failure Isolation**: Failed jobs don't affect other datasets
+- **Restart Policy**: `Never` - jobs won't restart on failure (check logs for debugging)
+- **Labels**: Easy filtering by dataset, type, or app name
 
 ## Gazetteer Support
 
