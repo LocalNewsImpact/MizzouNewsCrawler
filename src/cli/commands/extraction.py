@@ -260,6 +260,17 @@ def _process_batch(
                 AND cl.dataset_id = (SELECT id FROM datasets WHERE slug = :dataset)""",
             )
             params["dataset"] = args.dataset
+        else:
+            # No explicit dataset - exclude cron-disabled datasets
+            # Protects custom source lists from automated jobs
+            q = q.replace(
+                "WHERE cl.status = 'article'",
+                """WHERE cl.status = 'article'
+                AND (cl.dataset_id IS NULL
+                     OR cl.dataset_id IN (
+                         SELECT id FROM datasets WHERE cron_enabled = 1
+                     ))""",
+            )
         
         # Add source filter if specified
         if getattr(args, "source", None):

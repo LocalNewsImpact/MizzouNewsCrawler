@@ -359,6 +359,10 @@ class Dataset(Base):
     # in the DB column named 'metadata' but expose it as `meta` on the model.
     meta = Column("metadata", JSON)
     is_public = Column(Boolean, default=False)
+    # Control whether this dataset should be included in automated cron jobs
+    # False = manual processing only (e.g., custom source lists)
+    # True = include in automated discovery/extraction jobs
+    cron_enabled = Column(Boolean, default=True, nullable=False)
 
 
 class Source(Base):

@@ -104,7 +104,7 @@ def create_dataset(
             print(f"✓ Dataset '{slug}' already exists (ID: {existing_dataset.id})")
             dataset_id = existing_dataset.id
         else:
-            # Create new dataset
+            # Create new dataset (cron_enabled=False for manual processing only)
             dataset = Dataset(
                 id=str(uuid.uuid4()),
                 slug=slug,
@@ -114,11 +114,13 @@ def create_dataset(
                 ingested_at=datetime.utcnow(),
                 ingested_by="custom_sourcelist_workflow.py",
                 is_public=False,
+                cron_enabled=False,  # Exclude from automated cron jobs by default
             )
             session.add(dataset)
             session.commit()
             dataset_id = dataset.id
             print(f"✓ Created dataset '{slug}' (ID: {dataset_id})")
+            print("  🔒 Cron disabled (manual processing only)")
         
         # Parse source URL to get host
         parsed = urlparse(source_url)
