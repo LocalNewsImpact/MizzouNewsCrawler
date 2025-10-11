@@ -77,17 +77,25 @@ spec:
           value: "16"
         - name: GAZETTEER_BATCH_SIZE
           value: "50"
-        # CAPTCHA and rate limit handling - AGGRESSIVE SETTINGS
+        # CAPTCHA and rate limit handling - ULTRA-AGGRESSIVE SETTINGS
         - name: CAPTCHA_BACKOFF_BASE
-          value: "1800"  # 30 minutes (aggressive)
+          value: "2400"  # 40 minutes (ultra-aggressive)
         - name: CAPTCHA_BACKOFF_MAX
-          value: "7200"  # 2 hours (aggressive)
+          value: "7200"  # 2 hours (ultra-aggressive)
         - name: INTER_REQUEST_MIN
-          value: "8.0"  # 8 seconds minimum (very conservative)
+          value: "15.0"  # 15 seconds minimum (ultra-conservative)
         - name: INTER_REQUEST_MAX
-          value: "15.0"  # 15 seconds maximum (very conservative)
+          value: "25.0"  # 25 seconds maximum (ultra-conservative)
         - name: BATCH_SLEEP_SECONDS
-          value: "30.0"  # 30 second pause between batches
+          value: "60.0"  # 60 second pause between batches
+        # User agent rotation (rotate every 3-5 requests)
+        - name: UA_ROTATE_BASE
+          value: "4"
+        - name: UA_ROTATE_JITTER
+          value: "0.25"
+        # Decodo IP rotation (enabled by default)
+        - name: DECODO_ROTATE_IP
+          value: "true"
         # Proxy configuration - using Decodo ISP proxy directly
         - name: PROXY_PROVIDER
           value: "decodo"
