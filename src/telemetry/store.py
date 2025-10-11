@@ -230,6 +230,10 @@ class TelemetryStore:
     
     def _create_engine(self) -> Engine:
         """Create SQLAlchemy engine based on database URL."""
+        # Check if Cloud SQL connector should be used
+        if self._should_use_cloud_sql_connector():
+            return self._create_cloud_sql_engine()
+        
         connect_args: dict[str, Any] = {}
         
         if "sqlite" in self.database_url:
@@ -251,6 +255,58 @@ class TelemetryStore:
             _configure_sqlite_engine(engine, self.timeout)
         
         return engine
+    
+    def _should_use_cloud_sql_connector(self) -> bool:
+        """Determine if Cloud SQL Python Connector should be used."""
+        import os
+        
+        # Only use for PostgreSQL URLs
+        if "postgres" not in self.database_url:
+            return False
+        
+        # Check environment variable
+        if os.getenv("USE_CLOUD_SQL_CONNECTOR", "").lower() in ("false", "0", "no"):
+            return False
+        
+        try:
+            from src.config import USE_CLOUD_SQL_CONNECTOR, CLOUD_SQL_INSTANCE
+            return USE_CLOUD_SQL_CONNECTOR and bool(CLOUD_SQL_INSTANCE)
+        except ImportError:
+            return False
+    
+    def _create_cloud_sql_engine(self) -> Engine:
+        """Create database engine using Cloud SQL Python Connector."""
+        try:
+            from src.config import (
+                CLOUD_SQL_INSTANCE,
+                DATABASE_USER,
+                DATABASE_PASSWORD,
+                DATABASE_NAME,
+            )
+            from src.models.cloud_sql_connector import create_cloud_sql_engine
+            
+            self._logger.info("TelemetryStore using Cloud SQL Python Connector")
+            
+            return create_cloud_sql_engine(
+                instance_connection_name=CLOUD_SQL_INSTANCE,
+                user=DATABASE_USER,
+                password=DATABASE_PASSWORD,
+                database=DATABASE_NAME,
+                driver="pg8000",
+                echo=False,
+                poolclass=NullPool if self.async_writes else None,
+            )
+        except Exception as e:
+            self._logger.warning(
+                "Failed to create Cloud SQL connector for telemetry, "
+                "falling back to direct connection: %s", e
+            )
+            # Fall back to the original database URL
+            return create_engine(
+                self.database_url,
+                poolclass=NullPool if self.async_writes else None,
+                echo=False,
+            )
 
     # ------------------------------------------------------------------
     # public API
