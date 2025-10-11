@@ -88,8 +88,8 @@ build/
 *.ipynb
 .ipynb_checkpoints/
 
-# Large model files (will be loaded from GCS)
-models/*.pt
+# Large model files (now included in ml-base image)
+# models/*.pt  # Commented out - we need productionmodel.pt in the image
 models/*.bin
 *.safetensors
 
