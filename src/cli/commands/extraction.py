@@ -181,8 +181,12 @@ def handle_extraction_command(args) -> int:
                 print(f"📭 No more articles available to extract")
                 break
             
-            # Brief pause between batches
-            time.sleep(0.1)
+            # Pause between batches (configurable via BATCH_SLEEP_SECONDS)
+            import os
+            batch_sleep = float(os.getenv("BATCH_SLEEP_SECONDS", "0.1"))
+            if batch_sleep > 0:
+                print(f"   ⏸️  Waiting {batch_sleep}s before next batch...")
+                time.sleep(batch_sleep)
 
         if domains_for_cleaning:
             print()

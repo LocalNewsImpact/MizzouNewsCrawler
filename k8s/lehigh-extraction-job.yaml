@@ -23,9 +23,9 @@ spec:
           - --dataset
           - Penn-State-Lehigh
           - --limit
-          - "20"
+          - "5"
           - --batches
-          - "60"
+          - "250"
         envFrom:
         - secretRef:
             name: origin-proxy-credentials
@@ -67,6 +67,17 @@ spec:
             secretKeyRef:
               name: origin-proxy-credentials
               key: selenium-proxy-url
+        # Aggressive rate limiting settings
+        - name: INTER_REQUEST_MIN
+          value: "8.0"
+        - name: INTER_REQUEST_MAX
+          value: "15.0"
+        - name: CAPTCHA_BACKOFF_BASE
+          value: "1800"
+        - name: CAPTCHA_BACKOFF_MAX
+          value: "7200"
+        - name: BATCH_SLEEP_SECONDS
+          value: "30.0"
         # Bypass proxy for internal services
         - name: NO_PROXY
           value: "localhost,127.0.0.1,metadata.google.internal,huggingface.co,*.huggingface.co"
