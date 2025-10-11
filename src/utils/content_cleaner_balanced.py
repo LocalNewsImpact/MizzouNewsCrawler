@@ -271,36 +271,65 @@ class BalancedBoundaryContentCleaner:
         domain: str,
     ) -> list[dict]:  # pragma: no cover
         """Get stored persistent patterns for a domain."""
-        conn = self._connect_to_db()
-        cursor = conn.cursor()
+        if self.use_cloud_sql:
+            # Use SQLAlchemy for Cloud SQL
+            db = DatabaseManager()
+            with db.get_session() as session:
+                query = """
+                SELECT text_content, pattern_type, confidence_score
+                FROM persistent_boilerplate_patterns
+                WHERE domain = :domain
+                """
+                result = session.execute(sql_text(query), {"domain": domain})
+                
+                patterns = []
+                for row in result.fetchall():
+                    patterns.append(
+                        {
+                            "text": row[0],
+                            "pattern_type": row[1],
+                            "boundary_score": row[2],
+                            "occurrences": 1,  # Persistent patterns are pre-validated
+                            "length": len(row[0]),
+                            "article_ids": [],  # Will be populated during analysis
+                            "positions": {},  # Will be populated during analysis
+                            "position_consistency": 1.0,  # Perfect for stored patterns
+                            "removal_reason": f"Persistent {row[1]} pattern",
+                        }
+                    )
+                return patterns
+        else:
+            # Legacy SQLite
+            conn = self._connect_to_db()
+            cursor = conn.cursor()
 
-        cursor.execute(
-            """
-            SELECT text_content, pattern_type, confidence_score
-            FROM persistent_boilerplate_patterns
-            WHERE domain = ?
-        """,
-            (domain,),
-        )
-
-        patterns = []
-        for row in cursor.fetchall():
-            patterns.append(
-                {
-                    "text": row[0],
-                    "pattern_type": row[1],
-                    "boundary_score": row[2],
-                    "occurrences": 1,  # Persistent patterns are pre-validated
-                    "length": len(row[0]),
-                    "article_ids": [],  # Will be populated during analysis
-                    "positions": {},  # Will be populated during analysis
-                    "position_consistency": 1.0,  # Perfect for stored patterns
-                    "removal_reason": f"Persistent {row[1]} pattern",
-                }
+            cursor.execute(
+                """
+                SELECT text_content, pattern_type, confidence_score
+                FROM persistent_boilerplate_patterns
+                WHERE domain = ?
+            """,
+                (domain,),
             )
 
-        conn.close()
-        return patterns
+            patterns = []
+            for row in cursor.fetchall():
+                patterns.append(
+                    {
+                        "text": row[0],
+                        "pattern_type": row[1],
+                        "boundary_score": row[2],
+                        "occurrences": 1,  # Persistent patterns are pre-validated
+                        "length": len(row[0]),
+                        "article_ids": [],  # Will be populated during analysis
+                        "positions": {},  # Will be populated during analysis
+                        "position_consistency": 1.0,  # Perfect for stored patterns
+                        "removal_reason": f"Persistent {row[1]} pattern",
+                    }
+                )
+
+            conn.close()
+            return patterns
 
     def _get_articles_for_domain(
         self,

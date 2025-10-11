@@ -598,15 +598,11 @@ def _run_post_extraction_cleaning(domains_to_articles):
             try:
                 cleaner.analyze_domain(domain)
             except Exception as e:
-                # Domain analysis is optional optimization - skip on Cloud SQL
+                # Domain analysis is optional optimization - skip if tables don't exist
                 error_str = str(e)
-                if any(msg in error_str for msg in [
-                    "no such table: articles",
-                    "has no attribute 'cursor'",  # Cloud SQL DatabaseManager
-                    "object has no attribute 'cursor'"
-                ]):
+                if "no such table: articles" in error_str:
                     logger.debug(
-                        "Skipping domain analysis for %s (Cloud SQL incompatibility)",
+                        "Skipping domain analysis for %s (table doesn't exist)",
                         domain
                     )
                 else:
