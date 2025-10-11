@@ -69,15 +69,23 @@ spec:
               key: selenium-proxy-url
         # Aggressive rate limiting settings
         - name: INTER_REQUEST_MIN
-          value: "8.0"
-        - name: INTER_REQUEST_MAX
           value: "15.0"
+        - name: INTER_REQUEST_MAX
+          value: "25.0"
         - name: CAPTCHA_BACKOFF_BASE
-          value: "1800"
+          value: "2400"
         - name: CAPTCHA_BACKOFF_MAX
           value: "7200"
         - name: BATCH_SLEEP_SECONDS
-          value: "30.0"
+          value: "60.0"
+        # User agent rotation (rotate every 3-5 requests)
+        - name: UA_ROTATE_BASE
+          value: "4"
+        - name: UA_ROTATE_JITTER
+          value: "0.25"
+        # Decodo IP rotation (enabled by default)
+        - name: DECODO_ROTATE_IP
+          value: "true"
         # Bypass proxy for internal services
         - name: NO_PROXY
           value: "localhost,127.0.0.1,metadata.google.internal,huggingface.co,*.huggingface.co"

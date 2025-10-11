@@ -174,13 +174,28 @@ class ProxyManager:
                 password=os.getenv("SMARTPROXY_PASSWORD"),
             )
         
-        # Decodo ISP proxy
+        # Decodo ISP proxy with port-based IP rotation
+        # Ports 10001-10010 provide different IPs for rotation
         decodo_username = os.getenv("DECODO_USERNAME", "user-sp8z2fzi1e-country-us")
         decodo_password = os.getenv("DECODO_PASSWORD", "qg_hJ7reok8e5F7BHg")
         decodo_host = os.getenv("DECODO_HOST", "isp.decodo.com")
-        decodo_port = os.getenv("DECODO_PORT", "10000")
+        decodo_country = os.getenv("DECODO_COUNTRY", "us")
+        
+        # Use rotating ports (10001-10010) for IP rotation, or default port for sticky
+        use_port_rotation = os.getenv("DECODO_ROTATE_IP", "true").lower() == "true"
+        
+        if use_port_rotation:
+            # Randomly select from rotation port range for this session
+            import random
+            decodo_port = str(random.randint(10001, 10010))
+        else:
+            decodo_port = os.getenv("DECODO_PORT", "10000")
+        
         # Decodo URL with credentials - using HTTPS for encrypted proxy auth
-        decodo_url = f"https://{decodo_username}:{decodo_password}@{decodo_host}:{decodo_port}"
+        decodo_url = (
+            f"https://{decodo_username}:{decodo_password}@"
+            f"{decodo_host}:{decodo_port}"
+        )
         
         self.configs[ProxyProvider.DECODO] = ProxyConfig(
             provider=ProxyProvider.DECODO,
@@ -190,9 +205,11 @@ class ProxyManager:
             username=None,
             password=None,
             options={
-                "country": os.getenv("DECODO_COUNTRY", "us"),
+                "country": decodo_country,
                 "host": decodo_host,
                 "port": decodo_port,
+                "rotate_ip": use_port_rotation,
+                "port_range": "10001-10010" if use_port_rotation else None,
             },
         )
     
@@ -304,6 +321,7 @@ class ProxyManager:
     def get_requests_proxies(self) -> Optional[dict]:
         """
         Get proxy configuration in requests library format.
+        For Decodo with IP rotation, returns URL with rotating port.
         
         Returns:
             dict: Proxy config for requests library, or None for ORIGIN/DIRECT
@@ -318,7 +336,16 @@ class ProxyManager:
         if config.provider == ProxyProvider.DIRECT:
             return None
         
-        # Build proxy URL with auth
+        # Decodo with IP rotation - use rotating port
+        if config.provider == ProxyProvider.DECODO:
+            rotating_url = self.get_rotating_decodo_url()
+            if rotating_url:
+                return {
+                    "http": rotating_url,
+                    "https": rotating_url,
+                }
+        
+        # Build proxy URL with auth for other providers
         if config.url:
             if config.username:
                 auth = f"{config.username}:{config.password or ''}@"
@@ -338,6 +365,32 @@ class ProxyManager:
             }
         
         return None
+    
+    def get_rotating_decodo_url(self) -> Optional[str]:
+        """
+        Get Decodo proxy URL with rotating port (10001-10010) for IP rotation.
+        Each call returns a different port from the range.
+        
+        Returns:
+            str: Proxy URL with rotated port, or None if not using Decodo
+        """
+        config = self.get_active_config()
+        
+        if config.provider != ProxyProvider.DECODO:
+            return None
+        
+        # Check if rotation is enabled
+        if not config.options or not config.options.get("rotate_ip", False):
+            return config.url
+        
+        # Get rotation parameters
+        import random
+        port = random.randint(10001, 10010)
+        username = os.getenv("DECODO_USERNAME", "user-sp8z2fzi1e-country-us")
+        password = os.getenv("DECODO_PASSWORD", "qg_hJ7reok8e5F7BHg")
+        host = config.options.get("host", "isp.decodo.com") if config.options else "isp.decodo.com"
+        
+        return f"https://{username}:{password}@{host}:{port}"
     
     def should_use_origin_proxy(self) -> bool:
         """Check if origin proxy should be enabled."""
