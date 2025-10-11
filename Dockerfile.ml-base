@@ -26,7 +26,7 @@ RUN python -c "from transformers import AutoTokenizer, AutoModel; \
 # Create directories for models
 RUN mkdir -p /app/models
 
-# Copy trained ML model
+# Copy ML model (downloaded by Cloud Build from GCS)
 COPY --chown=appuser:appuser models/productionmodel.pt /app/models/
 
 # Metadata

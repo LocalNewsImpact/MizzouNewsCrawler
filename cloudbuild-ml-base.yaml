@@ -3,6 +3,16 @@
 # Built infrequently since ML dependencies rarely change
 
 steps:
+  # Step 0: Download ML model from GCS (418MB, too large for git)
+  - id: 'download-model'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        mkdir -p models
+        gsutil cp gs://mizzou-news-crawler-models/productionmodel.pt models/productionmodel.pt || echo "Model not found in GCS, will use default"
+
   # Step 1: Build ML base image
   - id: 'build-ml-base'
     name: 'gcr.io/cloud-builders/docker'
@@ -19,6 +29,8 @@ steps:
       - '-f'
       - 'Dockerfile.ml-base'
       - '.'
+    waitFor:
+      - 'download-model'
 
   # Step 2: Push all tags
   - id: 'push-ml-base'
