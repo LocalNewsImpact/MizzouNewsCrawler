@@ -3,7 +3,6 @@
 import json
 import logging
 import re
-import sqlite3
 from collections import defaultdict
 from datetime import datetime
 from typing import Any
@@ -145,17 +144,8 @@ class BalancedBoundaryContentCleaner:
         self.wire_detector = BylineCleaner()
 
     def _connect_to_db(self):
-        """Get database connection - SQLAlchemy session or SQLite connection."""
-        if self.use_cloud_sql:
-            # Return DatabaseManager for Cloud SQL
-            return DatabaseManager()
-        else:
-            # Legacy SQLite connection
-            return sqlite3.connect(
-                self.db_path,
-                timeout=10,
-                check_same_thread=False,
-            )
+        """Get database connection - DatabaseManager for Cloud SQL."""
+        return DatabaseManager()
 
     def analyze_domain(
         self,
@@ -271,49 +261,17 @@ class BalancedBoundaryContentCleaner:
         domain: str,
     ) -> list[dict]:  # pragma: no cover
         """Get stored persistent patterns for a domain."""
-        if self.use_cloud_sql:
-            # Use SQLAlchemy for Cloud SQL
-            db = DatabaseManager()
-            with db.get_session() as session:
-                query = """
-                SELECT text_content, pattern_type, confidence_score
-                FROM persistent_boilerplate_patterns
-                WHERE domain = :domain
-                """
-                result = session.execute(sql_text(query), {"domain": domain})
-                
-                patterns = []
-                for row in result.fetchall():
-                    patterns.append(
-                        {
-                            "text": row[0],
-                            "pattern_type": row[1],
-                            "boundary_score": row[2],
-                            "occurrences": 1,  # Persistent patterns are pre-validated
-                            "length": len(row[0]),
-                            "article_ids": [],  # Will be populated during analysis
-                            "positions": {},  # Will be populated during analysis
-                            "position_consistency": 1.0,  # Perfect for stored patterns
-                            "removal_reason": f"Persistent {row[1]} pattern",
-                        }
-                    )
-                return patterns
-        else:
-            # Legacy SQLite
-            conn = self._connect_to_db()
-            cursor = conn.cursor()
-
-            cursor.execute(
-                """
-                SELECT text_content, pattern_type, confidence_score
-                FROM persistent_boilerplate_patterns
-                WHERE domain = ?
-            """,
-                (domain,),
-            )
-
+        db = DatabaseManager()
+        with db.get_session() as session:
+            query = """
+            SELECT text_content, pattern_type, confidence_score
+            FROM persistent_boilerplate_patterns
+            WHERE domain = :domain
+            """
+            result = session.execute(sql_text(query), {"domain": domain})
+            
             patterns = []
-            for row in cursor.fetchall():
+            for row in result.fetchall():
                 patterns.append(
                     {
                         "text": row[0],
@@ -327,8 +285,6 @@ class BalancedBoundaryContentCleaner:
                         "removal_reason": f"Persistent {row[1]} pattern",
                     }
                 )
-
-            conn.close()
             return patterns
 
     def _get_articles_for_domain(
@@ -337,61 +293,33 @@ class BalancedBoundaryContentCleaner:
         sample_size: int = None,
     ) -> list[dict]:  # pragma: no cover
         """Get articles for a specific domain."""
-        if self.use_cloud_sql:
-            # Use SQLAlchemy for Cloud SQL
-            db = DatabaseManager()
-            with db.get_session() as session:
-                query = """
-                SELECT id, url, content, text_hash
-                FROM articles
-                WHERE url LIKE :domain
-                AND content IS NOT NULL
-                AND content != ''
-                ORDER BY id DESC
-                """
-                params = {"domain": f"%{domain}%"}
-                
-                if sample_size:
-                    query += " LIMIT :limit"
-                    params["limit"] = sample_size
-                
-                result = session.execute(sql_text(query), params)
-                articles = [
-                    {
-                        "id": row[0],
-                        "url": row[1],
-                        "content": row[2],
-                        "text_hash": row[3],
-                    }
-                    for row in result.fetchall()
-                ]
-            return articles
-        else:
-            # Legacy SQLite
-            conn = sqlite3.connect(
-                self.db_path, timeout=10, check_same_thread=False
-            )
-            cursor = conn.cursor()
+        db = DatabaseManager()
+        with db.get_session() as session:
             query = """
             SELECT id, url, content, text_hash
             FROM articles
-            WHERE url LIKE ?
+            WHERE url LIKE :domain
             AND content IS NOT NULL
             AND content != ''
             ORDER BY id DESC
             """
-            params = [f"%{domain}%"]
+            params = {"domain": f"%{domain}%"}
+            
             if sample_size:
-                query += " LIMIT ?"
-                params.append(sample_size)
-
-            cursor.execute(query, params)
+                query += " LIMIT :limit"
+                params["limit"] = sample_size
+            
+            result = session.execute(sql_text(query), params)
             articles = [
-                {"id": row[0], "url": row[1], "content": row[2], "text_hash": row[3]}
-                for row in cursor.fetchall()
+                {
+                    "id": row[0],
+                    "url": row[1],
+                    "content": row[2],
+                    "text_hash": row[3],
+                }
+                for row in result.fetchall()
             ]
-            conn.close()
-            return articles
+        return articles
 
     def _find_rough_candidates(
         self,
