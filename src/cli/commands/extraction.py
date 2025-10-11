@@ -109,6 +109,7 @@ def add_extraction_parser(subparsers):
         help="Number of batches (default: process all available)",
     )
     extract_parser.add_argument("--source", type=str, help="Limit to a specific source")
+    extract_parser.add_argument("--dataset", type=str, help="Limit to a specific dataset slug")
     extract_parser.add_argument(
         "--no-exhaust-queue",
         dest="exhaust_queue",
@@ -250,11 +251,28 @@ def _process_batch(
         # Request more articles than we need to allow for domain skipping
         buffer_multiplier = 3
         params = {"limit_with_buffer": per_batch * buffer_multiplier}
-        if getattr(args, "source", None):
+        
+        # Add dataset filter if specified
+        if getattr(args, "dataset", None):
             q = q.replace(
                 "WHERE cl.status = 'article'",
-                "WHERE cl.status = 'article' AND cl.source = :source",
+                """WHERE cl.status = 'article' 
+                AND cl.dataset_id = (SELECT id FROM datasets WHERE slug = :dataset)""",
             )
+            params["dataset"] = args.dataset
+        
+        # Add source filter if specified
+        if getattr(args, "source", None):
+            if "cl.dataset_id" in q:
+                q = q.replace(
+                    "AND cl.dataset_id",
+                    "AND cl.source = :source AND cl.dataset_id",
+                )
+            else:
+                q = q.replace(
+                    "WHERE cl.status = 'article'",
+                    "WHERE cl.status = 'article' AND cl.source = :source",
+                )
             params["source"] = args.source
 
         result = session.execute(text(q), params)

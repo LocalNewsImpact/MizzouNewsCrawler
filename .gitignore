@@ -84,3 +84,4 @@ coverage.xml
 # Project specific
 models/productionmodel.pt
 backend/reviews.db*
+.decodo-credentials
