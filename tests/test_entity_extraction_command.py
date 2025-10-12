@@ -361,7 +361,8 @@ class TestEntityExtractionCommand:
         # Should select required fields
         assert "a.id" in query_str
         assert "a.text" in query_str
-        assert "a.source_id" in query_str
+        # source_id comes from candidate_links join
+        assert "cl.source_id" in query_str or "source_id" in query_str
         
         # Should filter for articles with content but no entities
         assert "content is not null" in query_str
