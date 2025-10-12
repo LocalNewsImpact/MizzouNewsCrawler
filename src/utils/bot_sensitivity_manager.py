@@ -4,6 +4,7 @@ This module provides centralized management of bot sensitivity ratings for publi
 enabling adaptive rate limiting and backoff behavior based on bot detection encounters.
 """
 
+import json
 import logging
 import uuid
 from datetime import datetime, timedelta
@@ -263,7 +264,9 @@ class BotSensitivityManager:
                         "event_type": event_type,
                         "http_status": http_status_code,
                         "indicators": (
-                            str(response_indicators) if response_indicators else None
+                            json.dumps(response_indicators)
+                            if response_indicators
+                            else None
                         ),
                         "prev_sensitivity": current_sensitivity,
                         "new_sensitivity": new_sensitivity,
