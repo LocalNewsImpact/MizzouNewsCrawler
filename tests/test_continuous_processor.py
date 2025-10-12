@@ -51,10 +51,11 @@ class TestWorkQueue:
         assert counts == {
             "verification_pending": 0,
             "extraction_pending": 0,
+            "cleaning_pending": 0,
             "analysis_pending": 0,
             "entity_extraction_pending": 0,
         }
-        assert mock_session.execute.call_count == 4
+        assert mock_session.execute.call_count == 5
 
     def test_get_counts_returns_correct_values(self, mock_db_manager):
         """Test that get_counts returns correct counts from database."""
@@ -64,6 +65,7 @@ class TestWorkQueue:
         mock_results = [
             MagicMock(scalar=lambda: 5),   # verification_pending
             MagicMock(scalar=lambda: 10),  # extraction_pending
+            MagicMock(scalar=lambda: 12),  # cleaning_pending
             MagicMock(scalar=lambda: 15),  # analysis_pending
             MagicMock(scalar=lambda: 20),  # entity_extraction_pending
         ]
@@ -73,6 +75,7 @@ class TestWorkQueue:
         
         assert counts["verification_pending"] == 5
         assert counts["extraction_pending"] == 10
+        assert counts["cleaning_pending"] == 12
         assert counts["analysis_pending"] == 15
         assert counts["entity_extraction_pending"] == 20
 
@@ -87,7 +90,7 @@ class TestWorkQueue:
         continuous_processor.WorkQueue.get_counts()
         
         # Verify correct number of queries
-        assert mock_session.execute.call_count == 4
+        assert mock_session.execute.call_count == 5
         
         # Verify queries are text objects (SQLAlchemy text)
         calls = mock_session.execute.call_args_list
@@ -354,6 +357,7 @@ class TestProcessCycle:
         mock_get_counts.return_value = {
             "verification_pending": 10,
             "extraction_pending": 20,
+            "cleaning_pending": 25,
             "analysis_pending": 30,
             "entity_extraction_pending": 40,
         }
@@ -382,6 +386,7 @@ class TestProcessCycle:
         mock_get_counts.return_value = {
             "verification_pending": 0,
             "extraction_pending": 0,
+            "cleaning_pending": 0,
             "analysis_pending": 0,
             "entity_extraction_pending": 0,
         }
