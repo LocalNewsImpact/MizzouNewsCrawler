@@ -22,7 +22,7 @@ spec:
       
       containers:
       - name: cli
-        image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:d44fe7b
+        image: processor
         imagePullPolicy: Always
         
         # Keep pod alive but do nothing - waiting for kubectl exec commands

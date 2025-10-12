@@ -18,15 +18,11 @@ build:
       docker:
         dockerfile: Dockerfile.crawler
 
-# Deployment manifests
+# Deployment manifests - using Kustomize for image substitution
 manifests:
-  rawYaml:
-    - k8s/processor-deployment.yaml
-    - k8s/api-deployment.yaml
-    - k8s/crawler-cronjob.yaml
-    - k8s/cli-deployment.yaml
-    - k8s/pdbs/mizzou-api-pdb.yaml
-    - k8s/pdbs/mizzou-processor-pdb.yaml
+  kustomize:
+    paths:
+      - k8s
 
 # Deploy to Kubernetes
 deploy:
@@ -36,10 +32,6 @@ deploy:
 profiles:
   - name: production
     manifests:
-      rawYaml:
-        - k8s/processor-deployment.yaml
-        - k8s/api-deployment.yaml
-        - k8s/crawler-cronjob.yaml
-        - k8s/cli-deployment.yaml
-        - k8s/pdbs/mizzou-api-pdb.yaml
-        - k8s/pdbs/mizzou-processor-pdb.yaml
+      kustomize:
+        paths:
+          - k8s
