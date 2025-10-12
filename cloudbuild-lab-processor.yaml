@@ -1,0 +1,55 @@
+substitutions:
+  _REGISTRY: us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler
+
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-processor'
+    env:
+      - 'DOCKER_BUILDKIT=1'
+    args:
+      - 'build'
+      - '-f'
+      - 'Dockerfile.processor'
+      - '-t'
+      - '${_REGISTRY}/processor:${SHORT_SHA}'
+      - '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-processor'
+    args:
+      - 'push'
+      - '${_REGISTRY}/processor:${SHORT_SHA}'
+    waitFor:
+      - 'build-processor'
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'create-release'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        RELEASE_NAME="processor-lab-${SHORT_SHA}"
+        PROCESSOR_IMAGE="${_REGISTRY}/processor:${SHORT_SHA}"
+        API_IMAGE="${_REGISTRY}/api:latest"
+        CRAWLER_IMAGE="${_REGISTRY}/crawler:latest"
+
+        echo "Preparing lab Cloud Deploy release: $${RELEASE_NAME}"
+
+        gcloud deploy releases create "$${RELEASE_NAME}" \
+          --delivery-pipeline=mizzou-news-crawler \
+          --region=us-central1 \
+          --skaffold-file=skaffold.yaml \
+          --to-target=ci-cd-lab \
+          --images=processor=$${PROCESSOR_IMAGE},api=$${API_IMAGE},crawler=$${CRAWLER_IMAGE}
+
+        echo "✅ Created lab release $${RELEASE_NAME}"
+    waitFor:
+      - 'push-processor'
+
+images:
+  - '${_REGISTRY}/processor:${SHORT_SHA}'
+
+timeout: 1200s
+options:
+  logging: CLOUD_LOGGING_ONLY

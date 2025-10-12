@@ -1,0 +1,10 @@
+apiVersion: deploy.cloud.google.com/v1
+kind: Target
+metadata:
+  name: ci-cd-lab
+  labels:
+    environment: lab
+description: "Isolated lab namespace for CI/CD testing"
+gke:
+  cluster: projects/mizzou-news-crawler/locations/us-central1-a/clusters/mizzou-cluster
+  internalIp: false

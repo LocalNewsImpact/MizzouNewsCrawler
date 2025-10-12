@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mizzou-api
+  namespace: ci-cd-lab
+  labels:
+    app: mizzou-api
+    component: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mizzou-api
+  template:
+    metadata:
+      labels:
+        app: mizzou-api
+        component: backend
+    spec:
+      serviceAccountName: mizzou-app
+      priorityClassName: service-critical
+      containers:
+      - name: api
+        image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:ab1178b
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: DATABASE_ENGINE
+          value: "postgresql+psycopg2"
+        - name: DATABASE_HOST
+          value: "127.0.0.1"
+        - name: DATABASE_PORT
+          value: "5432"
+        - name: DATABASE_USER
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: username
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: password
+        - name: DATABASE_NAME
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: database
+        - name: USE_CLOUD_SQL_CONNECTOR
+          value: "true"
+        - name: CLOUD_SQL_INSTANCE
+          value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+        - name: PORT
+          value: "8000"
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi
+        livenessProbe:
+          httpGet:
+            path: /api/articles
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/articles
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mizzou-api
+  namespace: ci-cd-lab
+  labels:
+    app: mizzou-api
+spec:
+  type: ClusterIP
+  selector:
+    app: mizzou-api
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+    name: http

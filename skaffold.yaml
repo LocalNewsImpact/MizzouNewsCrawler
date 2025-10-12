@@ -34,6 +34,11 @@ deploy:
 
 # Profiles for different environments (future use)
 profiles:
+  - name: lab
+    manifests:
+      rawYaml:
+        - k8s/lab/processor-deployment.yaml
+        - k8s/lab/api-deployment.yaml
   - name: production
     manifests:
       rawYaml:

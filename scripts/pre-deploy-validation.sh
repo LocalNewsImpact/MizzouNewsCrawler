@@ -48,7 +48,9 @@ echo "1. Running Origin Proxy Unit Tests"
 echo "=========================================="
 
 if [ "$SERVICE" = "processor" ] || [ "$SERVICE" = "all" ]; then
-    pytest tests/test_origin_proxy.py -v || {
+    PYTEST_DISABLE_MODULE_THRESHOLDS=1 pytest \
+        -o addopts="--cov=src.crawler.origin_proxy --cov=src.models.api_backend --cov-report=term-missing --cov-fail-under=80 -p no:postgresql -v" \
+        tests/test_origin_proxy.py || {
         echo "❌ Origin proxy unit tests FAILED"
         exit 1
     }
@@ -67,7 +69,9 @@ if [ "$SERVICE" = "processor" ] || [ "$SERVICE" = "all" ]; then
     # Install pyyaml if needed for these tests
     pip install -q pyyaml
     
-    pytest tests/test_sitecustomize_integration.py -v || {
+    PYTEST_DISABLE_MODULE_THRESHOLDS=1 pytest \
+        -o addopts="--no-cov -p no:postgresql -v" \
+        tests/test_sitecustomize_integration.py || {
         echo "❌ Sitecustomize integration tests FAILED"
         echo ""
         echo "These tests validate:"

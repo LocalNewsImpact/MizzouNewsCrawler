@@ -83,10 +83,15 @@ def clean_app_state():
 # relative to the project root (session.config.rootpath) so the check works
 # both locally and in CI environments.
 
-MODULE_COVERAGE_THRESHOLDS: dict[Path, float] = {
-    Path("src/utils/byline_cleaner.py"): 80.0,
-    Path("src/utils/content_cleaner_balanced.py"): 80.0,
-}
+MODULE_COVERAGE_THRESHOLDS: dict[Path, float]
+
+if os.environ.get("PYTEST_DISABLE_MODULE_THRESHOLDS") == "1":
+    MODULE_COVERAGE_THRESHOLDS = {}
+else:
+    MODULE_COVERAGE_THRESHOLDS = {
+        Path("src/utils/byline_cleaner.py"): 80.0,
+        Path("src/utils/content_cleaner_balanced.py"): 80.0,
+    }
 
 
 def _resolve_threshold_paths(root: Path) -> dict[Path, float]:
