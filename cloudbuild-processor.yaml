@@ -110,6 +110,30 @@ steps:
         echo "✅ Created Cloud Deploy release $${RELEASE_NAME} for Processor"
     waitFor: ['resolve-current-tags']
 
+  # Force pod update by setting image directly
+  # This is the fix - Cloud Deploy doesn't update hardcoded tags in YAML
+  # kubectl set image modifies deployment spec -> triggers NEW ReplicaSet -> rolling update
+  # No duplicate pods because new RS has different hash in pod names
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'get-gke-credentials'
+    args:
+      - 'container'
+      - 'clusters'
+      - 'get-credentials'
+      - 'mizzou-news-crawler'
+      - '--region=us-central1'
+    waitFor: ['create-release']
+
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'force-processor-update'
+    args:
+      - 'set'
+      - 'image'
+      - 'deployment/mizzou-processor'
+      - 'processor=${_REGISTRY}/processor:${SHORT_SHA}'
+      - '--namespace=production'
+    waitFor: ['get-gke-credentials']
+
 images:
   - '${_REGISTRY}/processor:${SHORT_SHA}'
   - '${_REGISTRY}/processor:v${_RELEASE_VERSION}'
