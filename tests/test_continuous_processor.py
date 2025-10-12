@@ -316,38 +316,46 @@ class TestProcessEntityExtraction:
         mock_subprocess.assert_not_called()
 
     def test_process_entity_extraction_builds_correct_command(self, mock_subprocess):
-        """Test that entity extraction command is built correctly WITHOUT --limit."""
-        mock_subprocess.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        """Test that entity extraction command is built correctly WITH --limit."""
+        # Configure mock to return success
+        mock_proc = mock_subprocess.return_value
+        mock_proc.wait.return_value = 0
         
         continuous_processor.process_entity_extraction(50)
         
+        # Get the command that was passed to Popen
         call_args = mock_subprocess.call_args
-        cmd = call_args[0][0]
+        # Popen passes command via 'args' keyword argument or as first positional arg
+        cmd = call_args[1].get("args") if "args" in call_args[1] else call_args[0][0]
         
         # Verify command structure
-        assert "populate-gazetteer" in cmd
+        assert "extract-entities" in cmd
         
-        # CRITICAL: Verify that --limit is NOT in the command
-        assert "--limit" not in cmd, "populate-gazetteer should NOT have --limit argument"
+        # Verify that --limit is in the command (uses batch size)
+        assert "--limit" in cmd
+        limit_idx = cmd.index("--limit")
+        assert cmd[limit_idx + 1] == "50"
 
-    def test_process_entity_extraction_no_limit_argument(self, mock_subprocess):
-        """Test that entity extraction does NOT pass --limit (regression test for bug)."""
-        mock_subprocess.return_value = MagicMock(returncode=0, stdout="", stderr="")
+    def test_process_entity_extraction_uses_batch_size(self, mock_subprocess):
+        """Test that entity extraction limits to GAZETTEER_BATCH_SIZE."""
+        # Configure mock to return success
+        mock_proc = mock_subprocess.return_value
+        mock_proc.wait.return_value = 0
         
-        # This should NOT fail with "unrecognized arguments: --limit"
+        # Pass count larger than batch size
         result = continuous_processor.process_entity_extraction(100)
         
+        # Get the command that was passed to Popen
         call_args = mock_subprocess.call_args
-        cmd = call_args[0][0]
+        cmd = call_args[1].get("args") if "args" in call_args[1] else call_args[0][0]
         
-        # Double-check: ensure no --limit anywhere in command
-        for i, arg in enumerate(cmd):
-            if arg == "--limit":
-                pytest.fail(f"Found --limit at position {i} in command: {cmd}")
+        # Should use min(count, GAZETTEER_BATCH_SIZE) as limit
+        assert "--limit" in cmd
+        limit_idx = cmd.index("--limit")
+        limit_value = int(cmd[limit_idx + 1])
         
-        # The command should only contain the base CLI invocation + populate-gazetteer
-        # Expected: [sys.executable, "-m", "src.cli.cli_modular", "populate-gazetteer"]
-        assert cmd[-1] == "populate-gazetteer"
+        # Should be capped at GAZETTEER_BATCH_SIZE (50)
+        assert limit_value == min(100, continuous_processor.GAZETTEER_BATCH_SIZE)
         assert result is True
 
 
