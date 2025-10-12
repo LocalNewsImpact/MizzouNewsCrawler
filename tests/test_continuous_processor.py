@@ -29,9 +29,17 @@ def mock_db_manager():
 
 @pytest.fixture
 def mock_subprocess():
-    """Mock subprocess.run for CLI command testing."""
-    with patch("orchestration.continuous_processor.subprocess.run") as mock_run:
-        yield mock_run
+    """Mock subprocess.Popen for CLI command testing with streaming output."""
+    with patch("orchestration.continuous_processor.subprocess.Popen") as mock_popen:
+        # Mock process object with wait() method and stdout with readline
+        mock_proc = MagicMock()
+        mock_proc.wait.return_value = 0  # Default to success
+        # Mock stdout with readline that returns empty string (end of stream)
+        mock_stdout = MagicMock()
+        mock_stdout.readline.return_value = ""
+        mock_proc.stdout = mock_stdout
+        mock_popen.return_value = mock_proc
+        yield mock_popen
 
 
 class TestWorkQueue:
@@ -104,11 +112,13 @@ class TestRunCliCommand:
 
     def test_run_cli_command_success(self, mock_subprocess):
         """Test successful CLI command execution."""
-        mock_subprocess.return_value = MagicMock(
-            returncode=0,
-            stdout="Success",
-            stderr=""
-        )
+        # Configure the mock process object (already returned by fixture)
+        mock_proc = mock_subprocess.return_value
+        mock_proc.wait.return_value = 0
+        # Mock stdout with readline method that returns empty after first call
+        mock_stdout = MagicMock()
+        mock_stdout.readline.side_effect = ["Success\n", ""]
+        mock_proc.stdout = mock_stdout
         
         result = continuous_processor.run_cli_command(
             ["test-command", "--arg", "value"],
@@ -120,7 +130,9 @@ class TestRunCliCommand:
         
         # Verify command structure
         call_args = mock_subprocess.call_args
-        cmd = call_args[0][0]
+        # Popen is called with command list as first arg
+        assert "args" in call_args[1] or len(call_args[0]) > 0
+        cmd = call_args[1].get("args") if "args" in call_args[1] else call_args[0][0]
         assert cmd[0] == sys.executable
         assert cmd[1] == "-m"
         assert cmd[2] == "src.cli.cli_modular"
@@ -128,11 +140,13 @@ class TestRunCliCommand:
 
     def test_run_cli_command_failure(self, mock_subprocess):
         """Test CLI command execution failure."""
-        mock_subprocess.return_value = MagicMock(
-            returncode=1,
-            stdout="",
-            stderr="Error message"
-        )
+        # Configure the mock process object to return failure
+        mock_proc = mock_subprocess.return_value
+        mock_proc.wait.return_value = 1  # Failure exit code
+        # Mock stdout with readline method
+        mock_stdout = MagicMock()
+        mock_stdout.readline.side_effect = ["Error message\n", ""]
+        mock_proc.stdout = mock_stdout
         
         result = continuous_processor.run_cli_command(
             ["failing-command"],
