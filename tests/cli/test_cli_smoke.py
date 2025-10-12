@@ -428,50 +428,53 @@ def test_clean_article_handles_missing_record(monkeypatch):
     assert "Article not found" in result.output
 
 
-@pytest.mark.skip(
-    reason="src.cli.main is deprecated, test needs update for cli_modular"
-)
 def test_main_dispatch_invokes_load_sources(monkeypatch):
-    from src.cli import main as main_module
+    from src.cli import cli_modular
 
     captured = {}
-
-    def fake_setup(level):
-        captured["log_level"] = level
 
     def fake_load(args):
         captured["csv"] = args.csv
         return 7
 
-    monkeypatch.setattr(main_module, "setup_logging", fake_setup)
-    monkeypatch.setattr(main_module, "load_sources_command", fake_load)
+    def stub_add_parser(subparsers):
+        parser = subparsers.add_parser("load-sources")
+        parser.add_argument("--csv")
+        return parser
+
+    def stub_load_command_parser(command):
+        if command == "load-sources":
+            return (stub_add_parser, fake_load)
+        return None
+
+    monkeypatch.setattr(cli_modular, "_load_command_parser", stub_load_command_parser)
     monkeypatch.setattr(
         sys,
         "argv",
-        ["prog", "--log-level", "DEBUG", "load-sources", "--csv", "foo.csv"],
+        ["prog", "load-sources", "--csv", "foo.csv"],
     )
 
-    exit_code = main_module.main()
+    exit_code = cli_modular.main()
 
     assert exit_code == 7
-    assert captured["log_level"] == "DEBUG"
     assert captured["csv"] == "foo.csv"
 
 
 def test_main_dispatch_handles_missing_command(monkeypatch, capsys):
-    from src.cli import main as main_module
+    from src.cli import cli_modular
 
     monkeypatch.setattr(sys, "argv", ["prog"])
 
-    exit_code = main_module.main()
+    exit_code = cli_modular.main()
     captured = capsys.readouterr()
 
     assert exit_code == 1
-    assert "usage" in captured.out.lower()
+    # New CLI shows command list instead of generic usage
+    assert ("discover-urls" in captured.out or "load-sources" in captured.out)
 
 
 def test_main_dispatch_invokes_discover_urls(monkeypatch):
-    from src.cli import main as main_module
+    from src.cli import cli_modular
 
     captured = {}
 
@@ -480,15 +483,25 @@ def test_main_dispatch_invokes_discover_urls(monkeypatch):
         captured["source_limit"] = args.source_limit
         return 0
 
-    monkeypatch.setattr(main_module, "setup_logging", lambda *_: None)
-    monkeypatch.setattr(main_module, "discover_urls_command", fake_discover)
+    def stub_add_parser(subparsers):
+        parser = subparsers.add_parser("discover-urls")
+        parser.add_argument("--source-limit", type=int)
+        parser.add_argument("--force-all", action="store_true")
+        return parser
+
+    def stub_load_command_parser(command):
+        if command == "discover-urls":
+            return (stub_add_parser, fake_discover)
+        return None
+
+    monkeypatch.setattr(cli_modular, "_load_command_parser", stub_load_command_parser)
     monkeypatch.setattr(
         sys,
         "argv",
         ["prog", "discover-urls", "--source-limit", "3", "--force-all"],
     )
 
-    exit_code = main_module.main()
+    exit_code = cli_modular.main()
 
     assert exit_code == 0
     assert captured["force_all"] is True
