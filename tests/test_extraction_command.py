@@ -71,6 +71,8 @@ def _build_args():
     args.limit = 10
     args.source = None
     args.batches = 1
+    args.dataset = None
+    args.exhaust_queue = False
     return args
 
 
