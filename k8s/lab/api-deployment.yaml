@@ -21,7 +21,7 @@ spec:
       priorityClassName: service-critical
       containers:
       - name: api
-        image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:ab1178b
+        image: api
         imagePullPolicy: Always
         ports:
         - containerPort: 8000
