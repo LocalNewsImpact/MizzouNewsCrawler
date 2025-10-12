@@ -473,42 +473,9 @@ class TestEnvironmentConfiguration:
 
 
 class TestCommandArgumentsRegression:
-    """Regression tests for command argument bugs."""
-
-    def test_populate_gazetteer_has_no_limit_argument(self, mock_subprocess):
-        """
-        Regression test: populate-gazetteer should NOT have --limit argument.
-        
-        This test catches the bug that caused:
-        'news-crawler: error: unrecognized arguments: --limit 50'
-        
-        Bug was in process_entity_extraction() passing --limit to populate-gazetteer.
-        """
-        mock_subprocess.return_value = MagicMock(returncode=0, stdout="", stderr="")
-        
-        # Run entity extraction
-        continuous_processor.process_entity_extraction(50)
-        
-        # Get the command that was run
-        call_args = mock_subprocess.call_args
-        cmd = call_args[0][0]
-        
-        # CRITICAL ASSERTION: --limit should NOT be present
-        assert "--limit" not in cmd, (
-            "BUG: populate-gazetteer command incorrectly includes --limit argument. "
-            "This command does not accept --limit and will fail with: "
-            "'news-crawler: error: unrecognized arguments: --limit 50'"
-        )
-        
-        # Verify the command is just the base CLI + populate-gazetteer
-        assert "populate-gazetteer" in cmd
-        
-        # Count arguments after "populate-gazetteer" - should be 0
-        gazetteer_idx = cmd.index("populate-gazetteer")
-        args_after = cmd[gazetteer_idx + 1:]
-        assert len(args_after) == 0, (
-            f"populate-gazetteer should have no arguments, but found: {args_after}"
-        )
+    """Regression tests for command argument bugs (placeholder for future tests)."""
+    
+    pass  # Removed outdated populate-gazetteer test - now uses extract-entities
 
     def test_extract_command_has_limit_argument(self, mock_subprocess):
         """
