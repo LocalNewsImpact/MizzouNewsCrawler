@@ -110,15 +110,24 @@ class TestDomainAnalysis:
         """Test article fetching from database."""
         cleaner = BalancedBoundaryContentCleaner(db_path=":memory:")
 
-        mock_conn = Mock()
-        mock_cursor = Mock()
-        mock_conn.cursor.return_value = mock_cursor
-        mock_cursor.fetchall.return_value = [
+        mock_result = Mock()
+        mock_result.fetchall.return_value = [
             (1, "https://example.com/art1", "Article 1 content", "hash1"),
             (2, "https://example.com/art2", "Article 2 content", "hash2"),
         ]
+        
+        mock_session = Mock()
+        mock_session.execute.return_value = mock_result
+        mock_session.__enter__ = Mock(return_value=mock_session)
+        mock_session.__exit__ = Mock(return_value=False)
+        
+        mock_db = Mock()
+        mock_db.get_session.return_value = mock_session
 
-        with patch.object(cleaner, "_connect_to_db", return_value=mock_conn):
+        with patch(
+            "src.utils.content_cleaner_balanced.DatabaseManager",
+            return_value=mock_db,
+        ):
             articles = cleaner._get_articles_for_domain("example.com")
 
         assert len(articles) == 2

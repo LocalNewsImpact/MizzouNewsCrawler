@@ -2,6 +2,17 @@
 
 These rules are mandatory for any automated assistance or scripted workflow in this repository. Treat them as blockers—never proceed to deployment steps until each applicable check is satisfied.
 
+1. **Always inspect database schema before running Cloud SQL queries.**
+   - **NEVER** assume column names or table structures exist without verification.
+   - Use SQLAlchemy's `inspect()` to get actual table schemas: `inspector.get_columns('table_name')`
+   - Check if tables exist first: `'table_name' in inspector.get_table_names()`
+   - Common mistakes to avoid:
+     - Using `type`, `state`, `county` columns that don't exist in `gazetteer` table
+     - Assuming `updated_at` exists (use `created_at` instead)
+     - Assuming `news_sources` table exists (use proper table name)
+     - Assuming foreign key columns exist without checking schema
+   - **This prevents database errors and wasted query attempts.**
+
 1. **Run pre-deployment validation before ANY deploy.**
    - **ALWAYS** run `./scripts/pre-deploy-validation.sh [service]` before triggering any deployment.
    - This validates: tests pass, YAML config is correct, changes are committed/pushed.

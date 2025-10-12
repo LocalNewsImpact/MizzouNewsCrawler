@@ -388,6 +388,13 @@ class Source(Base):
     paused_at = Column(DateTime)
     paused_reason = Column(Text)
 
+    # Bot sensitivity tracking for adaptive crawling behavior
+    bot_sensitivity = Column(Integer, default=5, index=True)
+    bot_sensitivity_updated_at = Column(DateTime)
+    bot_encounters = Column(Integer, default=0)
+    last_bot_detection_at = Column(DateTime, index=True)
+    bot_detection_metadata = Column(JSON)
+
     # Backref to candidate links
     # candidate_links = relationship('CandidateLink', backref='source')
 

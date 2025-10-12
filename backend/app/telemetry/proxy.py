@@ -32,10 +32,10 @@ async def get_proxy_summary(
             """
             SELECT
                 COUNT(*) as total_requests,
-                SUM(CASE WHEN proxy_used = 1 THEN 1 ELSE 0 END) as proxy_requests,
-                SUM(CASE WHEN proxy_used = 0 THEN 1 ELSE 0 END) as direct_requests,
-                ROUND(100.0 * SUM(CASE WHEN proxy_used = 1 THEN 1 ELSE 0 END)
-                      / COUNT(*), 2) as proxy_percentage,
+            SUM(CASE WHEN proxy_used IS TRUE THEN 1 ELSE 0 END) as proxy_requests,
+            SUM(CASE WHEN proxy_used IS FALSE THEN 1 ELSE 0 END) as direct_requests,
+            ROUND(100.0 * SUM(CASE WHEN proxy_used IS TRUE THEN 1 ELSE 0 END)
+                / COUNT(*), 2) as proxy_percentage,
                 SUM(CASE WHEN proxy_status = 'success' THEN 1 ELSE 0 END)
                     as proxy_successes,
                 SUM(CASE WHEN proxy_status = 'failed' THEN 1 ELSE 0 END)
@@ -44,12 +44,12 @@ async def get_proxy_summary(
                     as proxy_bypassed,
                 ROUND(100.0 * SUM(CASE WHEN proxy_status = 'success'
                                        THEN 1 ELSE 0 END)
-                      / NULLIF(SUM(CASE WHEN proxy_used = 1
+                      / NULLIF(SUM(CASE WHEN proxy_used IS TRUE
                                         THEN 1 ELSE 0 END), 0), 2)
                     as proxy_success_rate,
-                SUM(CASE WHEN proxy_authenticated = 1 THEN 1 ELSE 0 END)
+                SUM(CASE WHEN proxy_authenticated IS TRUE THEN 1 ELSE 0 END)
                     as authenticated_requests,
-                SUM(CASE WHEN proxy_authenticated = 0 AND proxy_used = 1
+                SUM(CASE WHEN proxy_authenticated IS FALSE AND proxy_used IS TRUE
                          THEN 1 ELSE 0 END) as missing_auth_requests
             FROM extraction_telemetry_v2
             WHERE created_at >= :cutoff
@@ -105,13 +105,13 @@ async def get_proxy_trends(
         SELECT
             DATE(created_at) as date,
             COUNT(*) as total_requests,
-            SUM(CASE WHEN proxy_used = 1 THEN 1 ELSE 0 END) as proxy_requests,
+            SUM(CASE WHEN proxy_used IS TRUE THEN 1 ELSE 0 END) as proxy_requests,
             ROUND(100.0 * SUM(CASE WHEN proxy_status = 'success'
                                    THEN 1 ELSE 0 END)
-                  / NULLIF(SUM(CASE WHEN proxy_used = 1
+                  / NULLIF(SUM(CASE WHEN proxy_used IS TRUE
                                     THEN 1 ELSE 0 END), 0), 2)
                 as success_rate,
-            SUM(CASE WHEN proxy_authenticated = 0 AND proxy_used = 1
+            SUM(CASE WHEN proxy_authenticated IS FALSE AND proxy_used IS TRUE
                      THEN 1 ELSE 0 END) as missing_auth,
             SUM(CASE WHEN proxy_status = 'failed' THEN 1 ELSE 0 END) as failures
         FROM extraction_telemetry_v2
@@ -159,19 +159,19 @@ async def get_proxy_domains(
         SELECT
             host,
             COUNT(*) as total_requests,
-            SUM(CASE WHEN proxy_used = 1 THEN 1 ELSE 0 END) as proxy_requests,
+            SUM(CASE WHEN proxy_used IS TRUE THEN 1 ELSE 0 END) as proxy_requests,
             SUM(CASE WHEN proxy_status = 'success' THEN 1 ELSE 0 END) as successes,
             SUM(CASE WHEN proxy_status = 'failed' THEN 1 ELSE 0 END) as failures,
             SUM(CASE WHEN proxy_status = 'bypassed' THEN 1 ELSE 0 END) as bypassed,
             ROUND(100.0 * SUM(CASE WHEN proxy_status = 'success'
                                    THEN 1 ELSE 0 END)
-                  / NULLIF(SUM(CASE WHEN proxy_used = 1
+                  / NULLIF(SUM(CASE WHEN proxy_used IS TRUE
                                     THEN 1 ELSE 0 END), 0), 2)
                 as success_rate,
             MAX(created_at) as last_request
         FROM extraction_telemetry_v2
-        WHERE created_at >= :cutoff
-          AND proxy_used = 1
+                WHERE created_at >= :cutoff
+                    AND proxy_used IS TRUE
         GROUP BY host
         HAVING COUNT(*) >= :min_requests
         ORDER BY proxy_requests DESC

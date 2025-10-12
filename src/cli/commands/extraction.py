@@ -272,7 +272,7 @@ def _process_batch(
                 """WHERE cl.status = 'article'
                 AND (cl.dataset_id IS NULL
                      OR cl.dataset_id IN (
-                         SELECT id FROM datasets WHERE cron_enabled = 1
+                         SELECT id FROM datasets WHERE cron_enabled IS TRUE
                      ))""",
             )
         

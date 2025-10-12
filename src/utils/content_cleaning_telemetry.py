@@ -484,7 +484,7 @@ class ContentCleaningTelemetry:
                                occurrences_total, removal_reason,
                                is_ml_training_eligible
                         FROM persistent_boilerplate_patterns
-                        WHERE domain = ? AND is_active = 1
+                        WHERE domain = ? AND is_active IS TRUE
                         ORDER BY confidence_score DESC, occurrences_total DESC
                         """,
                         (domain,),
@@ -525,8 +525,8 @@ class ContentCleaningTelemetry:
                                    confidence_score, occurrences_total,
                                    removal_reason
                             FROM persistent_boilerplate_patterns
-                            WHERE domain = ? AND is_active = 1
-                                  AND is_ml_training_eligible = 1
+                    WHERE domain = ? AND is_active IS TRUE
+                        AND is_ml_training_eligible IS TRUE
                     ORDER BY confidence_score DESC,
                          occurrences_total DESC
                             """,
@@ -539,7 +539,7 @@ class ContentCleaningTelemetry:
                                    confidence_score, occurrences_total,
                                    removal_reason
                             FROM persistent_boilerplate_patterns
-                            WHERE is_active = 1 AND is_ml_training_eligible = 1
+                            WHERE is_active IS TRUE AND is_ml_training_eligible IS TRUE
                             ORDER BY domain, confidence_score DESC,
                                      occurrences_total DESC
                             """
@@ -582,7 +582,7 @@ class ContentCleaningTelemetry:
                       occurrences_total, removal_reason,
                       is_ml_training_eligible
                         FROM persistent_boilerplate_patterns
-                        WHERE is_active = 1
+                        WHERE is_active IS TRUE
                     """
 
                     params: list[str] = []

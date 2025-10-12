@@ -21,6 +21,7 @@ from bs4.element import Tag
 from dateutil import parser as dateparser
 from .origin_proxy import enable_origin_proxy
 from .proxy_config import get_proxy_manager
+from src.utils.bot_sensitivity_manager import BotSensitivityManager
 
 
 class RateLimitError(Exception):
@@ -486,6 +487,9 @@ class ContentExtractor:
         # Track metadata about publish date extraction source
         self._publish_date_details: Optional[Dict[str, any]] = None
 
+        # Initialize bot sensitivity manager for adaptive crawling
+        self.bot_sensitivity_manager = BotSensitivityManager()
+
         logger.info("ContentExtractor initialized with user agent rotation enabled")
 
     def _create_new_session(self):
@@ -774,13 +778,14 @@ class ContentExtractor:
         return False
 
     def _apply_rate_limit(self, domain: str, delay: float = None) -> None:
-        """Apply rate limiting delay for a domain."""
+        """Apply rate limiting delay for a domain using bot sensitivity."""
         current_time = time.time()
 
         if delay is None:
-            # Standard inter-request delay
-            low = max(0.1, float(getattr(self, "inter_request_min", 1.0)))
-            high = max(low, float(getattr(self, "inter_request_max", 2.5)))
+            # Get sensitivity-based configuration
+            config = self.bot_sensitivity_manager.get_sensitivity_config(domain)
+            low = config.get("inter_request_min", 1.0)
+            high = config.get("inter_request_max", 2.5)
             delay = random.uniform(low, high)
 
         # Apply delay if needed
@@ -1544,6 +1549,13 @@ class ContentExtractor:
                 if response.status_code == 429:
                     logger.warning(f"Rate limited (429) by {domain}")
                     self._handle_rate_limit_error(domain, response)
+                    # Record bot detection event
+                    self.bot_sensitivity_manager.record_bot_detection(
+                        host=domain,
+                        url=url,
+                        event_type="rate_limit_429",
+                        http_status_code=429,
+                    )
                     # Reset successful request count on rate limit
                     # and return error to skip this domain for now
                     return self._create_error_result(
@@ -1555,9 +1567,26 @@ class ContentExtractor:
                     
                     if protection_type:
                         logger.warning(
-                            f"🚫 Bot protection detected ({response.status_code}, {protection_type}) by {domain} "
-                            f"- response preview: {response.text[:200] if response.text else 'empty'}"
+                            f"🚫 Bot protection detected ({response.status_code}, "
+                            f"{protection_type}) by {domain}"
                         )
+                        
+                        # Record bot detection event
+                        is_captcha = (
+                            "cloudflare" in protection_type
+                            or "bot_protection" in protection_type
+                        )
+                        event_type = (
+                            "captcha_detected" if is_captcha else "403_forbidden"
+                        )
+                        self.bot_sensitivity_manager.record_bot_detection(
+                            host=domain,
+                            url=url,
+                            event_type=event_type,
+                            http_status_code=response.status_code,
+                            response_indicators={"protection_type": protection_type},
+                        )
+                        
                         # Use CAPTCHA backoff for confirmed bot protection
                         if protection_type in ["cloudflare", "bot_protection"]:
                             self._handle_captcha_backoff(domain)
@@ -1597,11 +1626,20 @@ class ContentExtractor:
 
                 # Check if request was successful
                 if response.status_code == 200:
-                    # Check for bot protection even in 200 responses (Cloudflare sometimes does this)
+                    # Check for bot protection even in 200 responses
                     protection_type = self._detect_bot_protection_in_response(response)
                     if protection_type:
                         logger.warning(
-                            f"🚫 Bot protection detected in 200 response ({protection_type}) by {domain}"
+                            f"🚫 Bot protection in 200 response "
+                            f"({protection_type}) by {domain}"
+                        )
+                        # Record bot detection event
+                        self.bot_sensitivity_manager.record_bot_detection(
+                            host=domain,
+                            url=url,
+                            event_type="captcha_detected",
+                            http_status_code=200,
+                            response_indicators={"protection_type": protection_type},
                         )
                         # Use CAPTCHA backoff for confirmed bot protection
                         self._handle_captcha_backoff(domain)
@@ -1853,6 +1891,12 @@ class ContentExtractor:
         options.add_argument("--disable-features=VizDisplayCompositor")
         options.add_argument("--disable-extensions")
         options.add_argument("--disable-plugins")
+        # Add headless argument explicitly for better container compatibility
+        options.add_argument("--headless=new")
+        # Additional flags for containerized environments
+        options.add_argument("--disable-software-rasterizer")
+        options.add_argument("--disable-setuid-sandbox")
+        options.add_argument("--remote-debugging-port=9222")
         # Note: JavaScript and images enabled for modern news sites
 
         # Random viewport size (within realistic range)
@@ -1885,8 +1929,10 @@ class ContentExtractor:
             uc_kwargs = {
                 "options": options,
                 "version_main": None,  # Auto-detect
-                "headless": True,
-                "use_subprocess": True,
+                # Use --headless=new arg instead for better compatibility
+                "headless": False,
+                # Changed to False for container stability
+                "use_subprocess": False,
                 "log_level": 3,  # Suppress logs
             }
             if driver_path:

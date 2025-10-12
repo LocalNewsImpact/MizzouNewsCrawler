@@ -360,7 +360,12 @@ class TestSiteManagementAPI:
             discovery_attempted TIMESTAMP,
             status VARCHAR DEFAULT 'active',
             paused_at TIMESTAMP,
-            paused_reason TEXT
+            paused_reason TEXT,
+            bot_sensitivity INTEGER DEFAULT 5,
+            bot_sensitivity_updated_at TIMESTAMP,
+            bot_encounters INTEGER DEFAULT 0,
+            last_bot_detection_at TIMESTAMP,
+            bot_detection_metadata JSON
         )
         """
         )
@@ -619,7 +624,12 @@ class TestCompleteAPIWorkflow:
                 id VARCHAR PRIMARY KEY, host VARCHAR NOT NULL, host_norm VARCHAR NOT NULL,
                 canonical_name VARCHAR, city VARCHAR, county VARCHAR, owner VARCHAR,
                 type VARCHAR, metadata JSON, discovery_attempted TIMESTAMP,
-                status VARCHAR DEFAULT 'active', paused_at TIMESTAMP, paused_reason TEXT
+                status VARCHAR DEFAULT 'active', paused_at TIMESTAMP, paused_reason TEXT,
+                bot_sensitivity INTEGER DEFAULT 5,
+                bot_sensitivity_updated_at TIMESTAMP,
+                bot_encounters INTEGER DEFAULT 0,
+                last_bot_detection_at TIMESTAMP,
+                bot_detection_metadata JSON
             )
             """
             )
