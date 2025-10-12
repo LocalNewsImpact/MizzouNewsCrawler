@@ -932,7 +932,51 @@ python -m src.cli extract --limit 50 --batches 5
 
 # Extract from specific source only
 python -m src.cli extract --source "Columbia Missourian" --limit 25
+
+# Extract for specific dataset
+python -m src.cli extract --dataset "custom-project-2025" --limit 20 --batches 10
 ```
+
+#### Dataset-Specific Job Orchestration (Kubernetes)
+
+Launch isolated extraction jobs for custom datasets in Kubernetes for better resource management and failure isolation:
+
+```bash
+# Launch extraction job for a dataset (dry-run to preview)
+python scripts/launch_dataset_job.py \
+    --dataset custom-project-2025 \
+    --batches 60 \
+    --limit 20 \
+    --dry-run
+
+# Launch the actual job
+python scripts/launch_dataset_job.py \
+    --dataset custom-project-2025 \
+    --batches 60
+
+# Launch with custom resource limits for large datasets
+python scripts/launch_dataset_job.py \
+    --dataset large-dataset \
+    --batches 100 \
+    --cpu-request 500m \
+    --memory-request 2Gi \
+    --memory-limit 4Gi
+
+# Monitor job logs
+kubectl logs -n production -l dataset=custom-project-2025 --follow
+
+# Check job status
+kubectl get job extract-custom-project-2025 -n production
+```
+
+**Benefits:**
+- Isolated pod per dataset (failures don't affect other jobs)
+- Independent logging with dataset labels
+- Custom resource limits per dataset
+- Automatic cleanup after 24 hours
+- Parallel processing of multiple datasets
+
+See [CUSTOM_SOURCELIST_README.md](CUSTOM_SOURCELIST_README.md) for complete workflow documentation.
 
 ### Deprecated Crawl Alias
 
