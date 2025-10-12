@@ -17,8 +17,10 @@ def test_add_extraction_parser_defaults():
     args = _parse_args([])
 
     assert args.limit == 10
-    assert args.batches == 1
+    assert args.batches is None  # None means process all available
     assert args.source is None
+    assert args.dataset is None
+    assert args.exhaust_queue is True  # Default to exhausting queue
     assert args.func is extraction.handle_extraction_command
 
 
