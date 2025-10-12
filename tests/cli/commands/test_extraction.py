@@ -83,7 +83,7 @@ def test_handle_extraction_command_success(monkeypatch):
     )
     monkeypatch.setattr(extraction.time, "sleep", lambda *_a, **_k: None)
 
-    args = Namespace(batches=2, limit=1, source=None)
+    args = Namespace(batches=2, limit=1, source=None, dataset=None, exhaust_queue=False)
 
     exit_code = extraction.handle_extraction_command(args)
 
@@ -129,7 +129,7 @@ def test_handle_extraction_command_handles_exception(monkeypatch):
     )
     monkeypatch.setattr(extraction.time, "sleep", lambda *_a, **_k: None)
 
-    args = Namespace(batches=1, limit=1, source=None)
+    args = Namespace(batches=1, limit=1, source=None, dataset=None, exhaust_queue=False)
 
     exit_code = extraction.handle_extraction_command(args)
 
