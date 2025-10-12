@@ -81,5 +81,6 @@ spec:
             memory: 1Gi
       restartPolicy: Never
       serviceAccountName: mizzou-app
+      priorityClassName: batch-standard
   ttlSecondsAfterFinished: 86400
 

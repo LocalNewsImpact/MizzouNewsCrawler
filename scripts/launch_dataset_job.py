@@ -175,6 +175,7 @@ def create_job_manifest(
                 "spec": {
                     "serviceAccountName": service_account,
                     "restartPolicy": "Never",
+                    "priorityClassName": "batch-standard",
                     "containers": [
                         {
                             "name": "extraction",
