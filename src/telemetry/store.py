@@ -484,6 +484,12 @@ class TelemetryStore:
                 break
             try:
                 self._execute(job)
+            except Exception as exc:  # pragma: no cover
+                # Log and continue - don't let the background thread die
+                self._logger.exception(
+                    "Telemetry background thread caught exception, continuing",
+                    exc_info=exc
+                )
             finally:
                 self._queue.task_done()
 
