@@ -94,8 +94,8 @@ steps:
       - 'container'
       - 'clusters'
       - 'get-credentials'
-      - 'mizzou-news-crawler'
-      - '--region=us-central1'
+      - 'mizzou-cluster'
+      - '--zone=us-central1-a'
     waitFor: ['create-release']
 
   - name: 'gcr.io/cloud-builders/kubectl'
