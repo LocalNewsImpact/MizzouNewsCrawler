@@ -15,7 +15,7 @@ spec:
       restartPolicy: Never
       containers:
       - name: extraction
-        image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:v1.3.1
+        image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:070d507
         imagePullPolicy: Always
         command:
           - python
@@ -25,9 +25,9 @@ spec:
           - --dataset
           - Penn-State-Lehigh
           - --limit
-          - "1"  # ULTRA-CONSERVATIVE: 1 article per batch to avoid pattern detection
+          - "2"  # 2 articles per batch
           - --batches
-          - "600"  # Increased to accommodate single-article batches (579 remaining + buffer)
+          - "150"  # reduced to 150 batches to shorten total run
         envFrom:
         - secretRef:
             name: origin-proxy-credentials
@@ -72,15 +72,17 @@ spec:
         # EXTREME rate limiting for maximum bot protection avoidance
         # Lehigh Valley News has VERY aggressive bot detection - bot sensitivity level 10
         - name: INTER_REQUEST_MIN
-          value: "60.0"  # Was 30.0 - doubled to 1 minute minimum
+          value: "90.0"  # increase minimum to 90s
         - name: INTER_REQUEST_MAX
-          value: "120.0"  # Was 45.0 - increased to 2 minutes maximum
+          value: "180.0"  # increase maximum to 180s (3 minutes)
         - name: CAPTCHA_BACKOFF_BASE
           value: "7200"  # Was 2400 - increased to 2 hours
         - name: CAPTCHA_BACKOFF_MAX
           value: "21600"  # Was 7200 - increased to 6 hours
         - name: BATCH_SLEEP_SECONDS
-          value: "600.0"  # Was 180.0 - increased to 10 minutes between batches
+          value: "420.0"  # 7 minutes between batches
+        - name: BATCH_SLEEP_JITTER
+          value: "0.45"  # 45% jitter (~231-609 seconds range)
         # User agent rotation (rotate every 3-5 requests)
         - name: UA_ROTATE_BASE
           value: "4"
