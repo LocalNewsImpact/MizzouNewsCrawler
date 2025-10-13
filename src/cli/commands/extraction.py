@@ -524,11 +524,31 @@ def _process_batch(
                 telemetry.record_extraction(metrics)
                 session.rollback()
 
-                # Check if this was a 403 response and track it
+                # Check for 404/410 responses and mark them as dead
                 status_code = getattr(metrics, "http_status_code", None)
                 host = getattr(metrics, "host", None)
 
-                if status_code == 403 and host:
+                if status_code in (404, 410):
+                    # Permanently mark as 404 - page doesn't exist
+                    try:
+                        session.execute(
+                            CANDIDATE_STATUS_UPDATE_SQL,
+                            {"status": "404", "id": str(url_id)},
+                        )
+                        session.commit()
+                        logger.info(
+                            "Marked URL as 404 (not found): %s",
+                            url,
+                        )
+                    except Exception:
+                        logger.exception(
+                            "Failed to mark URL as 404: %s",
+                            url,
+                        )
+                        session.rollback()
+
+                # Check if this was a 403 response and track it
+                elif status_code == 403 and host:
                     # Track this host's 403 errors
                     seen = host_403_tracker.setdefault(host, set())
                     seen.add(str(url_id))

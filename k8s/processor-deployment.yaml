@@ -75,7 +75,7 @@ spec:
         - name: EXTRACTION_BATCH_SIZE
           value: "20"
         - name: ANALYSIS_BATCH_SIZE
-          value: "16"
+          value: "128"  # Increased from 16 to catch up with extraction rate
         - name: GAZETTEER_BATCH_SIZE
           value: "50"
         # CAPTCHA and rate limit handling - ULTRA-AGGRESSIVE SETTINGS
