@@ -133,18 +133,22 @@ class BalancedBoundaryContentCleaner:
         db_path: str = "data/mizzou.db",
         enable_telemetry: bool = True,
         use_cloud_sql: bool = True,
+        db: 'DatabaseManager' = None,
     ):
         self.db_path = db_path
         self.enable_telemetry = enable_telemetry
         self.use_cloud_sql = use_cloud_sql
         self.logger = logging.getLogger(__name__)
         self.telemetry = ContentCleaningTelemetry(enable_telemetry=enable_telemetry)
+        self._shared_db = db  # Reuse shared DatabaseManager if provided
 
         # Initialize wire service detector
         self.wire_detector = BylineCleaner()
 
     def _connect_to_db(self):
         """Get database connection - DatabaseManager for Cloud SQL."""
+        if self._shared_db is not None:
+            return self._shared_db
         return DatabaseManager()
 
     def analyze_domain(
@@ -261,7 +265,7 @@ class BalancedBoundaryContentCleaner:
         domain: str,
     ) -> list[dict]:  # pragma: no cover
         """Get stored persistent patterns for a domain."""
-        db = DatabaseManager()
+        db = self._connect_to_db()
         with db.get_session() as session:
             query = """
             SELECT text_content, pattern_type, confidence_score
@@ -293,7 +297,7 @@ class BalancedBoundaryContentCleaner:
         sample_size: int = None,
     ) -> list[dict]:  # pragma: no cover
         """Get articles for a specific domain."""
-        db = DatabaseManager()
+        db = self._connect_to_db()
         with db.get_session() as session:
             query = """
             SELECT id, url, content, text_hash
@@ -1322,7 +1326,7 @@ class BalancedBoundaryContentCleaner:
     ) -> None:  # pragma: no cover
         """Remove existing wire metadata for an article."""
         try:
-            db = DatabaseManager()
+            db = self._connect_to_db()
             with db.get_session() as session:
                 session.execute(
                     sql_text("UPDATE articles SET wire = NULL WHERE id = :article_id"),
@@ -1342,7 +1346,7 @@ class BalancedBoundaryContentCleaner:
     ) -> list[str]:  # pragma: no cover
         """Fetch authors for an article and normalize to a string list."""
         try:
-            db = DatabaseManager()
+            db = self._connect_to_db()
             with db.get_session() as session:
                 result = session.execute(
                     sql_text("SELECT author FROM articles WHERE id = :article_id"),
@@ -1644,7 +1648,7 @@ class BalancedBoundaryContentCleaner:
     ) -> dict[str, str | None]:
         """Load publisher metadata linked to an article for locality flags."""
         try:
-            db = DatabaseManager()
+            db = self._connect_to_db()
             with db.get_session() as session:
                 result = session.execute(
                     sql_text("""
@@ -1885,7 +1889,7 @@ class BalancedBoundaryContentCleaner:
     ) -> None:  # pragma: no cover
         """Mark article as wire service content in database."""
         try:
-            db = DatabaseManager()
+            db = self._connect_to_db()
             with db.get_session() as session:
                 result = session.execute(
                     sql_text("SELECT wire FROM articles WHERE id = :article_id"),

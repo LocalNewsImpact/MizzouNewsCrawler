@@ -143,6 +143,9 @@ def handle_extraction_command(args) -> int:
     # Track hosts that return 403 responses within this run
     host_403_tracker = {}
 
+    # Create a single DatabaseManager to reuse across all batches
+    db = DatabaseManager()
+
     try:
         domains_for_cleaning = defaultdict(list)
         batch_num = 0
@@ -166,6 +169,7 @@ def handle_extraction_command(args) -> int:
                 batch_num,
                 host_403_tracker,
                 domains_for_cleaning,
+                db=db,
             )
             
             articles_processed = result['processed']
@@ -191,7 +195,7 @@ def handle_extraction_command(args) -> int:
         if domains_for_cleaning:
             print()
             print(f"🧹 Running post-extraction cleaning for {len(domains_for_cleaning)} domains...")
-            _run_post_extraction_cleaning(domains_for_cleaning)
+            _run_post_extraction_cleaning(domains_for_cleaning, db=db)
             print("✓ Cleaning complete")
 
         # Log driver usage stats before cleanup
@@ -228,9 +232,11 @@ def _process_batch(
     batch_num,
     host_403_tracker,
     domains_for_cleaning,
+    db=None,
 ):
     """Process a single extraction batch with domain-aware rate limiting."""
-    db = DatabaseManager()
+    if db is None:
+        db = DatabaseManager()
     session = db.session
 
     # Track domain failures in this batch
@@ -583,10 +589,11 @@ def _process_batch(
         session.close()
 
 
-def _run_post_extraction_cleaning(domains_to_articles):
+def _run_post_extraction_cleaning(domains_to_articles, db=None):
     """Trigger content cleaning for recently extracted articles."""
-    cleaner = BalancedBoundaryContentCleaner(enable_telemetry=True)
-    db = DatabaseManager()
+    if db is None:
+        db = DatabaseManager()
+    cleaner = BalancedBoundaryContentCleaner(enable_telemetry=True, db=db)
     session = db.session
     articles_for_entities: set[str] = set()
 
@@ -731,10 +738,10 @@ def _run_post_extraction_cleaning(domains_to_articles):
         session.close()
 
     if articles_for_entities:
-        _run_article_entity_extraction(articles_for_entities)
+        _run_article_entity_extraction(articles_for_entities, db=db)
 
 
-def _run_article_entity_extraction(article_ids: Iterable[str]) -> None:
+def _run_article_entity_extraction(article_ids: Iterable[str], db=None) -> None:
     ids = {article_id for article_id in article_ids if article_id}
     if not ids:
         return
@@ -742,7 +749,8 @@ def _run_article_entity_extraction(article_ids: Iterable[str]) -> None:
     extractor = _get_entity_extractor()
     logger.info("Running entity extraction for %d articles", len(ids))
 
-    db = DatabaseManager()
+    if db is None:
+        db = DatabaseManager()
     session = db.session
 
     try:
