@@ -126,6 +126,9 @@ steps:
 
   - name: 'gcr.io/cloud-builders/kubectl'
     id: 'force-processor-update'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=us-central1-a'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=mizzou-cluster'
     args:
       - 'set'
       - 'image'
