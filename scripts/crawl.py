@@ -24,6 +24,7 @@ from models.database import (
     finish_job_record,
     upsert_candidate_link,
 )
+from utils.telemetry import OperationMetrics, OperationType, OperationTracker
 
 # Configure logging
 logging.basicConfig(
@@ -146,8 +147,9 @@ def main():
         logger.error("No sources loaded, exiting")
         return 1
 
-    # Initialize crawler and database
+    # Initialize crawler, database, and telemetry tracker
     crawler = NewsCrawler(delay=args.delay, timeout=args.timeout)
+    tracker = OperationTracker(database_url=f"sqlite:///{args.output_db}")
 
     total_metrics = {
         "sites_processed": 0,
@@ -173,23 +175,41 @@ def main():
 
             logger.info(f"Started crawl job: {job.id}")
 
-            # Process each site
-            for site_config in sources:
-                try:
-                    site_metrics = crawl_site(crawler, site_config, db_manager, job.id)
+            # Track the crawl operation with telemetry
+            with tracker.track_operation(
+                OperationType.CRAWL_DISCOVERY,
+                job_id=args.job_id,
+                sources_file=args.sources,
+                num_sources=len(sources),
+            ) as operation:
+                # Update progress metrics
+                progress_metrics = OperationMetrics(
+                    total_items=len(sources),
+                    processed_items=0,
+                )
+                operation.update_progress(progress_metrics)
 
-                    total_metrics["sites_processed"] += 1
-                    total_metrics["total_links_discovered"] += site_metrics[
-                        "links_discovered"
-                    ]
-                    total_metrics["total_links_saved"] += site_metrics["links_saved"]
-                    total_metrics["total_errors"] += site_metrics["errors"]
+                # Process each site
+                for idx, site_config in enumerate(sources, start=1):
+                    try:
+                        site_metrics = crawl_site(crawler, site_config, db_manager, job.id)
 
-                except Exception as e:
-                    logger.error(
-                        f"Error processing site {site_config.get('name', 'unknown')}: {e}"
-                    )
-                    total_metrics["total_errors"] += 1
+                        total_metrics["sites_processed"] += 1
+                        total_metrics["total_links_discovered"] += site_metrics[
+                            "links_discovered"
+                        ]
+                        total_metrics["total_links_saved"] += site_metrics["links_saved"]
+                        total_metrics["total_errors"] += site_metrics["errors"]
+
+                    except Exception as e:
+                        logger.error(
+                            f"Error processing site {site_config.get('name', 'unknown')}: {e}"
+                        )
+                        total_metrics["total_errors"] += 1
+                    
+                    # Update progress after each site
+                    progress_metrics.processed_items = idx
+                    operation.update_progress(progress_metrics)
 
             # Finish job record
             finish_job_record(
