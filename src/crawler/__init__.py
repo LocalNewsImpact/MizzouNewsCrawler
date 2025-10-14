@@ -1682,28 +1682,49 @@ class ContentExtractor:
                         f"✅ Successfully fetched {len(response.text)} bytes from {domain} "
                         f"(UA: {ua[:30]}...)"
                     )
-                else:
+                elif 400 <= response.status_code < 500:
+                    # All other 4xx client errors (besides those explicitly
+                    # handled above). Examples: 400 Bad Request, 405 Method
+                    # Not Allowed, 406 Not Acceptable, 408 Request Timeout,
+                    # 451 Unavailable For Legal Reasons, etc.
                     logger.warning(
-                        f"Session returned status {response.status_code} for {url}"
+                        f"Client error ({response.status_code}) for {url}: "
+                        f"{response.text[:200] if response.text else 'empty'}"
                     )
-                    # Fallback to newspaper4k's built-in download
-                    try:
-                        article.download()
-                    except Exception as download_e:
-                        # Try to extract HTTP status from newspaper4k error
-                        # message
-                        error_str = str(download_e)
-                        if "Status code" in error_str:
-                            import re
-
-                            status_match = re.search(r"Status code (\d+)", error_str)
-                            if status_match:
-                                http_status = int(status_match.group(1))
-                                logger.warning(
-                                    f"Newspaper4k download failed with "
-                                    f"status {http_status}: {error_str}"
-                                )
-                        raise download_e
+                    # Determine appropriate exception type
+                    if response.status_code in (400, 405, 406, 451):
+                        # Permanent client errors - treat like 404
+                        if ttl:
+                            self.dead_urls[url] = time.time() + ttl
+                        raise NotFoundError(
+                            f"Client error ({response.status_code}): {url}"
+                        )
+                    else:
+                        # Other 4xx errors might be temporary (408, etc.)
+                        raise RateLimitError(
+                            f"Client error ({response.status_code}) on {domain}"
+                        )
+                elif 500 <= response.status_code < 600:
+                    # All other 5xx server errors (besides 502, 503, 504
+                    # handled above). Examples: 500 Internal Server Error,
+                    # 501 Not Implemented, 505 HTTP Version Not Supported
+                    logger.warning(
+                        f"Server error ({response.status_code}) on {domain}: "
+                        f"{response.text[:200] if response.text else 'empty'}"
+                    )
+                    self._handle_rate_limit_error(domain, response)
+                    raise RateLimitError(
+                        f"Server error ({response.status_code}) on {domain}"
+                    )
+                else:
+                    # Unexpected status code (1xx, 3xx, or something else)
+                    # 3xx should be handled automatically by requests, but just in case
+                    logger.warning(
+                        f"Unexpected status {response.status_code} for {url}"
+                    )
+                    raise RateLimitError(
+                        f"Unexpected status ({response.status_code}) on {domain}"
+                    )
 
             except RateLimitError:
                 # Re-raise to stop all fallback attempts
