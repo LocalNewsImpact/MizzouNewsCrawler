@@ -191,11 +191,35 @@ def handle_extraction_command(args) -> int:
                 db.session.expire_all()
                 db.session.commit()
                 db.session.close()
-                query = text(
-                    "SELECT COUNT(*) FROM candidate_links "
-                    "WHERE status = 'article'"
-                )
-                remaining_count = db.session.execute(query).scalar() or 0
+                
+                # Build count query matching the extraction filters
+                if getattr(args, "dataset", None):
+                    # Filter by specific dataset
+                    query = text(
+                        "SELECT COUNT(*) FROM candidate_links cl "
+                        "WHERE cl.status = 'article' "
+                        "AND cl.dataset_id = "
+                        "(SELECT id FROM datasets WHERE slug = :dataset) "
+                        "AND cl.id NOT IN "
+                        "(SELECT candidate_link_id FROM articles "
+                        "WHERE candidate_link_id IS NOT NULL)"
+                    )
+                    remaining_count = db.session.execute(
+                        query, {"dataset": args.dataset}
+                    ).scalar() or 0
+                else:
+                    # Count across all cron-enabled datasets
+                    query = text(
+                        "SELECT COUNT(*) FROM candidate_links cl "
+                        "WHERE cl.status = 'article' "
+                        "AND (cl.dataset_id IS NULL OR cl.dataset_id IN "
+                        "(SELECT id FROM datasets WHERE cron_enabled IS TRUE)) "
+                        "AND cl.id NOT IN "
+                        "(SELECT candidate_link_id FROM articles "
+                        "WHERE candidate_link_id IS NOT NULL)"
+                    )
+                    remaining_count = db.session.execute(query).scalar() or 0
+                
                 print(
                     f"✓ Batch {batch_num} complete: {articles_processed} "
                     f"articles extracted ({remaining_count} remaining)"
