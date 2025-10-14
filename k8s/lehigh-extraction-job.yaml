@@ -25,7 +25,7 @@ spec:
           - --dataset
           - Penn-State-Lehigh
           - --limit
-          - "6"  # 6 articles per batch
+          - "3"  # 3 articles per batch
           - --batches
           - "1"  # Just one batch
         envFrom:
