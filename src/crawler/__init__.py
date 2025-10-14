@@ -1571,7 +1571,7 @@ class ContentExtractor:
                     )
                     # Raise exception to stop all fallback attempts
                     raise RateLimitError(f"Rate limited (429) by {domain}")
-                elif response.status_code in [403, 503, 502, 504]:
+                elif response.status_code in [401, 403, 502, 503, 504]:
                     # Detect specific bot protection type
                     protection_type = self._detect_bot_protection_in_response(response)
                     
@@ -1693,9 +1693,12 @@ class ContentExtractor:
                                 )
                         raise download_e
 
-            except RateLimitError as e:
-                logger.warning(f"Domain rate limited, skipping: {e}")
-                return self._create_error_result(url, str(e), {"rate_limited": True})
+            except RateLimitError:
+                # Re-raise to stop all fallback attempts
+                raise
+            except NotFoundError:
+                # Re-raise to stop all fallback attempts
+                raise
             except Exception as e:
                 logger.warning(
                     f"Session fetch failed for {url}: {e}, "
@@ -1790,6 +1793,18 @@ class ContentExtractor:
                         # Raise exception to stop all fallback attempts
                         raise NotFoundError(
                             f"URL not found ({resp.status_code}): {url}"
+                        )
+                    
+                    # Check for rate limiting and server errors
+                    if resp.status_code == 429:
+                        logger.warning(f"Rate limited (429) by {domain}")
+                        raise RateLimitError(f"Rate limited (429) by {domain}")
+                    elif resp.status_code in [401, 403, 502, 503, 504]:
+                        logger.warning(
+                            f"Server error ({resp.status_code}) by {domain}"
+                        )
+                        raise RateLimitError(
+                            f"Server error ({resp.status_code}) on {domain}"
                         )
 
                     resp.raise_for_status()
