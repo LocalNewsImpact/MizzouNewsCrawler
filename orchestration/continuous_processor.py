@@ -76,11 +76,11 @@ class WorkQueue:
             )
             counts["cleaning_pending"] = result.scalar() or 0
 
-            # Count articles without ML analysis (no primary_label)
+            # Count articles without ML analysis (only 'cleaned' status is eligible)
             result = db.session.execute(
                 text(
                     "SELECT COUNT(*) FROM articles "
-                    "WHERE primary_label IS NULL AND status != 'error'"
+                    "WHERE status = 'cleaned' AND primary_label IS NULL"
                 )
             )
             counts["analysis_pending"] = result.scalar() or 0
@@ -206,7 +206,7 @@ def process_extraction(count: int) -> bool:
 
 
 def process_analysis(count: int) -> bool:
-    """Run ML analysis for extracted articles."""
+    """Run ML analysis for cleaned articles only."""
     if count == 0:
         return False
 
@@ -220,8 +220,6 @@ def process_analysis(count: int) -> bool:
         str(ANALYSIS_BATCH_SIZE),
         "--top-k",
         "2",
-        "--status",
-        "extracted",
         "--status",
         "cleaned",
     ]
