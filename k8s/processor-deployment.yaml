@@ -78,6 +78,20 @@ spec:
           value: "128"  # Increased from 16 to catch up with extraction rate
         - name: GAZETTEER_BATCH_SIZE
           value: "50"
+        # Pipeline step feature flags (Issue #77 refactoring)
+        # Discovery, verification, and extraction moved to dataset-specific jobs
+        - name: ENABLE_DISCOVERY
+          value: "false"  # Moved to dataset jobs
+        - name: ENABLE_VERIFICATION
+          value: "false"  # Moved to dataset jobs
+        - name: ENABLE_EXTRACTION
+          value: "false"  # Moved to dataset jobs
+        - name: ENABLE_CLEANING
+          value: "true"   # Keep in continuous processor
+        - name: ENABLE_ML_ANALYSIS
+          value: "true"   # Keep in continuous processor
+        - name: ENABLE_ENTITY_EXTRACTION
+          value: "true"   # Keep in continuous processor
         # CAPTCHA and rate limit handling - CONSERVATIVE SETTINGS (match Lehigh)
         - name: CAPTCHA_BACKOFF_BASE
           value: "7200"  # 2 hours (3x longer than before)

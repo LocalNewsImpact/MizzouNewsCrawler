@@ -1,14 +1,14 @@
-# Kubernetes Job Manifest Template for Dataset Extraction
+# Kubernetes Job Manifest Template for Dataset Discovery
 # 
-# This template creates an isolated extraction job for a specific dataset.
-# Dataset-specific extraction allows independent rate limiting, monitoring,
-# and CAPTCHA backoff isolation per dataset.
+# This template creates an isolated discovery job for a specific dataset.
+# Discovery jobs find new article URLs from RSS feeds, sitemaps, and homepages.
 #
 # Placeholders to replace:
 #   - DATASET_SLUG: Dataset identifier (e.g., "Penn-State-Lehigh", "Mizzou")
 #   - PROCESSOR_IMAGE: Container image path
-#   - LIMIT: Articles per batch (default: 20)
-#   - BATCHES: Number of batches to process (default: 60)
+#   - SOURCE_LIMIT: Max sources to process (optional, default: process all)
+#   - MAX_ARTICLES: Max articles per source (default: 50)
+#   - DAYS_BACK: How many days to look back (default: 7)
 #
 # To apply: kubectl apply -f <your-customized-file.yaml>
 
@@ -16,31 +16,31 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   labels:
-    app: extract-dataset_slug
+    app: discover-dataset_slug
     dataset: DATASET_SLUG
-    type: extraction
-  name: extract-dataset_slug
+    type: discovery
+  name: discover-dataset_slug
   namespace: production
 spec:
   template:
     metadata:
       labels:
-        app: extract-dataset_slug
+        app: discover-dataset_slug
         dataset: DATASET_SLUG
-        type: extraction
+        type: discovery
     spec:
       containers:
       - command:
         - python
         - -m
         - src.cli.cli_modular
-        - extract
+        - discover-urls
         - --dataset
         - DATASET_SLUG
-        - --limit
-        - '20'
-        - --batches
-        - '60'
+        - --max-articles
+        - '50'
+        - --days-back
+        - '7'
         env:
         - name: DATABASE_ENGINE
           value: postgresql+psycopg2
@@ -82,14 +82,14 @@ spec:
         - secretRef:
             name: origin-proxy-credentials
         image: PROCESSOR_IMAGE
-        name: extraction
+        name: discovery
         resources:
           limits:
-            cpu: 1000m
-            memory: 3Gi
+            cpu: 500m
+            memory: 2Gi
           requests:
-            cpu: 250m
-            memory: 1Gi
+            cpu: 100m
+            memory: 768Mi
       restartPolicy: Never
       serviceAccountName: mizzou-app
       priorityClassName: batch-standard
