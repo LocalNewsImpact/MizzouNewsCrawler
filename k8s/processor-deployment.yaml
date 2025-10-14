@@ -28,7 +28,7 @@ spec:
             path: sitecustomize.py
       containers:
       - name: processor
-        image: processor
+        image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:d0c043e
         imagePullPolicy: Always
         command:
           - python
@@ -73,22 +73,26 @@ spec:
         - name: VERIFICATION_BATCH_SIZE
           value: "10"
         - name: EXTRACTION_BATCH_SIZE
-          value: "20"
+          value: "10"  # Reduced from 20 for better bot evasion
         - name: ANALYSIS_BATCH_SIZE
           value: "128"  # Increased from 16 to catch up with extraction rate
         - name: GAZETTEER_BATCH_SIZE
           value: "50"
-        # CAPTCHA and rate limit handling - ULTRA-AGGRESSIVE SETTINGS
+        # CAPTCHA and rate limit handling - CONSERVATIVE SETTINGS (match Lehigh)
         - name: CAPTCHA_BACKOFF_BASE
-          value: "2400"  # 40 minutes (ultra-aggressive)
+          value: "7200"  # 2 hours (3x longer than before)
         - name: CAPTCHA_BACKOFF_MAX
-          value: "7200"  # 2 hours (ultra-aggressive)
+          value: "21600"  # 6 hours (3x longer than before)
         - name: INTER_REQUEST_MIN
-          value: "15.0"  # 15 seconds minimum (ultra-conservative)
+          value: "90.0"  # 90 seconds (6x slower for bot evasion)
         - name: INTER_REQUEST_MAX
-          value: "25.0"  # 25 seconds maximum (ultra-conservative)
+          value: "180.0"  # 3 minutes (7x slower for bot evasion)
         - name: BATCH_SLEEP_SECONDS
-          value: "60.0"  # 60 second pause between batches
+          value: "420.0"  # 7 minutes between batches (match Lehigh)
+        - name: BATCH_SLEEP_JITTER
+          value: "0.45"  # 45% jitter (~231-609 seconds range)
+        - name: BATCH_SIZE_JITTER
+          value: "0.20"  # 20% jitter on batch size (8-12 articles)
         # User agent rotation (rotate every 3-5 requests)
         - name: UA_ROTATE_BASE
           value: "4"

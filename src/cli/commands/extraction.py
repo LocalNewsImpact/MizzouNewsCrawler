@@ -185,9 +185,29 @@ def handle_extraction_command(args) -> int:
             articles_processed = result['processed']
             total_processed += articles_processed
             
-            print(f"✓ Batch {batch_num} complete: {articles_processed} articles extracted")
+            # Query remaining articles for progress visibility
+            try:
+                query = text(
+                    "SELECT COUNT(*) FROM candidate_links "
+                    "WHERE status = 'article'"
+                )
+                remaining_count = db.session.execute(query).scalar() or 0
+                print(
+                    f"✓ Batch {batch_num} complete: {articles_processed} "
+                    f"articles extracted ({remaining_count} remaining)"
+                )
+            except Exception:
+                # Fallback if query fails
+                print(
+                    f"✓ Batch {batch_num} complete: "
+                    f"{articles_processed} articles extracted"
+                )
+            
             if result.get('skipped_domains', 0) > 0:
-                print(f"  ⚠️  {result['skipped_domains']} domains skipped due to rate limits")
+                print(
+                    f"  ⚠️  {result['skipped_domains']} domains "
+                    f"skipped due to rate limits"
+                )
             logger.info(f"Batch {batch_num}: {result}")
             
             # Stop if no articles were processed (queue is empty)
