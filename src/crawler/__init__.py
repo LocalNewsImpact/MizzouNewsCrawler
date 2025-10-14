@@ -30,6 +30,12 @@ class RateLimitError(Exception):
     pass
 
 
+class NotFoundError(Exception):
+    """Exception raised when a URL returns 404/410 (permanent missing)."""
+
+    pass
+
+
 # Enhanced extraction dependencies
 try:
     from newspaper import Article as NewspaperArticle
@@ -1621,10 +1627,9 @@ class ContentExtractor:
                     logger.warning(
                         f"Permanent missing ({response.status_code}) for {url}; caching"
                     )
-                    return self._create_error_result(
-                        url,
-                        f"Not found ({response.status_code})",
-                        {"status": response.status_code},
+                    # Raise exception to stop all fallback attempts
+                    raise NotFoundError(
+                        f"URL not found ({response.status_code}): {url}"
                     )
 
                 # Check if request was successful
@@ -1782,7 +1787,10 @@ class ContentExtractor:
                         logger.warning(
                             f"Permanent missing ({resp.status_code}) for {url}; caching"
                         )
-                        return {}
+                        # Raise exception to stop all fallback attempts
+                        raise NotFoundError(
+                            f"URL not found ({resp.status_code}): {url}"
+                        )
 
                     resp.raise_for_status()
                     page_html = resp.text

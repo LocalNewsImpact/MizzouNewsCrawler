@@ -4,6 +4,8 @@ Extraction command module for the modular CLI.
 
 import json
 import logging
+import os
+import random
 import time
 import uuid
 from collections import defaultdict
@@ -13,7 +15,7 @@ from typing import cast
 
 from sqlalchemy import text
 
-from src.crawler import ContentExtractor
+from src.crawler import ContentExtractor, NotFoundError
 from src.models import Article, CandidateLink
 from src.models.database import (
     DatabaseManager,
@@ -159,13 +161,21 @@ def handle_extraction_command(args) -> int:
             if batches is not None and not exhaust_queue and batch_num > batches:
                 break
             
-            print(f"📄 Processing batch {batch_num}...")
+            # Apply batch size jitter if configured (e.g., BATCH_SIZE_JITTER=0.33 means ±33%)
+            batch_size_jitter = float(os.getenv("BATCH_SIZE_JITTER", "0.0"))
+            if batch_size_jitter > 0:
+                jitter_amount = int(per_batch * batch_size_jitter)
+                batch_size = max(1, per_batch + random.randint(-jitter_amount, jitter_amount))
+            else:
+                batch_size = per_batch
+            
+            print(f"📄 Processing batch {batch_num} ({batch_size} articles)...")
             result = _process_batch(
                 args,
                 extractor,
                 byline_cleaner,
                 telemetry,
-                per_batch,
+                batch_size,
                 batch_num,
                 host_403_tracker,
                 domains_for_cleaning,
@@ -185,12 +195,37 @@ def handle_extraction_command(args) -> int:
                 print(f"📭 No more articles available to extract")
                 break
             
-            # Pause between batches (configurable via BATCH_SLEEP_SECONDS)
-            import os
-            batch_sleep = float(os.getenv("BATCH_SLEEP_SECONDS", "0.1"))
-            if batch_sleep > 0:
-                print(f"   ⏸️  Waiting {batch_sleep}s before next batch...")
-                time.sleep(batch_sleep)
+            # Smart batch sleep: only pause if we processed articles from same domain repeatedly
+            # If we rotated through domains, no pause needed (rate limiting handled per-domain)
+            domains_processed = result.get('domains_processed', [])
+            same_domain_consecutive = result.get('same_domain_consecutive', 0)
+            
+            # Apply batch sleep only if we hit the same domain multiple times in a row
+            # (indicates we've exhausted domain rotation and need cooldown)
+            max_same_domain = int(os.getenv("MAX_SAME_DOMAIN_CONSECUTIVE", "3"))
+            if same_domain_consecutive >= max_same_domain:
+                batch_sleep = float(os.getenv("BATCH_SLEEP_SECONDS", "0.1"))
+                if batch_sleep > 0:
+                    # Apply jitter to batch sleep
+                    batch_jitter = float(os.getenv("BATCH_SLEEP_JITTER", "0.0"))
+                    if batch_jitter > 0:
+                        jitter_amount = batch_sleep * batch_jitter
+                        actual_sleep = random.uniform(
+                            batch_sleep - jitter_amount,
+                            batch_sleep + jitter_amount
+                        )
+                    else:
+                        actual_sleep = batch_sleep
+                    
+                    print(f"   ⏸️  Same domain hit {same_domain_consecutive} times - waiting {actual_sleep:.0f}s...")
+                    time.sleep(actual_sleep)
+            elif len(domains_processed) > 1:
+                # Rotated through multiple domains - no pause needed
+                print(f"   ✓ Rotated through {len(domains_processed)} domains - continuing...")
+            else:
+                # Short pause between batches even with domain rotation
+                short_pause = float(os.getenv("INTER_BATCH_MIN_PAUSE", "5.0"))
+                time.sleep(short_pause)
 
         if domains_for_cleaning:
             print()
@@ -239,9 +274,14 @@ def _process_batch(
         db = DatabaseManager()
     session = db.session
 
-    # Track domain failures in this batch
+    # Track domain failures and articles processed per domain in this batch
     domain_failures = {}  # domain -> consecutive_failures
+    domain_article_count = {}  # domain -> articles_processed_in_batch
+    domains_processed = []  # ordered list of domains processed
+    last_domain = None
+    same_domain_consecutive = 0
     max_failures_per_domain = 2
+    max_articles_per_domain = int(os.getenv("MAX_ARTICLES_PER_DOMAIN_PER_BATCH", "3"))
 
     try:
         # Get articles with domain diversity to avoid rate-limit lockups
@@ -316,6 +356,17 @@ def _process_batch(
 
             domain = urlparse(url).netloc
 
+            # Check if we've already processed max articles from this domain in this batch
+            current_domain_count = domain_article_count.get(domain, 0)
+            if current_domain_count >= max_articles_per_domain:
+                logger.debug(
+                    "Skipping %s - domain %s hit max %d articles per batch",
+                    url,
+                    domain,
+                    max_articles_per_domain,
+                )
+                continue
+
             # Skip domains that have failed too many times
             if domain in skipped_domains:
                 logger.debug(
@@ -325,10 +376,10 @@ def _process_batch(
                 )
                 continue
 
-            # Check if domain is currently rate limited by extractor
+            # Check if domain is currently rate limited by extractor (CAPTCHA backoff)
             if extractor._check_rate_limit(domain):
                 logger.info(
-                    "Skipping %s - domain %s is rate limited",
+                    "Skipping %s - domain %s is rate limited (backoff active)",
                     url,
                     domain,
                 )
@@ -350,6 +401,18 @@ def _process_batch(
                 detection_payload = None
 
                 if content and content.get("title"):
+                    # Track successful extraction from this domain
+                    domain_article_count[domain] = domain_article_count.get(domain, 0) + 1
+                    
+                    # Track domain rotation
+                    if domain != last_domain:
+                        if domain not in domains_processed:
+                            domains_processed.append(domain)
+                        same_domain_consecutive = 0
+                        last_domain = domain
+                    else:
+                        same_domain_consecutive += 1
+                    
                     # Reset failure count on success
                     if domain in domain_failures:
                         domain_failures[domain] = 0
@@ -496,6 +559,26 @@ def _process_batch(
                     metrics.finalize(content or {})
                     telemetry.record_extraction(metrics)
 
+            except NotFoundError as e:
+                # 404/410 - permanently mark as not found and continue to next URL
+                logger.info("URL not found (404/410): %s", url)
+                try:
+                    session.execute(
+                        CANDIDATE_STATUS_UPDATE_SQL,
+                        {"status": "404", "id": str(url_id)},
+                    )
+                    session.commit()
+                except Exception:
+                    logger.exception("Failed to mark URL as 404: %s", url)
+                    session.rollback()
+
+                metrics.error_message = str(e)
+                metrics.error_type = "not_found"
+                metrics.finalize({})
+                telemetry.record_extraction(metrics)
+                # Don't increment domain failures for 404s - it's the URL, not the domain
+                continue
+
             except Exception as e:
                 # Check for rate limit in exception
                 error_str = str(e)
@@ -603,6 +686,9 @@ def _process_batch(
         return {
             "processed": processed,
             "skipped_domains": len(skipped_domains),
+            "domains_processed": domains_processed,
+            "same_domain_consecutive": same_domain_consecutive,
+            "domain_article_count": domain_article_count,
         }
 
     finally:
