@@ -1115,6 +1115,18 @@ class ContentExtractor:
                             newspaper_result or {},
                         )
 
+            except NotFoundError as e:
+                # 404/410 - URL permanently missing, stop all fallback attempts
+                logger.warning(f"URL not found (404/410), stopping extraction: {url}")
+                if metrics:
+                    metrics.end_method("newspaper4k", False, str(e), {})
+                raise  # Re-raise to prevent BeautifulSoup/Selenium fallback
+            except RateLimitError as e:
+                # Rate limiting/bot protection, stop all fallback attempts
+                logger.warning(f"Rate limit/bot protection, stopping extraction: {url}")
+                if metrics:
+                    metrics.end_method("newspaper4k", False, str(e), {})
+                raise  # Re-raise to prevent BeautifulSoup/Selenium fallback
             except Exception as e:
                 logger.info(f"newspaper4k extraction failed for {url}: {e}")
                 # Try to get any partial result with metadata (including HTTP
