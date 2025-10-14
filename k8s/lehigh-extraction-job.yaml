@@ -80,7 +80,7 @@ spec:
         - name: CAPTCHA_BACKOFF_MAX
           value: "21600"  # Was 7200 - increased to 6 hours
         - name: BATCH_SLEEP_SECONDS
-          value: "420.0"  # 7 minutes between batches
+          value: "420.0"  # 7 minutes between batches (auto-detected single-domain)
         - name: BATCH_SLEEP_JITTER
           value: "0.45"  # 45% jitter (~231-609 seconds range)
         - name: BATCH_SIZE_JITTER

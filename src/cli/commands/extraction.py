@@ -223,11 +223,17 @@ def handle_extraction_command(args) -> int:
             # If we rotated through domains, no pause needed (rate limiting handled per-domain)
             domains_processed = result.get('domains_processed', [])
             same_domain_consecutive = result.get('same_domain_consecutive', 0)
+            unique_domains = len(set(domains_processed)) if domains_processed else 0
             
-            # Apply batch sleep only if we hit the same domain multiple times in a row
-            # (indicates we've exhausted domain rotation and need cooldown)
+            # Apply long batch sleep if:
+            # 1. Same domain hit repeatedly (exhausted rotation), OR
+            # 2. Only one domain in entire batch (single-domain dataset)
             max_same_domain = int(os.getenv("MAX_SAME_DOMAIN_CONSECUTIVE", "3"))
-            if same_domain_consecutive >= max_same_domain:
+            needs_long_pause = (
+                same_domain_consecutive >= max_same_domain or unique_domains <= 1
+            )
+            
+            if needs_long_pause:
                 batch_sleep = float(os.getenv("BATCH_SLEEP_SECONDS", "0.1"))
                 if batch_sleep > 0:
                     # Apply jitter to batch sleep
@@ -241,13 +247,26 @@ def handle_extraction_command(args) -> int:
                     else:
                         actual_sleep = batch_sleep
                     
-                    print(f"   ⏸️  Same domain hit {same_domain_consecutive} times - waiting {actual_sleep:.0f}s...")
+                    reason = (
+                        f"same domain hit {same_domain_consecutive} times"
+                        if same_domain_consecutive >= max_same_domain
+                        else "single-domain batch"
+                    )
+                    print(
+                        f"   ⏸️  {reason.capitalize()} - "
+                        f"waiting {actual_sleep:.0f}s..."
+                    )
                     time.sleep(actual_sleep)
-            elif len(domains_processed) > 1:
-                # Rotated through multiple domains - no pause needed
-                print(f"   ✓ Rotated through {len(domains_processed)} domains - continuing...")
+            elif unique_domains > 1:
+                # Rotated through multiple domains - minimal pause
+                short_pause = float(os.getenv("INTER_BATCH_MIN_PAUSE", "5.0"))
+                print(
+                    f"   ✓ Rotated through {unique_domains} domains - "
+                    f"minimal {short_pause:.0f}s pause"
+                )
+                time.sleep(short_pause)
             else:
-                # Short pause between batches even with domain rotation
+                # Fallback: short pause
                 short_pause = float(os.getenv("INTER_BATCH_MIN_PAUSE", "5.0"))
                 time.sleep(short_pause)
 
