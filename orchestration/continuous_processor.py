@@ -131,7 +131,8 @@ def run_cli_command(command: list[str], description: str) -> bool:
         if proc.stdout:
             for line in iter(proc.stdout.readline, ''):
                 if line:
-                    logger.info("%s | %s", description, line.rstrip())
+                    # Print directly to avoid double timestamps in Cloud Logging
+                    print(line.rstrip(), flush=True)
         
         # Wait for process to complete
         returncode = proc.wait()
