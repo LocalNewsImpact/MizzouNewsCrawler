@@ -2143,30 +2143,18 @@ class ContentExtractor:
             # Quick wait for page to stabilize
             time.sleep(0.5)  # Reduced from 1.0-2.0 seconds
 
-            # Check for CAPTCHA or other challenges
+            # Try to close subscription modals/popups FIRST (before CAPTCHA check)
+            # Prevents false positives from subscription walls
+            self._try_close_modals(driver, url)
+
+            # Now check for actual CAPTCHA or bot challenges
             if self._detect_captcha_or_challenge(driver):
-                logger.warning(f"CAPTCHA or challenge detected on {url}")
-                # Try to close common modal overlays before giving up
-                try:
-                    close_selectors = [
-                        "button[aria-label*='close']",
-                        "button[title*='close']",
-                        "[data-dismiss='modal']",
-                        ".modal-close, .close, .close-button, .c-close",
-                        "button[aria-label*='dismiss']",
-                    ]
-                    for sel in close_selectors:
-                        elements = driver.find_elements(By.CSS_SELECTOR, sel)
-                        if elements:
-                            elements[0].click()
-                            time.sleep(0.5)
-                            if not self._detect_captcha_or_challenge(driver):
-                                logger.info(
-                                    "Closed a modal/challenge overlay; continuing"
-                                )
-                                return True
-                except Exception:
-                    pass
+                logger.warning(f"CAPTCHA or bot challenge detected on {url}")
+                
+                # Try closing modals ONE more time in case CAPTCHA is in a modal
+                if self._try_close_modals(driver, url):
+                    logger.info("Successfully closed CAPTCHA modal")
+                    return True
 
                 # Still challenged: set CAPTCHA backoff for domain
                 try:
@@ -2238,51 +2226,109 @@ class ContentExtractor:
         except Exception as e:
             logger.debug(f"Human behavior simulation failed: {e}")
 
-    def _detect_captcha_or_challenge(self, driver) -> bool:
-        """Detect if page contains CAPTCHA or other bot challenges."""
+    def _try_close_modals(self, driver, url: str) -> bool:
+        """Try to close subscription modals and popups.
+        
+        Args:
+            driver: Selenium WebDriver instance
+            url: URL being processed (for logging)
+            
+        Returns:
+            True if a modal was successfully closed, False otherwise
+        """
         try:
-            # Common CAPTCHA indicators
-            captcha_indicators = [
-                "captcha",
-                "recaptcha",
-                "hcaptcha",
-                "challenge",
-                "verify",
-                "robot",
-                "cloudflare",
-                "access denied",
-                "blocked",
+            close_selectors = [
+                "button[aria-label*='close' i]",  # Case-insensitive close button
+                "button[title*='close' i]",
+                "button[aria-label*='dismiss' i]",
+                "[data-dismiss='modal']",  # Bootstrap modals
+                ".modal-close",
+                ".close-button",
+                ".c-close",
+                "button.close",
+                "[class*='close'][role='button']",
+                # Subscription-specific selectors
+                "button[aria-label*='no thanks' i]",
+                "button[aria-label*='maybe later' i]",
+                "a[href='#'][class*='close']",  # Link-based close buttons
+                ".tp-close",  # Piano paywall
+                "#close-modal",
             ]
+            
+            for selector in close_selectors:
+                try:
+                    elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                    for element in elements[:2]:  # Try first 2 matches
+                        if element.is_displayed() and element.is_enabled():
+                            element.click()
+                            time.sleep(0.5)
+                            logger.info(
+                                f"Closed modal on {url} using selector: {selector}"
+                            )
+                            return True
+                except Exception as e:
+                    logger.debug(f"Failed to close with {selector}: {e}")
+                    continue
+            
+            return False
+            
+        except Exception as e:
+            logger.debug(f"Error closing modals on {url}: {e}")
+            return False
 
-            page_text = driver.page_source.lower()
-            page_title = driver.title.lower()
+    def _detect_captcha_or_challenge(self, driver) -> bool:
+        """Detect if page contains CAPTCHA or other bot challenges.
+        
+        Returns True only for actual CAPTCHAs/bot challenges,
+        NOT subscription modals.
+        """
+        try:
+            page_source = driver.page_source.lower()
 
-            # Check page content for CAPTCHA keywords
-            for indicator in captcha_indicators:
-                if indicator in page_text or indicator in page_title:
-                    return True
-
-            # Check for common CAPTCHA elements
+            # 1. Check for actual CAPTCHA elements (high confidence)
             captcha_selectors = [
-                "[class*='captcha']",
-                "[id*='captcha']",
-                "[class*='recaptcha']",
-                "[id*='recaptcha']",
-                "iframe[src*='recaptcha']",
-                ".cf-challenge-form",  # Cloudflare
-                "#challenge-form",
+                "iframe[src*='recaptcha']",  # reCAPTCHA
+                "iframe[src*='hcaptcha']",  # hCaptcha
+                "[class*='g-recaptcha']",  # reCAPTCHA div
+                "[class*='h-captcha']",  # hCaptcha div
+                ".cf-challenge-form",  # Cloudflare challenge
+                "#challenge-form",  # Generic challenge form
+                "form[id*='captcha']",  # CAPTCHA forms
             ]
 
             for selector in captcha_selectors:
                 try:
                     if driver.find_elements(By.CSS_SELECTOR, selector):
+                        logger.info(f"Detected CAPTCHA element: {selector}")
                         return True
                 except Exception:
                     continue
 
+            # 2. Check for bot blocking pages (specific patterns)
+            bot_block_indicators = [
+                ("access denied", "cloudflare"),  # Cloudflare block
+                ("access denied", "blocked"),
+                ("checking your browser", "cloudflare"),  # CF checking
+                ("just a moment", "cloudflare"),  # CF checking
+                ("ray id:", "cloudflare"),  # Cloudflare error page
+                ("403 forbidden", "blocked"),
+            ]
+
+            for primary, secondary in bot_block_indicators:
+                if primary in page_source and secondary in page_source:
+                    logger.info(f"Detected bot blocking: {primary} + {secondary}")
+                    return True
+
+            # 3. Check for specific CAPTCHA keywords in limited context
+            # (avoid false positives from subscription modals)
+            if "recaptcha" in page_source or "hcaptcha" in page_source:
+                logger.info("Detected CAPTCHA keyword in page")
+                return True
+
             return False
 
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Error in CAPTCHA detection: {e}")
             return False
 
     def _is_title_suspicious(self, title: str) -> bool:
