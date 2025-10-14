@@ -187,6 +187,10 @@ def handle_extraction_command(args) -> int:
             
             # Query remaining articles for progress visibility
             try:
+                # Expire all objects and close transaction to get fresh count
+                db.session.expire_all()
+                db.session.commit()
+                db.session.close()
                 query = text(
                     "SELECT COUNT(*) FROM candidate_links "
                     "WHERE status = 'article'"
