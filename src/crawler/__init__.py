@@ -2143,15 +2143,37 @@ class ContentExtractor:
             # Quick wait for page to stabilize
             time.sleep(0.5)  # Reduced from 1.0-2.0 seconds
 
-            # Try to close subscription modals/popups FIRST (before CAPTCHA check)
+            # Try to close subscription modals/popups FIRST
             # Prevents false positives from subscription walls
-            self._try_close_modals(driver, url)
+            modal_closed = self._try_close_modals(driver, url)
+
+            # Check for subscription wall (separate from CAPTCHA)
+            if self._detect_subscription_wall(driver):
+                logger.warning(
+                    f"Subscription wall detected on {url} "
+                    f"(modal_closed={modal_closed})"
+                )
+                # Try closing again if not already attempted
+                if not modal_closed and self._try_close_modals(driver, url):
+                    logger.info("Successfully closed subscription modal")
+                    # Re-check if still paywalled
+                    if not self._detect_subscription_wall(driver):
+                        return True
+                
+                # Still paywalled: track but DON'T apply aggressive backoff
+                # Subscription walls can be persistent (days/months)
+                # Note: Unlike CAPTCHA, we don't backoff the domain
+                logger.info(
+                    f"Subscription wall blocking content on {url} - "
+                    "this may persist for days/months"
+                )
+                return False
 
             # Now check for actual CAPTCHA or bot challenges
             if self._detect_captcha_or_challenge(driver):
                 logger.warning(f"CAPTCHA or bot challenge detected on {url}")
                 
-                # Try closing modals ONE more time in case CAPTCHA is in a modal
+                # Try closing modals in case CAPTCHA is in a modal
                 if self._try_close_modals(driver, url):
                     logger.info("Successfully closed CAPTCHA modal")
                     return True
@@ -2276,6 +2298,71 @@ class ContentExtractor:
             logger.debug(f"Error closing modals on {url}: {e}")
             return False
 
+    def _detect_subscription_wall(self, driver) -> bool:
+        """Detect if page contains a subscription/paywall modal.
+        
+        Returns True if subscription wall detected (NOT a bot challenge).
+        These should be tracked separately as they may block for days/months.
+        """
+        try:
+            page_source = driver.page_source.lower()
+            
+            # Common subscription wall indicators
+            subscription_keywords = [
+                "subscribe",
+                "subscription",
+                "subscriber",
+                "register to read",
+                "sign up to continue",
+                "create an account",
+                "enter your email",
+                "get unlimited access",
+                "paywall",
+                "premium content",
+                "exclusive content",
+                "members only",
+                "login to continue",
+                "register now",
+            ]
+            
+            # Count keyword matches (need multiple for confidence)
+            matches = sum(
+                1 for keyword in subscription_keywords if keyword in page_source
+            )
+            
+            if matches >= 2:  # At least 2 subscription indicators
+                logger.info(
+                    f"Detected subscription wall ({matches} indicators found)"
+                )
+                return True
+            
+            # Check for common paywall provider elements
+            paywall_selectors = [
+                "[class*='paywall']",
+                "[id*='paywall']",
+                "[class*='piano']",  # Piano paywall
+                "[id*='piano']",
+                "[class*='subscribe-modal']",
+                "[id*='subscription']",
+                ".registration-wall",
+                ".subscriber-wall",
+            ]
+            
+            for selector in paywall_selectors:
+                try:
+                    elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                    if elements and any(el.is_displayed() for el in elements[:3]):
+                        logger.info(f"Detected paywall element: {selector}")
+                        return True
+                except Exception:
+                    continue
+            
+            return False
+            
+        except Exception as e:
+            logger.debug(f"Error in subscription wall detection: {e}")
+            return False
+
     def _detect_captcha_or_challenge(self, driver) -> bool:
         """Detect if page contains CAPTCHA or other bot challenges.
         
@@ -2304,13 +2391,15 @@ class ContentExtractor:
                 except Exception:
                     continue
 
-            # 2. Check for bot blocking pages (specific patterns)
+            # 2. Check for bot blocking pages (specific paired patterns)
+            # Note: 'verify' and 'challenge' removed - those appear in
+            # subscription walls
             bot_block_indicators = [
                 ("access denied", "cloudflare"),  # Cloudflare block
-                ("access denied", "blocked"),
                 ("checking your browser", "cloudflare"),  # CF checking
                 ("just a moment", "cloudflare"),  # CF checking
                 ("ray id:", "cloudflare"),  # Cloudflare error page
+                ("403 forbidden", "bot"),
                 ("403 forbidden", "blocked"),
             ]
 
@@ -2319,8 +2408,8 @@ class ContentExtractor:
                     logger.info(f"Detected bot blocking: {primary} + {secondary}")
                     return True
 
-            # 3. Check for specific CAPTCHA keywords in limited context
-            # (avoid false positives from subscription modals)
+            # 3. Check for specific CAPTCHA keywords
+            # Note: Only CAPTCHA-specific terms, not generic 'challenge'/'verify'
             if "recaptcha" in page_source or "hcaptcha" in page_source:
                 logger.info("Detected CAPTCHA keyword in page")
                 return True
