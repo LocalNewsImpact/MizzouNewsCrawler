@@ -1563,11 +1563,8 @@ class ContentExtractor:
                         event_type="rate_limit_429",
                         http_status_code=429,
                     )
-                    # Reset successful request count on rate limit
-                    # and return error to skip this domain for now
-                    return self._create_error_result(
-                        url, "Rate limited", {"status": 429}
-                    )
+                    # Raise exception to stop all fallback attempts
+                    raise RateLimitError(f"Rate limited (429) by {domain}")
                 elif response.status_code in [403, 503, 502, 504]:
                     # Detect specific bot protection type
                     protection_type = self._detect_bot_protection_in_response(response)
@@ -1600,10 +1597,10 @@ class ContentExtractor:
                         else:
                             self._handle_rate_limit_error(domain, response)
                         
-                        return self._create_error_result(
-                            url,
-                            f"Bot protection: {protection_type} ({response.status_code})",
-                            {"status": response.status_code, "protection": protection_type},
+                        # Raise exception to stop all fallback attempts
+                        raise RateLimitError(
+                            f"Bot protection on {domain}: "
+                            f"{protection_type} ({response.status_code})"
                         )
                     else:
                         # Generic server error without bot protection indicators
@@ -1612,10 +1609,9 @@ class ContentExtractor:
                             f"- response preview: {response.text[:200] if response.text else 'empty'}"
                         )
                         self._handle_rate_limit_error(domain, response)
-                        return self._create_error_result(
-                            url,
-                            f"Server error ({response.status_code})",
-                            {"status": response.status_code},
+                        # Raise exception to stop all fallback attempts
+                        raise RateLimitError(
+                            f"Server error ({response.status_code}) on {domain}"
                         )
 
                 # Permanent missing -> cache as dead URL
@@ -1650,10 +1646,9 @@ class ContentExtractor:
                         )
                         # Use CAPTCHA backoff for confirmed bot protection
                         self._handle_captcha_backoff(domain)
-                        return self._create_error_result(
-                            url,
-                            f"Bot protection in 200 response: {protection_type}",
-                            {"status": 200, "protection": protection_type},
+                        # Raise exception to stop all fallback attempts
+                        raise RateLimitError(
+                            f"Bot protection detected on {domain}: {protection_type}"
                         )
                     
                     # Reset error count on successful request
