@@ -248,13 +248,15 @@ def handle_extraction_command(args) -> int:
             domains_processed = result.get('domains_processed', [])
             same_domain_consecutive = result.get('same_domain_consecutive', 0)
             unique_domains = len(set(domains_processed)) if domains_processed else 0
+            skipped_domains = result.get('skipped_domains', 0)
             
             # Apply long batch sleep if:
             # 1. Same domain hit repeatedly (exhausted rotation), OR
-            # 2. Only one domain in entire batch (single-domain dataset)
+            # 2. Only one domain processed AND no domains were skipped (true single-domain dataset)
             max_same_domain = int(os.getenv("MAX_SAME_DOMAIN_CONSECUTIVE", "3"))
+            is_single_domain_dataset = unique_domains <= 1 and skipped_domains == 0
             needs_long_pause = (
-                same_domain_consecutive >= max_same_domain or unique_domains <= 1
+                same_domain_consecutive >= max_same_domain or is_single_domain_dataset
             )
             
             if needs_long_pause:
@@ -274,20 +276,28 @@ def handle_extraction_command(args) -> int:
                     reason = (
                         f"same domain hit {same_domain_consecutive} times"
                         if same_domain_consecutive >= max_same_domain
-                        else "single-domain batch"
+                        else "single-domain dataset"
                     )
                     print(
                         f"   ⏸️  {reason.capitalize()} - "
                         f"waiting {actual_sleep:.0f}s..."
                     )
                     time.sleep(actual_sleep)
-            elif unique_domains > 1:
-                # Rotated through multiple domains - minimal pause
+            elif unique_domains > 1 or skipped_domains > 0:
+                # Rotated through multiple domains OR multiple domains available (but rate-limited)
+                # Either way, minimal pause is sufficient
                 short_pause = float(os.getenv("INTER_BATCH_MIN_PAUSE", "5.0"))
-                print(
-                    f"   ✓ Rotated through {unique_domains} domains - "
-                    f"minimal {short_pause:.0f}s pause"
-                )
+                if skipped_domains > 0:
+                    print(
+                        f"   ✓ Multiple domains available "
+                        f"({skipped_domains} rate-limited) - "
+                        f"minimal {short_pause:.0f}s pause"
+                    )
+                else:
+                    print(
+                        f"   ✓ Rotated through {unique_domains} domains - "
+                        f"minimal {short_pause:.0f}s pause"
+                    )
                 time.sleep(short_pause)
             else:
                 # Fallback: short pause
