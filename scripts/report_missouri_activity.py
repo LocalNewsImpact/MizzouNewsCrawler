@@ -47,24 +47,24 @@ def run_report(dataset_id: str):
             "WHERE cl.dataset_id = :dataset AND cl.discovered_at >= :since"
         ),
         "verified": (
-            "SELECT COUNT(uv.*) FROM url_verifications uv "
+            "SELECT COUNT(*) FROM url_verifications uv "
             "JOIN candidate_links cl on uv.candidate_link_id = cl.id "
             "WHERE cl.dataset_id = :dataset AND uv.verified_at >= :since"
         ),
         "extracted": (
-            "SELECT COUNT(a.*) FROM articles a "
+            "SELECT COUNT(*) FROM articles a "
             "JOIN candidate_links cl on a.candidate_link_id = cl.id "
             "WHERE cl.dataset_id = :dataset AND a.extracted_at >= :since"
         ),
         # cleaning is approximated since there's no explicit cleaned_at in schema
         "cleaned_approx": (
-            "SELECT COUNT(a.*) FROM articles a "
+            "SELECT COUNT(*) FROM articles a "
             "JOIN candidate_links cl on a.candidate_link_id = cl.id "
             "WHERE cl.dataset_id = :dataset AND a.status = 'cleaned' "
             "AND (COALESCE(a.extracted_at, a.created_at) >= :since)"
         ),
         "labeled": (
-            "SELECT COUNT(al.*) FROM article_labels al "
+            "SELECT COUNT(*) FROM article_labels al "
             "JOIN articles a on al.article_id = a.id "
             "JOIN candidate_links cl on a.candidate_link_id = cl.id "
             "WHERE cl.dataset_id = :dataset AND al.applied_at >= :since"

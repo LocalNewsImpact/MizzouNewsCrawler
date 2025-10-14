@@ -651,6 +651,7 @@ class ContentExtractor:
             new_session.headers.update(headers)
             
             # Configure proxy based on active provider
+            # IMPORTANT: Rotate proxy when rotating UA to avoid (same IP + different UA)
             active_provider = self.proxy_manager.active_provider
             use_origin = (
                 os.getenv("USE_ORIGIN_PROXY", "").lower() 
@@ -668,7 +669,8 @@ class ContentExtractor:
                     )
             
             elif active_provider.value != "direct":
-                # Use standard proxies from ProxyManager
+                # Get fresh proxies (forces IP rotation for providers like Decodo)
+                # This is crucial: rotating UA without rotating IP looks suspicious
                 proxies = self.proxy_manager.get_requests_proxies()
                 if proxies:
                     new_session.proxies.update(proxies)
