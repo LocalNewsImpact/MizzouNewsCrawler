@@ -96,6 +96,92 @@ def _format_cleaned_authors(authors):
     return ", ".join(normalized)
 
 
+def _analyze_dataset_domains(args, session):
+    """Analyze how many unique domains exist in the dataset's candidate links.
+    
+    Args:
+        args: Command arguments containing dataset/source filters
+        session: Database session
+        
+    Returns:
+        dict with keys:
+            - unique_domains: int, number of unique domains
+            - is_single_domain: bool, whether dataset has only one domain
+            - sample_domains: list of up to 5 sample domain names
+    """
+    from urllib.parse import urlparse
+    
+    # Build query to get candidate links for this dataset/source
+    query = """
+    SELECT DISTINCT cl.url
+    FROM candidate_links cl
+    WHERE cl.status = 'article'
+    AND cl.id NOT IN (
+        SELECT candidate_link_id FROM articles
+        WHERE candidate_link_id IS NOT NULL
+    )
+    """
+    
+    params = {}
+    
+    # Add dataset filter if specified
+    if getattr(args, "dataset", None):
+        query += " AND cl.dataset_id = (SELECT id FROM datasets WHERE slug = :dataset)"
+        params["dataset"] = args.dataset
+    else:
+        # No explicit dataset - exclude cron-disabled datasets
+        query += """
+        AND (cl.dataset_id IS NULL
+             OR cl.dataset_id IN (
+                 SELECT id FROM datasets WHERE cron_enabled IS TRUE
+             ))
+        """
+    
+    # Add source filter if specified
+    if getattr(args, "source", None):
+        query += " AND cl.source = :source"
+        params["source"] = args.source
+    
+    query += " LIMIT 1000"  # Sample up to 1000 URLs for analysis
+    
+    try:
+        result = session.execute(text(query), params)
+        urls = [row[0] for row in result.fetchall()]
+        
+        if not urls:
+            return {
+                "unique_domains": 0,
+                "is_single_domain": False,
+                "sample_domains": [],
+            }
+        
+        # Extract domains from URLs
+        domains = set()
+        for url in urls:
+            try:
+                domain = urlparse(url).netloc
+                if domain:
+                    domains.add(domain)
+            except Exception:
+                continue
+        
+        unique_count = len(domains)
+        sample_list = sorted(list(domains))[:5]
+        
+        return {
+            "unique_domains": unique_count,
+            "is_single_domain": unique_count == 1,
+            "sample_domains": sample_list,
+        }
+    except Exception as e:
+        logger.warning(f"Failed to analyze dataset domains: {e}")
+        return {
+            "unique_domains": 0,
+            "is_single_domain": False,
+            "sample_domains": [],
+        }
+
+
 def add_extraction_parser(subparsers):
     """Add extraction command parser to CLI."""
     extract_parser = subparsers.add_parser(
@@ -136,6 +222,32 @@ def handle_extraction_command(args) -> int:
     else:
         print(f"   Batches: {batches}")
     print(f"   Articles per batch: {per_batch}")
+    
+    # Create DatabaseManager early to analyze dataset
+    db = DatabaseManager()
+    
+    # Analyze dataset domain structure upfront
+    domain_analysis = _analyze_dataset_domains(args, db.session)
+    if domain_analysis["unique_domains"] > 0:
+        print(f"   📊 Dataset analysis: {domain_analysis['unique_domains']} unique domain(s)")
+        if domain_analysis["is_single_domain"]:
+            print(f"   ⚠️  Single-domain dataset detected: {domain_analysis['sample_domains'][0]}")
+            print(f"   🐌 Rate limiting will be conservative to avoid bot detection")
+            # Recommend appropriate BATCH_SLEEP_SECONDS for single-domain datasets
+            batch_sleep = float(os.getenv("BATCH_SLEEP_SECONDS", "0.1"))
+            if batch_sleep < 60:
+                logger.warning(
+                    "Single-domain dataset detected but BATCH_SLEEP_SECONDS is low (%.1fs). "
+                    "Consider increasing to 60-300s to avoid rate limiting.",
+                    batch_sleep
+                )
+        elif domain_analysis["unique_domains"] <= 3:
+            print(f"   ⚠️  Limited domain diversity ({domain_analysis['unique_domains']} domains)")
+            print(f"   Sample domains: {', '.join(domain_analysis['sample_domains'])}")
+        else:
+            print(f"   ✓ Good domain diversity for rotation")
+            if domain_analysis["unique_domains"] <= 10:
+                print(f"   Sample domains: {', '.join(domain_analysis['sample_domains'])}")
     print()
 
     extractor = ContentExtractor()
@@ -145,13 +257,13 @@ def handle_extraction_command(args) -> int:
     # Track hosts that return 403 responses within this run
     host_403_tracker = {}
 
-    # Create a single DatabaseManager to reuse across all batches
-    db = DatabaseManager()
-
     try:
         domains_for_cleaning = defaultdict(list)
         batch_num = 0
         total_processed = 0
+        
+        # Store whether we detected single-domain dataset
+        is_single_domain_dataset = domain_analysis.get("is_single_domain", False)
         
         # Continue processing batches until no articles remain (or batch limit reached if specified)
         while True:
@@ -250,11 +362,14 @@ def handle_extraction_command(args) -> int:
             unique_domains = len(set(domains_processed)) if domains_processed else 0
             
             # Apply long batch sleep if:
-            # 1. Same domain hit repeatedly (exhausted rotation), OR
-            # 2. Only one domain in entire batch (single-domain dataset)
+            # 1. Dataset was pre-identified as single-domain (most reliable)
+            # 2. Same domain hit repeatedly (exhausted rotation), OR
+            # 3. Only one domain in entire batch (single-domain dataset)
             max_same_domain = int(os.getenv("MAX_SAME_DOMAIN_CONSECUTIVE", "3"))
             needs_long_pause = (
-                same_domain_consecutive >= max_same_domain or unique_domains <= 1
+                is_single_domain_dataset or
+                same_domain_consecutive >= max_same_domain or 
+                unique_domains <= 1
             )
             
             if needs_long_pause:
@@ -271,11 +386,14 @@ def handle_extraction_command(args) -> int:
                     else:
                         actual_sleep = batch_sleep
                     
-                    reason = (
-                        f"same domain hit {same_domain_consecutive} times"
-                        if same_domain_consecutive >= max_same_domain
-                        else "single-domain batch"
-                    )
+                    # Determine reason for long pause
+                    if is_single_domain_dataset:
+                        reason = "single-domain dataset"
+                    elif same_domain_consecutive >= max_same_domain:
+                        reason = f"same domain hit {same_domain_consecutive} times"
+                    else:
+                        reason = "single-domain batch"
+                    
                     print(
                         f"   ⏸️  {reason.capitalize()} - "
                         f"waiting {actual_sleep:.0f}s..."

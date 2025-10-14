@@ -426,6 +426,80 @@ def test_run_post_extraction_cleaning_updates_status(monkeypatch):
     assert any(call[0] == "entities" for call in cleaner_calls)
 
 
+def test_analyze_dataset_domains_single_domain():
+    """Test domain analysis for single-domain dataset."""
+    from argparse import Namespace
+    from sqlalchemy import text
+    
+    class FakeSession:
+        def execute(self, query, params):
+            class FakeResult:
+                def fetchall(self):
+                    # Return URLs from a single domain
+                    return [
+                        ("https://example.com/article1",),
+                        ("https://example.com/article2",),
+                        ("https://example.com/article3",),
+                    ]
+            return FakeResult()
+    
+    args = Namespace(dataset="test-dataset", source=None)
+    session = FakeSession()
+    
+    result = extraction._analyze_dataset_domains(args, session)
+    
+    assert result["unique_domains"] == 1
+    assert result["is_single_domain"] is True
+    assert "example.com" in result["sample_domains"]
+
+
+def test_analyze_dataset_domains_multiple_domains():
+    """Test domain analysis for multi-domain dataset."""
+    from argparse import Namespace
+    
+    class FakeSession:
+        def execute(self, query, params):
+            class FakeResult:
+                def fetchall(self):
+                    # Return URLs from multiple domains
+                    return [
+                        ("https://example1.com/article1",),
+                        ("https://example2.com/article2",),
+                        ("https://example3.com/article3",),
+                    ]
+            return FakeResult()
+    
+    args = Namespace(dataset="test-dataset", source=None)
+    session = FakeSession()
+    
+    result = extraction._analyze_dataset_domains(args, session)
+    
+    assert result["unique_domains"] == 3
+    assert result["is_single_domain"] is False
+    assert len(result["sample_domains"]) == 3
+
+
+def test_analyze_dataset_domains_no_urls():
+    """Test domain analysis when no URLs are available."""
+    from argparse import Namespace
+    
+    class FakeSession:
+        def execute(self, query, params):
+            class FakeResult:
+                def fetchall(self):
+                    return []
+            return FakeResult()
+    
+    args = Namespace(dataset="test-dataset", source=None)
+    session = FakeSession()
+    
+    result = extraction._analyze_dataset_domains(args, session)
+    
+    assert result["unique_domains"] == 0
+    assert result["is_single_domain"] is False
+    assert result["sample_domains"] == []
+
+
 def test_run_article_entity_extraction_handles_skip(monkeypatch):
     class FakeExtractor:
         extractor_version = "v1"
