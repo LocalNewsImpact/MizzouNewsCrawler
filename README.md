@@ -122,6 +122,61 @@ Rows missing any required field are skipped, and duplicate `url_news` hosts coll
 
 For a fuller walkthrough (including the end-to-end workflow script and advanced tools), see the "Quick local setup and run" section further down in this document.
 
+## Pipeline Orchestration (Refactored)
+
+**New in Issue #77**: The pipeline orchestration has been refactored to separate external site interaction (discovery/extraction) from internal processing (cleaning/ML/entities).
+
+### Architecture
+
+The pipeline is now split into two components:
+
+1. **Dataset-Specific Jobs** - Handle discovery and extraction per dataset with independent rate limiting
+2. **Continuous Processor** - Handles cleaning, ML analysis, and entity extraction for all datasets
+
+This architecture provides:
+- Independent rate limiting per dataset (e.g., Lehigh 90-180s, Mizzou 5-15s)
+- Isolated CAPTCHA backoff (blocks on one dataset don't affect others)
+- Better monitoring and fault isolation
+- Easy scaling by adding new dataset jobs
+
+### Running Dataset Jobs
+
+```bash
+# Discovery job (find new URLs)
+kubectl apply -f k8s/mizzou-discovery-job.yaml
+
+# Extraction job (fetch and extract content)
+kubectl apply -f k8s/mizzou-extraction-job.yaml
+
+# Monitor progress
+kubectl logs -n production -l dataset=Mizzou --follow
+```
+
+### Continuous Processor
+
+The continuous processor now focuses only on internal processing steps:
+
+```yaml
+env:
+  - name: ENABLE_DISCOVERY
+    value: "false"  # Moved to dataset jobs
+  - name: ENABLE_EXTRACTION
+    value: "false"  # Moved to dataset jobs
+  - name: ENABLE_CLEANING
+    value: "true"   # Remains in processor
+  - name: ENABLE_ML_ANALYSIS
+    value: "true"   # Remains in processor
+  - name: ENABLE_ENTITY_EXTRACTION
+    value: "true"   # Remains in processor
+```
+
+### Documentation
+
+For detailed documentation on the new architecture, deployment strategy, and creating jobs for new datasets, see:
+
+- [docs/ORCHESTRATION_ARCHITECTURE.md](docs/ORCHESTRATION_ARCHITECTURE.md) - Complete orchestration guide
+- [k8s/templates/README.md](k8s/templates/README.md) - Job templates documentation
+
 ## Recent Maintenance (2025-09-27)
 
 ### Obituary and opinion detection
