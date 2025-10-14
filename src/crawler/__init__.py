@@ -1187,11 +1187,18 @@ class ContentExtractor:
                 if metrics:
                     metrics.start_method("selenium")
 
-                # NOTE: Selenium is specifically for bypassing CAPTCHA/bot protection,
-                # so we intentionally DO NOT check rate limits here. If the requests-based
-                # approach triggered a CAPTCHA backoff, Selenium is our chance to bypass it.
-                # Only check if Selenium itself has failed repeatedly on this domain.
+                # Check if domain is in CAPTCHA backoff period
+                # Selenium should respect CAPTCHA backoffs since it will just hit the same CAPTCHA
                 dom = urlparse(url).netloc
+                if self._check_rate_limit(dom):
+                    logger.info(
+                        f"Skipping Selenium for {dom} - domain is in CAPTCHA backoff period"
+                    )
+                    raise RateLimitError(
+                        f"Domain {dom} is in backoff period"
+                    )
+                
+                # Only check if Selenium itself has failed repeatedly on this domain
                 selenium_failures = getattr(self, "_selenium_failure_counts", {})
                 if selenium_failures.get(dom, 0) >= 3:
                     logger.warning(
