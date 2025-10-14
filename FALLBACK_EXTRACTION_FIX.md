@@ -1,14 +1,18 @@
-# Fix: 404/410 Responses Triggering Unnecessary Fallback Methods
+# Fix: HTTP Error Responses Triggering Unnecessary Fallback Methods
 
 **Date**: October 14, 2025  
-**Commit**: 615f8f9  
-**Issue**: 404/410 responses were allowing fallback to BeautifulSoup and Selenium
+**Commits**: 615f8f9 (404/410), c59124a (all HTTP errors)  
+**Issue**: HTTP error responses (4xx/5xx) were allowing fallback to BeautifulSoup and Selenium
 
 ---
 
 ## Problem
 
-When the primary extraction method (newspaper4k) encountered a 404 or 410 response, it correctly raised a `NotFoundError` exception to indicate the URL is permanently missing. However, the exception handling in `extract_content()` was catching this exception with a generic `except Exception` handler, allowing the system to proceed with BeautifulSoup and Selenium fallbacks.
+When the primary extraction method (newspaper4k) encountered HTTP error responses (4xx/5xx status codes), the system had two issues:
+
+1. **Exception Handling Issue (615f8f9)**: Raised `NotFoundError` and `RateLimitError` exceptions were caught by generic `except Exception` handler in `extract_content()`, allowing BeautifulSoup and Selenium fallbacks.
+
+2. **Missing Error Code Coverage (c59124a)**: Only specific status codes (200, 404, 410, 429, 401, 403, 502, 503, 504) were explicitly handled. All other HTTP errors (400, 405, 406, 408, 500, 501, etc.) fell through to an `else` block that attempted newspaper4k download fallback, triggering full BS/Selenium chain.
 
 ### Problematic Code Flow
 
@@ -30,7 +34,9 @@ def extract_content(self, url: str, html: str = None, metrics: Optional[object] 
 3. **Slower Processing**: Each failed extraction attempt added ~5-10 seconds
 4. **Misleading Logs**: Logs showed "attempting BeautifulSoup fallback" for URLs that don't exist
 
-### Example Scenario
+### Example Scenarios
+
+#### Scenario 1: 404 Not Found
 
 ```
 URL: https://example.com/article/12345 (returns 404)
@@ -42,11 +48,53 @@ OLD BEHAVIOR:
 4. Selenium: Attempts extraction → fails (still 404)
 Total: 3 requests to dead URL, ~15-20 seconds wasted
 
-NEW BEHAVIOR:
+NEW BEHAVIOR (615f8f9):
 1. newspaper4k: 404 → NotFoundError raised
 2. ✅ Explicit NotFoundError handler re-raises immediately
 3. No BeautifulSoup or Selenium attempts
 Total: 1 request to dead URL, stops immediately
+```
+
+#### Scenario 2: 400 Bad Request
+
+```
+URL: https://example.com/article?id=invalid (returns 400)
+
+OLD BEHAVIOR:
+1. newspaper4k: 400 status code
+2. ❌ Falls through to 'else' block
+3. Attempts newspaper4k download fallback → fails (still 400)
+4. BeautifulSoup: Attempts extraction → fails (still 400)
+5. Selenium: Attempts extraction → fails (still 400)
+Total: 4 requests with bad parameters, ~20-25 seconds wasted
+
+NEW BEHAVIOR (c59124a):
+1. newspaper4k: 400 status code
+2. ✅ Explicit 4xx handler catches it
+3. Raises NotFoundError (permanent error)
+4. Cached as dead URL
+Total: 1 request, stops immediately, cached to prevent retries
+```
+
+#### Scenario 3: 500 Internal Server Error
+
+```
+URL: https://example.com/article/67890 (returns 500)
+
+OLD BEHAVIOR:
+1. newspaper4k: 500 status code
+2. ❌ Falls through to 'else' block
+3. Attempts newspaper4k download fallback → fails (still 500)
+4. BeautifulSoup: Attempts extraction → fails (still 500)
+5. Selenium: Attempts extraction → fails (still 500)
+Total: 4 requests hammering broken server, ~20-25 seconds wasted
+
+NEW BEHAVIOR (c59124a):
+1. newspaper4k: 500 status code
+2. ✅ Explicit 5xx handler catches it
+3. Raises RateLimitError (temporary server issue)
+4. Triggers rate limit backoff
+Total: 1 request, stops immediately, backs off domain
 ```
 
 ---
@@ -159,11 +207,59 @@ kubectl logs -n production <pod> | grep -A5 "rate limit"
 # "Attempting BeautifulSoup fallback"
 ```
 
-### Test Case 4: Generic Error (Should Still Allow Fallback)
+### Test Case 4: 400 Bad Request (Permanent Client Error)
+
+**Setup:**
+- URL returns 400 Bad Request
+- newspaper4k receives 4xx status code
+
+**Expected Behavior:**
+- ✅ newspaper4k logs: "Client error (400) for {url}"
+- ✅ Raises NotFoundError (permanent error)
+- ✅ Cached as dead URL
+- ✅ No BeautifulSoup attempt logged
+- ✅ No Selenium attempt logged
+
+**Verification:**
+```bash
+# Check logs for 400 handling
+kubectl logs -n production <pod> | grep -A5 "400"
+
+# Should see:
+# "Client error (400) for https://example.com/bad"
+# Should NOT see:
+# "Attempting BeautifulSoup fallback"
+```
+
+### Test Case 5: 500 Internal Server Error
+
+**Setup:**
+- URL returns 500 Internal Server Error
+- newspaper4k receives 5xx status code
+
+**Expected Behavior:**
+- ✅ newspaper4k logs: "Server error (500) on {domain}"
+- ✅ Raises RateLimitError
+- ✅ Rate limit backoff triggered
+- ✅ No BeautifulSoup attempt logged
+- ✅ No Selenium attempt logged
+
+**Verification:**
+```bash
+# Check logs for 500 handling
+kubectl logs -n production <pod> | grep -A5 "500"
+
+# Should see:
+# "Server error (500) on example.com"
+# Should NOT see:
+# "Attempting BeautifulSoup fallback"
+```
+
+### Test Case 6: Generic Error (Should Still Allow Fallback)
 
 **Setup:**
 - URL returns 200 but newspaper4k fails to parse (e.g., malformed HTML)
-- newspaper4k raises generic Exception
+- newspaper4k raises generic Exception (not HTTP error)
 
 **Expected Behavior:**
 - ✅ extract_content logs: "newspaper4k extraction failed for {url}: {e}"
@@ -272,11 +368,13 @@ kubectl logs -n production <processor-pod> | grep -A5 "404" | grep -c "Beautiful
 ## Related Commits
 
 1. **db19570**: Initial 404/410 fixes (negative caching, dead URL TTL)
-2. **615f8f9**: This fix (prevent fallback on 404/410)
+2. **615f8f9**: Fixed exception handling for 404/410 in `extract_content()`
+3. **c59124a**: Comprehensive HTTP error code coverage (all 4xx/5xx)
 
-Together, these commits provide comprehensive 404/410 handling:
+Together, these commits provide comprehensive HTTP error handling:
 - db19570: Cache dead URLs to avoid repeated requests
-- 615f8f9: Stop fallback methods when URL is dead
+- 615f8f9: Stop fallback methods when NotFoundError/RateLimitError raised
+- c59124a: Explicitly handle ALL HTTP error codes to prevent fallback
 
 ---
 

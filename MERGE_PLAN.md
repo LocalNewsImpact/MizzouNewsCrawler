@@ -6,6 +6,7 @@
 ## Current Status
 
 ### Active Branch: `feature/gcp-kubernetes-deployment`
+
 **Commits Ready for Testing:**
 1. **15c831f**: Article count display (query after each batch)
 2. **98d2733**: Article count accuracy (session cleanup)
@@ -14,10 +15,11 @@
 5. **7b9e9a5**: False positive single-domain detection (rate-limited domains) ⭐ **CRITICAL FIX**
 6. **9b2e035**: Documentation
 7. **615f8f9**: Fix 404/410 fallback to BS/Selenium ⭐ **CRITICAL FIX**
+8. **c59124a**: Fix ALL HTTP error codes triggering fallback ⭐ **CRITICAL FIX**
 
 ### Lehigh Job Status
 
-- **Current Image**: processor:6bd5ca9 (OLD - missing commits 8276768, 7b9e9a5, 615f8f9)
+- **Current Image**: processor:6bd5ca9 (OLD - missing commits 8276768, 7b9e9a5, 615f8f9, c59124a)
 - **Running**: 158+ minutes, Batch 17 complete
 - **Actual Remaining**: 61 articles (database query)
 - **Logs Show**: 172 remaining ❌ (proves count query fix needed)
@@ -44,7 +46,7 @@
 gcloud builds triggers run build-processor-manual --branch=feature/gcp-kubernetes-deployment
 ```
 
-**Expected Image**: `processor:615f8f9` (or `processor:latest` with same commit)
+**Expected Image**: `processor:c59124a` (or `processor:latest` with same commit)
 
 #### 1.3 Verify Deployment
 ```bash
@@ -61,7 +63,7 @@ kubectl rollout status deployment/mizzou-processor -n production
 kubectl delete job lehigh-extraction -n production
 
 # Update job YAML to new image
-# Edit k8s/lehigh-extraction-job.yaml line 18: processor:615f8f9
+# Edit k8s/lehigh-extraction-job.yaml line 18: processor:c59124a
 
 # Apply updated job
 kubectl apply -f k8s/lehigh-extraction-job.yaml
