@@ -63,10 +63,17 @@ def test_handle_extraction_command_success(monkeypatch):
         domains_for_cleaning.setdefault("example.com", []).append(
             f"article-{batch_num}"
         )
-        return {"processed": 1}
+        return {"processed": 1, "domains_processed": ["example.com"], "same_domain_consecutive": 0}
 
     def fake_post_clean(domains):
         calls["post_clean_domains"] = domains
+    
+    def fake_domain_analysis(args, session):
+        return {
+            "unique_domains": 1,
+            "is_single_domain": False,
+            "sample_domains": ["example.com"],
+        }
 
     monkeypatch.setattr(extraction, "ContentExtractor", FakeExtractor)
     monkeypatch.setattr(extraction, "BylineCleaner", lambda: object())
@@ -81,6 +88,7 @@ def test_handle_extraction_command_success(monkeypatch):
         "_run_post_extraction_cleaning",
         fake_post_clean,
     )
+    monkeypatch.setattr(extraction, "_analyze_dataset_domains", fake_domain_analysis)
     monkeypatch.setattr(extraction.time, "sleep", lambda *_a, **_k: None)
 
     args = Namespace(batches=2, limit=1, source=None, dataset=None, exhaust_queue=False)
@@ -113,9 +121,17 @@ def test_handle_extraction_command_handles_exception(monkeypatch):
 
     def failing_process(*_args, **_kwargs):
         raise RuntimeError("boom")
+    
+    def fake_domain_analysis(args, session):
+        return {
+            "unique_domains": 0,
+            "is_single_domain": False,
+            "sample_domains": [],
+        }
 
     monkeypatch.setattr(extraction, "ContentExtractor", FakeExtractor)
     monkeypatch.setattr(extraction, "BylineCleaner", lambda: object())
+    monkeypatch.setattr(extraction, "_analyze_dataset_domains", fake_domain_analysis)
     monkeypatch.setattr(
         extraction,
         "ComprehensiveExtractionTelemetry",
