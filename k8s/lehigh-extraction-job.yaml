@@ -15,7 +15,7 @@ spec:
       restartPolicy: Never
       containers:
       - name: extraction
-        image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:070d507
+        image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:db19570
         imagePullPolicy: Always
         command:
           - python
@@ -25,7 +25,7 @@ spec:
           - --dataset
           - Penn-State-Lehigh
           - --limit
-          - "2"  # 2 articles per batch
+          - "3"  # 3 articles per batch
           - --batches
           - "150"  # reduced to 150 batches to shorten total run
         envFrom:
@@ -83,6 +83,8 @@ spec:
           value: "420.0"  # 7 minutes between batches
         - name: BATCH_SLEEP_JITTER
           value: "0.45"  # 45% jitter (~231-609 seconds range)
+        - name: BATCH_SIZE_JITTER
+          value: "0.33"  # 33% jitter (3 ± 1 = 2-4 articles per batch)
         # User agent rotation (rotate every 3-5 requests)
         - name: UA_ROTATE_BASE
           value: "4"
