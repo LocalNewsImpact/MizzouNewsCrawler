@@ -25,9 +25,9 @@ spec:
           - --dataset
           - Penn-State-Lehigh
           - --limit
-          - "3"  # 3 articles per batch
+          - "6"  # 6 articles per batch
           - --batches
-          - "150"  # reduced to 150 batches to shorten total run
+          - "1"  # Just one batch
         envFrom:
         - secretRef:
             name: origin-proxy-credentials

@@ -193,7 +193,8 @@ def handle_extraction_command(args) -> int:
                 db.session.close()
                 
                 # Build count query matching the extraction filters
-                if getattr(args, "dataset", None):
+                dataset_slug = getattr(args, "dataset", None)
+                if dataset_slug:
                     # Filter by specific dataset
                     query = text(
                         "SELECT COUNT(*) FROM candidate_links cl "
@@ -205,7 +206,7 @@ def handle_extraction_command(args) -> int:
                         "WHERE candidate_link_id IS NOT NULL)"
                     )
                     remaining_count = db.session.execute(
-                        query, {"dataset": args.dataset}
+                        query, {"dataset": dataset_slug}
                     ).scalar() or 0
                 else:
                     # Count across all cron-enabled datasets
