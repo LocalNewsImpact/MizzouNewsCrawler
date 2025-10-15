@@ -28,7 +28,7 @@ spec:
             path: sitecustomize.py
       containers:
       - name: processor
-        image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:d0c043e
+        image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:322bb13
         imagePullPolicy: Always
         command:
           - python
