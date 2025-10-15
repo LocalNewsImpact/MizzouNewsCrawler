@@ -41,9 +41,11 @@ ENABLE_ENTITY_EXTRACTION = os.getenv("ENABLE_ENTITY_EXTRACTION", "true").lower()
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CLI_MODULE = "src.cli.cli_modular"
 
+# In containerized environments (GKE/Cloud Run), platform adds timestamps.
+# Use simple format to avoid duplication in logs.
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
+    format="[%(levelname)s] %(message)s",
 )
 logger = logging.getLogger(__name__)
 
