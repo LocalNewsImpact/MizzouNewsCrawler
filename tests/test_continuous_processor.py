@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -63,16 +64,18 @@ class TestWorkQueue:
             "analysis_pending": 0,
             "entity_extraction_pending": 0,
         }
-        assert mock_session.execute.call_count == 5
+        # Only enabled steps query the database (cleaning, ML, entities by default)
+        # Verification and extraction are disabled by default, so 3 queries expected
+        assert mock_session.execute.call_count == 3
 
     def test_get_counts_returns_correct_values(self, mock_db_manager):
         """Test that get_counts returns correct counts from database."""
         mock_dm, mock_session = mock_db_manager
         
-        # Mock different return values for each query
+        # Mock different return values for each enabled query
+        # By default: verification and extraction are DISABLED (return 0)
+        # cleaning, ML analysis, and entity extraction are ENABLED (query DB)
         mock_results = [
-            MagicMock(scalar=lambda: 5),   # verification_pending
-            MagicMock(scalar=lambda: 10),  # extraction_pending
             MagicMock(scalar=lambda: 12),  # cleaning_pending
             MagicMock(scalar=lambda: 15),  # analysis_pending
             MagicMock(scalar=lambda: 20),  # entity_extraction_pending
@@ -81,8 +84,10 @@ class TestWorkQueue:
         
         counts = continuous_processor.WorkQueue.get_counts()
         
-        assert counts["verification_pending"] == 5
-        assert counts["extraction_pending"] == 10
+        # Disabled steps should be 0 (not queried)
+        assert counts["verification_pending"] == 0
+        assert counts["extraction_pending"] == 0
+        # Enabled steps should return database values
         assert counts["cleaning_pending"] == 12
         assert counts["analysis_pending"] == 15
         assert counts["entity_extraction_pending"] == 20
@@ -97,8 +102,9 @@ class TestWorkQueue:
         
         continuous_processor.WorkQueue.get_counts()
         
-        # Verify correct number of queries
-        assert mock_session.execute.call_count == 5
+        # Verify correct number of queries (only enabled steps)
+        # By default: cleaning, ML analysis, entity extraction = 3 queries
+        assert mock_session.execute.call_count == 3
         
         # Verify queries are text objects (SQLAlchemy text)
         calls = mock_session.execute.call_args_list
@@ -364,6 +370,7 @@ class TestProcessCycle:
 
     @patch("orchestration.continuous_processor.process_verification")
     @patch("orchestration.continuous_processor.process_extraction")
+    @patch("orchestration.continuous_processor.process_cleaning")
     @patch("orchestration.continuous_processor.process_analysis")
     @patch("orchestration.continuous_processor.process_entity_extraction")
     @patch("orchestration.continuous_processor.WorkQueue.get_counts")
@@ -372,10 +379,15 @@ class TestProcessCycle:
         mock_get_counts,
         mock_entity,
         mock_analysis,
+        mock_cleaning,
         mock_extraction,
         mock_verification,
     ):
-        """Test that process_cycle runs all steps when there's work."""
+        """Test that process_cycle runs enabled steps when there's work.
+        
+        By default, verification and extraction are disabled (not called).
+        Cleaning, ML analysis, and entity extraction are enabled (called).
+        """
         mock_get_counts.return_value = {
             "verification_pending": 10,
             "extraction_pending": 20,
@@ -386,8 +398,12 @@ class TestProcessCycle:
         
         continuous_processor.process_cycle()
         
-        mock_verification.assert_called_once_with(10)
-        mock_extraction.assert_called_once_with(20)
+        # Verification and extraction should NOT be called (disabled by default)
+        mock_verification.assert_not_called()
+        mock_extraction.assert_not_called()
+        
+        # Cleaning, analysis, and entity extraction should be called (enabled by default)
+        mock_cleaning.assert_called_once_with(25)
         mock_analysis.assert_called_once_with(30)
         mock_entity.assert_called_once_with(40)
 
@@ -471,6 +487,37 @@ class TestEnvironmentConfiguration:
         assert continuous_processor.PROJECT_ROOT.exists()
         assert continuous_processor.PROJECT_ROOT.is_dir()
 
+    def test_feature_flags_exist(self):
+        """Test that feature flag environment variables are defined."""
+        assert hasattr(continuous_processor, "ENABLE_DISCOVERY")
+        assert hasattr(continuous_processor, "ENABLE_VERIFICATION")
+        assert hasattr(continuous_processor, "ENABLE_EXTRACTION")
+        assert hasattr(continuous_processor, "ENABLE_CLEANING")
+        assert hasattr(continuous_processor, "ENABLE_ML_ANALYSIS")
+        assert hasattr(continuous_processor, "ENABLE_ENTITY_EXTRACTION")
+        
+        # All should be boolean values
+        assert isinstance(continuous_processor.ENABLE_DISCOVERY, bool)
+        assert isinstance(continuous_processor.ENABLE_VERIFICATION, bool)
+        assert isinstance(continuous_processor.ENABLE_EXTRACTION, bool)
+        assert isinstance(continuous_processor.ENABLE_CLEANING, bool)
+        assert isinstance(continuous_processor.ENABLE_ML_ANALYSIS, bool)
+        assert isinstance(continuous_processor.ENABLE_ENTITY_EXTRACTION, bool)
+
+    def test_default_feature_flags(self):
+        """Test default feature flag values (without env vars set)."""
+        # Discovery, verification, and extraction should be disabled by default
+        # (moved to dataset-specific jobs)
+        assert continuous_processor.ENABLE_DISCOVERY is False
+        assert continuous_processor.ENABLE_VERIFICATION is False
+        assert continuous_processor.ENABLE_EXTRACTION is False
+        
+        # Cleaning, ML analysis, and entity extraction should be enabled by default
+        # (remain in continuous processor)
+        assert continuous_processor.ENABLE_CLEANING is True
+        assert continuous_processor.ENABLE_ML_ANALYSIS is True
+        assert continuous_processor.ENABLE_ENTITY_EXTRACTION is True
+
 
 class TestCommandArgumentsRegression:
     """Regression tests for command argument bugs (placeholder for future tests)."""
@@ -504,3 +551,61 @@ class TestCommandArgumentsRegression:
         
         # Analyze SHOULD have --limit
         assert "--limit" in cmd, "analyze command should have --limit argument"
+
+
+class TestFeatureFlagProcessing:
+    """Test that feature flags control which pipeline steps are executed."""
+
+    @patch("orchestration.continuous_processor.process_verification")
+    @patch("orchestration.continuous_processor.process_extraction")
+    @patch("orchestration.continuous_processor.process_cleaning")
+    @patch("orchestration.continuous_processor.WorkQueue.get_counts")
+    def test_disabled_steps_not_called(
+        self,
+        mock_get_counts,
+        mock_cleaning,
+        mock_extraction,
+        mock_verification,
+    ):
+        """Test that disabled pipeline steps are not executed.
+        
+        By default, verification and extraction are disabled, so they
+        should not be called even when work is available.
+        """
+        mock_get_counts.return_value = {
+            "verification_pending": 10,
+            "extraction_pending": 20,
+            "cleaning_pending": 30,
+            "analysis_pending": 0,
+            "entity_extraction_pending": 0,
+        }
+        
+        continuous_processor.process_cycle()
+        
+        # Verification and extraction should not be called (disabled by default)
+        mock_verification.assert_not_called()
+        mock_extraction.assert_not_called()
+        
+        # Cleaning should still be called (enabled by default)
+        mock_cleaning.assert_called_once_with(30)
+
+    def test_get_counts_skips_disabled_queries(self, mock_db_manager):
+        """Test that get_counts skips queries for disabled steps."""
+        # When verification and extraction are disabled (default),
+        # their counts should remain 0 without querying the database
+        mock_dm, mock_session = mock_db_manager
+        
+        mock_result = MagicMock()
+        mock_result.scalar.return_value = 10
+        mock_session.execute.return_value = mock_result
+        
+        counts = continuous_processor.WorkQueue.get_counts()
+        
+        # Verify that disabled steps return 0 (not queried)
+        assert counts["verification_pending"] == 0
+        assert counts["extraction_pending"] == 0
+        
+        # Enabled steps should still be counted (may be non-zero if work exists)
+        assert "cleaning_pending" in counts
+        assert "analysis_pending" in counts
+        assert "entity_extraction_pending" in counts

@@ -1,12 +1,33 @@
 # Kubernetes Job Templates
 
-This directory contains reusable Kubernetes manifest templates for dataset-specific extraction jobs.
+This directory contains reusable Kubernetes manifest templates for dataset-specific jobs.
+These templates enable independent orchestration of discovery and extraction per dataset,
+allowing for better rate limiting, monitoring, and CAPTCHA backoff isolation.
+
+## Architecture
+
+After refactoring (Issue #77), pipeline steps are split:
+
+**Dataset-Specific Jobs** (external site interaction):
+- Discovery: Find article URLs from RSS/sitemaps
+- Extraction: Fetch and extract article content
+
+**Continuous Processor** (internal processing):
+- Cleaning: Clean extracted content
+- ML Analysis: Classify articles
+- Entity Extraction: Extract location entities
 
 ## Files
+
+### `dataset-discovery-job.yaml`
+
+Template for launching isolated discovery jobs for specific datasets.
+Discovery finds new article URLs from RSS feeds, sitemaps, and homepages.
 
 ### `dataset-extraction-job.yaml`
 
 Template for launching isolated extraction jobs for specific datasets.
+Extraction fetches articles and extracts title, content, author, etc.
 
 **Usage:**
 

@@ -78,6 +78,21 @@ spec:
           value: "128"  # Increased from 16 to catch up with extraction rate
         - name: GAZETTEER_BATCH_SIZE
           value: "50"
+        # Pipeline step feature flags (Issue #77 refactoring)
+        # PHASE 1: All flags enabled for backward compatibility testing
+        # Will disable extraction in Phase 3 after parallel job testing
+        - name: ENABLE_DISCOVERY
+          value: "true"  # Phase 1: Keep enabled (disable in Phase 3)
+        - name: ENABLE_VERIFICATION
+          value: "true"  # Phase 1: Keep enabled (disable in Phase 3)
+        - name: ENABLE_EXTRACTION
+          value: "true"  # Phase 1: Keep enabled (disable in Phase 3)
+        - name: ENABLE_CLEANING
+          value: "true"   # Keep in continuous processor
+        - name: ENABLE_ML_ANALYSIS
+          value: "true"   # Keep in continuous processor
+        - name: ENABLE_ENTITY_EXTRACTION
+          value: "true"   # Keep in continuous processor
         # CAPTCHA and rate limit handling - CONSERVATIVE SETTINGS (match Lehigh)
         - name: CAPTCHA_BACKOFF_BASE
           value: "7200"  # 2 hours (3x longer than before)

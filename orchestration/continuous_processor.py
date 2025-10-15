@@ -30,6 +30,14 @@ EXTRACTION_BATCH_SIZE = int(os.getenv("EXTRACTION_BATCH_SIZE", "20"))
 ANALYSIS_BATCH_SIZE = int(os.getenv("ANALYSIS_BATCH_SIZE", "16"))
 GAZETTEER_BATCH_SIZE = int(os.getenv("GAZETTEER_BATCH_SIZE", "50"))
 
+# Feature flags for pipeline steps (can be disabled for dataset-specific jobs)
+ENABLE_DISCOVERY = os.getenv("ENABLE_DISCOVERY", "false").lower() == "true"
+ENABLE_VERIFICATION = os.getenv("ENABLE_VERIFICATION", "false").lower() == "true"
+ENABLE_EXTRACTION = os.getenv("ENABLE_EXTRACTION", "false").lower() == "true"
+ENABLE_CLEANING = os.getenv("ENABLE_CLEANING", "true").lower() == "true"
+ENABLE_ML_ANALYSIS = os.getenv("ENABLE_ML_ANALYSIS", "true").lower() == "true"
+ENABLE_ENTITY_EXTRACTION = os.getenv("ENABLE_ENTITY_EXTRACTION", "true").lower() == "true"
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CLI_MODULE = "src.cli.cli_modular"
 
@@ -45,7 +53,10 @@ class WorkQueue:
 
     @staticmethod
     def get_counts() -> dict[str, int]:
-        """Return counts of work items in each stage."""
+        """Return counts of work items in each stage.
+        
+        Only queries for enabled pipeline steps to reduce unnecessary database load.
+        """
         counts = {
             "verification_pending": 0,
             "extraction_pending": 0,
@@ -55,46 +66,51 @@ class WorkQueue:
         }
 
         with DatabaseManager() as db:
-            # Count candidate_links needing verification
-            result = db.session.execute(
-                text("SELECT COUNT(*) FROM candidate_links WHERE status = 'discovered'")
-            )
-            counts["verification_pending"] = result.scalar() or 0
+            # Count candidate_links needing verification (only if enabled)
+            if ENABLE_VERIFICATION:
+                result = db.session.execute(
+                    text("SELECT COUNT(*) FROM candidate_links WHERE status = 'discovered'")
+                )
+                counts["verification_pending"] = result.scalar() or 0
 
-            # Count candidate_links ready for extraction
-            result = db.session.execute(
-                text("SELECT COUNT(*) FROM candidate_links WHERE status = 'article'")
-            )
-            counts["extraction_pending"] = result.scalar() or 0
+            # Count candidate_links ready for extraction (only if enabled)
+            if ENABLE_EXTRACTION:
+                result = db.session.execute(
+                    text("SELECT COUNT(*) FROM candidate_links WHERE status = 'article'")
+                )
+                counts["extraction_pending"] = result.scalar() or 0
 
             # Count articles needing cleaning (status = extracted)
-            result = db.session.execute(
-                text(
-                    "SELECT COUNT(*) FROM articles "
-                    "WHERE status = 'extracted' AND content IS NOT NULL"
+            if ENABLE_CLEANING:
+                result = db.session.execute(
+                    text(
+                        "SELECT COUNT(*) FROM articles "
+                        "WHERE status = 'extracted' AND content IS NOT NULL"
+                    )
                 )
-            )
-            counts["cleaning_pending"] = result.scalar() or 0
+                counts["cleaning_pending"] = result.scalar() or 0
 
             # Count articles without ML analysis (only 'cleaned' status is eligible)
-            result = db.session.execute(
-                text(
-                    "SELECT COUNT(*) FROM articles "
-                    "WHERE status = 'cleaned' AND primary_label IS NULL"
+            if ENABLE_ML_ANALYSIS:
+                result = db.session.execute(
+                    text(
+                        "SELECT COUNT(*) FROM articles "
+                        "WHERE status = 'cleaned' AND primary_label IS NULL"
+                    )
                 )
-            )
-            counts["analysis_pending"] = result.scalar() or 0
+                counts["analysis_pending"] = result.scalar() or 0
 
             # Count articles without entity extraction
-            result = db.session.execute(
-                text(
-                    "SELECT COUNT(*) FROM articles a "
-                    "WHERE NOT EXISTS ("
-                    "  SELECT 1 FROM article_entities ae WHERE ae.article_id = a.id"
-                    ") AND a.content IS NOT NULL"
+            if ENABLE_ENTITY_EXTRACTION:
+                result = db.session.execute(
+                    text(
+                        "SELECT COUNT(*) FROM articles a "
+                        "WHERE NOT EXISTS ("
+                        "  SELECT 1 FROM article_entities ae WHERE ae.article_id = a.id"
+                        ") AND a.content IS NOT NULL"
+                    )
                 )
-            )
-            counts["entity_extraction_pending"] = result.scalar() or 0
+                counts["entity_extraction_pending"] = result.scalar() or 0
 
         return counts
 
@@ -275,7 +291,13 @@ def process_entity_extraction(count: int) -> bool:
 
 
 def process_cycle() -> None:
-    """Run one processing cycle: check for work and execute tasks."""
+    """Run one processing cycle: check for work and execute tasks.
+    
+    Only processes enabled pipeline steps based on environment configuration.
+    This allows the continuous processor to focus on internal processing
+    (cleaning, ML, entities) while dataset-specific jobs handle external
+    site interaction (discovery, verification, extraction).
+    """
     logger.info("🔍 Checking for pending work...")
 
     try:
@@ -284,20 +306,21 @@ def process_cycle() -> None:
 
         # Priority order: verification → extraction → cleaning → analysis → entities
         # This ensures we process the pipeline in the correct sequence
+        # Only run enabled steps (controlled by environment variables)
 
-        if counts["verification_pending"] > 0:
+        if ENABLE_VERIFICATION and counts["verification_pending"] > 0:
             process_verification(counts["verification_pending"])
 
-        if counts["extraction_pending"] > 0:
+        if ENABLE_EXTRACTION and counts["extraction_pending"] > 0:
             process_extraction(counts["extraction_pending"])
 
-        if counts["cleaning_pending"] > 0:
+        if ENABLE_CLEANING and counts["cleaning_pending"] > 0:
             process_cleaning(counts["cleaning_pending"])
 
-        if counts["analysis_pending"] > 0:
+        if ENABLE_ML_ANALYSIS and counts["analysis_pending"] > 0:
             process_analysis(counts["analysis_pending"])
 
-        if counts["entity_extraction_pending"] > 0:
+        if ENABLE_ENTITY_EXTRACTION and counts["entity_extraction_pending"] > 0:
             process_entity_extraction(counts["entity_extraction_pending"])
 
         # If nothing to do, log idle status
@@ -317,6 +340,19 @@ def main() -> None:
     logger.info("  - Extraction batch size: %d", EXTRACTION_BATCH_SIZE)
     logger.info("  - Analysis batch size: %d", ANALYSIS_BATCH_SIZE)
     logger.info("  - Gazetteer batch size: %d", GAZETTEER_BATCH_SIZE)
+    logger.info("")
+    logger.info("Enabled pipeline steps:")
+    logger.info("  - Discovery: %s", "✅" if ENABLE_DISCOVERY else "❌")
+    logger.info("  - Verification: %s", "✅" if ENABLE_VERIFICATION else "❌")
+    logger.info("  - Extraction: %s", "✅" if ENABLE_EXTRACTION else "❌")
+    logger.info("  - Cleaning: %s", "✅" if ENABLE_CLEANING else "❌")
+    logger.info("  - ML Analysis: %s", "✅" if ENABLE_ML_ANALYSIS else "❌")
+    logger.info("  - Entity Extraction: %s", "✅" if ENABLE_ENTITY_EXTRACTION else "❌")
+    
+    # Warn if no steps are enabled
+    if not any([ENABLE_DISCOVERY, ENABLE_VERIFICATION, ENABLE_EXTRACTION,
+                ENABLE_CLEANING, ENABLE_ML_ANALYSIS, ENABLE_ENTITY_EXTRACTION]):
+        logger.warning("⚠️  No pipeline steps are enabled! Processor will be idle.")
 
     cycle_count = 0
 
