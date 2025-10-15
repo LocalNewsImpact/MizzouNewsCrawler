@@ -669,19 +669,19 @@ class NewsDiscovery:
                     "\nJOIN dataset_sources ds ON s.id = ds.source_id"
                     "\nJOIN datasets d ON ds.dataset_id = d.id"
                 )
-                where_clauses.append("d.label = :dataset_label")
+                where_clauses.append("d.label = %(dataset_label)s")
                 params["dataset_label"] = dataset_label
 
             if host_filter:
-                where_clauses.append("LOWER(s.host) = :host_filter")
+                where_clauses.append("LOWER(s.host) = %(host_filter)s")
                 params["host_filter"] = host_filter.lower()
 
             if city_filter:
-                where_clauses.append("LOWER(s.city) = :city_filter")
+                where_clauses.append("LOWER(s.city) = %(city_filter)s")
                 params["city_filter"] = city_filter.lower()
 
             if county_filter:
-                where_clauses.append("LOWER(s.county) = :county_filter")
+                where_clauses.append("LOWER(s.county) = %(county_filter)s")
                 params["county_filter"] = county_filter.lower()
 
             where_sql = " AND ".join(where_clauses)

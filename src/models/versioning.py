@@ -343,7 +343,7 @@ def export_snapshot_for_version(
         try:
             with engine.connect() as conn:
                 res = conn.execute(
-                    text("SELECT pg_try_advisory_lock(:id)"), {"id": lock_id}
+                    text("SELECT pg_try_advisory_lock(%(id)s)"), {"id": lock_id}
                 )
                 pg_lock_acquired = bool(res.scalar())
         except Exception:
@@ -491,7 +491,7 @@ def export_snapshot_for_version(
             try:
                 with engine.connect() as conn:
                     conn.execute(
-                        text("SELECT pg_advisory_unlock(:id)"), {"id": lock_id}
+                        text("SELECT pg_advisory_unlock(%(id)s)"), {"id": lock_id}
                     )
             except Exception:
                 # ignore unlock errors
@@ -510,7 +510,7 @@ def export_snapshot_for_version(
             try:
                 with engine.connect() as conn:
                     conn.execute(
-                        text("SELECT pg_advisory_unlock(:id)"), {"id": lock_id}
+                        text("SELECT pg_advisory_unlock(%(id)s)"), {"id": lock_id}
                     )
             except Exception:
                 # ignore unlock errors
