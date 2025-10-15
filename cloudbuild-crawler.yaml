@@ -18,6 +18,50 @@ steps:
       - '-t'
       - '${_REGISTRY}/crawler:v${_RELEASE_VERSION}'
       - '.'
+  # Get GKE credentials for kubectl commands
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'get-gke-credentials'
+    args:
+      - 'container'
+      - 'clusters'
+      - 'get-credentials'
+      - 'mizzou-cluster'
+      - '--zone=us-central1-a'
+
+  # Update crawler cronjob to use new image
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'update-crawler-cronjob'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=us-central1-a'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=mizzou-cluster'
+    args:
+      - 'set'
+      - 'image'
+      - 'cronjob/mizzou-crawler'
+      - 'crawler=${_REGISTRY}/crawler:${SHORT_SHA}'
+      - '--namespace=production'
+    waitFor: ['get-gke-credentials']
+
+  # Update discovery cronjob to use new image (if it exists)
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'update-discovery-cronjob'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=us-central1-a'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=mizzou-cluster'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        if kubectl get cronjob mizzou-discovery -n production &>/dev/null; then
+          kubectl set image cronjob/mizzou-discovery \
+            discovery=${_REGISTRY}/crawler:${SHORT_SHA} \
+            --namespace=production
+          echo "✅ Updated mizzou-discovery cronjob"
+        else
+          echo "ℹ️  mizzou-discovery cronjob not found, skipping"
+        fi
+    waitFor: ['get-gke-credentials']
+
 images:
   - '${_REGISTRY}/crawler:${SHORT_SHA}'
   - '${_REGISTRY}/crawler:v${_RELEASE_VERSION}'
@@ -27,3 +71,4 @@ options:
   machineType: 'N1_HIGHCPU_8'
   diskSizeGb: 100
   logging: CLOUD_LOGGING_ONLY
+  substitutionOption: 'ALLOW_LOOSE'

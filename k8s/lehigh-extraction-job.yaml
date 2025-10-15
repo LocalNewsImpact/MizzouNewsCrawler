@@ -15,7 +15,7 @@ spec:
       restartPolicy: Never
       containers:
       - name: extraction
-        image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:6bd5ca9
+        image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:f2738fb
         imagePullPolicy: Always
         command:
           - python

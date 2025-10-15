@@ -61,4 +61,6 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
 # Default command (can be overridden in Kubernetes)
-CMD ["python", "-m", "src.cli.main", "discover-urls", "--source-limit", "50"]
+# NOTE: --dataset parameter ensures candidate_links get proper dataset_id assignment
+# For Missouri sources, use "Mizzou Missouri State" dataset label
+CMD ["python", "-m", "src.cli.main", "discover-urls", "--dataset", "Mizzou Missouri State", "--source-limit", "50"]

@@ -255,6 +255,8 @@ def create_job_manifest(
                                     "name": "NO_PROXY",
                                     "value": "localhost,127.0.0.1,metadata.google.internal,huggingface.co,*.huggingface.co",
                                 },
+                                # Logging
+                                {"name": "LOG_LEVEL", "value": "INFO"},
                             ],
                             "resources": {
                                 "requests": {

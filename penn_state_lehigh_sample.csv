@@ -1,0 +1,14 @@
+id,candidate_link_id,url,title,author,publish_date,content,text,text_hash,text_excerpt,status,metadata,wire,created_at,raw_gcs_path,extracted_at,extraction_version,primary_label,primary_label_confidence,alternate_label,alternate_label_confidence,label_version,label_model_version,labels_updated_at,source_name,source_city,source_county
+903d7136-c6ae-41db-9251-2c23386802ba,d107a113-0500-43e9-8367-efa6454287dc,https://www.lehighvalleynews.com/parkland/adult-with-firearm-apprehended-at-parkland-football-game,Adult with firearm apprehended at Parkland football game,Christine Sexton,2024-10-05T10:03:47,"SOUTH WHITEHALL TWP., Pa. — An adult with a gun was apprehended at a Parkland High School football game Friday night, school officials said.
+
+School parents and staff received an email Saturday morning from Superintendent Mark Madson, informing them of the incident.
+
+“I am writing to inform you of a serious incident that occurred during our Friday night football game,"" the email began. ""An adult individual was apprehended on school property for possession of a firearm.
+
+“While this person had a ...[truncated]","SOUTH WHITEHALL TWP., Pa. — An adult with a gun was apprehended at a Parkland High School football game Friday night, school officials said.
+
+School parents and staff received an email Saturday morning from Superintendent Mark Madson, informing them of the incident.
+
+“I am writing to inform you of a serious incident that occurred during our Friday night football game,"" the email began. ""An adult individual was apprehended on school property for possession of a firearm.
+
+“While this person had a ...[truncated]",a7544ddfa5a4bca3be366eb82d7e2688e459b8b001f030043a2da8dd335744f7,,cleaned,"{'meta_description': 'Student alerted security, which then apprehended the individual without incident.', 'keywords': [], 'extraction_method': 'newspaper4k', 'cloudscraper_used': True, 'http_status': 200, 'proxy_used': False, 'proxy_url': None, 'proxy_authenticated': False, 'proxy_status': None, 'proxy_error': None, 'extraction_methods': {'title': 'newspaper4k', 'author': 'newspaper4k', 'content': 'newspaper4k', 'publish_date': 'newspaper4k', 'metadata': 'newspaper4k'}, 'byline': {'authors': ['Christine Sexton'], 'count': 1, 'primary_author': 'Christine Sexton', 'has_multiple_authors': False, 'wire_services': [], 'is_wire_content': False, 'primary_wire_service': None}}",,2025-10-14T22:35:30.947993,,2025-10-14T22:35:30.947993,,Emergencies and Public Safety,0.64719158411026,Civic information,0.1532966047525406,default,productionmodel,2025-10-14T22:48:03.379562,Lehigh Valley News,Bethlehem,Northampton
