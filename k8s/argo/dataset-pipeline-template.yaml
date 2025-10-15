@@ -55,11 +55,16 @@ spec:
             - name: verify-max-batches
               value: "100"       # Maximum batches to process
             
-            # Extraction parameters - ADJUST based on site speed
+            # Extraction parameters - ADJUST based on expected volume
+            # Total capacity = extract-limit × extract-batches
+            # Examples:
+            #   - Daily low volume (5-10 articles/day):  limit=20, batches=30 = 600 total
+            #   - Daily high volume (20-50 articles/day): limit=50, batches=40 = 2,000 total
+            #   - Weekly publications (50-200 articles):  limit=50, batches=60 = 3,000 total
             - name: extract-limit
-              value: "20"        # Articles to extract per batch
+              value: "50"        # Articles to extract per batch (balance: larger=faster, smaller=safer)
             - name: extract-batches
-              value: "60"        # Maximum batches to process
+              value: "40"        # Maximum batches to process (total capacity: limit × batches)
             
             # Rate limiting - CRITICAL: ADJUST based on target site's bot protection
             # Conservative (low bot detection):

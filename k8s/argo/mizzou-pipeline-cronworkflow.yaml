@@ -42,10 +42,13 @@ spec:
             - name: verify-max-batches
               value: "100"
             # Extraction parameters
+            # extract-limit: articles per batch (balance: larger = faster, smaller = safer rate limiting)
+            # extract-batches: max batches (extract-limit × batches = total capacity per run)
+            # Current capacity: 50 × 40 = 2,000 articles per run (sufficient for weekly publications)
             - name: extract-limit
-              value: "20"
+              value: "50"
             - name: extract-batches
-              value: "60"
+              value: "40"
             # Moderate rate limiting for Mizzou
             - name: inter-request-min
               value: "5.0"
