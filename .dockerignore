@@ -52,6 +52,11 @@ data/*.db-*
 *.sqlite
 *.sqlite3
 
+# CSV exports and test data (not needed in runtime image)
+*.csv
+*.tsv
+*.xlsx
+
 # Reports and artifacts (generated, not needed in image)
 reports/
 artifacts/

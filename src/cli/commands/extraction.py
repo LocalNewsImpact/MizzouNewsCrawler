@@ -15,7 +15,9 @@ from typing import cast
 
 from sqlalchemy import text
 
-from src.crawler import ContentExtractor, NotFoundError
+# Lazy import: ContentExtractor and NotFoundError are imported inside functions
+# This prevents loading the heavy src.crawler module (~150-200Mi) when not needed
+# from src.crawler import ContentExtractor, NotFoundError  # MOVED TO handle_extraction_command()
 from src.models import Article, CandidateLink
 from src.models.database import (
     DatabaseManager,
@@ -211,6 +213,9 @@ def add_extraction_parser(subparsers):
 
 def handle_extraction_command(args) -> int:
     """Execute extraction command logic."""
+    # Lazy import: Only load heavy crawler module when actually extracting
+    from src.crawler import ContentExtractor, NotFoundError
+    
     batches = getattr(args, "batches", None)  # None means "process all available"
     per_batch = getattr(args, "limit", 10)
     exhaust_queue = getattr(args, "exhaust_queue", True)  # Default to exhausting queue
