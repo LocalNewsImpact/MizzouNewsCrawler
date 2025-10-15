@@ -105,6 +105,50 @@ python scripts/launch_dataset_job.py \
     --limit 10
 ```
 
+### Single-Domain Datasets (Rate Limiting)
+
+For datasets with only one domain (like Lehigh Valley News), the extraction system automatically:
+
+1. **Detects single-domain datasets** before processing begins
+2. **Applies conservative rate limiting** automatically between batches
+3. **Warns if BATCH_SLEEP_SECONDS is too low** for single-domain scenarios
+
+**What you'll see in logs:**
+```
+📊 Dataset analysis: 1 unique domain(s)
+⚠️  Single-domain dataset detected: lehighvalleynews.com
+🐌 Rate limiting will be conservative to avoid bot detection
+```
+
+**Recommended environment variables for single-domain datasets:**
+
+```yaml
+# In your job YAML or via launch_dataset_job.py
+env:
+  - name: BATCH_SLEEP_SECONDS
+    value: "300"  # 5 minutes between batches (recommended for aggressive bot detection)
+  - name: BATCH_SLEEP_JITTER
+    value: "0.45"  # Add ±45% randomness to sleep time
+  - name: INTER_REQUEST_MIN
+    value: "90.0"  # Minimum 90 seconds between requests
+  - name: INTER_REQUEST_MAX
+    value: "180.0"  # Maximum 180 seconds between requests
+```
+
+**Why this matters:**
+- Single-domain datasets can't rotate between domains to avoid rate limits
+- Every request hits the same server, making bot detection more likely
+- Conservative timing prevents 429 errors and IP blocks
+
+**Monitoring single-domain jobs:**
+```bash
+# Watch for rate limit warnings
+kubectl logs -n production -l dataset=YOUR_DATASET --follow | grep "rate limit\|Single-domain"
+
+# Check batch sleep timing
+kubectl logs -n production -l dataset=YOUR_DATASET --follow | grep "⏸️"
+```
+
 ## See Also
 
 - `scripts/launch_dataset_job.py` - Job launcher script
