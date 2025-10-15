@@ -97,16 +97,23 @@ def handle_entity_extraction_command(args) -> int:
             processed = 0
             errors = 0
             
+            # Cache gazetteer rows by (source_id, dataset_id) to avoid repeated DB queries
+            # Each source has ~8,500 gazetteer entries, so fetching once per batch is much faster
+            gazetteer_cache: dict[tuple[str | None, str | None], list] = {}
+            
             for row in rows:
                 article_id, text, text_hash, source_id, dataset_id = row
                 
                 try:
-                    # Get gazetteer rows for this source
-                    gazetteer_rows = get_gazetteer_rows(
-                        session,
-                        source_id,
-                        dataset_id,
-                    )
+                    # Get gazetteer rows for this source (with caching)
+                    cache_key = (source_id, dataset_id)
+                    if cache_key not in gazetteer_cache:
+                        gazetteer_cache[cache_key] = get_gazetteer_rows(
+                            session,
+                            source_id,
+                            dataset_id,
+                        )
+                    gazetteer_rows = gazetteer_cache[cache_key]
                     
                     # Extract entities from article text
                     entities = extractor.extract(
