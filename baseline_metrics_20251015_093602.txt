@@ -1,0 +1,36 @@
+======================================================================
+BASELINE METRICS - October 15, 2025 (Before PR #78)
+======================================================================
+
+Query 1: Article counts by status
+------------------------------------------------------------
+  cleaned: 5115
+  wire: 452
+  obituary: 206
+  opinion: 112
+  extracted: 16
+
+Query 2: Candidate link counts by status
+------------------------------------------------------------
+  extracted: 5314
+  not_article: 771
+  verification_failed: 552
+  wire: 444
+  article: 121
+  obituary: 77
+  opinion: 47
+  paused: 25
+  404: 24
+
+Query 3: Extraction rate (last 24 hours)
+------------------------------------------------------------
+  New articles: 198
+
+Query 4: Queue depths
+------------------------------------------------------------
+  Cleaning pending: 0
+  Analysis pending: 0
+
+======================================================================
+BASELINE COMPLETE - SAVE THIS OUTPUT!
+======================================================================

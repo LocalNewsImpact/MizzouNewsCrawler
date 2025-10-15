@@ -92,7 +92,7 @@ spec:
         - name: ENABLE_ML_ANALYSIS
           value: "true"   # Keep in continuous processor
         - name: ENABLE_ENTITY_EXTRACTION
-          value: "true"   # Keep in continuous processor
+          value: "false"  # DISABLED: Taking 20+ min for 13 articles (see ENTITY_EXTRACTION_PERFORMANCE_ISSUE.md)
         # CAPTCHA and rate limit handling - CONSERVATIVE SETTINGS (match Lehigh)
         - name: CAPTCHA_BACKOFF_BASE
           value: "7200"  # 2 hours (3x longer than before)
