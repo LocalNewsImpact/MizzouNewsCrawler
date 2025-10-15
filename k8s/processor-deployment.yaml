@@ -79,14 +79,14 @@ spec:
         - name: GAZETTEER_BATCH_SIZE
           value: "50"
         # Pipeline step feature flags (Issue #77 refactoring)
-        # PHASE 1: All flags enabled for backward compatibility testing
-        # Will disable extraction in Phase 3 after parallel job testing
+        # PHASE 2: Disable discovery/verification/extraction - moved to dataset jobs
+        # Processor now handles ONLY internal processing (cleaning/ML/entities)
         - name: ENABLE_DISCOVERY
-          value: "true"  # Phase 1: Keep enabled (disable in Phase 3)
+          value: "false"  # Phase 2: DISABLED - moved to dataset jobs
         - name: ENABLE_VERIFICATION
-          value: "true"  # Phase 1: Keep enabled (disable in Phase 3)
+          value: "false"  # Phase 2: DISABLED - moved to dataset jobs
         - name: ENABLE_EXTRACTION
-          value: "true"  # Phase 1: Keep enabled (disable in Phase 3)
+          value: "false"  # Phase 2: DISABLED - moved to dataset jobs
         - name: ENABLE_CLEANING
           value: "true"   # Keep in continuous processor
         - name: ENABLE_ML_ANALYSIS
