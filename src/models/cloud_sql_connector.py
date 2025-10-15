@@ -10,10 +10,15 @@ Benefits over proxy sidecar:
 - Production-grade architecture (Google-recommended)
 """
 
+import atexit
 import logging
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+# Global singleton connector - reused across all connections to avoid
+# repeated initialization and prevent SIGTERM/shutdown during idle periods
+_GLOBAL_CONNECTOR = None
 
 
 def create_cloud_sql_engine(
@@ -63,8 +68,29 @@ def create_cloud_sql_engine(
         f"Creating Cloud SQL engine for instance: {instance_connection_name}"
     )
 
-    # Initialize Cloud SQL Python Connector
-    connector = Connector()
+    # Initialize Cloud SQL Python Connector (singleton pattern)
+    # Reuse the same connector across all connections to prevent
+    # repeated initialization and SIGTERM/shutdown during idle periods
+    global _GLOBAL_CONNECTOR
+    if _GLOBAL_CONNECTOR is None:
+        logger.info("Initializing global Cloud SQL connector (first use)")
+        _GLOBAL_CONNECTOR = Connector()
+        
+        # Register cleanup handler to close connector on application exit
+        def cleanup_connector():
+            global _GLOBAL_CONNECTOR
+            if _GLOBAL_CONNECTOR is not None:
+                logger.info("Closing global Cloud SQL connector")
+                try:
+                    _GLOBAL_CONNECTOR.close()
+                except Exception as e:
+                    logger.warning(f"Error closing connector: {e}")
+                _GLOBAL_CONNECTOR = None
+        
+        atexit.register(cleanup_connector)
+        logger.info("Registered connector cleanup handler")
+    
+    connector = _GLOBAL_CONNECTOR
 
     def getconn():
         """Create a database connection using the Cloud SQL Python Connector."""
@@ -78,9 +104,14 @@ def create_cloud_sql_engine(
         return conn
 
     # Create SQLAlchemy engine with the connector
+    # Use connection pooling to reuse connections efficiently
     engine: Engine = create_engine(
         f"postgresql+{driver}://",
         creator=getconn,
+        pool_size=5,  # Keep 5 connections in pool
+        max_overflow=10,  # Allow 10 additional connections during peaks
+        pool_pre_ping=True,  # Verify connections before using
+        pool_recycle=3600,  # Recycle connections after 1 hour
         **engine_kwargs,
     )
 
