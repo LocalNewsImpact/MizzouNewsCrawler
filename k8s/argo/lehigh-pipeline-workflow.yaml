@@ -1,0 +1,284 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: lehigh-news-pipeline
+  namespace: production
+  labels:
+    dataset: Penn-State-Lehigh
+    type: pipeline
+spec:
+  schedule: "30 */6 * * *"  # Every 6 hours, offset 30 minutes from Mizzou (00:30, 06:30, 12:30, 18:30 UTC)
+  timezone: "UTC"
+  concurrencyPolicy: "Forbid"  # Don't run concurrent pipelines
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 5
+  workflowSpec:
+    entrypoint: lehigh-pipeline
+    serviceAccountName: argo-workflow
+    
+    # Pipeline orchestration - sequential steps
+    templates:
+    - name: lehigh-pipeline
+      steps:
+      # Step 1: Discovery
+      - - name: discover-urls
+          template: discovery-step
+      
+      # Step 2: Verification (conditional on discovery success)
+      - - name: verify-urls
+          template: verification-step
+          when: "{{steps.discover-urls.status}} == Succeeded"
+      
+      # Step 3: Extraction (conditional on verification success)
+      - - name: extract-content
+          template: extraction-step
+          when: "{{steps.verify-urls.status}} == Succeeded"
+    
+    # Discovery step template
+    - name: discovery-step
+      metadata:
+        labels:
+          dataset: Penn-State-Lehigh
+          stage: discovery
+      retryStrategy:
+        limit: 2
+        retryPolicy: "OnFailure"
+        backoff:
+          duration: "5m"
+          factor: 2
+          maxDuration: "20m"
+      container:
+        image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
+        imagePullPolicy: Always
+        command:
+          - python
+          - -m
+          - src.cli.cli_modular
+          - discover-urls
+          - --dataset
+          - Penn-State-Lehigh
+          - --source-limit
+          - "30"
+          - --max-articles
+          - "30"
+          - --days-back
+          - "7"
+        envFrom:
+        - secretRef:
+            name: origin-proxy-credentials
+        env:
+        # Database configuration
+        - name: DATABASE_ENGINE
+          value: "postgresql+psycopg2"
+        - name: DATABASE_HOST
+          value: "127.0.0.1"
+        - name: DATABASE_PORT
+          value: "5432"
+        - name: DATABASE_USER
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: username
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: password
+        - name: DATABASE_NAME
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: database
+        # Cloud SQL Connector
+        - name: USE_CLOUD_SQL_CONNECTOR
+          value: "true"
+        - name: CLOUD_SQL_INSTANCE
+          value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+        # Proxy configuration
+        - name: PROXY_PROVIDER
+          value: "decodo"
+        - name: USE_ORIGIN_PROXY
+          value: "false"
+        - name: NO_PROXY
+          value: "localhost,127.0.0.1,metadata.google.internal,huggingface.co,*.huggingface.co"
+        resources:
+          requests:
+            cpu: 200m
+            memory: 2Gi
+          limits:
+            cpu: 1000m
+            memory: 4Gi
+    
+    # Verification step template
+    - name: verification-step
+      metadata:
+        labels:
+          dataset: Penn-State-Lehigh
+          stage: verification
+      retryStrategy:
+        limit: 2
+        retryPolicy: "OnFailure"
+        backoff:
+          duration: "10m"
+          factor: 2
+          maxDuration: "40m"
+      container:
+        image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
+        imagePullPolicy: Always
+        command:
+          - python
+          - -m
+          - src.cli.cli_modular
+          - verify-urls
+          - --batch-size
+          - "5"
+          - --max-batches
+          - "50"
+        envFrom:
+        - secretRef:
+            name: origin-proxy-credentials
+        env:
+        # Database configuration
+        - name: DATABASE_ENGINE
+          value: "postgresql+psycopg2"
+        - name: DATABASE_HOST
+          value: "127.0.0.1"
+        - name: DATABASE_PORT
+          value: "5432"
+        - name: DATABASE_USER
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: username
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: password
+        - name: DATABASE_NAME
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: database
+        # Cloud SQL Connector
+        - name: USE_CLOUD_SQL_CONNECTOR
+          value: "true"
+        - name: CLOUD_SQL_INSTANCE
+          value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+        # Proxy configuration
+        - name: PROXY_PROVIDER
+          value: "decodo"
+        - name: USE_ORIGIN_PROXY
+          value: "false"
+        - name: NO_PROXY
+          value: "localhost,127.0.0.1,metadata.google.internal,huggingface.co,*.huggingface.co"
+        # Slower rate limiting for Lehigh (aggressive bot detection)
+        - name: INTER_REQUEST_MIN
+          value: "10.0"
+        - name: INTER_REQUEST_MAX
+          value: "20.0"
+        resources:
+          requests:
+            cpu: 250m
+            memory: 1Gi
+          limits:
+            cpu: 1000m
+            memory: 3Gi
+    
+    # Extraction step template with aggressive rate limiting
+    - name: extraction-step
+      metadata:
+        labels:
+          dataset: Penn-State-Lehigh
+          stage: extraction
+      retryStrategy:
+        limit: 2
+        retryPolicy: "OnFailure"
+        backoff:
+          duration: "15m"
+          factor: 2
+          maxDuration: "60m"
+      container:
+        image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
+        imagePullPolicy: Always
+        command:
+          - python
+          - -m
+          - src.cli.cli_modular
+          - extract
+          - --dataset
+          - Penn-State-Lehigh
+          - --limit
+          - "3"
+          - --batches
+          - "100"
+        envFrom:
+        - secretRef:
+            name: origin-proxy-credentials
+        env:
+        # Database configuration
+        - name: DATABASE_ENGINE
+          value: "postgresql+psycopg2"
+        - name: DATABASE_HOST
+          value: "127.0.0.1"
+        - name: DATABASE_PORT
+          value: "5432"
+        - name: DATABASE_USER
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: username
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: password
+        - name: DATABASE_NAME
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: database
+        # Cloud SQL Connector
+        - name: USE_CLOUD_SQL_CONNECTOR
+          value: "true"
+        - name: CLOUD_SQL_INSTANCE
+          value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+        # Proxy configuration
+        - name: PROXY_PROVIDER
+          value: "decodo"
+        - name: USE_ORIGIN_PROXY
+          value: "false"
+        - name: SELENIUM_PROXY
+          valueFrom:
+            secretKeyRef:
+              name: origin-proxy-credentials
+              key: selenium-proxy-url
+        # AGGRESSIVE rate limiting for Lehigh (Penn State has strong bot protection)
+        - name: INTER_REQUEST_MIN
+          value: "90.0"   # 90 seconds minimum between requests
+        - name: INTER_REQUEST_MAX
+          value: "180.0"  # 3 minutes maximum
+        - name: BATCH_SLEEP_SECONDS
+          value: "420.0"  # 7 minutes between batches
+        - name: CAPTCHA_BACKOFF_BASE
+          value: "7200"   # 2 hours base backoff
+        - name: CAPTCHA_BACKOFF_MAX
+          value: "21600"  # 6 hours max backoff
+        # User agent rotation
+        - name: UA_ROTATE_BASE
+          value: "4"
+        - name: UA_ROTATE_JITTER
+          value: "0.25"
+        # Decodo IP rotation
+        - name: DECODO_ROTATE_IP
+          value: "true"
+        # Bypass proxy for internal services
+        - name: NO_PROXY
+          value: "localhost,127.0.0.1,metadata.google.internal,huggingface.co,*.huggingface.co"
+        resources:
+          requests:
+            cpu: 250m
+            memory: 1Gi
+          limits:
+            cpu: 1000m
+            memory: 3Gi
