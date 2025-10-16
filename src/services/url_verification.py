@@ -7,9 +7,12 @@ using StorySniffer to determine if they are articles or not.
 """
 
 import argparse
+import inspect
 import logging
+import os
 import sys
 import time
+from typing import Any
 from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
@@ -30,6 +33,8 @@ except ImportError:
     sys.exit(1)
 
 from src.models.database import DatabaseManager  # noqa: E402
+from src.crawler.origin_proxy import enable_origin_proxy  # noqa: E402
+from src.crawler.proxy_config import get_proxy_manager  # noqa: E402
 
 _DEFAULT_HTTP_HEADERS: dict[str, str] = {
     "User-Agent": (
@@ -77,8 +82,59 @@ class URLVerificationService:
         self.http_headers = dict(_DEFAULT_HTTP_HEADERS)
         if http_headers:
             self.http_headers.update(http_headers)
+        self.proxy_manager = get_proxy_manager()
+        self._configure_proxy()
         self._prepare_http_session()
         self.running = False
+
+    def _configure_proxy(self) -> None:
+        """Configure HTTP session proxy routing according to provider settings."""
+
+        active_provider = self.proxy_manager.active_provider
+        self.logger.info(
+            "🔀 Verification proxy provider: %s",
+            active_provider.value,
+        )
+
+        use_origin_proxy = os.getenv("USE_ORIGIN_PROXY", "").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
+
+        if active_provider.value == "origin" or use_origin_proxy:
+            try:
+                enable_origin_proxy(self.http_session)
+                proxy_base = (
+                    self.proxy_manager.get_origin_proxy_url()
+                    or os.getenv("ORIGIN_PROXY_URL")
+                    or os.getenv("PROXY_URL")
+                    or "default"
+                )
+                self.logger.info(
+                    "🔐 Verification using origin proxy adapter (%s)",
+                    proxy_base,
+                )
+            except Exception as exc:
+                self.logger.warning(
+                    "Failed to install origin proxy adapter for verification: %s",
+                    exc,
+                )
+            return
+
+        proxies = self.proxy_manager.get_requests_proxies()
+        if proxies:
+            self.http_session.proxies.update(proxies)
+            self.logger.info(
+                "🔐 Verification using %s provider (%s)",
+                active_provider.value,
+                ", ".join(sorted(proxies.keys())),
+            )
+        else:
+            self.logger.info(
+                "🔐 Proxy provider %s did not supply proxies; using direct connections",
+                active_provider.value,
+            )
 
     def get_unverified_urls(self, limit: int | None = None) -> list[dict]:
         """Get candidate links that need verification."""
@@ -396,8 +452,19 @@ class URLVerificationService:
 
         self.logger.info(f"Telemetry saved to {log_file}")
 
-    def run_verification_loop(self, max_batches: int | None = None):
-        """Run the main verification loop."""
+    def run_verification_loop(
+        self,
+        *,
+        max_batches: int | None = None,
+        exit_on_idle: bool = False,
+    ) -> None:
+        """Run the main verification loop.
+
+        Args:
+            max_batches: Optional hard cap on the number of batches to process.
+            exit_on_idle: When True, stop the loop once no work is available
+                instead of sleeping and polling again.
+        """
         self.running = True
         batch_count = 0
         job_name = f"verification_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -426,6 +493,12 @@ class URLVerificationService:
                         self.logger.info(
                             "No URLs remaining and max_batches reached; "
                             "stopping verification loop."
+                        )
+                        break
+
+                    if exit_on_idle:
+                        self.logger.info(
+                            "No URLs to verify; exiting verification loop."
                         )
                         break
 
@@ -589,7 +662,39 @@ def main():
         logger.info("Starting URL verification service")
 
         # Run verification loop
-        service.run_verification_loop(max_batches=args.max_batches)
+        loop_callable = service.run_verification_loop
+
+        try:
+            signature = inspect.signature(loop_callable)
+        except (TypeError, ValueError):
+            signature = None
+
+        has_var_kw = False
+        if signature is not None:
+            params = signature.parameters
+            has_var_kw = any(
+                param.kind == inspect.Parameter.VAR_KEYWORD
+                for param in params.values()
+            )
+        else:
+            params = {}
+
+        run_kwargs: dict[str, Any] = {}
+
+        if args.max_batches is not None and (
+            signature is None
+            or "max_batches" in params
+            or has_var_kw
+        ):
+            run_kwargs["max_batches"] = args.max_batches
+
+        if signature is None or "exit_on_idle" in params or has_var_kw:
+            run_kwargs["exit_on_idle"] = True
+
+        if run_kwargs:
+            loop_callable(**run_kwargs)
+        else:
+            loop_callable()
 
         logger.info("Verification service completed successfully")
         return 0

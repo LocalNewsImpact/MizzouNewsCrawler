@@ -5,7 +5,7 @@ metadata:
   namespace: production
   labels:
     app: mizzou-extraction
-    dataset: Mizzou
+    dataset: mizzou-missouri-state
     type: extraction
 spec:
   ttlSecondsAfterFinished: 86400  # Clean up after 24 hours
@@ -13,7 +13,7 @@ spec:
     metadata:
       labels:
         app: mizzou-extraction
-        dataset: Mizzou
+        dataset: mizzou-missouri-state
         type: extraction
     spec:
       serviceAccountName: mizzou-app
@@ -29,7 +29,7 @@ spec:
           - src.cli.cli_modular
           - extract
           - --dataset
-          - Mizzou
+          - "Mizzou Missouri State"
           - --limit
           - "20"  # 20 articles per batch
           - --batches

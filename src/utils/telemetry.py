@@ -28,9 +28,17 @@ from enum import Enum
 from typing import Any
 
 import requests
+from sqlalchemy.exc import SQLAlchemyError
 
 from src.config import DATABASE_URL
 from src.telemetry.store import TelemetryStore, get_store
+
+DB_ERRORS = (sqlite3.OperationalError, SQLAlchemyError)
+
+
+def _is_missing_table_error(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return "no such table" in message or "does not exist" in message
 
 
 class OperationType(str, Enum):
@@ -264,6 +272,24 @@ def _apply_schema(conn: sqlite3.Connection, statements: Iterable[str]) -> None:
         cursor.close()
 
 
+def _safe_json_dumps(value: Any) -> str | None:
+    """Serialize values to JSON, falling back to a string representation."""
+
+    if value is None:
+        return None
+
+    try:
+        return json.dumps(value)
+    except TypeError:
+        if isinstance(value, dict):
+            coerced = {str(k): str(v) for k, v in value.items()}
+            return json.dumps(coerced)
+        if isinstance(value, (list, tuple)):
+            return json.dumps([str(item) for item in value])
+
+    return json.dumps(str(value))
+
+
 def _format_timestamp(value: datetime) -> str:
     """Normalize datetimes for SQLite storage."""
 
@@ -418,7 +444,30 @@ _DISCOVERY_OUTCOMES_SCHEMA = (
     """,
 )
 
+_JOBS_SCHEMA = (
+    """
+    CREATE TABLE IF NOT EXISTS jobs (
+        id TEXT PRIMARY KEY,
+        job_type TEXT NOT NULL,
+        job_name TEXT,
+        started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        finished_at TIMESTAMP,
+        exit_status TEXT,
+        params TEXT,
+        commit_sha TEXT,
+        environment TEXT,
+        artifact_paths TEXT,
+        logs_path TEXT,
+        records_processed INTEGER,
+        records_created INTEGER,
+        records_updated INTEGER,
+        errors_count INTEGER
+    )
+    """,
+)
+
 _BASE_SCHEMA = (
+    *_JOBS_SCHEMA,
     *_OPERATIONS_SCHEMA,
     *_HTTP_STATUS_SCHEMA,
     *_DISCOVERY_METHOD_SCHEMA,
@@ -527,6 +576,10 @@ class OperationTracker:
         self.logger = logging.getLogger(__name__)
         self.database_url = database_url
         self._store = self._resolve_store(store, database_url)
+        if not getattr(self._store, "async_writes", True):
+            self.logger.debug(
+                "TelemetryTracker running in synchronous mode; job writes immediate"
+            )
         self.telemetry_reporter = telemetry_reporter
         self.active_operations: dict[str, dict[str, Any]] = {}
         self._lock = threading.Lock()
@@ -549,7 +602,7 @@ class OperationTracker:
             return candidate
 
         if candidate is None:
-            return get_store(database_url)
+            return TelemetryStore(database=database_url, async_writes=False)
 
         if hasattr(candidate, "connect") or hasattr(candidate, "execute"):
             engine_url = getattr(candidate, "url", None)
@@ -566,7 +619,7 @@ class OperationTracker:
             self.logger.debug(
                 "Received connection-like store; falling back to database_url"
             )
-            return get_store(database_url)
+            return TelemetryStore(database=database_url, async_writes=False)
 
         self.logger.warning(
             "Unsupported store type %s; falling back to database_url",
@@ -684,11 +737,26 @@ class OperationTracker:
                     cursor.execute(insert_sql, outcome_data)
                     cursor.execute(update_source_sql, {"source_id": source_id})
                     return
-                except sqlite3.OperationalError as exc:
+                except DB_ERRORS as exc:
                     conn.rollback()
+                    if _is_missing_table_error(exc):
+                        self.logger.warning(
+                            "Telemetry store missing discovery tables; "
+                            "recorded outcome without source audit: %s",
+                            exc,
+                        )
+                        fallback_cursor = conn.cursor()
+                        try:
+                            fallback_cursor.execute(insert_sql, outcome_data)
+                        finally:
+                            fallback_cursor.close()
+                        underlying_conn = getattr(conn, "_conn", None)
+                        if underlying_conn is not None:  # pragma: no branch - safe
+                            underlying_conn.commit()
+                        return
+
                     self.logger.warning(
-                        "sqlite OperationalError on discovery outcome write"
-                        " (%d/%d): %s",
+                        "Database error on discovery outcome write (%d/%d): %s",
                         attempt + 1,
                         retries,
                         exc,
@@ -1010,18 +1078,39 @@ class OperationTracker:
         if isinstance(operation_type, OperationType):
             operation_type = operation_type.value
 
-        parameters = json.dumps(kwargs.get("parameters", {}))
+        raw_parameters = kwargs.get("parameters") or {}
+        parameters = _safe_json_dumps(raw_parameters) or "{}"
+
+        metrics_obj = kwargs.get("metrics")
         metrics_json = (
-            json.dumps(asdict(kwargs["metrics"])) if kwargs.get("metrics") else None
+            _safe_json_dumps(asdict(metrics_obj)) if metrics_obj else None
         )
-        error_json = (
-            json.dumps(kwargs["error_details"]) if kwargs.get("error_details") else None
-        )
-        summary_json = (
-            json.dumps(kwargs["result_summary"])
-            if kwargs.get("result_summary")
-            else None
-        )
+
+        error_json = _safe_json_dumps(kwargs.get("error_details"))
+        summary_json = _safe_json_dumps(kwargs.get("result_summary"))
+
+        job_defaults = {
+            "job_name": kwargs.get("job_name") or kwargs.get("operation_name")
+            or kwargs.get("source_name")
+            or (operation_type or "operation"),
+            "params": raw_parameters if raw_parameters else {
+                k: v
+                for k, v in kwargs.items()
+                if k
+                not in {
+                    "metrics",
+                    "result_summary",
+                    "error_details",
+                    "user_id",
+                    "session_id",
+                    "operation_type",
+                }
+            },
+            "commit_sha": kwargs.get("commit_sha"),
+            "environment": kwargs.get("environment"),
+            "artifact_paths": kwargs.get("artifact_paths"),
+            "logs_path": kwargs.get("logs_path"),
+        }
 
         def writer(conn: sqlite3.Connection) -> None:
             retries = 4
@@ -1029,6 +1118,31 @@ class OperationTracker:
             for attempt in range(retries):
                 cursor = conn.cursor()
                 try:
+                    cursor.execute(
+                        """
+                        INSERT OR IGNORE INTO jobs (
+                            id,
+                            job_type,
+                            job_name,
+                            params,
+                            commit_sha,
+                            environment,
+                            artifact_paths,
+                            logs_path
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            operation_id,
+                            operation_type or "",
+                            job_defaults["job_name"],
+                            _safe_json_dumps(job_defaults["params"]),
+                            job_defaults["commit_sha"],
+                            _safe_json_dumps(job_defaults["environment"]),
+                            _safe_json_dumps(job_defaults["artifact_paths"]),
+                            job_defaults["logs_path"],
+                        ),
+                    )
+
                     cursor.execute(
                         "SELECT 1 FROM operations WHERE id = ?",
                         (operation_id,),
@@ -1087,11 +1201,58 @@ class OperationTracker:
                             params,
                         )
 
+                    job_update_fields: list[str] = []
+                    job_update_values: list[Any] = []
+
+                    if status == OperationStatus.COMPLETED:
+                        job_update_fields.append("finished_at = CURRENT_TIMESTAMP")
+                        job_update_fields.append("exit_status = ?")
+                        job_update_values.append("success")
+                    elif status == OperationStatus.FAILED:
+                        job_update_fields.append("finished_at = CURRENT_TIMESTAMP")
+                        job_update_fields.append("exit_status = ?")
+                        job_update_values.append("failed")
+                    elif status == OperationStatus.CANCELLED:
+                        job_update_fields.append("finished_at = CURRENT_TIMESTAMP")
+                        job_update_fields.append("exit_status = ?")
+                        job_update_values.append("cancelled")
+
+                    if metrics_obj is not None:
+                        job_update_fields.append("records_processed = ?")
+                        job_update_values.append(metrics_obj.processed_items)
+                        job_update_fields.append("records_created = ?")
+                        job_update_values.append(
+                            max(
+                                metrics_obj.processed_items
+                                - metrics_obj.failed_items,
+                                0,
+                            )
+                        )
+                        job_update_fields.append("records_updated = ?")
+                        job_update_values.append(0)
+                        job_update_fields.append("errors_count = ?")
+                        job_update_values.append(metrics_obj.failed_items)
+
+                    if job_update_fields:
+                        job_update_values.append(operation_id)
+                        cursor.execute(
+                            "UPDATE jobs SET "
+                            + ", ".join(job_update_fields)
+                            + " WHERE id = ?",
+                            job_update_values,
+                        )
+
                     return
-                except sqlite3.OperationalError as exc:
+                except DB_ERRORS as exc:
                     conn.rollback()
+                    if _is_missing_table_error(exc):
+                        self.logger.warning(
+                            "Telemetry store missing operations table; skipping update",
+                        )
+                        return
+
                     self.logger.warning(
-                        "sqlite error on operations write (%d/%d): %s",
+                        "Database error on operations write (%d/%d): %s",
                         attempt + 1,
                         retries,
                         exc,
@@ -1580,10 +1741,17 @@ class OperationTracker:
                         payload,
                     )
                     return
-                except sqlite3.OperationalError as exc:
+                except DB_ERRORS as exc:
                     conn.rollback()
+                    if _is_missing_table_error(exc):
+                        self.logger.warning(
+                            "Telemetry store missing http_status_tracking table; "
+                            "skipping write",
+                        )
+                        return
+
                     self.logger.warning(
-                        "sqlite error on http_status insert (%d/%d): %s",
+                        "Database error on http_status insert (%d/%d): %s",
                         attempt + 1,
                         retries,
                         exc,
@@ -1743,10 +1911,17 @@ class OperationTracker:
                         )
 
                     return
-                except sqlite3.OperationalError as exc:
+                except DB_ERRORS as exc:
                     conn.rollback()
+                    if _is_missing_table_error(exc):
+                        self.logger.warning(
+                            "Telemetry store missing method effectiveness table; "
+                            "skipping upsert",
+                        )
+                        return
+
                     self.logger.warning(
-                        "sqlite OperationalError on method upsert (%d/%d): %s",
+                        "Database error on method upsert (%d/%d): %s",
                         attempt + 1,
                         retries,
                         exc,
@@ -1778,34 +1953,78 @@ class OperationContext:
         self.start_time = time.time()
         self.last_update = time.time()
 
-    def update_progress(self, processed: int, total: int, message: str = ""):
-        """Update operation progress."""
+    def update_progress(
+        self,
+        processed: int | OperationMetrics,
+        total: int | None = None,
+        message: str = "",
+    ):
+        """Update operation progress.
+
+        Supports both legacy positional usage (processed, total, message) and
+        passing an ``OperationMetrics`` instance directly.
+        """
+
         current_time = time.time()
-        elapsed = current_time - self.start_time
 
-        # Calculate metrics
-        success_rate = (processed / total * 100) if total > 0 else 0
-        items_per_second = processed / elapsed if elapsed > 0 else 0
+        if isinstance(processed, OperationMetrics):
+            metrics = processed
 
-        # Estimate completion time
-        estimated_completion = None
-        if items_per_second > 0 and total > processed:
-            remaining_items = total - processed
-            remaining_seconds = remaining_items / items_per_second
-            estimated_completion = (
-                datetime.now(timezone.utc).timestamp() + remaining_seconds
+            if isinstance(total, str) and not message:
+                message = total
+                total = None
+
+            if isinstance(total, int) and total >= 0 and metrics.total_items == 0:
+                metrics.total_items = total
+
+            if (
+                metrics.total_items > 0
+                and metrics.processed_items >= 0
+                and metrics.success_rate == 0.0
+            ):
+                metrics.success_rate = (
+                    metrics.processed_items / metrics.total_items * 100
+                )
+
+            elapsed = current_time - self.start_time
+            if elapsed > 0 and metrics.items_per_second == 0.0:
+                metrics.items_per_second = metrics.processed_items / elapsed
+
+            if (
+                metrics.items_per_second > 0
+                and metrics.total_items > metrics.processed_items
+                and metrics.estimated_completion is None
+            ):
+                remaining_items = metrics.total_items - metrics.processed_items
+                remaining_seconds = remaining_items / metrics.items_per_second
+                metrics.estimated_completion = datetime.fromtimestamp(
+                    datetime.now(timezone.utc).timestamp() + remaining_seconds,
+                    timezone.utc,
+                )
+        else:
+            if total is None:
+                raise TypeError("total must be provided when processed is an int")
+
+            elapsed = current_time - self.start_time
+            success_rate = (processed / total * 100) if total > 0 else 0
+            items_per_second = processed / elapsed if elapsed > 0 else 0
+
+            estimated_completion = None
+            if items_per_second > 0 and total > processed:
+                remaining_items = total - processed
+                remaining_seconds = remaining_items / items_per_second
+                estimated_completion = datetime.fromtimestamp(
+                    datetime.now(timezone.utc).timestamp() + remaining_seconds,
+                    timezone.utc,
+                )
+
+            metrics = OperationMetrics(
+                total_items=total,
+                processed_items=processed,
+                success_rate=success_rate,
+                items_per_second=items_per_second,
+                estimated_completion=estimated_completion,
             )
-            estimated_completion = datetime.fromtimestamp(
-                estimated_completion, timezone.utc
-            )
-
-        metrics = OperationMetrics(
-            total_items=total,
-            processed_items=processed,
-            success_rate=success_rate,
-            items_per_second=items_per_second,
-            estimated_completion=estimated_completion,
-        )
 
         self.tracker.update_progress(self.operation_id, metrics)
         self.last_update = current_time

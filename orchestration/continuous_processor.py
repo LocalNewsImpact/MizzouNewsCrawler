@@ -25,6 +25,12 @@ from src.models.database import DatabaseManager
 
 # Configuration from environment
 POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "60"))  # seconds
+IDLE_POLL_INTERVAL = int(
+    os.getenv(
+        "IDLE_POLL_INTERVAL",
+        os.getenv("IDLE_SLEEP_SECONDS", "300"),
+    )
+)  # seconds, used when no work is pending
 VERIFICATION_BATCH_SIZE = int(os.getenv("VERIFICATION_BATCH_SIZE", "10"))
 EXTRACTION_BATCH_SIZE = int(os.getenv("EXTRACTION_BATCH_SIZE", "20"))
 ANALYSIS_BATCH_SIZE = int(os.getenv("ANALYSIS_BATCH_SIZE", "16"))
@@ -36,7 +42,9 @@ ENABLE_VERIFICATION = os.getenv("ENABLE_VERIFICATION", "false").lower() == "true
 ENABLE_EXTRACTION = os.getenv("ENABLE_EXTRACTION", "false").lower() == "true"
 ENABLE_CLEANING = os.getenv("ENABLE_CLEANING", "true").lower() == "true"
 ENABLE_ML_ANALYSIS = os.getenv("ENABLE_ML_ANALYSIS", "true").lower() == "true"
-ENABLE_ENTITY_EXTRACTION = os.getenv("ENABLE_ENTITY_EXTRACTION", "true").lower() == "true"
+ENABLE_ENTITY_EXTRACTION = (
+    os.getenv("ENABLE_ENTITY_EXTRACTION", "true").lower() == "true"
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CLI_MODULE = "src.cli.cli_modular"
@@ -71,14 +79,20 @@ class WorkQueue:
             # Count candidate_links needing verification (only if enabled)
             if ENABLE_VERIFICATION:
                 result = db.session.execute(
-                    text("SELECT COUNT(*) FROM candidate_links WHERE status = 'discovered'")
+                    text(
+                        "SELECT COUNT(*) FROM candidate_links "
+                        "WHERE status = 'discovered'"
+                    )
                 )
                 counts["verification_pending"] = result.scalar() or 0
 
             # Count candidate_links ready for extraction (only if enabled)
             if ENABLE_EXTRACTION:
                 result = db.session.execute(
-                    text("SELECT COUNT(*) FROM candidate_links WHERE status = 'article'")
+                    text(
+                        "SELECT COUNT(*) FROM candidate_links "
+                        "WHERE status = 'article'"
+                    )
                 )
                 counts["extraction_pending"] = result.scalar() or 0
 
@@ -292,19 +306,27 @@ def process_entity_extraction(count: int) -> bool:
     )
 
 
-def process_cycle() -> None:
+def process_cycle() -> bool:
     """Run one processing cycle: check for work and execute tasks.
-    
-    Only processes enabled pipeline steps based on environment configuration.
-    This allows the continuous processor to focus on internal processing
-    (cleaning, ML, entities) while dataset-specific jobs handle external
-    site interaction (discovery, verification, extraction).
+
+    Returns True when any eligible work exists for enabled steps, allowing the
+    caller to decide how long to pause before the next cycle.
     """
     logger.info("🔍 Checking for pending work...")
 
     try:
         counts = WorkQueue.get_counts()
         logger.info("Work queue status: %s", counts)
+
+        pending_flags = [
+            ENABLE_VERIFICATION and counts["verification_pending"] > 0,
+            ENABLE_EXTRACTION and counts["extraction_pending"] > 0,
+            ENABLE_CLEANING and counts["cleaning_pending"] > 0,
+            ENABLE_ML_ANALYSIS and counts["analysis_pending"] > 0,
+            ENABLE_ENTITY_EXTRACTION and counts["entity_extraction_pending"] > 0,
+        ]
+
+        has_pending_work = any(pending_flags)
 
         # Priority order: verification → extraction → cleaning → analysis → entities
         # This ensures we process the pipeline in the correct sequence
@@ -325,12 +347,13 @@ def process_cycle() -> None:
         if ENABLE_ENTITY_EXTRACTION and counts["entity_extraction_pending"] > 0:
             process_entity_extraction(counts["entity_extraction_pending"])
 
-        # If nothing to do, log idle status
-        if all(count == 0 for count in counts.values()):
-            logger.info("💤 No pending work, sleeping for %d seconds", POLL_INTERVAL)
+        if not has_pending_work:
+            logger.info("💤 No pending work detected this cycle")
 
+        return has_pending_work
     except Exception as exc:
         logger.exception("💥 Error during processing cycle: %s", exc)
+        return True
 
 
 def main() -> None:
@@ -338,6 +361,7 @@ def main() -> None:
     logger.info("🚀 Starting continuous processor")
     logger.info("Configuration:")
     logger.info("  - Poll interval: %d seconds", POLL_INTERVAL)
+    logger.info("  - Idle poll interval: %d seconds", IDLE_POLL_INTERVAL)
     logger.info("  - Verification batch size: %d", VERIFICATION_BATCH_SIZE)
     logger.info("  - Extraction batch size: %d", EXTRACTION_BATCH_SIZE)
     logger.info("  - Analysis batch size: %d", ANALYSIS_BATCH_SIZE)
@@ -364,15 +388,19 @@ def main() -> None:
         logger.info("Processing cycle #%d", cycle_count)
 
         try:
-            process_cycle()
+            pending_work = process_cycle()
         except KeyboardInterrupt:
             logger.info("⏹️  Received interrupt signal, shutting down")
             break
         except Exception as exc:
             logger.exception("💥 Unexpected error in main loop: %s", exc)
+            pending_work = True
 
         # Sleep until next cycle
-        time.sleep(POLL_INTERVAL)
+        sleep_seconds = POLL_INTERVAL if pending_work else IDLE_POLL_INTERVAL
+        reason = "pending work" if pending_work else "idle"
+        logger.info("⏸️  Sleeping for %d seconds (%s)", sleep_seconds, reason)
+        time.sleep(sleep_seconds)
 
 
 if __name__ == "__main__":

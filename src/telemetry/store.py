@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import atexit
 import logging
+import os
 import queue
-import sqlite3
 import threading
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
@@ -13,10 +13,49 @@ from typing import Any
 
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Connection, Engine
-from sqlalchemy.exc import OperationalError
 from sqlalchemy.pool import NullPool
 
-DEFAULT_DATABASE_URL = "sqlite:///data/mizzou.db"
+
+_SQLITE_FALLBACK_URL = "sqlite:///data/mizzou.db"
+
+
+def _determine_default_database_url() -> str:
+    candidate = os.getenv("TELEMETRY_DATABASE_URL")
+    if candidate:
+        return candidate
+
+    try:
+        from src.config import DATABASE_URL as CONFIG_DATABASE_URL
+
+        if CONFIG_DATABASE_URL:
+            return CONFIG_DATABASE_URL
+    except Exception:
+        pass
+
+    return _SQLITE_FALLBACK_URL
+
+
+DEFAULT_DATABASE_URL = _determine_default_database_url()
+
+
+def _mask_database_url(url: str | None) -> str:
+    if not url:
+        return "<empty>"
+
+    try:
+        if "://" not in url:
+            return url
+
+        scheme, remainder = url.split("://", 1)
+        if "@" not in remainder:
+            return f"{scheme}://{remainder}"
+
+        credentials, host = remainder.split("@", 1)
+        if ":" in credentials:
+            return f"{scheme}://***:***@{host}"
+        return f"{scheme}://***@{host}"
+    except Exception:
+        return "<redacted>"
 
 
 class _ConnectionWrapper:
@@ -81,6 +120,7 @@ class _CursorWrapper:
         self._conn = sqlalchemy_conn
         self._last_result = None
         self._result_wrapper = None
+        self._rowcount: int = -1
     
     def execute(self, sql: str, parameters: tuple | dict | None = None):
         """Execute SQL with sqlite3-style ? placeholders or :named placeholders."""
@@ -103,6 +143,7 @@ class _CursorWrapper:
         
         # Create a wrapper that provides sqlite3-like cursor behavior
         self._result_wrapper = _ResultWrapper(self._last_result)
+        self._rowcount = getattr(self._last_result, "rowcount", -1)
         return self._result_wrapper
     
     def fetchone(self):
@@ -117,6 +158,16 @@ class _CursorWrapper:
             return []
         return self._result_wrapper.fetchall()
     
+    @property
+    def rowcount(self) -> int:
+        """Return the rowcount of the last executed statement."""
+        if self._last_result is None:
+            return -1
+        rowcount = getattr(self._last_result, "rowcount", None)
+        if rowcount is None:
+            return self._rowcount
+        return rowcount
+
     def close(self):
         """No-op for compatibility."""
         pass
@@ -384,8 +435,8 @@ class TelemetryStore:
         return wrapper
 
     def _ensure_schema(
-        self, 
-        conn: Any, 
+        self,
+        conn: Any,
         ddls: Sequence[str]
     ) -> None:
         """Execute DDL statements to ensure schema exists.

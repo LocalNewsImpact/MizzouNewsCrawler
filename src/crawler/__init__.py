@@ -1641,10 +1641,32 @@ class ContentExtractor:
                     logger.warning(
                         f"Permanent missing ({response.status_code}) for {url}; caching"
                     )
-                    # Raise exception to stop all fallback attempts
-                    raise NotFoundError(
-                        f"URL not found ({response.status_code}): {url}"
-                    )
+                    metadata: Dict[str, Any] = {
+                        "extraction_method": "newspaper4k",
+                        "http_status": response.status_code,
+                        "error": "http_not_found",
+                    }
+                    # Include proxy metadata when available for downstream diagnostics.
+                    for key, value in proxy_metadata.items():
+                        if value is not None:
+                            metadata[key] = value
+
+                    if ttl:
+                        try:
+                            expires_at = datetime.utcfromtimestamp(self.dead_urls[url])
+                            metadata["cache_ttl_expires_at"] = expires_at.isoformat()
+                        except Exception:
+                            metadata["cache_ttl_expires_at"] = datetime.utcnow().isoformat()
+
+                    return {
+                        "url": url,
+                        "title": None,
+                        "author": None,
+                        "publish_date": None,
+                        "content": None,
+                        "metadata": metadata,
+                        "extracted_at": datetime.utcnow().isoformat(),
+                    }
 
                 # Check if request was successful
                 if response.status_code == 200:
@@ -1665,10 +1687,26 @@ class ContentExtractor:
                         )
                         # Use CAPTCHA backoff for confirmed bot protection
                         self._handle_captcha_backoff(domain)
-                        # Raise exception to stop all fallback attempts
-                        raise RateLimitError(
-                            f"Bot protection detected on {domain}: {protection_type}"
-                        )
+
+                        metadata: Dict[str, Any] = {
+                            "extraction_method": "newspaper4k",
+                            "http_status": response.status_code,
+                            "error": "bot_protection",
+                            "bot_protection_type": protection_type,
+                        }
+                        for key, value in proxy_metadata.items():
+                            if value is not None:
+                                metadata[key] = value
+
+                        return {
+                            "url": url,
+                            "title": None,
+                            "author": None,
+                            "publish_date": None,
+                            "content": None,
+                            "metadata": metadata,
+                            "extracted_at": datetime.utcnow().isoformat(),
+                        }
                     
                     # Reset error count on successful request
                     self._reset_error_count(domain)
@@ -2155,10 +2193,15 @@ class ContentExtractor:
                     f"Subscription wall detected on {url} "
                     f"(modal_closed={modal_closed})"
                 )
+                if modal_closed:
+                    logger.info(
+                        "Subscription modal already closed; continuing extraction"
+                    )
+                    return True
+
                 # Try closing again if not already attempted
-                if not modal_closed and self._try_close_modals(driver, url):
-                    logger.info("Successfully closed subscription modal")
-                    # Re-check if still paywalled
+                if self._try_close_modals(driver, url):
+                    logger.info("Successfully closed subscription modal on retry")
                     if not self._detect_subscription_wall(driver):
                         return True
                 

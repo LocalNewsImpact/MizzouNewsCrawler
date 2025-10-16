@@ -13,8 +13,52 @@ Environment variables required:
 Note: These tests will be skipped if TEST_DATABASE_URL is not set.
 """
 
-import pytest
+import os
 import time
+
+import pytest
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
+
+
+@pytest.fixture(scope="session")
+def cloud_sql_engine():
+    """Create a database engine for Cloud SQL integration tests.
+
+    Provides a local fallback when the backend pytest plugin is disabled.
+    """
+
+    test_db_url = os.getenv("TEST_DATABASE_URL")
+    if not test_db_url:
+        pytest.skip("TEST_DATABASE_URL not set - skipping Cloud SQL tests")
+
+    engine = create_engine(test_db_url, echo=False)
+
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+    except Exception as exc:  # pragma: no cover - defensive guard
+        pytest.skip(f"Cannot connect to test database: {exc}")
+
+    yield engine
+    engine.dispose()
+
+
+@pytest.fixture(scope="function")
+def cloud_sql_session(cloud_sql_engine):
+    """Return a transactional session bound to the Cloud SQL engine."""
+
+    connection = cloud_sql_engine.connect()
+    transaction = connection.begin()
+    SessionLocal = sessionmaker(bind=connection)
+    session = SessionLocal()
+
+    try:
+        yield session
+    finally:
+        session.close()
+        transaction.rollback()
+        connection.close()
 
 
 @pytest.mark.integration

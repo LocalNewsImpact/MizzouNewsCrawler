@@ -1,7 +1,9 @@
 """
 Extraction command module for the modular CLI.
 """
+# ruff: noqa: E501
 
+import inspect
 import json
 import logging
 import os
@@ -11,13 +13,12 @@ import uuid
 from collections import defaultdict
 from collections.abc import Iterable
 from datetime import datetime
-from typing import cast
+from typing import Any, Type, cast
 
 from sqlalchemy import text
 
 # Lazy import: ContentExtractor and NotFoundError are imported inside functions
 # This prevents loading the heavy src.crawler module (~150-200Mi) when not needed
-# from src.crawler import ContentExtractor, NotFoundError  # MOVED TO handle_extraction_command()
 from src.models import Article, CandidateLink
 from src.models.database import (
     DatabaseManager,
@@ -37,6 +38,28 @@ from src.utils.comprehensive_telemetry import (
 )
 from src.utils.content_cleaner_balanced import BalancedBoundaryContentCleaner
 from src.utils.content_type_detector import ContentTypeDetector
+
+
+ContentExtractor: Type[Any] | None = None
+
+
+class _PlaceholderNotFoundError(Exception):
+    """Fallback exception until crawler dependencies are loaded."""
+
+
+NotFoundError: Type[Exception] = _PlaceholderNotFoundError
+
+
+def _ensure_crawler_dependencies() -> None:
+    """Lazily import heavy crawler dependencies when needed."""
+    global ContentExtractor, NotFoundError
+    if ContentExtractor is None:
+        from src.crawler import ContentExtractor as _ContentExtractor
+        from src.crawler import NotFoundError as _NotFoundError
+
+        ContentExtractor = _ContentExtractor
+        NotFoundError = _NotFoundError
+
 
 logger = logging.getLogger(__name__)
 
@@ -198,8 +221,16 @@ def add_extraction_parser(subparsers):
         default=None,
         help="Number of batches (default: process all available)",
     )
-    extract_parser.add_argument("--source", type=str, help="Limit to a specific source")
-    extract_parser.add_argument("--dataset", type=str, help="Limit to a specific dataset slug")
+    extract_parser.add_argument(
+        "--source",
+        type=str,
+        help="Limit to a specific source",
+    )
+    extract_parser.add_argument(
+        "--dataset",
+        type=str,
+        help="Limit to a specific dataset slug",
+    )
     extract_parser.add_argument(
         "--no-exhaust-queue",
         dest="exhaust_queue",
@@ -213,49 +244,74 @@ def add_extraction_parser(subparsers):
 
 def handle_extraction_command(args) -> int:
     """Execute extraction command logic."""
-    # Lazy import: Only load heavy crawler module when actually extracting
-    from src.crawler import ContentExtractor, NotFoundError
-    
+    _ensure_crawler_dependencies()
+    if ContentExtractor is None:  # pragma: no cover - defensive fallback
+        raise RuntimeError("ContentExtractor dependency is unavailable")
+
+    extractor_cls = cast(Type[Any], ContentExtractor)
+    process_accepts_db = "db" in inspect.signature(_process_batch).parameters
+    post_clean_accepts_db = "db" in inspect.signature(
+        _run_post_extraction_cleaning
+    ).parameters
     batches = getattr(args, "batches", None)  # None means "process all available"
     per_batch = getattr(args, "limit", 10)
     exhaust_queue = getattr(args, "exhaust_queue", True)  # Default to exhausting queue
 
     # Print to stdout immediately for visibility
-    print(f"🚀 Starting content extraction...")
+    print("🚀 Starting content extraction...")
     if batches is None or exhaust_queue:
-        print(f"   Mode: Process ALL available articles")
+        print("   Mode: Process ALL available articles")
     else:
         print(f"   Batches: {batches}")
     print(f"   Articles per batch: {per_batch}")
     
     # Create DatabaseManager early to analyze dataset
-    db = DatabaseManager()
+    try:
+        db = DatabaseManager()
+    except Exception:
+        logger.exception("Failed to initialize database connection")
+        return 1
     
     # Analyze dataset domain structure upfront
     domain_analysis = _analyze_dataset_domains(args, db.session)
     if domain_analysis["unique_domains"] > 0:
-        print(f"   📊 Dataset analysis: {domain_analysis['unique_domains']} unique domain(s)")
+        print(
+            "   📊 Dataset analysis: "
+            f"{domain_analysis['unique_domains']} unique domain(s)"
+        )
         if domain_analysis["is_single_domain"]:
-            print(f"   ⚠️  Single-domain dataset detected: {domain_analysis['sample_domains'][0]}")
-            print(f"   🐌 Rate limiting will be conservative to avoid bot detection")
+            print(
+                "   ⚠️  Single-domain dataset detected: "
+                f"{domain_analysis['sample_domains'][0]}"
+            )
+            print("   🐌 Rate limiting will be conservative to avoid bot detection")
             # Recommend appropriate BATCH_SLEEP_SECONDS for single-domain datasets
             batch_sleep = float(os.getenv("BATCH_SLEEP_SECONDS", "0.1"))
             if batch_sleep < 60:
                 logger.warning(
-                    "Single-domain dataset detected but BATCH_SLEEP_SECONDS is low (%.1fs). "
-                    "Consider increasing to 60-300s to avoid rate limiting.",
-                    batch_sleep
+                    "Single-domain dataset detected but BATCH_SLEEP_SECONDS is low "
+                    "(%.1fs). Consider increasing to 60-300s to avoid rate limiting.",
+                    batch_sleep,
                 )
         elif domain_analysis["unique_domains"] <= 3:
-            print(f"   ⚠️  Limited domain diversity ({domain_analysis['unique_domains']} domains)")
-            print(f"   Sample domains: {', '.join(domain_analysis['sample_domains'])}")
+            print(
+                "   ⚠️  Limited domain diversity "
+                f"({domain_analysis['unique_domains']} domains)"
+            )
+            print(
+                "   Sample domains: "
+                f"{', '.join(domain_analysis['sample_domains'])}"
+            )
         else:
-            print(f"   ✓ Good domain diversity for rotation")
+            print("   ✓ Good domain diversity for rotation")
             if domain_analysis["unique_domains"] <= 10:
-                print(f"   Sample domains: {', '.join(domain_analysis['sample_domains'])}")
+                print(
+                    "   Sample domains: "
+                    f"{', '.join(domain_analysis['sample_domains'])}"
+                )
     print()
 
-    extractor = ContentExtractor()
+    extractor = extractor_cls()
     byline_cleaner = BylineCleaner()
     telemetry = ComprehensiveExtractionTelemetry()
 
@@ -270,7 +326,8 @@ def handle_extraction_command(args) -> int:
         # Store whether we detected single-domain dataset
         is_single_domain_dataset = domain_analysis.get("is_single_domain", False)
         
-        # Continue processing batches until no articles remain (or batch limit reached if specified)
+    # Continue processing batches until no articles remain
+    # (or the batch limit is reached when explicitly requested)
         while True:
             batch_num += 1
             
@@ -278,15 +335,20 @@ def handle_extraction_command(args) -> int:
             if batches is not None and not exhaust_queue and batch_num > batches:
                 break
             
-            # Apply batch size jitter if configured (e.g., BATCH_SIZE_JITTER=0.33 means ±33%)
+            # Apply batch size jitter when configured
+            # (e.g., BATCH_SIZE_JITTER=0.33 means ±33%)
             batch_size_jitter = float(os.getenv("BATCH_SIZE_JITTER", "0.0"))
             if batch_size_jitter > 0:
                 jitter_amount = int(per_batch * batch_size_jitter)
-                batch_size = max(1, per_batch + random.randint(-jitter_amount, jitter_amount))
+                batch_size = max(
+                    1,
+                    per_batch + random.randint(-jitter_amount, jitter_amount),
+                )
             else:
                 batch_size = per_batch
             
             print(f"📄 Processing batch {batch_num} ({batch_size} articles)...")
+            process_kwargs = {"db": db} if process_accepts_db else {}
             result = _process_batch(
                 args,
                 extractor,
@@ -296,7 +358,7 @@ def handle_extraction_command(args) -> int:
                 batch_num,
                 host_403_tracker,
                 domains_for_cleaning,
-                db=db,
+                **process_kwargs,
             )
             
             articles_processed = result['processed']
@@ -358,11 +420,11 @@ def handle_extraction_command(args) -> int:
             
             # Stop if no articles were processed (queue is empty)
             if articles_processed == 0:
-                print(f"📭 No more articles available to extract")
+                print("📭 No more articles available to extract")
                 break
             
-            # Smart batch sleep: only pause if we processed articles from same domain repeatedly
-            # If we rotated through domains, no pause needed (rate limiting handled per-domain)
+            # Smart batch sleep: pause when we repeatedly hit the same domain.
+            # When domains rotate, per-domain rate limiting avoids the need to pause.
             domains_processed = result.get('domains_processed', [])
             same_domain_consecutive = result.get('same_domain_consecutive', 0)
             unique_domains = len(set(domains_processed)) if domains_processed else 0
@@ -375,9 +437,9 @@ def handle_extraction_command(args) -> int:
             max_same_domain = int(os.getenv("MAX_SAME_DOMAIN_CONSECUTIVE", "3"))
             is_single_domain_dataset = unique_domains <= 1 and skipped_domains == 0
             needs_long_pause = (
-                is_single_domain_dataset or
-                same_domain_consecutive >= max_same_domain or 
-                unique_domains <= 1
+                is_single_domain_dataset
+                or same_domain_consecutive >= max_same_domain
+                or unique_domains <= 1
             )
             
             if needs_long_pause:
@@ -408,8 +470,8 @@ def handle_extraction_command(args) -> int:
                     )
                     time.sleep(actual_sleep)
             elif unique_domains > 1 or skipped_domains > 0:
-                # Rotated through multiple domains OR multiple domains available (but rate-limited)
-                # Either way, minimal pause is sufficient
+                # Rotated through multiple domains or these domains remained available,
+                # so a brief pause is sufficient even if some were rate limited.
                 short_pause = float(os.getenv("INTER_BATCH_MIN_PAUSE", "5.0"))
                 if skipped_domains > 0:
                     print(
@@ -430,16 +492,23 @@ def handle_extraction_command(args) -> int:
 
         if domains_for_cleaning:
             print()
-            print(f"🧹 Running post-extraction cleaning for {len(domains_for_cleaning)} domains...")
-            _run_post_extraction_cleaning(domains_for_cleaning, db=db)
+            print(
+                "🧹 Running post-extraction cleaning for "
+                f"{len(domains_for_cleaning)} domains..."
+            )
+            post_clean_kwargs = {"db": db} if post_clean_accepts_db else {}
+            _run_post_extraction_cleaning(domains_for_cleaning, **post_clean_kwargs)
             print("✓ Cleaning complete")
 
         # Log driver usage stats before cleanup
         driver_stats = extractor.get_driver_stats()
         if driver_stats["has_persistent_driver"]:
             print()
-            print(f"📊 ChromeDriver efficiency: {driver_stats['driver_reuse_count']} reuses, "
-                  f"{driver_stats['driver_creation_count']} creations")
+            print(
+                "📊 ChromeDriver efficiency: "
+                f"{driver_stats['driver_reuse_count']} reuses, "
+                f"{driver_stats['driver_creation_count']} creations"
+            )
             logger.info(
                 "ChromeDriver efficiency: %s reuses, %s creations",
                 driver_stats["driver_reuse_count"],
@@ -447,7 +516,7 @@ def handle_extraction_command(args) -> int:
             )
 
         print()
-        print(f"✅ Extraction completed successfully!")
+        print("✅ Extraction completed successfully!")
         print(f"   Total batches processed: {batch_num}")
         print(f"   Total articles extracted: {total_processed}")
         return 0
@@ -507,7 +576,7 @@ def _process_batch(
         if getattr(args, "dataset", None):
             q = q.replace(
                 "WHERE cl.status = 'article'",
-                """WHERE cl.status = 'article' 
+                """WHERE cl.status = 'article'
                 AND cl.dataset_id = (SELECT id FROM datasets WHERE slug = :dataset)""",
             )
             params["dataset"] = args.dataset
@@ -557,7 +626,7 @@ def _process_batch(
 
             domain = urlparse(url).netloc
 
-            # Check if we've already processed max articles from this domain in this batch
+            # Skip domains that already hit the per-batch limit
             current_domain_count = domain_article_count.get(domain, 0)
             if current_domain_count >= max_articles_per_domain:
                 logger.debug(
@@ -603,7 +672,9 @@ def _process_batch(
 
                 if content and content.get("title"):
                     # Track successful extraction from this domain
-                    domain_article_count[domain] = domain_article_count.get(domain, 0) + 1
+                    domain_article_count[domain] = (
+                        domain_article_count.get(domain, 0) + 1
+                    )
                     
                     # Track domain rotation
                     if domain != last_domain:
@@ -777,7 +848,7 @@ def _process_batch(
                 metrics.error_type = "not_found"
                 metrics.finalize({})
                 telemetry.record_extraction(metrics)
-                # Don't increment domain failures for 404s - it's the URL, not the domain
+                # Skip counting 404s against aggregate domain failures
                 continue
 
             except Exception as e:
@@ -898,9 +969,35 @@ def _process_batch(
 
 def _run_post_extraction_cleaning(domains_to_articles, db=None):
     """Trigger content cleaning for recently extracted articles."""
-    if db is None:
+    provided_db = db is not None
+    if not provided_db:
         db = DatabaseManager()
-    cleaner = BalancedBoundaryContentCleaner(enable_telemetry=True, db=db)
+    cleaner_cls = BalancedBoundaryContentCleaner
+    cleaner_kwargs: dict[str, Any] = {}
+
+    try:
+        cleaner_signature = inspect.signature(cleaner_cls)
+    except (TypeError, ValueError):
+        cleaner_signature = None
+
+    supports_kwargs = False
+    if cleaner_signature is not None:
+        params = cleaner_signature.parameters
+        supports_kwargs = any(
+            param.kind == inspect.Parameter.VAR_KEYWORD
+            for param in params.values()
+        )
+
+        if "enable_telemetry" in params or supports_kwargs:
+            cleaner_kwargs["enable_telemetry"] = True
+        if db is not None and ("db" in params or supports_kwargs):
+            cleaner_kwargs["db"] = db
+    else:
+        cleaner_kwargs["enable_telemetry"] = True
+        if db is not None:
+            cleaner_kwargs["db"] = db
+
+    cleaner = cleaner_cls(**cleaner_kwargs)
     session = db.session
     articles_for_entities: set[str] = set()
 
@@ -1045,7 +1142,10 @@ def _run_post_extraction_cleaning(domains_to_articles, db=None):
         session.close()
 
     if articles_for_entities:
-        _run_article_entity_extraction(articles_for_entities, db=db)
+        if provided_db:
+            _run_article_entity_extraction(articles_for_entities, db=db)
+        else:
+            _run_article_entity_extraction(articles_for_entities)
 
 
 def _run_article_entity_extraction(article_ids: Iterable[str], db=None) -> None:

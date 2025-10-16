@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from src.config import DATABASE_URL
 from src.telemetry.store import TelemetryStore, get_store
 
 
@@ -249,7 +250,7 @@ class ComprehensiveExtractionTelemetry:
                     async_writes=False,
                 )
             else:
-                self._store = get_store()
+                self._store = get_store(DATABASE_URL)
 
         self._ensure_telemetry_tables()
 

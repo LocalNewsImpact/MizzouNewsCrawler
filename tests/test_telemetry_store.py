@@ -65,6 +65,20 @@ class TestSyncTelemetryStore:
         store = TelemetryStore(database=temp_db_uri, async_writes=False)
         store.shutdown(wait=True)  # should not raise even though no worker
 
+    def test_cursor_rowcount_reports_affected_rows(self, temp_db_uri):
+        store = TelemetryStore(database=temp_db_uri, async_writes=False)
+
+        with store.connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute(
+                    "CREATE TABLE IF NOT EXISTS events (value TEXT)"
+                )
+                cursor.execute("INSERT INTO events(value) VALUES (?)", ("hello",))
+                assert cursor.rowcount == 1
+            finally:
+                cursor.close()
+
 
 class TestAsyncTelemetryStore:
     def test_async_submit_flush_and_shutdown(self, temp_db_uri):

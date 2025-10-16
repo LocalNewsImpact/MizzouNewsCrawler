@@ -7,6 +7,7 @@ import sqlite3
 from collections.abc import Iterable
 from pathlib import Path
 
+from src.config import DATABASE_URL
 from src.telemetry.store import TelemetryStore, get_store
 
 from .extraction_outcomes import ExtractionResult
@@ -75,7 +76,7 @@ class ExtractionTelemetry:
             self._store = store
         else:
             if db_path is None:
-                self._store = get_store()
+                self._store = get_store(DATABASE_URL)
             else:
                 resolved = Path(db_path)
                 resolved.parent.mkdir(parents=True, exist_ok=True)

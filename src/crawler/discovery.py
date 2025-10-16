@@ -55,6 +55,7 @@ from src.utils.url_utils import normalize_url
 
 from ..models.database import DatabaseManager
 from .origin_proxy import enable_origin_proxy
+from .proxy_config import get_proxy_manager
 
 logger = logging.getLogger(__name__)
 
@@ -160,32 +161,8 @@ class NewsDiscovery:
             self.session.headers.update({"User-Agent": self.user_agent})
             logger.info("Using standard requests session")
 
-        # Optionally enable origin-style proxy adapter on the session
-        try:
-            enable_origin_proxy(self.session)
-        except Exception:
-            logger.debug("Origin proxy adapter not installed for discovery session")
-
-        # Configure proxy pool if provided
-        proxy_pool_env = (os.getenv("PROXY_POOL", "") or "").strip()
-        self.proxy_pool = (
-            [p.strip() for p in proxy_pool_env.split(",") if p.strip()]
-            if proxy_pool_env else []
-        )
-        if self.proxy_pool:
-            # Use a random proxy for all requests (or could implement
-            # per-domain like the other crawler)
-            proxy = random.choice(self.proxy_pool)
-            self.session.proxies.update({
-                "http": proxy,
-                "https": proxy,
-            })
-            logger.info(
-                f"Configured proxy pool with {len(self.proxy_pool)} proxies, "
-                f"using {proxy}"
-            )
-        else:
-            logger.info("No proxy pool configured, using direct connections")
+        # Configure proxy behavior (origin adapter or standard proxies)
+        self._configure_proxy_routing()
 
         # Initialize storysniffer client (if available)
         self.storysniffer = None
@@ -209,8 +186,91 @@ class NewsDiscovery:
             "Articles published before "
             f"{self.cutoff_date.strftime('%Y-%m-%d')} will be filtered out"
         )
-
         self._known_hosts_cache: set[str] | None = None
+
+    def _configure_proxy_routing(self) -> None:
+        """Configure proxy adapter and proxy pool for the discovery session."""
+
+        # Legacy environment-driven proxy pool support
+        proxy_pool_env = (os.getenv("PROXY_POOL", "") or "").strip()
+        env_proxy_pool = (
+            [p.strip() for p in proxy_pool_env.split(",") if p.strip()]
+            if proxy_pool_env
+            else []
+        )
+
+        self.proxy_pool = list(env_proxy_pool)
+
+        # Initialize proxy manager for modern provider handling
+        self.proxy_manager = get_proxy_manager()
+        active_provider = self.proxy_manager.active_provider
+        logger.info(
+            "🔀 Proxy manager initialized with provider: %s",
+            active_provider.value,
+        )
+
+        use_origin_proxy = os.getenv("USE_ORIGIN_PROXY", "").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
+
+        if active_provider.value == "origin" or use_origin_proxy:
+            try:
+                enable_origin_proxy(self.session)
+                proxy_base = (
+                    self.proxy_manager.get_origin_proxy_url()
+                    or os.getenv("ORIGIN_PROXY_URL")
+                    or os.getenv("PROXY_URL")
+                    or "default"
+                )
+                logger.info(
+                    "🔐 Discovery using origin proxy adapter (%s)",
+                    proxy_base,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to install origin proxy adapter for discovery: %s",
+                    exc,
+                )
+            return
+
+        proxies = self.proxy_manager.get_requests_proxies()
+        if proxies:
+            self.session.proxies.update(proxies)
+            proxy_values = [p for p in proxies.values() if p]
+            if proxy_values:
+                merged_pool = env_proxy_pool + proxy_values
+                deduped_pool: list[str] = []
+                seen: set[str] = set()
+                for value in merged_pool:
+                    if value and value not in seen:
+                        deduped_pool.append(value)
+                        seen.add(value)
+                self.proxy_pool = deduped_pool
+            logger.info(
+                "🔐 Discovery using %s proxy provider (%s)",
+                active_provider.value,
+                ", ".join(sorted(proxies.keys())),
+            )
+            return
+
+        if self.proxy_pool:
+            proxy = random.choice(self.proxy_pool)
+            self.session.proxies.update({
+                "http": proxy,
+                "https": proxy,
+            })
+            logger.info(
+                "🔐 Discovery using legacy proxy pool with %d entries (selected %s)",
+                len(self.proxy_pool),
+                proxy,
+            )
+        else:
+            logger.info(
+                "🔐 Proxy provider %s did not supply proxies; using direct connections",
+                active_provider.value,
+            )
 
     def _create_db_manager(self) -> DatabaseManager:
         """Factory method for database manager instances."""

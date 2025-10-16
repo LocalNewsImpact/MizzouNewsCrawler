@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -395,17 +394,19 @@ class TestProcessCycle:
             "analysis_pending": 30,
             "entity_extraction_pending": 40,
         }
-        
-        continuous_processor.process_cycle()
-        
+
+        result = continuous_processor.process_cycle()
+
         # Verification and extraction should NOT be called (disabled by default)
         mock_verification.assert_not_called()
         mock_extraction.assert_not_called()
-        
+
         # Cleaning, analysis, and entity extraction should be called (enabled by default)
         mock_cleaning.assert_called_once_with(25)
         mock_analysis.assert_called_once_with(30)
         mock_entity.assert_called_once_with(40)
+
+        assert result is True
 
     @patch("orchestration.continuous_processor.process_verification")
     @patch("orchestration.continuous_processor.process_extraction")
@@ -428,21 +429,23 @@ class TestProcessCycle:
             "analysis_pending": 0,
             "entity_extraction_pending": 0,
         }
-        
+
         # Make the process functions return False (behavior when count is 0)
         mock_verification.return_value = False
         mock_extraction.return_value = False
         mock_analysis.return_value = False
         mock_entity.return_value = False
-        
-        continuous_processor.process_cycle()
-        
+
+        result = continuous_processor.process_cycle()
+
         # process_cycle() only calls process functions if count > 0
         # So with all counts at 0, none should be called
         mock_verification.assert_not_called()
         mock_extraction.assert_not_called()
         mock_analysis.assert_not_called()
         mock_entity.assert_not_called()
+
+        assert result is False
 
     @patch("orchestration.continuous_processor.WorkQueue.get_counts")
     def test_process_cycle_handles_exceptions(self, mock_get_counts):
@@ -464,6 +467,13 @@ class TestEnvironmentConfiguration:
         # The module-level constant should be set
         assert hasattr(continuous_processor, "POLL_INTERVAL")
         assert isinstance(continuous_processor.POLL_INTERVAL, int)
+        assert continuous_processor.POLL_INTERVAL == 60
+
+    def test_default_idle_poll_interval(self):
+        """Test default IDLE_POLL_INTERVAL value."""
+        assert hasattr(continuous_processor, "IDLE_POLL_INTERVAL")
+        assert isinstance(continuous_processor.IDLE_POLL_INTERVAL, int)
+        assert continuous_processor.IDLE_POLL_INTERVAL == 300
 
     def test_default_batch_sizes(self):
         """Test default batch size values."""

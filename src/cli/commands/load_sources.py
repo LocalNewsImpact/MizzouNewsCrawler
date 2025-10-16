@@ -14,7 +14,7 @@ from sqlalchemy.orm import sessionmaker
 from src.cli.context import trigger_gazetteer_population_background
 from src.models import Dataset, DatasetSource, Source
 from src.models.database import DatabaseManager
-from src.utils.telemetry import OperationMetrics, OperationType, OperationTracker
+from src.utils.telemetry import OperationType, OperationTracker
 
 logger = logging.getLogger(__name__)
 
@@ -235,12 +235,8 @@ def handle_load_sources_command(args) -> int:
             dataset_sources_created = 0
             candidate_links: list[dict[str, Any]] = []
             
-            # Update progress metrics
-            metrics = OperationMetrics(
-                total_items=len(df),
-                processed_items=0
-            )
-            operation.update_progress(metrics)
+            total_rows = len(df)
+            operation.update_progress(0, total_rows, "Initializing load")
 
             for idx, (_, row) in enumerate(df.iterrows(), start=1):
                 url = row["url_news"]
@@ -267,7 +263,9 @@ def handle_load_sources_command(args) -> int:
                             "address2": row.get("address2", ""),
                             "state": row.get("State", "MO"),
                             "zip": (
-                                str(row.get("zip", "")) if pd.notna(row.get("zip")) else ""
+                                str(row.get("zip", ""))
+                                if pd.notna(row.get("zip"))
+                                else ""
                             ),
                             "frequency": row.get("frequency", ""),
                             "cached_geographic_entities": row.get(
@@ -337,9 +335,12 @@ def handle_load_sources_command(args) -> int:
                 candidate_links.append(link_data)
                 
                 # Update progress periodically
-                if idx % 10 == 0 or idx == len(df):
-                    metrics.processed_items = idx
-                    operation.update_progress(metrics)
+                if idx % 10 == 0 or idx == total_rows:
+                    operation.update_progress(
+                        idx,
+                        total_rows,
+                        f"Processed {idx} of {total_rows} rows",
+                    )
 
             session.commit()
             logger.info(

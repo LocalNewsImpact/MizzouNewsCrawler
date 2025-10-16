@@ -1,6 +1,5 @@
 """Tests for Argo Workflows configuration."""
 
-import os
 from pathlib import Path
 
 import pytest
@@ -67,7 +66,10 @@ class TestWorkflowMetadata:
         """Ensure Mizzou CronWorkflow has proper metadata."""
         assert mizzou_cronworkflow["metadata"]["name"] == "mizzou-news-pipeline"
         assert mizzou_cronworkflow["metadata"]["namespace"] == "production"
-        assert mizzou_cronworkflow["metadata"]["labels"]["dataset"] == "Mizzou"
+        assert (
+            mizzou_cronworkflow["metadata"]["labels"]["dataset"]
+            == "mizzou-missouri-state"
+        )
         assert mizzou_cronworkflow["metadata"]["labels"]["type"] == "pipeline"
 
 
@@ -302,15 +304,21 @@ class TestMizzouConfiguration:
         templates = mizzou_cronworkflow["spec"]["workflowSpec"]["templates"]
         wrapper = templates[0]
         
-        params = {p["name"]: p["value"] for p in wrapper["steps"][0][0]["arguments"]["parameters"]}
-        assert params["dataset"] == "Mizzou"
+        params = {
+            p["name"]: p["value"]
+            for p in wrapper["steps"][0][0]["arguments"]["parameters"]
+        }
+        assert params["dataset"] == "Mizzou Missouri State"
 
     def test_mizzou_has_moderate_rate_limiting(self, mizzou_cronworkflow):
         """Ensure Mizzou has moderate rate limiting."""
         templates = mizzou_cronworkflow["spec"]["workflowSpec"]["templates"]
         wrapper = templates[0]
         
-        params = {p["name"]: p["value"] for p in wrapper["steps"][0][0]["arguments"]["parameters"]}
+        params = {
+            p["name"]: p["value"]
+            for p in wrapper["steps"][0][0]["arguments"]["parameters"]
+        }
         
         # Check moderate rate limits
         assert params["inter-request-min"] == "5.0"  # 5 seconds

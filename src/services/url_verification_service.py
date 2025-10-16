@@ -322,8 +322,18 @@ class URLVerificationService:
 
         session.commit()
 
-    def run_verification_loop(self, max_batches: int | None = None):
-        """Run the main verification loop."""
+    def run_verification_loop(
+        self,
+        *,
+        max_batches: int | None = None,
+        exit_on_idle: bool = False,
+    ) -> None:
+        """Run the main verification loop.
+
+        Args:
+            max_batches: Optional maximum number of batches to process.
+            exit_on_idle: When True, stop polling once no URLs remain.
+        """
         self.running = True
         batch_count = 0
 
@@ -342,6 +352,8 @@ class URLVerificationService:
                         "No URLs to verify, sleeping for "
                         f"{self.sleep_interval} seconds..."
                     )
+                    if exit_on_idle:
+                        break
                     time.sleep(self.sleep_interval)
                     continue
 
@@ -504,7 +516,10 @@ def main():
         logger.info(f"Starting verification service with job ID: {job_id}")
 
         # Run verification loop
-        service.run_verification_loop(max_batches=args.max_batches)
+        service.run_verification_loop(
+            max_batches=args.max_batches,
+            exit_on_idle=True,
+        )
 
         logger.info("Verification service completed successfully")
         return 0

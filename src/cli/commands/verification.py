@@ -1,7 +1,9 @@
 """URL verification command for CLI."""
 
 import argparse
+import inspect
 import logging
+from typing import Any
 
 from src.services.url_verification import URLVerificationService
 
@@ -48,7 +50,10 @@ def add_verification_parser(subparsers) -> argparse.ArgumentParser:
     verify_parser.add_argument(
         "--continuous",
         action="store_true",
-        help="Run continuously until stopped (default behavior)",
+        help=(
+            "Keep polling even when no URLs are waiting; without this flag "
+            "the service exits once the queue is empty"
+        ),
     )
 
     verify_parser.set_defaults(func=handle_verification_command)
@@ -71,7 +76,11 @@ def handle_verification_command(args) -> int:
         if args.status:
             return show_verification_status(service)
         else:
-            return run_verification_service(service, args.max_batches)
+            return run_verification_service(
+                service,
+                max_batches=args.max_batches,
+                continuous=args.continuous,
+            )
 
     except Exception as e:
         logging.error(f"Verification command failed: {e}")
@@ -103,18 +112,63 @@ def show_verification_status(service: URLVerificationService) -> int:
 
 
 def run_verification_service(
-    service: URLVerificationService, max_batches: int | None = None
+    service: URLVerificationService,
+    *,
+    max_batches: int | None = None,
+    continuous: bool = False,
 ) -> int:
     """Run the verification service."""
     try:
         if max_batches:
             print(f"🚀 Starting verification service (max {max_batches} batches)...")
             logging.info(f"Starting verification service (max {max_batches} batches)")
-        else:
+        elif continuous:
             print("🚀 Starting continuous verification service...")
             logging.info("Starting continuous verification service")
+        else:
+            print("🚀 Starting verification service (exit when idle)...")
+            logging.info("Starting verification service (exit when idle)")
 
-        service.run_verification_loop(max_batches=max_batches)
+        loop_callable = service.run_verification_loop
+
+        try:
+            signature = inspect.signature(loop_callable)
+        except (TypeError, ValueError):
+            signature = None
+
+        has_var_kw = False
+        if signature is not None:
+            params = signature.parameters
+            has_var_kw = any(
+                param.kind == inspect.Parameter.VAR_KEYWORD
+                for param in params.values()
+            )
+        else:
+            params = {}
+
+        loop_kwargs: dict[str, Any] = {}
+
+        max_batches_supported = (
+            signature is None
+            or "max_batches" in params
+            or has_var_kw
+        )
+        exit_on_idle_supported = (
+            signature is None
+            or "exit_on_idle" in params
+            or has_var_kw
+        )
+
+        if max_batches_supported:
+            loop_kwargs["max_batches"] = max_batches
+        if exit_on_idle_supported and not continuous:
+            loop_kwargs["exit_on_idle"] = True
+
+        if loop_kwargs:
+            loop_callable(**loop_kwargs)
+        else:
+            loop_callable()
+
         print("✅ Verification completed successfully!")
         return 0
 
