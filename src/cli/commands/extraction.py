@@ -62,31 +62,28 @@ def _get_content_type_detector() -> ContentTypeDetector:
 ARTICLE_INSERT_SQL = text(
     "INSERT INTO articles (id, candidate_link_id, url, title, author, "
     "publish_date, content, text, status, metadata, wire, extracted_at, "
-    "created_at, text_hash) VALUES (%(id)s, %(candidate_link_id)s, "
-    "%(url)s, %(title)s, %(author)s, %(publish_date)s, %(content)s, "
-    "%(text)s, %(status)s, %(metadata)s, %(wire)s, %(extracted_at)s, "
-    "%(created_at)s, %(text_hash)s)"
+    "created_at, text_hash) VALUES (:id, :candidate_link_id, :url, :title, "
+    ":author, :publish_date, :content, :text, :status, :metadata, :wire, "
+    ":extracted_at, :created_at, :text_hash)"
 )
 
 CANDIDATE_STATUS_UPDATE_SQL = text(
-    "UPDATE candidate_links SET status = %(status)s WHERE id = %(id)s"
+    "UPDATE candidate_links SET status = :status WHERE id = :id"
 )
 
 PAUSE_CANDIDATE_LINKS_SQL = text(
     "UPDATE candidate_links "
-    "SET status = %(status)s, error_message = %(error)s "
-    "WHERE url LIKE %(host_like)s OR source = %(host)s"
+    "SET status = :status, error_message = :error "
+    "WHERE url LIKE :host_like OR source = :host"
 )
 
 ARTICLE_UPDATE_SQL = text(
-    "UPDATE articles SET content = %(content)s, text = %(text)s, "
-    "text_hash = %(text_hash)s, text_excerpt = %(excerpt)s, status = %(status)s "
-    "WHERE id = %(id)s"
+    "UPDATE articles SET content = :content, text = :text, "
+    "text_hash = :text_hash, text_excerpt = :excerpt, status = :status "
+    "WHERE id = :id"
 )
 
-ARTICLE_STATUS_UPDATE_SQL = text(
-    "UPDATE articles SET status = %(status)s WHERE id = %(id)s"
-)
+ARTICLE_STATUS_UPDATE_SQL = text("UPDATE articles SET status = :status WHERE id = :id")
 
 
 def _format_cleaned_authors(authors):

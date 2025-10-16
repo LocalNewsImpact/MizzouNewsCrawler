@@ -311,13 +311,13 @@ class URLVerificationService:
 
         update_query = """
             UPDATE candidate_links
-            SET status = %(status)s, processed_at = %(processed_at)s
+            SET status = :status, processed_at = :processed_at
         """
 
         if error_message:
-            update_query += ", error_message = %(error_message)s"
+            update_query += ", error_message = :error_message"
 
-        update_query += " WHERE id = %(candidate_id)s"
+        update_query += " WHERE id = :candidate_id"
 
         with self.db.engine.connect() as conn:
             conn.execute(text(update_query), update_data)

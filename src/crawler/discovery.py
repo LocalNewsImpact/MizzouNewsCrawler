@@ -669,19 +669,19 @@ class NewsDiscovery:
                     "\nJOIN dataset_sources ds ON s.id = ds.source_id"
                     "\nJOIN datasets d ON ds.dataset_id = d.id"
                 )
-                where_clauses.append("d.label = %(dataset_label)s")
+                where_clauses.append("d.label = :dataset_label")
                 params["dataset_label"] = dataset_label
 
             if host_filter:
-                where_clauses.append("LOWER(s.host) = %(host_filter)s")
+                where_clauses.append("LOWER(s.host) = :host_filter")
                 params["host_filter"] = host_filter.lower()
 
             if city_filter:
-                where_clauses.append("LOWER(s.city) = %(city_filter)s")
+                where_clauses.append("LOWER(s.city) = :city_filter")
                 params["city_filter"] = city_filter.lower()
 
             if county_filter:
-                where_clauses.append("LOWER(s.county) = %(county_filter)s")
+                where_clauses.append("LOWER(s.county) = :county_filter")
                 params["county_filter"] = county_filter.lower()
 
             where_sql = " AND ".join(where_clauses)
@@ -715,7 +715,12 @@ class NewsDiscovery:
                 except Exception:
                     pass
 
-            df = pd.read_sql_query(query, db.engine, params=params or None)
+            # Use SQLAlchemy text() to ensure proper parameter binding for pg8000
+            # SQLAlchemy converts :param to %s format required by pg8000
+            from sqlalchemy import text as sql_text
+            df = pd.read_sql_query(
+                sql_text(query), db.engine, params=params or None
+            )
 
             # If requested, filter to only sources that are due for
             # discovery according to their declared frequency and the
