@@ -1,0 +1,347 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: news-pipeline-template
+  namespace: production
+spec:
+  serviceAccountName: argo-workflow
+  
+  # Define reusable templates for the pipeline
+  templates:
+  # Main pipeline orchestration
+  - name: pipeline
+    inputs:
+      parameters:
+      - name: dataset
+      - name: source-limit
+      - name: max-articles
+      - name: days-back
+      - name: verify-batch-size
+      - name: verify-max-batches
+      - name: extract-limit
+      - name: extract-batches
+      - name: inter-request-min
+      - name: inter-request-max
+      - name: batch-sleep
+      - name: captcha-backoff-base
+      - name: captcha-backoff-max
+    steps:
+    # Step 1: Discovery
+    - - name: discover-urls
+        template: discovery-step
+        arguments:
+          parameters:
+          - name: dataset
+            value: "{{inputs.parameters.dataset}}"
+          - name: source-limit
+            value: "{{inputs.parameters.source-limit}}"
+          - name: max-articles
+            value: "{{inputs.parameters.max-articles}}"
+          - name: days-back
+            value: "{{inputs.parameters.days-back}}"
+    
+    # Step 2: Verification (conditional on discovery success)
+    - - name: verify-urls
+        template: verification-step
+        when: "{{steps.discover-urls.status}} == Succeeded"
+        arguments:
+          parameters:
+          - name: batch-size
+            value: "{{inputs.parameters.verify-batch-size}}"
+          - name: max-batches
+            value: "{{inputs.parameters.verify-max-batches}}"
+          - name: inter-request-min
+            value: "{{inputs.parameters.inter-request-min}}"
+          - name: inter-request-max
+            value: "{{inputs.parameters.inter-request-max}}"
+    
+    # Step 3: Extraction (conditional on verification success)
+    - - name: extract-content
+        template: extraction-step
+        when: "{{steps.verify-urls.status}} == Succeeded"
+        arguments:
+          parameters:
+          - name: dataset
+            value: "{{inputs.parameters.dataset}}"
+          - name: limit
+            value: "{{inputs.parameters.extract-limit}}"
+          - name: batches
+            value: "{{inputs.parameters.extract-batches}}"
+          - name: inter-request-min
+            value: "{{inputs.parameters.inter-request-min}}"
+          - name: inter-request-max
+            value: "{{inputs.parameters.inter-request-max}}"
+          - name: batch-sleep
+            value: "{{inputs.parameters.batch-sleep}}"
+          - name: captcha-backoff-base
+            value: "{{inputs.parameters.captcha-backoff-base}}"
+          - name: captcha-backoff-max
+            value: "{{inputs.parameters.captcha-backoff-max}}"
+  
+  # Discovery step template
+  - name: discovery-step
+    inputs:
+      parameters:
+      - name: dataset
+      - name: source-limit
+      - name: max-articles
+      - name: days-back
+    metadata:
+      labels:
+        stage: discovery
+    retryStrategy:
+      limit: 2
+      retryPolicy: "OnFailure"
+      backoff:
+        duration: "5m"
+        factor: 2
+        maxDuration: "20m"
+    container:
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
+      imagePullPolicy: Always
+      command:
+        - python
+        - -m
+        - src.cli.cli_modular
+        - discover-urls
+        - --dataset
+        - "{{inputs.parameters.dataset}}"
+        - --source-limit
+        - "{{inputs.parameters.source-limit}}"
+        - --max-articles
+        - "{{inputs.parameters.max-articles}}"
+        - --days-back
+        - "{{inputs.parameters.days-back}}"
+      envFrom:
+      - secretRef:
+          name: origin-proxy-credentials
+      env:
+      # Database configuration
+      - name: DATABASE_ENGINE
+        value: "postgresql+psycopg2"
+      - name: DATABASE_HOST
+        value: "127.0.0.1"
+      - name: DATABASE_PORT
+        value: "5432"
+      - name: DATABASE_USER
+        valueFrom:
+          secretKeyRef:
+            name: cloudsql-db-credentials
+            key: username
+      - name: DATABASE_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: cloudsql-db-credentials
+            key: password
+      - name: DATABASE_NAME
+        valueFrom:
+          secretKeyRef:
+            name: cloudsql-db-credentials
+            key: database
+      # Cloud SQL Connector
+      - name: USE_CLOUD_SQL_CONNECTOR
+        value: "true"
+      - name: CLOUD_SQL_INSTANCE
+        value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+      # Proxy configuration
+      - name: PROXY_PROVIDER
+        value: "decodo"
+      - name: USE_ORIGIN_PROXY
+        value: "false"
+      - name: NO_PROXY
+        value: "localhost,127.0.0.1,metadata.google.internal,huggingface.co,*.huggingface.co"
+      resources:
+        requests:
+          cpu: 200m
+          memory: 2Gi
+        limits:
+          cpu: 1000m
+          memory: 4Gi
+  
+  # Verification step template
+  - name: verification-step
+    inputs:
+      parameters:
+      - name: batch-size
+      - name: max-batches
+      - name: inter-request-min
+      - name: inter-request-max
+    metadata:
+      labels:
+        stage: verification
+    retryStrategy:
+      limit: 2
+      retryPolicy: "OnFailure"
+      backoff:
+        duration: "5m"
+        factor: 2
+        maxDuration: "20m"
+    container:
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
+      imagePullPolicy: Always
+      command:
+        - python
+        - -m
+        - src.cli.cli_modular
+        - verify-urls
+        - --batch-size
+        - "{{inputs.parameters.batch-size}}"
+        - --max-batches
+        - "{{inputs.parameters.max-batches}}"
+      envFrom:
+      - secretRef:
+          name: origin-proxy-credentials
+      env:
+      # Database configuration
+      - name: DATABASE_ENGINE
+        value: "postgresql+psycopg2"
+      - name: DATABASE_HOST
+        value: "127.0.0.1"
+      - name: DATABASE_PORT
+        value: "5432"
+      - name: DATABASE_USER
+        valueFrom:
+          secretKeyRef:
+            name: cloudsql-db-credentials
+            key: username
+      - name: DATABASE_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: cloudsql-db-credentials
+            key: password
+      - name: DATABASE_NAME
+        valueFrom:
+          secretKeyRef:
+            name: cloudsql-db-credentials
+            key: database
+      # Cloud SQL Connector
+      - name: USE_CLOUD_SQL_CONNECTOR
+        value: "true"
+      - name: CLOUD_SQL_INSTANCE
+        value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+      # Proxy configuration
+      - name: PROXY_PROVIDER
+        value: "decodo"
+      - name: USE_ORIGIN_PROXY
+        value: "false"
+      - name: NO_PROXY
+        value: "localhost,127.0.0.1,metadata.google.internal,huggingface.co,*.huggingface.co"
+      # Rate limiting for verification
+      - name: INTER_REQUEST_MIN
+        value: "{{inputs.parameters.inter-request-min}}"
+      - name: INTER_REQUEST_MAX
+        value: "{{inputs.parameters.inter-request-max}}"
+      resources:
+        requests:
+          cpu: 250m
+          memory: 1Gi
+        limits:
+          cpu: 1000m
+          memory: 3Gi
+  
+  # Extraction step template
+  - name: extraction-step
+    inputs:
+      parameters:
+      - name: dataset
+      - name: limit
+      - name: batches
+      - name: inter-request-min
+      - name: inter-request-max
+      - name: batch-sleep
+      - name: captcha-backoff-base
+      - name: captcha-backoff-max
+    metadata:
+      labels:
+        stage: extraction
+    retryStrategy:
+      limit: 2
+      retryPolicy: "OnFailure"
+      backoff:
+        duration: "5m"
+        factor: 2
+        maxDuration: "20m"
+    container:
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
+      imagePullPolicy: Always
+      command:
+        - python
+        - -m
+        - src.cli.cli_modular
+        - extract
+        - --dataset
+        - "{{inputs.parameters.dataset}}"
+        - --limit
+        - "{{inputs.parameters.limit}}"
+        - --batches
+        - "{{inputs.parameters.batches}}"
+      envFrom:
+      - secretRef:
+          name: origin-proxy-credentials
+      env:
+      # Database configuration
+      - name: DATABASE_ENGINE
+        value: "postgresql+psycopg2"
+      - name: DATABASE_HOST
+        value: "127.0.0.1"
+      - name: DATABASE_PORT
+        value: "5432"
+      - name: DATABASE_USER
+        valueFrom:
+          secretKeyRef:
+            name: cloudsql-db-credentials
+            key: username
+      - name: DATABASE_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: cloudsql-db-credentials
+            key: password
+      - name: DATABASE_NAME
+        valueFrom:
+          secretKeyRef:
+            name: cloudsql-db-credentials
+            key: database
+      # Cloud SQL Connector
+      - name: USE_CLOUD_SQL_CONNECTOR
+        value: "true"
+      - name: CLOUD_SQL_INSTANCE
+        value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+      # Proxy configuration
+      - name: PROXY_PROVIDER
+        value: "decodo"
+      - name: USE_ORIGIN_PROXY
+        value: "false"
+      - name: SELENIUM_PROXY
+        valueFrom:
+          secretKeyRef:
+            name: origin-proxy-credentials
+            key: selenium-proxy-url
+      # Rate limiting
+      - name: INTER_REQUEST_MIN
+        value: "{{inputs.parameters.inter-request-min}}"
+      - name: INTER_REQUEST_MAX
+        value: "{{inputs.parameters.inter-request-max}}"
+      - name: BATCH_SLEEP_SECONDS
+        value: "{{inputs.parameters.batch-sleep}}"
+      - name: CAPTCHA_BACKOFF_BASE
+        value: "{{inputs.parameters.captcha-backoff-base}}"
+      - name: CAPTCHA_BACKOFF_MAX
+        value: "{{inputs.parameters.captcha-backoff-max}}"
+      # User agent rotation
+      - name: UA_ROTATE_BASE
+        value: "4"
+      - name: UA_ROTATE_JITTER
+        value: "0.25"
+      # Decodo IP rotation
+      - name: DECODO_ROTATE_IP
+        value: "true"
+      # Bypass proxy for internal services
+      - name: NO_PROXY
+        value: "localhost,127.0.0.1,metadata.google.internal,huggingface.co,*.huggingface.co"
+      resources:
+        requests:
+          cpu: 250m
+          memory: 1Gi
+        limits:
+          cpu: 1000m
+          memory: 3Gi

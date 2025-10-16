@@ -715,7 +715,12 @@ class NewsDiscovery:
                 except Exception:
                     pass
 
-            df = pd.read_sql_query(query, db.engine, params=params or None)
+            # Use SQLAlchemy text() to ensure proper parameter binding for pg8000
+            # SQLAlchemy converts :param to %s format required by pg8000
+            from sqlalchemy import text as sql_text
+            df = pd.read_sql_query(
+                sql_text(query), db.engine, params=params or None
+            )
 
             # If requested, filter to only sources that are due for
             # discovery according to their declared frequency and the
