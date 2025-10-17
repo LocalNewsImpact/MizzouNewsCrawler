@@ -176,6 +176,9 @@ For detailed documentation on the new architecture, deployment strategy, and cre
 
 - [docs/ORCHESTRATION_ARCHITECTURE.md](docs/ORCHESTRATION_ARCHITECTURE.md) - Complete orchestration guide
 - [k8s/templates/README.md](k8s/templates/README.md) - Job templates documentation
+- [docs/MIGRATION_RUNBOOK.md](docs/MIGRATION_RUNBOOK.md) - Database migration procedures and troubleshooting
+- [docs/DEPLOYMENT_BEST_PRACTICES.md](docs/DEPLOYMENT_BEST_PRACTICES.md) - Best practices for deployments, image tags, and safety
+- [scripts/migrations/README.md](scripts/migrations/README.md) - Migration scripts and tools
 
 ## Recent Maintenance (2025-09-27)
 
