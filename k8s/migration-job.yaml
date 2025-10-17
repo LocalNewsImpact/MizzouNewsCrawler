@@ -1,0 +1,69 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: alembic-migration
+  namespace: production
+  labels:
+    app: alembic-migration
+    version: "34ad5bf"
+spec:
+  # Keep completed jobs for 1 hour for log inspection
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 1  # Only retry once on failure
+  template:
+    metadata:
+      labels:
+        app: alembic-migration
+    spec:
+      restartPolicy: Never
+      serviceAccountName: mizzou-app
+      
+      containers:
+      - name: migrator
+        image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/migrator:34ad5bf
+        imagePullPolicy: IfNotPresent
+        
+        env:
+        # Database connection settings
+        - name: DATABASE_DIALECT
+          value: "postgresql+psycopg2"
+        - name: DATABASE_HOST
+          value: "127.0.0.1"
+        - name: DATABASE_PORT
+          value: "5432"
+        - name: DATABASE_USER
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: username
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: password
+        - name: DATABASE_NAME
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: database
+        
+        # Cloud SQL Connector configuration
+        - name: USE_CLOUD_SQL_CONNECTOR
+          value: "true"
+        - name: CLOUD_SQL_INSTANCE
+          value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+        
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        
+        # Security context
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
