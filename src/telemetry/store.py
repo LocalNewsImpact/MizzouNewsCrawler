@@ -26,20 +26,52 @@ def _determine_default_database_url() -> str:
 
     # Try to use the main application DATABASE_URL from config
     try:
-        from src.config import DATABASE_URL as CONFIG_DATABASE_URL
+        from src.config import (
+            DATABASE_URL as CONFIG_DATABASE_URL,
+            USE_CLOUD_SQL_CONNECTOR,
+            CLOUD_SQL_INSTANCE,
+            DATABASE_USER,
+            DATABASE_PASSWORD,
+            DATABASE_NAME,
+            DATABASE_HOST,
+            DATABASE_ENGINE,
+        )
 
-        if CONFIG_DATABASE_URL:
-            # Don't use SQLite in production - only accept postgresql URLs
-            if CONFIG_DATABASE_URL.startswith("postgresql"):
-                return CONFIG_DATABASE_URL
-            logging.warning(
-                f"Config DATABASE_URL is not PostgreSQL: {CONFIG_DATABASE_URL[:20]}... "
-                f"Falling back to SQLite"
-            )
+        # If using Cloud SQL Connector, build PostgreSQL URL
+        if (
+            USE_CLOUD_SQL_CONNECTOR
+            and CLOUD_SQL_INSTANCE
+            and DATABASE_USER
+            and DATABASE_NAME
+        ):
+            # Cloud SQL Connector handles connection
+            # Telemetry needs a postgres URL for schema compatibility
+            from urllib.parse import quote_plus
+            user = quote_plus(DATABASE_USER)
+            password = quote_plus(DATABASE_PASSWORD) if DATABASE_PASSWORD else ""
+            auth = f"{user}:{password}" if password else user
+            # Use instance name as host for telemetry (actual connection via connector)
+            db_url = f"postgresql://{auth}@/{DATABASE_NAME}"
+            return db_url
+        
+        # If DATABASE_URL is already PostgreSQL, use it
+        if CONFIG_DATABASE_URL and CONFIG_DATABASE_URL.startswith("postgresql"):
+            return CONFIG_DATABASE_URL
+        
+        # Try to build from individual components
+        if DATABASE_HOST and DATABASE_USER and DATABASE_NAME:
+            from urllib.parse import quote_plus
+            user = quote_plus(DATABASE_USER)
+            password = quote_plus(DATABASE_PASSWORD) if DATABASE_PASSWORD else ""
+            auth = f"{user}:{password}" if password else user
+            engine = DATABASE_ENGINE or "postgresql"
+            db_url = f"{engine}://{auth}@{DATABASE_HOST}/{DATABASE_NAME}"
+            return db_url
+            
     except Exception as e:
-        logging.warning(
-            f"Failed to import DATABASE_URL from config: {e}. "
-            f"Falling back to SQLite"
+        logging.debug(
+            f"Could not determine PostgreSQL URL from config: {e}. "
+            f"Using SQLite fallback"
         )
 
     return _SQLITE_FALLBACK_URL
