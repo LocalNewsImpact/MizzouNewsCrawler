@@ -1,0 +1,58 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: bigquery-export
+  namespace: production
+  labels:
+    app: bigquery-export
+    component: analytics
+spec:
+  # Run daily at 2 AM UTC (after pipeline completes)
+  schedule: "0 2 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 3600  # 1 hour timeout
+      template:
+        metadata:
+          labels:
+            app: bigquery-export
+            component: analytics
+        spec:
+          serviceAccountName: mizzou-app-sa
+          restartPolicy: Never
+          containers:
+          - name: bigquery-export
+            image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:latest
+            imagePullPolicy: Always
+            command:
+            - python
+            - -m
+            - src.cli.main
+            - bigquery-export
+            - --days-back
+            - "7"
+            - --batch-size
+            - "1000"
+            env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: mizzou-secrets
+                  key: database-url
+            - name: GOOGLE_CLOUD_PROJECT
+              value: "mizzou-news-crawler"
+            - name: APP_ENV
+              value: "production"
+            - name: LOG_LEVEL
+              value: "INFO"
+            resources:
+              requests:
+                memory: "512Mi"
+                cpu: "250m"
+              limits:
+                memory: "1Gi"
+                cpu: "500m"
