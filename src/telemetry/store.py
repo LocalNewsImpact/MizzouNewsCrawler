@@ -24,13 +24,23 @@ def _determine_default_database_url() -> str:
     if candidate:
         return candidate
 
+    # Try to use the main application DATABASE_URL from config
     try:
         from src.config import DATABASE_URL as CONFIG_DATABASE_URL
 
         if CONFIG_DATABASE_URL:
-            return CONFIG_DATABASE_URL
-    except Exception:
-        pass
+            # Don't use SQLite in production - only accept postgresql URLs
+            if CONFIG_DATABASE_URL.startswith("postgresql"):
+                return CONFIG_DATABASE_URL
+            logging.warning(
+                f"Config DATABASE_URL is not PostgreSQL: {CONFIG_DATABASE_URL[:20]}... "
+                f"Falling back to SQLite"
+            )
+    except Exception as e:
+        logging.warning(
+            f"Failed to import DATABASE_URL from config: {e}. "
+            f"Falling back to SQLite"
+        )
 
     return _SQLITE_FALLBACK_URL
 
