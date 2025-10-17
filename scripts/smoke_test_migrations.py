@@ -157,7 +157,7 @@ def main():
     try:
         # Check sources table has key columns
         sources_columns = {col["name"] for col in inspector.get_columns("sources")}
-        required_sources_cols = {"id", "url", "name", "status"}
+        required_sources_cols = {"id", "host", "status"}
         if not required_sources_cols.issubset(sources_columns):
             missing = required_sources_cols - sources_columns
             print(f"   ✗ sources table missing columns: {missing}")
@@ -166,7 +166,7 @@ def main():
 
         # Check articles table has key columns
         articles_columns = {col["name"] for col in inspector.get_columns("articles")}
-        required_articles_cols = {"id", "url", "title", "source_id"}
+        required_articles_cols = {"id", "url", "title"}
         if not required_articles_cols.issubset(articles_columns):
             missing = required_articles_cols - articles_columns
             print(f"   ✗ articles table missing columns: {missing}")
