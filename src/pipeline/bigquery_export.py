@@ -100,6 +100,7 @@ def _export_articles(
     table_id = f"{PROJECT_ID}.{DATASET_ID}.articles"
     
     # Query to fetch articles with proper joins through candidate_links
+    # All source info is available in candidate_links, no need to join sources table
     query = text("""
         SELECT
             a.id,
@@ -116,7 +117,7 @@ def _export_articles(
             cl.source_county as county,
             'MO' as state,
             cl.source_name,
-            s.url as source_url,
+            cl.source as source_url,
             cl.source_type,
             a.status as extraction_status,
             a.extraction_version as extraction_method,
@@ -124,9 +125,7 @@ def _export_articles(
             a.created_at as updated_at
         FROM articles a
         LEFT JOIN candidate_links cl ON a.candidate_link_id = cl.id
-        LEFT JOIN sources s ON cl.source_id = s.id
         WHERE a.extracted_at BETWEEN :start_date AND :end_date
-        GROUP BY a.id, cl.id, s.url
         ORDER BY a.id
         LIMIT :batch_size
     """)
