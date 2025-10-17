@@ -1,0 +1,55 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: run-alembic-migrations
+  namespace: default
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: alembic-migrate
+          image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:6a30156
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              # Run alembic from the application root and point explicitly to alembic.ini
+              echo "Running alembic upgrade head (explicit config)"
+              cd /app
+              # Ensure alembic binary is on PATH; use the explicit config file located in the repo
+              alembic -c alembic.ini upgrade head
+          env:
+            - name: USE_CLOUD_SQL_CONNECTOR
+              value: "true"
+            - name: CLOUD_SQL_INSTANCE
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: instance-connection-name
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: username
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: password
+            - name: DATABASE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: database
+            # Ensure TELEMETRY picks up the main DATABASE_URL if you want telemetry on same DB
+            # TELEMETRY_DATABASE_URL not provided by the secret; let the app
+            # resolve telemetry DB from the main DATABASE_* values or fallback.
+      # In case your cluster requires imagePullSecrets, add them below
+      # imagePullSecrets:
+      #   - name: artifact-registry-secret
+      
+  # Optional: TTL after finish to keep job for inspection then auto-delete (k8s >=1.21)
+  ttlSecondsAfterFinished: 86400
