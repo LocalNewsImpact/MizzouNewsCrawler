@@ -5,6 +5,7 @@ metadata:
   namespace: production
 spec:
   serviceAccountName: argo-workflow
+  entrypoint: pipeline
   
   # Define reusable templates for the pipeline
   templates:
