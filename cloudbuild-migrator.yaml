@@ -1,0 +1,98 @@
+substitutions:
+  _REGISTRY: us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler
+
+steps:
+  # Build the migrator image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-migrator'
+    env:
+      - 'DOCKER_BUILDKIT=1'
+    args:
+      - 'build'
+      - '--build-arg'
+      - 'BUILDKIT_INLINE_CACHE=1'
+      - '-f'
+      - 'Dockerfile.migrator'
+      - '-t'
+      - '${_REGISTRY}/migrator:${SHORT_SHA}'
+      - '-t'
+      - '${_REGISTRY}/migrator:${COMMIT_SHA}'
+      - '-t'
+      - '${_REGISTRY}/migrator:latest'
+      - '.'
+
+  # Validate that the image contains required migration files
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'validate-image-contents'
+    args:
+      - 'run'
+      - '--rm'
+      - '--entrypoint'
+      - 'sh'
+      - '${_REGISTRY}/migrator:${SHORT_SHA}'
+      - '-c'
+      - |
+        echo "Validating migration files in image..."
+        
+        # Check alembic.ini exists
+        if [ ! -f /app/alembic.ini ]; then
+          echo "ERROR: /app/alembic.ini not found"
+          exit 1
+        fi
+        echo "✓ alembic.ini found"
+        
+        # Check alembic directory exists
+        if [ ! -d /app/alembic ]; then
+          echo "ERROR: /app/alembic directory not found"
+          exit 1
+        fi
+        echo "✓ alembic/ directory found"
+        
+        # Check versions directory exists
+        if [ ! -d /app/alembic/versions ]; then
+          echo "ERROR: /app/alembic/versions directory not found"
+          exit 1
+        fi
+        echo "✓ alembic/versions/ directory found"
+        
+        # Count migration files
+        count=$(find /app/alembic/versions -name "*.py" -not -name "__init__.py" | wc -l)
+        echo "✓ Found $count migration files"
+        
+        if [ "$count" -eq 0 ]; then
+          echo "ERROR: No migration files found"
+          exit 1
+        fi
+        
+        # Check entrypoint exists and is executable
+        if [ ! -x /entrypoint.sh ]; then
+          echo "ERROR: /entrypoint.sh not found or not executable"
+          exit 1
+        fi
+        echo "✓ entrypoint.sh is executable"
+        
+        echo ""
+        echo "All validation checks passed!"
+    waitFor:
+      - 'build-migrator'
+
+  # Push the validated image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-migrator'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGISTRY}/migrator'
+    waitFor:
+      - 'validate-image-contents'
+
+images:
+  - '${_REGISTRY}/migrator:${SHORT_SHA}'
+  - '${_REGISTRY}/migrator:${COMMIT_SHA}'
+  - '${_REGISTRY}/migrator:latest'
+
+timeout: 600s
+options:
+  machineType: 'N1_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
+  substitutionOption: 'ALLOW_LOOSE'
