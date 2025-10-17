@@ -143,6 +143,9 @@ spec:
         value: "true"
       - name: CLOUD_SQL_INSTANCE
         value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+      # Telemetry configuration - use PostgreSQL, not SQLite fallback
+      - name: TELEMETRY_DATABASE_URL
+        value: "postgresql+psycopg2://$(DATABASE_USER):$(DATABASE_PASSWORD)@127.0.0.1:5432/$(DATABASE_NAME)"
       # Proxy configuration
       - name: PROXY_PROVIDER
         value: "decodo"
@@ -219,6 +222,9 @@ spec:
         value: "true"
       - name: CLOUD_SQL_INSTANCE
         value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+      # Telemetry configuration - use PostgreSQL, not SQLite fallback
+      - name: TELEMETRY_DATABASE_URL
+        value: "postgresql+psycopg2://$(DATABASE_USER):$(DATABASE_PASSWORD)@127.0.0.1:5432/$(DATABASE_NAME)"
       # Proxy configuration
       - name: PROXY_PROVIDER
         value: "decodo"
@@ -306,6 +312,9 @@ spec:
         value: "true"
       - name: CLOUD_SQL_INSTANCE
         value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+      # Telemetry configuration - use PostgreSQL, not SQLite fallback
+      - name: TELEMETRY_DATABASE_URL
+        value: "postgresql+psycopg2://$(DATABASE_USER):$(DATABASE_PASSWORD)@127.0.0.1:5432/$(DATABASE_NAME)"
       # Proxy configuration
       - name: PROXY_PROVIDER
         value: "decodo"
