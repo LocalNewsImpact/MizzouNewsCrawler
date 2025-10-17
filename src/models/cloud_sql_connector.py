@@ -105,13 +105,29 @@ def create_cloud_sql_engine(
 
     # Create SQLAlchemy engine with the connector
     # Use connection pooling to reuse connections efficiently
+    engine_kwargs = dict(engine_kwargs)
+
+    poolclass = engine_kwargs.get("poolclass")
+    if poolclass:
+        # NullPool and other explicit pool classes cannot accept size kwargs
+        pool_keys = (
+            "pool_size",
+            "max_overflow",
+            "pool_timeout",
+            "pool_recycle",
+            "pool_pre_ping",
+        )
+        for key in pool_keys:
+            engine_kwargs.pop(key, None)
+    else:
+        engine_kwargs.setdefault("pool_size", 5)
+        engine_kwargs.setdefault("max_overflow", 10)
+        engine_kwargs.setdefault("pool_pre_ping", True)
+        engine_kwargs.setdefault("pool_recycle", 3600)
+
     engine: Engine = create_engine(
         f"postgresql+{driver}://",
         creator=getconn,
-        pool_size=5,  # Keep 5 connections in pool
-        max_overflow=10,  # Allow 10 additional connections during peaks
-        pool_pre_ping=True,  # Verify connections before using
-        pool_recycle=3600,  # Recycle connections after 1 hour
         **engine_kwargs,
     )
 
