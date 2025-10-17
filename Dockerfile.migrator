@@ -1,0 +1,98 @@
+# Dockerfile for dedicated database migration image
+# This image contains only what's needed to run Alembic migrations
+# It's small, fast to build, and includes safety checks
+
+FROM python:3.11-slim AS migrator
+
+# Install minimal system dependencies for PostgreSQL
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libpq-dev \
+        gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy migration-specific requirements and install
+COPY requirements-migrator.txt ./
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements-migrator.txt
+
+# Copy alembic configuration and migration scripts
+COPY alembic.ini ./
+COPY alembic/ ./alembic/
+
+# Copy source code needed for migrations (models and config)
+# Alembic needs access to the models to validate migrations
+COPY src/ ./src/
+
+# Copy migration entrypoint script
+COPY scripts/migrations/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Create non-root user for security
+RUN useradd -m -u 1000 migrator && \
+    chown -R migrator:migrator /app
+
+USER migrator
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+# Metadata
+LABEL maintainer="MizzouNewsCrawler"
+LABEL description="Dedicated image for running Alembic database migrations"
+LABEL usage="docker run --rm -e USE_CLOUD_SQL_CONNECTOR=true -e CLOUD_SQL_INSTANCE=... -e DATABASE_USER=... -e DATABASE_PASSWORD=... -e DATABASE_NAME=... <image>"
+
+# Set entrypoint to migration script
+ENTRYPOINT ["/entrypoint.sh"]
+# Dockerfile for dedicated database migration image
+# This image contains only what's needed to run Alembic migrations
+# It's small, fast to build, and includes safety checks
+
+FROM python:3.11-slim AS migrator
+
+# Install minimal system dependencies for PostgreSQL
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        libpq-dev \
+        gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy migration-specific requirements and install
+COPY requirements-migrator.txt ./
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements-migrator.txt
+
+# Copy alembic configuration and migration scripts
+COPY alembic.ini ./
+COPY alembic/ ./alembic/
+
+# Copy source code needed for migrations (models and config)
+# Alembic needs access to the models to validate migrations
+COPY src/ ./src/
+
+# Copy migration entrypoint script
+COPY scripts/migrations/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Create non-root user for security
+RUN useradd -m -u 1000 migrator && \
+    chown -R migrator:migrator /app
+
+USER migrator
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+# Metadata
+LABEL maintainer="MizzouNewsCrawler"
+LABEL description="Dedicated image for running Alembic database migrations"
+LABEL usage="docker run --rm -e USE_CLOUD_SQL_CONNECTOR=true -e CLOUD_SQL_INSTANCE=... -e DATABASE_USER=... -e DATABASE_PASSWORD=... -e DATABASE_NAME=... <image>"
+
+# Set entrypoint to migration script
+ENTRYPOINT ["/entrypoint.sh"]
