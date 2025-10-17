@@ -1,0 +1,164 @@
+# Deploy Backend Services to GKE
+
+name: Deploy Backend
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'backend/**'
+      - 'Dockerfile.*'
+      - 'cloudbuild-*.yaml'
+      - 'k8s/**'
+      - '.github/workflows/deploy-backend.yml'
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Service to deploy (api, processor, crawler, all)'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - api
+          - processor
+          - crawler
+
+jobs:
+  deploy-backend:
+    name: Deploy to GKE
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      PROJECT_ID: mizzou-news-crawler
+      GKE_CLUSTER: mizzou-cluster
+      GKE_ZONE: us-central1-a
+      REGION: us-central1
+      REPOSITORY: mizzou-crawler
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/${{ secrets.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github/providers/github'
+          service_account: 'github-actions@${{ env.PROJECT_ID }}.iam.gserviceaccount.com'
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+
+      - name: Get GKE credentials
+        run: |
+          gcloud container clusters get-credentials ${{ env.GKE_CLUSTER }} \
+            --zone ${{ env.GKE_ZONE }} \
+            --project ${{ env.PROJECT_ID }}
+
+      - name: Determine services to deploy
+        id: services
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            SERVICE="${{ github.event.inputs.service }}"
+          else
+            SERVICE="all"
+          fi
+          
+          case $SERVICE in
+            all)
+              echo "services=api processor crawler" >> $GITHUB_OUTPUT
+              ;;
+            api|processor|crawler)
+              echo "services=$SERVICE" >> $GITHUB_OUTPUT
+              ;;
+            *)
+              echo "Invalid service: $SERVICE"
+              exit 1
+              ;;
+          esac
+
+      - name: Build and deploy services
+        run: |
+          for service in ${{ steps.services.outputs.services }}; do
+            echo "=== Deploying $service ==="
+            
+            # Trigger Cloud Build for this service
+            gcloud builds submit --config=cloudbuild-${service}.yaml \
+              --substitutions=COMMIT_SHA=${{ github.sha }},BRANCH_NAME=${{ github.ref_name }} \
+              --async
+            
+            echo "Cloud Build triggered for $service"
+          done
+
+      - name: Wait for builds to complete
+        run: |
+          echo "Waiting for builds to complete..."
+          sleep 30
+          
+          # Check recent builds
+          gcloud builds list --limit=5 --format="table(id,status,source.repoSource.branchName,createTime)"
+
+      - name: Verify deployments
+        run: |
+          echo "=== Checking deployment status ==="
+          kubectl get deployments -n production
+          kubectl get pods -n production
+          
+          for service in ${{ steps.services.outputs.services }}; do
+            if kubectl get deployment mizzou-$service -n production &>/dev/null; then
+              echo "Checking rollout status for mizzou-$service..."
+              kubectl rollout status deployment/mizzou-$service -n production --timeout=5m || true
+            fi
+          done
+
+      - name: Post-deployment checks
+        run: |
+          echo "=== Post-deployment health checks ==="
+          
+          # Check API health if deployed
+          if [[ "${{ steps.services.outputs.services }}" =~ "api" ]]; then
+            API_POD=$(kubectl get pod -n production -l app=mizzou-api -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+            if [ -n "$API_POD" ]; then
+              echo "Testing API health endpoint..."
+              kubectl exec -n production $API_POD -- curl -f http://localhost:8000/health || echo "API health check failed"
+            fi
+          fi
+          
+          # Check processor if deployed
+          if [[ "${{ steps.services.outputs.services }}" =~ "processor" ]]; then
+            PROCESSOR_POD=$(kubectl get pod -n production -l app=mizzou-processor -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+            if [ -n "$PROCESSOR_POD" ]; then
+              echo "Checking processor database connection..."
+              kubectl exec -n production $PROCESSOR_POD -- python -c "from src.database import get_engine; engine = get_engine(); print('Database connection OK')" || echo "Database check failed"
+            fi
+          fi
+
+      - name: Deployment summary
+        if: always()
+        run: |
+          echo "=== Deployment Summary ==="
+          echo "Commit: ${{ github.sha }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Services: ${{ steps.services.outputs.services }}"
+          echo ""
+          echo "Deployment status:"
+          kubectl get deployments -n production -o wide
+          echo ""
+          echo "Pod status:"
+          kubectl get pods -n production -o wide
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Deployment failed for: ${{ steps.services.outputs.services }}"
+          echo "Check the logs above for details"
+          kubectl get events -n production --sort-by='.lastTimestamp' | tail -20
