@@ -99,35 +99,34 @@ def _export_articles(
     
     table_id = f"{PROJECT_ID}.{DATASET_ID}.articles"
     
-    # Query to fetch articles
+    # Query to fetch articles with proper joins through candidate_links
     query = text("""
         SELECT
             a.id,
             a.url,
-            a.source_id,
+            cl.source_id,
             a.title,
-            ARRAY_AGG(DISTINCT au.name) FILTER (WHERE au.name IS NOT NULL) as authors,
-            a.published_date,
-            a.discovered_at as discovered_date,
+            a.author as authors,
+            a.publish_date as published_date,
+            cl.discovered_at as discovered_date,
             a.extracted_at as extracted_date,
             a.text,
-            a.summary,
+            a.text_excerpt as summary,
             LENGTH(a.text) as word_count,
-            s.county,
-            s.state,
-            s.name as source_name,
+            cl.source_county as county,
+            'MO' as state,
+            cl.source_name,
             s.url as source_url,
-            s.type as source_type,
+            cl.source_type,
             a.status as extraction_status,
-            a.method as extraction_method,
+            a.extraction_version as extraction_method,
             a.created_at,
-            a.updated_at
+            a.created_at as updated_at
         FROM articles a
-        LEFT JOIN sources s ON a.source_id = s.id
-        LEFT JOIN article_authors aa ON a.id = aa.article_id
-        LEFT JOIN authors au ON aa.author_id = au.id
+        LEFT JOIN candidate_links cl ON a.candidate_link_id = cl.id
+        LEFT JOIN sources s ON cl.source_id = s.id
         WHERE a.extracted_at BETWEEN :start_date AND :end_date
-        GROUP BY a.id, s.id
+        GROUP BY a.id, cl.id, s.url
         ORDER BY a.id
         LIMIT :batch_size
     """)
