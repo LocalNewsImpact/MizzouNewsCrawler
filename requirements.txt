@@ -12,6 +12,7 @@ sqlalchemy>=2.0.0
 alembic>=1.12.0
 psycopg2-binary>=2.9.0  # PostgreSQL adapter for production
 cloud-sql-python-connector[pg8000]>=1.11.0  # Google Cloud SQL connector (replaces proxy sidecar)
+google-cloud-bigquery[pandas]>=3.13.0  # BigQuery client for analytics export
 
 # Papermill
 papermill>=2.4.0
