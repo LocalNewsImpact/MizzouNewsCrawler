@@ -11,3 +11,7 @@
 selenium>=4.10.0
 undetected-chromedriver>=3.5.0
 selenium-stealth>=1.0.6
+
+# Data export and analytics
+google-cloud-bigquery[pandas]>=3.13.0  # BigQuery export for analytics pipeline
+cloud-sql-python-connector[pg8000]>=1.11.0  # Cloud SQL connector for database access

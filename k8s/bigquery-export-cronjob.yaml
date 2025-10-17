@@ -26,7 +26,7 @@ spec:
           restartPolicy: Never
           containers:
           - name: bigquery-export
-            image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:latest
+            image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
             imagePullPolicy: Always
             command:
             - python
