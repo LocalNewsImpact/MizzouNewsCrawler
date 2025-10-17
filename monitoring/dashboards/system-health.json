@@ -176,14 +176,7 @@
             "yAxis": {
               "label": "Utilization",
               "scale": "LINEAR"
-            },
-            "thresholds": [
-              {
-                "value": 0.8,
-                "color": "YELLOW",
-                "direction": "ABOVE"
-              }
-            ]
+            }
           }
         }
       },
@@ -213,14 +206,7 @@
             "yAxis": {
               "label": "Utilization",
               "scale": "LINEAR"
-            },
-            "thresholds": [
-              {
-                "value": 0.9,
-                "color": "RED",
-                "direction": "ABOVE"
-              }
-            ]
+            }
           }
         }
       }

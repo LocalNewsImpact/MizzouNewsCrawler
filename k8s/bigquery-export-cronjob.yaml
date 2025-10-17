@@ -22,7 +22,7 @@ spec:
             app: bigquery-export
             component: analytics
         spec:
-          serviceAccountName: mizzou-app-sa
+          serviceAccountName: mizzou-app
           restartPolicy: Never
           containers:
           - name: bigquery-export

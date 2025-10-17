@@ -75,19 +75,7 @@
             "yAxis": {
               "label": "Success Rate",
               "scale": "LINEAR"
-            },
-            "thresholds": [
-              {
-                "value": 0.9,
-                "color": "YELLOW",
-                "direction": "BELOW"
-              },
-              {
-                "value": 0.8,
-                "color": "RED",
-                "direction": "BELOW"
-              }
-            ]
+            }
           }
         }
       },
@@ -181,19 +169,7 @@
             "yAxis": {
               "label": "Errors/sec",
               "scale": "LINEAR"
-            },
-            "thresholds": [
-              {
-                "value": 0.05,
-                "color": "YELLOW",
-                "direction": "ABOVE"
-              },
-              {
-                "value": 0.1,
-                "color": "RED",
-                "direction": "ABOVE"
-              }
-            ]
+            }
           }
         }
       }
