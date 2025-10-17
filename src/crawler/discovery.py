@@ -2010,23 +2010,28 @@ class NewsDiscovery:
                     # Respectful delay between sources
                     time.sleep(self.delay)
 
-                    # Persist a last discovery timestamp into source
-                    # metadata. Scheduling logic can use this when
-                    # candidate_links haven't yet been updated or when
-                    # processed_at is not present.
-                    try:
-                        self._update_source_meta(
-                            source_row.get("id"),
-                            {
-                                "last_discovery_at": datetime.utcnow().isoformat(),
-                            },
-                        )
-                    except Exception:
-                        # Don't let metadata write failures interrupt discovery
-                        logger.debug(
-                            "Failed to persist last_discovery_at for %s",
-                            source_row.get("id"),
-                        )
+                    # Only persist last_discovery_at if we actually found and
+                    # successfully stored new URLs. This prevents sources from
+                    # being marked as "discovered" when the process fails before
+                    # saving to candidate_links table.
+                    should_mark_discovered = (
+                        discovery_result.articles_new > 0
+                        and not discovery_result.is_technical_failure
+                    )
+                    if should_mark_discovered:
+                        try:
+                            self._update_source_meta(
+                                source_row.get("id"),
+                                {
+                                    "last_discovery_at": datetime.utcnow().isoformat(),
+                                },
+                            )
+                        except Exception:
+                            # Don't let metadata write failures interrupt discovery
+                            logger.debug(
+                                "Failed to persist last_discovery_at for %s",
+                                source_row.get("id"),
+                            )
 
                 except Exception as e:
                     # Print error to stdout for visibility
