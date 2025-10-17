@@ -38,11 +38,25 @@ spec:
             - --batch-size
             - "1000"
             env:
-            - name: DATABASE_URL
+            - name: USE_CLOUD_SQL_CONNECTOR
+              value: "true"
+            - name: CLOUD_SQL_INSTANCE
+              value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+            - name: DATABASE_USER
               valueFrom:
                 secretKeyRef:
-                  name: mizzou-secrets
-                  key: database-url
+                  name: cloudsql-db-credentials
+                  key: username
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: password
+            - name: DATABASE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: database
             - name: GOOGLE_CLOUD_PROJECT
               value: "mizzou-news-crawler"
             - name: APP_ENV

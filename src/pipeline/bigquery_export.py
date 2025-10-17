@@ -11,8 +11,7 @@ from typing import List, Dict, Any
 from google.cloud import bigquery
 from sqlalchemy import text
 
-from src.database import get_engine
-from src.config import APP_ENV
+from src.models.database import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +41,9 @@ def export_articles_to_bigquery(
     """
     logger.info(f"Starting BigQuery export for articles from last {days_back} days")
     
-    engine = get_engine()
+    # Create database manager (handles Cloud SQL Connector automatically)
+    db_manager = DatabaseManager()
+    engine = db_manager.engine
     bq_client = get_bigquery_client()
     
     # Calculate date range
