@@ -62,6 +62,9 @@ spec:
             secretKeyRef:
               name: cloudsql-db-credentials
               key: database
+        # Explicit DATABASE_URL to prevent SQLite fallback (Kubernetes will expand $(VAR) references)
+        - name: DATABASE_URL
+          value: "$(DATABASE_ENGINE)://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)"
         # Cloud SQL Connector configuration
         - name: USE_CLOUD_SQL_CONNECTOR
           value: "true"
