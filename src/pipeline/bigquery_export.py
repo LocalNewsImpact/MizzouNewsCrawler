@@ -99,8 +99,7 @@ def _export_articles(
     
     table_id = f"{PROJECT_ID}.{DATASET_ID}.articles"
     
-    # Query to fetch articles with proper joins through candidate_links
-    # All source info is available in candidate_links, no need to join sources table
+    # Query to fetch articles with candidate_links for source info
     query = text("""
         SELECT
             a.id,
@@ -113,7 +112,10 @@ def _export_articles(
             a.extracted_at as extracted_date,
             a.text,
             a.text_excerpt as summary,
-            LENGTH(a.text) as word_count,
+            CASE WHEN a.text IS NOT NULL 
+                 THEN LENGTH(a.text) 
+                 ELSE 0 
+            END as word_count,
             cl.source_county as county,
             'MO' as state,
             cl.source_name,
@@ -126,6 +128,7 @@ def _export_articles(
         FROM articles a
         LEFT JOIN candidate_links cl ON a.candidate_link_id = cl.id
         WHERE a.extracted_at BETWEEN :start_date AND :end_date
+            AND a.extracted_at IS NOT NULL
         ORDER BY a.id
         LIMIT :batch_size
     """)
@@ -224,10 +227,11 @@ def _export_cin_labels(
             a.url as article_url,
             a.title as article_title,
             a.publish_date as published_date,
-            l.created_at
+            l.applied_at as created_at
         FROM article_labels l
         JOIN articles a ON l.article_id = a.id
         WHERE a.extracted_at BETWEEN :start_date AND :end_date
+            AND a.extracted_at IS NOT NULL
         ORDER BY l.id
         LIMIT :batch_size
     """)
@@ -300,6 +304,7 @@ def _export_entities(
         FROM article_entities e
         JOIN articles a ON e.article_id = a.id
         WHERE a.extracted_at BETWEEN :start_date AND :end_date
+            AND a.extracted_at IS NOT NULL
         ORDER BY e.id
         LIMIT :batch_size
     """)
