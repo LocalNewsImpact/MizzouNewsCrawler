@@ -1,0 +1,11 @@
+[
+  {"name": "article_id", "type": "STRING", "mode": "REQUIRED", "description": "Article UUID"},
+  {"name": "label", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "confidence", "type": "FLOAT"},
+  {"name": "version", "type": "STRING"},
+  {"name": "model", "type": "STRING"},
+  {"name": "article_url", "type": "STRING"},
+  {"name": "article_title", "type": "STRING"},
+  {"name": "published_date", "type": "TIMESTAMP"},
+  {"name": "created_at", "type": "TIMESTAMP"}
+]

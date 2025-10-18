@@ -1,0 +1,22 @@
+[
+  {"name": "id", "type": "STRING", "mode": "REQUIRED", "description": "Article UUID from PostgreSQL"},
+  {"name": "url", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "source_id", "type": "STRING", "description": "Source UUID from PostgreSQL"},
+  {"name": "title", "type": "STRING"},
+  {"name": "authors", "type": "STRING", "description": "Author name (single string, not array)"},
+  {"name": "published_date", "type": "TIMESTAMP", "description": "Full timestamp with timezone"},
+  {"name": "discovered_date", "type": "TIMESTAMP"},
+  {"name": "extracted_date", "type": "TIMESTAMP"},
+  {"name": "text", "type": "STRING", "description": "Full article text"},
+  {"name": "summary", "type": "STRING", "description": "Text excerpt/summary"},
+  {"name": "word_count", "type": "INTEGER"},
+  {"name": "county", "type": "STRING"},
+  {"name": "state", "type": "STRING"},
+  {"name": "source_name", "type": "STRING"},
+  {"name": "source_url", "type": "STRING"},
+  {"name": "source_type", "type": "STRING"},
+  {"name": "extraction_status", "type": "STRING"},
+  {"name": "extraction_method", "type": "STRING", "description": "extraction_version from PostgreSQL"},
+  {"name": "created_at", "type": "TIMESTAMP"},
+  {"name": "updated_at", "type": "TIMESTAMP"}
+]

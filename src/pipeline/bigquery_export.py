@@ -144,15 +144,35 @@ def _export_articles(
     # Convert to BigQuery format
     bq_rows = []
     for row in rows:
+        # Convert UUIDs to strings
+        row_id = str(row.id) if row.id else None
+        source_id = str(row.source_id) if row.source_id else None
+        
+        # Handle authors field - ensure it's always a string, never an array
+        authors = row.authors
+        if isinstance(authors, list):
+            authors = ", ".join(authors) if authors else None
+        elif not authors:
+            authors = None
+            
         bq_row = {
-            "id": row.id,
+            "id": row_id,
             "url": row.url,
-            "source_id": row.source_id,
+            "source_id": source_id,
             "title": row.title,
-            "authors": row.authors or [],
-            "published_date": row.published_date.isoformat() if row.published_date else None,
-            "discovered_date": row.discovered_date.isoformat() if row.discovered_date else None,
-            "extracted_date": row.extracted_date.isoformat() if row.extracted_date else None,
+            "authors": authors,
+            "published_date": (
+                row.published_date.isoformat()
+                if row.published_date else None
+            ),
+            "discovered_date": (
+                row.discovered_date.isoformat()
+                if row.discovered_date else None
+            ),
+            "extracted_date": (
+                row.extracted_date.isoformat()
+                if row.extracted_date else None
+            ),
             "text": row.text,
             "summary": row.summary,
             "word_count": row.word_count,
@@ -163,8 +183,14 @@ def _export_articles(
             "source_type": row.source_type,
             "extraction_status": row.extraction_status,
             "extraction_method": row.extraction_method,
-            "created_at": row.created_at.isoformat() if row.created_at else None,
-            "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+            "created_at": (
+                row.created_at.isoformat()
+                if row.created_at else None
+            ),
+            "updated_at": (
+                row.updated_at.isoformat()
+                if row.updated_at else None
+            ),
         }
         bq_rows.append(bq_row)
     
@@ -222,18 +248,25 @@ def _export_cin_labels(
     
     bq_rows = []
     for row in rows:
+        # Convert UUIDs to strings
+        article_id = str(row.article_id) if row.article_id else None
+        
         bq_row = {
-            "article_id": row.article_id,
+            "article_id": article_id,
             "label": row.label,
             "confidence": float(row.confidence) if row.confidence else None,
             "version": row.version,
             "model": row.model,
             "article_url": row.article_url,
             "article_title": row.article_title,
-            "published_date": row.published_date.isoformat() if row.published_date else None,
-            "county": row.county,
-            "labeled_at": row.labeled_at.isoformat() if row.labeled_at else None,
-            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "published_date": (
+                row.published_date.isoformat()
+                if row.published_date else None
+            ),
+            "created_at": (
+                row.created_at.isoformat()
+                if row.created_at else None
+            ),
         }
         bq_rows.append(bq_row)
     
@@ -290,18 +323,22 @@ def _export_entities(
     
     bq_rows = []
     for row in rows:
+        # Convert UUIDs to strings
+        article_id = str(row.article_id) if row.article_id else None
+        
         bq_row = {
-            "article_id": row.article_id,
+            "article_id": article_id,
             "entity_type": row.entity_type,
             "entity_text": row.entity_text,
             "confidence": float(row.confidence) if row.confidence else None,
-            "model": row.model,
+            "start_char": row.start_char,
+            "end_char": row.end_char,
             "article_url": row.article_url,
             "article_title": row.article_title,
-            "published_date": row.published_date.isoformat() if row.published_date else None,
-            "county": row.county,
-            "extracted_at": row.extracted_at.isoformat() if row.extracted_at else None,
-            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "created_at": (
+                row.created_at.isoformat()
+                if row.created_at else None
+            ),
         }
         bq_rows.append(bq_row)
     
