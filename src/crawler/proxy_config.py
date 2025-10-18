@@ -191,9 +191,10 @@ class ProxyManager:
         else:
             decodo_port = os.getenv("DECODO_PORT", "10000")
         
-        # Decodo URL with credentials - using HTTPS for encrypted proxy auth
+        # Decodo URL with credentials - using HTTP (not HTTPS)
+        # HTTP proxies handle HTTPS via CONNECT tunneling
         decodo_url = (
-            f"https://{decodo_username}:{decodo_password}@"
+            f"http://{decodo_username}:{decodo_password}@"
             f"{decodo_host}:{decodo_port}"
         )
         

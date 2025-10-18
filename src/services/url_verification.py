@@ -21,6 +21,10 @@ import requests
 from requests import Session
 from requests.exceptions import RequestException, Timeout
 from sqlalchemy import text
+import urllib3
+
+# Suppress InsecureRequestWarning for proxies without SSL certs
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Add the src directory to the path
 sys.path.insert(0, str(Path(__file__).parent.parent))

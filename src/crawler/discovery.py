@@ -21,8 +21,12 @@ from urllib.parse import urljoin, urlparse
 import feedparser  # type: ignore[import]
 import pandas as pd
 import requests
+import urllib3
 from newspaper import Config, build  # type: ignore[import]
 from sqlalchemy import text
+
+# Suppress InsecureRequestWarning for proxies without SSL certs
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 from .scheduling import parse_frequency_to_days
 
