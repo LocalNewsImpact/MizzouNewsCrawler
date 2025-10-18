@@ -297,15 +297,30 @@ def _export_articles(
 def _export_cin_labels(
     engine,
     bq_client: bigquery.Client,
-    start_date: datetime,
-    end_date: datetime,
+    start_date: datetime | None,
+    end_date: datetime | None,
     batch_size: int
 ) -> int:
     """Export CIN labels to BigQuery."""
     
     table_id = f"{PROJECT_ID}.{DATASET_ID}.cin_labels"
     
-    query = text("""
+    # Build WHERE clause based on whether dates are provided
+    if start_date and end_date:
+        where_clause = """
+        WHERE a.extracted_at BETWEEN :start_date AND :end_date
+            AND a.extracted_at IS NOT NULL
+        """
+        params = {
+            "start_date": start_date,
+            "end_date": end_date,
+            "batch_size": batch_size
+        }
+    else:
+        where_clause = "WHERE a.extracted_at IS NOT NULL"
+        params = {"batch_size": batch_size}
+    
+    query = text(f"""
         SELECT
             l.article_id,
             l.primary_label as label,
@@ -318,17 +333,13 @@ def _export_cin_labels(
             l.applied_at as created_at
         FROM article_labels l
         JOIN articles a ON l.article_id = a.id
-        WHERE a.extracted_at BETWEEN :start_date AND :end_date
-            AND a.extracted_at IS NOT NULL
+        {where_clause}
         ORDER BY l.id
         LIMIT :batch_size
     """)
     
     with engine.connect() as conn:
-        result = conn.execute(
-            query,
-            {"start_date": start_date, "end_date": end_date, "batch_size": batch_size}
-        )
+        result = conn.execute(query, params)
         rows = result.fetchall()
     
     if not rows:
@@ -370,15 +381,30 @@ def _export_cin_labels(
 def _export_entities(
     engine,
     bq_client: bigquery.Client,
-    start_date: datetime,
-    end_date: datetime,
+    start_date: datetime | None,
+    end_date: datetime | None,
     batch_size: int
 ) -> int:
     """Export entities to BigQuery."""
     
     table_id = f"{PROJECT_ID}.{DATASET_ID}.entities"
     
-    query = text("""
+    # Build WHERE clause based on whether dates are provided
+    if start_date and end_date:
+        where_clause = """
+        WHERE a.extracted_at BETWEEN :start_date AND :end_date
+            AND a.extracted_at IS NOT NULL
+        """
+        params = {
+            "start_date": start_date,
+            "end_date": end_date,
+            "batch_size": batch_size
+        }
+    else:
+        where_clause = "WHERE a.extracted_at IS NOT NULL"
+        params = {"batch_size": batch_size}
+    
+    query = text(f"""
         SELECT
             e.article_id,
             e.entity_label as entity_type,
@@ -391,17 +417,13 @@ def _export_entities(
             e.created_at
         FROM article_entities e
         JOIN articles a ON e.article_id = a.id
-        WHERE a.extracted_at BETWEEN :start_date AND :end_date
-            AND a.extracted_at IS NOT NULL
+        {where_clause}
         ORDER BY e.id
         LIMIT :batch_size
     """)
     
     with engine.connect() as conn:
-        result = conn.execute(
-            query,
-            {"start_date": start_date, "end_date": end_date, "batch_size": batch_size}
-        )
+        result = conn.execute(query, params)
         rows = result.fetchall()
     
     if not rows:
