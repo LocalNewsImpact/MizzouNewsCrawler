@@ -20,16 +20,23 @@ def handle_bigquery_export_command(args: argparse.Namespace) -> int:
     """
     days_back = args.days_back
     batch_size = args.batch_size
+    full_export = args.full_export
     
-    logger.info(
-        f"Starting BigQuery export: days_back={days_back}, "
-        f"batch_size={batch_size}"
-    )
+    if full_export:
+        logger.info(
+            f"Starting FULL BigQuery export: batch_size={batch_size}"
+        )
+    else:
+        logger.info(
+            f"Starting BigQuery export: days_back={days_back}, "
+            f"batch_size={batch_size}"
+        )
     
     try:
         stats = export_articles_to_bigquery(
             days_back=days_back,
-            batch_size=batch_size
+            batch_size=batch_size,
+            full_export=full_export
         )
         
         logger.info("BigQuery export completed successfully")
@@ -79,6 +86,12 @@ def add_bigquery_export_parser(
         type=int,
         default=1000,
         help="Number of rows to process at once (default: 1000)",
+    )
+    
+    parser.add_argument(
+        "--full-export",
+        action="store_true",
+        help="Export all articles regardless of date (ignores --days-back)",
     )
     
     parser.set_defaults(func=handle_bigquery_export_command)
