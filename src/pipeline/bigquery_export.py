@@ -217,8 +217,8 @@ def _export_cin_labels(
     query = text("""
         SELECT
             l.article_id,
-            l.label,
-            l.confidence,
+            l.primary_label as label,
+            l.primary_label_confidence as confidence,
             l.label_version as version,
             l.model_version as model,
             a.url as article_url,
@@ -289,11 +289,11 @@ def _export_entities(
     query = text("""
         SELECT
             e.article_id,
-            e.entity_type,
+            e.entity_label as entity_type,
             e.entity_text,
-            e.confidence_score as confidence,
-            e.start_char,
-            e.end_char,
+            e.confidence,
+            NULL as start_char,
+            NULL as end_char,
             a.url as article_url,
             a.title as article_title,
             e.created_at
