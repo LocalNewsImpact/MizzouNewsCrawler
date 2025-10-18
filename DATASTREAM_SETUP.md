@@ -89,18 +89,16 @@ Once created, click "Start" on the stream. Datastream will:
 1. Backfill all historical data (5,940 articles + labels + entities)
 2. Then continuously replicate new changes in real-time
 
-### 7. Clean Up Old Export Code
+### 7. Clean Up Old Export Infrastructure
 
-Once Datastream is working, you can:
-1. Delete the BigQuery export cronjob:
+Once Datastream is working and verified, you can clean up the old infrastructure:
+
+1. **Delete the BigQuery export cronjob** (if it still exists in Kubernetes):
    ```bash
    kubectl delete cronjob bigquery-export -n production
    ```
-
-2. Remove the export code:
-   - `src/pipeline/bigquery_export.py`
-   - `src/cli/commands/bigquery_export.py`
-   - Related tests
+   
+   Note: The manual export code has already been removed from the repository.
 
 ## Monitoring
 
@@ -130,5 +128,5 @@ Datastream pricing (approximate):
 
 1. Follow the setup steps above
 2. Verify data is flowing to BigQuery
-3. Delete the manual export cronjob and code
+3. Once verified, delete the manual export cronjob from Kubernetes (if still running)
 4. Enjoy automatic real-time replication!
