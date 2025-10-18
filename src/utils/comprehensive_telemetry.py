@@ -256,12 +256,21 @@ class ComprehensiveExtractionTelemetry:
 
     def _ensure_telemetry_tables(self):
         """Create telemetry tables if they don't exist."""
+        # Detect if we're using PostgreSQL or SQLite
+        is_postgres = DATABASE_URL.startswith("postgresql")
+        
+        # Use appropriate auto-increment syntax
+        if is_postgres:
+            auto_id = "SERIAL PRIMARY KEY"
+        else:
+            auto_id = "INTEGER PRIMARY KEY AUTOINCREMENT"
+        
         with self._store.connection() as conn:
             # Enhanced extraction telemetry table
             conn.execute(
-                """
+                f"""
                 CREATE TABLE IF NOT EXISTS extraction_telemetry_v2 (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id {auto_id},
                     operation_id TEXT NOT NULL,
                     article_id TEXT NOT NULL,
                     url TEXT NOT NULL,
@@ -346,9 +355,9 @@ class ComprehensiveExtractionTelemetry:
 
             # HTTP error tracking
             conn.execute(
-                """
+                f"""
                 CREATE TABLE IF NOT EXISTS http_error_summary (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id {auto_id},
                     host TEXT NOT NULL,
                     status_code INTEGER NOT NULL,
                     error_type TEXT NOT NULL,
@@ -362,9 +371,9 @@ class ComprehensiveExtractionTelemetry:
             )
 
             conn.execute(
-                """
+                f"""
                 CREATE TABLE IF NOT EXISTS content_type_detection_telemetry (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id {auto_id},
                     article_id TEXT NOT NULL,
                     operation_id TEXT,
                     url TEXT NOT NULL,
