@@ -67,12 +67,30 @@ def export_articles_to_bigquery(
     }
     
     try:
-        # Export articles
-        articles_exported = _export_articles(
-            engine, bq_client, start_date, end_date, batch_size
-        )
-        stats["articles_exported"] = articles_exported
-        logger.info(f"Exported {articles_exported} articles")
+        # Export articles (loop through all batches for full export)
+        if full_export:
+            total_articles = 0
+            last_id = None
+            while True:
+                articles_exported, last_exported_id = _export_articles(
+                    engine, bq_client, start_date, end_date, batch_size, last_id
+                )
+                if articles_exported == 0:
+                    break
+                total_articles += articles_exported
+                last_id = last_exported_id
+                logger.info(
+                    f"Exported batch of {articles_exported} articles "
+                    f"(total: {total_articles}, last_id: {last_id})"
+                )
+            stats["articles_exported"] = total_articles
+            logger.info(f"Full export complete: {total_articles} articles total")
+        else:
+            articles_exported, _ = _export_articles(
+                engine, bq_client, start_date, end_date, batch_size, None
+            )
+            stats["articles_exported"] = articles_exported
+            logger.info(f"Exported {articles_exported} articles")
         
         # Export CIN labels
         cin_labels_exported = _export_cin_labels(
@@ -102,22 +120,35 @@ def _export_articles(
     bq_client: bigquery.Client,
     start_date: datetime | None,
     end_date: datetime | None,
-    batch_size: int
-) -> int:
-    """Export articles table to BigQuery."""
+    batch_size: int,
+    last_id: str | None = None
+) -> tuple[int, str | None]:
+    """Export articles table to BigQuery.
+    
+    Returns:
+        Tuple of (number of articles exported, last article ID)
+    """
     
     table_id = f"{PROJECT_ID}.{DATASET_ID}.articles"
     
-    # Build WHERE clause based on whether dates are provided
+    # Build WHERE clause based on parameters
+    where_clauses = ["a.extracted_at IS NOT NULL"]
+    
     if start_date and end_date:
-        where_clause = """
-        WHERE a.extracted_at BETWEEN :start_date AND :end_date
-            AND a.extracted_at IS NOT NULL
-        """
-        params = {"start_date": start_date, "end_date": end_date, "batch_size": batch_size}
+        where_clauses.append("a.extracted_at BETWEEN :start_date AND :end_date")
+        params = {
+            "start_date": start_date,
+            "end_date": end_date,
+            "batch_size": batch_size
+        }
     else:
-        where_clause = "WHERE a.extracted_at IS NOT NULL"
         params = {"batch_size": batch_size}
+    
+    if last_id:
+        where_clauses.append("a.id > :last_id")
+        params["last_id"] = last_id
+    
+    where_clause = "WHERE " + " AND ".join(where_clauses)
     
     # Query to fetch articles with candidate_links for source info
     query = text(f"""
@@ -214,7 +245,10 @@ def _export_articles(
         bq_rows.append(bq_row)
     
     if not bq_rows:
-        return 0
+        return 0, None
+    
+    # Track the last article ID for pagination
+    last_exported_id = bq_rows[-1]["id"]
     
     # Get existing article IDs to avoid duplicates
     existing_ids_query = f"""
@@ -244,7 +278,7 @@ def _export_articles(
     
     if not new_rows:
         logger.info(f"All {len(bq_rows)} articles already exist in BigQuery")
-        return 0
+        return 0, last_exported_id
     
     logger.info(
         f"Inserting {len(new_rows)} new articles "
@@ -257,7 +291,7 @@ def _export_articles(
         logger.error(f"Errors inserting articles into BigQuery: {errors}")
         raise Exception(f"BigQuery insert failed: {errors}")
     
-    return len(new_rows)
+    return len(new_rows), last_exported_id
 
 
 def _export_cin_labels(
