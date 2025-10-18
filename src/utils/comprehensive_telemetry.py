@@ -6,6 +6,7 @@ methods, publishers, and error conditions to optimize extraction strategies.
 """
 
 import json
+import logging
 import time
 from collections.abc import Sequence
 from datetime import datetime
@@ -15,6 +16,8 @@ from urllib.parse import urlparse
 
 from src.config import DATABASE_URL
 from src.telemetry.store import TelemetryStore, get_store
+
+logger = logging.getLogger(__name__)
 
 
 class ExtractionMetrics:
@@ -252,7 +255,11 @@ class ComprehensiveExtractionTelemetry:
             else:
                 self._store = get_store(DATABASE_URL)
 
-        self._ensure_telemetry_tables()
+        try:
+            self._ensure_telemetry_tables()
+        except Exception as e:
+            logger.warning(f"Failed to initialize telemetry tables: {e}")
+            logger.warning("Continuing without telemetry...")
 
     def _ensure_telemetry_tables(self):
         """Create telemetry tables if they don't exist."""
