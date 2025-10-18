@@ -530,9 +530,14 @@ class NewsDiscovery:
                 merged = dict(cur_meta or {})
                 merged.update(updates or {})
 
-                conn.execute(
-                    text("UPDATE sources SET metadata = :meta WHERE id = :id"),
-                    {"meta": json.dumps(merged), "id": source_id},
+                # TODO: sources table no longer exists, using candidate_links
+                # conn.execute(
+                #     text("UPDATE sources SET metadata = :meta WHERE id = :id"),
+                #     {"meta": json.dumps(merged), "id": source_id},
+                # )
+                logger.debug(
+                    "Skipping metadata update (sources table removed): %s",
+                    source_id,
                 )
         except Exception:
             logger.debug(

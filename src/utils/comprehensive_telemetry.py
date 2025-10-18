@@ -14,7 +14,6 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from src.config import DATABASE_URL
 from src.telemetry.store import TelemetryStore, get_store
 
 logger = logging.getLogger(__name__)
@@ -243,17 +242,25 @@ class ComprehensiveExtractionTelemetry:
         """Initialize telemetry system."""
         if store is not None:
             self._store = store
+            self._database_url = None  # Unknown when store provided directly
         else:
             if db_path is not None:
                 resolved = Path(db_path)
                 resolved.parent.mkdir(parents=True, exist_ok=True)
                 database_url = f"sqlite:///{resolved}"
+                self._database_url = database_url
                 self._store = TelemetryStore(
                     database=database_url,
                     async_writes=False,
                 )
             else:
-                self._store = get_store(DATABASE_URL)
+                # Use DatabaseManager to get the correct database URL
+                # This handles Cloud SQL Connector automatically
+                from src.models.database import DatabaseManager
+                db = DatabaseManager()
+                database_url = str(db.engine.url)
+                self._database_url = database_url
+                self._store = get_store(database_url)
 
         try:
             self._ensure_telemetry_tables()
@@ -264,7 +271,10 @@ class ComprehensiveExtractionTelemetry:
     def _ensure_telemetry_tables(self):
         """Create telemetry tables if they don't exist."""
         # Detect if we're using PostgreSQL or SQLite
-        is_postgres = DATABASE_URL.startswith("postgresql")
+        is_postgres = (
+            self._database_url and
+            self._database_url.startswith("postgresql")
+        )
         
         # Use appropriate auto-increment syntax
         if is_postgres:

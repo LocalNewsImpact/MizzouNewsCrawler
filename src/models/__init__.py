@@ -47,6 +47,25 @@ from src.models.telemetry import (  # noqa: E402
 )
 
 
+class SourceMetadata(Base):
+    """Metadata about news sources including bot sensitivity."""
+
+    __tablename__ = "source_metadata"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    host = Column(String, unique=True, nullable=False, index=True)
+    bot_sensitivity = Column(Integer, default=1)  # 1-10 scale
+    last_sensitivity_update = Column(DateTime)
+    last_crawl_attempt = Column(DateTime)
+    last_successful_crawl = Column(DateTime)
+    consecutive_failures = Column(Integer, default=0)
+    meta = Column(JSON)
+    created_at = Column(
+        DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
+    )
+    updated_at = Column(DateTime, onupdate=datetime.utcnow)
+
+
 class CandidateLink(Base):
     """Links discovered during crawling with fetch status tracking."""
 
