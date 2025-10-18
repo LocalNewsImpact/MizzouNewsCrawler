@@ -30,7 +30,6 @@ from typing import Any
 import requests
 from sqlalchemy.exc import SQLAlchemyError
 
-from src.config import DATABASE_URL
 from src.telemetry.store import TelemetryStore, get_store
 
 DB_ERRORS = (sqlite3.OperationalError, SQLAlchemyError)
@@ -571,9 +570,16 @@ class OperationTracker:
         store: Any | None = None,
         *,
         telemetry_reporter: TelemetryReporter | None = None,
-        database_url: str = DATABASE_URL,
+        database_url: str | None = None,
     ) -> None:
         self.logger = logging.getLogger(__name__)
+        
+        # If no database_url provided, use DatabaseManager to get Cloud SQL connection
+        if database_url is None:
+            from src.models.database import DatabaseManager
+            db = DatabaseManager()
+            database_url = str(db.engine.url)
+        
         self.database_url = database_url
         self._store = self._resolve_store(store, database_url)
         if not getattr(self._store, "async_writes", True):
@@ -2043,13 +2049,19 @@ class OperationContext:
 
 
 def create_telemetry_system(
-    database_url: str = DATABASE_URL,
+    database_url: str | None = None,
     *,
     api_base_url: str | None = None,
     api_key: str | None = None,
     store: TelemetryStore | None = None,
 ) -> OperationTracker:
     """Factory function to create telemetry system."""
+    # If no database_url provided, use DatabaseManager to get Cloud SQL connection
+    if database_url is None:
+        from src.models.database import DatabaseManager
+        db = DatabaseManager()
+        database_url = str(db.engine.url)
+    
     reporter = None
     if api_base_url:
         reporter = TelemetryReporter(api_base_url, api_key)
