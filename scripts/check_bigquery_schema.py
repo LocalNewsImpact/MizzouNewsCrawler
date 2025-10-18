@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Check what tables and columns actually exist in PostgreSQL database.
-Run this BEFORE writing BigQuery export queries!
+Useful for verifying database schema and understanding table structures.
 """
 import os
 import sys
@@ -36,10 +36,10 @@ def check_schema():
             print(f"  {col['name']:30} {col_type:20} {nullable}")
     
     print("\n" + "="*80)
-    print("CHECKING SPECIFIC TABLES FOR BIGQUERY EXPORT:")
+    print("CHECKING MAIN TABLES:")
     print("="*80)
     
-    # Check if tables needed for export exist
+    # Check if main tables exist
     export_tables = ['articles', 'article_labels', 'article_entities']
     
     for table in export_tables:

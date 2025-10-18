@@ -1,6 +1,9 @@
 # Setting up Google Cloud Datastream for PostgreSQL → BigQuery
 
-**Replaces the manual BigQuery export script with Google's managed CDC service.**
+**✅ This replaces the manual BigQuery export code with Google's managed CDC service.**
+
+The manual export code (`src/pipeline/bigquery_export.py`, CLI command, and CronJob) has been removed.
+This document provides the setup instructions for the replacement: Google Cloud Datastream.
 
 ## What Datastream Does
 - Continuously replicates Cloud SQL PostgreSQL to BigQuery in real-time
