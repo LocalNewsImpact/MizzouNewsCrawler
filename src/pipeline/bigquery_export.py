@@ -219,17 +219,14 @@ def _export_cin_labels(
             l.article_id,
             l.label,
             l.confidence,
-            l.version,
-            l.model,
+            l.label_version as version,
+            l.model_version as model,
             a.url as article_url,
             a.title as article_title,
-            a.published_date,
-            s.county,
-            l.created_at as labeled_at,
+            a.publish_date as published_date,
             l.created_at
-        FROM cin_labels l
+        FROM article_labels l
         JOIN articles a ON l.article_id = a.id
-        LEFT JOIN sources s ON a.source_id = s.id
         WHERE a.extracted_at BETWEEN :start_date AND :end_date
         ORDER BY l.id
         LIMIT :batch_size
@@ -294,17 +291,14 @@ def _export_entities(
             e.article_id,
             e.entity_type,
             e.entity_text,
-            e.confidence,
-            e.model,
+            e.confidence_score as confidence,
+            e.start_char,
+            e.end_char,
             a.url as article_url,
             a.title as article_title,
-            a.published_date,
-            s.county,
-            e.created_at as extracted_at,
             e.created_at
-        FROM entities e
+        FROM article_entities e
         JOIN articles a ON e.article_id = a.id
-        LEFT JOIN sources s ON a.source_id = s.id
         WHERE a.extracted_at BETWEEN :start_date AND :end_date
         ORDER BY e.id
         LIMIT :batch_size
