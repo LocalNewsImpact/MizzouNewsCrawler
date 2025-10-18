@@ -189,7 +189,7 @@ def _export_articles(
     
     if not rows:
         logger.info("No articles to export")
-        return 0
+        return 0, last_id  # Return tuple with last_id
     
     # Convert to BigQuery format
     bq_rows = []
