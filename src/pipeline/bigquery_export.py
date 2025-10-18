@@ -6,7 +6,7 @@ Exports article data from PostgreSQL to BigQuery for analytics.
 
 import logging
 from datetime import datetime, timedelta
-from typing import List, Dict, Any
+from typing import Dict
 
 from google.cloud import bigquery
 from sqlalchemy import text
@@ -27,28 +27,37 @@ def get_bigquery_client() -> bigquery.Client:
 
 def export_articles_to_bigquery(
     days_back: int = 7,
-    batch_size: int = 1000
+    batch_size: int = 1000,
+    full_export: bool = False
 ) -> Dict[str, int]:
     """
     Export articles from PostgreSQL to BigQuery.
     
     Args:
-        days_back: Number of days to look back for articles
+        days_back: Number of days to look back for articles (ignored if full_export=True)
         batch_size: Number of rows to process at once
+        full_export: If True, export all articles regardless of date
         
     Returns:
         Dictionary with export statistics
     """
-    logger.info(f"Starting BigQuery export for articles from last {days_back} days")
+    if full_export:
+        logger.info("Starting full BigQuery export (all articles)")
+    else:
+        logger.info(f"Starting BigQuery export for articles from last {days_back} days")
     
     # Create database manager (handles Cloud SQL Connector automatically)
     db_manager = DatabaseManager()
     engine = db_manager.engine
     bq_client = get_bigquery_client()
     
-    # Calculate date range
-    end_date = datetime.utcnow()
-    start_date = end_date - timedelta(days=days_back)
+    # Calculate date range (or None for full export)
+    if full_export:
+        start_date = None
+        end_date = None
+    else:
+        end_date = datetime.utcnow()
+        start_date = end_date - timedelta(days=days_back)
     
     stats = {
         "articles_exported": 0,
@@ -91,16 +100,27 @@ def export_articles_to_bigquery(
 def _export_articles(
     engine,
     bq_client: bigquery.Client,
-    start_date: datetime,
-    end_date: datetime,
+    start_date: datetime | None,
+    end_date: datetime | None,
     batch_size: int
 ) -> int:
     """Export articles table to BigQuery."""
     
     table_id = f"{PROJECT_ID}.{DATASET_ID}.articles"
     
+    # Build WHERE clause based on whether dates are provided
+    if start_date and end_date:
+        where_clause = """
+        WHERE a.extracted_at BETWEEN :start_date AND :end_date
+            AND a.extracted_at IS NOT NULL
+        """
+        params = {"start_date": start_date, "end_date": end_date, "batch_size": batch_size}
+    else:
+        where_clause = "WHERE a.extracted_at IS NOT NULL"
+        params = {"batch_size": batch_size}
+    
     # Query to fetch articles with candidate_links for source info
-    query = text("""
+    query = text(f"""
         SELECT
             a.id,
             a.url,
@@ -112,9 +132,9 @@ def _export_articles(
             a.extracted_at as extracted_date,
             a.text,
             a.text_excerpt as summary,
-            CASE WHEN a.text IS NOT NULL 
-                 THEN LENGTH(a.text) 
-                 ELSE 0 
+            CASE WHEN a.text IS NOT NULL
+                 THEN LENGTH(a.text)
+                 ELSE 0
             END as word_count,
             cl.source_county as county,
             'MO' as state,
@@ -127,17 +147,13 @@ def _export_articles(
             a.created_at as updated_at
         FROM articles a
         LEFT JOIN candidate_links cl ON a.candidate_link_id = cl.id
-        WHERE a.extracted_at BETWEEN :start_date AND :end_date
-            AND a.extracted_at IS NOT NULL
+        {where_clause}
         ORDER BY a.id
         LIMIT :batch_size
     """)
     
     with engine.connect() as conn:
-        result = conn.execute(
-            query,
-            {"start_date": start_date, "end_date": end_date, "batch_size": batch_size}
-        )
+        result = conn.execute(query, params)
         rows = result.fetchall()
     
     if not rows:
@@ -197,13 +213,51 @@ def _export_articles(
         }
         bq_rows.append(bq_row)
     
-    # Insert into BigQuery
-    errors = bq_client.insert_rows_json(table_id, bq_rows)
+    if not bq_rows:
+        return 0
+    
+    # Get existing article IDs to avoid duplicates
+    existing_ids_query = f"""
+    SELECT id
+    FROM `{table_id}`
+    WHERE id IN UNNEST(@article_ids)
+    """
+    
+    article_ids = [row["id"] for row in bq_rows]
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ArrayQueryParameter("article_ids", "STRING", article_ids)
+        ]
+    )
+    
+    existing_ids = set()
+    try:
+        query_job = bq_client.query(existing_ids_query, job_config=job_config)
+        for row in query_job:
+            existing_ids.add(row.id)
+    except Exception as e:
+        logger.warning(f"Could not check for existing articles: {e}")
+        # Continue anyway - worst case we get duplicates
+    
+    # Filter out articles that already exist
+    new_rows = [row for row in bq_rows if row["id"] not in existing_ids]
+    
+    if not new_rows:
+        logger.info(f"All {len(bq_rows)} articles already exist in BigQuery")
+        return 0
+    
+    logger.info(
+        f"Inserting {len(new_rows)} new articles "
+        f"(skipping {len(existing_ids)} existing)"
+    )
+    
+    # Insert only new rows
+    errors = bq_client.insert_rows_json(table_id, new_rows)
     if errors:
         logger.error(f"Errors inserting articles into BigQuery: {errors}")
         raise Exception(f"BigQuery insert failed: {errors}")
     
-    return len(bq_rows)
+    return len(new_rows)
 
 
 def _export_cin_labels(
