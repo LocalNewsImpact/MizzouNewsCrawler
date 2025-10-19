@@ -137,6 +137,20 @@ steps:
       - '--namespace=production'
     waitFor: ['get-gke-credentials']
 
+  # Force a rollout restart to ensure new image is pulled
+  # This handles case where same tag has new image digest
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'restart-processor'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=us-central1-a'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=mizzou-cluster'
+    args:
+      - 'rollout'
+      - 'restart'
+      - 'deployment/mizzou-processor'
+      - '--namespace=production'
+    waitFor: ['force-processor-update']
+
 images:
   - '${_REGISTRY}/processor:${SHORT_SHA}'
   - '${_REGISTRY}/processor:v${_RELEASE_VERSION}'
