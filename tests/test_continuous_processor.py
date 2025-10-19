@@ -319,7 +319,7 @@ class TestProcessEntityExtraction:
         
         assert result is False
 
-    @patch("orchestration.continuous_processor.handle_entity_extraction_command")
+    @patch("src.cli.commands.entity_extraction.handle_entity_extraction_command")
     @patch("orchestration.continuous_processor.get_cached_entity_extractor")
     def test_process_entity_extraction_calls_function_directly(
         self, mock_get_extractor, mock_handle_command
@@ -348,7 +348,7 @@ class TestProcessEntityExtraction:
         assert call_args[1]["extractor"] is mock_extractor
         assert result is True
 
-    @patch("orchestration.continuous_processor.handle_entity_extraction_command")
+    @patch("src.cli.commands.entity_extraction.handle_entity_extraction_command")
     @patch("orchestration.continuous_processor.get_cached_entity_extractor")
     def test_process_entity_extraction_uses_batch_size(
         self, mock_get_extractor, mock_handle_command

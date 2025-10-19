@@ -74,7 +74,7 @@ def test_process_entity_extraction_uses_cached_extractor(
     """Test that process_entity_extraction uses the cached extractor."""
     
     with patch(
-        'orchestration.continuous_processor.handle_entity_extraction_command'
+        'src.cli.commands.entity_extraction.handle_entity_extraction_command'
     ) as mock_handle:
         mock_handle.return_value = 0  # Success
         
@@ -115,7 +115,7 @@ def test_process_entity_extraction_respects_batch_size_limit(mock_extractor_clas
     """Test that process_entity_extraction respects GAZETTEER_BATCH_SIZE."""
     
     with patch(
-        'orchestration.continuous_processor.handle_entity_extraction_command'
+        'src.cli.commands.entity_extraction.handle_entity_extraction_command'
     ) as mock_handle:
         mock_handle.return_value = 0  # Success
         
@@ -149,7 +149,7 @@ def test_process_entity_extraction_handles_errors(mock_extractor_class):
     """Test that process_entity_extraction handles exceptions gracefully."""
     
     with patch(
-        'orchestration.continuous_processor.handle_entity_extraction_command'
+        'src.cli.commands.entity_extraction.handle_entity_extraction_command'
     ) as mock_handle:
         # Simulate an exception
         mock_handle.side_effect = RuntimeError("Test error")
@@ -162,7 +162,7 @@ def test_process_entity_extraction_handles_nonzero_exit_code(mock_extractor_clas
     """Test that process_entity_extraction handles non-zero exit codes."""
     
     with patch(
-        'orchestration.continuous_processor.handle_entity_extraction_command'
+        'src.cli.commands.entity_extraction.handle_entity_extraction_command'
     ) as mock_handle:
         # Simulate a failure exit code
         mock_handle.return_value = 1
@@ -193,7 +193,7 @@ def test_entity_extraction_passes_correct_args(mock_extractor_class):
     """Test that the correct arguments are passed to the entity extraction handler."""
     
     with patch(
-        'orchestration.continuous_processor.handle_entity_extraction_command'
+        'src.cli.commands.entity_extraction.handle_entity_extraction_command'
     ) as mock_handle:
         mock_handle.return_value = 0
         
