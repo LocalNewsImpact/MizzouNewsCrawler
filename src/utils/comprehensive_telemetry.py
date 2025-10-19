@@ -282,143 +282,149 @@ class ComprehensiveExtractionTelemetry:
         else:
             auto_id = "INTEGER PRIMARY KEY AUTOINCREMENT"
         
-        with self._store.connection() as conn:
-            # Enhanced extraction telemetry table
-            conn.execute(
-                f"""
-                CREATE TABLE IF NOT EXISTS extraction_telemetry_v2 (
-                    id {auto_id},
-                    operation_id TEXT NOT NULL,
-                    article_id TEXT NOT NULL,
-                    url TEXT NOT NULL,
-                    publisher TEXT,
-                    host TEXT,
-
-                    -- Timing metrics
-                    start_time TIMESTAMP NOT NULL,
-                    end_time TIMESTAMP,
-                    total_duration_ms REAL,
-
-                    -- HTTP metrics
-                    http_status_code INTEGER,
-                    http_error_type TEXT,
-                    response_size_bytes INTEGER,
-                    response_time_ms REAL,
-
-                    -- Proxy metrics
-                    proxy_used BOOLEAN,
-                    proxy_url TEXT,
-                    proxy_authenticated BOOLEAN,
-                    proxy_status TEXT,
-                    proxy_error TEXT,
-
-                    -- Method tracking
-                    methods_attempted TEXT,
-                    successful_method TEXT,
-                    method_timings TEXT,
-                    method_success TEXT,
-                    method_errors TEXT,
-
-                    -- Field extraction tracking
-                    field_extraction TEXT,
-                    extracted_fields TEXT,
-                    final_field_attribution TEXT,
-                    alternative_extractions TEXT,
-
-                    -- Results
-                    content_length INTEGER,
-                    is_success BOOLEAN,
-                    error_message TEXT,
-                    error_type TEXT,
-
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """
-            )
-
-            # Add alternative_extractions column if it doesn't exist
-            try:
+        # Execute each table creation in its own transaction to avoid
+        # "current transaction is aborted" errors in PostgreSQL
+        try:
+            with self._store.connection() as conn:
+                # Enhanced extraction telemetry table
                 conn.execute(
-                    """
-                    ALTER TABLE extraction_telemetry_v2
-                    ADD COLUMN alternative_extractions TEXT
+                    f"""
+                    CREATE TABLE IF NOT EXISTS extraction_telemetry_v2 (
+                        id {auto_id},
+                        operation_id TEXT NOT NULL,
+                        article_id TEXT NOT NULL,
+                        url TEXT NOT NULL,
+                        publisher TEXT,
+                        host TEXT,
+
+                        -- Timing metrics
+                        start_time TIMESTAMP NOT NULL,
+                        end_time TIMESTAMP,
+                        total_duration_ms REAL,
+
+                        -- HTTP metrics
+                        http_status_code INTEGER,
+                        http_error_type TEXT,
+                        response_size_bytes INTEGER,
+                        response_time_ms REAL,
+
+                        -- Proxy metrics
+                        proxy_used BOOLEAN,
+                        proxy_url TEXT,
+                        proxy_authenticated BOOLEAN,
+                        proxy_status TEXT,
+                        proxy_error TEXT,
+
+                        -- Method tracking
+                        methods_attempted TEXT,
+                        successful_method TEXT,
+                        method_timings TEXT,
+                        method_success TEXT,
+                        method_errors TEXT,
+
+                        -- Field extraction tracking
+                        field_extraction TEXT,
+                        extracted_fields TEXT,
+                        final_field_attribution TEXT,
+                        alternative_extractions TEXT,
+
+                        -- Results
+                        content_length INTEGER,
+                        is_success BOOLEAN,
+                        error_message TEXT,
+                        error_type TEXT,
+
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
                 """
                 )
-                print("Added alternative_extractions column")
-            except Exception:
-                # Column already exists
-                pass
+        except Exception:
+            # Table already exists, ignore
+            pass
 
-            # Add proxy metrics columns if they don't exist
-            proxy_columns = [
-                ("proxy_used", "BOOLEAN"),
-                ("proxy_url", "TEXT"),
-                ("proxy_authenticated", "BOOLEAN"),
-                ("proxy_status", "TEXT"),
-                ("proxy_error", "TEXT"),
-            ]
-            for column_name, column_type in proxy_columns:
-                try:
+        # Add columns in separate transactions to avoid transaction abort
+        # if any column already exists
+        for column_name, column_type in [
+            ("alternative_extractions", "TEXT"),
+            ("proxy_used", "BOOLEAN"),
+            ("proxy_url", "TEXT"),
+            ("proxy_authenticated", "BOOLEAN"),
+            ("proxy_status", "TEXT"),
+            ("proxy_error", "TEXT"),
+        ]:
+            try:
+                with self._store.connection() as conn:
                     conn.execute(
                         f"""
                         ALTER TABLE extraction_telemetry_v2
                         ADD COLUMN {column_name} {column_type}
                         """
                     )
-                    print(f"Added {column_name} column")
-                except Exception:
-                    # Column already exists
-                    pass
+            except Exception:
+                # Column already exists, ignore
+                pass
 
-            # HTTP error tracking
-            conn.execute(
-                f"""
-                CREATE TABLE IF NOT EXISTS http_error_summary (
-                    id {auto_id},
-                    host TEXT NOT NULL,
-                    status_code INTEGER NOT NULL,
-                    error_type TEXT NOT NULL,
-                    count INTEGER DEFAULT 1,
-                    first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        # HTTP error tracking table
+        try:
+            with self._store.connection() as conn:
+                conn.execute(
+                    f"""
+                    CREATE TABLE IF NOT EXISTS http_error_summary (
+                        id {auto_id},
+                        host TEXT NOT NULL,
+                        status_code INTEGER NOT NULL,
+                        error_type TEXT NOT NULL,
+                        count INTEGER DEFAULT 1,
+                        first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-                    UNIQUE(host, status_code)
+                        UNIQUE(host, status_code)
+                    )
+                """
                 )
-            """
-            )
+        except Exception:
+            # Table already exists, ignore
+            pass
 
-            conn.execute(
-                f"""
-                CREATE TABLE IF NOT EXISTS content_type_detection_telemetry (
-                    id {auto_id},
-                    article_id TEXT NOT NULL,
-                    operation_id TEXT,
-                    url TEXT NOT NULL,
-                    publisher TEXT,
-                    host TEXT,
-                    status TEXT NOT NULL,
-                    confidence TEXT,
-                    confidence_score REAL,
-                    reason TEXT,
-                    evidence TEXT,
-                    version TEXT,
-                    detected_at TIMESTAMP,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        # Content type detection telemetry table
+        try:
+            with self._store.connection() as conn:
+                conn.execute(
+                    f"""
+                    CREATE TABLE IF NOT EXISTS content_type_detection_telemetry (
+                        id {auto_id},
+                        article_id TEXT NOT NULL,
+                        operation_id TEXT,
+                        url TEXT NOT NULL,
+                        publisher TEXT,
+                        host TEXT,
+                        status TEXT NOT NULL,
+                        confidence TEXT,
+                        confidence_score REAL,
+                        reason TEXT,
+                        evidence TEXT,
+                        version TEXT,
+                        detected_at TIMESTAMP,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """
                 )
-            """
-            )
+        except Exception:
+            # Table already exists, ignore
+            pass
 
-            try:
+        # Add confidence_score column if missing
+        try:
+            with self._store.connection() as conn:
                 conn.execute(
                     """
                     ALTER TABLE content_type_detection_telemetry
                     ADD COLUMN confidence_score REAL
                     """
                 )
-            except Exception:
-                pass
-
-            conn.commit()
+        except Exception:
+            # Column already exists, ignore
+            pass
 
     def record_extraction(self, metrics: ExtractionMetrics):
         """Record detailed extraction metrics."""
