@@ -1,9 +1,9 @@
 """Tests for URL classification utilities."""
 
 from src.utils.url_classifier import (
-    is_likely_article_url,
-    classify_url_batch,
     COMPILED_NON_ARTICLE_PATTERNS,
+    classify_url_batch,
+    is_likely_article_url,
 )
 
 

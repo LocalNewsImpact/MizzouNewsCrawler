@@ -12,16 +12,16 @@ import logging
 import os
 import sys
 import time
-from typing import Any
 from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import requests
+import urllib3
 from requests import Session
 from requests.exceptions import RequestException, Timeout
 from sqlalchemy import text
-import urllib3
 
 # Suppress InsecureRequestWarning for proxies without SSL certs
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -36,9 +36,9 @@ except ImportError:
     print("Error: storysniffer not installed. Run: pip install storysniffer")
     sys.exit(1)
 
-from src.models.database import DatabaseManager  # noqa: E402
 from src.crawler.origin_proxy import enable_origin_proxy  # noqa: E402
 from src.crawler.proxy_config import get_proxy_manager  # noqa: E402
+from src.models.database import DatabaseManager  # noqa: E402
 
 _DEFAULT_HTTP_HEADERS: dict[str, str] = {
     "User-Agent": (

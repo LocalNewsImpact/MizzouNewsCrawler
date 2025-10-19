@@ -445,6 +445,7 @@ def test_run_post_extraction_cleaning_updates_status(monkeypatch):
 def test_analyze_dataset_domains_single_domain():
     """Test domain analysis for single-domain dataset."""
     from argparse import Namespace
+
     from sqlalchemy import text
     
     class FakeSession:

@@ -1,8 +1,10 @@
 """Integration tests for bot sensitivity with ContentExtractor."""
 
-import pytest
 import time
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
+
 from src.crawler import ContentExtractor
 from src.utils.bot_sensitivity_manager import BOT_SENSITIVITY_CONFIG
 

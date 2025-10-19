@@ -115,7 +115,7 @@ class SourceProcessor:
         
         try:
             from src.utils.dataset_utils import resolve_dataset_id
-            
+
             # Get database engine from discovery object
             db_manager = self.discovery._create_db_manager()
             dataset_uuid = resolve_dataset_id(db_manager.engine, self.dataset_label)

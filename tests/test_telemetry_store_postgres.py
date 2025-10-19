@@ -10,7 +10,6 @@ import pytest
 
 from src.telemetry.store import TelemetryStore, get_store
 
-
 # Check if we have PostgreSQL connection info for testing
 POSTGRES_TEST_URL = os.getenv("TEST_DATABASE_URL")
 HAS_POSTGRES = POSTGRES_TEST_URL and "postgres" in POSTGRES_TEST_URL

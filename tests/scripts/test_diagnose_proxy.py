@@ -1,8 +1,7 @@
 """Tests for the proxy diagnostic script."""
 import os
 import sys
-from unittest.mock import Mock, patch, MagicMock
-
+from unittest.mock import MagicMock, Mock, patch
 
 # Add scripts directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'scripts'))
@@ -10,9 +9,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'scripts'
 # Import after path modification
 from diagnose_proxy import (  # noqa: E402
     check_environment,
-    test_proxy_connectivity,
     test_proxied_request,
-    test_real_site
+    test_proxy_connectivity,
+    test_real_site,
 )
 
 

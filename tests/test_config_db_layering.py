@@ -14,14 +14,15 @@ sys.path.insert(0, str(ROOT))
 def test_create_engine_from_env_uses_database_url(monkeypatch):
     """create_engine_from_env() should read DATABASE_URL from config."""
     from src.models import create_engine_from_env
-    
+
     # Set a test database URL
     test_db_url = "sqlite:///test_from_env.db"
     monkeypatch.setenv("DATABASE_URL", test_db_url)
     
     # Force reload of config module to pick up new env var
-    import src.config
     import importlib
+
+    import src.config
     importlib.reload(src.config)
     
     engine = create_engine_from_env()
@@ -33,7 +34,7 @@ def test_create_engine_from_env_uses_database_url(monkeypatch):
 def test_create_engine_from_env_defaults_to_sqlite(monkeypatch):
     """create_engine_from_env() should default to SQLite if DATABASE_URL not set."""
     from src.models import create_engine_from_env
-    
+
     # Clear DATABASE_URL
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("DATABASE_HOST", raising=False)
@@ -41,8 +42,9 @@ def test_create_engine_from_env_defaults_to_sqlite(monkeypatch):
     monkeypatch.delenv("DATABASE_USER", raising=False)
     
     # Force reload of config module
-    import src.config
     import importlib
+
+    import src.config
     importlib.reload(src.config)
     
     engine = create_engine_from_env()
@@ -54,7 +56,7 @@ def test_create_engine_from_env_defaults_to_sqlite(monkeypatch):
 def test_create_engine_from_env_constructs_postgres_url(monkeypatch):
     """create_engine_from_env() should construct PostgreSQL URL from components."""
     from src.models import create_engine_from_env
-    
+
     # Set PostgreSQL connection components
     monkeypatch.setenv("DATABASE_ENGINE", "postgresql+psycopg2")
     monkeypatch.setenv("DATABASE_HOST", "localhost")
@@ -65,8 +67,9 @@ def test_create_engine_from_env_constructs_postgres_url(monkeypatch):
     monkeypatch.delenv("DATABASE_URL", raising=False)
     
     # Force reload of config module
-    import src.config
     import importlib
+
+    import src.config
     importlib.reload(src.config)
     
     engine = create_engine_from_env()
@@ -80,9 +83,9 @@ def test_create_engine_from_env_constructs_postgres_url(monkeypatch):
 
 def test_database_manager_accepts_engine_or_url():
     """DatabaseManager should accept both engine and URL parameters."""
-    from src.models.database import DatabaseManager
     from src.models import create_database_engine
-    
+    from src.models.database import DatabaseManager
+
     # Test with URL
     db_url = "sqlite:///:memory:"
     db1 = DatabaseManager(database_url=db_url)
@@ -99,7 +102,7 @@ def test_database_manager_accepts_engine_or_url():
 def test_postgres_connection_string_parsing():
     """Verify PostgreSQL connection strings are parsed correctly."""
     from src.models import create_database_engine
-    
+
     # Test PostgreSQL URL with all components
     pg_url = "postgresql+psycopg2://user:pass@localhost:5432/dbname?sslmode=require"
     engine = create_database_engine(pg_url)

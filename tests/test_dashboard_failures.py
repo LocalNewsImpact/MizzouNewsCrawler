@@ -9,7 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from src.models import Base
-from src.models.api_backend import Snapshot, Candidate, DedupeAudit
+from src.models.api_backend import Candidate, DedupeAudit, Snapshot
 
 
 @pytest.fixture()
@@ -60,8 +60,9 @@ def dashboard_fixture(tmp_path: Path):
     session.add_all(snapshots)
     
     # Create candidate_links (needed for articles)
-    from src.models import CandidateLink, Article
     import json
+
+    from src.models import Article, CandidateLink
     
     candidate_links = [
         CandidateLink(
@@ -163,8 +164,9 @@ def dashboard_fixture(tmp_path: Path):
     session.add_all(dedupe_records)
     
     # Add HTTP error summary data for test_http_errors_surface_verification_outages
-    from src.models.telemetry import HttpErrorSummary
     from datetime import timedelta
+
+    from src.models.telemetry import HttpErrorSummary
     
     http_errors = [
         HttpErrorSummary(
@@ -205,8 +207,9 @@ def dashboard_fixture(tmp_path: Path):
 
 
 def _patch_dashboard_paths(monkeypatch: pytest.MonkeyPatch, fixture) -> None:
-    from backend.app import main as app_main
     from unittest.mock import MagicMock
+
+    from backend.app import main as app_main
 
     # Patch ARTICLES_CSV for CSV-based operations
     monkeypatch.setattr(app_main, "ARTICLES_CSV", fixture.csv_path)

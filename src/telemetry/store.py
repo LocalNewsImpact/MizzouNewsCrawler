@@ -15,7 +15,6 @@ from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.pool import NullPool
 
-
 _SQLITE_FALLBACK_URL = "sqlite:///data/mizzou.db"
 
 
@@ -27,14 +26,16 @@ def _determine_default_database_url() -> str:
     # Try to use the main application DATABASE_URL from config
     try:
         from src.config import (
-            DATABASE_URL as CONFIG_DATABASE_URL,
-            USE_CLOUD_SQL_CONNECTOR,
             CLOUD_SQL_INSTANCE,
-            DATABASE_USER,
-            DATABASE_PASSWORD,
-            DATABASE_NAME,
-            DATABASE_HOST,
             DATABASE_ENGINE,
+            DATABASE_HOST,
+            DATABASE_NAME,
+            DATABASE_PASSWORD,
+        )
+        from src.config import DATABASE_URL as CONFIG_DATABASE_URL
+        from src.config import (
+            DATABASE_USER,
+            USE_CLOUD_SQL_CONNECTOR,
         )
 
         # If using Cloud SQL Connector, build PostgreSQL URL
@@ -352,7 +353,7 @@ class TelemetryStore:
     def _should_use_cloud_sql_connector(self) -> bool:
         """Determine if Cloud SQL Python Connector should be used."""
         import os
-        
+
         # Only use for PostgreSQL URLs
         if "postgres" not in self.database_url:
             return False
@@ -362,7 +363,7 @@ class TelemetryStore:
             return False
         
         try:
-            from src.config import USE_CLOUD_SQL_CONNECTOR, CLOUD_SQL_INSTANCE
+            from src.config import CLOUD_SQL_INSTANCE, USE_CLOUD_SQL_CONNECTOR
             return USE_CLOUD_SQL_CONNECTOR and bool(CLOUD_SQL_INSTANCE)
         except ImportError:
             return False
@@ -372,9 +373,9 @@ class TelemetryStore:
         try:
             from src.config import (
                 CLOUD_SQL_INSTANCE,
-                DATABASE_USER,
-                DATABASE_PASSWORD,
                 DATABASE_NAME,
+                DATABASE_PASSWORD,
+                DATABASE_USER,
             )
             from src.models.cloud_sql_connector import create_cloud_sql_engine
             

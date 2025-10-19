@@ -1,13 +1,15 @@
 """Tests for bot sensitivity manager."""
 
-import pytest
 from datetime import datetime, timedelta
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
+
 from src.utils.bot_sensitivity_manager import (
-    BotSensitivityManager,
     BOT_SENSITIVITY_CONFIG,
-    SENSITIVITY_ADJUSTMENT_RULES,
     KNOWN_SENSITIVE_PUBLISHERS,
+    SENSITIVITY_ADJUSTMENT_RULES,
+    BotSensitivityManager,
 )
 
 

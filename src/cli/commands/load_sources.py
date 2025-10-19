@@ -14,7 +14,7 @@ from sqlalchemy.orm import sessionmaker
 from src.cli.context import trigger_gazetteer_population_background
 from src.models import Dataset, DatasetSource, Source
 from src.models.database import DatabaseManager
-from src.utils.telemetry import OperationType, OperationTracker
+from src.utils.telemetry import OperationTracker, OperationType
 
 logger = logging.getLogger(__name__)
 

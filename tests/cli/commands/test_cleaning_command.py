@@ -2,7 +2,7 @@
 
 import argparse
 import logging
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
 
 from src.cli.commands import cleaning
 

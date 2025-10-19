@@ -53,7 +53,7 @@ def clean_app_state():
             # Cleanup happens automatically after test
     """
     from backend.app.main import app
-    
+
     # Store original state
     original_state = {}
     for key in dir(app.state):

@@ -14,11 +14,11 @@ import pytest
 
 from src.telemetry.store import TelemetryStore, get_store
 from src.utils.byline_telemetry import BylineCleaningTelemetry
-from src.utils.content_cleaning_telemetry import ContentCleaningTelemetry
 from src.utils.comprehensive_telemetry import (
     ComprehensiveExtractionTelemetry,
     ExtractionMetrics,
 )
+from src.utils.content_cleaning_telemetry import ContentCleaningTelemetry
 
 
 @pytest.fixture

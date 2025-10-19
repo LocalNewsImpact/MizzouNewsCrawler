@@ -269,7 +269,7 @@ def test_articles_sorted_by_date(
 def test_articles_database_error_handling(test_client, monkeypatch):
     """Test articles endpoint handles database errors gracefully."""
     from contextlib import contextmanager
-    
+
     # Mock database error
     @contextmanager
     def mock_get_session():
@@ -314,9 +314,10 @@ def test_articles_with_special_characters(
     sample_candidate_links,
 ):
     """Test articles endpoint handles special characters in content."""
-    from src.models import Article
     from datetime import datetime
-    
+
+    from src.models import Article
+
     # Create article with special characters
     article = Article(
         title='Article with "quotes" and \'apostrophes\'',

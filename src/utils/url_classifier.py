@@ -3,7 +3,6 @@
 import re
 from urllib.parse import urlparse
 
-
 # Patterns that strongly indicate a non-article page
 NON_ARTICLE_PATTERNS = [
     # Gallery and multimedia pages

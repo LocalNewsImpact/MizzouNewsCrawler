@@ -1,9 +1,10 @@
-import os
 import logging
-import requests
-import pytest
+import os
 
-from src.crawler.origin_proxy import enable_origin_proxy, disable_origin_proxy
+import pytest
+import requests
+
+from src.crawler.origin_proxy import disable_origin_proxy, enable_origin_proxy
 
 
 def test_enable_origin_proxy_rewrites_url_and_sets_auth(monkeypatch):

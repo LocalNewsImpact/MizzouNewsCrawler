@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT))
 def test_operation_tracker_tracks_load_sources_operation():
     """OperationTracker should track load-sources operations."""
     from src.utils.telemetry import OperationTracker, OperationType
-    
+
     # Create a temporary database for testing
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp_file:
         db_path = tmp_file.name
@@ -40,7 +40,7 @@ def test_operation_tracker_tracks_load_sources_operation():
 
 def test_operation_tracker_tracks_crawl_discovery():
     """OperationTracker should track crawl discovery operations."""
-    from src.utils.telemetry import OperationTracker, OperationType, OperationMetrics
+    from src.utils.telemetry import OperationMetrics, OperationTracker, OperationType
     
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp_file:
         db_path = tmp_file.name
@@ -92,18 +92,20 @@ def test_operation_tracker_handles_failures():
 def test_telemetry_url_env_var_support():
     """TELEMETRY_URL environment variable should be supported."""
     import os
+
     from src.config import TELEMETRY_URL
-    
+
     # TELEMETRY_URL should be available from config
     assert TELEMETRY_URL is None or isinstance(TELEMETRY_URL, str)
 
 
 def test_operation_tracker_stores_job_records():
     """OperationTracker should store job records in the database."""
-    from src.utils.telemetry import OperationTracker, OperationType
-    from src.models.database import DatabaseManager
-    from src.models import Job
     from sqlalchemy import select
+
+    from src.models import Job
+    from src.models.database import DatabaseManager
+    from src.utils.telemetry import OperationTracker, OperationType
     
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp_file:
         db_path = tmp_file.name

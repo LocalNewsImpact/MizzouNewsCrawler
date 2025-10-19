@@ -35,15 +35,15 @@ from src.models.api_backend import (  # noqa: E402
     Review,
     Snapshot,
 )
+from src.models.telemetry import (  # noqa: E402
+    ExtractionTelemetryV2,
+    HttpErrorSummary,
+)
 from src.models.verification import (  # noqa: E402
     URLVerification,
     VerificationJob,
     VerificationPattern,
     VerificationTelemetry,
-)
-from src.models.telemetry import (  # noqa: E402
-    ExtractionTelemetryV2,
-    HttpErrorSummary,
 )
 
 

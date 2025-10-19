@@ -8,8 +8,8 @@ import logging
 import os
 import random
 import re
-import time
 import threading
+import time
 from copy import deepcopy
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -19,9 +19,11 @@ import requests
 from bs4 import BeautifulSoup
 from bs4.element import Tag
 from dateutil import parser as dateparser
+
+from src.utils.bot_sensitivity_manager import BotSensitivityManager
+
 from .origin_proxy import enable_origin_proxy
 from .proxy_config import get_proxy_manager
-from src.utils.bot_sensitivity_manager import BotSensitivityManager
 
 
 class RateLimitError(Exception):

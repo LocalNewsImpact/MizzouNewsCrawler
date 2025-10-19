@@ -6,7 +6,7 @@ parameter binding for different database drivers including pg8000.
 """
 
 import pytest
-from sqlalchemy import text, create_engine
+from sqlalchemy import create_engine, text
 
 
 def test_sqlalchemy_text_with_named_params():

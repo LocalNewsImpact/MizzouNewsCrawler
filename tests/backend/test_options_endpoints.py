@@ -253,9 +253,10 @@ def test_options_counties_filters_null(
     sample_sources,
 ):
     """Test options/counties excludes NULL/empty county values."""
-    from src.models import Article, CandidateLink
     from datetime import datetime
-    
+
+    from src.models import Article, CandidateLink
+
     # Create CandidateLink with NULL county
     candidate_link_null = CandidateLink(
         url="https://example.com/no-county-link",
@@ -370,9 +371,10 @@ def test_options_special_characters_in_county(
     sample_candidate_links,
 ):
     """Test options/counties handles special characters."""
-    from src.models import Article, CandidateLink
     from datetime import datetime
-    
+
+    from src.models import Article, CandidateLink
+
     # Create CandidateLink with special characters in county
     candidate_link_special = CandidateLink(
         url="https://stlouis.example.com/special-county-link",
@@ -410,9 +412,10 @@ def test_options_case_sensitivity(
     sample_candidate_links,
 ):
     """Test options endpoints handle case variations correctly."""
-    from src.models import Article, CandidateLink
     from datetime import datetime
-    
+
+    from src.models import Article, CandidateLink
+
     # Create CandidateLinks with different case variations
     candidate_link1 = CandidateLink(
         url="https://boone1.example.com/article-1",

@@ -4,20 +4,21 @@ These are pure unit tests that use mocked database sessions and don't require
 actual PostgreSQL or Cloud SQL connections.
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime, timedelta
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 # Mark all tests in this module as unit tests (no DB required)
 pytestmark = pytest.mark.unit
 
 from src.cli.commands.pipeline_status import (
-    _check_discovery_status,
-    _check_verification_status,
-    _check_extraction_status,
-    _check_entity_extraction_status,
     _check_analysis_status,
+    _check_discovery_status,
+    _check_entity_extraction_status,
+    _check_extraction_status,
     _check_overall_health,
+    _check_verification_status,
 )
 
 
@@ -249,7 +250,7 @@ class TestPipelineStatusCommand:
         mock_session.execute.side_effect = execute_side_effect
         
         from src.cli.commands.pipeline_status import handle_pipeline_status_command
-        
+
         # Create mock args
         args = Mock()
         args.detailed = False
@@ -271,6 +272,7 @@ class TestPipelineStatusCommand:
 def test_pipeline_status_parser_registration():
     """Test that the pipeline-status parser is registered correctly."""
     import argparse
+
     from src.cli.commands.pipeline_status import add_pipeline_status_parser
     
     parser = argparse.ArgumentParser()

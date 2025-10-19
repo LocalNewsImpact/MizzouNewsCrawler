@@ -4,24 +4,24 @@ This module provides test fixtures for testing the migrated API endpoints
 that now query Cloud SQL instead of reading CSV files.
 """
 
-import pytest
-from datetime import datetime, timedelta
-from typing import List
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
-from fastapi.testclient import TestClient
-
 import sys
+from datetime import datetime, timedelta
 from pathlib import Path
+from typing import List
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
 
 # Add project root to path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
-from src.models.database import Base  # noqa: E402
-from src.models.api_backend import Review, Snapshot, Candidate  # noqa: E402
-from src.models import Source, Article  # noqa: E402
 from backend.app.main import app  # noqa: E402
+from src.models import Article, Source  # noqa: E402
+from src.models.api_backend import Candidate, Review, Snapshot  # noqa: E402
+from src.models.database import Base  # noqa: E402
 
 
 @pytest.fixture(scope="function")
@@ -69,8 +69,9 @@ def test_client(db_engine, monkeypatch):
     all sessions (both fixture and endpoint) see the same data.
     """
     from contextlib import contextmanager
+
     from backend.app import main
-    
+
     # Mock the DatabaseManager's engine with our test engine
     monkeypatch.setattr(main.db_manager, "engine", db_engine)
     

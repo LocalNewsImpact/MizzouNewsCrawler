@@ -5,10 +5,11 @@ These tests validate that the sitecustomize shim can be loaded and works
 correctly without breaking application imports or functionality.
 """
 import os
-import sys
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
+
 import pytest
 
 
@@ -161,8 +162,9 @@ def test_metadata_bypass_with_real_prepared_request():
     This would have caught the PreparedRequest.url handling issue earlier.
     """
     from unittest.mock import Mock, patch
+
     from requests import PreparedRequest
-    
+
     # Set up environment
     os.environ["USE_ORIGIN_PROXY"] = "true"
     os.environ["ORIGIN_PROXY_HOST"] = "proxy.kiesow.net"
@@ -170,7 +172,7 @@ def test_metadata_bypass_with_real_prepared_request():
     
     # Import after environment is set
     from src.crawler.origin_proxy import _should_bypass
-    
+
     # Create a real PreparedRequest like google-auth does
     prep_req = PreparedRequest()
     prep_req.url = "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token"

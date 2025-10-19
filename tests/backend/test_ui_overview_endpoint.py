@@ -106,10 +106,11 @@ def test_ui_overview_wire_count(
     
     Wire service attribution is stored as JSON array in Article.wire field.
     """
-    from src.models import Article, CandidateLink
-    from datetime import datetime
     import json
-    
+    from datetime import datetime
+
+    from src.models import Article, CandidateLink
+
     # Create a test source and candidate links
     link1 = CandidateLink(
         id="link-wire-1",

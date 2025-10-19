@@ -69,7 +69,7 @@ def test_cloud_sql_connector_connection(cloud_sql_session):
     connection is not working.
     """
     from sqlalchemy import text
-    
+
     # Execute simple query
     result = cloud_sql_session.execute(text("SELECT 1 as test")).scalar()
     assert result == 1
@@ -100,7 +100,7 @@ def test_cloud_sql_tables_exist(cloud_sql_session):
     Verifies that Alembic migrations have been run successfully.
     """
     from sqlalchemy import inspect
-    
+
     # Get table names
     inspector = inspect(cloud_sql_session.bind)
     tables = inspector.get_table_names()
@@ -149,7 +149,7 @@ def test_cloud_sql_connection_pool(cloud_sql_engine):
     Verify that multiple connections can be created and used concurrently.
     """
     from sqlalchemy import text
-    
+
     # Create multiple connections
     connections = []
     try:
@@ -174,6 +174,7 @@ def test_cloud_sql_concurrent_queries(cloud_sql_engine):
     Simulates multiple API requests hitting the database simultaneously.
     """
     import concurrent.futures
+
     from sqlalchemy import text
     
     def execute_query():
@@ -224,7 +225,7 @@ def test_cloud_sql_read_articles(cloud_sql_session):
     Verify that we can query the articles table successfully.
     """
     from sqlalchemy import text
-    
+
     # Query articles
     result = cloud_sql_session.execute(
         text("SELECT COUNT(*) FROM articles")
@@ -248,7 +249,7 @@ def test_cloud_sql_read_articles(cloud_sql_session):
 def test_cloud_sql_read_sources(cloud_sql_session):
     """Test reading sources from Cloud SQL."""
     from sqlalchemy import text
-    
+
     # Query sources
     result = cloud_sql_session.execute(
         text("SELECT COUNT(*) FROM sources")
@@ -261,7 +262,7 @@ def test_cloud_sql_read_sources(cloud_sql_session):
 def test_cloud_sql_read_reviews(cloud_sql_session):
     """Test reading reviews from Cloud SQL."""
     from sqlalchemy import text
-    
+
     # Query reviews
     result = cloud_sql_session.execute(
         text("SELECT COUNT(*) FROM reviews")
@@ -368,7 +369,7 @@ def test_cloud_sql_aggregate_queries(cloud_sql_session):
     This is what /api/ui_overview does.
     """
     from sqlalchemy import text
-    
+
     # Count articles
     articles_count = cloud_sql_session.execute(
         text("SELECT COUNT(*) FROM articles")
@@ -423,7 +424,7 @@ def test_cloud_sql_connection_recovery(cloud_sql_engine):
     Verify that after a failed query, new queries can still succeed.
     """
     from sqlalchemy import text
-    
+
     # Execute valid query
     with cloud_sql_engine.connect() as conn:
         result = conn.execute(text("SELECT 1")).scalar()

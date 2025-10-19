@@ -39,7 +39,6 @@ from src.utils.comprehensive_telemetry import (
 from src.utils.content_cleaner_balanced import BalancedBoundaryContentCleaner
 from src.utils.content_type_detector import ContentTypeDetector
 
-
 ContentExtractor: type[Any] | None = None
 
 
@@ -135,7 +134,7 @@ def _analyze_dataset_domains(args, session):
             - sample_domains: list of up to 5 sample domain names
     """
     from urllib.parse import urlparse
-    
+
     # Build query to get candidate links for this dataset/source
     query = """
     SELECT DISTINCT cl.url

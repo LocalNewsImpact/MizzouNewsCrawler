@@ -12,9 +12,10 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
+from src.models import Base, Source
+
 # Import models needed for testing
 from src.models.telemetry import ExtractionTelemetryV2, HttpErrorSummary
-from src.models import Source, Base
 
 
 class TestTelemetryAPIEndpoints:
@@ -403,9 +404,10 @@ class TestSiteManagementAPI:
     @pytest.fixture
     def api_client(self, temp_db, monkeypatch):
         """Create a test client with mocked database."""
-        from backend.app.main import app, db_manager
         from sqlalchemy import create_engine
-        
+
+        from backend.app.main import app, db_manager
+
         # Create engine for the test database
         db_url = f"sqlite:///{temp_db}"
         test_engine = create_engine(db_url, connect_args={"check_same_thread": False})
@@ -511,9 +513,10 @@ class TestAPIErrorHandling:
 
     def test_telemetry_endpoints_with_invalid_database(self, monkeypatch):
         """Test API endpoints with invalid database path."""
-        from backend.app.main import app, db_manager
         from sqlalchemy import create_engine
-        
+
+        from backend.app.main import app, db_manager
+
         # Create an invalid engine that will fail
         invalid_engine = create_engine("sqlite:////nonexistent/path/db.sqlite")
         monkeypatch.setattr(db_manager, "engine", invalid_engine)
@@ -548,9 +551,10 @@ class TestAPIErrorHandling:
         conn.close()
 
         try:
-            from backend.app.main import app, db_manager
             from sqlalchemy import create_engine
-            
+
+            from backend.app.main import app, db_manager
+
             # Create engine for the test database
             db_url = f"sqlite:///{db_path}"
             test_engine = create_engine(db_url, connect_args={"check_same_thread": False})
@@ -670,9 +674,10 @@ class TestCompleteAPIWorkflow:
             conn.commit()
             conn.close()
 
-            from backend.app.main import app, db_manager
             from sqlalchemy import create_engine
-            
+
+            from backend.app.main import app, db_manager
+
             # Create engine for the test database
             db_url = f"sqlite:///{db_path}"
             test_engine = create_engine(db_url, connect_args={"check_same_thread": False})

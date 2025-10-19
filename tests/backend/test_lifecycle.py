@@ -253,7 +253,7 @@ def test_check_db_health_returns_false_when_no_db():
 def test_check_db_health_returns_true_on_successful_query():
     """Test check_db_health returns True when database query succeeds."""
     from backend.app.lifecycle import check_db_health
-    
+
     # Create a mock database manager
     mock_db = MagicMock()
     mock_session = MagicMock()
@@ -269,8 +269,9 @@ def test_check_db_health_returns_true_on_successful_query():
 def test_check_db_health_returns_false_on_operational_error():
     """Test check_db_health returns False on database errors."""
     from sqlalchemy.exc import OperationalError
+
     from backend.app.lifecycle import check_db_health
-    
+
     # Create a mock database manager that raises an error
     mock_db = MagicMock()
     mock_db.get_session.return_value.__enter__.side_effect = OperationalError(

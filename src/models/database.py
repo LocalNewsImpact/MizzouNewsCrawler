@@ -89,13 +89,13 @@ class DatabaseManager:
     def _should_use_cloud_sql_connector(self) -> bool:
         """Determine if Cloud SQL Python Connector should be used."""
         import os
-        
+
         # Check environment variable first (for test control)
         if os.getenv("USE_CLOUD_SQL_CONNECTOR", "").lower() in ("false", "0", "no"):
             return False
         
         try:
-            from src.config import USE_CLOUD_SQL_CONNECTOR, CLOUD_SQL_INSTANCE
+            from src.config import CLOUD_SQL_INSTANCE, USE_CLOUD_SQL_CONNECTOR
             return USE_CLOUD_SQL_CONNECTOR and bool(CLOUD_SQL_INSTANCE)
         except ImportError:
             return False
@@ -104,9 +104,9 @@ class DatabaseManager:
         """Create database engine using Cloud SQL Python Connector."""
         from src.config import (
             CLOUD_SQL_INSTANCE,
-            DATABASE_USER,
-            DATABASE_PASSWORD,
             DATABASE_NAME,
+            DATABASE_PASSWORD,
+            DATABASE_USER,
         )
         
         try:
