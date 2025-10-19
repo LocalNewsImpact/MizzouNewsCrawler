@@ -15,7 +15,7 @@ import spacy
 from rapidfuzz import fuzz
 from spacy import about as spacy_about
 from spacy.pipeline import EntityRuler
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.models import Gazetteer
@@ -364,10 +364,9 @@ def get_gazetteer_rows(
         return []
 
     stmt = select(Gazetteer)
-    if len(filters) == 1:
-        stmt = stmt.where(filters[0])
-    else:
-        stmt = stmt.where(or_(*filters))
+    # Use AND when multiple filters (need gazetteer for BOTH source AND dataset)
+    for filter_condition in filters:
+        stmt = stmt.where(filter_condition)
 
     return list(session.execute(stmt).scalars().all())
 
