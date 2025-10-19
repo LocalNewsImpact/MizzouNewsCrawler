@@ -6,6 +6,8 @@ extracting location entities and storing them in the article_entities table.
 """
 
 import logging
+import threading
+import time
 from typing import cast
 
 from sqlalchemy import text as sql_text
@@ -108,6 +110,25 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
             
             processed = 0
             errors = 0
+            
+            # Start timer-based progress logging
+            start_time = time.time()
+            
+            def log_progress_periodically():
+                """Log progress every 30 seconds regardless of article count."""
+                while True:
+                    time.sleep(30)
+                    elapsed = time.time() - start_time
+                    msg = f"⏱️ {processed}/{len(rows)} done ({elapsed:.1f}s)"
+                    log_and_print(msg)
+            
+            # Start background progress logger
+            progress_thread = threading.Thread(
+                target=log_progress_periodically, daemon=True
+            )
+            progress_thread.start()
+            
+            log_and_print("🚀 Starting background progress logger (reports every 30s)")
             
             # Cache gazetteer rows by (source_id, dataset_id)
             # to avoid repeated DB queries
