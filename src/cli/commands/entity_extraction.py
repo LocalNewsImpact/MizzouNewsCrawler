@@ -20,6 +20,12 @@ from src.pipeline.entity_extraction import (
 logger = logging.getLogger(__name__)
 
 
+def log_and_print(message: str, level: str = "info") -> None:
+    """Log message and print to stdout with immediate flush for visibility."""
+    print(message, flush=True)
+    getattr(logger, level)(message)
+
+
 def add_entity_extraction_parser(subparsers):
     """Add extract-entities command parser to CLI."""
     parser = subparsers.add_parser(
@@ -53,21 +59,20 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
     limit = getattr(args, "limit", 100)
     source = getattr(args, "source", None)
     
-    # Print to stdout immediately for visibility
-    print(f"🚀 Starting entity extraction...")
-    print(f"   Processing limit: {limit} articles")
+    # Log startup with visibility
+    log_and_print("🚀 Starting entity extraction...")
+    log_and_print(f"   Processing limit: {limit} articles")
     if source:
-        print(f"   Source filter: {source}")
-    print()
-    
-    logger.info("Starting entity extraction for articles without entities")
-    logger.info("Processing limit: %d articles", limit)
+        log_and_print(f"   Source filter: {source}")
+    log_and_print("")
     
     db = DatabaseManager()
     
     # Use provided extractor or create new one
     if extractor is None:
+        log_and_print("🧠 Loading spaCy model...")
         extractor = ArticleEntityExtractor()
+        log_and_print("✅ spaCy model loaded")
     
     try:
         with db.get_session() as session:
@@ -95,18 +100,19 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
             rows = result.fetchall()
             
             if not rows:
-                print("✓ No articles found needing entity extraction")
-                logger.info("No articles found needing entity extraction")
+                log_and_print("ℹ️  No articles found needing entity extraction")
                 return 0
             
-            print(f"📊 Found {len(rows)} articles needing entity extraction")
-            logger.info("Found %d articles needing entity extraction", len(rows))
+            log_and_print(f"📊 Found {len(rows)} articles needing entity extraction")
+            log_and_print("")
             
             processed = 0
             errors = 0
             
-            # Cache gazetteer rows by (source_id, dataset_id) to avoid repeated DB queries
-            # Each source has ~8,500 gazetteer entries, so fetching once per batch is much faster
+            # Cache gazetteer rows by (source_id, dataset_id)
+            # to avoid repeated DB queries
+            # Each source has ~8,500 gazetteer entries,
+            # so fetching once per batch is much faster
             gazetteer_cache: dict[tuple[str | None, str | None], list] = {}
             
             for row in rows:
@@ -150,15 +156,18 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
                     processed += 1
                     
                     if processed % 10 == 0:
-                        print(f"✓ Progress: {processed}/{len(rows)} articles processed")
-                        logger.info(
-                            "Progress: %d/%d articles processed",
-                            processed,
-                            len(rows),
+                        progress_msg = (
+                            f"✓ Progress: {processed}/{len(rows)} articles processed"
                         )
+                        log_and_print(progress_msg)
                         session.commit()
                 
                 except Exception as exc:
+                    error_msg = (
+                        f"Failed to extract entities for article "
+                        f"{article_id}: {exc}"
+                    )
+                    log_and_print(error_msg, level="error")
                     logger.exception(
                         "Failed to extract entities for article %s: %s",
                         article_id,
@@ -170,19 +179,16 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
             # Final commit
             session.commit()
             
-            print()
-            print("✅ Entity extraction completed!")
-            print(f"   Processed: {processed} articles")
-            print(f"   Errors: {errors}")
-            
-            logger.info(
-                "Entity extraction completed: %d processed, %d errors",
-                processed,
-                errors,
-            )
+            log_and_print("")
+            log_and_print("✅ Entity extraction completed!")
+            log_and_print(f"   Processed: {processed} articles")
+            log_and_print(f"   Errors: {errors}")
+            log_and_print("")
             
             return 0 if errors == 0 else 1
     
     except Exception as exc:
+        error_msg = f"Entity extraction failed: {exc}"
+        log_and_print(error_msg, level="error")
         logger.exception("Entity extraction failed: %s", exc)
         return 1
