@@ -34,7 +34,7 @@ IDLE_POLL_INTERVAL = int(
 VERIFICATION_BATCH_SIZE = int(os.getenv("VERIFICATION_BATCH_SIZE", "10"))
 EXTRACTION_BATCH_SIZE = int(os.getenv("EXTRACTION_BATCH_SIZE", "20"))
 ANALYSIS_BATCH_SIZE = int(os.getenv("ANALYSIS_BATCH_SIZE", "16"))
-GAZETTEER_BATCH_SIZE = int(os.getenv("GAZETTEER_BATCH_SIZE", "50"))
+GAZETTEER_BATCH_SIZE = int(os.getenv("GAZETTEER_BATCH_SIZE", "500"))
 
 # Feature flags for pipeline steps (can be disabled for dataset-specific jobs)
 ENABLE_DISCOVERY = os.getenv("ENABLE_DISCOVERY", "false").lower() == "true"
@@ -280,6 +280,25 @@ def process_cleaning(count: int) -> bool:
     )
 
 
+# Global cached entity extractor (loaded once at startup, never reloaded)
+_ENTITY_EXTRACTOR = None
+
+
+def get_cached_entity_extractor():
+    """Get or create cached entity extractor with spaCy model loaded once.
+    
+    This avoids reloading the spaCy model on every batch, which was causing
+    288 model reloads per day (wasting 10 min/day + 2GB memory spikes).
+    """
+    global _ENTITY_EXTRACTOR
+    if _ENTITY_EXTRACTOR is None:
+        from src.pipeline.entity_extraction import ArticleEntityExtractor
+        logger.info("🧠 Loading spaCy model (one-time initialization)...")
+        _ENTITY_EXTRACTOR = ArticleEntityExtractor()
+        logger.info("✅ spaCy model loaded and cached in memory")
+    return _ENTITY_EXTRACTOR
+
+
 def process_entity_extraction(count: int) -> bool:
     """Run entity extraction on articles that have content but no entities.
 
@@ -287,6 +306,8 @@ def process_entity_extraction(count: int) -> bool:
     them in the article_entities table. The gazetteer data (OSM locations
     for each source) should already be populated via the populate-gazetteer
     command during initial setup.
+    
+    Uses a cached extractor to avoid reloading the spaCy model on every batch.
     """
     if count == 0:
         return False
@@ -295,15 +316,31 @@ def process_entity_extraction(count: int) -> bool:
     # (or all pending if less than batch size)
     limit = min(count, GAZETTEER_BATCH_SIZE)
     
-    command = [
-        "extract-entities",
-        "--limit",
-        str(limit),
-    ]
-
-    return run_cli_command(
-        command, f"Entity extraction ({count} pending, limit {limit})"
-    )
+    try:
+        from argparse import Namespace
+        from src.cli.commands.entity_extraction import handle_entity_extraction_command
+        
+        logger.info("▶️  Entity extraction (%d pending, limit %d)", count, limit)
+        
+        # Get cached extractor (model already loaded!)
+        extractor = get_cached_entity_extractor()
+        
+        # Call directly instead of subprocess to keep model in memory
+        args = Namespace(limit=limit, source=None)
+        start = time.time()
+        result = handle_entity_extraction_command(args, extractor=extractor)
+        elapsed = time.time() - start
+        
+        if result == 0:
+            logger.info("✅ Entity extraction completed successfully (%.1fs)", elapsed)
+            return True
+        else:
+            logger.error("❌ Entity extraction failed with exit code %d (%.1fs)", result, elapsed)
+            return False
+            
+    except Exception as e:
+        logger.exception("💥 Entity extraction raised exception: %s", e)
+        return False
 
 
 def process_cycle() -> bool:

@@ -40,10 +40,15 @@ def add_entity_extraction_parser(subparsers):
     parser.set_defaults(func=handle_entity_extraction_command)
 
 
-def handle_entity_extraction_command(args) -> int:
+def handle_entity_extraction_command(args, extractor=None) -> int:
     """Execute entity extraction command logic.
     
     Processes articles that have content but no entries in article_entities table.
+    
+    Args:
+        args: Command arguments containing limit and source filters
+        extractor: Optional pre-loaded ArticleEntityExtractor instance. If None,
+                   a new extractor will be created (loading the spaCy model).
     """
     limit = getattr(args, "limit", 100)
     source = getattr(args, "source", None)
@@ -59,7 +64,10 @@ def handle_entity_extraction_command(args) -> int:
     logger.info("Processing limit: %d articles", limit)
     
     db = DatabaseManager()
-    extractor = ArticleEntityExtractor()
+    
+    # Use provided extractor or create new one
+    if extractor is None:
+        extractor = ArticleEntityExtractor()
     
     try:
         with db.get_session() as session:
