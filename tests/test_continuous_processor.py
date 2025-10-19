@@ -311,56 +311,62 @@ class TestProcessAnalysis:
 
 
 class TestProcessEntityExtraction:
-    """Test the process_entity_extraction function - the fixed code."""
+    """Test the process_entity_extraction function - now uses direct function call."""
 
-    def test_process_entity_extraction_returns_false_when_count_zero(self, mock_subprocess):
+    def test_process_entity_extraction_returns_false_when_count_zero(self):
         """Test that entity extraction is skipped when count is 0."""
         result = continuous_processor.process_entity_extraction(0)
         
         assert result is False
-        mock_subprocess.assert_not_called()
 
-    def test_process_entity_extraction_builds_correct_command(self, mock_subprocess):
-        """Test that entity extraction command is built correctly WITH --limit."""
-        # Configure mock to return success
-        mock_proc = mock_subprocess.return_value
-        mock_proc.wait.return_value = 0
+    @patch("orchestration.continuous_processor.handle_entity_extraction_command")
+    @patch("orchestration.continuous_processor.get_cached_entity_extractor")
+    def test_process_entity_extraction_calls_function_directly(
+        self, mock_get_extractor, mock_handle_command
+    ):
+        """Test that entity extraction now calls function directly instead of subprocess."""
+        # Setup mocks
+        mock_extractor = MagicMock()
+        mock_get_extractor.return_value = mock_extractor
+        mock_handle_command.return_value = 0  # Success
         
-        continuous_processor.process_entity_extraction(50)
+        result = continuous_processor.process_entity_extraction(50)
         
-        # Get the command that was passed to Popen
-        call_args = mock_subprocess.call_args
-        # Popen passes command via 'args' keyword argument or as first positional arg
-        cmd = call_args[1].get("args") if "args" in call_args[1] else call_args[0][0]
+        # Verify it calls the cached extractor
+        mock_get_extractor.assert_called_once()
         
-        # Verify command structure
-        assert "extract-entities" in cmd
+        # Verify it calls the handler function with correct args
+        mock_handle_command.assert_called_once()
+        call_args = mock_handle_command.call_args
         
-        # Verify that --limit is in the command (uses batch size)
-        assert "--limit" in cmd
-        limit_idx = cmd.index("--limit")
-        assert cmd[limit_idx + 1] == "50"
+        # Check args namespace
+        args = call_args[0][0]
+        assert args.limit == 50
+        assert args.source is None
+        
+        # Check extractor was passed
+        assert call_args[1]["extractor"] is mock_extractor
+        assert result is True
 
-    def test_process_entity_extraction_uses_batch_size(self, mock_subprocess):
+    @patch("orchestration.continuous_processor.handle_entity_extraction_command")
+    @patch("orchestration.continuous_processor.get_cached_entity_extractor")
+    def test_process_entity_extraction_uses_batch_size(
+        self, mock_get_extractor, mock_handle_command
+    ):
         """Test that entity extraction limits to GAZETTEER_BATCH_SIZE."""
-        # Configure mock to return success
-        mock_proc = mock_subprocess.return_value
-        mock_proc.wait.return_value = 0
+        mock_get_extractor.return_value = MagicMock()
+        mock_handle_command.return_value = 0  # Success
         
         # Pass count larger than batch size
-        result = continuous_processor.process_entity_extraction(100)
+        result = continuous_processor.process_entity_extraction(1000)
         
-        # Get the command that was passed to Popen
-        call_args = mock_subprocess.call_args
-        cmd = call_args[1].get("args") if "args" in call_args[1] else call_args[0][0]
+        # Verify it was called with the batch size limit
+        call_args = mock_handle_command.call_args
+        args = call_args[0][0]
         
-        # Should use min(count, GAZETTEER_BATCH_SIZE) as limit
-        assert "--limit" in cmd
-        limit_idx = cmd.index("--limit")
-        limit_value = int(cmd[limit_idx + 1])
-        
-        # Should be capped at GAZETTEER_BATCH_SIZE (50)
-        assert limit_value == min(100, continuous_processor.GAZETTEER_BATCH_SIZE)
+        # Should be capped at GAZETTEER_BATCH_SIZE (500)
+        assert args.limit == min(1000, continuous_processor.GAZETTEER_BATCH_SIZE)
+        assert args.limit == continuous_processor.GAZETTEER_BATCH_SIZE
         assert result is True
 
 
