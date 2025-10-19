@@ -13,7 +13,7 @@ import uuid
 from collections import defaultdict
 from collections.abc import Iterable
 from datetime import datetime
-from typing import Any, Type, cast
+from typing import Any, cast
 
 from sqlalchemy import text
 
@@ -40,14 +40,14 @@ from src.utils.content_cleaner_balanced import BalancedBoundaryContentCleaner
 from src.utils.content_type_detector import ContentTypeDetector
 
 
-ContentExtractor: Type[Any] | None = None
+ContentExtractor: type[Any] | None = None
 
 
 class _PlaceholderNotFoundError(Exception):
     """Fallback exception until crawler dependencies are loaded."""
 
 
-NotFoundError: Type[Exception] = _PlaceholderNotFoundError
+NotFoundError: type[Exception] = _PlaceholderNotFoundError
 
 
 def _ensure_crawler_dependencies() -> None:
@@ -191,7 +191,7 @@ def _analyze_dataset_domains(args, session):
                 continue
         
         unique_count = len(domains)
-        sample_list = sorted(list(domains))[:5]
+        sample_list = sorted(domains)[:5]
         
         return {
             "unique_domains": unique_count,
@@ -248,7 +248,7 @@ def handle_extraction_command(args) -> int:
     if ContentExtractor is None:  # pragma: no cover - defensive fallback
         raise RuntimeError("ContentExtractor dependency is unavailable")
 
-    extractor_cls = cast(Type[Any], ContentExtractor)
+    extractor_cls = cast(type[Any], ContentExtractor)
     process_accepts_db = "db" in inspect.signature(_process_batch).parameters
     post_clean_accepts_db = "db" in inspect.signature(
         _run_post_extraction_cleaning

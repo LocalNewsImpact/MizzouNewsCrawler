@@ -131,7 +131,7 @@ def migrate_dataset_ids(dry_run: bool = False) -> dict:
             )
             stats["null_values"] = null_result.scalar() or 0
             
-            logger.info(f"\n=== Current State ===")
+            logger.info("\n=== Current State ===")
             logger.info(f"Total candidate_links with dataset_id: {stats['total_rows']}")
             logger.info(f"Valid UUIDs: {stats['valid_uuids']}")
             logger.info(f"Invalid values: {stats['invalid_values']}")
@@ -142,7 +142,7 @@ def migrate_dataset_ids(dry_run: bool = False) -> dict:
                 return stats
             
             # Migrate invalid values
-            logger.info(f"\n=== Migration Plan ===")
+            logger.info("\n=== Migration Plan ===")
             
             for invalid_value, count in invalid_values.items():
                 resolved_uuid = None
@@ -226,7 +226,7 @@ def migrate_dataset_ids(dry_run: bool = False) -> dict:
                 else:
                     logger.info("\n✅ All dataset_id values are now valid UUIDs!")
     
-    except Exception as e:
+    except Exception:
         logger.exception("Migration failed with error")
         stats["errors"] = -1
         return stats

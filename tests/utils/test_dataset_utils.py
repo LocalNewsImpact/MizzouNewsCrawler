@@ -1,8 +1,7 @@
 """Unit tests for dataset resolution utilities."""
 
-import uuid
 import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from src.models import Base, Dataset
