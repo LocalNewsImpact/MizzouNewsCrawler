@@ -313,9 +313,11 @@ class ComprehensiveExtractionTelemetry:
                     metrics.http_error_type,
                     metrics.response_size_bytes,
                     metrics.response_time_ms,
-                    metrics.proxy_used,
+                    (int(metrics.proxy_used)
+                     if metrics.proxy_used is not None else None),
                     metrics.proxy_url,
-                    metrics.proxy_authenticated,
+                    (int(metrics.proxy_authenticated)
+                     if metrics.proxy_authenticated is not None else None),
                     metrics.proxy_status,
                     metrics.proxy_error,
                     json.dumps(metrics.methods_attempted),
