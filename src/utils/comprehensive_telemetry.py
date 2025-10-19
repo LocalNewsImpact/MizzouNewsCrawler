@@ -262,169 +262,15 @@ class ComprehensiveExtractionTelemetry:
                 self._database_url = database_url
                 self._store = get_store(database_url)
 
-        try:
-            self._ensure_telemetry_tables()
-        except Exception as e:
-            logger.warning(f"Failed to initialize telemetry tables: {e}")
-            logger.warning("Continuing without telemetry...")
+        # NOTE: Telemetry tables should already exist via Alembic migrations
+        # Do NOT create tables at runtime from application code
 
-    def _ensure_telemetry_tables(self):
-        """Create telemetry tables if they don't exist."""
-        # Detect if we're using PostgreSQL or SQLite
-        is_postgres = (
-            self._database_url and
-            self._database_url.startswith("postgresql")
-        )
-        
-        # Use appropriate auto-increment syntax
-        if is_postgres:
-            auto_id = "SERIAL PRIMARY KEY"
-        else:
-            auto_id = "INTEGER PRIMARY KEY AUTOINCREMENT"
-        
-        # Execute each table creation in its own transaction to avoid
-        # "current transaction is aborted" errors in PostgreSQL
-        try:
-            with self._store.connection() as conn:
-                # Enhanced extraction telemetry table
-                conn.execute(
-                    f"""
-                    CREATE TABLE IF NOT EXISTS extraction_telemetry_v2 (
-                        id {auto_id},
-                        operation_id TEXT NOT NULL,
-                        article_id TEXT NOT NULL,
-                        url TEXT NOT NULL,
-                        publisher TEXT,
-                        host TEXT,
-
-                        -- Timing metrics
-                        start_time TIMESTAMP NOT NULL,
-                        end_time TIMESTAMP,
-                        total_duration_ms REAL,
-
-                        -- HTTP metrics
-                        http_status_code INTEGER,
-                        http_error_type TEXT,
-                        response_size_bytes INTEGER,
-                        response_time_ms REAL,
-
-                        -- Proxy metrics
-                        proxy_used BOOLEAN,
-                        proxy_url TEXT,
-                        proxy_authenticated BOOLEAN,
-                        proxy_status TEXT,
-                        proxy_error TEXT,
-
-                        -- Method tracking
-                        methods_attempted TEXT,
-                        successful_method TEXT,
-                        method_timings TEXT,
-                        method_success TEXT,
-                        method_errors TEXT,
-
-                        -- Field extraction tracking
-                        field_extraction TEXT,
-                        extracted_fields TEXT,
-                        final_field_attribution TEXT,
-                        alternative_extractions TEXT,
-
-                        -- Results
-                        content_length INTEGER,
-                        is_success BOOLEAN,
-                        error_message TEXT,
-                        error_type TEXT,
-
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    )
-                """
-                )
-        except Exception:
-            # Table already exists, ignore
-            pass
-
-        # Add columns in separate transactions to avoid transaction abort
-        # if any column already exists
-        for column_name, column_type in [
-            ("alternative_extractions", "TEXT"),
-            ("proxy_used", "BOOLEAN"),
-            ("proxy_url", "TEXT"),
-            ("proxy_authenticated", "BOOLEAN"),
-            ("proxy_status", "TEXT"),
-            ("proxy_error", "TEXT"),
-        ]:
-            try:
-                with self._store.connection() as conn:
-                    conn.execute(
-                        f"""
-                        ALTER TABLE extraction_telemetry_v2
-                        ADD COLUMN {column_name} {column_type}
-                        """
-                    )
-            except Exception:
-                # Column already exists, ignore
-                pass
-
-        # HTTP error tracking table
-        try:
-            with self._store.connection() as conn:
-                conn.execute(
-                    f"""
-                    CREATE TABLE IF NOT EXISTS http_error_summary (
-                        id {auto_id},
-                        host TEXT NOT NULL,
-                        status_code INTEGER NOT NULL,
-                        error_type TEXT NOT NULL,
-                        count INTEGER DEFAULT 1,
-                        first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-                        UNIQUE(host, status_code)
-                    )
-                """
-                )
-        except Exception:
-            # Table already exists, ignore
-            pass
-
-        # Content type detection telemetry table
-        try:
-            with self._store.connection() as conn:
-                conn.execute(
-                    f"""
-                    CREATE TABLE IF NOT EXISTS content_type_detection_telemetry (
-                        id {auto_id},
-                        article_id TEXT NOT NULL,
-                        operation_id TEXT,
-                        url TEXT NOT NULL,
-                        publisher TEXT,
-                        host TEXT,
-                        status TEXT NOT NULL,
-                        confidence TEXT,
-                        confidence_score REAL,
-                        reason TEXT,
-                        evidence TEXT,
-                        version TEXT,
-                        detected_at TIMESTAMP,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    )
-                """
-                )
-        except Exception:
-            # Table already exists, ignore
-            pass
-
-        # Add confidence_score column if missing
-        try:
-            with self._store.connection() as conn:
-                conn.execute(
-                    """
-                    ALTER TABLE content_type_detection_telemetry
-                    ADD COLUMN confidence_score REAL
-                    """
-                )
-        except Exception:
-            # Column already exists, ignore
-            pass
+    # REMOVED: _ensure_telemetry_tables() method
+    # Schema changes should be handled via Alembic migrations, NOT at runtime
+    # If telemetry tables don't exist, they should be created via:
+    # 1. alembic upgrade head (for new deployments)
+    # 2. Manual SQL scripts (for existing databases)
+    # 3. NOT from application code during normal operation
 
     def record_extraction(self, metrics: ExtractionMetrics):
         """Record detailed extraction metrics."""
@@ -436,6 +282,7 @@ class ComprehensiveExtractionTelemetry:
                     is_success = True
                 else:
                     is_success = any(metrics.method_success.values())
+            
             conn.execute(
                 """
                 INSERT INTO extraction_telemetry_v2 (
@@ -451,7 +298,7 @@ class ComprehensiveExtractionTelemetry:
                     final_field_attribution, alternative_extractions,
                     content_length, is_success, error_message, error_type
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     metrics.operation_id,
@@ -466,17 +313,9 @@ class ComprehensiveExtractionTelemetry:
                     metrics.http_error_type,
                     metrics.response_size_bytes,
                     metrics.response_time_ms,
-                    (
-                        int(metrics.proxy_used)
-                        if metrics.proxy_used is not None
-                        else None
-                    ),
+                    metrics.proxy_used,
                     metrics.proxy_url,
-                    (
-                        int(metrics.proxy_authenticated)
-                        if metrics.proxy_authenticated is not None
-                        else None
-                    ),
+                    metrics.proxy_authenticated,
                     metrics.proxy_status,
                     metrics.proxy_error,
                     json.dumps(metrics.methods_attempted),
