@@ -7,6 +7,9 @@
 # (Currently all heavy dependencies are in ml-base, so this file is minimal)
 # Add lightweight processor-specific packages here as needed
 
+# Fast fuzzy string matching for entity extraction
+rapidfuzz>=3.0.0  # 50-100x faster than difflib for gazetteer matching
+
 # Browser automation used for last-resort extraction in processor
 selenium>=4.10.0
 undetected-chromedriver>=3.5.0
