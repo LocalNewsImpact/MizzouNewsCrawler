@@ -298,7 +298,7 @@ class ComprehensiveExtractionTelemetry:
                     final_field_attribution, alternative_extractions,
                     content_length, is_success, error_message, error_type
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     metrics.operation_id,
