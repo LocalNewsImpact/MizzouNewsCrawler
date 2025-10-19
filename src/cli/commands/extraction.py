@@ -120,6 +120,52 @@ def _format_cleaned_authors(authors):
     return ", ".join(normalized)
 
 
+def _get_status_counts(args, session):
+    """Get counts of candidate links by status for the current dataset/source.
+    
+    Args:
+        args: Command arguments containing dataset/source filters
+        session: Database session
+        
+    Returns:
+        dict mapping status -> count (e.g., {'article': 207, 'extracted': 4445, ...})
+    """
+    query = """
+    SELECT cl.status, COUNT(*) as count
+    FROM candidate_links cl
+    WHERE 1=1
+    """
+    
+    params = {}
+    
+    # Add dataset filter if specified (dataset is already resolved to UUID)
+    if getattr(args, "dataset", None):
+        query += " AND cl.dataset_id = :dataset"
+        params["dataset"] = args.dataset
+    else:
+        # No explicit dataset - exclude cron-disabled datasets
+        query += """
+        AND (cl.dataset_id IS NULL
+             OR cl.dataset_id IN (
+                 SELECT id FROM datasets WHERE cron_enabled IS TRUE
+             ))
+        """
+    
+    # Add source filter if specified
+    if getattr(args, "source", None):
+        query += " AND cl.source = :source"
+        params["source"] = args.source
+    
+    query += " GROUP BY cl.status ORDER BY count DESC"
+    
+    try:
+        result = session.execute(text(query), params)
+        return {row[0]: row[1] for row in result.fetchall()}
+    except Exception as e:
+        logger.warning("Failed to get status counts: %s", e)
+        return {}
+
+
 def _analyze_dataset_domains(args, session):
     """Analyze how many unique domains exist in the dataset's candidate links.
     
@@ -135,7 +181,7 @@ def _analyze_dataset_domains(args, session):
     """
     from urllib.parse import urlparse
 
-    # Build query to get candidate links for this dataset/source
+    # Build query to get candidate links for this dataset/candidate links
     query = """
     SELECT DISTINCT cl.url
     FROM candidate_links cl
@@ -420,10 +466,38 @@ def handle_extraction_command(args) -> int:
                 
                 print(
                     f"✓ Batch {batch_num} complete: {articles_processed} "
-                    f"articles extracted ({remaining_count} remaining)"
+                    f"articles extracted ({remaining_count} remaining "
+                    f"with status='article')"
                 )
-            except Exception:
+                
+                # Get and display status breakdown
+                status_counts = _get_status_counts(args, db.session)
+                if status_counts:
+                    # Focus on key statuses
+                    key_statuses = [
+                        'article', 'extracted', 'wire', 'obituary', 'opinion'
+                    ]
+                    status_parts = []
+                    for status in key_statuses:
+                        if status in status_counts:
+                            count_str = f"{status}={status_counts[status]:,}"
+                            status_parts.append(count_str)
+                    
+                    if status_parts:
+                        print(f"  📊 Status breakdown: {', '.join(status_parts)}")
+                        status_dict = {
+                            k: v for k, v in status_counts.items()
+                            if k in key_statuses
+                        }
+                        logger.info(
+                            "Batch %d status counts: %s",
+                            batch_num,
+                            status_dict
+                        )
+                    
+            except Exception as e:
                 # Fallback if query fails
+                logger.warning("Failed to get status counts: %s", e)
                 print(
                     f"✓ Batch {batch_num} complete: "
                     f"{articles_processed} articles extracted"
