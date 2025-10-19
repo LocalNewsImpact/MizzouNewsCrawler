@@ -19,6 +19,26 @@ from src.telemetry.store import TelemetryStore, get_store
 logger = logging.getLogger(__name__)
 
 
+# Proxy status codes for telemetry database (integer field)
+PROXY_STATUS_DISABLED = 0
+PROXY_STATUS_SUCCESS = 1
+PROXY_STATUS_FAILED = 2
+PROXY_STATUS_BYPASSED = 3
+
+
+def proxy_status_to_int(status: str | None) -> int | None:
+    """Convert string proxy status to integer for database storage."""
+    if status is None:
+        return None
+    status_map = {
+        "disabled": PROXY_STATUS_DISABLED,
+        "success": PROXY_STATUS_SUCCESS,
+        "failed": PROXY_STATUS_FAILED,
+        "bypassed": PROXY_STATUS_BYPASSED,
+    }
+    return status_map.get(status.lower())
+
+
 class ExtractionMetrics:
     """Tracks detailed metrics for a single extraction operation."""
 
@@ -77,7 +97,8 @@ class ExtractionMetrics:
         self.proxy_used: bool = False
         self.proxy_url: str | None = None
         self.proxy_authenticated: bool = False
-        self.proxy_status: str | None = None  # success, failed, bypassed, disabled
+        # 0=disabled, 1=success, 2=failed, 3=bypassed
+        self.proxy_status: int | None = None
         self.proxy_error: str | None = None
 
     def start_method(self, method_name: str):
@@ -199,7 +220,7 @@ class ExtractionMetrics:
         self.proxy_used = proxy_used
         self.proxy_url = proxy_url
         self.proxy_authenticated = proxy_authenticated
-        self.proxy_status = proxy_status
+        self.proxy_status = proxy_status_to_int(proxy_status)
         if proxy_error:
             # Truncate long error messages
             self.proxy_error = proxy_error[:500]
