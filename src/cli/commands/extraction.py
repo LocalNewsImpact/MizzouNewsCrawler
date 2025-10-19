@@ -149,9 +149,9 @@ def _analyze_dataset_domains(args, session):
     
     params = {}
     
-    # Add dataset filter if specified
+    # Add dataset filter if specified (dataset is already resolved to UUID)
     if getattr(args, "dataset", None):
-        query += " AND cl.dataset_id = (SELECT id FROM datasets WHERE slug = :dataset)"
+        query += " AND cl.dataset_id = :dataset"
         params["dataset"] = args.dataset
     else:
         # No explicit dataset - exclude cron-disabled datasets
@@ -272,6 +272,26 @@ def handle_extraction_command(args) -> int:
         logger.exception("Failed to initialize database connection")
         return 1
     
+    # Resolve dataset parameter to UUID for consistent querying
+    dataset_uuid = None
+    if getattr(args, "dataset", None):
+        try:
+            from src.utils.dataset_utils import resolve_dataset_id
+            
+            dataset_uuid = resolve_dataset_id(db.engine, args.dataset)
+            logger.info(
+                "Resolved dataset '%s' to UUID: %s",
+                args.dataset,
+                dataset_uuid,
+            )
+            print(f"   Dataset: {args.dataset} (UUID: {dataset_uuid})")
+            # Replace args.dataset with resolved UUID for downstream code
+            args.dataset = dataset_uuid
+        except ValueError as e:
+            logger.error("Dataset resolution failed: %s", e)
+            print(f"❌ Error: {e}")
+            return 1
+    
     # Analyze dataset domain structure upfront
     domain_analysis = _analyze_dataset_domains(args, db.session)
     if domain_analysis["unique_domains"] > 0:
@@ -372,20 +392,19 @@ def handle_extraction_command(args) -> int:
                 db.session.close()
                 
                 # Build count query matching the extraction filters
-                dataset_slug = getattr(args, "dataset", None)
-                if dataset_slug:
-                    # Filter by specific dataset
+                dataset_uuid = getattr(args, "dataset", None)
+                if dataset_uuid:
+                    # Filter by specific dataset UUID
                     query = text(
                         "SELECT COUNT(*) FROM candidate_links cl "
                         "WHERE cl.status = 'article' "
-                        "AND cl.dataset_id = "
-                        "(SELECT id FROM datasets WHERE slug = :dataset) "
+                        "AND cl.dataset_id = :dataset "
                         "AND cl.id NOT IN "
                         "(SELECT candidate_link_id FROM articles "
                         "WHERE candidate_link_id IS NOT NULL)"
                     )
                     remaining_count = db.session.execute(
-                        query, {"dataset": dataset_slug}
+                        query, {"dataset": dataset_uuid}
                     ).scalar() or 0
                 else:
                     # Count across all cron-enabled datasets
@@ -572,12 +591,12 @@ def _process_batch(
         buffer_multiplier = 3
         params = {"limit_with_buffer": per_batch * buffer_multiplier}
         
-        # Add dataset filter if specified
+        # Add dataset filter if specified (dataset is already resolved to UUID)
         if getattr(args, "dataset", None):
             q = q.replace(
                 "WHERE cl.status = 'article'",
                 """WHERE cl.status = 'article'
-                AND cl.dataset_id = (SELECT id FROM datasets WHERE slug = :dataset)""",
+                AND cl.dataset_id = :dataset""",
             )
             params["dataset"] = args.dataset
         else:

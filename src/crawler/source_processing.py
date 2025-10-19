@@ -30,6 +30,7 @@ class SourceProcessor:
     source_url: str = field(init=False)
     source_name: str = field(init=False)
     source_id: str = field(init=False)
+    dataset_id: str | None = field(init=False)  # Resolved UUID from dataset_label
     start_time: float = field(init=False)
     existing_urls: set[str] = field(init=False)
     source_meta: dict | None = field(init=False)
@@ -60,11 +61,21 @@ class SourceProcessor:
         self.source_id = str(self.source_row["id"])
         self.start_time = time.time()
 
+        # Resolve dataset_label to UUID for consistent database storage
+        self.dataset_id = self._resolve_dataset_label()
+
         logger.info(
             "Processing source: %s (%s)",
             self.source_name,
             self.source_url,
         )
+        
+        if self.dataset_id:
+            logger.debug(
+                "Resolved dataset '%s' to UUID: %s",
+                self.dataset_label,
+                self.dataset_id,
+            )
 
         self.existing_urls = self.discovery._get_existing_urls_for_source(
             self.source_id
@@ -92,6 +103,39 @@ class SourceProcessor:
             except Exception:
                 return None
         return None
+
+    def _resolve_dataset_label(self) -> str | None:
+        """Resolve dataset_label (name/slug) to canonical UUID.
+        
+        Returns:
+            Dataset UUID as string, or None if no dataset specified
+        """
+        if not self.dataset_label:
+            return None
+        
+        try:
+            from src.utils.dataset_utils import resolve_dataset_id
+            
+            # Get database engine from discovery object
+            db_manager = self.discovery._create_db_manager()
+            dataset_uuid = resolve_dataset_id(db_manager.engine, self.dataset_label)
+            return dataset_uuid
+        except ValueError as e:
+            # Log the error but don't fail the entire discovery process
+            logger.error(
+                "Failed to resolve dataset '%s': %s",
+                self.dataset_label,
+                str(e),
+            )
+            # Return None to continue without dataset tagging
+            return None
+        except Exception as e:
+            logger.warning(
+                "Unexpected error resolving dataset '%s': %s",
+                self.dataset_label,
+                str(e),
+            )
+            return None
 
     def _determine_effective_methods(self) -> list[DiscoveryMethod]:
         telemetry = getattr(self.discovery, "telemetry", None)
@@ -570,7 +614,7 @@ class SourceProcessor:
                         "source": self.source_name,
                         "source_id": self.source_id,
                         "source_host_id": self.source_id,
-                        "dataset_id": self.dataset_label,
+                        "dataset_id": self.dataset_id,  # Use resolved UUID instead of label
                         "discovered_by": discovered_by_label,
                         "publish_date": typed_publish_date,
                         "meta": {
