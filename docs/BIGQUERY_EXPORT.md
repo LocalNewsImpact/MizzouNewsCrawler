@@ -1,8 +1,27 @@
 # BigQuery Export Pipeline
 
-## Overview
+> **⚠️ DEPRECATED**: This manual export approach has been replaced with **Google Cloud Datastream**, a managed CDC (Change Data Capture) service that provides real-time replication.
+>
+> **See [DATASTREAM_SETUP.md](../DATASTREAM_SETUP.md) for the new approach.**
 
-The BigQuery export pipeline extracts article data from the PostgreSQL production database and loads it into BigQuery for analytics and reporting. This enables:
+## Migration to Datastream
+
+The manual BigQuery export code has been removed in favor of Google Cloud Datastream, which provides:
+
+✅ **Automatic replication** of ALL tables (articles, labels, entities)  
+✅ **Real-time sync** (seconds of latency instead of daily batch)  
+✅ **Automatic schema changes** handling  
+✅ **No custom code** to maintain  
+✅ **No batching, limits, or pagination** issues  
+✅ **Managed service** with built-in monitoring and retries  
+
+For setup instructions, see: **[DATASTREAM_SETUP.md](../DATASTREAM_SETUP.md)**
+
+---
+
+## Historical Overview (For Reference Only)
+
+The previous BigQuery export pipeline extracted article data from the PostgreSQL production database and loaded it into BigQuery for analytics and reporting. This enabled:
 
 - Historical analysis of article trends
 - County-level news coverage metrics

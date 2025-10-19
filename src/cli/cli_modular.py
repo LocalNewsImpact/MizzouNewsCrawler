@@ -44,7 +44,6 @@ COMMAND_HANDLER_ATTRS: dict[str, str] = {
     "dump-http-status": "handle_http_status_command",
     "llm": "handle_llm_command",
     "pipeline-status": "handle_pipeline_status_command",
-    "bigquery-export": "handle_bigquery_export_command",
 }
 
 
@@ -100,7 +99,6 @@ def _load_command_parser(command: str) -> tuple[Callable, Callable] | None:
         "dump-http-status": "http_status",
         "llm": "llm",
         "pipeline-status": "pipeline_status",
-        "bigquery-export": "bigquery_export",
     }
 
     module_name = command_modules.get(command)

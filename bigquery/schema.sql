@@ -1,6 +1,10 @@
 -- BigQuery Schema for MizzouNewsCrawler Analytics
 -- Dataset: mizzou_analytics
 -- Purpose: Long-term storage and analytics for article data
+--
+-- NOTE: Tables are now populated via Google Cloud Datastream (CDC replication)
+--       instead of manual export code. See DATASTREAM_SETUP.md for details.
+--       This file serves as reference documentation for the table schemas.
 
 -- Articles table (main fact table)
 -- Partitioned by published_date for efficient querying
