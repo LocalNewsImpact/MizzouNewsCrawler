@@ -2,9 +2,13 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: 
+      - main
+      - feature/gcp-kubernetes-deployment  # Run CI on feature branch for pre-merge validation
   pull_request:
-    branches: [ main ]
+    branches: 
+      - main
+      - feature/gcp-kubernetes-deployment  # Run CI on PRs to feature branch
   schedule:
     # Run stress job weekly at 03:00 UTC on Sundays (example)
     - cron: '0 3 * * 0'
