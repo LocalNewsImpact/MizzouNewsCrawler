@@ -127,6 +127,120 @@ class TestExtractionMetrics:
         assert field_stats["publish_date"] is True
 
 
+def create_telemetry_tables(db_path: str) -> None:
+    """Create telemetry tables manually for testing (without Alembic).
+    
+    This replicates the schema from Alembic migration a1b2c3d4e5f6.
+    """
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    
+    # Create extraction_telemetry_v2 table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS extraction_telemetry_v2 (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            operation_id TEXT NOT NULL,
+            article_id TEXT NOT NULL,
+            url TEXT NOT NULL,
+            publisher TEXT,
+            host TEXT,
+            start_time TIMESTAMP NOT NULL,
+            end_time TIMESTAMP,
+            total_duration_ms REAL,
+            http_status_code INTEGER,
+            http_error_type TEXT,
+            response_size_bytes INTEGER,
+            response_time_ms REAL,
+            methods_attempted TEXT,
+            successful_method TEXT,
+            method_timings TEXT,
+            method_success TEXT,
+            method_errors TEXT,
+            field_extraction TEXT,
+            extracted_fields TEXT,
+            final_field_attribution TEXT,
+            alternative_extractions TEXT,
+            content_length INTEGER,
+            is_success BOOLEAN,
+            error_message TEXT,
+            error_type TEXT,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            proxy_used INTEGER,
+            proxy_url TEXT,
+            proxy_authenticated INTEGER,
+            proxy_status INTEGER,
+            proxy_error TEXT
+        )
+    """)
+    
+    # Create indexes
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS ix_extraction_telemetry_v2_operation_id "
+        "ON extraction_telemetry_v2 (operation_id)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS ix_extraction_telemetry_v2_article_id "
+        "ON extraction_telemetry_v2 (article_id)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS ix_extraction_telemetry_v2_url "
+        "ON extraction_telemetry_v2 (url)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS ix_extraction_telemetry_v2_publisher "
+        "ON extraction_telemetry_v2 (publisher)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS ix_extraction_telemetry_v2_host "
+        "ON extraction_telemetry_v2 (host)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS ix_extraction_telemetry_v2_successful_method "
+        "ON extraction_telemetry_v2 (successful_method)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS ix_extraction_telemetry_v2_is_success "
+        "ON extraction_telemetry_v2 (is_success)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS ix_extraction_telemetry_v2_created_at "
+        "ON extraction_telemetry_v2 (created_at)"
+    )
+    
+    # Create http_error_summary table
+    # NOTE: UNIQUE(host, status_code) is required for ON CONFLICT to work.
+    # This matches the production schema after migration 805164cd4665.
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS http_error_summary (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            host TEXT NOT NULL,
+            status_code INTEGER NOT NULL,
+            error_type TEXT NOT NULL,
+            count INTEGER NOT NULL,
+            first_seen TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            last_seen TIMESTAMP NOT NULL,
+            UNIQUE(host, status_code)
+        )
+    """)
+    
+    # Create indexes
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS ix_http_error_summary_host "
+        "ON http_error_summary (host)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS ix_http_error_summary_status_code "
+        "ON http_error_summary (status_code)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS ix_http_error_summary_last_seen "
+        "ON http_error_summary (last_seen)"
+    )
+    
+    conn.commit()
+    conn.close()
+
+
 class TestComprehensiveExtractionTelemetry:
     """Test the database operations and telemetry storage."""
 
@@ -136,6 +250,9 @@ class TestComprehensiveExtractionTelemetry:
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
             db_path = f.name
 
+        # Create tables manually (since we don't run Alembic migrations in tests)
+        create_telemetry_tables(db_path)
+        
         telemetry = ComprehensiveExtractionTelemetry(db_path)
         yield telemetry, db_path
 
@@ -364,6 +481,10 @@ class TestContentExtractorIntegration:
         """Create a temporary database for testing."""
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
             db_path = f.name
+        
+        # Create tables manually (since we don't run Alembic migrations in tests)
+        create_telemetry_tables(db_path)
+        
         yield db_path
         Path(db_path).unlink(missing_ok=True)
 
@@ -579,6 +700,9 @@ class TestTelemetrySystemEndToEnd:
         """Simulate a complete extraction workflow with telemetry."""
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
             db_path = f.name
+
+        # Create telemetry tables manually (since Alembic migrations aren't run)
+        create_telemetry_tables(db_path)
 
         try:
             telemetry = ComprehensiveExtractionTelemetry(db_path)
