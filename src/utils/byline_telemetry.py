@@ -99,6 +99,10 @@ class BylineCleaningTelemetry:
                     requires_manual_review BOOLEAN,
                     cleaning_errors TEXT,
                     parsing_warnings TEXT,
+                    human_label TEXT,
+                    human_notes TEXT,
+                    reviewed_by TEXT,
+                    reviewed_at TIMESTAMP,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
                 """
@@ -348,9 +352,10 @@ class BylineCleaningTelemetry:
                         source_name_removed, duplicates_removed_count,
                         likely_valid_authors, likely_noise,
                         requires_manual_review, cleaning_errors,
-                        parsing_warnings, created_at
+                        parsing_warnings, human_label, human_notes,
+                        reviewed_by, reviewed_at, created_at
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         session["telemetry_id"],
@@ -380,6 +385,10 @@ class BylineCleaningTelemetry:
                         session.get("requires_manual_review"),
                         session.get("cleaning_errors"),
                         session.get("parsing_warnings"),
+                        session.get("human_label"),
+                        session.get("human_notes"),
+                        session.get("reviewed_by"),
+                        session.get("reviewed_at"),
                         datetime.utcnow(),
                     ),
                 )
