@@ -1705,7 +1705,7 @@ class ContentExtractor:
                         # Use CAPTCHA backoff for confirmed bot protection
                         self._handle_captcha_backoff(domain)
 
-                        metadata: Dict[str, Any] = {
+                        metadata = {
                             "extraction_method": "newspaper4k",
                             "http_status": response.status_code,
                             "error": "bot_protection",

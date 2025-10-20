@@ -1376,7 +1376,7 @@ class NewsDiscovery:
             # StorySniffer.guess() returns a list of URLs
             for item in results if isinstance(results, list) else []:
                 # item may be a URL string or a dict with metadata
-                url: str
+                url: str | None
                 meta: dict
                 if isinstance(item, str):
                     url = item
@@ -1388,6 +1388,9 @@ class NewsDiscovery:
                     meta = item
                 else:
                     continue
+                
+                # Type guard: at this point url is definitely a str
+                assert isinstance(url, str)
 
                 article_data = {
                     "url": url,
