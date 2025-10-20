@@ -30,8 +30,7 @@ spec:
             - name: dataset
               value: "Mizzou Missouri State"
             # Discovery parameters
-            - name: source-limit
-              value: "50"
+            # No source-limit = process ALL 157 sources in dataset each run
             - name: max-articles
               value: "50"
             - name: days-back

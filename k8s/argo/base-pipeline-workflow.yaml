@@ -15,6 +15,7 @@ spec:
       parameters:
       - name: dataset
       - name: source-limit
+        value: "10000"  # Default: effectively unlimited (process all sources)
       - name: max-articles
       - name: days-back
       - name: verify-batch-size
@@ -85,6 +86,7 @@ spec:
       parameters:
       - name: dataset
       - name: source-limit
+        value: "10000"  # Default: effectively unlimited
       - name: max-articles
       - name: days-back
     metadata:
