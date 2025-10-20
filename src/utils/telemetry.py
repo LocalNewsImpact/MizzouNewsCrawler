@@ -734,12 +734,6 @@ class OperationTracker:
         )
         """
 
-        update_source_sql = """
-        UPDATE sources
-        SET discovery_attempted = CURRENT_TIMESTAMP
-        WHERE id = :source_id
-        """
-
         def writer(conn: sqlite3.Connection) -> None:
             retries = 4
             backoff = 0.1
@@ -747,26 +741,9 @@ class OperationTracker:
                 cursor = conn.cursor()
                 try:
                     cursor.execute(insert_sql, outcome_data)
-                    cursor.execute(update_source_sql, {"source_id": source_id})
                     return
                 except DB_ERRORS as exc:
                     conn.rollback()
-                    if _is_missing_table_error(exc):
-                        self.logger.warning(
-                            "Telemetry store missing discovery tables; "
-                            "recorded outcome without source audit: %s",
-                            exc,
-                        )
-                        fallback_cursor = conn.cursor()
-                        try:
-                            fallback_cursor.execute(insert_sql, outcome_data)
-                        finally:
-                            fallback_cursor.close()
-                        underlying_conn = getattr(conn, "_conn", None)
-                        if underlying_conn is not None:  # pragma: no branch - safe
-                            underlying_conn.commit()
-                        return
-
                     self.logger.warning(
                         "Database error on discovery outcome write (%d/%d): %s",
                         attempt + 1,
