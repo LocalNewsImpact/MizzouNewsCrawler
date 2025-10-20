@@ -30,7 +30,7 @@ class PublisherGeoFilter:
         self.publisher_gazetteers: dict[str, Any] = {}
 
         # Coverage radius by media type (in miles)
-        self.coverage_radius_by_type = {
+        self.coverage_radius_by_type: dict[str, Any] = {
             "daily": {"metro": 30, "small_city": 18},  # Daily papers
             "weekly": 12,  # Weekly papers
             "bi-weekly": 12,  # Bi-weekly papers
@@ -300,6 +300,7 @@ class PublisherGeoFilter:
 
             # Find the publisher row by host ID and update with cached data
             # Convert host_id to int if it's numeric for proper matching
+            host_id_val: int | str
             try:
                 host_id_val = int(host_id)
             except ValueError:
@@ -499,7 +500,7 @@ class PublisherGeoFilter:
         # Rough conversion: 1 degree ≈ 69 miles
         return ((lat_diff**2) + (lon_diff**2)) ** 0.5 * 69
 
-    def _get_zipcode_coordinates(self, zipcode: str) -> tuple:
+    def _get_zipcode_coordinates(self, zipcode: str) -> tuple[float, float] | None:
         """Get coordinates for a zipcode using a REST API as fallback."""
         try:
             import requests

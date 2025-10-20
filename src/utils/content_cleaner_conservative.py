@@ -201,7 +201,7 @@ class ConservativeContentCleaner(ImprovedContentCleaner):
         self,
         content: str,
         domain: str,
-        article_id: str | None = None,
+        article_id: int | None = None,
         dry_run: bool = True,
     ) -> tuple[str, Any]:
         """Clean content with conservative approach."""

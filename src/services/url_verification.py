@@ -296,7 +296,7 @@ class URLVerificationService:
         result = {
             "url": url,
             "storysniffer_result": None,
-            "verification_time_ms": 0,
+            "verification_time_ms": 0.0,
             "error": None,
             "http_status": None,
             "http_attempts": 0,

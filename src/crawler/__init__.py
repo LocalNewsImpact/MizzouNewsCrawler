@@ -21,6 +21,7 @@ from bs4.element import Tag
 from dateutil import parser as dateparser
 
 from src.utils.bot_sensitivity_manager import BotSensitivityManager
+from src.utils.comprehensive_telemetry import ExtractionMetrics
 
 from .origin_proxy import enable_origin_proxy
 from .proxy_config import get_proxy_manager
@@ -441,7 +442,7 @@ class ContentExtractor:
         self.domain_locks: dict[str, Any] = {}
 
         # Rate limiting and backoff management
-        self.domain_request_times: dict[str, list[float]] = {}  # Track request timestamps per domain
+        self.domain_request_times: dict[str, float] = {}  # Track last request time per domain
         self.domain_backoff_until: dict[str, float] = {}  # Track when domain is available again
         self.domain_error_counts: dict[str, int] = {}  # Track consecutive errors per domain
         
@@ -1071,7 +1072,7 @@ class ContentExtractor:
         return data
 
     def extract_content(
-        self, url: str, html: str = None, metrics: Optional[object] = None
+        self, url: str, html: str = None, metrics: Optional[ExtractionMetrics] = None
     ) -> Dict[str, Any]:
         """Fetch page if needed, extract article data using multiple methods.
 
@@ -1704,7 +1705,7 @@ class ContentExtractor:
                         # Use CAPTCHA backoff for confirmed bot protection
                         self._handle_captcha_backoff(domain)
 
-                        metadata: Dict[str, Any] = {
+                        metadata = {
                             "extraction_method": "newspaper4k",
                             "http_status": response.status_code,
                             "error": "bot_protection",

@@ -232,6 +232,8 @@ class ArticleEntityExtractor:
             if norm_key in seen_norms:
                 continue
             override = category_overrides.get(norm_value)
+            category: str | None
+            subcategory: str | None
             if override:
                 category, subcategory = override
             else:
