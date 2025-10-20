@@ -451,14 +451,14 @@ class BylineCleaner:
         self.telemetry = BylineCleaningTelemetry(enable_telemetry=enable_telemetry)
 
         # Dynamic publication filter cache
-        self._publication_cache = None
-        self._publication_cache_timestamp = None
+        self._publication_cache: set[Any] | None = None
+        self._publication_cache_timestamp: float | None = None
 
         # Wire service detection tracking
         self._detected_wire_services = []
 
         # Current source name for wire service filtering
-        self._current_source_name = None
+        self._current_source_name: str | None = None
 
     def clean_byline(
         self,

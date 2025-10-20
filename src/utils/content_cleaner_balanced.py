@@ -308,7 +308,7 @@ class BalancedBoundaryContentCleaner:
             AND content != ''
             ORDER BY id DESC
             """
-            params = {"domain": f"%{domain}%"}
+            params: dict[str, Any] = {"domain": f"%{domain}%"}
 
             if sample_size:
                 query += " LIMIT :limit"

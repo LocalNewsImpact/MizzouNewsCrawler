@@ -270,7 +270,7 @@ class TelemetryContentExtractor:
     def _analyze_content_quality(self, content_data: dict[str, Any]) -> dict[str, Any]:
         """Analyze the quality and completeness of extracted
         content."""
-        analysis = {
+        analysis: dict[str, Any] = {
             "has_title": bool(content_data.get("title", "").strip()),
             "has_content": bool(content_data.get("content", "").strip()),
             "has_author": bool(content_data.get("author", "").strip()),

@@ -101,7 +101,7 @@ class URLVerificationService:
         result = {
             "url": url,
             "storysniffer_result": None,
-            "verification_time_ms": 0,
+            "verification_time_ms": 0.0,
             "error": None,
         }
 
@@ -174,12 +174,12 @@ class URLVerificationService:
 
     def process_batch(self, candidates: list[dict]) -> dict:
         """Process a batch of candidates and return metrics."""
-        batch_metrics = {
+        batch_metrics: dict[str, Any] = {
             "total_processed": 0,
             "verified_articles": 0,
             "verified_non_articles": 0,
             "verification_errors": 0,
-            "total_time_ms": 0,
+            "total_time_ms": 0.0,
         }
 
         batch_start_time = time.time()
