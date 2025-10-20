@@ -91,6 +91,8 @@ class TestSQLiteCompatibility:
             assert rows[1][1] == "second"
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 @pytest.mark.skipif(not HAS_POSTGRES, reason="PostgreSQL not configured")
 class TestPostgreSQLCompatibility:
     """Test that PostgreSQL works with the SQLAlchemy implementation."""
