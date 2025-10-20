@@ -62,7 +62,7 @@ class ExactContentCleaner:
         ORDER BY id DESC
         """
 
-        params = [f"%{domain}%"]
+        params: list[Any] = [f"%{domain}%"]
         if sample_size:
             query += " LIMIT ?"
             params.append(sample_size)

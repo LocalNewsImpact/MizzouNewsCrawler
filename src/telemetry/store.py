@@ -391,11 +391,15 @@ class TelemetryStore:
 
             self._logger.info("TelemetryStore using Cloud SQL Python Connector")
 
+            # Ensure all required config values are present
+            if not all([CLOUD_SQL_INSTANCE, DATABASE_USER, DATABASE_PASSWORD, DATABASE_NAME]):
+                raise ValueError("Missing required Cloud SQL configuration")
+
             return create_cloud_sql_engine(
-                instance_connection_name=CLOUD_SQL_INSTANCE,
-                user=DATABASE_USER,
-                password=DATABASE_PASSWORD,
-                database=DATABASE_NAME,
+                instance_connection_name=CLOUD_SQL_INSTANCE,  # type: ignore[arg-type]
+                user=DATABASE_USER,  # type: ignore[arg-type]
+                password=DATABASE_PASSWORD,  # type: ignore[arg-type]
+                database=DATABASE_NAME,  # type: ignore[arg-type]
                 driver="pg8000",
                 echo=False,
                 poolclass=NullPool if self.async_writes else None,

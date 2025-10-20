@@ -1200,7 +1200,7 @@ class BalancedBoundaryContentCleaner:
             bool(wire_detected) and article_id is not None and not suppression_applied
         )
 
-        if should_mark_as_wire and not dry_run:
+        if should_mark_as_wire and not dry_run and wire_detected is not None:
             self._mark_article_as_wire(
                 article_id,
                 wire_detected,
