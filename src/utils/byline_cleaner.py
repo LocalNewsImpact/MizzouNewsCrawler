@@ -6,6 +6,7 @@ import json
 import logging
 import re
 from difflib import SequenceMatcher
+from typing import Any
 
 # Import telemetry system
 from .byline_telemetry import BylineCleaningTelemetry
@@ -454,8 +455,12 @@ class BylineCleaner:
         self._publication_cache: set[Any] | None = None
         self._publication_cache_timestamp: float | None = None
 
+        # Organization filter cache
+        self._organization_cache: set[Any] | None = None
+        self._organization_cache_timestamp: float | None = None
+
         # Wire service detection tracking
-        self._detected_wire_services = []
+        self._detected_wire_services: list[Any] = []
 
         # Current source name for wire service filtering
         self._current_source_name: str | None = None
