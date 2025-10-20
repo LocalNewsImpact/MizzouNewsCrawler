@@ -300,7 +300,11 @@ class BylineCleaningTelemetry:
             return
 
         # Calculate final metrics
-        total_time = (time.time() - self.current_session["start_time"]) * 1000
+        start_time = self.current_session.get("start_time")
+        if start_time is None:
+            total_time = 0.0
+        else:
+            total_time = (time.time() - start_time) * 1000
 
         # Update session with final data
         self.current_session.update(

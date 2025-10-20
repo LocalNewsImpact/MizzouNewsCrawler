@@ -2306,6 +2306,7 @@ class BylineCleaner:
             not force_refresh
             and hasattr(self, "_organization_cache")
             and hasattr(self, "_organization_cache_timestamp")
+            and self._organization_cache_timestamp is not None
             and (current_time - self._organization_cache_timestamp) < cache_duration
         ):
             return self._organization_cache
