@@ -912,12 +912,20 @@ def _process_batch(
                         )
                         skipped_domains.add(domain)
 
-                    # For rate limit errors, also add to skipped domains
-                    # immediately
+                    # For rate limit errors or bot protection (403), also add to
+                    # skipped domains immediately
                     error_msg = content.get("error", "") if content else ""
-                    if "Rate limited" in error_msg or "429" in error_msg:
+                    http_status = content.get("http_status") if content else None
+                    is_rate_limit = (
+                        "Rate limited" in error_msg or "429" in error_msg
+                    )
+                    is_bot_protection = http_status == 403
+                    
+                    if is_rate_limit or is_bot_protection:
                         logger.warning(
-                            "Rate limit detected for %s; skipping URLs",
+                            "Rate limit/bot protection (%s) for %s; "
+                            "skipping remaining URLs in batch",
+                            http_status or "429",
                             domain,
                         )
                         skipped_domains.add(domain)
@@ -949,16 +957,24 @@ def _process_batch(
                 continue
 
             except Exception as e:
-                # Check for rate limit in exception
+                # Check for rate limit or bot protection in exception
                 error_str = str(e)
-                if "Rate limited" in error_str or "429" in error_str:
+                is_rate_limit = (
+                    "Rate limited" in error_str or "429" in error_str
+                )
+                is_bot_protection = (
+                    "403" in error_str or "Forbidden" in error_str
+                )
+                
+                if is_rate_limit or is_bot_protection:
                     logger.warning(
-                        "Rate limit exception for %s, skipping remaining URLs",
+                        "Rate limit/bot protection exception for %s, "
+                        "skipping remaining URLs",
                         domain,
                     )
                     skipped_domains.add(domain)
                     domain_failures[domain] = max_failures_per_domain
-                    # Cap at max failures once rate limited
+                    # Cap at max failures once rate limited/blocked
                 else:
                     # Track other failures for domain awareness
                     domain_failures[domain] = domain_failures.get(domain, 0) + 1
