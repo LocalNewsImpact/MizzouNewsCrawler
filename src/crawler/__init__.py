@@ -287,6 +287,13 @@ class NewsCrawler:
             "/privacy",
             "/terms",
             "/sitemap",
+            "/posterboard-ads/",
+            "/classifieds/",
+            "/marketplace/",
+            "/deals/",
+            "/coupons/",
+            "/promotions/",
+            "/sponsored/",
         ]
 
         url_lower = url.lower()

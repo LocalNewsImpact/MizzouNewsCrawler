@@ -32,6 +32,14 @@ NON_ARTICLE_PATTERNS = [
     r"/sitemap",
     r"/rss",
     r"/feed",
+    # Advertising and promotional pages
+    r"/posterboard-ads/",
+    r"/classifieds/",
+    r"/marketplace/",
+    r"/deals/",
+    r"/coupons/",
+    r"/promotions/",
+    r"/sponsored/",
     # Technical pages
     r"\.pdf$",
     r"\.xml$",
