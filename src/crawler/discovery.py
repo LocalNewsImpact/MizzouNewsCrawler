@@ -872,7 +872,7 @@ class NewsDiscovery:
             Returns:
                 List of discovered article metadata
         """
-        discovered_articles = []
+        discovered_articles: list[dict[str, Any]] = []
         method_start_time = time.time()
         homepage_status_code: int | None = None
 
@@ -1157,7 +1157,7 @@ class NewsDiscovery:
                     logger.warning(f"newspaper4k build raised for {source_url}: {e}")
 
             # Don't download all articles - just get the URLs
-            articles_attr = []
+            articles_attr: list[Any] = []
             if paper is not None:
                 articles_attr = getattr(paper, "articles", []) or []
             article_count = len(articles_attr)
@@ -1307,7 +1307,7 @@ class NewsDiscovery:
         Returns:
             List of discovered article metadata
         """
-        discovered_articles = []
+        discovered_articles: list[dict[str, Any]] = []
         method_start_time = time.time()
 
         def record_storysniffer_effectiveness(
@@ -1448,7 +1448,7 @@ class NewsDiscovery:
         Returns:
             List of discovered article metadata from RSS feeds
         """
-        discovered_articles = []
+        discovered_articles: list[dict[str, Any]] = []
         start_time = time.time()
         feeds_tried = 0
         feeds_successful = 0

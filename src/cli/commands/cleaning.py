@@ -68,7 +68,7 @@ def handle_cleaning_command(args) -> int:
     processed = 0
     cleaned = 0
     errors = 0
-    status_changes = defaultdict(int)
+    status_changes: dict[str, int] = defaultdict(int)
 
     try:
         with db.get_session() as session:

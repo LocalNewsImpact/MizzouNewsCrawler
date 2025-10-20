@@ -386,10 +386,10 @@ def handle_extraction_command(args) -> int:
     telemetry = ComprehensiveExtractionTelemetry()
 
     # Track hosts that return 403 responses within this run
-    host_403_tracker = {}
+    host_403_tracker: dict[str, int] = {}
 
     try:
-        domains_for_cleaning = defaultdict(list)
+        domains_for_cleaning: dict[str, list[str]] = defaultdict(list)
         batch_num = 0
         total_processed = 0
         

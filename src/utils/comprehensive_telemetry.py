@@ -61,20 +61,20 @@ class ExtractionMetrics:
         self.response_time_ms = 0
 
         # Method tracking
-        self.methods_attempted = []
-        self.method_timings = {}
-        self.method_success = {}
-        self.method_errors = {}
+        self.methods_attempted: list[str] = []
+        self.method_timings: dict[str, float] = {}
+        self.method_success: dict[str, bool] = {}
+        self.method_errors: dict[str, str] = {}
         self.successful_method = None
 
         # Field extraction tracking
-        self.field_extraction = {}
+        self.field_extraction: dict[str, dict[str, Any]] = {}
 
         # Final field attribution (which method provided each field)
-        self.final_field_attribution = {}
+        self.final_field_attribution: dict[str, str] = {}
 
         # Track alternative extractions (later methods vs. current fields)
-        self.alternative_extractions = {}
+        self.alternative_extractions: dict[str, dict[str, Any]] = {}
 
         # Final results
         self.extracted_fields = {
