@@ -631,7 +631,13 @@ class OperationTracker:
             "Unsupported store type %s; falling back to database_url",
             type(candidate),
         )
-        return get_store(database_url)
+        # Use DatabaseManager's engine if available (for Cloud SQL)
+        try:
+            from src.models.database import DatabaseManager
+            db = DatabaseManager()
+            return get_store(database_url, engine=db.engine)
+        except Exception:
+            return get_store(database_url)
 
     def _ensure_base_schema(self) -> None:
         with self._store.connection() as conn:

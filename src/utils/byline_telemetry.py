@@ -48,7 +48,14 @@ class BylineCleaningTelemetry:
             raise RuntimeError("Telemetry is disabled")
         
         if self._store is None:
-            self._store = get_store(self._database_url)
+            # Use DatabaseManager's engine if available (for Cloud SQL)
+            try:
+                from src.models.database import DatabaseManager
+                db = DatabaseManager()
+                self._store = get_store(self._database_url, engine=db.engine)
+            except Exception:
+                # Fallback to creating own connection
+                self._store = get_store(self._database_url)
         if not self._tables_initialized:
             self._ensure_tables()
             self._tables_initialized = True
@@ -408,11 +415,19 @@ class BylineCleaningTelemetry:
         try:
             store = self.store
             store.submit(writer)
+        except RecursionError as exc:  # pragma: no cover
+            # Cloud SQL Connector async issue - should be fixed now
+            exc_name = type(exc).__name__
+            print(f"Warning: Telemetry recursion error: {exc_name}")
+            pass
         except RuntimeError:
             # Telemetry disabled or not supported
             pass
         except Exception as exc:  # pragma: no cover - telemetry best effort
-            print(f"Warning: Failed to store telemetry data: {exc}")
+            # Get just the exception type and first line of message
+            exc_msg = str(exc).split('\n')[0][:80]
+            exc_name = type(exc).__name__
+            print(f"Warning: Failed telemetry: {exc_name}: {exc_msg}")
             # Don't fail the cleaning process due to telemetry issues
 
     def flush(self) -> None:

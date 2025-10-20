@@ -76,7 +76,14 @@ class ExtractionTelemetry:
             self._store = store
         else:
             if db_path is None:
-                self._store = get_store(DATABASE_URL)
+                # Use DatabaseManager's engine if available (for Cloud SQL)
+                try:
+                    from src.models.database import DatabaseManager
+                    db = DatabaseManager()
+                    self._store = get_store(DATABASE_URL, engine=db.engine)
+                except Exception:
+                    # Fallback to creating own connection
+                    self._store = get_store(DATABASE_URL)
             else:
                 resolved = Path(db_path)
                 resolved.parent.mkdir(parents=True, exist_ok=True)

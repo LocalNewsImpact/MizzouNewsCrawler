@@ -51,7 +51,14 @@ class ContentCleaningTelemetry:
             raise RuntimeError("Telemetry is disabled")
         
         if self._store is None:
-            self._store = get_store(self._database_url)
+            # Use DatabaseManager's engine if available (for Cloud SQL)
+            try:
+                from src.models.database import DatabaseManager
+                db = DatabaseManager()
+                self._store = get_store(self._database_url, engine=db.engine)
+            except Exception:
+                # Fallback to creating own connection
+                self._store = get_store(self._database_url)
         return self._store
 
     def start_cleaning_session(

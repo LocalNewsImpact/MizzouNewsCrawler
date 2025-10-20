@@ -293,14 +293,21 @@ class TelemetryStore:
         async_writes: bool = True,
         timeout: float = 30.0,
         thread_name: str = "TelemetryStoreWriter",
+        engine: Engine | None = None,
     ) -> None:
         self.database_url = database
         self.async_writes = async_writes
         self.timeout = timeout
         self._logger = logging.getLogger(__name__)
         
-        # Create SQLAlchemy engine
-        self._engine = self._create_engine()
+        # Use provided engine or create new one
+        if engine is not None:
+            self._engine = engine
+            self._owns_engine = False
+        else:
+            self._engine = self._create_engine()
+            self._owns_engine = True
+        
         self._is_sqlite = "sqlite" in self.database_url.lower()
         self._is_postgres = "postgres" in self.database_url.lower()
 
@@ -445,8 +452,8 @@ class TelemetryStore:
             self._writer_thread.join(timeout=5)
         self._owns_thread = False
         
-        # Dispose of the engine
-        if hasattr(self, '_engine'):
+        # Only dispose engine if we created it
+        if hasattr(self, '_engine') and self._owns_engine:
             self._engine.dispose()
 
     @contextmanager
@@ -592,11 +599,23 @@ _default_store_lock = threading.Lock()
 _default_store: TelemetryStore | None = None
 
 
-def get_store(database: str = DEFAULT_DATABASE_URL) -> TelemetryStore:
-    """Return a process-wide shared telemetry store."""
-
+def get_store(
+    database: str = DEFAULT_DATABASE_URL,
+    *,
+    engine: Engine | None = None,
+) -> TelemetryStore:
+    """Return a process-wide shared telemetry store.
+    
+    Args:
+        database: Database URL (used if engine not provided)
+        engine: Optional existing SQLAlchemy engine to reuse
+                (avoids creating new connections, required for Cloud SQL Connector)
+    
+    Returns:
+        Shared TelemetryStore instance
+    """
     global _default_store
     with _default_store_lock:
         if _default_store is None:
-            _default_store = TelemetryStore(database=database)
+            _default_store = TelemetryStore(database=database, engine=engine)
     return _default_store

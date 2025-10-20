@@ -275,13 +275,14 @@ class ComprehensiveExtractionTelemetry:
                     async_writes=False,
                 )
             else:
-                # Use DatabaseManager to get the correct database URL
+                # Use DatabaseManager's existing engine
                 # This handles Cloud SQL Connector automatically
                 from src.models.database import DatabaseManager
                 db = DatabaseManager()
                 database_url = str(db.engine.url)
                 self._database_url = database_url
-                self._store = get_store(database_url)
+                # Pass the engine so telemetry uses existing Cloud SQL connection
+                self._store = get_store(database_url, engine=db.engine)
 
         # NOTE: Telemetry tables should already exist via Alembic migrations
         # Do NOT create tables at runtime from application code
@@ -408,7 +409,15 @@ class ComprehensiveExtractionTelemetry:
                     ),
                 )
 
-        self._store.submit(writer)
+        try:
+            self._store.submit(writer)
+        except (RuntimeError, RecursionError):
+            # Telemetry disabled or Cloud SQL incompatibility
+            pass
+        except Exception as exc:
+            # Log but don't fail extraction
+            exc_msg = str(exc).split('\n')[0][:80]
+            print(f"Warning: Telemetry failed: {type(exc).__name__}: {exc_msg}")
 
     def get_error_summary(self, days: int = 7) -> list:
         """Get HTTP error summary for the last N days."""
