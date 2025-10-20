@@ -85,3 +85,8 @@ coverage.xml
 models/productionmodel.pt
 backend/reviews.db*
 .decodo-credentials
+
+# Test databases
+*.db
+*.db-*
+test_*.db
