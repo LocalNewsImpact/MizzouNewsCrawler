@@ -40,7 +40,7 @@ def test_decodo_proxy():
             timeout=10
         )
         response.raise_for_status()
-        print(f"✅ Success! Response:")
+        print("✅ Success! Response:")
         print(response.text)
         print()
     except Exception as e:

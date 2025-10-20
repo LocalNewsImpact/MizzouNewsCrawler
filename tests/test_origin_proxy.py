@@ -33,7 +33,7 @@ def test_enable_origin_proxy_rewrites_url_and_sets_auth(monkeypatch):
     enable_origin_proxy(s)
 
     # call through session.get which uses session.request
-    r = s.get('https://example.com/path?x=1')
+    s.get('https://example.com/path?x=1')
 
     assert 'proxy.test' in captured['url']
     assert 'example.com' in captured['url']

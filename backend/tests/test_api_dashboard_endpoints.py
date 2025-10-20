@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.app.main import app
-from src.models import Article, CandidateLink, Source, Base
+from src.models import Article, CandidateLink, Base
 from src.models.api_backend import Review, Candidate, Snapshot, DedupeAudit
 from src.models.database import DatabaseManager
 

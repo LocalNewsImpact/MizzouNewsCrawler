@@ -148,9 +148,9 @@ class TestBylineTelemetryPostgreSQL:
             assert final_authors == ["Jane Doe"]
             
             # Verify boolean fields
-            assert row[2] == True or row[2] == 1  # has_email (handle both formats)
-            assert row[3] == True or row[3] == 1  # source_name_removed
-            assert row[4] == True or row[4] == 1  # likely_valid_authors
+            assert row[2] or row[2] == 1  # has_email (handle both formats)
+            assert row[3] or row[3] == 1  # source_name_removed
+            assert row[4] or row[4] == 1  # likely_valid_authors
             
             # Verify numeric fields
             assert abs(row[5] - 0.3) < 0.01  # confidence_score
@@ -290,7 +290,7 @@ class TestSchemaValidation:
         """
         # Read the INSERT statement from the code
         telemetry_file = Path(__file__).parent.parent.parent / "src" / "utils" / "byline_telemetry.py"
-        with open(telemetry_file, 'r') as f:
+        with open(telemetry_file) as f:
             content = f.read()
         
         # Count columns in INSERT statement

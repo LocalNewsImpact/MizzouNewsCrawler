@@ -86,7 +86,7 @@ class TestRateLimiting:
 
         # First error
         self.extractor._handle_rate_limit_error(domain)
-        first_backoff = self.extractor.domain_backoff_until[domain]
+        self.extractor.domain_backoff_until[domain]
 
         # Reset time tracking for cleaner test
         current_time = time.time()
@@ -218,7 +218,7 @@ class TestRateLimitingIntegration:
         mock_get.return_value = mock_response
 
         # Extract article
-        result = self.extractor.extract_content(url)
+        self.extractor.extract_content(url)
 
         # Error count should be reset
         assert self.extractor.domain_error_counts[domain] == 0

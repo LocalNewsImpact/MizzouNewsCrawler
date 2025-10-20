@@ -43,7 +43,7 @@ class TestRealWorldRateLimitingScenarios:
         )
         mock_get.return_value = cf_response
 
-        result = self.extractor.extract_content(url)
+        self.extractor.extract_content(url)
 
         # Should handle Cloudflare rate limiting
         assert self.extractor.domain_error_counts[domain] == 1
@@ -65,7 +65,7 @@ class TestRealWorldRateLimitingScenarios:
         )
         mock_get.return_value = nginx_response
 
-        result = self.extractor.extract_content(url)
+        self.extractor.extract_content(url)
 
         # Should treat 503 as rate limiting
         assert self.extractor.domain_error_counts[domain] == 1
@@ -83,7 +83,7 @@ class TestRealWorldRateLimitingScenarios:
         )
         mock_get.return_value = apache_response
 
-        result = self.extractor.extract_content(url)
+        self.extractor.extract_content(url)
 
         # Should treat 403 as potential bot detection
         assert self.extractor.domain_error_counts[domain] == 1
@@ -110,7 +110,7 @@ class TestRealWorldRateLimitingScenarios:
         backoff_times = []
 
         for i in range(3):
-            result = self.extractor.extract_content(url)
+            self.extractor.extract_content(url)
 
             # Record backoff time
             if domain in self.extractor.domain_backoff_until:
@@ -135,7 +135,7 @@ class TestRealWorldRateLimitingScenarios:
         response = MockResponse(429, {})
         mock_get.return_value = response
 
-        result = self.extractor.extract_content(url)
+        self.extractor.extract_content(url)
 
         # Should still implement our own backoff
         assert self.extractor.domain_error_counts[domain] == 1
@@ -164,7 +164,7 @@ class TestRealWorldRateLimitingScenarios:
         mock_get.side_effect = [rate_limit_response, success_response]
 
         # First request - should be rate limited
-        result1 = self.extractor.extract_content(url)
+        self.extractor.extract_content(url)
         assert self.extractor.domain_error_counts[domain] == 1
 
         # Clear backoff to allow second request
@@ -172,7 +172,7 @@ class TestRealWorldRateLimitingScenarios:
             del self.extractor.domain_backoff_until[domain]
 
         # Second request - should succeed and reset error count
-        result2 = self.extractor.extract_content(url)
+        self.extractor.extract_content(url)
         assert self.extractor.domain_error_counts[domain] == 0
 
     def test_concurrent_requests_rate_limiting(self):
@@ -240,7 +240,7 @@ class TestRealWorldRateLimitingScenarios:
             if domain in self.extractor.domain_backoff_until:
                 del self.extractor.domain_backoff_until[domain]
 
-            result = self.extractor.extract_content(url)
+            self.extractor.extract_content(url)
 
             if status_code in rate_limiting_codes:
                 # Should trigger rate limiting

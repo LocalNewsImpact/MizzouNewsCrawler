@@ -50,7 +50,6 @@ def test_telemetry_basic_functionality():
         },
     ]
 
-    telemetry_ids = []
 
     for i, case in enumerate(test_cases, 1):
         print(f"  Test case {i}: '{case['byline']}'")
@@ -255,7 +254,7 @@ def test_confidence_scoring():
         print(f"  Confidence test {i}: '{test['byline']}'")
 
         # Run cleaning
-        result = cleaner.clean_byline(test["byline"], article_id=f"confidence_test_{i}")
+        cleaner.clean_byline(test["byline"], article_id=f"confidence_test_{i}")
 
         # Get the recorded confidence
         conn = sqlite3.connect(db_path)

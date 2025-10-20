@@ -7,7 +7,7 @@ that need to be migrated to Cloud SQL/PostgreSQL.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, Column, DateTime, Float, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, Text
 
 from . import Base
 

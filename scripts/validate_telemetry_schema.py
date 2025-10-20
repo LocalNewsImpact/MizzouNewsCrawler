@@ -16,10 +16,9 @@ Returns:
 import re
 import sys
 from pathlib import Path
-from typing import Set
 
 
-def extract_columns_from_create_table(sql: str, table_name: str) -> Set[str]:
+def extract_columns_from_create_table(sql: str, table_name: str) -> set[str]:
     """Extract column names from a CREATE TABLE statement."""
     # Find the CREATE TABLE statement
     pattern = rf'CREATE TABLE (?:IF NOT EXISTS )?{re.escape(table_name)} \((.*?)\)'
@@ -45,9 +44,9 @@ def extract_columns_from_create_table(sql: str, table_name: str) -> Set[str]:
     return set(columns)
 
 
-def extract_columns_from_alembic(migration_file: Path, table_name: str) -> Set[str]:
+def extract_columns_from_alembic(migration_file: Path, table_name: str) -> set[str]:
     """Extract column names from an Alembic migration file."""
-    with open(migration_file, 'r') as f:
+    with open(migration_file) as f:
         content = f.read()
     
     # Find the table creation
@@ -76,13 +75,13 @@ def check_table_schema(
     telemetry_file: Path,
     migration_file: Path,
     table_name: str
-) -> tuple[bool, Set[str], Set[str]]:
+) -> tuple[bool, set[str], set[str]]:
     """Check if a table's schema matches between code and Alembic.
     
     Returns:
         (matches, missing_in_code, missing_in_alembic)
     """
-    with open(telemetry_file, 'r') as f:
+    with open(telemetry_file) as f:
         content = f.read()
     
     code_columns = extract_columns_from_create_table(content, table_name)
@@ -102,7 +101,7 @@ def check_insert_statement(telemetry_file: Path, table_name: str) -> tuple[bool,
     Returns:
         (valid, error_message)
     """
-    with open(telemetry_file, 'r') as f:
+    with open(telemetry_file) as f:
         content = f.read()
     
     # Extract columns from CREATE TABLE

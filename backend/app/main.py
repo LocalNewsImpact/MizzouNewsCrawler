@@ -1345,7 +1345,7 @@ def get_domain_issues():
         hosts = session.query(distinct(Snapshot.host)).join(
             Candidate, Candidate.snapshot_id == Snapshot.id
         ).filter(
-            Candidate.accepted == False,
+            not Candidate.accepted,
             Snapshot.reviewed_at.is_(None)
         ).all()
         
@@ -1357,7 +1357,7 @@ def get_domain_issues():
                 Snapshot, Candidate.snapshot_id == Snapshot.id
             ).filter(
                 Snapshot.host == host,
-                Candidate.accepted == False,
+                not Candidate.accepted,
                 Snapshot.reviewed_at.is_(None)
             ).group_by(Candidate.field).all()
             
@@ -1532,7 +1532,7 @@ def ui_overview():
             res["wire_count"] = wire_count
             
             # candidate issues from DB (non-accepted)
-            count = session.query(Candidate).filter(Candidate.accepted == False).count()
+            count = session.query(Candidate).filter(not Candidate.accepted).count()
             res["candidate_issues"] = int(count)
             
             # dedupe near-misses: dedupe_audit rows where dedupe_flag is 0 and similarity > 0.7
@@ -2012,7 +2012,7 @@ def get_method_performance(
                 ExtractionTelemetryV2.host,
                 func.count().label('total_attempts'),
                 func.sum(
-                    case((ExtractionTelemetryV2.is_success == True, 1), else_=0)
+                    case((ExtractionTelemetryV2.is_success, 1), else_=0)
                 ).label('successful_attempts'),
                 func.avg(ExtractionTelemetryV2.total_duration_ms).label('avg_duration'),
                 func.min(ExtractionTelemetryV2.total_duration_ms).label('min_duration'),
@@ -2073,7 +2073,7 @@ def get_publisher_stats(days: int = 7, host: str | None = None, min_attempts: in
                 ExtractionTelemetryV2.host,
                 func.count().label('total_extractions'),
                 func.sum(
-                    case((ExtractionTelemetryV2.is_success == True, 1), else_=0)
+                    case((ExtractionTelemetryV2.is_success, 1), else_=0)
                 ).label('successful_extractions'),
                 func.avg(ExtractionTelemetryV2.total_duration_ms).label('avg_duration'),
                 func.count(func.distinct(method_col)).label('methods_used'),
@@ -2240,7 +2240,7 @@ def get_poor_performing_sites(
             
             # Calculate success rate in the query
             success_rate_calc = (
-                func.sum(case((ExtractionTelemetryV2.is_success == True, 1), else_=0)) * 100.0
+                func.sum(case((ExtractionTelemetryV2.is_success, 1), else_=0)) * 100.0
                 / func.count()
             )
             
@@ -2248,7 +2248,7 @@ def get_poor_performing_sites(
                 ExtractionTelemetryV2.host,
                 func.count().label('total_attempts'),
                 func.sum(
-                    case((ExtractionTelemetryV2.is_success == True, 1), else_=0)
+                    case((ExtractionTelemetryV2.is_success, 1), else_=0)
                 ).label('successful_attempts'),
                 success_rate_calc.label('success_rate'),
                 func.avg(ExtractionTelemetryV2.total_duration_ms).label('avg_duration'),
@@ -2321,7 +2321,7 @@ def get_telemetry_summary(days: int = 7):
             overall_query = session.query(
                 func.count().label('total_extractions'),
                 func.sum(
-                    case((ExtractionTelemetryV2.is_success == True, 1), else_=0)
+                    case((ExtractionTelemetryV2.is_success, 1), else_=0)
                 ).label('successful_extractions'),
                 func.count(func.distinct(ExtractionTelemetryV2.host)).label('unique_hosts'),
                 func.count(func.distinct(method_col)).label('methods_used'),
@@ -2338,7 +2338,7 @@ def get_telemetry_summary(days: int = 7):
                 method_col.label('method'),
                 func.count().label('count'),
                 func.sum(
-                    case((ExtractionTelemetryV2.is_success == True, 1), else_=0)
+                    case((ExtractionTelemetryV2.is_success, 1), else_=0)
                 ).label('successful')
             ).filter(
                 ExtractionTelemetryV2.created_at >= cutoff_date

@@ -21,7 +21,7 @@ def _extract_url(value: Any) -> str | None:
         return value
 
     if hasattr(value, "url"):
-        candidate = getattr(value, "url")
+        candidate = value.url
         if candidate:
             return str(candidate)
 

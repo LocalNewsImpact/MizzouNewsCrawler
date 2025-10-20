@@ -127,7 +127,7 @@ def test_header_verification():
         # httpbin.org returns JSON, but we get it as HTML through newspaper
         try:
             # Look for header values in the HTML
-            print(f"\n📋 Response preview (first 500 chars):")
+            print("\n📋 Response preview (first 500 chars):")
             print(f"   {html[:500]}")
             
             # Check for key indicators
@@ -201,7 +201,7 @@ def test_user_agent_pool():
     
     extractor = ContentExtractor()
     
-    print(f"🧪 Checking User-Agent pool...")
+    print("🧪 Checking User-Agent pool...")
     print(f"   Pool size: {len(extractor.user_agent_pool)}")
     
     # Check for modern browsers

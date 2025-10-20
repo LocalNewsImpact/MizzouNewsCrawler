@@ -197,7 +197,7 @@ class TestContentExtractorBotSensitivityIntegration:
         # Apply rate limit - should enforce minimum delay
         start = time.time()
         extractor._apply_rate_limit(domain)
-        elapsed = time.time() - start
+        time.time() - start
         
         # For sensitivity 10, min delay is 45s, but we're testing the mechanism
         # In practice, the delay would be enforced

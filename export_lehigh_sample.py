@@ -60,7 +60,7 @@ if not article:
     session.close()
     exit(1)
 
-print(f"\n=== Sample Article ===")
+print("\n=== Sample Article ===")
 print(f"Title: {article.title}")
 print(f"URL: {article.url}")
 print(f"Author: {article.author}")

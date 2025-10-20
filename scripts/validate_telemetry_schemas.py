@@ -6,11 +6,9 @@ This script compares CREATE TABLE statements in code with the Alembic migration
 definitions to catch schema drift before it causes production issues.
 """
 
-import ast
 import re
 import sys
 from pathlib import Path
-from typing import Dict, List, Set
 
 # Add the parent directory to the path to import src modules
 sys.path.append(str(Path(__file__).parent.parent))
@@ -32,10 +30,10 @@ class SchemaValidator:
 
     def __init__(self, repo_root: Path):
         self.repo_root = repo_root
-        self.errors: List[str] = []
-        self.warnings: List[str] = []
+        self.errors: list[str] = []
+        self.warnings: list[str] = []
 
-    def extract_columns_from_create_table(self, sql: str) -> Set[str]:
+    def extract_columns_from_create_table(self, sql: str) -> set[str]:
         """Extract column names from a CREATE TABLE statement."""
         columns = set()
         # Remove comments and normalize whitespace
@@ -87,7 +85,7 @@ class SchemaValidator:
 
     def find_create_table_in_code(
         self, table_name: str
-    ) -> Dict[str, Set[str]]:
+    ) -> dict[str, set[str]]:
         """Find CREATE TABLE statements for a table in Python code."""
         results = {}
 
@@ -138,7 +136,7 @@ class SchemaValidator:
 
     def find_create_table_in_migration(
         self, table_name: str
-    ) -> Set[str]:
+    ) -> set[str]:
         """Find CREATE TABLE for a table in Alembic migrations."""
         migration_dir = self.repo_root / "alembic" / "versions"
         if not migration_dir.exists():

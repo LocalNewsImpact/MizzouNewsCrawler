@@ -99,7 +99,7 @@ def test_client(db_engine, monkeypatch):
 
 
 @pytest.fixture
-def sample_sources(db_session) -> List[Source]:
+def sample_sources(db_session) -> list[Source]:
     """Create sample news sources for testing.
     
     Uses actual Cloud SQL Source schema:
@@ -143,7 +143,7 @@ def sample_sources(db_session) -> List[Source]:
 
 
 @pytest.fixture
-def sample_candidate_links(db_session, sample_sources) -> List:
+def sample_candidate_links(db_session, sample_sources) -> list:
     """Create sample candidate links for articles.
     
     CandidateLink connects articles to sources in Cloud SQL schema.
@@ -170,7 +170,7 @@ def sample_candidate_links(db_session, sample_sources) -> List:
 @pytest.fixture
 def sample_articles(
     db_session, sample_sources, sample_candidate_links
-) -> List[Article]:
+) -> list[Article]:
     """Create sample articles for testing.
     
     Creates 50 test articles using actual Cloud SQL schema:
@@ -216,7 +216,7 @@ def sample_articles(
 
 
 @pytest.fixture
-def sample_reviews(db_session, sample_articles) -> List[Review]:
+def sample_reviews(db_session, sample_articles) -> list[Review]:
     """Create sample reviews for testing.
     
     Creates 20 reviews across the first 20 articles.
@@ -250,7 +250,7 @@ def sample_reviews(db_session, sample_articles) -> List[Review]:
 
 
 @pytest.fixture
-def sample_snapshots(db_session, sample_sources) -> List[Snapshot]:
+def sample_snapshots(db_session, sample_sources) -> list[Snapshot]:
     """Create sample HTML snapshots for testing.
     
     Snapshot model stores HTML snapshots captured during extraction.
@@ -286,7 +286,7 @@ def sample_snapshots(db_session, sample_sources) -> List[Snapshot]:
 
 
 @pytest.fixture
-def sample_candidates(db_session, sample_snapshots) -> List[Candidate]:
+def sample_candidates(db_session, sample_snapshots) -> list[Candidate]:
     """Create sample extraction candidates for testing.
     
     Candidate model is for field extraction selectors, not news issues.
@@ -316,7 +316,7 @@ def sample_candidates(db_session, sample_snapshots) -> List[Candidate]:
 @pytest.fixture
 def large_article_dataset(
     db_session, sample_sources, sample_candidate_links
-) -> List[Article]:
+) -> list[Article]:
     """Create large dataset for pagination and load testing.
     
     Creates 500 articles for testing pagination, load, and performance.

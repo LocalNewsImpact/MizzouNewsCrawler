@@ -12,8 +12,6 @@ Benefits of ORM approach:
 - Reduced risk of SQL injection
 """
 
-from datetime import datetime
-from typing import Optional
 
 from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, Text
 from sqlalchemy.ext.declarative import declarative_base

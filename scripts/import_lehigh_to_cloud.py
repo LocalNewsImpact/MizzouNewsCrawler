@@ -5,7 +5,6 @@ This script can be run from a Kubernetes pod with Cloud SQL access.
 """
 
 import sys
-import os
 from pathlib import Path
 from datetime import datetime
 import uuid
@@ -16,7 +15,6 @@ sys.path.insert(0, str(project_root))
 
 from src.models.database import DatabaseManager
 from src.models import Dataset, Source, CandidateLink
-from sqlalchemy import text
 
 
 def import_lehigh_valley():
@@ -106,7 +104,7 @@ def import_lehigh_valley():
             return
         
         print(f"\n📄 Reading URLs from {urls_file}")
-        with open(urls_file, 'r') as f:
+        with open(urls_file) as f:
             urls = [line.strip() for line in f if line.strip()]
         
         print(f"📥 Found {len(urls)} URLs to import")

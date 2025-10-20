@@ -12,7 +12,7 @@ from typing import Set
 import pytest
 
 
-def extract_columns_from_create_table(sql: str) -> Set[str]:
+def extract_columns_from_create_table(sql: str) -> set[str]:
     """Extract column names from a CREATE TABLE statement.
     
     Args:
@@ -48,7 +48,7 @@ def extract_columns_from_create_table(sql: str) -> Set[str]:
     return set(columns)
 
 
-def extract_columns_from_alembic_migration(migration_file: Path) -> Set[str]:
+def extract_columns_from_alembic_migration(migration_file: Path) -> set[str]:
     """Extract column names from an Alembic migration file.
     
     Args:
@@ -57,7 +57,7 @@ def extract_columns_from_alembic_migration(migration_file: Path) -> Set[str]:
     Returns:
         Set of column names for byline_cleaning_telemetry table
     """
-    with open(migration_file, 'r') as f:
+    with open(migration_file) as f:
         content = f.read()
     
     # Find the byline_cleaning_telemetry table creation
@@ -78,7 +78,7 @@ def extract_columns_from_alembic_migration(migration_file: Path) -> Set[str]:
             elif 'sa.PrimaryKeyConstraint' in line or 'sa.ForeignKeyConstraint' in line:
                 # End of column definitions
                 break
-            elif ')' in line and not 'sa.Column' in line:
+            elif ')' in line and 'sa.Column' not in line:
                 # End of table definition
                 break
     
@@ -98,7 +98,7 @@ class TestSchemaDrift:
         telemetry_file = Path(__file__).parent.parent / "src" / "utils" / "byline_telemetry.py"
         
         # Read and parse CREATE TABLE from code
-        with open(telemetry_file, 'r') as f:
+        with open(telemetry_file) as f:
             content = f.read()
         
         code_columns = extract_columns_from_create_table(content)
@@ -145,7 +145,7 @@ class TestSchemaDrift:
         # Path to byline_telemetry.py
         telemetry_file = Path(__file__).parent.parent / "src" / "utils" / "byline_telemetry.py"
         
-        with open(telemetry_file, 'r') as f:
+        with open(telemetry_file) as f:
             content = f.read()
         
         # Extract columns from CREATE TABLE
@@ -195,7 +195,7 @@ class TestSchemaDrift:
         telemetry_file = Path(__file__).parent.parent / "src" / "utils" / "byline_telemetry.py"
         
         # Read and parse CREATE TABLE from code
-        with open(telemetry_file, 'r') as f:
+        with open(telemetry_file) as f:
             content = f.read()
         
         # Extract transformation_steps table
@@ -217,7 +217,7 @@ class TestSchemaDrift:
             "e3114395bcc4_add_api_backend_and_telemetry_tables.py"
         )
         
-        with open(migration_file, 'r') as f:
+        with open(migration_file) as f:
             content = f.read()
         
         # Find the byline_transformation_steps table
@@ -265,7 +265,7 @@ class TestSQLValidation:
         """
         telemetry_file = Path(__file__).parent.parent / "src" / "utils" / "byline_telemetry.py"
         
-        with open(telemetry_file, 'r') as f:
+        with open(telemetry_file) as f:
             content = f.read()
         
         # Look for suspicious patterns like "28 columns" or "32 columns" in comments
@@ -306,7 +306,7 @@ class TestSQLValidation:
             "e3114395bcc4_add_api_backend_and_telemetry_tables.py"
         )
         
-        with open(migration_file, 'r') as f:
+        with open(migration_file) as f:
             content = f.read()
         
         # Find columns that are NOT NULL and have no default
@@ -335,7 +335,7 @@ class TestSQLValidation:
         # These columns must be provided in INSERT
         # Verify our INSERT statement includes them
         telemetry_file = Path(__file__).parent.parent / "src" / "utils" / "byline_telemetry.py"
-        with open(telemetry_file, 'r') as f:
+        with open(telemetry_file) as f:
             content = f.read()
         
         insert_match = re.search(

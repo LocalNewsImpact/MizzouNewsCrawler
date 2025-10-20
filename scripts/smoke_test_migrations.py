@@ -16,7 +16,6 @@ Exit codes:
 
 import os
 import sys
-from typing import List, Set
 
 from sqlalchemy import create_engine, inspect, text
 
@@ -53,7 +52,7 @@ def check_table_exists(inspector, table_name: str) -> bool:
     return table_name in tables
 
 
-def get_missing_tables(inspector, expected_tables: Set[str]) -> Set[str]:
+def get_missing_tables(inspector, expected_tables: set[str]) -> set[str]:
     """Get list of missing tables."""
     existing_tables = set(inspector.get_table_names())
     return expected_tables - existing_tables

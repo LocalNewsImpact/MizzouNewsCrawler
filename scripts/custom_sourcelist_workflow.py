@@ -694,7 +694,7 @@ def main():
             print(f"       --urls-file <path-to-urls.txt>")
         
         elif args.command == 'import-urls':
-            count = import_urls(
+            import_urls(
                 dataset_slug=args.dataset_slug,
                 urls_file=args.urls_file,
                 database_url=args.database_url,

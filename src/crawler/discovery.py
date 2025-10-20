@@ -1912,7 +1912,7 @@ class NewsDiscovery:
                 sources_df = sources_df[mask]
 
             # Print source stats immediately to stdout
-            print(f"📊 Source Discovery Status:")
+            print("📊 Source Discovery Status:")
             print(f"   Sources available: {source_stats.get('sources_available', 0)}")
             print(f"   Sources due for discovery: {source_stats.get('sources_due', 0)}")
             if source_stats.get('sources_skipped', 0) > 0:

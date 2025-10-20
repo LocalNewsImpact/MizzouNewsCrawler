@@ -215,7 +215,7 @@ class TestHeaderVerification:
             # Should contain modern browser version
             has_modern_chrome = any(f"Chrome/{v}" in ua for v in ["127", "128", "129"])
             has_modern_firefox = any(f"Firefox/{v}" in ua for v in ["130", "131"])
-            has_modern_safari = any(f"Safari/537" in ua for _ in ["17", "18"])
+            has_modern_safari = any("Safari/537" in ua for _ in ["17", "18"])
             
             assert has_modern_chrome or has_modern_firefox or has_modern_safari, (
                 f"User-Agent doesn't have modern browser version: {ua}"

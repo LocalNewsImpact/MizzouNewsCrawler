@@ -161,7 +161,6 @@ def handle_proxy_test(args) -> int:
     try:
         import time
 
-        import requests
 
         from src.crawler import ContentExtractor
         
@@ -195,7 +194,7 @@ def handle_proxy_test(args) -> int:
             return 1
             
     except Exception as e:
-        print(f"❌ Test failed with exception:")
+        print("❌ Test failed with exception:")
         print(f"  {type(e).__name__}: {str(e)}")
         
         # Record failure
