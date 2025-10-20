@@ -19,7 +19,11 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    """Add proxy and alternative_extractions columns to extraction_telemetry_v2."""
+    """Add proxy columns to extraction_telemetry_v2.
+    
+    Note: alternative_extractions already exists from migration a1b2c3d4e5f6,
+    so we don't add it again.
+    """
     # Add proxy-related columns
     op.add_column('extraction_telemetry_v2',
                   sa.Column('proxy_used', sa.Integer(), nullable=True))
@@ -32,14 +36,18 @@ def upgrade() -> None:
     op.add_column('extraction_telemetry_v2',
                   sa.Column('proxy_error', sa.String(), nullable=True))
 
-    # Add alternative_extractions column
-    op.add_column('extraction_telemetry_v2',
-                  sa.Column('alternative_extractions', sa.JSON(), nullable=True))
+    # Note: alternative_extractions column already exists from migration a1b2c3d4e5f6
+    # We don't add it again to avoid duplicate column errors
 
 
 def downgrade() -> None:
-    """Remove proxy and alternative_extractions columns from extraction_telemetry_v2."""
-    op.drop_column('extraction_telemetry_v2', 'alternative_extractions')
+    """Remove proxy columns from extraction_telemetry_v2.
+    
+    Note: We don't drop alternative_extractions as it was created in
+    migration a1b2c3d4e5f6, not this migration.
+    """
+    # Note: alternative_extractions was created in migration a1b2c3d4e5f6, not here
+    # So we don't drop it in this downgrade
     op.drop_column('extraction_telemetry_v2', 'proxy_error')
     op.drop_column('extraction_telemetry_v2', 'proxy_status')
     op.drop_column('extraction_telemetry_v2', 'proxy_authenticated')
