@@ -10,6 +10,7 @@ Enhanced with OpenStreetMap data for local businesses, schools, and landmarks.
 import random
 import re
 import time
+from typing import Any
 
 import pandas as pd
 
@@ -742,7 +743,7 @@ class PublisherGeoFilter:
         title: str | None = None,
         authors: str | None = None,
         authors_count: int | None = None,
-    ) -> dict[str, any]:
+    ) -> dict[str, Any]:
         """Detect geographic signals using publisher-specific gazetteer.
 
         Optional `title` and `authors` can be provided by scrapers to

@@ -247,7 +247,7 @@ class NewsCrawler:
             return None
 
     def filter_article_urls(
-        self, urls: Set[str], site_rules: Dict[str, any] = None
+        self, urls: Set[str], site_rules: Dict[str, Any] = None
     ) -> List[str]:
         """Filter URLs to identify likely article pages.
 
@@ -269,7 +269,7 @@ class NewsCrawler:
         )
         return sorted(article_urls)
 
-    def _is_likely_article(self, url: str, site_rules: Dict[str, any] = None) -> bool:
+    def _is_likely_article(self, url: str, site_rules: Dict[str, Any] = None) -> bool:
         """Determine if a URL is likely an article page."""
         # Default filters - skip known non-article paths
         skip_patterns = [
@@ -493,7 +493,7 @@ class ContentExtractor:
         self._create_new_session()
 
         # Track metadata about publish date extraction source
-        self._publish_date_details: Optional[Dict[str, any]] = None
+        self._publish_date_details: Optional[Dict[str, Any]] = None
 
         # Initialize bot sensitivity manager for adaptive crawling
         self.bot_sensitivity_manager = BotSensitivityManager()
@@ -760,7 +760,7 @@ class ContentExtractor:
             self.domain_locks[domain] = lock
         return lock
 
-    def get_rotation_stats(self) -> Dict[str, any]:
+    def get_rotation_stats(self) -> Dict[str, Any]:
         """Get statistics about user agent rotation and session management."""
         return {
             "total_domains_accessed": len(self.domain_sessions),
@@ -926,7 +926,7 @@ class ContentExtractor:
 
     def _create_error_result(
         self, url: str, error_msg: str, metadata: Dict = None
-    ) -> Dict[str, any]:
+    ) -> Dict[str, Any]:
         """Create a standardized error result."""
         # Record proxy failure for network/bot blocking errors
         if any(
@@ -1013,7 +1013,7 @@ class ContentExtractor:
                 self._persistent_driver = None
                 self._driver_reuse_count = 0
 
-    def get_driver_stats(self) -> Dict[str, any]:
+    def get_driver_stats(self) -> Dict[str, Any]:
         """Get statistics about driver usage."""
         return {
             "has_persistent_driver": self._persistent_driver is not None,
@@ -1022,7 +1022,7 @@ class ContentExtractor:
             "driver_method": getattr(self, "_driver_method", None),
         }
 
-    def extract_article_data(self, html: str, url: str) -> Dict[str, any]:
+    def extract_article_data(self, html: str, url: str) -> Dict[str, Any]:
         """Extract article metadata and content from HTML.
 
         Returns:
@@ -1060,7 +1060,7 @@ class ContentExtractor:
 
     def extract_content(
         self, url: str, html: str = None, metrics: Optional[object] = None
-    ) -> Dict[str, any]:
+    ) -> Dict[str, Any]:
         """Fetch page if needed, extract article data using multiple methods.
 
         Uses intelligent field-level fallback:
@@ -1321,7 +1321,7 @@ class ContentExtractor:
 
         return result_copy
 
-    def _get_missing_fields(self, result: Dict[str, any]) -> List[str]:
+    def _get_missing_fields(self, result: Dict[str, Any]) -> List[str]:
         """Identify which fields are missing or empty in extraction result."""
         missing = []
 
@@ -1391,8 +1391,8 @@ class ContentExtractor:
 
     def _merge_extraction_results(
         self,
-        target: Dict[str, any],
-        source: Dict[str, any],
+        target: Dict[str, Any],
+        source: Dict[str, Any],
         method: str,
         fields_to_copy: Optional[List[str]] = None,
         metrics: Optional[object] = None,
@@ -1438,7 +1438,7 @@ class ContentExtractor:
                         f"but not used (current from previous method)"
                     )
 
-    def _is_field_value_meaningful(self, field: str, value: any) -> bool:
+    def _is_field_value_meaningful(self, field: str, value: Any) -> bool:
         """Check if a field value is meaningful (not empty/null/trivial)."""
         if value is None:
             return False
@@ -1466,7 +1466,7 @@ class ContentExtractor:
 
         return bool(value)
 
-    def _complete_extraction_methods_tracking(self, result: Dict[str, any]):
+    def _complete_extraction_methods_tracking(self, result: Dict[str, Any]):
         """Complete extraction methods tracking, mark missing as 'none'."""
         all_fields = ["title", "author", "content", "publish_date", "metadata"]
         extraction_methods = result.get("extraction_methods", {})
@@ -1480,7 +1480,7 @@ class ContentExtractor:
 
         result["extraction_methods"] = extraction_methods
 
-    def _determine_primary_extraction_method(self, result: Dict[str, any]) -> str:
+    def _determine_primary_extraction_method(self, result: Dict[str, Any]) -> str:
         """Determine primary extraction method based on core content.
 
         Priority: content > title > author > publish_date > metadata
@@ -1500,7 +1500,7 @@ class ContentExtractor:
         logger.warning("No extraction methods tracked, defaulting to newspaper4k")
         return "newspaper4k"
 
-    def _is_extraction_successful(self, result: Dict[str, any]) -> bool:
+    def _is_extraction_successful(self, result: Dict[str, Any]) -> bool:
         """Check if extraction result contains meaningful content."""
         if not result:
             return False
@@ -1511,7 +1511,7 @@ class ContentExtractor:
 
         return bool(title) or (bool(content) and len(content) > 100)
 
-    def _extract_with_newspaper(self, url: str, html: str = None) -> Dict[str, any]:
+    def _extract_with_newspaper(self, url: str, html: str = None) -> Dict[str, Any]:
         """Extract content using newspaper4k library with cloudscraper support."""
         # Skip if known-dead URL
         ttl = getattr(self, "dead_url_ttl", 0)
@@ -1823,7 +1823,7 @@ class ContentExtractor:
             "extracted_at": datetime.utcnow().isoformat(),
         }
 
-    def _extract_with_beautifulsoup(self, url: str, html: str = None) -> Dict[str, any]:
+    def _extract_with_beautifulsoup(self, url: str, html: str = None) -> Dict[str, Any]:
         """Extract content using BeautifulSoup with bot-avoidance."""
         # Lazily fetch HTML if not provided
         page_html = html
@@ -1929,7 +1929,7 @@ class ContentExtractor:
 
         return result
 
-    def _extract_with_selenium(self, url: str) -> Dict[str, any]:
+    def _extract_with_selenium(self, url: str) -> Dict[str, Any]:
         """Extract content using persistent Selenium driver."""
         try:
             # Get the persistent driver (creates one if needed)
