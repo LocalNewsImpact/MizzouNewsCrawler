@@ -354,7 +354,7 @@ class TestComprehensiveExtractionTelemetry:
 @pytest.mark.integration
 class TestContentExtractorIntegration:
     """Test integration between ContentExtractor and telemetry system.
-    
+
     These tests make real HTTP requests via newspaper4k despite the mocks,
     so they are marked as integration tests and excluded from regular test runs.
     """

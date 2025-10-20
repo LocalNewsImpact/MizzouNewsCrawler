@@ -21,6 +21,7 @@ from pydantic import BaseModel
 try:
     import psycopg2
     import psycopg2.extras
+
     HAS_POSTGRES = True
 except ImportError:
     HAS_POSTGRES = False
@@ -92,12 +93,12 @@ class TelemetryLogEntry(BaseModel):
 
 def get_db_connection():
     """Get database connection for gazetteer data.
-    
+
     Uses PostgreSQL if DATABASE_URL environment variable is set,
     otherwise falls back to SQLite for local development.
     """
     database_url = os.environ.get("DATABASE_URL")
-    
+
     if database_url and HAS_POSTGRES:
         # Use PostgreSQL connection
         return psycopg2.connect(database_url)
@@ -388,10 +389,10 @@ def ensure_address_updates_table():
     """Ensure the gazetteer_address_updates table exists."""
     conn = get_db_connection()
     cursor = conn.cursor()
-    
+
     # Determine if we're using PostgreSQL or SQLite
     is_postgres = os.environ.get("DATABASE_URL") and HAS_POSTGRES
-    
+
     if is_postgres:
         # PostgreSQL syntax
         create_sql = """
@@ -417,7 +418,7 @@ def ensure_address_updates_table():
                 FOREIGN KEY (source_id) REFERENCES candidate_links (id)
             )
         """
-    
+
     cursor.execute(create_sql)
     conn.commit()
     conn.close()

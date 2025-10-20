@@ -14,7 +14,8 @@ from src.utils.content_cleaner_balanced import BalancedBoundaryContentCleaner
 
 logger = logging.getLogger(__name__)
 
-ARTICLE_UPDATE_SQL = text("""
+ARTICLE_UPDATE_SQL = text(
+    """
     UPDATE articles
     SET content = :content,
         text = :text,
@@ -22,7 +23,8 @@ ARTICLE_UPDATE_SQL = text("""
         text_excerpt = :excerpt,
         status = :status
     WHERE id = :id
-""")
+"""
+)
 
 
 def add_cleaning_parser(subparsers) -> argparse.ArgumentParser:
@@ -76,7 +78,8 @@ def handle_cleaning_command(args) -> int:
             status_placeholders = ", ".join(
                 [f":status{i}" for i in range(len(statuses))]
             )
-            query = text(f"""
+            query = text(
+                f"""
                 SELECT a.id, a.content, a.status, cl.url
                 FROM articles a
                 JOIN candidate_links cl ON a.candidate_link_id = cl.id
@@ -84,7 +87,8 @@ def handle_cleaning_command(args) -> int:
                 AND a.content IS NOT NULL
                 AND a.content != ''
                 LIMIT :limit
-            """)
+            """
+            )
 
             params = {"limit": limit}
             for i, status in enumerate(statuses):
@@ -111,7 +115,7 @@ def handle_cleaning_command(args) -> int:
                 # NOTE: We don't call analyze_domain() because it tries to query
                 # the database with SQLite. Instead, process_single_article() will
                 # handle cleaning using the content we already have.
-                
+
                 for article_id, original_content, current_status in domain_articles:
                     try:
                         cleaned_content, metadata = cleaner.process_single_article(
@@ -142,7 +146,7 @@ def handle_cleaning_command(args) -> int:
                         # Determine if we need to update the article
                         content_changed = cleaned_content != original_content
                         status_changed = new_status != current_status
-                        
+
                         # Update if content changed OR status changed
                         if content_changed or status_changed:
                             new_hash = (

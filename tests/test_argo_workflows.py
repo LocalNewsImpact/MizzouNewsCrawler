@@ -104,7 +104,7 @@ class TestPipelineSteps:
         templates = base_workflow["spec"]["templates"]
         pipeline_templates = [t for t in templates if t["name"] == "pipeline"]
         assert len(pipeline_templates) == 1
-        
+
         pipeline = pipeline_templates[0]
         assert "steps" in pipeline
         assert len(pipeline["steps"]) == 3  # Discovery, Verification, Extraction
@@ -113,7 +113,7 @@ class TestPipelineSteps:
         """Ensure base workflow has all required step templates."""
         templates = base_workflow["spec"]["templates"]
         template_names = [t["name"] for t in templates]
-        
+
         assert "pipeline" in template_names
         assert "discovery-step" in template_names
         assert "verification-step" in template_names
@@ -123,13 +123,13 @@ class TestPipelineSteps:
         """Ensure verification and extraction steps are conditional."""
         templates = base_workflow["spec"]["templates"]
         pipeline = next(t for t in templates if t["name"] == "pipeline")
-        
+
         # Check verification step is conditional
         verify_step = pipeline["steps"][1][0]
         assert verify_step["name"] == "verify-urls"
         assert "when" in verify_step
         assert "discover-urls.status" in verify_step["when"]
-        
+
         # Check extraction step is conditional
         extract_step = pipeline["steps"][2][0]
         assert extract_step["name"] == "extract-content"
@@ -144,7 +144,7 @@ class TestRetryStrategy:
         """Ensure discovery step has retry configuration."""
         templates = base_workflow["spec"]["templates"]
         discovery = next(t for t in templates if t["name"] == "discovery-step")
-        
+
         assert "retryStrategy" in discovery
         assert discovery["retryStrategy"]["limit"] == 2
         assert discovery["retryStrategy"]["retryPolicy"] == "OnFailure"
@@ -154,7 +154,7 @@ class TestRetryStrategy:
         """Ensure verification step has retry configuration."""
         templates = base_workflow["spec"]["templates"]
         verification = next(t for t in templates if t["name"] == "verification-step")
-        
+
         assert "retryStrategy" in verification
         assert verification["retryStrategy"]["limit"] == 2
 
@@ -162,7 +162,7 @@ class TestRetryStrategy:
         """Ensure extraction step has retry configuration."""
         templates = base_workflow["spec"]["templates"]
         extraction = next(t for t in templates if t["name"] == "extraction-step")
-        
+
         assert "retryStrategy" in extraction
         assert extraction["retryStrategy"]["limit"] == 2
 
@@ -174,7 +174,7 @@ class TestContainerConfiguration:
         """Ensure discovery step uses correct processor image."""
         templates = base_workflow["spec"]["templates"]
         discovery = next(t for t in templates if t["name"] == "discovery-step")
-        
+
         image = discovery["container"]["image"]
         assert "mizzou-crawler/processor" in image
 
@@ -182,7 +182,7 @@ class TestContainerConfiguration:
         """Ensure discovery step has correct CLI command."""
         templates = base_workflow["spec"]["templates"]
         discovery = next(t for t in templates if t["name"] == "discovery-step")
-        
+
         command = discovery["container"]["command"]
         assert "python" in command
         assert "src.cli.cli_modular" in command
@@ -192,7 +192,7 @@ class TestContainerConfiguration:
         """Ensure verification step has correct CLI command."""
         templates = base_workflow["spec"]["templates"]
         verification = next(t for t in templates if t["name"] == "verification-step")
-        
+
         command = verification["container"]["command"]
         assert "verify-urls" in command
 
@@ -200,7 +200,7 @@ class TestContainerConfiguration:
         """Ensure extraction step has correct CLI command."""
         templates = base_workflow["spec"]["templates"]
         extraction = next(t for t in templates if t["name"] == "extraction-step")
-        
+
         command = extraction["container"]["command"]
         assert "extract" in command
 
@@ -212,9 +212,9 @@ class TestEnvironmentVariables:
         """Ensure discovery step has database configuration."""
         templates = base_workflow["spec"]["templates"]
         discovery = next(t for t in templates if t["name"] == "discovery-step")
-        
+
         env_vars = {env["name"]: env for env in discovery["container"]["env"]}
-        
+
         assert "DATABASE_ENGINE" in env_vars
         assert env_vars["DATABASE_ENGINE"]["value"] == "postgresql+psycopg2"
         assert "DATABASE_HOST" in env_vars
@@ -227,9 +227,9 @@ class TestEnvironmentVariables:
         """Ensure discovery step has Cloud SQL connector config."""
         templates = base_workflow["spec"]["templates"]
         discovery = next(t for t in templates if t["name"] == "discovery-step")
-        
+
         env_vars = {env["name"]: env for env in discovery["container"]["env"]}
-        
+
         assert "USE_CLOUD_SQL_CONNECTOR" in env_vars
         assert env_vars["USE_CLOUD_SQL_CONNECTOR"]["value"] == "true"
         assert "CLOUD_SQL_INSTANCE" in env_vars
@@ -238,9 +238,9 @@ class TestEnvironmentVariables:
         """Ensure discovery step has proxy configuration."""
         templates = base_workflow["spec"]["templates"]
         discovery = next(t for t in templates if t["name"] == "discovery-step")
-        
+
         env_vars = {env["name"]: env for env in discovery["container"]["env"]}
-        
+
         assert "PROXY_PROVIDER" in env_vars
         assert env_vars["PROXY_PROVIDER"]["value"] == "decodo"
         assert "USE_ORIGIN_PROXY" in env_vars
@@ -250,10 +250,10 @@ class TestEnvironmentVariables:
         """Ensure extraction step has rate limiting parameters."""
         templates = base_workflow["spec"]["templates"]
         extraction = next(t for t in templates if t["name"] == "extraction-step")
-        
+
         # Check that rate limiting is parameterized
         env_vars = {env["name"]: env for env in extraction["container"]["env"]}
-        
+
         assert "INTER_REQUEST_MIN" in env_vars
         assert "INTER_REQUEST_MAX" in env_vars
         assert "BATCH_SLEEP_SECONDS" in env_vars
@@ -268,7 +268,7 @@ class TestResourceLimits:
         """Ensure discovery step has resource requests and limits."""
         templates = base_workflow["spec"]["templates"]
         discovery = next(t for t in templates if t["name"] == "discovery-step")
-        
+
         resources = discovery["container"]["resources"]
         assert "requests" in resources
         assert "limits" in resources
@@ -281,7 +281,7 @@ class TestResourceLimits:
         """Ensure verification step has resource requests and limits."""
         templates = base_workflow["spec"]["templates"]
         verification = next(t for t in templates if t["name"] == "verification-step")
-        
+
         resources = verification["container"]["resources"]
         assert "requests" in resources
         assert "limits" in resources
@@ -290,7 +290,7 @@ class TestResourceLimits:
         """Ensure extraction step has resource requests and limits."""
         templates = base_workflow["spec"]["templates"]
         extraction = next(t for t in templates if t["name"] == "extraction-step")
-        
+
         resources = extraction["container"]["resources"]
         assert "requests" in resources
         assert "limits" in resources
@@ -303,7 +303,7 @@ class TestMizzouConfiguration:
         """Ensure Mizzou CronWorkflow specifies correct dataset."""
         templates = mizzou_cronworkflow["spec"]["workflowSpec"]["templates"]
         wrapper = templates[0]
-        
+
         params = {
             p["name"]: p["value"]
             for p in wrapper["steps"][0][0]["arguments"]["parameters"]
@@ -314,12 +314,12 @@ class TestMizzouConfiguration:
         """Ensure Mizzou has moderate rate limiting."""
         templates = mizzou_cronworkflow["spec"]["workflowSpec"]["templates"]
         wrapper = templates[0]
-        
+
         params = {
             p["name"]: p["value"]
             for p in wrapper["steps"][0][0]["arguments"]["parameters"]
         }
-        
+
         # Check moderate rate limits
         assert params["inter-request-min"] == "5.0"  # 5 seconds
         assert params["inter-request-max"] == "15.0"  # 15 seconds
@@ -369,7 +369,7 @@ class TestTemplateReusability:
         """Ensure Mizzou CronWorkflow references base template."""
         templates = mizzou_cronworkflow["spec"]["workflowSpec"]["templates"]
         wrapper = templates[0]
-        
+
         template_ref = wrapper["steps"][0][0]["templateRef"]
         assert template_ref["name"] == "news-pipeline-template"
         assert template_ref["template"] == "pipeline"
@@ -378,9 +378,9 @@ class TestTemplateReusability:
         """Ensure base template accepts all required parameters."""
         templates = base_workflow["spec"]["templates"]
         pipeline = next(t for t in templates if t["name"] == "pipeline")
-        
+
         param_names = [p["name"] for p in pipeline["inputs"]["parameters"]]
-        
+
         # Check key parameters exist
         assert "dataset" in param_names
         assert "inter-request-min" in param_names

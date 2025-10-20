@@ -14,7 +14,9 @@ class TestSmokeTestMigrations:
 
     def test_smoke_test_script_exists(self):
         """Test that smoke test script exists and is executable."""
-        script_path = Path(__file__).parent.parent / "scripts" / "smoke_test_migrations.py"
+        script_path = (
+            Path(__file__).parent.parent / "scripts" / "smoke_test_migrations.py"
+        )
         assert script_path.exists(), "Smoke test script not found"
         assert os.access(script_path, os.X_OK), "Smoke test script is not executable"
 
@@ -139,7 +141,9 @@ class TestSmokeTestMigrations:
         )
 
         # Check that smoke test passed
-        assert result.returncode == 0, f"Smoke test failed: {result.stderr}\n{result.stdout}"
+        assert (
+            result.returncode == 0
+        ), f"Smoke test failed: {result.stderr}\n{result.stdout}"
         assert "All smoke tests passed" in result.stdout
 
     @pytest.mark.integration

@@ -287,6 +287,7 @@ def handle_analysis_command(args) -> int:
     batch_size = max(1, args.batch_size or 16)
     top_k = max(1, args.top_k or 2)
     import os
+
     model_path = Path(
         args.model_path or os.getenv("MODEL_PATH") or "models"
     ).expanduser()

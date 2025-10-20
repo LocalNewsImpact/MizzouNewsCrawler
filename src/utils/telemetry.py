@@ -555,9 +555,9 @@ class TelemetryReporter:
         if event.metrics:
             data["metrics"] = asdict(event.metrics)
             if event.metrics.estimated_completion:
-                data["metrics"]["estimated_completion"] = (
-                    event.metrics.estimated_completion.isoformat()
-                )
+                data["metrics"][
+                    "estimated_completion"
+                ] = event.metrics.estimated_completion.isoformat()
 
         return data
 
@@ -573,13 +573,14 @@ class OperationTracker:
         database_url: str | None = None,
     ) -> None:
         self.logger = logging.getLogger(__name__)
-        
+
         # If no database_url provided, use DatabaseManager to get Cloud SQL connection
         if database_url is None:
             from src.models.database import DatabaseManager
+
             db = DatabaseManager()
             database_url = str(db.engine.url)
-        
+
         self.database_url = database_url
         self._store = self._resolve_store(store, database_url)
         if not getattr(self._store, "async_writes", True):
@@ -634,6 +635,7 @@ class OperationTracker:
         # Use DatabaseManager's engine if available (for Cloud SQL)
         try:
             from src.models.database import DatabaseManager
+
             db = DatabaseManager()
             return get_store(database_url, engine=db.engine)
         except Exception:
@@ -959,9 +961,9 @@ class OperationTracker:
         with self._lock:
             if operation_id in self.active_operations:
                 self.active_operations[operation_id]["metrics"] = metrics
-                self.active_operations[operation_id]["status"] = (
-                    OperationStatus.IN_PROGRESS
-                )
+                self.active_operations[operation_id][
+                    "status"
+                ] = OperationStatus.IN_PROGRESS
 
         self._update_job_record(
             operation_id,
@@ -981,9 +983,9 @@ class OperationTracker:
 
         with self._lock:
             if operation_id in self.active_operations:
-                self.active_operations[operation_id]["status"] = (
-                    OperationStatus.COMPLETED
-                )
+                self.active_operations[operation_id][
+                    "status"
+                ] = OperationStatus.COMPLETED
                 self.active_operations[operation_id]["end_time"] = datetime.now(
                     timezone.utc
                 )
@@ -1071,30 +1073,33 @@ class OperationTracker:
         parameters = _safe_json_dumps(raw_parameters) or "{}"
 
         metrics_obj = kwargs.get("metrics")
-        metrics_json = (
-            _safe_json_dumps(asdict(metrics_obj)) if metrics_obj else None
-        )
+        metrics_json = _safe_json_dumps(asdict(metrics_obj)) if metrics_obj else None
 
         error_json = _safe_json_dumps(kwargs.get("error_details"))
         summary_json = _safe_json_dumps(kwargs.get("result_summary"))
 
         job_defaults = {
-            "job_name": kwargs.get("job_name") or kwargs.get("operation_name")
+            "job_name": kwargs.get("job_name")
+            or kwargs.get("operation_name")
             or kwargs.get("source_name")
             or (operation_type or "operation"),
-            "params": raw_parameters if raw_parameters else {
-                k: v
-                for k, v in kwargs.items()
-                if k
-                not in {
-                    "metrics",
-                    "result_summary",
-                    "error_details",
-                    "user_id",
-                    "session_id",
-                    "operation_type",
+            "params": (
+                raw_parameters
+                if raw_parameters
+                else {
+                    k: v
+                    for k, v in kwargs.items()
+                    if k
+                    not in {
+                        "metrics",
+                        "result_summary",
+                        "error_details",
+                        "user_id",
+                        "session_id",
+                        "operation_type",
+                    }
                 }
-            },
+            ),
             "commit_sha": kwargs.get("commit_sha"),
             "environment": kwargs.get("environment"),
             "artifact_paths": kwargs.get("artifact_paths"),
@@ -1212,8 +1217,7 @@ class OperationTracker:
                         job_update_fields.append("records_created = ?")
                         job_update_values.append(
                             max(
-                                metrics_obj.processed_items
-                                - metrics_obj.failed_items,
+                                metrics_obj.processed_items - metrics_obj.failed_items,
                                 0,
                             )
                         )
@@ -2042,9 +2046,10 @@ def create_telemetry_system(
     # If no database_url provided, use DatabaseManager to get Cloud SQL connection
     if database_url is None:
         from src.models.database import DatabaseManager
+
         db = DatabaseManager()
         database_url = str(db.engine.url)
-    
+
     reporter = None
     if api_base_url:
         reporter = TelemetryReporter(api_base_url, api_key)

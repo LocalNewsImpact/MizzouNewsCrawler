@@ -37,9 +37,9 @@ def test_get_sources_passes_dict_to_read_sql(monkeypatch):
     nd.get_sources_to_process(dataset_label="my-label", limit=1, due_only=False)
 
     assert "params" in captured
-    assert isinstance(captured["params"], dict), (
-        f"expected dict but got {type(captured['params'])}"
-    )
+    assert isinstance(
+        captured["params"], dict
+    ), f"expected dict but got {type(captured['params'])}"
 
 
 @pytest.mark.skip(

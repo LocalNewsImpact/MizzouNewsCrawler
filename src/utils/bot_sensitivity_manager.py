@@ -150,9 +150,7 @@ class BotSensitivityManager:
         sensitivity = self.get_bot_sensitivity(host, source_id)
         return BOT_SENSITIVITY_CONFIG.get(sensitivity, BOT_SENSITIVITY_CONFIG[5])
 
-    def get_bot_sensitivity(
-        self, host: str, source_id: Optional[str] = None
-    ) -> int:
+    def get_bot_sensitivity(self, host: str, source_id: Optional[str] = None) -> int:
         """Get current bot sensitivity rating for a host.
 
         Args:

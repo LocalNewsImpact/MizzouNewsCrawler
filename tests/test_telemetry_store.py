@@ -71,9 +71,7 @@ class TestSyncTelemetryStore:
         with store.connection() as conn:
             cursor = conn.cursor()
             try:
-                cursor.execute(
-                    "CREATE TABLE IF NOT EXISTS events (value TEXT)"
-                )
+                cursor.execute("CREATE TABLE IF NOT EXISTS events (value TEXT)")
                 cursor.execute("INSERT INTO events(value) VALUES (?)", ("hello",))
                 assert cursor.rowcount == 1
             finally:

@@ -305,7 +305,7 @@ class URLVerificationService:
 
         # Stage 1: Fast URL pattern check
         from src.utils.url_classifier import is_likely_article_url
-        
+
         if not is_likely_article_url(url):
             # URL matches non-article pattern (gallery, category, etc.)
             result["storysniffer_result"] = False
@@ -677,8 +677,7 @@ def main():
         if signature is not None:
             params = signature.parameters
             has_var_kw = any(
-                param.kind == inspect.Parameter.VAR_KEYWORD
-                for param in params.values()
+                param.kind == inspect.Parameter.VAR_KEYWORD for param in params.values()
             )
         else:
             params = {}
@@ -686,9 +685,7 @@ def main():
         run_kwargs: dict[str, Any] = {}
 
         if args.max_batches is not None and (
-            signature is None
-            or "max_batches" in params
-            or has_var_kw
+            signature is None or "max_batches" in params or has_var_kw
         ):
             run_kwargs["max_batches"] = args.max_batches
 

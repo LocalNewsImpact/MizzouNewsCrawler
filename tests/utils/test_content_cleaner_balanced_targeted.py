@@ -115,12 +115,12 @@ class TestDomainAnalysis:
             (1, "https://example.com/art1", "Article 1 content", "hash1"),
             (2, "https://example.com/art2", "Article 2 content", "hash2"),
         ]
-        
+
         mock_session = Mock()
         mock_session.execute.return_value = mock_result
         mock_session.__enter__ = Mock(return_value=mock_session)
         mock_session.__exit__ = Mock(return_value=False)
-        
+
         mock_db = Mock()
         mock_db.get_session.return_value = mock_session
 

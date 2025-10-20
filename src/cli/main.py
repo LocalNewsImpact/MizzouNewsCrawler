@@ -84,7 +84,7 @@ def main() -> int:
         "dump-http-status": dump_http_status_command,
         "llm": llm_command,
     }
-    
+
     # Add analyze command if ML dependencies are available
     if analyze_command is not None:
         handler_overrides["analyze"] = analyze_command

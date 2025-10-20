@@ -21,7 +21,7 @@ def test_datasets(in_memory_engine):
     """Create test datasets in the database."""
     Session = sessionmaker(bind=in_memory_engine)
     session = Session()
-    
+
     datasets = [
         Dataset(
             id="61ccd4d3-763f-4cc6-b85d-74b268e80a00",
@@ -42,13 +42,13 @@ def test_datasets(in_memory_engine):
             name="Dataset With Spaces in Name",
         ),
     ]
-    
+
     for dataset in datasets:
         session.add(dataset)
-    
+
     session.commit()
     session.close()
-    
+
     return datasets
 
 
@@ -123,7 +123,7 @@ def test_resolve_multiple_datasets(in_memory_engine, test_datasets):
     """Test resolving different datasets in sequence."""
     result1 = resolve_dataset_id(in_memory_engine, "test-dataset")
     assert result1 == "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-    
+
     result2 = resolve_dataset_id(in_memory_engine, "mizzou-missouri-state")
     assert result2 == "61ccd4d3-763f-4cc6-b85d-74b268e80a00"
 
@@ -155,7 +155,7 @@ def test_resolve_prioritizes_slug_over_name(in_memory_engine):
     """Test that slug match is preferred over name match."""
     Session = sessionmaker(bind=in_memory_engine)
     session = Session()
-    
+
     # Create a dataset where slug and name might be confused
     dataset = Dataset(
         id="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
@@ -164,7 +164,7 @@ def test_resolve_prioritizes_slug_over_name(in_memory_engine):
         name="my-slug",  # Name same as another dataset's slug
     )
     session.add(dataset)
-    
+
     dataset2 = Dataset(
         id="bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
         slug="other-slug",
@@ -172,10 +172,10 @@ def test_resolve_prioritizes_slug_over_name(in_memory_engine):
         name="Other Name",
     )
     session.add(dataset2)
-    
+
     session.commit()
     session.close()
-    
+
     # Should find by slug first
     result = resolve_dataset_id(in_memory_engine, "my-slug")
     assert result == "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
@@ -186,7 +186,7 @@ def test_resolve_case_sensitive_name(in_memory_engine, test_datasets):
     # Exact match should work
     result = resolve_dataset_id(in_memory_engine, "Test Dataset Name")
     assert result == "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-    
+
     # Case mismatch should fail
     with pytest.raises(ValueError, match="Dataset not found"):
         resolve_dataset_id(in_memory_engine, "test dataset name")

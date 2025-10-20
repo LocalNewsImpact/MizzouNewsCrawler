@@ -171,8 +171,7 @@ def test_opinion_detection_sets_status():
     candidate_call = next(
         call
         for call in execute_calls
-        if call.args
-        and call.args[0] is extraction_module.CANDIDATE_STATUS_UPDATE_SQL
+        if call.args and call.args[0] is extraction_module.CANDIDATE_STATUS_UPDATE_SQL
     )
     candidate_params = candidate_call.args[1]
     assert candidate_params["status"] == "opinion"

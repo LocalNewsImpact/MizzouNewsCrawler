@@ -261,7 +261,9 @@ class TestContentExtractor:
         )
         monkeypatch.setattr(extractor, "_get_domain_session", fail_session)
 
-        result = extractor.extract_content("https://example.com/cached", html=cached_html)
+        result = extractor.extract_content(
+            "https://example.com/cached", html=cached_html
+        )
 
         assert captured["url"] == "https://example.com/cached"
         assert captured["html"] == cached_html
@@ -334,7 +336,9 @@ class TestContentExtractor:
         )
         monkeypatch.setattr(extractor, "_get_domain_session", fail_session)
 
-        result = extractor.extract_content("https://example.com/offline", html=cached_html)
+        result = extractor.extract_content(
+            "https://example.com/offline", html=cached_html
+        )
 
         assert call_order == [
             ("newspaper", cached_html),

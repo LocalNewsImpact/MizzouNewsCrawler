@@ -73,7 +73,7 @@ def create_parser() -> argparse.ArgumentParser:
 
 def _load_command_parser(command: str) -> tuple[Callable, Callable] | None:
     """Load parser and handler for a specific command on-demand.
-    
+
     Returns: (add_parser_func, handle_command_func) or None if not found
     """
     command_modules = {
@@ -161,15 +161,16 @@ def _resolve_handler(
     handler = globals().get(attr_name)
     if callable(handler):
         return cast(CommandHandler, handler)
-    
+
     # Lazy load extraction handler to avoid slow spacy import (~14s)
     if command == "extract" and attr_name == "handle_extraction_command":
         try:
             from .commands.extraction import handle_extraction_command
+
             return cast(CommandHandler, handle_extraction_command)
         except (ImportError, ModuleNotFoundError):
             return None  # spacy not available
-    
+
     # Lazy load entity extraction handler - avoid slow spacy (~14s)
     if (
         command == "extract-entities"
@@ -183,11 +184,12 @@ def _resolve_handler(
             return cast(CommandHandler, handle_entity_extraction_command)
         except (ImportError, ModuleNotFoundError):
             return None  # spacy not available
-    
+
     # Lazy load analysis handler if ML dependencies are available
     if command == "analyze" and attr_name == "handle_analysis_command":
         try:
             from .commands.analysis import handle_analysis_command
+
             return cast(CommandHandler, handle_analysis_command)
         except (ImportError, ModuleNotFoundError):
             return None  # ML dependencies not available

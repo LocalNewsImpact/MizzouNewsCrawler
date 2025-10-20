@@ -44,8 +44,10 @@ def mock_entity_extractor():
 @pytest.fixture
 def mock_gazetteer():
     """Mock gazetteer functions."""
-    with patch("src.cli.commands.entity_extraction.get_gazetteer_rows") as get_rows, \
-         patch("src.cli.commands.entity_extraction.attach_gazetteer_matches") as attach:
+    with (
+        patch("src.cli.commands.entity_extraction.get_gazetteer_rows") as get_rows,
+        patch("src.cli.commands.entity_extraction.attach_gazetteer_matches") as attach,
+    ):
         get_rows.return_value = []
         attach.return_value = [
             {
@@ -101,7 +103,7 @@ class TestEntityExtractionCommand:
         article_id = str(uuid.uuid4())
         source_id = str(uuid.uuid4())
         dataset_id = str(uuid.uuid4())
-        
+
         mock_session = MagicMock()
         mock_session.execute.return_value.fetchall.return_value = [
             (
@@ -129,14 +131,14 @@ class TestEntityExtractionCommand:
         # Verify
         assert result == 0
         mock_session.execute.assert_called_once()
-        
+
         # Verify entity extraction pipeline was called
         extractor = mock_entity_extractor.return_value
         extractor.extract.assert_called_once()
         get_rows_mock.assert_called_once()
         attach_mock.assert_called_once()
         mock_save_entities.assert_called_once()
-        
+
         # Verify save_article_entities received correct data
         save_call_args = mock_save_entities.call_args
         assert save_call_args[0][1] == article_id  # article_id
@@ -157,7 +159,7 @@ class TestEntityExtractionCommand:
             )
             for i in range(3)
         ]
-        
+
         mock_session = MagicMock()
         mock_session.execute.return_value.fetchall.return_value = articles
         mock_db_manager.return_value.get_session.return_value.__enter__.return_value = (
@@ -233,7 +235,7 @@ class TestEntityExtractionCommand:
         article_id = str(uuid.uuid4())
         source_id = str(uuid.uuid4())
         dataset_id = str(uuid.uuid4())
-        
+
         mock_session = MagicMock()
         mock_session.execute.return_value.fetchall.return_value = [
             (article_id, "Test article", "hash123", source_id, dataset_id)
@@ -275,7 +277,7 @@ class TestEntityExtractionCommand:
             )
             for i in range(25)
         ]
-        
+
         mock_session = MagicMock()
         mock_session.execute.return_value.fetchall.return_value = articles
         mock_db_manager.return_value.get_session.return_value.__enter__.return_value = (
@@ -310,7 +312,7 @@ class TestEntityExtractionCommand:
             )
             for i in range(3)
         ]
-        
+
         mock_session = MagicMock()
         mock_session.execute.return_value.fetchall.return_value = articles
         mock_db_manager.return_value.get_session.return_value.__enter__.return_value = (
@@ -357,19 +359,19 @@ class TestEntityExtractionCommand:
         # Verify query structure
         execute_call = mock_session.execute.call_args
         query_str = str(execute_call[0][0]).lower()
-        
+
         # Should select required fields
         assert "a.id" in query_str
         assert "a.text" in query_str
         # source_id comes from candidate_links join
         assert "cl.source_id" in query_str or "source_id" in query_str
-        
+
         # Should filter for articles with content but no entities
         assert "content is not null" in query_str
         assert "text is not null" in query_str
         assert "not exists" in query_str
         assert "article_entities" in query_str
-        
+
         # Should exclude error articles
         assert "status" in query_str
         assert "error" in query_str

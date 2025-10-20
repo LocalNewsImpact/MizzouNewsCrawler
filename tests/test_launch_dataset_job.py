@@ -184,7 +184,10 @@ class TestGetCurrentProcessorImage:
 
         image = get_current_processor_image()
 
-        assert image == "us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:v1.2.3"
+        assert (
+            image
+            == "us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:v1.2.3"
+        )
         mock_run.assert_called_once()
 
     @patch("launch_dataset_job.subprocess.run")

@@ -19,8 +19,14 @@ if "DATABASE_URL" not in os.environ:
     os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 # Clear PostgreSQL env vars that might cause unwanted connections
 # Prevents src.config from building PostgreSQL URL when running tests locally
-for key in ["DATABASE_HOST", "DATABASE_PORT", "DATABASE_NAME",
-            "DATABASE_USER", "DATABASE_PASSWORD", "CLOUD_SQL_INSTANCE"]:
+for key in [
+    "DATABASE_HOST",
+    "DATABASE_PORT",
+    "DATABASE_NAME",
+    "DATABASE_USER",
+    "DATABASE_PASSWORD",
+    "CLOUD_SQL_INSTANCE",
+]:
     if key in os.environ and os.environ.get("PYTEST_KEEP_DB_ENV") != "true":
         os.environ.pop(key, None)
 
@@ -41,11 +47,11 @@ pytest_plugins = [
 @pytest.fixture
 def clean_app_state():
     """Fixture to ensure FastAPI app.state is clean between tests.
-    
+
     This is useful for backend tests that interact with the FastAPI
     application lifecycle. It ensures that any resources attached to
     app.state during one test don't leak into subsequent tests.
-    
+
     Usage:
         def test_something(clean_app_state):
             from backend.app.main import app
@@ -59,9 +65,9 @@ def clean_app_state():
     for key in dir(app.state):
         if not key.startswith("_"):
             original_state[key] = getattr(app.state, key, None)
-    
+
     yield app
-    
+
     # Restore original state and clean up any new attributes
     current_keys = [k for k in dir(app.state) if not k.startswith("_")]
     for key in current_keys:
@@ -73,9 +79,11 @@ def clean_app_state():
                 delattr(app.state, key)
             except AttributeError:
                 pass
-    
+
     # Also clear any dependency overrides
     app.dependency_overrides.clear()
+
+
 # ensure spacing per PEP8
 
 

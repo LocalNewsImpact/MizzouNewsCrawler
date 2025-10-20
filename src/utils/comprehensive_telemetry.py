@@ -142,16 +142,11 @@ class ExtractionMetrics:
                 self.set_http_metrics(http_status, 0, 0)
 
             # Extract proxy info from metadata if available
-            if (
-                "proxy_used" in metadata
-                and not self.proxy_used
-            ):
+            if "proxy_used" in metadata and not self.proxy_used:
                 self.set_proxy_metrics(
                     proxy_used=metadata.get("proxy_used", False),
                     proxy_url=metadata.get("proxy_url"),
-                    proxy_authenticated=metadata.get(
-                        "proxy_authenticated", False
-                    ),
+                    proxy_authenticated=metadata.get("proxy_authenticated", False),
                     proxy_status=metadata.get("proxy_status"),
                     proxy_error=metadata.get("proxy_error"),
                 )
@@ -209,7 +204,7 @@ class ExtractionMetrics:
         proxy_error: str | None = None,
     ):
         """Record proxy-level metrics.
-        
+
         Args:
             proxy_used: Whether proxy was used for this request
             proxy_url: The proxy URL if used
@@ -278,6 +273,7 @@ class ComprehensiveExtractionTelemetry:
                 # Use DatabaseManager's existing engine
                 # This handles Cloud SQL Connector automatically
                 from src.models.database import DatabaseManager
+
                 db = DatabaseManager()
                 database_url = str(db.engine.url)
                 self._database_url = database_url
@@ -304,7 +300,7 @@ class ComprehensiveExtractionTelemetry:
                     is_success = True
                 else:
                     is_success = any(metrics.method_success.values())
-            
+
             conn.execute(
                 """
                 INSERT INTO extraction_telemetry_v2 (
@@ -335,11 +331,17 @@ class ComprehensiveExtractionTelemetry:
                     metrics.http_error_type,
                     metrics.response_size_bytes,
                     metrics.response_time_ms,
-                    (int(metrics.proxy_used)
-                     if metrics.proxy_used is not None else None),
+                    (
+                        int(metrics.proxy_used)
+                        if metrics.proxy_used is not None
+                        else None
+                    ),
                     metrics.proxy_url,
-                    (int(metrics.proxy_authenticated)
-                     if metrics.proxy_authenticated is not None else None),
+                    (
+                        int(metrics.proxy_authenticated)
+                        if metrics.proxy_authenticated is not None
+                        else None
+                    ),
                     metrics.proxy_status,
                     metrics.proxy_error,
                     json.dumps(metrics.methods_attempted),
@@ -416,7 +418,7 @@ class ComprehensiveExtractionTelemetry:
             pass
         except Exception as exc:
             # Log but don't fail extraction
-            exc_msg = str(exc).split('\n')[0][:80]
+            exc_msg = str(exc).split("\n")[0][:80]
             print(f"Warning: Telemetry failed: {type(exc).__name__}: {exc_msg}")
 
     def get_error_summary(self, days: int = 7) -> list:

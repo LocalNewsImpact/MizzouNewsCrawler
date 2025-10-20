@@ -79,6 +79,7 @@ class ExtractionTelemetry:
                 # Use DatabaseManager's engine if available (for Cloud SQL)
                 try:
                     from src.models.database import DatabaseManager
+
                     db = DatabaseManager()
                     self._store = get_store(DATABASE_URL, engine=db.engine)
                 except Exception:

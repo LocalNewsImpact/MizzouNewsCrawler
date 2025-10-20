@@ -26,13 +26,13 @@ class TestTelemetryAPIEndpoints:
         """Create a temporary SQLAlchemy database with test data."""
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
-        
+
         db_path = tmp_path / "test_telemetry.db"
         engine = create_engine(f"sqlite:///{db_path}")
-        
+
         # Create all tables using SQLAlchemy models
         Base.metadata.create_all(engine)
-        
+
         SessionLocal = sessionmaker(bind=engine)
         session = SessionLocal()
 
@@ -160,9 +160,9 @@ class TestTelemetryAPIEndpoints:
         session.add_all(sources)
 
         session.commit()
-        
+
         yield session
-        
+
         session.close()
         engine.dispose()
 
@@ -411,10 +411,10 @@ class TestSiteManagementAPI:
         # Create engine for the test database
         db_url = f"sqlite:///{temp_db}"
         test_engine = create_engine(db_url, connect_args={"check_same_thread": False})
-        
+
         # Mock the DatabaseManager's engine with our test engine
         monkeypatch.setattr(db_manager, "engine", test_engine)
-        
+
         client = TestClient(app)
         yield client
 
@@ -520,9 +520,9 @@ class TestAPIErrorHandling:
         # Create an invalid engine that will fail
         invalid_engine = create_engine("sqlite:////nonexistent/path/db.sqlite")
         monkeypatch.setattr(db_manager, "engine", invalid_engine)
-        
+
         client = TestClient(app)
-        
+
         response = client.get("/api/telemetry/summary")
         assert response.status_code == 500
         assert "Error fetching telemetry summary" in response.json()["detail"]
@@ -557,17 +557,19 @@ class TestAPIErrorHandling:
 
             # Create engine for the test database
             db_url = f"sqlite:///{db_path}"
-            test_engine = create_engine(db_url, connect_args={"check_same_thread": False})
-            
+            test_engine = create_engine(
+                db_url, connect_args={"check_same_thread": False}
+            )
+
             # Mock the DatabaseManager's engine with our test engine
             monkeypatch.setattr(db_manager, "engine", test_engine)
-            
+
             client = TestClient(app)
-            
+
             # Test pause with missing host
             response = client.post("/api/site-management/pause", json={})
             assert response.status_code == 422  # Validation error
-            
+
             # Test pause with invalid JSON
             response = client.post(
                 "/api/site-management/pause",
@@ -680,8 +682,10 @@ class TestCompleteAPIWorkflow:
 
             # Create engine for the test database
             db_url = f"sqlite:///{db_path}"
-            test_engine = create_engine(db_url, connect_args={"check_same_thread": False})
-            
+            test_engine = create_engine(
+                db_url, connect_args={"check_same_thread": False}
+            )
+
             # Mock the DatabaseManager's engine with our test engine
             with patch.object(db_manager, "engine", test_engine):
                 client = TestClient(app)

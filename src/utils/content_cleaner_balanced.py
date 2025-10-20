@@ -134,7 +134,7 @@ class BalancedBoundaryContentCleaner:
         db_path: str = "data/mizzou.db",
         enable_telemetry: bool = True,
         use_cloud_sql: bool = True,
-        db: 'DatabaseManager' = None,
+        db: "DatabaseManager" = None,
     ):
         self.db_path = db_path
         self.enable_telemetry = enable_telemetry
@@ -274,7 +274,7 @@ class BalancedBoundaryContentCleaner:
             WHERE domain = :domain
             """
             result = session.execute(sql_text(query), {"domain": domain})
-            
+
             patterns = []
             for row in result.fetchall():
                 patterns.append(
@@ -309,11 +309,11 @@ class BalancedBoundaryContentCleaner:
             ORDER BY id DESC
             """
             params = {"domain": f"%{domain}%"}
-            
+
             if sample_size:
                 query += " LIMIT :limit"
                 params["limit"] = sample_size
-            
+
             result = session.execute(sql_text(query), params)
             articles = [
                 {
@@ -1368,7 +1368,9 @@ class BalancedBoundaryContentCleaner:
                         return []
 
                 if isinstance(raw_author, list):
-                    return [str(item).strip() for item in raw_author if str(item).strip()]
+                    return [
+                        str(item).strip() for item in raw_author if str(item).strip()
+                    ]
 
                 if isinstance(raw_author, str):
                     text = raw_author.strip()
@@ -1381,7 +1383,9 @@ class BalancedBoundaryContentCleaner:
                         parsed = None
 
                     if isinstance(parsed, list):
-                        return [str(item).strip() for item in parsed if str(item).strip()]
+                        return [
+                            str(item).strip() for item in parsed if str(item).strip()
+                        ]
 
                     if isinstance(parsed, str):
                         parsed = parsed.strip()
@@ -1652,7 +1656,8 @@ class BalancedBoundaryContentCleaner:
             db = self._connect_to_db()
             with db.get_session() as session:
                 result = session.execute(
-                    sql_text("""
+                    sql_text(
+                        """
                     SELECT a.candidate_link_id,
                            cl.source,
                            cl.source_name,
@@ -1666,7 +1671,8 @@ class BalancedBoundaryContentCleaner:
                     LEFT JOIN candidate_links cl ON a.candidate_link_id = cl.id
                     LEFT JOIN sources s ON cl.source_id = s.id
                     WHERE a.id = :article_id
-                    """),
+                    """
+                    ),
                     {"article_id": article_id},
                 )
                 row = result.fetchone()
@@ -1686,7 +1692,9 @@ class BalancedBoundaryContentCleaner:
                 }
 
                 return {
-                    key: value for key, value in context.items() if value not in (None, "")
+                    key: value
+                    for key, value in context.items()
+                    if value not in (None, "")
                 }
         except Exception as exc:  # pylint: disable=broad-except
             self.logger.debug(

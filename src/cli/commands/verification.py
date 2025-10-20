@@ -140,8 +140,7 @@ def run_verification_service(
         if signature is not None:
             params = signature.parameters
             has_var_kw = any(
-                param.kind == inspect.Parameter.VAR_KEYWORD
-                for param in params.values()
+                param.kind == inspect.Parameter.VAR_KEYWORD for param in params.values()
             )
         else:
             params = {}
@@ -149,14 +148,10 @@ def run_verification_service(
         loop_kwargs: dict[str, Any] = {}
 
         max_batches_supported = (
-            signature is None
-            or "max_batches" in params
-            or has_var_kw
+            signature is None or "max_batches" in params or has_var_kw
         )
         exit_on_idle_supported = (
-            signature is None
-            or "exit_on_idle" in params
-            or has_var_kw
+            signature is None or "exit_on_idle" in params or has_var_kw
         )
 
         if max_batches_supported:

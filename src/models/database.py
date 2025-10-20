@@ -62,10 +62,10 @@ class DatabaseManager:
 
     def __init__(self, database_url: str = "sqlite:///data/mizzou.db"):
         self.database_url = database_url
-        
+
         # Check if we should use Cloud SQL Python Connector
         use_cloud_sql = self._should_use_cloud_sql_connector()
-        
+
         if use_cloud_sql:
             self.engine = self._create_cloud_sql_engine()
         else:
@@ -81,11 +81,11 @@ class DatabaseManager:
             )
             if "sqlite" in database_url:
                 _configure_sqlite_engine(self.engine, connect_args.get("timeout"))
-        
+
         Base.metadata.create_all(self.engine)
         Session = sessionmaker(bind=self.engine)
         self.session = Session()
-    
+
     def _should_use_cloud_sql_connector(self) -> bool:
         """Determine if Cloud SQL Python Connector should be used."""
         import os
@@ -93,13 +93,14 @@ class DatabaseManager:
         # Check environment variable first (for test control)
         if os.getenv("USE_CLOUD_SQL_CONNECTOR", "").lower() in ("false", "0", "no"):
             return False
-        
+
         try:
             from src.config import CLOUD_SQL_INSTANCE, USE_CLOUD_SQL_CONNECTOR
+
             return USE_CLOUD_SQL_CONNECTOR and bool(CLOUD_SQL_INSTANCE)
         except ImportError:
             return False
-    
+
     def _create_cloud_sql_engine(self):
         """Create database engine using Cloud SQL Python Connector."""
         from src.config import (
@@ -108,12 +109,12 @@ class DatabaseManager:
             DATABASE_PASSWORD,
             DATABASE_USER,
         )
-        
+
         try:
             from src.models.cloud_sql_connector import create_cloud_sql_engine
-            
+
             logger.info("Using Cloud SQL Python Connector (no proxy sidecar needed)")
-            
+
             return create_cloud_sql_engine(
                 instance_connection_name=CLOUD_SQL_INSTANCE,
                 user=DATABASE_USER,
@@ -125,25 +126,25 @@ class DatabaseManager:
         except ImportError as e:
             logger.warning(
                 "Cloud SQL connector not available, "
-                "falling back to direct connection. Error: %s", e
+                "falling back to direct connection. Error: %s",
+                e,
             )
             # Fall back to direct PostgreSQL connection
             connection_url = (
-                f"postgresql://{DATABASE_USER}:{DATABASE_PASSWORD}"
-                f"@/{DATABASE_NAME}"
+                f"postgresql://{DATABASE_USER}:{DATABASE_PASSWORD}" f"@/{DATABASE_NAME}"
             )
             return create_engine(connection_url, echo=False)
 
     def get_session(self):
         """Context manager for getting a database session.
-        
+
         Usage:
             with db_manager.get_session() as session:
                 # Use session here
                 pass
         """
         from contextlib import contextmanager
-        
+
         @contextmanager
         def session_context():
             Session = sessionmaker(bind=self.engine)
@@ -152,7 +153,7 @@ class DatabaseManager:
                 yield session
             finally:
                 session.close()
-        
+
         return session_context()
 
     def close(self):

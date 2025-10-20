@@ -425,16 +425,18 @@ def test_get_articles_for_domain_with_mocked_db():
             "hash2",
         ),
     ]
-    
+
     mock_session = Mock()
     mock_session.execute.return_value = mock_result
     mock_session.__enter__ = Mock(return_value=mock_session)
     mock_session.__exit__ = Mock(return_value=False)
-    
+
     mock_db = Mock()
     mock_db.get_session.return_value = mock_session
 
-    with patch("src.utils.content_cleaner_balanced.DatabaseManager", return_value=mock_db):
+    with patch(
+        "src.utils.content_cleaner_balanced.DatabaseManager", return_value=mock_db
+    ):
         articles = cleaner._get_articles_for_domain("example.com")
 
     assert len(articles) == 2
@@ -454,7 +456,9 @@ def test_get_articles_for_domain_raises_on_error():
             cleaner._get_articles_for_domain("example.com")
 
 
-@pytest.mark.skip(reason="Test uses real DB but code calls DatabaseManager() which connects to main DB. Needs refactoring to support test DB injection.")
+@pytest.mark.skip(
+    reason="Test uses real DB but code calls DatabaseManager() which connects to main DB. Needs refactoring to support test DB injection."
+)
 def test_get_article_authors_handles_multiple_formats(tmp_path):
     def run_case(value, suffix):
         db_path = tmp_path / f"authors_{suffix}.db"
@@ -495,12 +499,12 @@ def test_get_article_authors_handles_list_row():
 
     mock_result = Mock()
     mock_result.fetchone.return_value = (["Reporter A", "Reporter B"],)
-    
+
     mock_session = Mock()
     mock_session.execute.return_value = mock_result
     mock_session.__enter__ = Mock(return_value=mock_session)
     mock_session.__exit__ = Mock(return_value=False)
-    
+
     mock_db = Mock()
     mock_db.get_session.return_value = mock_session
 

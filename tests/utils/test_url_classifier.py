@@ -21,11 +21,11 @@ class TestIsLikelyArticleUrl:
             "https://example.com/story/12345",
             "https://example.com/article/local-news-update",
         ]
-        
+
         for url in article_urls:
-            assert is_likely_article_url(url), (
-                f"Expected {url} to be classified as article"
-            )
+            assert is_likely_article_url(
+                url
+            ), f"Expected {url} to be classified as article"
 
     def test_filters_video_gallery_urls(self):
         """Test that video/photo gallery URLs are filtered."""
@@ -38,11 +38,11 @@ class TestIsLikelyArticleUrl:
             "https://example.com/videos/highlights",
             "https://example.com/slideshow/top-10",
         ]
-        
+
         for url in gallery_urls:
-            assert not is_likely_article_url(url), (
-                f"Expected {url} to be filtered as gallery"
-            )
+            assert not is_likely_article_url(
+                url
+            ), f"Expected {url} to be filtered as gallery"
 
     def test_filters_category_and_listing_urls(self):
         """Test that category/listing URLs are filtered."""
@@ -54,11 +54,11 @@ class TestIsLikelyArticleUrl:
             "https://example.com/archive/2023",
             "https://example.com/search?q=news",
         ]
-        
+
         for url in category_urls:
-            assert not is_likely_article_url(url), (
-                f"Expected {url} to be filtered as category"
-            )
+            assert not is_likely_article_url(
+                url
+            ), f"Expected {url} to be filtered as category"
 
     def test_filters_static_service_pages(self):
         """Test that static/service pages are filtered."""
@@ -75,11 +75,11 @@ class TestIsLikelyArticleUrl:
             "https://example.com/rss",
             "https://example.com/feed",
         ]
-        
+
         for url in static_urls:
-            assert not is_likely_article_url(url), (
-                f"Expected {url} to be filtered as static"
-            )
+            assert not is_likely_article_url(
+                url
+            ), f"Expected {url} to be filtered as static"
 
     def test_filters_technical_urls(self):
         """Test that technical URLs are filtered."""
@@ -92,11 +92,11 @@ class TestIsLikelyArticleUrl:
             "https://example.com/wp-content/uploads/file.jpg",
             "https://example.com/wp-includes/js/script.js",
         ]
-        
+
         for url in technical_urls:
-            assert not is_likely_article_url(url), (
-                f"Expected {url} to be filtered as technical"
-            )
+            assert not is_likely_article_url(
+                url
+            ), f"Expected {url} to be filtered as technical"
 
     def test_case_insensitive_matching(self):
         """Test that pattern matching is case-insensitive."""
@@ -106,11 +106,11 @@ class TestIsLikelyArticleUrl:
             "https://example.com/Photo-Gallery/events",
             "https://example.com/TAG/local",
         ]
-        
+
         for url in urls_with_mixed_case:
-            assert not is_likely_article_url(url), (
-                f"Expected {url} to be filtered (case-insensitive)"
-            )
+            assert not is_likely_article_url(
+                url
+            ), f"Expected {url} to be filtered (case-insensitive)"
 
     def test_handles_malformed_urls_gracefully(self):
         """Test that malformed URLs don't crash (conservative: return True)."""
@@ -120,15 +120,13 @@ class TestIsLikelyArticleUrl:
             "",
             None,
         ]
-        
+
         # Should handle gracefully and return True (conservative)
         for url in malformed_urls:
             try:
                 result = is_likely_article_url(url)
                 # If no exception, result should be True (conservative)
-                assert result, (
-                    f"Expected conservative True for malformed URL: {url}"
-                )
+                assert result, f"Expected conservative True for malformed URL: {url}"
             except (TypeError, AttributeError):
                 # Some URLs might raise errors (None), acceptable
                 pass
@@ -139,11 +137,10 @@ class TestIsLikelyArticleUrl:
             "https://example.com",
             "https://example.com/",
         ]
-        
+
         for url in minimal_urls:
             assert is_likely_article_url(url), (
-                f"Expected {url} to be classified as article "
-                "(no filtering pattern)"
+                f"Expected {url} to be classified as article " "(no filtering pattern)"
             )
 
     def test_edge_cases_with_similar_patterns(self):
@@ -154,18 +151,18 @@ class TestIsLikelyArticleUrl:
             # Contains 'category' but not '/category/'
             "https://example.com/category-analysis",
         ]
-        
+
         for url in edge_case_urls:
-            assert is_likely_article_url(url), (
-                f"Expected {url} to pass (no exact pattern match)"
-            )
+            assert is_likely_article_url(
+                url
+            ), f"Expected {url} to pass (no exact pattern match)"
 
     def test_about_pattern_edge_cases(self):
         """Test edge cases with 'about' keyword."""
         # '/about' should be filtered (static page)
         assert not is_likely_article_url("https://example.com/about")
         assert not is_likely_article_url("https://example.com/about-us")
-        
+
         # But 'about' in middle of path should not be filtered
         # (this is current behavior - /about pattern matches anywhere)
         # If this test fails, it reveals pattern needs refinement
@@ -184,17 +181,17 @@ class TestClassifyUrlBatch:
             "https://example.com/local/breaking-news",
             "https://example.com/photo-gallery/events",
         ]
-        
+
         likely_articles, filtered_out = classify_url_batch(urls)
-        
+
         assert len(likely_articles) == 3, "Expected 3 likely articles"
         assert len(filtered_out) == 3, "Expected 3 filtered URLs"
-        
+
         # Check specific URLs
         assert "https://example.com/news/article-1" in likely_articles
         assert "https://example.com/news/article-2" in likely_articles
         assert "https://example.com/local/breaking-news" in likely_articles
-        
+
         assert "https://example.com/video-gallery/news" in filtered_out
         assert "https://example.com/category/sports" in filtered_out
         assert "https://example.com/photo-gallery/events" in filtered_out
@@ -206,9 +203,9 @@ class TestClassifyUrlBatch:
             "https://example.com/news/story-2",
             "https://example.com/news/story-3",
         ]
-        
+
         likely_articles, filtered_out = classify_url_batch(urls)
-        
+
         assert len(likely_articles) == 3
         assert len(filtered_out) == 0
 
@@ -219,18 +216,18 @@ class TestClassifyUrlBatch:
             "https://example.com/video-gallery/news",
             "https://example.com/about",
         ]
-        
+
         likely_articles, filtered_out = classify_url_batch(urls)
-        
+
         assert len(likely_articles) == 0
         assert len(filtered_out) == 3
 
     def test_empty_batch(self):
         """Test batch classification with empty list."""
         urls = []
-        
+
         likely_articles, filtered_out = classify_url_batch(urls)
-        
+
         assert len(likely_articles) == 0
         assert len(filtered_out) == 0
         assert isinstance(likely_articles, list)
@@ -243,9 +240,9 @@ class TestClassifyUrlBatch:
             "https://example.com/news/article-2",
             "https://example.com/news/article-3",
         ]
-        
+
         likely_articles, filtered_out = classify_url_batch(urls)
-        
+
         # Order should be preserved
         assert likely_articles[0] == "https://example.com/news/article-1"
         assert likely_articles[1] == "https://example.com/news/article-2"
@@ -258,13 +255,12 @@ class TestCompiledPatterns:
     def test_patterns_are_compiled(self):
         """Test that patterns are pre-compiled for efficiency."""
         assert len(COMPILED_NON_ARTICLE_PATTERNS) > 0
-        
+
         # Check that they are compiled regex objects
         import re
+
         for pattern in COMPILED_NON_ARTICLE_PATTERNS:
-            assert isinstance(pattern, re.Pattern), (
-                "Expected compiled regex pattern"
-            )
+            assert isinstance(pattern, re.Pattern), "Expected compiled regex pattern"
 
     def test_patterns_coverage(self):
         """Test that key pattern categories are covered."""
@@ -275,11 +271,10 @@ class TestCompiledPatterns:
             "static": "/about",
             "technical": "/api/endpoint",
         }
-        
+
         for category, path in test_cases.items():
             # At least one pattern should match each category
             matched = any(
-                pattern.search(path)
-                for pattern in COMPILED_NON_ARTICLE_PATTERNS
+                pattern.search(path) for pattern in COMPILED_NON_ARTICLE_PATTERNS
             )
             assert matched, f"Expected pattern coverage for {category}"

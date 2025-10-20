@@ -48,14 +48,14 @@ class TestWorkQueue:
     def test_get_counts_returns_all_zeros_when_empty(self, mock_db_manager):
         """Test that get_counts returns zeros when database is empty."""
         mock_dm, mock_session = mock_db_manager
-        
+
         # Mock all queries to return 0
         mock_result = MagicMock()
         mock_result.scalar.return_value = 0
         mock_session.execute.return_value = mock_result
-        
+
         counts = continuous_processor.WorkQueue.get_counts()
-        
+
         assert counts == {
             "verification_pending": 0,
             "extraction_pending": 0,
@@ -70,7 +70,7 @@ class TestWorkQueue:
     def test_get_counts_returns_correct_values(self, mock_db_manager):
         """Test that get_counts returns correct counts from database."""
         mock_dm, mock_session = mock_db_manager
-        
+
         # Mock different return values for each enabled query
         # By default: verification and extraction are DISABLED (return 0)
         # cleaning, ML analysis, and entity extraction are ENABLED (query DB)
@@ -80,9 +80,9 @@ class TestWorkQueue:
             MagicMock(scalar=lambda: 20),  # entity_extraction_pending
         ]
         mock_session.execute.side_effect = mock_results
-        
+
         counts = continuous_processor.WorkQueue.get_counts()
-        
+
         # Disabled steps should be 0 (not queried)
         assert counts["verification_pending"] == 0
         assert counts["extraction_pending"] == 0
@@ -94,17 +94,17 @@ class TestWorkQueue:
     def test_get_counts_queries_correct_tables(self, mock_db_manager):
         """Test that get_counts executes correct SQL queries."""
         mock_dm, mock_session = mock_db_manager
-        
+
         mock_result = MagicMock()
         mock_result.scalar.return_value = 0
         mock_session.execute.return_value = mock_result
-        
+
         continuous_processor.WorkQueue.get_counts()
-        
+
         # Verify correct number of queries (only enabled steps)
         # By default: cleaning, ML analysis, entity extraction = 3 queries
         assert mock_session.execute.call_count == 3
-        
+
         # Verify queries are text objects (SQLAlchemy text)
         calls = mock_session.execute.call_args_list
         for call in calls:
@@ -124,15 +124,14 @@ class TestRunCliCommand:
         mock_stdout = MagicMock()
         mock_stdout.readline.side_effect = ["Success\n", ""]
         mock_proc.stdout = mock_stdout
-        
+
         result = continuous_processor.run_cli_command(
-            ["test-command", "--arg", "value"],
-            "Test command"
+            ["test-command", "--arg", "value"], "Test command"
         )
-        
+
         assert result is True
         mock_subprocess.assert_called_once()
-        
+
         # Verify command structure
         call_args = mock_subprocess.call_args
         # Popen is called with command list as first arg
@@ -152,37 +151,31 @@ class TestRunCliCommand:
         mock_stdout = MagicMock()
         mock_stdout.readline.side_effect = ["Error message\n", ""]
         mock_proc.stdout = mock_stdout
-        
+
         result = continuous_processor.run_cli_command(
-            ["failing-command"],
-            "Failing command"
+            ["failing-command"], "Failing command"
         )
-        
+
         assert result is False
 
     def test_run_cli_command_timeout(self, mock_subprocess):
         """Test CLI command timeout handling."""
         mock_subprocess.side_effect = subprocess.TimeoutExpired(
-            cmd="test",
-            timeout=3600
+            cmd="test", timeout=3600
         )
-        
-        result = continuous_processor.run_cli_command(
-            ["slow-command"],
-            "Slow command"
-        )
-        
+
+        result = continuous_processor.run_cli_command(["slow-command"], "Slow command")
+
         assert result is False
 
     def test_run_cli_command_exception(self, mock_subprocess):
         """Test CLI command exception handling."""
         mock_subprocess.side_effect = Exception("Unexpected error")
-        
+
         result = continuous_processor.run_cli_command(
-            ["broken-command"],
-            "Broken command"
+            ["broken-command"], "Broken command"
         )
-        
+
         assert result is False
 
 
@@ -192,20 +185,20 @@ class TestProcessVerification:
     def test_process_verification_returns_false_when_count_zero(self, mock_subprocess):
         """Test that verification is skipped when count is 0."""
         result = continuous_processor.process_verification(0)
-        
+
         assert result is False
         mock_subprocess.assert_not_called()
 
     def test_process_verification_builds_correct_command(self, mock_subprocess):
         """Test that verification command is built correctly."""
         mock_subprocess.return_value = MagicMock(returncode=0, stdout="", stderr="")
-        
+
         # Test with default batch size (10)
         continuous_processor.process_verification(25)
-        
+
         call_args = mock_subprocess.call_args
         cmd = call_args[0][0]
-        
+
         # Verify command structure
         assert "verify-urls" in cmd
         assert "--batch-size" in cmd
@@ -216,16 +209,16 @@ class TestProcessVerification:
     def test_process_verification_limits_batches_to_10(self, mock_subprocess):
         """Test that verification limits batches to max of 10."""
         mock_subprocess.return_value = MagicMock(returncode=0, stdout="", stderr="")
-        
+
         # 500 items with batch size 10 = 50 batches needed, but should cap at 10
         continuous_processor.process_verification(500)
-        
+
         call_args = mock_subprocess.call_args
         cmd = call_args[0][0]
-        
+
         max_batches_idx = cmd.index("--max-batches")
         max_batches_value = cmd[max_batches_idx + 1]
-        
+
         assert max_batches_value == "10"
 
 
@@ -235,19 +228,19 @@ class TestProcessExtraction:
     def test_process_extraction_returns_false_when_count_zero(self, mock_subprocess):
         """Test that extraction is skipped when count is 0."""
         result = continuous_processor.process_extraction(0)
-        
+
         assert result is False
         mock_subprocess.assert_not_called()
 
     def test_process_extraction_builds_correct_command(self, mock_subprocess):
         """Test that extraction command is built correctly."""
         mock_subprocess.return_value = MagicMock(returncode=0, stdout="", stderr="")
-        
+
         continuous_processor.process_extraction(50)
-        
+
         call_args = mock_subprocess.call_args
         cmd = call_args[0][0]
-        
+
         # Verify command structure
         assert "extract" in cmd
         assert "--limit" in cmd
@@ -256,16 +249,16 @@ class TestProcessExtraction:
     def test_process_extraction_limits_batches_to_5(self, mock_subprocess):
         """Test that extraction limits batches to max of 5."""
         mock_subprocess.return_value = MagicMock(returncode=0, stdout="", stderr="")
-        
+
         # 500 items with batch size 20 = 25 batches needed, but should cap at 5
         continuous_processor.process_extraction(500)
-        
+
         call_args = mock_subprocess.call_args
         cmd = call_args[0][0]
-        
+
         batches_idx = cmd.index("--batches")
         batches_value = cmd[batches_idx + 1]
-        
+
         assert batches_value == "5"
 
 
@@ -275,19 +268,19 @@ class TestProcessAnalysis:
     def test_process_analysis_returns_false_when_count_zero(self, mock_subprocess):
         """Test that analysis is skipped when count is 0."""
         result = continuous_processor.process_analysis(0)
-        
+
         assert result is False
         mock_subprocess.assert_not_called()
 
     def test_process_analysis_builds_correct_command(self, mock_subprocess):
         """Test that analysis command is built correctly."""
         mock_subprocess.return_value = MagicMock(returncode=0, stdout="", stderr="")
-        
+
         continuous_processor.process_analysis(50)
-        
+
         call_args = mock_subprocess.call_args
         cmd = call_args[0][0]
-        
+
         # Verify command structure
         assert "analyze" in cmd
         assert "--limit" in cmd
@@ -298,15 +291,15 @@ class TestProcessAnalysis:
     def test_process_analysis_limits_to_100_articles(self, mock_subprocess):
         """Test that analysis limits to max of 100 articles per cycle."""
         mock_subprocess.return_value = MagicMock(returncode=0, stdout="", stderr="")
-        
+
         continuous_processor.process_analysis(500)
-        
+
         call_args = mock_subprocess.call_args
         cmd = call_args[0][0]
-        
+
         limit_idx = cmd.index("--limit")
         limit_value = cmd[limit_idx + 1]
-        
+
         assert limit_value == "100"
 
 
@@ -316,7 +309,7 @@ class TestProcessEntityExtraction:
     def test_process_entity_extraction_returns_false_when_count_zero(self):
         """Test that entity extraction is skipped when count is 0."""
         result = continuous_processor.process_entity_extraction(0)
-        
+
         assert result is False
 
     @patch("src.cli.commands.entity_extraction.handle_entity_extraction_command")
@@ -329,21 +322,21 @@ class TestProcessEntityExtraction:
         mock_extractor = MagicMock()
         mock_get_extractor.return_value = mock_extractor
         mock_handle_command.return_value = 0  # Success
-        
+
         result = continuous_processor.process_entity_extraction(50)
-        
+
         # Verify it calls the cached extractor
         mock_get_extractor.assert_called_once()
-        
+
         # Verify it calls the handler function with correct args
         mock_handle_command.assert_called_once()
         call_args = mock_handle_command.call_args
-        
+
         # Check args namespace
         args = call_args[0][0]
         assert args.limit == 50
         assert args.source is None
-        
+
         # Check extractor was passed
         assert call_args[1]["extractor"] is mock_extractor
         assert result is True
@@ -356,14 +349,14 @@ class TestProcessEntityExtraction:
         """Test that entity extraction limits to GAZETTEER_BATCH_SIZE."""
         mock_get_extractor.return_value = MagicMock()
         mock_handle_command.return_value = 0  # Success
-        
+
         # Pass count larger than batch size
         result = continuous_processor.process_entity_extraction(1000)
-        
+
         # Verify it was called with the batch size limit
         call_args = mock_handle_command.call_args
         args = call_args[0][0]
-        
+
         # Should be capped at GAZETTEER_BATCH_SIZE (500)
         assert args.limit == min(1000, continuous_processor.GAZETTEER_BATCH_SIZE)
         assert args.limit == continuous_processor.GAZETTEER_BATCH_SIZE
@@ -389,7 +382,7 @@ class TestProcessCycle:
         mock_verification,
     ):
         """Test that process_cycle runs enabled steps when there's work.
-        
+
         By default, verification and extraction are disabled (not called).
         Cleaning, ML analysis, and entity extraction are enabled (called).
         """
@@ -457,7 +450,7 @@ class TestProcessCycle:
     def test_process_cycle_handles_exceptions(self, mock_get_counts):
         """Test that process_cycle handles exceptions gracefully."""
         mock_get_counts.side_effect = Exception("Database error")
-        
+
         # Should not raise, but should log the exception
         try:
             continuous_processor.process_cycle()
@@ -487,7 +480,7 @@ class TestEnvironmentConfiguration:
         assert hasattr(continuous_processor, "EXTRACTION_BATCH_SIZE")
         assert hasattr(continuous_processor, "ANALYSIS_BATCH_SIZE")
         assert hasattr(continuous_processor, "GAZETTEER_BATCH_SIZE")
-        
+
         assert isinstance(continuous_processor.VERIFICATION_BATCH_SIZE, int)
         assert isinstance(continuous_processor.EXTRACTION_BATCH_SIZE, int)
         assert isinstance(continuous_processor.ANALYSIS_BATCH_SIZE, int)
@@ -511,7 +504,7 @@ class TestEnvironmentConfiguration:
         assert hasattr(continuous_processor, "ENABLE_CLEANING")
         assert hasattr(continuous_processor, "ENABLE_ML_ANALYSIS")
         assert hasattr(continuous_processor, "ENABLE_ENTITY_EXTRACTION")
-        
+
         # All should be boolean values
         assert isinstance(continuous_processor.ENABLE_DISCOVERY, bool)
         assert isinstance(continuous_processor.ENABLE_VERIFICATION, bool)
@@ -527,7 +520,7 @@ class TestEnvironmentConfiguration:
         assert continuous_processor.ENABLE_DISCOVERY is False
         assert continuous_processor.ENABLE_VERIFICATION is False
         assert continuous_processor.ENABLE_EXTRACTION is False
-        
+
         # Cleaning, ML analysis, and entity extraction should be enabled by default
         # (remain in continuous processor)
         assert continuous_processor.ENABLE_CLEANING is True
@@ -537,34 +530,34 @@ class TestEnvironmentConfiguration:
 
 class TestCommandArgumentsRegression:
     """Regression tests for command argument bugs (placeholder for future tests)."""
-    
+
     pass  # Removed outdated populate-gazetteer test - now uses extract-entities
 
     def test_extract_command_has_limit_argument(self, mock_subprocess):
         """
         Test that extract command DOES have --limit (it's valid for extract).
-        
+
         This ensures we didn't accidentally break the correct commands.
         """
         mock_subprocess.return_value = MagicMock(returncode=0, stdout="", stderr="")
-        
+
         continuous_processor.process_extraction(50)
-        
+
         call_args = mock_subprocess.call_args
         cmd = call_args[0][0]
-        
+
         # Extract SHOULD have --limit
         assert "--limit" in cmd, "extract command should have --limit argument"
 
     def test_analyze_command_has_limit_argument(self, mock_subprocess):
         """Test that analyze command DOES have --limit (it's valid for analyze)."""
         mock_subprocess.return_value = MagicMock(returncode=0, stdout="", stderr="")
-        
+
         continuous_processor.process_analysis(50)
-        
+
         call_args = mock_subprocess.call_args
         cmd = call_args[0][0]
-        
+
         # Analyze SHOULD have --limit
         assert "--limit" in cmd, "analyze command should have --limit argument"
 
@@ -584,7 +577,7 @@ class TestFeatureFlagProcessing:
         mock_verification,
     ):
         """Test that disabled pipeline steps are not executed.
-        
+
         By default, verification and extraction are disabled, so they
         should not be called even when work is available.
         """
@@ -595,13 +588,13 @@ class TestFeatureFlagProcessing:
             "analysis_pending": 0,
             "entity_extraction_pending": 0,
         }
-        
+
         continuous_processor.process_cycle()
-        
+
         # Verification and extraction should not be called (disabled by default)
         mock_verification.assert_not_called()
         mock_extraction.assert_not_called()
-        
+
         # Cleaning should still be called (enabled by default)
         mock_cleaning.assert_called_once_with(30)
 
@@ -610,17 +603,17 @@ class TestFeatureFlagProcessing:
         # When verification and extraction are disabled (default),
         # their counts should remain 0 without querying the database
         mock_dm, mock_session = mock_db_manager
-        
+
         mock_result = MagicMock()
         mock_result.scalar.return_value = 10
         mock_session.execute.return_value = mock_result
-        
+
         counts = continuous_processor.WorkQueue.get_counts()
-        
+
         # Verify that disabled steps return 0 (not queried)
         assert counts["verification_pending"] == 0
         assert counts["extraction_pending"] == 0
-        
+
         # Enabled steps should still be counted (may be non-zero if work exists)
         assert "cleaning_pending" in counts
         assert "analysis_pending" in counts

@@ -57,10 +57,14 @@ class TestAddCleaningParser:
         subparsers = parser.add_subparsers()
         clean_parser = cleaning.add_cleaning_parser(subparsers)
 
-        args = clean_parser.parse_args([
-            "--status", "extracted",
-            "--status", "wire",
-        ])
+        args = clean_parser.parse_args(
+            [
+                "--status",
+                "extracted",
+                "--status",
+                "wire",
+            ]
+        )
 
         assert args.status == ["extracted", "wire"]
 
@@ -81,9 +85,7 @@ class TestHandleCleaningCommand:
 
     @patch("src.cli.commands.cleaning.BalancedBoundaryContentCleaner")
     @patch("src.cli.commands.cleaning.DatabaseManager")
-    def test_no_articles_found(
-        self, mock_db_manager, mock_cleaner, capsys
-    ):
+    def test_no_articles_found(self, mock_db_manager, mock_cleaner, capsys):
         """Test behavior when no articles need cleaning."""
         # Setup mocks
         mock_session = MagicMock()
@@ -163,9 +165,7 @@ class TestHandleCleaningCommand:
 
     @patch("src.cli.commands.cleaning.BalancedBoundaryContentCleaner")
     @patch("src.cli.commands.cleaning.DatabaseManager")
-    def test_wire_detection_changes_status(
-        self, mock_db_manager, mock_cleaner, capsys
-    ):
+    def test_wire_detection_changes_status(self, mock_db_manager, mock_cleaner, capsys):
         """Test that wire detection changes status to wire."""
         articles = [
             (
@@ -417,9 +417,7 @@ class TestHandleCleaningCommand:
 
     @patch("src.cli.commands.cleaning.BalancedBoundaryContentCleaner")
     @patch("src.cli.commands.cleaning.DatabaseManager")
-    def test_uses_default_status_extracted(
-        self, mock_db_manager, mock_cleaner, capsys
-    ):
+    def test_uses_default_status_extracted(self, mock_db_manager, mock_cleaner, capsys):
         """Test that default status is 'extracted' when not specified."""
         mock_session = MagicMock()
         mock_result = Mock()
@@ -445,9 +443,7 @@ class TestHandleCleaningCommand:
 
     @patch("src.cli.commands.cleaning.BalancedBoundaryContentCleaner")
     @patch("src.cli.commands.cleaning.DatabaseManager")
-    def test_respects_custom_limit(
-        self, mock_db_manager, mock_cleaner, capsys
-    ):
+    def test_respects_custom_limit(self, mock_db_manager, mock_cleaner, capsys):
         """Test that custom limit is used in query."""
         mock_session = MagicMock()
         mock_result = Mock()
@@ -488,9 +484,7 @@ class TestHandleCleaningCommand:
 
     @patch("src.cli.commands.cleaning.BalancedBoundaryContentCleaner")
     @patch("src.cli.commands.cleaning.DatabaseManager")
-    def test_commits_every_10_articles(
-        self, mock_db_manager, mock_cleaner, capsys
-    ):
+    def test_commits_every_10_articles(self, mock_db_manager, mock_cleaner, capsys):
         """Test that session commits occur every 10 articles."""
         # Create 25 articles to test commit batching
         articles = [

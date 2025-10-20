@@ -39,13 +39,17 @@ class TestMigratorImage:
 
     def test_entrypoint_script_exists(self):
         """Test that migration entrypoint script exists."""
-        script = Path(__file__).parent.parent / "scripts" / "migrations" / "entrypoint.sh"
+        script = (
+            Path(__file__).parent.parent / "scripts" / "migrations" / "entrypoint.sh"
+        )
         assert script.exists(), "entrypoint.sh not found"
         assert os.access(script, os.X_OK), "entrypoint.sh is not executable"
 
     def test_entrypoint_script_has_safety_checks(self):
         """Test that entrypoint script has safety checks."""
-        script_path = Path(__file__).parent.parent / "scripts" / "migrations" / "entrypoint.sh"
+        script_path = (
+            Path(__file__).parent.parent / "scripts" / "migrations" / "entrypoint.sh"
+        )
         content = script_path.read_text()
 
         # Should have error handling
@@ -81,13 +85,13 @@ class TestMigratorImage:
 
         # Check for validation step
         step_ids = [step.get("id", "") for step in steps]
-        assert any("validate" in step_id.lower() for step_id in step_ids), \
-            "Should have validation step"
+        assert any(
+            "validate" in step_id.lower() for step_id in step_ids
+        ), "Should have validation step"
 
         # Check that validation runs docker to check files
         validation_steps = [
-            step for step in steps
-            if "validate" in step.get("id", "").lower()
+            step for step in steps if "validate" in step.get("id", "").lower()
         ]
         assert len(validation_steps) > 0
         validation_step = validation_steps[0]
@@ -115,10 +119,16 @@ class TestMigratorImage:
 
         # Should NOT use :latest
         # Allow for comment explaining not to use :latest
-        lines = [line for line in content.split("\n") if "image:" in line and not line.strip().startswith("#")]
+        lines = [
+            line
+            for line in content.split("\n")
+            if "image:" in line and not line.strip().startswith("#")
+        ]
         for line in lines:
             if "migrator" in line:
-                assert ":latest" not in line, "Should not use :latest tag in image reference"
+                assert (
+                    ":latest" not in line
+                ), "Should not use :latest tag in image reference"
 
     def test_migration_job_with_smoke_test_exists(self):
         """Test that migration job with smoke test exists."""
@@ -180,13 +190,19 @@ class TestMigratorImage:
 
     def test_setup_secrets_script_exists(self):
         """Test that namespace secrets setup script exists."""
-        script_path = Path(__file__).parent.parent / "scripts" / "setup-namespace-secrets.sh"
+        script_path = (
+            Path(__file__).parent.parent / "scripts" / "setup-namespace-secrets.sh"
+        )
         assert script_path.exists(), "setup-namespace-secrets.sh not found"
-        assert os.access(script_path, os.X_OK), "setup-namespace-secrets.sh is not executable"
+        assert os.access(
+            script_path, os.X_OK
+        ), "setup-namespace-secrets.sh is not executable"
 
     def test_setup_secrets_script_validates_inputs(self):
         """Test that setup secrets script validates required inputs."""
-        script_path = Path(__file__).parent.parent / "scripts" / "setup-namespace-secrets.sh"
+        script_path = (
+            Path(__file__).parent.parent / "scripts" / "setup-namespace-secrets.sh"
+        )
         content = script_path.read_text()
 
         # Should validate required parameters

@@ -166,7 +166,7 @@ def handle_discovery_command(args) -> int:
         due_only_enabled = getattr(args, "due_only", True) and not getattr(
             args, "force_all", False
         )
-        
+
         # Show configuration immediately
         print(f"   Dataset: {getattr(args, 'dataset', 'all')}")
         print(f"   Source limit: {getattr(args, 'source_limit', 'none')}")

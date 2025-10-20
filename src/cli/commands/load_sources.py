@@ -156,7 +156,7 @@ def handle_load_sources_command(args) -> int:
     """Execute the load-sources command."""
     csv_path = args.csv
     logger.info("Loading sources from %s", csv_path)
-    
+
     # Initialize OperationTracker for telemetry
     tracker = OperationTracker()
 
@@ -201,12 +201,10 @@ def handle_load_sources_command(args) -> int:
     db = DatabaseManager()
     Session = sessionmaker(bind=db.engine)
     session = Session()
-    
+
     # Start tracking the load-sources operation
     with tracker.track_operation(
-        OperationType.LOAD_SOURCES,
-        source_file=csv_path,
-        total_rows=len(df)
+        OperationType.LOAD_SOURCES, source_file=csv_path, total_rows=len(df)
     ) as operation:
         try:
             dataset_slug = csv_path.split("/")[-1].replace(".", "_")
@@ -229,12 +227,14 @@ def handle_load_sources_command(args) -> int:
                 )
                 session.add(dataset)
                 session.flush()
-                logger.info("Created new dataset: %s (ID: %s)", dataset_slug, dataset.id)
+                logger.info(
+                    "Created new dataset: %s (ID: %s)", dataset_slug, dataset.id
+                )
 
             sources_created = 0
             dataset_sources_created = 0
             candidate_links: list[dict[str, Any]] = []
-            
+
             total_rows = len(df)
             operation.update_progress(0, total_rows, "Initializing load")
 
@@ -333,7 +333,7 @@ def handle_load_sources_command(args) -> int:
                     }
                 )
                 candidate_links.append(link_data)
-                
+
                 # Update progress periodically
                 if idx % 10 == 0 or idx == total_rows:
                     operation.update_progress(

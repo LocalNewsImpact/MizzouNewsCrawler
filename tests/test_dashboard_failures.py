@@ -17,22 +17,21 @@ def dashboard_fixture(tmp_path: Path):
     """Create test database with SQLAlchemy models (simulating Cloud SQL)."""
     db_path = tmp_path / "test_dashboard.db"
     csv_path = tmp_path / "articles.csv"
-    
+
     # Create engine and session using SQLAlchemy (like Cloud SQL)
     engine = create_engine(
-        f"sqlite:///{db_path}",
-        connect_args={"check_same_thread": False}
+        f"sqlite:///{db_path}", connect_args={"check_same_thread": False}
     )
-    
+
     # Create all tables using SQLAlchemy models
     Base.metadata.create_all(engine)
-    
+
     SessionLocal = sessionmaker(bind=engine)
     session = SessionLocal()
-    
+
     # Insert test data using ORM models (not raw SQL!)
     now = datetime.utcnow()
-    
+
     # Create snapshots
     snapshots = [
         Snapshot(
@@ -40,48 +39,48 @@ def dashboard_fixture(tmp_path: Path):
             host="broken.local",
             url="https://broken.local/article1",
             status="pending",
-            reviewed_at=None
+            reviewed_at=None,
         ),
         Snapshot(
             id="snap-2",
             host="broken.local",
             url="https://broken.local/article2",
             status="pending",
-            reviewed_at=None
+            reviewed_at=None,
         ),
         Snapshot(
             id="snap-3",
             host="healthy.local",
             url="https://healthy.local/article1",
             status="completed",
-            reviewed_at=now
+            reviewed_at=now,
         ),
     ]
     session.add_all(snapshots)
-    
+
     # Create candidate_links (needed for articles)
     import json
 
     from src.models import Article, CandidateLink
-    
+
     candidate_links = [
         CandidateLink(
             id="link-1",
             url="https://broken.local/article1",
             source="broken.local",
             discovered_at=now,
-            status="fetched"
+            status="fetched",
         ),
         CandidateLink(
             id="link-2",
             url="https://broken.local/article2",
             source="broken.local",
             discovered_at=now,
-            status="fetched"
+            status="fetched",
         ),
     ]
     session.add_all(candidate_links)
-    
+
     # Create articles (2 total, 1 with wire attribution)
     articles = [
         Article(
@@ -92,7 +91,7 @@ def dashboard_fixture(tmp_path: Path):
             status="extracted",
             wire=json.dumps([{"name": "Associated Press", "score": 0.95}]),
             extracted_at=now,
-            created_at=now
+            created_at=now,
         ),
         Article(
             id="art-2",
@@ -102,11 +101,11 @@ def dashboard_fixture(tmp_path: Path):
             status="extracted",
             wire=None,
             extracted_at=now,
-            created_at=now
+            created_at=now,
         ),
     ]
     session.add_all(articles)
-    
+
     # Create candidates (2 with accepted=False for the test)
     candidates = [
         Candidate(
@@ -117,7 +116,7 @@ def dashboard_fixture(tmp_path: Path):
             score=0.2,
             words=120,
             accepted=False,  # Not accepted = candidate issue
-            created_at=now
+            created_at=now,
         ),
         Candidate(
             id="cand-2",
@@ -127,7 +126,7 @@ def dashboard_fixture(tmp_path: Path):
             score=0.8,
             words=200,
             accepted=False,  # Not accepted = candidate issue
-            created_at=now
+            created_at=now,
         ),
         Candidate(
             id="cand-3",
@@ -137,11 +136,11 @@ def dashboard_fixture(tmp_path: Path):
             score=0.5,
             words=80,
             accepted=True,  # Accepted = not an issue
-            created_at=now
+            created_at=now,
         ),
     ]
     session.add_all(candidates)
-    
+
     # Create dedupe audit records (1 with similarity > 0.7 and dedupe_flag=0)
     dedupe_records = [
         DedupeAudit(
@@ -150,7 +149,7 @@ def dashboard_fixture(tmp_path: Path):
             host="broken.local",
             similarity=0.91,  # > 0.7 and dedupe_flag is None/0 = near miss
             dedupe_flag=None,
-            created_at=now
+            created_at=now,
         ),
         DedupeAudit(
             article_uid="art-2",
@@ -158,16 +157,16 @@ def dashboard_fixture(tmp_path: Path):
             host="healthy.local",
             similarity=0.65,  # < 0.7 = not a near miss
             dedupe_flag=True,
-            created_at=now
+            created_at=now,
         ),
     ]
     session.add_all(dedupe_records)
-    
+
     # Add HTTP error summary data for test_http_errors_surface_verification_outages
     from datetime import timedelta
 
     from src.models.telemetry import HttpErrorSummary
-    
+
     http_errors = [
         HttpErrorSummary(
             host="verification.local",
@@ -175,7 +174,7 @@ def dashboard_fixture(tmp_path: Path):
             error_type="4xx_client_error",
             count=2,
             first_seen=now - timedelta(hours=2),
-            last_seen=now
+            last_seen=now,
         ),
         HttpErrorSummary(
             host="broken.local",
@@ -183,26 +182,26 @@ def dashboard_fixture(tmp_path: Path):
             error_type="5xx_server_error",
             count=1,
             first_seen=now - timedelta(hours=1),
-            last_seen=now
+            last_seen=now,
         ),
     ]
     session.add_all(http_errors)
-    
+
     session.commit()
     session.close()
-    
+
     # Create test CSV with wire data
     csv_path.write_text("wire\n1\n0\n", encoding="utf-8")
-    
+
     class Fixture:
         def __init__(self):
             self.db_path = db_path
             self.csv_path = csv_path
             self.engine = engine
-    
+
     fixture = Fixture()
     yield fixture
-    
+
     engine.dispose()
 
 
@@ -213,10 +212,10 @@ def _patch_dashboard_paths(monkeypatch: pytest.MonkeyPatch, fixture) -> None:
 
     # Patch ARTICLES_CSV for CSV-based operations
     monkeypatch.setattr(app_main, "ARTICLES_CSV", fixture.csv_path)
-    
+
     # Create sessionmaker from the test database engine
     SessionLocal = sessionmaker(bind=fixture.engine)
-    
+
     # Mock DatabaseManager.get_session to return a session from the test database
     def mock_get_session():
         @contextmanager
@@ -226,12 +225,13 @@ def _patch_dashboard_paths(monkeypatch: pytest.MonkeyPatch, fixture) -> None:
                 yield session
             finally:
                 session.close()
+
         return session_context()
-    
+
     # Create a mock db_manager with our custom get_session
     mock_db_manager = MagicMock()
     mock_db_manager.get_session = mock_get_session
-    
+
     # Replace the entire db_manager instance
     monkeypatch.setattr(app_main, "db_manager", mock_db_manager)
 

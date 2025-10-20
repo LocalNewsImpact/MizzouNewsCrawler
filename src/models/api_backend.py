@@ -234,13 +234,13 @@ class BylineCleaningTelemetry(Base):
     requires_manual_review = Column(Boolean)
     cleaning_errors = Column(Text)
     parsing_warnings = Column(Text)
-    
+
     # Human feedback fields
     human_label = Column(String)  # "correct", "incorrect", "partial"
     human_notes = Column(Text)
     reviewed_by = Column(String)
     reviewed_at = Column(DateTime)
-    
+
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     def to_dict(self):
@@ -254,7 +254,11 @@ class BylineCleaningTelemetry(Base):
             "raw_byline": self.raw_byline,
             "raw_byline_length": self.raw_byline_length,
             "raw_byline_words": self.raw_byline_words,
-            "extraction_timestamp": self.extraction_timestamp.isoformat() if self.extraction_timestamp else None,
+            "extraction_timestamp": (
+                self.extraction_timestamp.isoformat()
+                if self.extraction_timestamp
+                else None
+            ),
             "cleaning_method": self.cleaning_method,
             "source_canonical_name": self.source_canonical_name,
             "final_authors_json": self.final_authors_json,
@@ -337,7 +341,7 @@ class CodeReviewTelemetry(Base):
     suggested_fix = Column(Text)
     reviewer = Column(String)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    
+
     # Human feedback fields
     human_label = Column(String)  # "valid", "invalid", "fixed"
     human_notes = Column(Text)

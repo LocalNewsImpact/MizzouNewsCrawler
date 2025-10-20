@@ -92,7 +92,7 @@ class URLVerification(Base):
 
     # Additional metadata
     meta = Column(JSON)  # Any additional verification metadata
-    
+
     # Human feedback fields for telemetry review
     article_headline = Column(String)  # Extracted headline for review
     article_excerpt = Column(Text)  # Extracted excerpt for review

@@ -12,7 +12,7 @@ METADATA_HOSTS = {
     "metadata.google.internal",
     "metadata",
     "169.254.169.254",
-    "metadata.google.internal."  # trailing dot variant
+    "metadata.google.internal.",  # trailing dot variant
 }
 
 
@@ -114,7 +114,7 @@ def enable_origin_proxy(session):
         bypass_reason = None
         proxy_base = None
         has_auth = False
-        
+
         if use:
             if _should_bypass(url):
                 bypass_reason = "bypassed (internal/metadata host or proxy.kiesow.net)"
@@ -131,25 +131,23 @@ def enable_origin_proxy(session):
                 # If no explicit auth for this request, attach proxy basic auth
                 user = os.getenv("PROXY_USERNAME")
                 has_auth = user is not None
-                
+
                 if "auth" not in kwargs:
                     pwd = os.getenv("PROXY_PASSWORD")
                     if has_auth and user:  # Type narrowing for user
                         kwargs["auth"] = (user, pwd or "")
                         headers = kwargs.setdefault("headers", {})
                         if "Proxy-Authorization" not in headers:
-                            headers["Proxy-Authorization"] = (
-                                _basic_auth_value(user, pwd)
+                            headers["Proxy-Authorization"] = _basic_auth_value(
+                                user, pwd
                             )
                         if "Authorization" not in headers:
-                            headers["Authorization"] = (
-                                _basic_auth_value(user, pwd)
-                            )
+                            headers["Authorization"] = _basic_auth_value(user, pwd)
 
                 # Replace the outgoing URL with the proxied URL
                 url = proxied
                 proxy_used = True
-                
+
                 # Log proxy usage with auth status
                 parsed = urlparse(original_url)
                 domain = parsed.netloc
@@ -165,7 +163,7 @@ def enable_origin_proxy(session):
 
         try:
             response = session._origin_original_request(method, url, *args, **kwargs)
-            
+
             # Attach proxy metadata to response for telemetry
             response._proxy_used = proxy_used
             response._proxy_url = proxy_base if proxy_used else None
@@ -177,15 +175,13 @@ def enable_origin_proxy(session):
             else:
                 response._proxy_status = "disabled"
             response._proxy_error = None
-            
+
             # Log response status when using proxy
             if proxy_used:
                 parsed = urlparse(original_url)
                 domain = parsed.netloc
-                logger.info(
-                    f"✓ Proxy response {response.status_code} for {domain}"
-                )
-            
+                logger.info(f"✓ Proxy response {response.status_code} for {domain}")
+
             return response
         except Exception as e:
             # Log errors when using proxy
@@ -193,9 +189,7 @@ def enable_origin_proxy(session):
                 parsed = urlparse(original_url)
                 domain = parsed.netloc
                 error_str = f"{type(e).__name__}: {str(e)[:100]}"
-                logger.error(
-                    f"✗ Proxy request failed for {domain}: {error_str}"
-                )
+                logger.error(f"✗ Proxy request failed for {domain}: {error_str}")
             raise
 
     # Bind wrapper to the session instance

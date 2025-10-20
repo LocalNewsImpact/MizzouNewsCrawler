@@ -63,11 +63,15 @@ def test_handle_extraction_command_success(monkeypatch):
         domains_for_cleaning.setdefault("example.com", []).append(
             f"article-{batch_num}"
         )
-        return {"processed": 1, "domains_processed": ["example.com"], "same_domain_consecutive": 0}
+        return {
+            "processed": 1,
+            "domains_processed": ["example.com"],
+            "same_domain_consecutive": 0,
+        }
 
     def fake_post_clean(domains):
         calls["post_clean_domains"] = domains
-    
+
     def fake_domain_analysis(args, session):
         return {
             "unique_domains": 1,
@@ -121,7 +125,7 @@ def test_handle_extraction_command_handles_exception(monkeypatch):
 
     def failing_process(*_args, **_kwargs):
         raise RuntimeError("boom")
-    
+
     def fake_domain_analysis(args, session):
         return {
             "unique_domains": 0,
@@ -447,7 +451,7 @@ def test_analyze_dataset_domains_single_domain():
     from argparse import Namespace
 
     from sqlalchemy import text
-    
+
     class FakeSession:
         def execute(self, query, params):
             class FakeResult:
@@ -458,13 +462,14 @@ def test_analyze_dataset_domains_single_domain():
                         ("https://example.com/article2",),
                         ("https://example.com/article3",),
                     ]
+
             return FakeResult()
-    
+
     args = Namespace(dataset="test-dataset", source=None)
     session = FakeSession()
-    
+
     result = extraction._analyze_dataset_domains(args, session)
-    
+
     assert result["unique_domains"] == 1
     assert result["is_single_domain"] is True
     assert "example.com" in result["sample_domains"]
@@ -473,7 +478,7 @@ def test_analyze_dataset_domains_single_domain():
 def test_analyze_dataset_domains_multiple_domains():
     """Test domain analysis for multi-domain dataset."""
     from argparse import Namespace
-    
+
     class FakeSession:
         def execute(self, query, params):
             class FakeResult:
@@ -484,13 +489,14 @@ def test_analyze_dataset_domains_multiple_domains():
                         ("https://example2.com/article2",),
                         ("https://example3.com/article3",),
                     ]
+
             return FakeResult()
-    
+
     args = Namespace(dataset="test-dataset", source=None)
     session = FakeSession()
-    
+
     result = extraction._analyze_dataset_domains(args, session)
-    
+
     assert result["unique_domains"] == 3
     assert result["is_single_domain"] is False
     assert len(result["sample_domains"]) == 3
@@ -499,19 +505,20 @@ def test_analyze_dataset_domains_multiple_domains():
 def test_analyze_dataset_domains_no_urls():
     """Test domain analysis when no URLs are available."""
     from argparse import Namespace
-    
+
     class FakeSession:
         def execute(self, query, params):
             class FakeResult:
                 def fetchall(self):
                     return []
+
             return FakeResult()
-    
+
     args = Namespace(dataset="test-dataset", source=None)
     session = FakeSession()
-    
+
     result = extraction._analyze_dataset_domains(args, session)
-    
+
     assert result["unique_domains"] == 0
     assert result["is_single_domain"] is False
     assert result["sample_domains"] == []

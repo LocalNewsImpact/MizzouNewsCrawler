@@ -261,10 +261,12 @@ class NewsDiscovery:
 
         if self.proxy_pool:
             proxy = random.choice(self.proxy_pool)
-            self.session.proxies.update({
-                "http": proxy,
-                "https": proxy,
-            })
+            self.session.proxies.update(
+                {
+                    "http": proxy,
+                    "https": proxy,
+                }
+            )
             logger.info(
                 "🔐 Discovery using legacy proxy pool with %d entries (selected %s)",
                 len(self.proxy_pool),
@@ -787,9 +789,8 @@ class NewsDiscovery:
             # Use SQLAlchemy text() to ensure proper parameter binding for pg8000
             # SQLAlchemy converts :param to %s format required by pg8000
             from sqlalchemy import text as sql_text
-            df = pd.read_sql_query(
-                sql_text(query), db.engine, params=params or None
-            )
+
+            df = pd.read_sql_query(sql_text(query), db.engine, params=params or None)
 
             # If requested, filter to only sources that are due for
             # discovery according to their declared frequency and the
@@ -1915,11 +1916,13 @@ class NewsDiscovery:
             print("📊 Source Discovery Status:")
             print(f"   Sources available: {source_stats.get('sources_available', 0)}")
             print(f"   Sources due for discovery: {source_stats.get('sources_due', 0)}")
-            if source_stats.get('sources_skipped', 0) > 0:
-                print(f"   Sources skipped (not due): {source_stats.get('sources_skipped', 0)}")
+            if source_stats.get("sources_skipped", 0) > 0:
+                print(
+                    f"   Sources skipped (not due): {source_stats.get('sources_skipped', 0)}"
+                )
             print(f"   Sources to process: {len(sources_df)}")
             print()
-            
+
             logger.info(f"Processing {len(sources_df)} sources")
 
             # Initialize telemetry metrics
@@ -1981,9 +1984,9 @@ class NewsDiscovery:
                     )
 
                     stats["sources_processed"] += 1
-                    stats["total_candidates_discovered"] += (
-                        discovery_result.articles_new
-                    )
+                    stats[
+                        "total_candidates_discovered"
+                    ] += discovery_result.articles_new
 
                     # Track different types of success
                     if discovery_result.is_technical_failure:
@@ -2010,7 +2013,7 @@ class NewsDiscovery:
                         f"{source_row['name']}: "
                         f"{discovery_result.articles_new} new URLs"
                     )
-                    
+
                     logger.info(
                         f"Progress: {stats['sources_processed']}/"
                         f"{len(sources_df)} sources"
@@ -2048,7 +2051,7 @@ class NewsDiscovery:
                         f"✗ [{stats['sources_processed'] + 1}/{len(sources_df)}] "
                         f"{source_row.get('name')}: ERROR - {str(e)[:100]}"
                     )
-                    
+
                     logger.error(
                         "Failed to process source %s: %s",
                         source_row.get("name"),

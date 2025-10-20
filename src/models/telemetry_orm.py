@@ -12,7 +12,6 @@ Benefits of ORM approach:
 - Reduced risk of SQL injection
 """
 
-
 from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, Text
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -22,10 +21,10 @@ Base = declarative_base()
 class BylineCleaningTelemetry(Base):
     """
     Telemetry for byline cleaning operations.
-    
+
     Tracks the transformation of raw bylines to cleaned author fields,
     enabling analysis of cleaning effectiveness and generation of ML training datasets.
-    
+
     Column count: 32 (>20, recommended for ORM)
     """
 
@@ -94,9 +93,9 @@ class BylineCleaningTelemetry(Base):
 class ExtractionTelemetryV2(Base):
     """
     Version 2 of extraction telemetry with enhanced metrics.
-    
+
     Tracks detailed extraction attempts, outcomes, and performance metrics.
-    
+
     Column count: 27 (>20, recommended for ORM)
     """
 

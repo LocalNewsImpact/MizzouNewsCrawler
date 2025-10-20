@@ -7,7 +7,11 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from src.models.telemetry_orm import Base, BylineCleaningTelemetry, ExtractionTelemetryV2
+from src.models.telemetry_orm import (
+    Base,
+    BylineCleaningTelemetry,
+    ExtractionTelemetryV2,
+)
 
 
 @pytest.fixture
@@ -62,9 +66,7 @@ class TestBylineCleaningTelemetryORM:
 
         # Query back
         result = (
-            db_session.query(BylineCleaningTelemetry)
-            .filter_by(id="test-123")
-            .first()
+            db_session.query(BylineCleaningTelemetry).filter_by(id="test-123").first()
         )
 
         assert result is not None
@@ -230,9 +232,7 @@ class TestBulkInserts:
 
         # Verify a sample record
         result = (
-            db_session.query(BylineCleaningTelemetry)
-            .filter_by(id="bulk-5")
-            .first()
+            db_session.query(BylineCleaningTelemetry).filter_by(id="bulk-5").first()
         )
         assert result.raw_byline == "By Author 5"
         assert result.confidence_score == pytest.approx(0.95)

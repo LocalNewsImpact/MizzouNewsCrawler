@@ -117,8 +117,8 @@ def test_created_at_present_in_postgres_bulk_insert_branch(sqlite_engine):
     ).fetchall()
     assert rows, "Expected at least one gazetteer row to be inserted"
     (created_at_val,) = rows[0]
-    assert created_at_val is not None, (
-        "created_at should be populated in bulk insert path"
-    )
+    assert (
+        created_at_val is not None
+    ), "created_at should be populated in bulk insert path"
 
     session.close()

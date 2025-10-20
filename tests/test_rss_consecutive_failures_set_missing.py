@@ -102,6 +102,6 @@ def test_repeated_non_network_failures_set_rss_missing(monkeypatch):
         for u in recorded_updates
     )
 
-    assert found_missing or found_count, (
-        "rss_missing was not set after repeated non-network failures"
-    )
+    assert (
+        found_missing or found_count
+    ), "rss_missing was not set after repeated non-network failures"

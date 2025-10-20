@@ -69,7 +69,7 @@ class SourceProcessor:
             self.source_name,
             self.source_url,
         )
-        
+
         if self.dataset_id:
             logger.debug(
                 "Resolved dataset '%s' to UUID: %s",
@@ -106,13 +106,13 @@ class SourceProcessor:
 
     def _resolve_dataset_label(self) -> str | None:
         """Resolve dataset_label (name/slug) to canonical UUID.
-        
+
         Returns:
             Dataset UUID as string, or None if no dataset specified
         """
         if not self.dataset_label:
             return None
-        
+
         try:
             from src.utils.dataset_utils import resolve_dataset_id
 

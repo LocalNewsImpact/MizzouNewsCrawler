@@ -415,7 +415,7 @@ class ContentExtractor:
             "gzip, deflate, br",
             "gzip, deflate",
         ]
-        
+
         # More realistic Accept header variations
         self.accept_header_pool = [
             "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
@@ -437,11 +437,11 @@ class ContentExtractor:
         self.domain_request_times = {}  # Track request timestamps per domain
         self.domain_backoff_until = {}  # Track when domain is available again
         self.domain_error_counts = {}  # Track consecutive errors per domain
-        
+
         # Selenium-specific failure tracking (separate from requests failures)
         # This prevents disabling Selenium for CAPTCHA-protected domains
         self._selenium_failure_counts = {}  # Track Selenium failures per domain
-        
+
         # Base inter-request delay (env tunable)
         try:
             self.inter_request_min = float(os.getenv("INTER_REQUEST_MIN", "1.5"))
@@ -528,26 +528,26 @@ class ContentExtractor:
             "Sec-Fetch-User": "?1",
             "Cache-Control": "max-age=0",
         }
-        
+
         # Randomly include DNT header (not all browsers send it)
         if random.random() > 0.3:  # 70% chance
             headers["DNT"] = "1"
 
         self.session.headers.update(headers)
-        
+
         # Configure proxy based on active provider
         active_provider = self.proxy_manager.active_provider
-        
+
         # Check if we should use origin proxy (backward compatibility)
         use_origin = os.getenv("USE_ORIGIN_PROXY", "").lower() in ("1", "true", "yes")
-        
+
         if active_provider.value == "origin" or use_origin:
             # Use origin-style proxy adapter (URL rewriting)
             try:
                 enable_origin_proxy(self.session)
                 proxy_url = (
-                    os.getenv("ORIGIN_PROXY_URL") 
-                    or os.getenv("PROXY_HOST") 
+                    os.getenv("ORIGIN_PROXY_URL")
+                    or os.getenv("PROXY_HOST")
                     or os.getenv("PROXY_URL")
                 )
                 logger.info(
@@ -556,7 +556,7 @@ class ContentExtractor:
                 )
             except Exception as e:
                 logger.warning(f"Failed to install origin proxy adapter: {e}")
-        
+
         elif active_provider.value != "direct":
             # Use standard proxies from ProxyManager (HTTP/HTTPS/SOCKS5)
             proxies = self.proxy_manager.get_requests_proxies()
@@ -566,11 +566,11 @@ class ContentExtractor:
                     f"🔀 Standard proxy enabled: {active_provider.value} "
                     f"({list(proxies.keys())})"
                 )
-        
+
         else:
             # Direct connection (no proxy)
             logger.info("🔀 Direct connection (no proxy)")
-        
+
         logger.debug(
             f"Updated session headers with UA: {self.current_user_agent[:50]}..."
         )
@@ -645,21 +645,22 @@ class ContentExtractor:
                 "Sec-Fetch-User": "?1",
                 "Cache-Control": "max-age=0",
             }
-            
+
             # Randomly include DNT header (not all browsers send it)
             if random.random() > 0.3:  # 70% chance
                 headers["DNT"] = "1"
-            
+
             new_session.headers.update(headers)
-            
+
             # Configure proxy based on active provider
             # IMPORTANT: Rotate proxy when rotating UA to avoid (same IP + different UA)
             active_provider = self.proxy_manager.active_provider
-            use_origin = (
-                os.getenv("USE_ORIGIN_PROXY", "").lower() 
-                in ("1", "true", "yes")
+            use_origin = os.getenv("USE_ORIGIN_PROXY", "").lower() in (
+                "1",
+                "true",
+                "yes",
             )
-            
+
             if active_provider.value == "origin" or use_origin:
                 # Use origin-style proxy adapter
                 try:
@@ -669,21 +670,23 @@ class ContentExtractor:
                         f"Failed to install origin proxy on domain "
                         f"session for {domain}: {e}"
                     )
-            
+
             elif active_provider.value != "direct":
                 # Get fresh proxies (forces IP rotation for providers like Decodo)
                 # This is crucial: rotating UA without rotating IP looks suspicious
                 proxies = self.proxy_manager.get_requests_proxies()
                 if proxies:
                     new_session.proxies.update(proxies)
-            
+
             # Assign sticky proxy per domain when pool provided (legacy)
             proxy = self._choose_proxy_for_domain(domain)
             if proxy:
-                new_session.proxies.update({
-                    "http": proxy,
-                    "https": proxy,
-                })
+                new_session.proxies.update(
+                    {
+                        "http": proxy,
+                        "https": proxy,
+                    }
+                )
 
             # Store new session and user agent for this domain
             self.domain_sessions[domain] = new_session
@@ -711,10 +714,10 @@ class ContentExtractor:
             self.domain_proxies[domain] = proxy
             logger.info(f"Assigned proxy for {domain}")
         return proxy
-    
+
     def _generate_referer(self, url: str) -> Optional[str]:
         """Generate a realistic Referer header for the target URL.
-        
+
         This makes requests look more natural, as if the user navigated
         from the site's homepage or another page on the same domain.
         """
@@ -722,20 +725,22 @@ class ContentExtractor:
             parsed = urlparse(url)
             scheme = parsed.scheme or "https"
             domain = parsed.netloc
-            
+
             if not domain:
                 return None
-            
+
             # Randomly choose between different referer strategies
-            strategy = random.choice([
-                "homepage",      # 40% - from homepage
-                "homepage",
-                "same_domain",   # 30% - from another page on same domain
-                "same_domain",
-                "google",        # 20% - from Google search
-                "none",          # 10% - no referer
-            ])
-            
+            strategy = random.choice(
+                [
+                    "homepage",  # 40% - from homepage
+                    "homepage",
+                    "same_domain",  # 30% - from another page on same domain
+                    "same_domain",
+                    "google",  # 20% - from Google search
+                    "none",  # 10% - no referer
+                ]
+            )
+
             if strategy == "homepage":
                 return f"{scheme}://{domain}/"
             elif strategy == "same_domain":
@@ -748,7 +753,7 @@ class ContentExtractor:
             else:
                 # No referer
                 return None
-                
+
         except Exception:
             return None
 
@@ -861,16 +866,18 @@ class ContentExtractor:
         if domain in self.domain_error_counts:
             self.domain_error_counts[domain] = 0
 
-    def _detect_bot_protection_in_response(self, response: requests.Response) -> Optional[str]:
+    def _detect_bot_protection_in_response(
+        self, response: requests.Response
+    ) -> Optional[str]:
         """Detect bot protection mechanisms in HTTP response.
-        
+
         Returns a string identifying the protection type, or None if not detected.
         """
         if not response or not response.text:
             return None
-        
+
         text_lower = response.text.lower()
-        
+
         # Cloudflare protection indicators
         cloudflare_indicators = [
             "checking your browser",
@@ -881,7 +888,7 @@ class ContentExtractor:
             "just a moment...",
             "cf-ray",
         ]
-        
+
         # Generic bot protection indicators
         bot_protection_indicators = [
             "access denied",
@@ -895,21 +902,21 @@ class ContentExtractor:
             "captcha",
             "recaptcha",
         ]
-        
+
         # Check for Cloudflare first (most common)
         if any(indicator in text_lower for indicator in cloudflare_indicators):
             return "cloudflare"
-        
+
         # Check for general bot protection
         if any(indicator in text_lower for indicator in bot_protection_indicators):
             return "bot_protection"
-        
+
         # Check for suspiciously short responses (often challenge pages)
         if len(response.text) < 500 and response.status_code in [403, 503]:
             return "suspicious_short_response"
-        
+
         return None
-    
+
     def _handle_captcha_backoff(self, domain: str) -> None:
         """Apply extended backoff for CAPTCHA/challenge detections."""
         now = time.time()
@@ -920,9 +927,7 @@ class ContentExtractor:
         delay = min(base * (2 ** (count - 1)), cap)
         delay *= random.uniform(0.9, 1.3)
         self.domain_backoff_until[domain] = now + delay
-        logger.warning(
-            f"CAPTCHA backoff for {domain}: {int(delay)}s (attempt {count})"
-        )
+        logger.warning(f"CAPTCHA backoff for {domain}: {int(delay)}s (attempt {count})")
 
     def _create_error_result(
         self, url: str, error_msg: str, metadata: Dict = None
@@ -934,7 +939,7 @@ class ContentExtractor:
             for err in ["bot protection", "cloudflare", "captcha", "403", "429"]
         ):
             self.proxy_manager.record_failure()
-        
+
         return {
             "url": url,
             "title": "",
@@ -1216,10 +1221,8 @@ class ContentExtractor:
                     logger.info(
                         f"Skipping Selenium for {dom} - domain is in CAPTCHA backoff period"
                     )
-                    raise RateLimitError(
-                        f"Domain {dom} is in backoff period"
-                    )
-                
+                    raise RateLimitError(f"Domain {dom} is in backoff period")
+
                 # Only check if Selenium itself has failed repeatedly on this domain
                 selenium_failures = getattr(self, "_selenium_failure_counts", {})
                 if selenium_failures.get(dom, 0) >= 3:
@@ -1238,11 +1241,11 @@ class ContentExtractor:
                         result, selenium_result, "selenium", missing_fields, metrics
                     )
                     logger.info(f"✅ Selenium extraction succeeded for {url}")
-                    
+
                     # Reset failure count on success
                     if dom in self._selenium_failure_counts:
                         del self._selenium_failure_counts[dom]
-                    
+
                     if metrics:
                         metrics.end_method("selenium", True, None, selenium_result)
                 else:
@@ -1546,17 +1549,19 @@ class ContentExtractor:
                 # Single in-flight per domain
                 with self._get_domain_lock(domain):
                     logger.info(f"📡 Fetching {url[:80]}... via session for {domain}")
-                    
+
                     # Add Referer header for this specific request to look more natural
                     request_headers = {}
                     referer = self._generate_referer(url)
                     if referer:
                         request_headers["Referer"] = referer
                         logger.debug(f"Using Referer: {referer}")
-                    
-                    response = session.get(url, timeout=self.timeout, headers=request_headers)
+
+                    response = session.get(
+                        url, timeout=self.timeout, headers=request_headers
+                    )
                 http_status = response.status_code
-                
+
                 # Capture proxy metadata from response if available
                 proxy_metadata = {
                     "proxy_used": getattr(response, "_proxy_used", False),
@@ -1567,7 +1572,7 @@ class ContentExtractor:
                     "proxy_status": getattr(response, "_proxy_status", None),
                     "proxy_error": getattr(response, "_proxy_error", None),
                 }
-                
+
                 # Log response details
                 logger.info(
                     f"📥 Received {http_status} for {domain} "
@@ -1590,13 +1595,13 @@ class ContentExtractor:
                 elif response.status_code in [401, 403, 502, 503, 504]:
                     # Detect specific bot protection type
                     protection_type = self._detect_bot_protection_in_response(response)
-                    
+
                     if protection_type:
                         logger.warning(
                             f"🚫 Bot protection detected ({response.status_code}, "
                             f"{protection_type}) by {domain}"
                         )
-                        
+
                         # Record bot detection event
                         is_captcha = (
                             "cloudflare" in protection_type
@@ -1612,13 +1617,13 @@ class ContentExtractor:
                             http_status_code=response.status_code,
                             response_indicators={"protection_type": protection_type},
                         )
-                        
+
                         # Use CAPTCHA backoff for confirmed bot protection
                         if protection_type in ["cloudflare", "bot_protection"]:
                             self._handle_captcha_backoff(domain)
                         else:
                             self._handle_rate_limit_error(domain, response)
-                        
+
                         # Raise exception to stop all fallback attempts
                         raise RateLimitError(
                             f"Bot protection on {domain}: "
@@ -1658,7 +1663,9 @@ class ContentExtractor:
                             expires_at = datetime.utcfromtimestamp(self.dead_urls[url])
                             metadata["cache_ttl_expires_at"] = expires_at.isoformat()
                         except Exception:
-                            metadata["cache_ttl_expires_at"] = datetime.utcnow().isoformat()
+                            metadata["cache_ttl_expires_at"] = (
+                                datetime.utcnow().isoformat()
+                            )
 
                     return {
                         "url": url,
@@ -1709,10 +1716,10 @@ class ContentExtractor:
                             "metadata": metadata,
                             "extracted_at": datetime.utcnow().isoformat(),
                         }
-                    
+
                     # Reset error count on successful request
                     self._reset_error_count(domain)
-                    
+
                     # Record proxy success
                     response_time = response.elapsed.total_seconds()
                     self.proxy_manager.record_success(response_time=response_time)
@@ -1869,15 +1876,13 @@ class ContentExtractor:
                         raise NotFoundError(
                             f"URL not found ({resp.status_code}): {url}"
                         )
-                    
+
                     # Check for rate limiting and server errors
                     if resp.status_code == 429:
                         logger.warning(f"Rate limited (429) by {domain}")
                         raise RateLimitError(f"Rate limited (429) by {domain}")
                     elif resp.status_code in [401, 403, 502, 503, 504]:
-                        logger.warning(
-                            f"Server error ({resp.status_code}) by {domain}"
-                        )
+                        logger.warning(f"Server error ({resp.status_code}) by {domain}")
                         raise RateLimitError(
                             f"Server error ({resp.status_code}) on {domain}"
                         )
@@ -2013,11 +2018,7 @@ class ContentExtractor:
 
         # Read optional binary paths from environment
         # Common envs: CHROME_BIN, GOOGLE_CHROME_BIN, CHROMEDRIVER_PATH
-        chrome_bin = (
-            os.getenv("CHROME_BIN")
-            or os.getenv("GOOGLE_CHROME_BIN")
-            or None
-        )
+        chrome_bin = os.getenv("CHROME_BIN") or os.getenv("GOOGLE_CHROME_BIN") or None
         driver_path = os.getenv("CHROMEDRIVER_PATH") or None
 
         if chrome_bin:
@@ -2104,11 +2105,7 @@ class ContentExtractor:
         chrome_options.add_experimental_option("prefs", prefs)
 
         # Create driver
-        chrome_bin = (
-            os.getenv("CHROME_BIN")
-            or os.getenv("GOOGLE_CHROME_BIN")
-            or None
-        )
+        chrome_bin = os.getenv("CHROME_BIN") or os.getenv("GOOGLE_CHROME_BIN") or None
         driver_path = os.getenv("CHROMEDRIVER_PATH") or None
 
         if chrome_bin:
@@ -2206,7 +2203,7 @@ class ContentExtractor:
                     logger.info("Successfully closed subscription modal on retry")
                     if not self._detect_subscription_wall(driver):
                         return True
-                
+
                 # Still paywalled: track but DON'T apply aggressive backoff
                 # Subscription walls can be persistent (days/months)
                 # Note: Unlike CAPTCHA, we don't backoff the domain
@@ -2219,7 +2216,7 @@ class ContentExtractor:
             # Now check for actual CAPTCHA or bot challenges
             if self._detect_captcha_or_challenge(driver):
                 logger.warning(f"CAPTCHA or bot challenge detected on {url}")
-                
+
                 # Try closing modals in case CAPTCHA is in a modal
                 if self._try_close_modals(driver, url):
                     logger.info("Successfully closed CAPTCHA modal")
@@ -2297,11 +2294,11 @@ class ContentExtractor:
 
     def _try_close_modals(self, driver, url: str) -> bool:
         """Try to close subscription modals and popups.
-        
+
         Args:
             driver: Selenium WebDriver instance
             url: URL being processed (for logging)
-            
+
         Returns:
             True if a modal was successfully closed, False otherwise
         """
@@ -2323,7 +2320,7 @@ class ContentExtractor:
                 ".tp-close",  # Piano paywall
                 "#close-modal",
             ]
-            
+
             for selector in close_selectors:
                 try:
                     elements = driver.find_elements(By.CSS_SELECTOR, selector)
@@ -2338,22 +2335,22 @@ class ContentExtractor:
                 except Exception as e:
                     logger.debug(f"Failed to close with {selector}: {e}")
                     continue
-            
+
             return False
-            
+
         except Exception as e:
             logger.debug(f"Error closing modals on {url}: {e}")
             return False
 
     def _detect_subscription_wall(self, driver) -> bool:
         """Detect if page contains a subscription/paywall modal.
-        
+
         Returns True if subscription wall detected (NOT a bot challenge).
         These should be tracked separately as they may block for days/months.
         """
         try:
             page_source = driver.page_source.lower()
-            
+
             # Common subscription wall indicators
             subscription_keywords = [
                 "subscribe",
@@ -2371,18 +2368,16 @@ class ContentExtractor:
                 "login to continue",
                 "register now",
             ]
-            
+
             # Count keyword matches (need multiple for confidence)
             matches = sum(
                 1 for keyword in subscription_keywords if keyword in page_source
             )
-            
+
             if matches >= 2:  # At least 2 subscription indicators
-                logger.info(
-                    f"Detected subscription wall ({matches} indicators found)"
-                )
+                logger.info(f"Detected subscription wall ({matches} indicators found)")
                 return True
-            
+
             # Check for common paywall provider elements
             paywall_selectors = [
                 "[class*='paywall']",
@@ -2394,7 +2389,7 @@ class ContentExtractor:
                 ".registration-wall",
                 ".subscriber-wall",
             ]
-            
+
             for selector in paywall_selectors:
                 try:
                     elements = driver.find_elements(By.CSS_SELECTOR, selector)
@@ -2403,16 +2398,16 @@ class ContentExtractor:
                         return True
                 except Exception:
                     continue
-            
+
             return False
-            
+
         except Exception as e:
             logger.debug(f"Error in subscription wall detection: {e}")
             return False
 
     def _detect_captcha_or_challenge(self, driver) -> bool:
         """Detect if page contains CAPTCHA or other bot challenges.
-        
+
         Returns True only for actual CAPTCHAs/bot challenges,
         NOT subscription modals.
         """

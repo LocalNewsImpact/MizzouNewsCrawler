@@ -1,6 +1,7 @@
 """
 Extraction command module for the modular CLI.
 """
+
 # ruff: noqa: E501
 
 import inspect
@@ -26,6 +27,7 @@ from src.models.database import (
     calculate_content_hash,
     save_article_entities,
 )
+
 # Lazy import: entity_extraction only needed for entity-extraction command
 # Importing at top level causes ModuleNotFoundError in crawler image (no rapidfuzz)
 # These are imported inside handle_entity_extraction_command() instead
@@ -75,6 +77,7 @@ def _get_entity_extractor() -> Any:  # Returns ArticleEntityExtractor
     global _ENTITY_EXTRACTOR
     if _ENTITY_EXTRACTOR is None:
         from src.pipeline.entity_extraction import ArticleEntityExtractor
+
         _ENTITY_EXTRACTOR = ArticleEntityExtractor()
     return _ENTITY_EXTRACTOR
 
@@ -127,11 +130,11 @@ def _format_cleaned_authors(authors):
 
 def _get_status_counts(args, session):
     """Get counts of candidate links by status for the current dataset/source.
-    
+
     Args:
         args: Command arguments containing dataset/source filters
         session: Database session
-        
+
     Returns:
         dict mapping status -> count (e.g., {'article': 207, 'extracted': 4445, ...})
     """
@@ -140,9 +143,9 @@ def _get_status_counts(args, session):
     FROM candidate_links cl
     WHERE 1=1
     """
-    
+
     params = {}
-    
+
     # Add dataset filter if specified (dataset is already resolved to UUID)
     if getattr(args, "dataset", None):
         query += " AND cl.dataset_id = :dataset"
@@ -155,14 +158,14 @@ def _get_status_counts(args, session):
                  SELECT id FROM datasets WHERE cron_enabled IS TRUE
              ))
         """
-    
+
     # Add source filter if specified
     if getattr(args, "source", None):
         query += " AND cl.source = :source"
         params["source"] = args.source
-    
+
     query += " GROUP BY cl.status ORDER BY count DESC"
-    
+
     try:
         result = session.execute(text(query), params)
         return {row[0]: row[1] for row in result.fetchall()}
@@ -173,11 +176,11 @@ def _get_status_counts(args, session):
 
 def _analyze_dataset_domains(args, session):
     """Analyze how many unique domains exist in the dataset's candidate links.
-    
+
     Args:
         args: Command arguments containing dataset/source filters
         session: Database session
-        
+
     Returns:
         dict with keys:
             - unique_domains: int, number of unique domains
@@ -196,9 +199,9 @@ def _analyze_dataset_domains(args, session):
         WHERE candidate_link_id IS NOT NULL
     )
     """
-    
+
     params = {}
-    
+
     # Add dataset filter if specified (dataset is already resolved to UUID)
     if getattr(args, "dataset", None):
         query += " AND cl.dataset_id = :dataset"
@@ -211,25 +214,25 @@ def _analyze_dataset_domains(args, session):
                  SELECT id FROM datasets WHERE cron_enabled IS TRUE
              ))
         """
-    
+
     # Add source filter if specified
     if getattr(args, "source", None):
         query += " AND cl.source = :source"
         params["source"] = args.source
-    
+
     query += " LIMIT 1000"  # Sample up to 1000 URLs for analysis
-    
+
     try:
         result = session.execute(text(query), params)
         urls = [row[0] for row in result.fetchall()]
-        
+
         if not urls:
             return {
                 "unique_domains": 0,
                 "is_single_domain": False,
                 "sample_domains": [],
             }
-        
+
         # Extract domains from URLs
         domains = set()
         for url in urls:
@@ -239,10 +242,10 @@ def _analyze_dataset_domains(args, session):
                     domains.add(domain)
             except Exception:
                 continue
-        
+
         unique_count = len(domains)
         sample_list = sorted(domains)[:5]
-        
+
         return {
             "unique_domains": unique_count,
             "is_single_domain": unique_count == 1,
@@ -300,9 +303,9 @@ def handle_extraction_command(args) -> int:
 
     extractor_cls = cast(type[Any], ContentExtractor)
     process_accepts_db = "db" in inspect.signature(_process_batch).parameters
-    post_clean_accepts_db = "db" in inspect.signature(
-        _run_post_extraction_cleaning
-    ).parameters
+    post_clean_accepts_db = (
+        "db" in inspect.signature(_run_post_extraction_cleaning).parameters
+    )
     batches = getattr(args, "batches", None)  # None means "process all available"
     per_batch = getattr(args, "limit", 10)
     exhaust_queue = getattr(args, "exhaust_queue", True)  # Default to exhausting queue
@@ -314,20 +317,20 @@ def handle_extraction_command(args) -> int:
     else:
         print(f"   Batches: {batches}")
     print(f"   Articles per batch: {per_batch}")
-    
+
     # Create DatabaseManager early to analyze dataset
     try:
         db = DatabaseManager()
     except Exception:
         logger.exception("Failed to initialize database connection")
         return 1
-    
+
     # Resolve dataset parameter to UUID for consistent querying
     dataset_uuid = None
     if getattr(args, "dataset", None):
         try:
             from src.utils.dataset_utils import resolve_dataset_id
-            
+
             dataset_uuid = resolve_dataset_id(db.engine, args.dataset)
             logger.info(
                 "Resolved dataset '%s' to UUID: %s",
@@ -341,7 +344,7 @@ def handle_extraction_command(args) -> int:
             logger.error("Dataset resolution failed: %s", e)
             print(f"❌ Error: {e}")
             return 1
-    
+
     # Analyze dataset domain structure upfront
     domain_analysis = _analyze_dataset_domains(args, db.session)
     if domain_analysis["unique_domains"] > 0:
@@ -369,8 +372,7 @@ def handle_extraction_command(args) -> int:
                 f"({domain_analysis['unique_domains']} domains)"
             )
             print(
-                "   Sample domains: "
-                f"{', '.join(domain_analysis['sample_domains'])}"
+                "   Sample domains: " f"{', '.join(domain_analysis['sample_domains'])}"
             )
         else:
             print("   ✓ Good domain diversity for rotation")
@@ -392,19 +394,19 @@ def handle_extraction_command(args) -> int:
         domains_for_cleaning = defaultdict(list)
         batch_num = 0
         total_processed = 0
-        
+
         # Store whether we detected single-domain dataset
         is_single_domain_dataset = domain_analysis.get("is_single_domain", False)
-        
-    # Continue processing batches until no articles remain
-    # (or the batch limit is reached when explicitly requested)
+
+        # Continue processing batches until no articles remain
+        # (or the batch limit is reached when explicitly requested)
         while True:
             batch_num += 1
-            
+
             # If batches specified and exhaust_queue is False, respect the limit
             if batches is not None and not exhaust_queue and batch_num > batches:
                 break
-            
+
             # Apply batch size jitter when configured
             # (e.g., BATCH_SIZE_JITTER=0.33 means ±33%)
             batch_size_jitter = float(os.getenv("BATCH_SIZE_JITTER", "0.0"))
@@ -416,7 +418,7 @@ def handle_extraction_command(args) -> int:
                 )
             else:
                 batch_size = per_batch
-            
+
             print(f"📄 Processing batch {batch_num} ({batch_size} articles)...")
             process_kwargs = {"db": db} if process_accepts_db else {}
             result = _process_batch(
@@ -430,17 +432,17 @@ def handle_extraction_command(args) -> int:
                 domains_for_cleaning,
                 **process_kwargs,
             )
-            
-            articles_processed = result['processed']
+
+            articles_processed = result["processed"]
             total_processed += articles_processed
-            
+
             # Query remaining articles for progress visibility
             try:
                 # Expire all objects and close transaction to get fresh count
                 db.session.expire_all()
                 db.session.commit()
                 db.session.close()
-                
+
                 # Build count query matching the extraction filters
                 dataset_uuid = getattr(args, "dataset", None)
                 if dataset_uuid:
@@ -453,9 +455,10 @@ def handle_extraction_command(args) -> int:
                         "(SELECT candidate_link_id FROM articles "
                         "WHERE candidate_link_id IS NOT NULL)"
                     )
-                    remaining_count = db.session.execute(
-                        query, {"dataset": dataset_uuid}
-                    ).scalar() or 0
+                    remaining_count = (
+                        db.session.execute(query, {"dataset": dataset_uuid}).scalar()
+                        or 0
+                    )
                 else:
                     # Count across all cron-enabled datasets
                     query = text(
@@ -468,38 +471,39 @@ def handle_extraction_command(args) -> int:
                         "WHERE candidate_link_id IS NOT NULL)"
                     )
                     remaining_count = db.session.execute(query).scalar() or 0
-                
+
                 print(
                     f"✓ Batch {batch_num} complete: {articles_processed} "
                     f"articles extracted ({remaining_count} remaining "
                     f"with status='article')"
                 )
-                
+
                 # Get and display status breakdown
                 status_counts = _get_status_counts(args, db.session)
                 if status_counts:
                     # Focus on key statuses
                     key_statuses = [
-                        'article', 'extracted', 'wire', 'obituary', 'opinion'
+                        "article",
+                        "extracted",
+                        "wire",
+                        "obituary",
+                        "opinion",
                     ]
                     status_parts = []
                     for status in key_statuses:
                         if status in status_counts:
                             count_str = f"{status}={status_counts[status]:,}"
                             status_parts.append(count_str)
-                    
+
                     if status_parts:
                         print(f"  📊 Status breakdown: {', '.join(status_parts)}")
                         status_dict = {
-                            k: v for k, v in status_counts.items()
-                            if k in key_statuses
+                            k: v for k, v in status_counts.items() if k in key_statuses
                         }
                         logger.info(
-                            "Batch %d status counts: %s",
-                            batch_num,
-                            status_dict
+                            "Batch %d status counts: %s", batch_num, status_dict
                         )
-                    
+
             except Exception as e:
                 # Fallback if query fails
                 logger.warning("Failed to get status counts: %s", e)
@@ -507,26 +511,26 @@ def handle_extraction_command(args) -> int:
                     f"✓ Batch {batch_num} complete: "
                     f"{articles_processed} articles extracted"
                 )
-            
-            if result.get('skipped_domains', 0) > 0:
+
+            if result.get("skipped_domains", 0) > 0:
                 print(
                     f"  ⚠️  {result['skipped_domains']} domains "
                     f"skipped due to rate limits"
                 )
             logger.info(f"Batch {batch_num}: {result}")
-            
+
             # Stop if no articles were processed (queue is empty)
             if articles_processed == 0:
                 print("📭 No more articles available to extract")
                 break
-            
+
             # Smart batch sleep: pause when we repeatedly hit the same domain.
             # When domains rotate, per-domain rate limiting avoids the need to pause.
-            domains_processed = result.get('domains_processed', [])
-            same_domain_consecutive = result.get('same_domain_consecutive', 0)
+            domains_processed = result.get("domains_processed", [])
+            same_domain_consecutive = result.get("same_domain_consecutive", 0)
             unique_domains = len(set(domains_processed)) if domains_processed else 0
-            skipped_domains = result.get('skipped_domains', 0)
-            
+            skipped_domains = result.get("skipped_domains", 0)
+
             # Apply long batch sleep if:
             # 1. Dataset was pre-identified as single-domain (most reliable)
             # 2. Same domain hit repeatedly (exhausted rotation), OR
@@ -538,7 +542,7 @@ def handle_extraction_command(args) -> int:
                 or same_domain_consecutive >= max_same_domain
                 or unique_domains <= 1
             )
-            
+
             if needs_long_pause:
                 batch_sleep = float(os.getenv("BATCH_SLEEP_SECONDS", "0.1"))
                 if batch_sleep > 0:
@@ -547,12 +551,11 @@ def handle_extraction_command(args) -> int:
                     if batch_jitter > 0:
                         jitter_amount = batch_sleep * batch_jitter
                         actual_sleep = random.uniform(
-                            batch_sleep - jitter_amount,
-                            batch_sleep + jitter_amount
+                            batch_sleep - jitter_amount, batch_sleep + jitter_amount
                         )
                     else:
                         actual_sleep = batch_sleep
-                    
+
                     # Determine reason for long pause
                     if is_single_domain_dataset:
                         reason = "single-domain dataset"
@@ -560,7 +563,7 @@ def handle_extraction_command(args) -> int:
                         reason = f"same domain hit {same_domain_consecutive} times"
                     else:
                         reason = "single-domain batch"
-                    
+
                     print(
                         f"   ⏸️  {reason.capitalize()} - "
                         f"waiting {actual_sleep:.0f}s..."
@@ -668,7 +671,7 @@ def _process_batch(
         # Request more articles than we need to allow for domain skipping
         buffer_multiplier = 3
         params = {"limit_with_buffer": per_batch * buffer_multiplier}
-        
+
         # Add dataset filter if specified (dataset is already resolved to UUID)
         if getattr(args, "dataset", None):
             q = q.replace(
@@ -688,7 +691,7 @@ def _process_batch(
                          SELECT id FROM datasets WHERE cron_enabled IS TRUE
                      ))""",
             )
-        
+
         # Add source filter if specified
         if getattr(args, "source", None):
             if "cl.dataset_id" in q:
@@ -772,7 +775,7 @@ def _process_batch(
                     domain_article_count[domain] = (
                         domain_article_count.get(domain, 0) + 1
                     )
-                    
+
                     # Track domain rotation
                     if domain != last_domain:
                         if domain not in domains_processed:
@@ -781,7 +784,7 @@ def _process_batch(
                         last_domain = domain
                     else:
                         same_domain_consecutive += 1
-                    
+
                     # Reset failure count on success
                     if domain in domain_failures:
                         domain_failures[domain] = 0
@@ -916,11 +919,9 @@ def _process_batch(
                     # skipped domains immediately
                     error_msg = content.get("error", "") if content else ""
                     http_status = content.get("http_status") if content else None
-                    is_rate_limit = (
-                        "Rate limited" in error_msg or "429" in error_msg
-                    )
+                    is_rate_limit = "Rate limited" in error_msg or "429" in error_msg
                     is_bot_protection = http_status == 403
-                    
+
                     if is_rate_limit or is_bot_protection:
                         logger.warning(
                             "Rate limit/bot protection (%s) for %s; "
@@ -959,13 +960,9 @@ def _process_batch(
             except Exception as e:
                 # Check for rate limit or bot protection in exception
                 error_str = str(e)
-                is_rate_limit = (
-                    "Rate limited" in error_str or "429" in error_str
-                )
-                is_bot_protection = (
-                    "403" in error_str or "Forbidden" in error_str
-                )
-                
+                is_rate_limit = "Rate limited" in error_str or "429" in error_str
+                is_bot_protection = "403" in error_str or "Forbidden" in error_str
+
                 if is_rate_limit or is_bot_protection:
                     logger.warning(
                         "Rate limit/bot protection exception for %s, "
@@ -1097,8 +1094,7 @@ def _run_post_extraction_cleaning(domains_to_articles, db=None):
     if cleaner_signature is not None:
         params = cleaner_signature.parameters
         supports_kwargs = any(
-            param.kind == inspect.Parameter.VAR_KEYWORD
-            for param in params.values()
+            param.kind == inspect.Parameter.VAR_KEYWORD for param in params.values()
         )
 
         if "enable_telemetry" in params or supports_kwargs:
@@ -1126,8 +1122,7 @@ def _run_post_extraction_cleaning(domains_to_articles, db=None):
                 error_str = str(e)
                 if "no such table: articles" in error_str:
                     logger.debug(
-                        "Skipping domain analysis for %s (table doesn't exist)",
-                        domain
+                        "Skipping domain analysis for %s (table doesn't exist)", domain
                     )
                 else:
                     logger.warning(
@@ -1268,7 +1263,7 @@ def _run_article_entity_extraction(article_ids: Iterable[str], db=None) -> None:
         attach_gazetteer_matches,
         get_gazetteer_rows,
     )
-    
+
     ids = {article_id for article_id in article_ids if article_id}
     if not ids:
         return

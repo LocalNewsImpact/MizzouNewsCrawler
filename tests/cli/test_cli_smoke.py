@@ -470,7 +470,7 @@ def test_main_dispatch_handles_missing_command(monkeypatch, capsys):
 
     assert exit_code == 1
     # New CLI shows command list instead of generic usage
-    assert ("discover-urls" in captured.out or "load-sources" in captured.out)
+    assert "discover-urls" in captured.out or "load-sources" in captured.out
 
 
 def test_main_dispatch_invokes_discover_urls(monkeypatch):

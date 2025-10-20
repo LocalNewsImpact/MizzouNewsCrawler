@@ -48,27 +48,29 @@ def _determine_default_database_url() -> str:
             # Cloud SQL Connector handles connection
             # Telemetry needs a postgres URL for schema compatibility
             from urllib.parse import quote_plus
+
             user = quote_plus(DATABASE_USER)
             password = quote_plus(DATABASE_PASSWORD) if DATABASE_PASSWORD else ""
             auth = f"{user}:{password}" if password else user
             # Use instance name as host for telemetry (actual connection via connector)
             db_url = f"postgresql://{auth}@/{DATABASE_NAME}"
             return db_url
-        
+
         # If DATABASE_URL is already PostgreSQL, use it
         if CONFIG_DATABASE_URL and CONFIG_DATABASE_URL.startswith("postgresql"):
             return CONFIG_DATABASE_URL
-        
+
         # Try to build from individual components
         if DATABASE_HOST and DATABASE_USER and DATABASE_NAME:
             from urllib.parse import quote_plus
+
             user = quote_plus(DATABASE_USER)
             password = quote_plus(DATABASE_PASSWORD) if DATABASE_PASSWORD else ""
             auth = f"{user}:{password}" if password else user
             engine = DATABASE_ENGINE or "postgresql"
             db_url = f"{engine}://{auth}@{DATABASE_HOST}/{DATABASE_NAME}"
             return db_url
-            
+
     except Exception as e:
         logging.debug(
             f"Could not determine PostgreSQL URL from config: {e}. "
@@ -103,54 +105,54 @@ def _mask_database_url(url: str | None) -> str:
 
 class _ConnectionWrapper:
     """Wrapper that makes SQLAlchemy Connection behave like sqlite3.Connection.
-    
+
     This provides backward compatibility for telemetry code that expects
     sqlite3-style execute() calls with ? placeholders.
     """
-    
+
     def __init__(self, sqlalchemy_conn: Connection):
         self._conn = sqlalchemy_conn
         self._in_transaction = False
-    
+
     def execute(self, sql: str, parameters: tuple | None = None):
         """Execute SQL with sqlite3-style ? placeholders."""
         # Wrap raw SQL in text() for SQLAlchemy
         if parameters:
             # Convert tuple parameters to dict for SQLAlchemy
             # Count ? placeholders and create param dict
-            param_count = sql.count('?')
+            param_count = sql.count("?")
             if param_count > 0 and parameters:
                 # Replace ? with :param0, :param1, etc.
                 adapted_sql = sql
                 params_dict = {}
                 for i, value in enumerate(parameters):
-                    adapted_sql = adapted_sql.replace('?', f':param{i}', 1)
-                    params_dict[f'param{i}'] = value
+                    adapted_sql = adapted_sql.replace("?", f":param{i}", 1)
+                    params_dict[f"param{i}"] = value
                 result = self._conn.execute(text(adapted_sql), params_dict)
             else:
                 result = self._conn.execute(text(sql), parameters)
         else:
             result = self._conn.execute(text(sql))
-        
+
         # Wrap result to provide sqlite3-like interface
         return _ResultWrapper(result)
-    
+
     def cursor(self):
         """Return a cursor-like object for compatibility."""
         return _CursorWrapper(self._conn)
-    
+
     def commit(self):
         """Commit the transaction."""
         if self._in_transaction:
             self._conn.commit()
             self._in_transaction = False
-    
+
     def rollback(self):
         """Rollback the transaction."""
         if self._in_transaction:
             self._conn.rollback()
             self._in_transaction = False
-    
+
     def close(self):
         """Close the connection."""
         self._conn.close()
@@ -158,13 +160,13 @@ class _ConnectionWrapper:
 
 class _CursorWrapper:
     """Wrapper that makes SQLAlchemy Connection act like a cursor."""
-    
+
     def __init__(self, sqlalchemy_conn: Connection):
         self._conn = sqlalchemy_conn
         self._last_result = None
         self._result_wrapper = None
         self._rowcount: int = -1
-    
+
     def execute(self, sql: str, parameters: tuple | dict | None = None):
         """Execute SQL with sqlite3-style ? placeholders or :named placeholders."""
         if parameters:
@@ -175,32 +177,32 @@ class _CursorWrapper:
                 # Positional parameters: Replace ? with :param0, :param1, etc.
                 adapted_sql = sql
                 params_dict = {}
-                param_count = sql.count('?')
+                param_count = sql.count("?")
                 for i in range(param_count):
                     if i < len(parameters):
-                        adapted_sql = adapted_sql.replace('?', f':param{i}', 1)
-                        params_dict[f'param{i}'] = parameters[i]
+                        adapted_sql = adapted_sql.replace("?", f":param{i}", 1)
+                        params_dict[f"param{i}"] = parameters[i]
                 self._last_result = self._conn.execute(text(adapted_sql), params_dict)
         else:
             self._last_result = self._conn.execute(text(sql))
-        
+
         # Create a wrapper that provides sqlite3-like cursor behavior
         self._result_wrapper = _ResultWrapper(self._last_result)
         self._rowcount = getattr(self._last_result, "rowcount", -1)
         return self._result_wrapper
-    
+
     def fetchone(self):
         """Fetch one row from the last executed statement."""
         if self._result_wrapper is None:
             return None
         return self._result_wrapper.fetchone()
-    
+
     def fetchall(self):
         """Fetch all rows from the last executed statement."""
         if self._result_wrapper is None:
             return []
         return self._result_wrapper.fetchall()
-    
+
     @property
     def rowcount(self) -> int:
         """Return the rowcount of the last executed statement."""
@@ -218,17 +220,17 @@ class _CursorWrapper:
 
 class _ResultWrapper:
     """Wrapper that makes SQLAlchemy CursorResult behave like sqlite3.Cursor."""
-    
+
     def __init__(self, result):
         self._result = result
         self._cached_description = None
-    
+
     @property
     def description(self):
         """Provide sqlite3-style description attribute."""
         if self._cached_description is None:
             # Get column names from the result
-            if hasattr(self._result, 'keys'):
+            if hasattr(self._result, "keys"):
                 keys = self._result.keys()
                 # Format as [(name, None, None, None, None, None, None), ...]
                 # to match sqlite3.Cursor.description format
@@ -238,18 +240,18 @@ class _ResultWrapper:
             else:
                 self._cached_description = []
         return self._cached_description
-    
+
     def fetchone(self):
         """Fetch one row."""
         return self._result.fetchone()
-    
+
     def fetchall(self):
         """Fetch all rows."""
         return self._result.fetchall()
-    
+
     def close(self):
         """Close the result."""
-        if hasattr(self._result, 'close'):
+        if hasattr(self._result, "close"):
             self._result.close()
 
 
@@ -278,7 +280,7 @@ def _configure_sqlite_engine(engine: Engine, timeout: float) -> None:
 
 class TelemetryStore:
     """Centralized queue + connection manager for telemetry writers.
-    
+
     Supports both SQLite (local development) and PostgreSQL (Cloud SQL)
     via SQLAlchemy. Maintains backward compatibility with the original
     sqlite3-based interface.
@@ -299,7 +301,7 @@ class TelemetryStore:
         self.async_writes = async_writes
         self.timeout = timeout
         self._logger = logging.getLogger(__name__)
-        
+
         # Use provided engine or create new one
         if engine is not None:
             self._engine = engine
@@ -307,7 +309,7 @@ class TelemetryStore:
         else:
             self._engine = self._create_engine()
             self._owns_engine = True
-        
+
         self._is_sqlite = "sqlite" in self.database_url.lower()
         self._is_postgres = "postgres" in self.database_url.lower()
 
@@ -328,21 +330,21 @@ class TelemetryStore:
             self._writer_thread.start()
             self._owns_thread = True
             atexit.register(self.shutdown)
-    
+
     def _create_engine(self) -> Engine:
         """Create SQLAlchemy engine based on database URL."""
         # Check if Cloud SQL connector should be used
         if self._should_use_cloud_sql_connector():
             return self._create_cloud_sql_engine()
-        
+
         connect_args: dict[str, Any] = {}
-        
+
         if "sqlite" in self.database_url:
             connect_args = {
                 "check_same_thread": False,
                 "timeout": self.timeout,
             }
-        
+
         # Use NullPool for async writes to avoid connection pool issues
         engine = create_engine(
             self.database_url,
@@ -350,13 +352,13 @@ class TelemetryStore:
             poolclass=NullPool if self.async_writes else None,
             echo=False,
         )
-        
+
         # Configure SQLite-specific settings
         if "sqlite" in self.database_url:
             _configure_sqlite_engine(engine, self.timeout)
-        
+
         return engine
-    
+
     def _should_use_cloud_sql_connector(self) -> bool:
         """Determine if Cloud SQL Python Connector should be used."""
         import os
@@ -364,17 +366,18 @@ class TelemetryStore:
         # Only use for PostgreSQL URLs
         if "postgres" not in self.database_url:
             return False
-        
+
         # Check environment variable
         if os.getenv("USE_CLOUD_SQL_CONNECTOR", "").lower() in ("false", "0", "no"):
             return False
-        
+
         try:
             from src.config import CLOUD_SQL_INSTANCE, USE_CLOUD_SQL_CONNECTOR
+
             return USE_CLOUD_SQL_CONNECTOR and bool(CLOUD_SQL_INSTANCE)
         except ImportError:
             return False
-    
+
     def _create_cloud_sql_engine(self) -> Engine:
         """Create database engine using Cloud SQL Python Connector."""
         try:
@@ -385,9 +388,9 @@ class TelemetryStore:
                 DATABASE_USER,
             )
             from src.models.cloud_sql_connector import create_cloud_sql_engine
-            
+
             self._logger.info("TelemetryStore using Cloud SQL Python Connector")
-            
+
             return create_cloud_sql_engine(
                 instance_connection_name=CLOUD_SQL_INSTANCE,
                 user=DATABASE_USER,
@@ -400,7 +403,8 @@ class TelemetryStore:
         except Exception as e:
             self._logger.warning(
                 "Failed to create Cloud SQL connector for telemetry, "
-                "falling back to direct connection: %s", e
+                "falling back to direct connection: %s",
+                e,
             )
             # Fall back to the original database URL
             return create_engine(
@@ -419,7 +423,7 @@ class TelemetryStore:
         ensure: Sequence[str] | None = None,
     ) -> None:
         """Submit a task to be executed against the database.
-        
+
         Args:
             task: Callable that accepts a connection-like object with execute() method
             ensure: Optional list of DDL statements to execute before task
@@ -437,7 +441,7 @@ class TelemetryStore:
 
     def shutdown(self, wait: bool = False) -> None:
         """Shutdown the async writer thread.
-        
+
         Args:
             wait: If True, wait for pending writes to complete before shutdown
         """
@@ -451,15 +455,15 @@ class TelemetryStore:
         if self._writer_thread:
             self._writer_thread.join(timeout=5)
         self._owns_thread = False
-        
+
         # Only dispose engine if we created it
-        if hasattr(self, '_engine') and self._owns_engine:
+        if hasattr(self, "_engine") and self._owns_engine:
             self._engine.dispose()
 
     @contextmanager
     def connection(self) -> Iterator[Any]:
         """Context manager for database connections.
-        
+
         Yields:
             Connection wrapper that provides sqlite3.Connection-compatible API
         """
@@ -474,7 +478,7 @@ class TelemetryStore:
     # ------------------------------------------------------------------
     def _create_connection(self) -> _ConnectionWrapper:
         """Create a database connection.
-        
+
         Returns wrapped SQLAlchemy Connection that provides backward compatibility
         with sqlite3.Connection API.
         """
@@ -484,13 +488,9 @@ class TelemetryStore:
         wrapper._in_transaction = True
         return wrapper
 
-    def _ensure_schema(
-        self,
-        conn: Any,
-        ddls: Sequence[str]
-    ) -> None:
+    def _ensure_schema(self, conn: Any, ddls: Sequence[str]) -> None:
         """Execute DDL statements to ensure schema exists.
-        
+
         Args:
             conn: Database connection wrapper
             ddls: List of DDL statements to execute
@@ -503,43 +503,43 @@ class TelemetryStore:
                 if ddl not in self._ddl_cache:
                     # Adapt DDL for PostgreSQL if needed
                     adapted_ddl = self._adapt_ddl(ddl)
-                    
+
                     # Execute using cursor for DDL
                     cursor = conn.cursor()
                     try:
                         cursor.execute(adapted_ddl)
                     finally:
                         cursor.close()
-                    
+
                     self._ddl_cache.add(ddl)
-    
+
     def _adapt_ddl(self, ddl: str) -> str:
         """Adapt DDL statement for the target database dialect.
-        
+
         Args:
             ddl: Original DDL statement (typically SQLite syntax)
-            
+
         Returns:
             Adapted DDL statement for the target database
         """
         if self._is_postgres:
             # Convert SQLite-specific syntax to PostgreSQL
             adapted = ddl
-            
+
             # Replace AUTOINCREMENT with SERIAL
             adapted = adapted.replace("AUTOINCREMENT", "")
             adapted = adapted.replace("INTEGER PRIMARY KEY", "SERIAL PRIMARY KEY")
-            
+
             # PostgreSQL uses BOOLEAN not BOOLEAN
             # (already compatible, but ensure consistency)
-            
+
             # Replace TIMESTAMP without timezone to use WITH TIME ZONE
             # Only if not already specified
             if "TIMESTAMP" in adapted and "TIME ZONE" not in adapted:
                 adapted = adapted.replace("TIMESTAMP", "TIMESTAMP")
-            
+
             return adapted
-        
+
         return ddl
 
     def _execute(
@@ -547,7 +547,7 @@ class TelemetryStore:
         job: tuple[Callable[[Any], None], tuple[str, ...]],
     ) -> None:
         """Execute a task with optional schema setup.
-        
+
         Args:
             job: Tuple of (task_callable, ddl_statements)
         """
@@ -556,20 +556,20 @@ class TelemetryStore:
         try:
             if ddls:
                 self._ensure_schema(conn, ddls)
-            
+
             # Execute the task
             task(conn)
-            
+
             # Commit the transaction
             conn.commit()
-                
+
         except Exception as exc:  # pragma: no cover - logged for diagnosis
             # Rollback on error
             try:
                 conn.rollback()
             except Exception:
                 pass
-            
+
             self._logger.exception("Telemetry write failed", exc_info=exc)
             raise
         finally:
@@ -589,7 +589,7 @@ class TelemetryStore:
                 # Log and continue - don't let the background thread die
                 self._logger.exception(
                     "Telemetry background thread caught exception, continuing",
-                    exc_info=exc
+                    exc_info=exc,
                 )
             finally:
                 self._queue.task_done()
@@ -605,12 +605,12 @@ def get_store(
     engine: Engine | None = None,
 ) -> TelemetryStore:
     """Return a process-wide shared telemetry store.
-    
+
     Args:
         database: Database URL (used if engine not provided)
         engine: Optional existing SQLAlchemy engine to reuse
                 (avoids creating new connections, required for Cloud SQL Connector)
-    
+
     Returns:
         Shared TelemetryStore instance
     """

@@ -64,9 +64,7 @@ def create_cloud_sql_engine(
             "Install with: pip install cloud-sql-python-connector[pg8000]"
         ) from e
 
-    logger.info(
-        f"Creating Cloud SQL engine for instance: {instance_connection_name}"
-    )
+    logger.info(f"Creating Cloud SQL engine for instance: {instance_connection_name}")
 
     # Initialize Cloud SQL Python Connector (singleton pattern)
     # Reuse the same connector across all connections to prevent
@@ -75,7 +73,7 @@ def create_cloud_sql_engine(
     if _GLOBAL_CONNECTOR is None:
         logger.info("Initializing global Cloud SQL connector (first use)")
         _GLOBAL_CONNECTOR = Connector()
-        
+
         # Register cleanup handler to close connector on application exit
         def cleanup_connector():
             global _GLOBAL_CONNECTOR
@@ -86,10 +84,10 @@ def create_cloud_sql_engine(
                 except Exception as e:
                     logger.warning(f"Error closing connector: {e}")
                 _GLOBAL_CONNECTOR = None
-        
+
         atexit.register(cleanup_connector)
         logger.info("Registered connector cleanup handler")
-    
+
     connector = _GLOBAL_CONNECTOR
 
     def getconn():

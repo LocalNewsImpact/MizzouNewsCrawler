@@ -13,11 +13,11 @@ class EchoHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         qs = parse_qs(parsed.query)
         # Respond with the proxied url and auth header presence
-        auth = self.headers.get('Authorization')
+        auth = self.headers.get("Authorization")
         body = f"path={parsed.path}&q={qs.get('url')}&auth={bool(auth)}"
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(body.encode('utf-8'))
+        self.wfile.write(body.encode("utf-8"))
 
     def log_message(self, format, *args):
         return
@@ -28,26 +28,26 @@ def run_server(server):
 
 
 def test_integration_origin_proxy(monkeypatch):
-    server = HTTPServer(('127.0.0.1', 0), EchoHandler)
+    server = HTTPServer(("127.0.0.1", 0), EchoHandler)
     port = server.server_address[1]
     t = threading.Thread(target=run_server, args=(server,), daemon=True)
     t.start()
 
     s = requests.Session()
     # fake the original request to go to the http server
-    monkeypatch.setenv('USE_ORIGIN_PROXY', '1')
-    monkeypatch.setenv('ORIGIN_PROXY_URL', f'http://127.0.0.1:{port}')
-    monkeypatch.setenv('PROXY_USERNAME', 'u')
-    monkeypatch.setenv('PROXY_PASSWORD', 'p')
+    monkeypatch.setenv("USE_ORIGIN_PROXY", "1")
+    monkeypatch.setenv("ORIGIN_PROXY_URL", f"http://127.0.0.1:{port}")
+    monkeypatch.setenv("PROXY_USERNAME", "u")
+    monkeypatch.setenv("PROXY_PASSWORD", "p")
 
     enable_origin_proxy(s)
 
-    r = s.get('https://example.com/somepath')
+    r = s.get("https://example.com/somepath")
     assert r.status_code == 200
     text = r.text
     # ensure proxied URL and auth indicator present
-    assert 'example.com/somepath' in text
-    assert 'auth=True' in text
+    assert "example.com/somepath" in text
+    assert "auth=True" in text
 
     disable_origin_proxy(s)
     server.shutdown()

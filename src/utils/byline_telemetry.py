@@ -46,11 +46,12 @@ class BylineCleaningTelemetry:
         """Lazy-load the store only when needed."""
         if not self.enable_telemetry:
             raise RuntimeError("Telemetry is disabled")
-        
+
         if self._store is None:
             # Use DatabaseManager's engine if available (for Cloud SQL)
             try:
                 from src.models.database import DatabaseManager
+
                 db = DatabaseManager()
                 self._store = get_store(self._database_url, engine=db.engine)
             except Exception:
@@ -67,7 +68,7 @@ class BylineCleaningTelemetry:
         except RuntimeError:
             # Telemetry disabled or not supported (e.g., PostgreSQL)
             return
-        
+
         with store.connection() as conn:
             conn.execute(
                 """
@@ -435,7 +436,7 @@ class BylineCleaningTelemetry:
             pass
         except Exception as exc:  # pragma: no cover - telemetry best effort
             # Get just the exception type and first line of message
-            exc_msg = str(exc).split('\n')[0][:80]
+            exc_msg = str(exc).split("\n")[0][:80]
             exc_name = type(exc).__name__
             print(f"Warning: Failed telemetry: {exc_name}: {exc_msg}")
             # Don't fail the cleaning process due to telemetry issues

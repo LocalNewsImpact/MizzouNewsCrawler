@@ -24,9 +24,7 @@ from src.utils.telemetry import DiscoveryMethod, OperationTracker
 # Skip entire file - uses PostgreSQL-specific SQL (DISTINCT ON)
 # that doesn't work in SQLite.
 # Related to Issue #71 - Complete Cloud SQL Migration (30% remaining)
-pytestmark = pytest.mark.skip(
-    reason="Uses PostgreSQL DISTINCT ON syntax - Issue #71"
-)
+pytestmark = pytest.mark.skip(reason="Uses PostgreSQL DISTINCT ON syntax - Issue #71")
 
 
 @dataclass

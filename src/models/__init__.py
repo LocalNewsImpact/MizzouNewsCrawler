@@ -662,20 +662,20 @@ def create_database_engine(database_url: str = "sqlite:///data/mizzou.db"):
 
 def create_engine_from_env():
     """Create SQLAlchemy engine from DATABASE_URL environment variable.
-    
+
     This is the recommended way to create database engines in the application,
     as it respects the centralized configuration in src/config.py.
-    
+
     Returns:
         Engine: Configured SQLAlchemy engine
-    
+
     Example:
         >>> from src.models import create_engine_from_env, create_tables
         >>> engine = create_engine_from_env()
         >>> create_tables(engine)
     """
     from src.config import DATABASE_URL
-    
+
     return create_database_engine(DATABASE_URL)
 
 

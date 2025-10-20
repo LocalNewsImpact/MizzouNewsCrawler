@@ -39,6 +39,7 @@ class TestDeploymentReadiness:
 
     def test_sqlite_backward_compatibility(self, sqlite_store):
         """Verify SQLite still works exactly as before (backward compatibility)."""
+
         # Test basic operations
         def _task(conn):
             conn.execute("INSERT INTO test_table(value) VALUES (?)", ("test_value",))
@@ -86,15 +87,13 @@ class TestDeploymentReadiness:
         # Test ComprehensiveExtractionTelemetry
         extraction_telemetry = ComprehensiveExtractionTelemetry(store=sqlite_store)
         metrics = ExtractionMetrics(
-            "test-op-1",
-            "test-article-2",
-            "https://test.com/article",
-            "test.com"
+            "test-op-1", "test-article-2", "https://test.com/article", "test.com"
         )
         metrics.http_status_code = 200
         metrics.successful_method = "newspaper"
         # Set end time instead of calling end_extraction
         from datetime import datetime
+
         metrics.end_time = datetime.utcnow()
         extraction_telemetry.record_extraction(metrics)
 
@@ -116,7 +115,8 @@ class TestDeploymentReadiness:
             assert count >= 1
 
     @pytest.mark.skipif(
-        not os.getenv("TEST_DATABASE_URL") or "postgres" not in os.getenv("TEST_DATABASE_URL", ""),
+        not os.getenv("TEST_DATABASE_URL")
+        or "postgres" not in os.getenv("TEST_DATABASE_URL", ""),
         reason="PostgreSQL not configured for testing",
     )
     def test_postgresql_basic_operations(self, postgres_url):
@@ -125,12 +125,15 @@ class TestDeploymentReadiness:
 
         # Clean up any existing test data
         import uuid
+
         table_name = f"test_deployment_{uuid.uuid4().hex[:8]}"
 
         try:
             # Create table and insert data
             def _task(conn):
-                conn.execute(f"INSERT INTO {table_name}(value) VALUES (?)", ("pg_test",))
+                conn.execute(
+                    f"INSERT INTO {table_name}(value) VALUES (?)", ("pg_test",)
+                )
 
             ddl = f"CREATE TABLE IF NOT EXISTS {table_name} (id SERIAL PRIMARY KEY, value TEXT)"
             store.submit(_task, ensure=[ddl])
@@ -152,7 +155,8 @@ class TestDeploymentReadiness:
                 pass
 
     @pytest.mark.skipif(
-        not os.getenv("TEST_DATABASE_URL") or "postgres" not in os.getenv("TEST_DATABASE_URL", ""),
+        not os.getenv("TEST_DATABASE_URL")
+        or "postgres" not in os.getenv("TEST_DATABASE_URL", ""),
         reason="PostgreSQL not configured for testing",
     )
     def test_postgresql_telemetry_classes(self, postgres_url):
@@ -207,7 +211,9 @@ class TestDeploymentReadiness:
         """Verify connection wrapper provides all expected features."""
         with sqlite_store.connection() as conn:
             # Test execute with parameters
-            conn.execute("CREATE TABLE IF NOT EXISTS test_features (id INTEGER, name TEXT)")
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS test_features (id INTEGER, name TEXT)"
+            )
             conn.execute("INSERT INTO test_features VALUES (?, ?)", (1, "test"))
 
             # Test cursor interface
@@ -235,9 +241,7 @@ class TestDeploymentReadiness:
         done = threading.Event()
 
         def _task(conn):
-            conn.execute(
-                "CREATE TABLE IF NOT EXISTS test_async (value TEXT)"
-            )
+            conn.execute("CREATE TABLE IF NOT EXISTS test_async (value TEXT)")
             conn.execute("INSERT INTO test_async VALUES (?)", ("async_test",))
             done.set()
 
@@ -268,16 +272,16 @@ class TestMigrationCompletion:
         # Check byline_telemetry.py
         byline_file = Path("src/utils/byline_telemetry.py")
         byline_content = byline_file.read_text()
-        assert "does not support PostgreSQL" not in byline_content, (
-            "PostgreSQL blocking check still exists in byline_telemetry"
-        )
+        assert (
+            "does not support PostgreSQL" not in byline_content
+        ), "PostgreSQL blocking check still exists in byline_telemetry"
 
         # Check content_cleaning_telemetry.py
         content_file = Path("src/utils/content_cleaning_telemetry.py")
         content_content = content_file.read_text()
-        assert "does not support PostgreSQL" not in content_content, (
-            "PostgreSQL blocking check still exists in content_cleaning_telemetry"
-        )
+        assert (
+            "does not support PostgreSQL" not in content_content
+        ), "PostgreSQL blocking check still exists in content_cleaning_telemetry"
 
     def test_alembic_migration_exists(self):
         """Verify Alembic migration for telemetry tables exists."""
