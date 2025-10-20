@@ -304,7 +304,7 @@ class TelemetryContentExtractor:
 
     def _analyze_field_quality(self, content_data: dict[str, Any]) -> dict[str, Any]:
         """Perform detailed quality analysis for each extracted field."""
-        quality_analysis = {
+        quality_analysis: dict[str, Any] = {
             "title_quality_issues": [],
             "content_quality_issues": [],
             "author_quality_issues": [],

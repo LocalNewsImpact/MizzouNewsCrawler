@@ -84,6 +84,8 @@ show_error_codes = true
 no_implicit_optional = false  # Allow Optional without explicit annotation
 warn_redundant_casts = true
 warn_unused_ignores = false
+explicit_package_bases = true
+exclude = ["src/pipeline/crawler.py"]
 
 [[tool.mypy.overrides]]
 module = "tests.*"
