@@ -545,7 +545,7 @@ def handle_extraction_command(args) -> int:
                     # Apply jitter to batch sleep
                     batch_jitter = float(os.getenv("BATCH_SLEEP_JITTER", "0.0"))
                     if batch_jitter > 0:
-                        jitter_amount = batch_sleep * batch_jitter
+                        jitter_amount: float = batch_sleep * batch_jitter
                         actual_sleep = random.uniform(
                             batch_sleep - jitter_amount,
                             batch_sleep + jitter_amount

@@ -45,7 +45,7 @@ except ImportError:
 try:
     from dateutil.parser import parse as _parse_date
 except Exception:
-    _parse_date = None
+    _parse_date = None  # type: ignore[assignment]
 
 from src.utils.discovery_outcomes import DiscoveryResult
 from src.utils.telemetry import (
@@ -1380,6 +1380,8 @@ class NewsDiscovery:
                     meta = {}
                 elif isinstance(item, dict):
                     url = item.get("url")
+                    if not url:
+                        continue
                     meta = item
                 else:
                     continue
@@ -1669,7 +1671,7 @@ class NewsDiscovery:
                                 )
                             if freq:
                                 parsed = parse_frequency_to_days(freq)
-                                recent_activity_days = max(1, parsed * 3)
+                                recent_activity_days = max(1, int(parsed * 3))
                         except Exception:
                             recent_activity_days = 90
 

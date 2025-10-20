@@ -55,10 +55,10 @@ class ExtractionMetrics:
         self.total_duration_ms = 0
 
         # HTTP metrics
-        self.http_status_code = None
-        self.http_error_type = None
+        self.http_status_code: int | None = None
+        self.http_error_type: str | None = None
         self.response_size_bytes = 0
-        self.response_time_ms = 0
+        self.response_time_ms: float = 0.0
 
         # Method tracking
         self.methods_attempted: list[str] = []
