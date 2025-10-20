@@ -348,9 +348,9 @@ class BylineCleaningTelemetry:
                         source_name_removed, duplicates_removed_count,
                         likely_valid_authors, likely_noise,
                         requires_manual_review, cleaning_errors,
-                        parsing_warnings
+                        parsing_warnings, created_at
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         session["telemetry_id"],
@@ -380,6 +380,7 @@ class BylineCleaningTelemetry:
                         session.get("requires_manual_review"),
                         session.get("cleaning_errors"),
                         session.get("parsing_warnings"),
+                        datetime.utcnow(),
                     ),
                 )
 
