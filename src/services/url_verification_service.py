@@ -14,6 +14,7 @@ import time
 import uuid
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 # Add the src directory to the path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -253,7 +254,7 @@ class URLVerificationService:
     def generate_telemetry(self, batch_metrics: dict, candidates: list[dict]):
         """Generate telemetry data for this batch."""
         # Group candidates by source for telemetry
-        source_metrics = {}
+        source_metrics: dict[str, dict[str, Any]] = {}
         for candidate in candidates:
             source_name = candidate.get("source_name", "Unknown")
             if source_name not in source_metrics:

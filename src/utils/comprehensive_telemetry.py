@@ -51,7 +51,7 @@ class ExtractionMetrics:
 
         # Overall timing
         self.start_time = datetime.utcnow()
-        self.end_time = None
+        self.end_time: datetime | None = None
         self.total_duration_ms = 0
 
         # HTTP metrics
@@ -65,7 +65,7 @@ class ExtractionMetrics:
         self.method_timings: dict[str, float] = {}
         self.method_success: dict[str, bool] = {}
         self.method_errors: dict[str, str] = {}
-        self.successful_method = None
+        self.successful_method: str | None = None
 
         # Field extraction tracking
         self.field_extraction: dict[str, dict[str, Any]] = {}

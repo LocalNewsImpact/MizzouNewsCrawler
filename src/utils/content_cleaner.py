@@ -23,8 +23,8 @@ try:
     )
 except ImportError:
     # Handle case where ML module is not available
-    ContentCleaningMLFeatureExtractor = None
-    MLTrainingExample = None
+    ContentCleaningMLFeatureExtractor = None  # type: ignore[assignment,misc]
+    MLTrainingExample = None  # type: ignore[assignment,misc]
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +92,7 @@ class ContentCleaner:
         self.min_segment_length = min_segment_length
         self.min_occurrence_count = min_occurrence_count
         self.min_confidence_threshold = min_confidence_threshold
-        self.telemetry = None
+        self.telemetry: ContentCleaningTelemetry | None = None
 
     def start_telemetry(self, operation_id: str) -> ContentCleaningTelemetry:
         """Start telemetry tracking for this operation."""
