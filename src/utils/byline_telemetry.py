@@ -99,6 +99,10 @@ class BylineCleaningTelemetry:
                     requires_manual_review BOOLEAN,
                     cleaning_errors TEXT,
                     parsing_warnings TEXT,
+                    human_label TEXT,
+                    human_notes TEXT,
+                    reviewed_by TEXT,
+                    reviewed_at TIMESTAMP,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
                 """
