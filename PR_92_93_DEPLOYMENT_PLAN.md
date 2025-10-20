@@ -1,8 +1,9 @@
 # Deployment Plan: PR #92 & PR #93 - Telemetry Testing Improvements
 
 **Date**: October 20, 2025  
-**Status**: 🟡 READY FOR DEPLOYMENT  
+**Status**: 🟡 CI VALIDATION IN PROGRESS  
 **PRs**: #92 (Schema Drift Fixes) + #93 (Validation & ORM)
+**CI Run**: Triggered by commit 5efe15c on feature/gcp-kubernetes-deployment
 
 ## Overview
 
@@ -28,16 +29,33 @@ Both PRs add **testing and validation infrastructure** to prevent telemetry sche
 **Steps:**
 1. Merge PRs to feature branch ✅ (COMPLETED)
 2. Push to remote ✅ (COMPLETED)
-3. CI pipeline will automatically:
+3. Enable CI on feature branch ✅ (COMPLETED - commit 5efe15c)
+4. CI pipeline will automatically:
    - Run new PostgreSQL integration tests
    - Validate schema consistency
    - Run pre-commit hooks on future commits
 
+**⚠️ IMPORTANT - First-Time Validation:**
+The PostgreSQL integration tests added by PR #93 have NOT run yet because the original CI configuration only triggered on `main` branch. We just updated `.github/workflows/ci.yml` to include the feature branch.
+
 **Verification:**
 ```bash
-# Check CI pipeline passes with new jobs
-# View GitHub Actions for feature/gcp-kubernetes-deployment branch
+# Monitor CI pipeline run (REQUIRED before merge to main)
+# Navigate to: https://github.com/LocalNewsImpact/MizzouNewsCrawler/actions
+# Expected: All jobs pass including new postgres-integration job
+
+# Or check via CLI:
+gh run list --branch feature/gcp-kubernetes-deployment --limit 1
+
+# Watch live:
+gh run watch
 ```
+
+**Critical:** Wait for CI to pass before merging to main. This validates:
+- ✅ PostgreSQL integration tests work correctly
+- ✅ Schema validation passes
+- ✅ Alembic migrations apply successfully
+- ✅ All ORM tests pass against real PostgreSQL
 
 **Rollback**: Not needed (no production changes)
 
@@ -116,6 +134,11 @@ kubectl logs -n production -l app=mizzou-processor | grep "byline_cleaning_telem
 - [x] Documentation complete
 - [x] PRs merged to feature branch
 - [x] Changes pushed to remote
+- [ ] **CI pipeline passes on feature branch** ⚠️ IN PROGRESS
+  - PostgreSQL integration tests must pass
+  - Schema validation must pass
+  - All existing tests must pass
+  - **Status**: Triggered by commit 5efe15c, monitoring...
 
 ### Deployment Steps
 
@@ -274,8 +297,10 @@ kubectl rollout status deployment/mizzou-processor -n production
 | PRs Created | ✅ Complete | Oct 20, 2025 |
 | PRs Merged | ✅ Complete | Oct 20, 2025 |
 | Changes Pushed | ✅ Complete | Oct 20, 2025 |
-| CI Pipeline Active | ✅ Complete | Oct 20, 2025 |
+| CI Enabled on Feature Branch | ✅ Complete | Oct 20, 2025 (5efe15c) |
+| CI Pipeline Validation | 🟡 In Progress | Oct 20, 2025 |
 | Schema Fix Deployed | ✅ Complete | Oct 20, 2025 (fe9659f) |
+| Merge to Main | ⏳ Pending | After CI passes |
 | ORM Adoption | 📋 Future | TBD |
 
 ---
@@ -385,15 +410,33 @@ kubectl get pods -n production -l app=mizzou-processor
 
 ## Summary
 
-✅ **Deployment Status: COMPLETE**
+🟡 **Deployment Status: VALIDATION IN PROGRESS**
 
-These PRs add testing infrastructure with **zero production risk**. The changes are already active in CI/CD and the schema drift fix was deployed with fe9659f. ORM models are available but not yet used in production code paths.
+These PRs add testing infrastructure with **zero production risk**. The schema drift fix was deployed with fe9659f. We've now enabled CI on the feature branch to validate all changes before merging to main.
 
-**Key Points:**
+**Current Status:**
 - ✅ All changes non-breaking
 - ✅ Schema fix already deployed (fe9659f)
-- ✅ CI/CD enhancements active
-- ✅ Pre-commit hooks available
+- ✅ CI enabled on feature branch (5efe15c)
+- 🟡 CI validation in progress - **WAITING FOR RESULTS**
 - 📋 ORM adoption is future work
 
-**No further deployment action needed** - changes are live and working. Monitor CI pipeline and gather feedback for 1 week before planning ORM adoption.
+**Next Action Required:**
+Monitor GitHub Actions and wait for CI to pass. Once green, the feature branch can be safely merged to main.
+
+```bash
+# Check CI status:
+gh run list --branch feature/gcp-kubernetes-deployment --limit 1
+
+# Watch live:
+gh run watch
+```
+
+**What We're Validating:**
+1. PostgreSQL integration tests run successfully
+2. Schema validation passes
+3. Alembic migrations work correctly
+4. ORM models work against real PostgreSQL
+5. All existing tests still pass
+
+This is the **first time** these new tests will run, as they weren't previously triggered on the feature branch.
