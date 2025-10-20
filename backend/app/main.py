@@ -1532,7 +1532,11 @@ def ui_overview():
             res["wire_count"] = wire_count
             
             # candidate issues from DB (non-accepted)
-            count = session.query(Candidate).filter(not Candidate.accepted).count()
+            count = (
+                session.query(Candidate)
+                .filter(Candidate.accepted.is_(False))
+                .count()
+            )
             res["candidate_issues"] = int(count)
             
             # dedupe near-misses: dedupe_audit rows where dedupe_flag is 0 and similarity > 0.7
