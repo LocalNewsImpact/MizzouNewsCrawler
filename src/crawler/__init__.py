@@ -21,6 +21,7 @@ from bs4.element import Tag
 from dateutil import parser as dateparser
 
 from src.utils.bot_sensitivity_manager import BotSensitivityManager
+from src.utils.comprehensive_telemetry import ExtractionMetrics
 
 from .origin_proxy import enable_origin_proxy
 from .proxy_config import get_proxy_manager
@@ -1071,7 +1072,7 @@ class ContentExtractor:
         return data
 
     def extract_content(
-        self, url: str, html: str = None, metrics: Optional[object] = None
+        self, url: str, html: str = None, metrics: Optional[ExtractionMetrics] = None
     ) -> Dict[str, Any]:
         """Fetch page if needed, extract article data using multiple methods.
 

@@ -4,6 +4,7 @@ import logging
 import re
 import sqlite3
 from collections import defaultdict
+from typing import Any
 
 
 class ExactContentCleaner:
@@ -83,7 +84,7 @@ class ExactContentCleaner:
         across multiple articles.
         """
         # For each pair of articles, find all common substrings
-        all_exact_matches = defaultdict(
+        all_exact_matches: dict[int, dict[str, Any]] = defaultdict(
             lambda: {
                 "text": "",
                 "length": 0,

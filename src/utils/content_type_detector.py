@@ -366,13 +366,13 @@ class ContentTypeDetector:
         )
 
     @staticmethod
-    def _normalize_keywords(raw_keywords: object | None) -> list[str]:
+    def _normalize_keywords(raw_keywords: str | list[str] | None) -> list[str]:
         if not raw_keywords:
             return []
         if isinstance(raw_keywords, str):
             return [raw_keywords.lower()]
         keywords: list[str] = []
-        for keyword in raw_keywords:  # type: ignore[assignment]
+        for keyword in raw_keywords:
             if not keyword:
                 continue
             keywords.append(str(keyword).lower())
