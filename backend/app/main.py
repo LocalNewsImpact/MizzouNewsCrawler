@@ -1345,7 +1345,7 @@ def get_domain_issues():
         hosts = session.query(distinct(Snapshot.host)).join(
             Candidate, Candidate.snapshot_id == Snapshot.id
         ).filter(
-            not Candidate.accepted,
+            Candidate.accepted.is_(False),
             Snapshot.reviewed_at.is_(None)
         ).all()
         
@@ -1357,7 +1357,7 @@ def get_domain_issues():
                 Snapshot, Candidate.snapshot_id == Snapshot.id
             ).filter(
                 Snapshot.host == host,
-                not Candidate.accepted,
+                Candidate.accepted.is_(False),
                 Snapshot.reviewed_at.is_(None)
             ).group_by(Candidate.field).all()
             
