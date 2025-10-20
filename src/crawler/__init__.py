@@ -441,7 +441,7 @@ class ContentExtractor:
         self.domain_locks: dict[str, Any] = {}
 
         # Rate limiting and backoff management
-        self.domain_request_times: dict[str, list[float]] = {}  # Track request timestamps per domain
+        self.domain_request_times: dict[str, float] = {}  # Track last request time per domain
         self.domain_backoff_until: dict[str, float] = {}  # Track when domain is available again
         self.domain_error_counts: dict[str, int] = {}  # Track consecutive errors per domain
         

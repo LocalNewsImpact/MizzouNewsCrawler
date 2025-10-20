@@ -137,6 +137,7 @@ def run_verification_service(
             signature = None
 
         has_var_kw = False
+        params: Any
         if signature is not None:
             params = signature.parameters
             has_var_kw = any(

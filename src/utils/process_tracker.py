@@ -166,7 +166,7 @@ class ProcessContext:
         self.dataset_id = dataset_id
         self.source_id = source_id
         self.metadata = metadata
-        self.process = None
+        self.process: BackgroundProcess | None = None
 
     def __enter__(self) -> BackgroundProcess:
         """Start process tracking."""

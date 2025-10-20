@@ -230,7 +230,7 @@ class ExtractionTelemetry:
 
         if operation_id:
             query = base_query + " WHERE operation_id = ? GROUP BY outcome"
-            params = (operation_id,)
+            params: tuple[str, ...] = (operation_id,)
         else:
             query = base_query + " GROUP BY outcome"
             params = ()

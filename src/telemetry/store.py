@@ -164,7 +164,7 @@ class _CursorWrapper:
     def __init__(self, sqlalchemy_conn: Connection):
         self._conn = sqlalchemy_conn
         self._last_result = None
-        self._result_wrapper = None
+        self._result_wrapper: _ResultWrapper | None = None
         self._rowcount: int = -1
 
     def execute(self, sql: str, parameters: tuple | dict | None = None):

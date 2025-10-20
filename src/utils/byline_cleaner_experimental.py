@@ -11,7 +11,7 @@ This can be tested alongside the current BylineCleaner to compare effectiveness.
 """
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 # Import the existing cleaner for comparison
 from .byline_cleaner import BylineCleaner
@@ -28,11 +28,7 @@ class ExtractionResult:
     confidence: float
     quality_score: float
     overall_score: float
-    metadata: dict = None
-
-    def __post_init__(self):
-        if self.metadata is None:
-            self.metadata = {}
+    metadata: dict = field(default_factory=dict)
 
 
 class ExperimentalBylineCleaner:

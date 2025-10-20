@@ -300,6 +300,7 @@ class PublisherGeoFilter:
 
             # Find the publisher row by host ID and update with cached data
             # Convert host_id to int if it's numeric for proper matching
+            host_id_val: int | str
             try:
                 host_id_val = int(host_id)
             except ValueError:
