@@ -52,7 +52,7 @@ class ExtractionMetrics:
         # Overall timing
         self.start_time = datetime.utcnow()
         self.end_time: datetime | None = None
-        self.total_duration_ms = 0
+        self.total_duration_ms: float = 0.0
 
         # HTTP metrics
         self.http_status_code: int | None = None

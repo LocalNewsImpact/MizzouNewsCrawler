@@ -26,8 +26,8 @@ class PublisherGeoFilter:
 
     def __init__(self, publinks_path: str = "sources/publinks.csv"):
         self.publinks_path = publinks_path
-        self.publishers = {}
-        self.publisher_gazetteers = {}
+        self.publishers: dict[str, Any] = {}
+        self.publisher_gazetteers: dict[str, Any] = {}
 
         # Coverage radius by media type (in miles)
         self.coverage_radius_by_type = {
@@ -42,7 +42,7 @@ class PublisherGeoFilter:
         }
 
         # Dynamic geographic data for building gazetteers (per publisher)
-        self.publisher_local_geography = {}
+        self.publisher_local_geography: dict[str, dict[str, Any]] = {}
         self._load_publisher_data()
 
         # OSM Overpass API endpoint
@@ -141,7 +141,7 @@ class PublisherGeoFilter:
         state = state.strip().lower() if state else ""
 
         # Initialize geography for this publisher
-        local_geography = {
+        local_geography: dict[str, dict[str, Any]] = {
             "cities": {},
             "counties": {},
             "regions": {},
@@ -601,7 +601,7 @@ class PublisherGeoFilter:
 
         # Add simple aliases for publisher city (e.g., G'ville, gville)
         def city_aliases(city: str) -> set[str]:
-            aliases = set()
+            aliases: set[str] = set()
             if not city:
                 return aliases
             aliases.add(city)
