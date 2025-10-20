@@ -35,7 +35,7 @@ class HostSelector:
                 self.selectors[k] = [s.strip() for s in v.split(",") if s.strip()]
 
     def extract_with_selectors(self, soup: BeautifulSoup) -> dict[str, str | None]:
-        out = {
+        out: dict[str, str | None] = {
             "title": None,
             "byline": None,
             "date": None,

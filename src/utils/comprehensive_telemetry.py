@@ -51,30 +51,30 @@ class ExtractionMetrics:
 
         # Overall timing
         self.start_time = datetime.utcnow()
-        self.end_time = None
-        self.total_duration_ms = 0
+        self.end_time: datetime | None = None
+        self.total_duration_ms: float = 0.0
 
         # HTTP metrics
-        self.http_status_code = None
-        self.http_error_type = None
+        self.http_status_code: int | None = None
+        self.http_error_type: str | None = None
         self.response_size_bytes = 0
-        self.response_time_ms = 0
+        self.response_time_ms: float = 0.0
 
         # Method tracking
-        self.methods_attempted = []
-        self.method_timings = {}
-        self.method_success = {}
-        self.method_errors = {}
-        self.successful_method = None
+        self.methods_attempted: list[str] = []
+        self.method_timings: dict[str, float] = {}
+        self.method_success: dict[str, bool] = {}
+        self.method_errors: dict[str, str] = {}
+        self.successful_method: str | None = None
 
         # Field extraction tracking
-        self.field_extraction = {}
+        self.field_extraction: dict[str, dict[str, Any]] = {}
 
         # Final field attribution (which method provided each field)
-        self.final_field_attribution = {}
+        self.final_field_attribution: dict[str, str] = {}
 
         # Track alternative extractions (later methods vs. current fields)
-        self.alternative_extractions = {}
+        self.alternative_extractions: dict[str, dict[str, Any]] = {}
 
         # Final results
         self.extracted_fields = {

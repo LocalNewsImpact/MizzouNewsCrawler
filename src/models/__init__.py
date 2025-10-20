@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import datetime
-from typing import Optional, cast
+from typing import Any, Optional, cast
 
 from sqlalchemy import (
     JSON,
@@ -20,7 +20,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
-Base = declarative_base()
+Base: Any = declarative_base()
 
 # Import API backend models after Base declaration
 # These are imported here to ensure they're registered with Base.metadata

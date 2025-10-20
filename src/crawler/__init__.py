@@ -432,23 +432,23 @@ class ContentExtractor:
         ]
 
         # Track domain-specific sessions and user agents
-        self.domain_sessions = {}
-        self.domain_user_agents = {}
-        self.request_counts = {}
-        self.last_request_times = {}
+        self.domain_sessions: dict[str, Any] = {}
+        self.domain_user_agents: dict[str, str] = {}
+        self.request_counts: dict[str, int] = {}
+        self.last_request_times: dict[str, float] = {}
 
         # Per-domain concurrency lock (ensure single in-flight per domain)
-        self.domain_locks = {}
+        self.domain_locks: dict[str, Any] = {}
 
         # Rate limiting and backoff management
-        self.domain_request_times = {}  # Track request timestamps per domain
-        self.domain_backoff_until = {}  # Track when domain is available again
-        self.domain_error_counts = {}  # Track consecutive errors per domain
-
+        self.domain_request_times: dict[str, list[float]] = {}  # Track request timestamps per domain
+        self.domain_backoff_until: dict[str, float] = {}  # Track when domain is available again
+        self.domain_error_counts: dict[str, int] = {}  # Track consecutive errors per domain
+        
         # Selenium-specific failure tracking (separate from requests failures)
         # This prevents disabling Selenium for CAPTCHA-protected domains
-        self._selenium_failure_counts = {}  # Track Selenium failures per domain
-
+        self._selenium_failure_counts: dict[str, int] = {}  # Track Selenium failures per domain
+        
         # Base inter-request delay (env tunable)
         try:
             self.inter_request_min = float(os.getenv("INTER_REQUEST_MIN", "1.5"))
@@ -473,7 +473,7 @@ class ContentExtractor:
             self.ua_rotation_base, self.ua_rotation_jitter = 9, 0.25
 
         # Negative cache for dead URLs (404/410)
-        self.dead_urls = {}
+        self.dead_urls: dict[str, float] = {}
         try:
             self.dead_url_ttl = int(os.getenv("DEAD_URL_TTL_SECONDS", "604800"))
         except Exception:
@@ -484,7 +484,7 @@ class ContentExtractor:
         self.proxy_pool = (
             [p.strip() for p in pool_env.split(",") if p.strip()] if pool_env else []
         )
-        self.domain_proxies = {}
+        self.domain_proxies: dict[str, str] = {}
 
         # Initialize multi-proxy manager
         self.proxy_manager = get_proxy_manager()
@@ -1094,7 +1094,7 @@ class ContentExtractor:
         self._publish_date_details = None
 
         # Initialize result structure
-        result = {
+        result: Dict[str, Any] = {
             "url": url,
             "title": None,
             "author": None,

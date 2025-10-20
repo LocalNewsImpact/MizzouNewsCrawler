@@ -45,7 +45,7 @@ except ImportError:
 try:
     from dateutil.parser import parse as _parse_date
 except Exception:
-    _parse_date = None
+    _parse_date = None  # type: ignore[assignment]
 
 from src.utils.discovery_outcomes import DiscoveryResult
 from src.utils.telemetry import (
@@ -873,7 +873,7 @@ class NewsDiscovery:
             Returns:
                 List of discovered article metadata
         """
-        discovered_articles = []
+        discovered_articles: list[dict[str, Any]] = []
         method_start_time = time.time()
         homepage_status_code: int | None = None
 
@@ -1158,7 +1158,7 @@ class NewsDiscovery:
                     logger.warning(f"newspaper4k build raised for {source_url}: {e}")
 
             # Don't download all articles - just get the URLs
-            articles_attr = []
+            articles_attr: list[Any] = []
             if paper is not None:
                 articles_attr = getattr(paper, "articles", []) or []
             article_count = len(articles_attr)
@@ -1308,7 +1308,7 @@ class NewsDiscovery:
         Returns:
             List of discovered article metadata
         """
-        discovered_articles = []
+        discovered_articles: list[dict[str, Any]] = []
         method_start_time = time.time()
 
         def record_storysniffer_effectiveness(
@@ -1381,6 +1381,8 @@ class NewsDiscovery:
                     meta = {}
                 elif isinstance(item, dict):
                     url = item.get("url")
+                    if not url:
+                        continue
                     meta = item
                 else:
                     continue
@@ -1449,7 +1451,7 @@ class NewsDiscovery:
         Returns:
             List of discovered article metadata from RSS feeds
         """
-        discovered_articles = []
+        discovered_articles: list[dict[str, Any]] = []
         start_time = time.time()
         feeds_tried = 0
         feeds_successful = 0
@@ -1670,7 +1672,7 @@ class NewsDiscovery:
                                 )
                             if freq:
                                 parsed = parse_frequency_to_days(freq)
-                                recent_activity_days = max(1, parsed * 3)
+                                recent_activity_days = max(1, int(parsed * 3))
                         except Exception:
                             recent_activity_days = 90
 
