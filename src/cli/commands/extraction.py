@@ -26,11 +26,14 @@ from src.models.database import (
     calculate_content_hash,
     save_article_entities,
 )
-from src.pipeline.entity_extraction import (
-    ArticleEntityExtractor,
-    attach_gazetteer_matches,
-    get_gazetteer_rows,
-)
+# Lazy import: entity_extraction only needed for entity-extraction command
+# Importing at top level causes ModuleNotFoundError in crawler image (no rapidfuzz)
+# These are imported inside handle_entity_extraction_command() instead
+# from src.pipeline.entity_extraction import (
+#     ArticleEntityExtractor,
+#     attach_gazetteer_matches,
+#     get_gazetteer_rows,
+# )
 from src.utils.byline_cleaner import BylineCleaner
 from src.utils.comprehensive_telemetry import (
     ComprehensiveExtractionTelemetry,
@@ -63,13 +66,15 @@ def _ensure_crawler_dependencies() -> None:
 logger = logging.getLogger(__name__)
 
 
-_ENTITY_EXTRACTOR: ArticleEntityExtractor | None = None
+_ENTITY_EXTRACTOR: Any = None  # ArticleEntityExtractor lazy loaded
 _CONTENT_TYPE_DETECTOR: ContentTypeDetector | None = None
 
 
-def _get_entity_extractor() -> ArticleEntityExtractor:
+def _get_entity_extractor() -> Any:  # Returns ArticleEntityExtractor
+    """Lazy load entity extractor (requires rapidfuzz in processor image)."""
     global _ENTITY_EXTRACTOR
     if _ENTITY_EXTRACTOR is None:
+        from src.pipeline.entity_extraction import ArticleEntityExtractor
         _ENTITY_EXTRACTOR = ArticleEntityExtractor()
     return _ENTITY_EXTRACTOR
 
@@ -1241,6 +1246,13 @@ def _run_post_extraction_cleaning(domains_to_articles, db=None):
 
 
 def _run_article_entity_extraction(article_ids: Iterable[str], db=None) -> None:
+    """Extract entities from articles (requires rapidfuzz in processor image)."""
+    # Lazy import entity extraction functions
+    from src.pipeline.entity_extraction import (
+        attach_gazetteer_matches,
+        get_gazetteer_rows,
+    )
+    
     ids = {article_id for article_id in article_ids if article_id}
     if not ids:
         return
