@@ -19,12 +19,13 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
+from sqlalchemy.orm import Mapped, mapped_column
 
 Base: Any = declarative_base()
 
 # Import API backend models after Base declaration
 # These are imported here to ensure they're registered with Base.metadata
-from src.models.api_backend import (  # noqa: E402
+from src.models.api_backend import (  # noqa: E402  # type: ignore
     BylineCleaningTelemetry,
     BylineTransformationStep,
     Candidate,
@@ -35,11 +36,11 @@ from src.models.api_backend import (  # noqa: E402
     Review,
     Snapshot,
 )
-from src.models.telemetry import (  # noqa: E402
+from src.models.telemetry import (  # noqa: E402  # type: ignore
     ExtractionTelemetryV2,
     HttpErrorSummary,
 )
-from src.models.verification import (  # noqa: E402
+from src.models.verification import (  # noqa: E402  # type: ignore
     URLVerification,
     VerificationJob,
     VerificationPattern,
@@ -566,21 +567,31 @@ class BackgroundProcess(Base):
     command = Column(String, nullable=False)  # Full command line
     pid = Column(Integer, nullable=True, index=True)  # OS process ID
 
-    # Status tracking
-    status = Column(String, nullable=False, default="started", index=True)
-    progress_current = Column(Integer, default=0)  # Current progress count
-    progress_total = Column(Integer, nullable=True)  # Total expected items
-    progress_message = Column(String, nullable=True)  # Human-readable status
+    # Status tracking (typed for ORM instances)
+    status: Mapped[str] = mapped_column(
+        String, nullable=False, default="started", index=True
+    )
+    progress_current: Mapped[int] = mapped_column(
+        Integer, default=0
+    )  # Current progress count
+    progress_total: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )  # Total expected items
+    progress_message: Mapped[str | None] = mapped_column(
+        String, nullable=True
+    )  # Human-readable status
 
     # Timing
-    started_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow
+    )
     updated_at = Column(
         DateTime,
         nullable=False,
         default=datetime.utcnow,
         onupdate=datetime.utcnow,
     )
-    completed_at = Column(DateTime, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     # Results and metrics
     result_summary = Column(JSON, nullable=True)  # Final results/statistics
