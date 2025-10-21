@@ -20,9 +20,9 @@ def test_due_only_defaults_to_false():
 
     # Should default to False to allow first run
     assert hasattr(args, "due_only")
-    assert args.due_only is False, (
-        "--due-only should default to False to enable first-run discovery"
-    )
+    assert (
+        args.due_only is False
+    ), "--due-only should default to False to enable first-run discovery"
 
 
 def test_force_all_flag_exists():
@@ -63,9 +63,7 @@ def test_dataset_filter_works():
     add_discovery_parser(subparsers)
 
     # Parse with --dataset
-    args = parser.parse_args(
-        ["discover-urls", "--dataset", "Mizzou-Missouri-State"]
-    )
+    args = parser.parse_args(["discover-urls", "--dataset", "Mizzou-Missouri-State"])
 
     assert hasattr(args, "dataset")
     assert args.dataset == "Mizzou-Missouri-State"
@@ -135,9 +133,7 @@ def test_discovery_status_with_dataset():
     add_discovery_status_parser(subparsers)
 
     # Parse with --dataset
-    args = parser.parse_args(
-        ["discovery-status", "--dataset", "Mizzou-Missouri-State"]
-    )
+    args = parser.parse_args(["discovery-status", "--dataset", "Mizzou-Missouri-State"])
 
     assert args.dataset == "Mizzou-Missouri-State"
 

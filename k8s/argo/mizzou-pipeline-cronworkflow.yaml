@@ -29,6 +29,8 @@ spec:
             # Dataset configuration
             - name: dataset
               value: "Mizzou Missouri State"
+            - name: source-limit
+              value: "10000"
             # Discovery parameters
             # No source-limit = process ALL 157 sources in dataset each run
             - name: max-articles

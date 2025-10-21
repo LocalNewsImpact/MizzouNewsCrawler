@@ -368,6 +368,7 @@ def get_gazetteer_rows(
     stmt = select(Gazetteer)
     # Use OR when multiple filters (get gazetteer entries for source OR dataset)
     from sqlalchemy import or_
+
     if len(filters) > 1:
         stmt = stmt.where(or_(*filters))
     else:

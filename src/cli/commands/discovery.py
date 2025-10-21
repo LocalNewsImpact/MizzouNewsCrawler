@@ -176,14 +176,14 @@ def handle_discovery_command(args) -> int:
         print(f"   Source limit: {getattr(args, 'source_limit', 'none')}")
         print(f"   Due only: {due_only_enabled}")
         print(f"   Force all: {getattr(args, 'force_all', False)}")
-        
+
         # Warn if using scheduling that may skip sources
         if due_only_enabled and not (uuid_list or getattr(args, "source_filter", None)):
             print()
             print("⚠️  Running with --due-only scheduling enabled.")
             print("    Sources not yet due for discovery will be skipped.")
             print("    Use --force-all to override scheduling on first run.")
-        
+
         print()
 
         stats = discovery.run_discovery(

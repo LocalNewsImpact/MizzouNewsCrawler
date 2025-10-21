@@ -7,9 +7,9 @@
 
 set -e
 
-# Default parameters (match CronWorkflow settings)
-DATASET="${1:-Mizzou-Missouri-State}"
-SOURCE_LIMIT="${2:-50}"
+# Default parameters (NO LIMITS - process ALL sources)
+DATASET="${1:-Mizzou Missouri State}"
+SOURCE_LIMIT="${2:-10000}"  # 10000 = effectively unlimited (process ALL sources)
 MAX_ARTICLES="${3:-50}"
 DAYS_BACK="${4:-7}"
 NAMESPACE="production"
@@ -26,7 +26,7 @@ echo -e "==================================================${NC}"
 echo ""
 echo "Parameters:"
 echo "  Dataset: $DATASET"
-echo "  Source Limit: $SOURCE_LIMIT sources"
+echo "  Source Limit: $SOURCE_LIMIT (10000 = ALL sources)"
 echo "  Max Articles: $MAX_ARTICLES per source"
 echo "  Days Back: $DAYS_BACK days"
 echo ""
@@ -49,8 +49,10 @@ echo ""
 echo -e "${GREEN}Submitting workflow...${NC}"
 echo ""
 
-# Submit workflow using kubectl
-WORKFLOW_NAME=$(kubectl create -n $NAMESPACE -f - <<EOF | awk '{print $1}'
+# Create temporary YAML file
+TEMP_YAML=$(mktemp)
+
+cat > $TEMP_YAML << EOF
 apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
@@ -90,7 +92,12 @@ spec:
     - name: captcha-backoff-max
       value: "7200"
 EOF
-)
+
+# Submit workflow using kubectl
+WORKFLOW_NAME=$(kubectl create -n $NAMESPACE -f $TEMP_YAML | awk '{print $1}')
+
+# Clean up
+rm $TEMP_YAML
 
 # Extract workflow name
 WORKFLOW_NAME=$(echo $WORKFLOW_NAME | sed 's/workflow.argoproj.io\///' | sed 's/ created//')

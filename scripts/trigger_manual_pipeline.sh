@@ -7,9 +7,9 @@
 
 set -e
 
-# Default parameters (match CronWorkflow settings)
-DATASET="${1:-Mizzou-Missouri-State}"
-SOURCE_LIMIT="${2:-50}"
+# Default parameters (NO LIMITS - process ALL sources)
+DATASET="${1:-Mizzou Missouri State}"
+SOURCE_LIMIT="${2:-}"  # Empty = no limit, process ALL sources
 MAX_ARTICLES="${3:-50}"
 DAYS_BACK="${4:-7}"
 NAMESPACE="production"
@@ -28,7 +28,11 @@ echo "This will submit a workflow to the production namespace."
 echo ""
 echo "Parameters:"
 echo "  Dataset: $DATASET"
-echo "  Source Limit: $SOURCE_LIMIT sources"
+if [ -n "$SOURCE_LIMIT" ]; then
+    echo "  Source Limit: $SOURCE_LIMIT sources"
+else
+    echo "  Source Limit: ALL sources (no limit)"
+fi
 echo "  Max Articles: $MAX_ARTICLES per source"
 echo "  Days Back: $DAYS_BACK days"
 echo ""
@@ -64,22 +68,40 @@ echo -e "${GREEN}Submitting workflow...${NC}"
 echo ""
 
 # Submit workflow using Argo CLI
-argo submit -n $NAMESPACE \
-  --from workflowtemplate/news-pipeline-template \
-  --parameter dataset="$DATASET" \
-  --parameter source-limit="$SOURCE_LIMIT" \
-  --parameter max-articles="$MAX_ARTICLES" \
-  --parameter days-back="$DAYS_BACK" \
-  --parameter verify-batch-size="10" \
-  --parameter verify-max-batches="100" \
-  --parameter extract-limit="50" \
-  --parameter extract-batches="40" \
-  --parameter inter-request-min="5.0" \
-  --parameter inter-request-max="15.0" \
-  --parameter batch-sleep="30.0" \
-  --parameter captcha-backoff-base="1800" \
-  --parameter captcha-backoff-max="7200" \
-  --watch
+if [ -n "$SOURCE_LIMIT" ]; then
+  argo submit -n $NAMESPACE \
+    --from workflowtemplate/news-pipeline-template \
+    --parameter dataset="$DATASET" \
+    --parameter source-limit="$SOURCE_LIMIT" \
+    --parameter max-articles="$MAX_ARTICLES" \
+    --parameter days-back="$DAYS_BACK" \
+    --parameter verify-batch-size="10" \
+    --parameter verify-max-batches="100" \
+    --parameter extract-limit="50" \
+    --parameter extract-batches="40" \
+    --parameter inter-request-min="5.0" \
+    --parameter inter-request-max="15.0" \
+    --parameter batch-sleep="30.0" \
+    --parameter captcha-backoff-base="1800" \
+    --parameter captcha-backoff-max="7200" \
+    --watch
+else
+  argo submit -n $NAMESPACE \
+    --from workflowtemplate/news-pipeline-template \
+    --parameter dataset="$DATASET" \
+    --parameter max-articles="$MAX_ARTICLES" \
+    --parameter days-back="$DAYS_BACK" \
+    --parameter verify-batch-size="10" \
+    --parameter verify-max-batches="100" \
+    --parameter extract-limit="50" \
+    --parameter extract-batches="40" \
+    --parameter inter-request-min="5.0" \
+    --parameter inter-request-max="15.0" \
+    --parameter batch-sleep="30.0" \
+    --parameter captcha-backoff-base="1800" \
+    --parameter captcha-backoff-max="7200" \
+    --watch
+fi
 
 echo ""
 echo -e "${GREEN}Workflow submitted successfully!${NC}"

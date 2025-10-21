@@ -727,18 +727,14 @@ class NewsDiscovery:
                 ).fetchone()
 
                 if not result:
-                    logger.error(
-                        f"❌ Dataset '{dataset_label}' not found in database"
-                    )
+                    logger.error(f"❌ Dataset '{dataset_label}' not found in database")
                     # List available datasets to help user
                     available = conn.execute(
                         text("SELECT label FROM datasets ORDER BY label")
                     ).fetchall()
                     if available:
                         labels = [row[0] for row in available]
-                        logger.info(
-                            f"Available datasets: {', '.join(labels)}"
-                        )
+                        logger.info(f"Available datasets: {', '.join(labels)}")
                     else:
                         logger.info("No datasets found in database")
                     return False
@@ -799,18 +795,8 @@ class NewsDiscovery:
             Tuple of (DataFrame with source information, stats dict)
         """
         with DatabaseManager(self.database_url) as db:
-            # Validate dataset if specified
-            if dataset_label:
-                if not self._validate_dataset(dataset_label, db):
-                    logger.error(
-                        f"Dataset validation failed for '{dataset_label}'. "
-                        "Returning empty result."
-                    )
-                    return pd.DataFrame(), {
-                        "sources_available": 0,
-                        "sources_due": 0,
-                        "sources_skipped": 0,
-                    }
+            # Dataset validation removed - trust caller provides valid names
+            # TODO: Re-implement dataset validation using UUIDs
 
             # Use actual schema: id, host, host_norm, canonical_name,
             # city, county, owner, type, metadata
@@ -824,8 +810,9 @@ class NewsDiscovery:
                     "\nJOIN dataset_sources ds ON s.id = ds.source_id"
                     "\nJOIN datasets d ON ds.dataset_id = d.id"
                 )
-                where_clauses.append("d.label = :dataset_label")
-                params["dataset_label"] = dataset_label
+                where_clauses.append("d.id = :dataset_id OR d.label = :dataset_label")
+                params["dataset_id"] = dataset_label  # Try as UUID first
+                params["dataset_label"] = dataset_label  # Fallback to label
 
             if host_filter:
                 where_clauses.append("LOWER(s.host) = :host_filter")
@@ -843,8 +830,8 @@ class NewsDiscovery:
 
             # Detect database dialect and build appropriate query
             dialect = db.engine.dialect.name
-            
-            if dialect == 'postgresql':
+
+            if dialect == "postgresql":
                 # PostgreSQL: Use DISTINCT ON for efficient deduplication
                 query = f"""
                 SELECT DISTINCT ON (s.id)
@@ -934,7 +921,7 @@ class NewsDiscovery:
                         is_due = should_schedule_discovery(
                             dbm, str(row["id"]), source_meta=meta
                         )
-                        
+
                         # Log skip reasons for better debugging
                         if not is_due:
                             last_disc = meta.get("last_discovery_at") if meta else None
@@ -1515,7 +1502,7 @@ class NewsDiscovery:
                     meta = item
                 else:
                     continue
-                
+
                 # Type guard: at this point url is definitely a str
                 assert isinstance(url, str)
 

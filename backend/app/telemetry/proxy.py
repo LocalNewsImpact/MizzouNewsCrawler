@@ -101,7 +101,7 @@ async def get_proxy_trends(
         cutoff = datetime.utcnow() - timedelta(days=days)
 
         query = text(
-        """
+            """
         SELECT
             DATE(created_at) as date,
             COUNT(*) as total_requests,
@@ -124,18 +124,18 @@ async def get_proxy_trends(
         results = db.session.execute(query, {"cutoff": cutoff}).fetchall()
 
         return {
-        "days": days,
-        "data": [
-            {
-                "date": str(row[0]),
-                "total_requests": row[1] or 0,
-                "proxy_requests": row[2] or 0,
-                "success_rate": float(row[3] or 0.0),
-                "missing_auth": row[4] or 0,
-                "failures": row[5] or 0,
-            }
-            for row in results
-        ],
+            "days": days,
+            "data": [
+                {
+                    "date": str(row[0]),
+                    "total_requests": row[1] or 0,
+                    "proxy_requests": row[2] or 0,
+                    "success_rate": float(row[3] or 0.0),
+                    "missing_auth": row[4] or 0,
+                    "failures": row[5] or 0,
+                }
+                for row in results
+            ],
         }
 
 
@@ -155,7 +155,7 @@ async def get_proxy_domains(
         cutoff = datetime.utcnow() - timedelta(days=days)
 
         query = text(
-        """
+            """
         SELECT
             host,
             COUNT(*) as total_requests,
@@ -180,26 +180,26 @@ async def get_proxy_domains(
         )
 
         results = db.session.execute(
-        query, {"cutoff": cutoff, "min_requests": min_requests, "limit": limit}
+            query, {"cutoff": cutoff, "min_requests": min_requests, "limit": limit}
         ).fetchall()
 
         return {
-        "days": days,
-        "limit": limit,
-        "min_requests": min_requests,
-        "domains": [
-            {
-                "host": row[0],
-                "total_requests": row[1] or 0,
-                "proxy_requests": row[2] or 0,
-                "successes": row[3] or 0,
-                "failures": row[4] or 0,
-                "bypassed": row[5] or 0,
-                "success_rate": float(row[6] or 0.0),
-                "last_request": str(row[7]) if row[7] else None,
-            }
-            for row in results
-        ],
+            "days": days,
+            "limit": limit,
+            "min_requests": min_requests,
+            "domains": [
+                {
+                    "host": row[0],
+                    "total_requests": row[1] or 0,
+                    "proxy_requests": row[2] or 0,
+                    "successes": row[3] or 0,
+                    "failures": row[4] or 0,
+                    "bypassed": row[5] or 0,
+                    "success_rate": float(row[6] or 0.0),
+                    "last_request": str(row[7]) if row[7] else None,
+                }
+                for row in results
+            ],
         }
 
 
@@ -217,7 +217,7 @@ async def get_proxy_errors(
         cutoff = datetime.utcnow() - timedelta(days=days)
 
         query = text(
-        """
+            """
         SELECT
             SUBSTR(proxy_error, 1, 150) as error_pattern,
             COUNT(*) as occurrence_count,
@@ -233,20 +233,22 @@ async def get_proxy_errors(
         """
         )
 
-        results = db.session.execute(query, {"cutoff": cutoff, "limit": limit}).fetchall()
+        results = db.session.execute(
+            query, {"cutoff": cutoff, "limit": limit}
+        ).fetchall()
 
         return {
-        "days": days,
-        "limit": limit,
-        "errors": [
-            {
-                "error_pattern": row[0],
-                "occurrence_count": row[1] or 0,
-                "affected_domains": row[2] or 0,
-                "last_occurrence": str(row[3]) if row[3] else None,
-            }
-            for row in results
-        ],
+            "days": days,
+            "limit": limit,
+            "errors": [
+                {
+                    "error_pattern": row[0],
+                    "occurrence_count": row[1] or 0,
+                    "affected_domains": row[2] or 0,
+                    "last_occurrence": str(row[3]) if row[3] else None,
+                }
+                for row in results
+            ],
         }
 
 
@@ -263,7 +265,7 @@ async def get_authentication_stats(
         cutoff = datetime.utcnow() - timedelta(days=days)
 
         query = text(
-        """
+            """
         SELECT
             CASE WHEN proxy_authenticated = 1
                  THEN 'with_auth' ELSE 'without_auth' END as auth_status,
@@ -284,17 +286,17 @@ async def get_authentication_stats(
         results = db.session.execute(query, {"cutoff": cutoff}).fetchall()
 
         return {
-        "days": days,
-        "stats": [
-            {
-                "auth_status": row[0],
-                "requests": row[1] or 0,
-                "successes": row[2] or 0,
-                "success_rate": float(row[3] or 0.0),
-                "avg_response_time_ms": float(row[4] or 0.0) if row[4] else None,
-            }
-            for row in results
-        ],
+            "days": days,
+            "stats": [
+                {
+                    "auth_status": row[0],
+                    "requests": row[1] or 0,
+                    "successes": row[2] or 0,
+                    "success_rate": float(row[3] or 0.0),
+                    "avg_response_time_ms": float(row[4] or 0.0) if row[4] else None,
+                }
+                for row in results
+            ],
         }
 
 
@@ -311,7 +313,7 @@ async def get_proxy_vs_direct_comparison(
         cutoff = datetime.utcnow() - timedelta(days=days)
 
         query = text(
-        """
+            """
         SELECT
             CASE WHEN proxy_used = 1
                  THEN 'proxy' ELSE 'direct' END as connection_type,
@@ -336,20 +338,20 @@ async def get_proxy_vs_direct_comparison(
         results = db.session.execute(query, {"cutoff": cutoff}).fetchall()
 
         return {
-        "days": days,
-        "comparison": [
-            {
-                "connection_type": row[0],
-                "total_requests": row[1] or 0,
-                "successful_extractions": row[2] or 0,
-                "http_200s": row[3] or 0,
-                "bot_detections": row[4] or 0,
-                "extraction_success_rate": float(row[5] or 0.0),
-                "avg_duration_ms": float(row[6] or 0.0) if row[6] else None,
-                "avg_response_time_ms": float(row[7] or 0.0) if row[7] else None,
-            }
-            for row in results
-        ],
+            "days": days,
+            "comparison": [
+                {
+                    "connection_type": row[0],
+                    "total_requests": row[1] or 0,
+                    "successful_extractions": row[2] or 0,
+                    "http_200s": row[3] or 0,
+                    "bot_detections": row[4] or 0,
+                    "extraction_success_rate": float(row[5] or 0.0),
+                    "avg_duration_ms": float(row[6] or 0.0) if row[6] else None,
+                    "avg_response_time_ms": float(row[7] or 0.0) if row[7] else None,
+                }
+                for row in results
+            ],
         }
 
 
@@ -366,7 +368,7 @@ async def get_proxy_status_distribution(
         cutoff = datetime.utcnow() - timedelta(days=days)
 
         query = text(
-        """
+            """
         SELECT
             COALESCE(proxy_status, 'null') as status,
             COUNT(*) as count,
@@ -382,19 +384,19 @@ async def get_proxy_status_distribution(
         total = sum(row[1] for row in results)
 
         return {
-        "days": days,
-        "total_requests": total,
-        "distribution": [
-            {
-                "status": row[0],
-                "count": row[1] or 0,
-                "percentage": (
-                    round(100.0 * (row[1] or 0) / total, 2) if total > 0 else 0.0
-                ),
-                "unique_hosts": row[2] or 0,
-            }
-            for row in results
-        ],
+            "days": days,
+            "total_requests": total,
+            "distribution": [
+                {
+                    "status": row[0],
+                    "count": row[1] or 0,
+                    "percentage": (
+                        round(100.0 * (row[1] or 0) / total, 2) if total > 0 else 0.0
+                    ),
+                    "unique_hosts": row[2] or 0,
+                }
+                for row in results
+            ],
         }
 
 
@@ -412,7 +414,7 @@ async def get_recent_proxy_failures(
         cutoff = datetime.utcnow() - timedelta(hours=hours)
 
         query = text(
-        """
+            """
         SELECT
             created_at,
             host,
@@ -429,23 +431,25 @@ async def get_recent_proxy_failures(
         """
         )
 
-        results = db.session.execute(query, {"cutoff": cutoff, "limit": limit}).fetchall()
+        results = db.session.execute(
+            query, {"cutoff": cutoff, "limit": limit}
+        ).fetchall()
 
         return {
-        "hours": hours,
-        "limit": limit,
-        "failures": [
-            {
-                "timestamp": str(row[0]) if row[0] else None,
-                "host": row[1],
-                "url": row[2],
-                "http_status_code": row[3],
-                "proxy_url": row[4],
-                "proxy_authenticated": bool(row[5]),
-                "error_preview": row[6],
-            }
-            for row in results
-        ],
+            "hours": hours,
+            "limit": limit,
+            "failures": [
+                {
+                    "timestamp": str(row[0]) if row[0] else None,
+                    "host": row[1],
+                    "url": row[2],
+                    "http_status_code": row[3],
+                    "proxy_url": row[4],
+                    "proxy_authenticated": bool(row[5]),
+                    "error_preview": row[6],
+                }
+                for row in results
+            ],
         }
 
 
@@ -463,7 +467,7 @@ async def get_bot_detection_analysis(
         cutoff = datetime.utcnow() - timedelta(days=days)
 
         query = text(
-        """
+            """
         SELECT
             host,
             SUM(CASE WHEN proxy_used = 1 AND http_status_code = 403
@@ -494,21 +498,23 @@ async def get_bot_detection_analysis(
         """
         )
 
-        results = db.session.execute(query, {"cutoff": cutoff, "limit": limit}).fetchall()
+        results = db.session.execute(
+            query, {"cutoff": cutoff, "limit": limit}
+        ).fetchall()
 
         return {
-        "days": days,
-        "limit": limit,
-        "domains": [
-            {
-                "host": row[0],
-                "proxy_403s": row[1] or 0,
-                "direct_403s": row[2] or 0,
-                "proxy_total": row[3] or 0,
-                "direct_total": row[4] or 0,
-                "proxy_403_rate": float(row[5] or 0.0),
-                "direct_403_rate": float(row[6] or 0.0),
-            }
-            for row in results
-        ],
+            "days": days,
+            "limit": limit,
+            "domains": [
+                {
+                    "host": row[0],
+                    "proxy_403s": row[1] or 0,
+                    "direct_403s": row[2] or 0,
+                    "proxy_total": row[3] or 0,
+                    "direct_total": row[4] or 0,
+                    "proxy_403_rate": float(row[5] or 0.0),
+                    "direct_403_rate": float(row[6] or 0.0),
+                }
+                for row in results
+            ],
         }

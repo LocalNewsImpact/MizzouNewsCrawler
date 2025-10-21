@@ -110,9 +110,7 @@ def get_byline_telemetry_stats() -> BylineTelemetryStats:
     """Get summary statistics for byline telemetry."""
     with DatabaseManager() as db:
         # Total extractions
-        total = (
-            db.session.query(func.count(BylineCleaningTelemetry.id)).scalar() or 0
-        )
+        total = db.session.query(func.count(BylineCleaningTelemetry.id)).scalar() or 0
 
         # Pending review
         pending = (
@@ -154,7 +152,9 @@ def get_byline_telemetry_stats() -> BylineTelemetryStats:
 
         # Unique sources
         sources_count = (
-            db.session.query(func.count(func.distinct(BylineCleaningTelemetry.source_name)))
+            db.session.query(
+                func.count(func.distinct(BylineCleaningTelemetry.source_name))
+            )
             .filter(BylineCleaningTelemetry.source_name.isnot(None))
             .scalar()
             or 0

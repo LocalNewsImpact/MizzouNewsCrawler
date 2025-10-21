@@ -66,7 +66,6 @@ services:
     environment:
       DATABASE_URL: postgresql://mizzou_user:mizzou_pass@postgres:5432/mizzou
       LOG_LEVEL: INFO
-      SOURCE_LIMIT: "10"
       MAX_ARTICLES: "20"
     depends_on:
       postgres:
@@ -75,7 +74,7 @@ services:
       - ./src:/app/src
       - ./lookups:/app/lookups
       - ./data:/app/data
-    command: python -m src.cli.main discover-urls --source-limit 10
+    command: python -m src.cli.main discover-urls
     profiles:
       - crawler  # Only start with: docker-compose --profile crawler up
 

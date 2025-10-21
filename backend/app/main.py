@@ -84,11 +84,14 @@ except Exception:
         try:
             from src.crawler.origin_proxy import enable_origin_proxy
 
-            if os.environ.get("USE_ORIGIN_PROXY", "false").lower() in ("1", "true", "yes"):
+            if os.environ.get("USE_ORIGIN_PROXY", "false").lower() in (
+                "1",
+                "true",
+                "yes",
+            ):
                 enable_origin_proxy(session)
         except Exception:
             logger.debug("Origin proxy adapter not installed or failed to enable.")
-
 
     @app.on_event("startup")
     def app_startup_resources():
@@ -113,7 +116,6 @@ except Exception:
         _install_origin_proxy_if_enabled(shared)
         app.state.shared_session = shared
 
-
     @app.on_event("shutdown")
     def app_shutdown_resources():
         # Flush and shutdown telemetry store if present
@@ -132,12 +134,14 @@ except Exception:
         except Exception:
             logger.exception("Error closing shared_session")
 
+
 # Initialize database connection using DatabaseManager
 # This will use Cloud SQL connector if USE_CLOUD_SQL_CONNECTOR=true
 # NOTE: This is kept for backward compatibility with existing code that
 # uses the module-level db_manager. New code should use dependency injection
 # via get_db_manager() from backend.app.lifecycle
 from src import config as app_config
+
 db_manager = DatabaseManager(app_config.DATABASE_URL)
 logger.info(f"Database initialized: {app_config.DATABASE_URL[:50]}...")
 
@@ -167,12 +171,12 @@ async def health_check():
 @app.get("/ready")
 async def readiness_check():
     """Readiness check endpoint for orchestration systems.
-    
+
     Returns 200 if the application is ready to serve traffic:
     - Startup completed successfully
     - Database is accessible
     - Critical resources are initialized
-    
+
     Returns 503 if not ready.
     """
     from fastapi import Request, HTTPException, Depends
@@ -182,30 +186,28 @@ async def readiness_check():
         check_db_health,
         get_telemetry_store,
     )
-    
+
     # This is a workaround since we can't use Depends in the signature
     # when defined inline. Instead we'll access app.state directly
     ready = getattr(app.state, "ready", False)
-    
+
     if not ready:
         raise HTTPException(
-            status_code=503,
-            detail="Application not ready: startup incomplete"
+            status_code=503, detail="Application not ready: startup incomplete"
         )
-    
+
     # Check database health
     db = getattr(app.state, "db_manager", None)
     db_healthy, db_message = check_db_health(db)
-    
+
     if not db_healthy:
         raise HTTPException(
-            status_code=503,
-            detail=f"Application not ready: {db_message}"
+            status_code=503, detail=f"Application not ready: {db_message}"
         )
-    
+
     telemetry = getattr(app.state, "telemetry_store", None)
     http_session = getattr(app.state, "http_session", None)
-    
+
     return {
         "status": "ready",
         "service": "api",
@@ -213,7 +215,7 @@ async def readiness_check():
             "database": "available" if db_healthy else "unavailable",
             "telemetry": "available" if telemetry else "unavailable",
             "http_session": "available" if http_session else "unavailable",
-        }
+        },
     }
 
 
@@ -266,7 +268,7 @@ class CandidateIn(BaseModel):
 
 def init_db():
     """Database initialization - now handled by Alembic migrations.
-    
+
     This function has been converted to a no-op as part of the Cloud SQL migration.
     Database schema is now managed by Alembic migrations (see alembic/versions/).
     Tables are created automatically when DatabaseManager is first used.
@@ -277,7 +279,7 @@ def init_db():
 
 def init_snapshot_tables():
     """Snapshot tables initialization - now handled by Alembic migrations.
-    
+
     This function has been converted to a no-op as part of the Cloud SQL migration.
     Database schema is now managed by Alembic migrations (see alembic/versions/).
     Tables (snapshots, candidates, reextract_jobs, dedupe_audit) are created
@@ -361,12 +363,13 @@ def _db_writer_worker():
                     ),
                     model_confidence=item.get("model_confidence"),
                     status=item.get("status") or "pending",
-                    created_at=item.get("created_at")
+                    created_at=item.get("created_at"),
                 )
                 session.add(snapshot)
                 session.commit()
         except Exception as exc:
             import traceback
+
             logger.exception("Snapshot write failed", exc_info=exc)
             traceback.print_exc()
         finally:
@@ -417,35 +420,41 @@ def startup_gazetteer_tables():
 @app.get("/api/articles")
 def list_articles(limit: int = 20, offset: int = 0, reviewer: str | None = None):
     """List articles from database with pagination and optional reviewer filtering.
-    
+
     Returns articles in a format compatible with the legacy CSV-based frontend.
     Uses article database ID as __idx for review posting.
     """
     try:
         from src.models import Article, CandidateLink
-        
+
         with db_manager.get_session() as session:
             # Start with base query joining with candidate_link to get source info
             query = session.query(Article).join(
-                CandidateLink, 
-                Article.candidate_link_id == CandidateLink.id
+                CandidateLink, Article.candidate_link_id == CandidateLink.id
             )
-            
+
             # If reviewer filter provided, exclude articles they've already reviewed
             if reviewer:
-                reviewed_subquery = session.query(Review.article_uid).filter(
-                    Review.reviewer == reviewer,
-                    Review.reviewed_at.isnot(None)
-                ).distinct().subquery()
-                
+                reviewed_subquery = (
+                    session.query(Review.article_uid)
+                    .filter(Review.reviewer == reviewer, Review.reviewed_at.isnot(None))
+                    .distinct()
+                    .subquery()
+                )
+
                 query = query.filter(~Article.id.in_(reviewed_subquery))
-            
+
             # Get total count before pagination
             total = query.count()
-            
+
             # Apply pagination
-            articles = query.order_by(Article.created_at.desc()).offset(offset).limit(limit).all()
-            
+            articles = (
+                query.order_by(Article.created_at.desc())
+                .offset(offset)
+                .limit(limit)
+                .all()
+            )
+
             # Convert articles to frontend-compatible format
             safe_rows = []
             for article in articles:
@@ -455,12 +464,32 @@ def list_articles(limit: int = 20, offset: int = 0, reviewer: str | None = None)
                     "url": article.url,
                     "title": article.title,
                     "author": article.author,
-                    "date": article.publish_date.isoformat() if article.publish_date else None,
+                    "date": (
+                        article.publish_date.isoformat()
+                        if article.publish_date
+                        else None
+                    ),
                     "content": article.content or article.text,
-                    "hostname": article.candidate_link.source_host_id if article.candidate_link else None,
-                    "name": article.candidate_link.source_name if article.candidate_link else None,
-                    "domain": article.candidate_link.source_host_id if article.candidate_link else None,
-                    "county": article.candidate_link.source_county if article.candidate_link else None,
+                    "hostname": (
+                        article.candidate_link.source_host_id
+                        if article.candidate_link
+                        else None
+                    ),
+                    "name": (
+                        article.candidate_link.source_name
+                        if article.candidate_link
+                        else None
+                    ),
+                    "domain": (
+                        article.candidate_link.source_host_id
+                        if article.candidate_link
+                        else None
+                    ),
+                    "county": (
+                        article.candidate_link.source_county
+                        if article.candidate_link
+                        else None
+                    ),
                     "predictedlabel1": article.primary_label,
                     "ALTpredictedlabel": article.alternate_label,
                     "news": 1,  # Default assumption - can be refined with classification
@@ -473,9 +502,9 @@ def list_articles(limit: int = 20, offset: int = 0, reviewer: str | None = None)
                 # Use article ID as __idx for review posting (more stable than offset+i)
                 sr["__idx"] = article.id
                 safe_rows.append(sr)
-            
+
             return {"count": total, "results": safe_rows}
-            
+
     except Exception as e:
         logger.error(f"Error in list_articles: {e}")
         # Fallback to CSV if database query fails (for local development)
@@ -483,15 +512,24 @@ def list_articles(limit: int = 20, offset: int = 0, reviewer: str | None = None)
             df = pd.read_csv(ARTICLES_CSV)
             df = df.replace([np.inf, -np.inf], None)
             df = df.where(pd.notnull(df), None)
-            
+
             if reviewer:
                 try:
                     with db_manager.get_session() as session:
-                        reviewed_rows = session.query(Review.article_idx).filter(
-                            Review.reviewer == reviewer,
-                            Review.reviewed_at.isnot(None)
-                        ).distinct().all()
-                        reviewed = {int(r.article_idx) for r in reviewed_rows if r.article_idx is not None}
+                        reviewed_rows = (
+                            session.query(Review.article_idx)
+                            .filter(
+                                Review.reviewer == reviewer,
+                                Review.reviewed_at.isnot(None),
+                            )
+                            .distinct()
+                            .all()
+                        )
+                        reviewed = {
+                            int(r.article_idx)
+                            for r in reviewed_rows
+                            if r.article_idx is not None
+                        }
                 except Exception:
                     reviewed = set()
                 df = df.reset_index()
@@ -514,7 +552,7 @@ def list_articles(limit: int = 20, offset: int = 0, reviewer: str | None = None)
                 for i, sr in enumerate(safe_rows):
                     sr["__idx"] = offset + i
                 return {"count": total, "results": safe_rows}
-        
+
         # If no CSV and database fails, return empty
         return {"count": 0, "results": []}
 
@@ -522,36 +560,60 @@ def list_articles(limit: int = 20, offset: int = 0, reviewer: str | None = None)
 @app.get("/api/articles/{idx}")
 def get_article(idx: str):
     """Get a single article by ID.
-    
+
     The idx parameter can be either a database article ID (UUID string) or
     a numeric CSV index for backward compatibility.
     """
     try:
         from src.models import Article, CandidateLink
-        
+
         with db_manager.get_session() as session:
             # Try to find article by ID first (UUID string)
             article = session.query(Article).filter(Article.id == idx).first()
-            
+
             # If not found and idx is numeric, try finding by offset (less reliable)
             if not article and idx.isdigit():
-                article = session.query(Article).order_by(Article.created_at.desc()).offset(int(idx)).limit(1).first()
-            
+                article = (
+                    session.query(Article)
+                    .order_by(Article.created_at.desc())
+                    .offset(int(idx))
+                    .limit(1)
+                    .first()
+                )
+
             if not article:
                 raise HTTPException(status_code=404, detail="Article not found")
-            
+
             # Convert to frontend format
             rec = {
                 "id": article.id,
                 "url": article.url,
                 "title": article.title,
                 "author": article.author,
-                "date": article.publish_date.isoformat() if article.publish_date else None,
+                "date": (
+                    article.publish_date.isoformat() if article.publish_date else None
+                ),
                 "content": article.content or article.text,
-                "hostname": article.candidate_link.source_host_id if article.candidate_link else None,
-                "name": article.candidate_link.source_name if article.candidate_link else None,
-                "domain": article.candidate_link.source_host_id if article.candidate_link else None,
-                "county": article.candidate_link.source_county if article.candidate_link else None,
+                "hostname": (
+                    article.candidate_link.source_host_id
+                    if article.candidate_link
+                    else None
+                ),
+                "name": (
+                    article.candidate_link.source_name
+                    if article.candidate_link
+                    else None
+                ),
+                "domain": (
+                    article.candidate_link.source_host_id
+                    if article.candidate_link
+                    else None
+                ),
+                "county": (
+                    article.candidate_link.source_county
+                    if article.candidate_link
+                    else None
+                ),
                 "predictedlabel1": article.primary_label,
                 "ALTpredictedlabel": article.alternate_label,
                 "news": 1,
@@ -561,7 +623,7 @@ def get_article(idx: str):
                 "wire": article.wire,
             }
             return sanitize_record(rec)
-            
+
     except HTTPException:
         raise
     except Exception as e:
@@ -576,7 +638,7 @@ def get_article(idx: str):
                 raise HTTPException(status_code=404, detail="Article not found")
             rec = df.iloc[idx_int].to_dict()
             return sanitize_record(rec)
-        
+
         raise HTTPException(status_code=404, detail="Article not found")
 
 
@@ -700,13 +762,13 @@ def stable_stringify(obj):
 @app.get("/api/options/counties")
 def get_counties():
     """Get distinct county values from articles in the database.
-    
+
     Returns:
         List of distinct county names, sorted alphabetically
     """
     try:
         from src.models import Article, CandidateLink
-        
+
         with db_manager.get_session() as session:
             # Query distinct counties from CandidateLink (joined with Article)
             counties = (
@@ -727,7 +789,7 @@ def get_counties():
 @app.get("/api/options/sources")
 def get_sources():
     """Get distinct source names from the database.
-    
+
     Returns:
         List of distinct source names, sorted alphabetically
     """
@@ -751,7 +813,7 @@ def get_sources():
 @app.get("/api/options/reviewers")
 def get_reviewers():
     """Get distinct reviewer names from the database.
-    
+
     Returns:
         List of distinct reviewer names who have created reviews, sorted alphabetically
     """
@@ -817,7 +879,7 @@ def post_review(idx: int, payload: ReviewIn):
         ",".join(payload.headline_errors) if payload.headline_errors else None
     )
     author_str = ",".join(payload.author_errors) if payload.author_errors else None
-    
+
     # Prefer an explicit article_uid if supplied in the payload
     article_uid = getattr(payload, "article_uid", None) or None
     # try to read the CSV to map idx -> id if available
@@ -828,21 +890,26 @@ def post_review(idx: int, payload: ReviewIn):
                 article_uid = article_uid or df.iloc[idx].get("id")
     except Exception:
         pass
-    
+
     with db_manager.get_session() as session:
         # Try to find existing review for upsert
         existing_review = None
         if article_uid:
-            existing_review = session.query(Review).filter(
-                Review.article_uid == article_uid,
-                Review.reviewer == payload.reviewer
-            ).first()
+            existing_review = (
+                session.query(Review)
+                .filter(
+                    Review.article_uid == article_uid,
+                    Review.reviewer == payload.reviewer,
+                )
+                .first()
+            )
         if not existing_review:
-            existing_review = session.query(Review).filter(
-                Review.article_idx == idx,
-                Review.reviewer == payload.reviewer
-            ).first()
-        
+            existing_review = (
+                session.query(Review)
+                .filter(Review.article_idx == idx, Review.reviewer == payload.reviewer)
+                .first()
+            )
+
         if existing_review:
             # Update existing review
             existing_review.rating = payload.rating
@@ -850,22 +917,34 @@ def post_review(idx: int, payload: ReviewIn):
             existing_review.tags = tags_str
             existing_review.notes = payload.notes
             existing_review.mentioned_locations = (
-                ",".join(payload.mentioned_locations) if payload.mentioned_locations else None
+                ",".join(payload.mentioned_locations)
+                if payload.mentioned_locations
+                else None
             )
             existing_review.missing_locations = (
-                ",".join(payload.missing_locations) if getattr(payload, "missing_locations", None) else None
+                ",".join(payload.missing_locations)
+                if getattr(payload, "missing_locations", None)
+                else None
             )
             existing_review.incorrect_locations = (
-                ",".join(payload.incorrect_locations) if getattr(payload, "incorrect_locations", None) else None
+                ",".join(payload.incorrect_locations)
+                if getattr(payload, "incorrect_locations", None)
+                else None
             )
             existing_review.inferred_tags = (
-                ",".join(payload.inferred_tags) if getattr(payload, "inferred_tags", None) else None
+                ",".join(payload.inferred_tags)
+                if getattr(payload, "inferred_tags", None)
+                else None
             )
             existing_review.missing_tags = (
-                ",".join(payload.missing_tags) if getattr(payload, "missing_tags", None) else None
+                ",".join(payload.missing_tags)
+                if getattr(payload, "missing_tags", None)
+                else None
             )
             existing_review.incorrect_tags = (
-                ",".join(payload.incorrect_tags) if getattr(payload, "incorrect_tags", None) else None
+                ",".join(payload.incorrect_tags)
+                if getattr(payload, "incorrect_tags", None)
+                else None
             )
             existing_review.body_errors = body_str
             existing_review.headline_errors = headline_str
@@ -883,37 +962,49 @@ def post_review(idx: int, payload: ReviewIn):
                 tags=tags_str,
                 notes=payload.notes,
                 mentioned_locations=(
-                    ",".join(payload.mentioned_locations) if payload.mentioned_locations else None
+                    ",".join(payload.mentioned_locations)
+                    if payload.mentioned_locations
+                    else None
                 ),
                 missing_locations=(
-                    ",".join(payload.missing_locations) if getattr(payload, "missing_locations", None) else None
+                    ",".join(payload.missing_locations)
+                    if getattr(payload, "missing_locations", None)
+                    else None
                 ),
                 incorrect_locations=(
-                    ",".join(payload.incorrect_locations) if getattr(payload, "incorrect_locations", None) else None
+                    ",".join(payload.incorrect_locations)
+                    if getattr(payload, "incorrect_locations", None)
+                    else None
                 ),
                 inferred_tags=(
-                    ",".join(payload.inferred_tags) if getattr(payload, "inferred_tags", None) else None
+                    ",".join(payload.inferred_tags)
+                    if getattr(payload, "inferred_tags", None)
+                    else None
                 ),
                 missing_tags=(
-                    ",".join(payload.missing_tags) if getattr(payload, "missing_tags", None) else None
+                    ",".join(payload.missing_tags)
+                    if getattr(payload, "missing_tags", None)
+                    else None
                 ),
                 incorrect_tags=(
-                    ",".join(payload.incorrect_tags) if getattr(payload, "incorrect_tags", None) else None
+                    ",".join(payload.incorrect_tags)
+                    if getattr(payload, "incorrect_tags", None)
+                    else None
                 ),
                 body_errors=body_str,
                 headline_errors=headline_str,
                 author_errors=author_str,
                 reviewed_at=now,
-                created_at=now
+                created_at=now,
             )
             session.add(review_obj)
-        
+
         session.commit()
         session.refresh(review_obj)
-        
+
         # Convert to dict and split CSV fields
         result = review_obj.to_dict()
-        
+
         # helper to split comma-separated stored strings into lists
         def _split_csv_field(s):
             if s is None:
@@ -926,24 +1017,30 @@ def post_review(idx: int, payload: ReviewIn):
             if s.upper() == "NONE" or s == "None":
                 return []
             return [p for p in s.split(",") if p]
-        
+
         # Normalize CSV fields into arrays for API clients
         result["tags"] = _split_csv_field(result.get("tags"))
         result["body_errors"] = _split_csv_field(result.get("body_errors"))
         result["headline_errors"] = _split_csv_field(result.get("headline_errors"))
         result["author_errors"] = _split_csv_field(result.get("author_errors"))
-        result["mentioned_locations"] = _split_csv_field(result.get("mentioned_locations"))
+        result["mentioned_locations"] = _split_csv_field(
+            result.get("mentioned_locations")
+        )
         result["missing_locations"] = _split_csv_field(result.get("missing_locations"))
-        result["incorrect_locations"] = _split_csv_field(result.get("incorrect_locations"))
+        result["incorrect_locations"] = _split_csv_field(
+            result.get("incorrect_locations")
+        )
         result["inferred_tags"] = _split_csv_field(result.get("inferred_tags"))
         result["missing_tags"] = _split_csv_field(result.get("missing_tags"))
         result["incorrect_tags"] = _split_csv_field(result.get("incorrect_tags"))
-        
+
         # Build canonical payload
         def build_canonical(r):
             if not r:
                 return None
-            primary = r.get("rating") if r.get("rating") is not None else r.get("rating")
+            primary = (
+                r.get("rating") if r.get("rating") is not None else r.get("rating")
+            )
             secondary = (
                 r.get("secondary_rating")
                 if r.get("secondary_rating") is not None
@@ -968,7 +1065,7 @@ def post_review(idx: int, payload: ReviewIn):
                 tags.sort()
             except Exception:
                 tags = []
-            
+
             canonical = {
                 "article_uid": r.get("article_uid"),
                 "reviewer": r.get("reviewer"),
@@ -991,7 +1088,7 @@ def post_review(idx: int, payload: ReviewIn):
                 "missing_tags": r.get("missing_tags") or [],
             }
             return canonical
-        
+
         def canonical_hash(obj):
             try:
                 return stable_stringify(obj)
@@ -1000,14 +1097,14 @@ def post_review(idx: int, payload: ReviewIn):
                     return json.dumps(obj, sort_keys=True, separators=(",", ":"))
                 except Exception:
                     return None
-        
+
         # Attach canonical payload and hash
         try:
             result["canonical"] = build_canonical(result)
             result["canonical_hash"] = canonical_hash(result["canonical"])
         except Exception:
             pass
-        
+
         return result
 
 
@@ -1020,7 +1117,7 @@ def update_review(rid: str, payload: ReviewIn):
         review = session.query(Review).filter(Review.id == rid).first()
         if not review:
             raise HTTPException(status_code=404, detail="Review not found")
-        
+
         # Update fields
         review.reviewer = payload.reviewer
         review.rating = payload.rating
@@ -1028,28 +1125,46 @@ def update_review(rid: str, payload: ReviewIn):
         review.tags = ",".join(payload.tags) if payload.tags else None
         review.notes = payload.notes
         review.mentioned_locations = (
-            ",".join(payload.mentioned_locations) if payload.mentioned_locations else None
+            ",".join(payload.mentioned_locations)
+            if payload.mentioned_locations
+            else None
         )
         review.missing_locations = (
-            ",".join(payload.missing_locations) if getattr(payload, "missing_locations", None) else None
+            ",".join(payload.missing_locations)
+            if getattr(payload, "missing_locations", None)
+            else None
         )
         review.incorrect_locations = (
-            ",".join(payload.incorrect_locations) if getattr(payload, "incorrect_locations", None) else None
+            ",".join(payload.incorrect_locations)
+            if getattr(payload, "incorrect_locations", None)
+            else None
         )
         review.inferred_tags = (
-            ",".join(payload.inferred_tags) if getattr(payload, "inferred_tags", None) else None
+            ",".join(payload.inferred_tags)
+            if getattr(payload, "inferred_tags", None)
+            else None
         )
         review.missing_tags = (
-            ",".join(payload.missing_tags) if getattr(payload, "missing_tags", None) else None
+            ",".join(payload.missing_tags)
+            if getattr(payload, "missing_tags", None)
+            else None
         )
         review.incorrect_tags = (
-            ",".join(payload.incorrect_tags) if getattr(payload, "incorrect_tags", None) else None
+            ",".join(payload.incorrect_tags)
+            if getattr(payload, "incorrect_tags", None)
+            else None
         )
-        review.body_errors = ",".join(payload.body_errors) if payload.body_errors else None
-        review.headline_errors = ",".join(payload.headline_errors) if payload.headline_errors else None
-        review.author_errors = ",".join(payload.author_errors) if payload.author_errors else None
+        review.body_errors = (
+            ",".join(payload.body_errors) if payload.body_errors else None
+        )
+        review.headline_errors = (
+            ",".join(payload.headline_errors) if payload.headline_errors else None
+        )
+        review.author_errors = (
+            ",".join(payload.author_errors) if payload.author_errors else None
+        )
         review.reviewed_at = datetime.datetime.utcnow()
-        
+
         session.commit()
         return {"status": "ok", "id": rid}
 
@@ -1058,20 +1173,20 @@ def update_review(rid: str, payload: ReviewIn):
 def get_reviews(article_idx: int | None = None, article_uid: str | None = None):
     with db_manager.get_session() as session:
         query = session.query(Review)
-        
+
         if article_uid:
             query = query.filter(Review.article_uid == article_uid)
         elif article_idx is not None:
             query = query.filter(Review.article_idx == article_idx)
         else:
             query = query.limit(200)
-        
+
         query = query.order_by(Review.id.desc())
         reviews = query.all()
-        
+
         if not reviews:
             return []
-        
+
         def _split_csv_field(s):
             if s is None:
                 return []
@@ -1083,7 +1198,7 @@ def get_reviews(article_idx: int | None = None, article_uid: str | None = None):
             if s.upper() == "NONE" or s == "None":
                 return []
             return [p for p in s.split(",") if p]
-        
+
         results = []
         for review in reviews:
             d = review.to_dict()
@@ -1098,7 +1213,7 @@ def get_reviews(article_idx: int | None = None, article_uid: str | None = None):
             d["incorrect_locations"] = _split_csv_field(d.get("incorrect_locations"))
             d["missing_tags"] = _split_csv_field(d.get("missing_tags"))
             d["incorrect_tags"] = _split_csv_field(d.get("incorrect_tags"))
-            
+
             # Build canonical payload for each row similar to POST response
             try:
                 body = d.get("body_errors") or []
@@ -1123,20 +1238,26 @@ def get_reviews(article_idx: int | None = None, article_uid: str | None = None):
                 canonical = {
                     "article_uid": d.get("article_uid"),
                     "reviewer": d.get("reviewer"),
-                    "primary_rating": d.get("rating") if d.get("rating") is not None else 3,
+                    "primary_rating": (
+                        d.get("rating") if d.get("rating") is not None else 3
+                    ),
                     "secondary_rating": (
                         d.get("secondary_rating")
                         if d.get("secondary_rating") is not None
                         else 3
                     ),
-                    "body": list(body) if isinstance(body, (list, tuple)) else body or [],
+                    "body": (
+                        list(body) if isinstance(body, (list, tuple)) else body or []
+                    ),
                     "headline": (
                         list(headline)
                         if isinstance(headline, (list, tuple))
                         else headline or []
                     ),
                     "author": (
-                        list(author) if isinstance(author, (list, tuple)) else author or []
+                        list(author)
+                        if isinstance(author, (list, tuple))
+                        else author or []
                     ),
                     "tags": tags,
                     "notes": d.get("notes") or "",
@@ -1157,7 +1278,7 @@ def get_reviews(article_idx: int | None = None, article_uid: str | None = None):
                 d["canonical"] = None
                 d["canonical_hash"] = None
             results.append(d)
-        
+
         return results
 
 
@@ -1236,7 +1357,7 @@ def post_snapshot(payload: SnapshotIn):
                     ),
                     model_confidence=payload.model_confidence,
                     status="pending",
-                    created_at=datetime.datetime.fromisoformat(now)
+                    created_at=datetime.datetime.fromisoformat(now),
                 )
                 session.add(snapshot)
                 session.commit()
@@ -1255,9 +1376,9 @@ def get_snapshot(sid: str):
         snapshot = session.query(Snapshot).filter(Snapshot.id == sid).first()
         if not snapshot:
             raise HTTPException(status_code=404, detail="snapshot not found")
-        
+
         rec = snapshot.to_dict()
-        
+
         # load candidates
         candidates = session.query(Candidate).filter(Candidate.snapshot_id == sid).all()
         rec["candidates"] = []
@@ -1271,14 +1392,14 @@ def get_snapshot(sid: str):
                     # leave raw string if parsing fails
                     pass
             rec["candidates"].append(obj)
-        
+
         # parse parsed_fields JSON
         if rec.get("parsed_fields"):
             try:
                 rec["parsed_fields"] = json.loads(rec["parsed_fields"])
             except Exception:
                 rec["parsed_fields"] = None
-        
+
         return rec
 
 
@@ -1312,7 +1433,7 @@ def post_candidates(sid: str, payload: list[CandidateIn]):
                     alts_json = json.dumps(c.alts)
             except Exception:
                 alts_json = None
-            
+
             candidate = Candidate(
                 id=cid,
                 snapshot_id=sid,
@@ -1323,11 +1444,11 @@ def post_candidates(sid: str, payload: list[CandidateIn]):
                 snippet=getattr(c, "snippet", None),
                 alts=alts_json,
                 accepted=False,
-                created_at=now
+                created_at=now,
             )
             session.add(candidate)
             inserted.append(cid)
-        
+
         session.commit()
         return {"inserted": inserted}
 
@@ -1336,41 +1457,44 @@ def post_candidates(sid: str, payload: list[CandidateIn]):
 def get_domain_issues():
     """Aggregate issues by host for the domain reports UI."""
     from sqlalchemy import func, distinct
-    
+
     with db_manager.get_session() as session:
         out = {}
-        
+
         # Find hosts that have non-accepted candidates (flagged issues)
         # Exclude snapshots that have been reviewed
-        hosts = session.query(distinct(Snapshot.host)).join(
-            Candidate, Candidate.snapshot_id == Snapshot.id
-        ).filter(
-            Candidate.accepted.is_(False),
-            Snapshot.reviewed_at.is_(None)
-        ).all()
-        
+        hosts = (
+            session.query(distinct(Snapshot.host))
+            .join(Candidate, Candidate.snapshot_id == Snapshot.id)
+            .filter(Candidate.accepted.is_(False), Snapshot.reviewed_at.is_(None))
+            .all()
+        )
+
         for (host,) in hosts:
             # aggregate candidate counts by field for this host (only non-accepted)
-            field_counts = session.query(
-                Candidate.field, func.count(Candidate.id)
-            ).join(
-                Snapshot, Candidate.snapshot_id == Snapshot.id
-            ).filter(
-                Snapshot.host == host,
-                Candidate.accepted.is_(False),
-                Snapshot.reviewed_at.is_(None)
-            ).group_by(Candidate.field).all()
-            
+            field_counts = (
+                session.query(Candidate.field, func.count(Candidate.id))
+                .join(Snapshot, Candidate.snapshot_id == Snapshot.id)
+                .filter(
+                    Snapshot.host == host,
+                    Candidate.accepted.is_(False),
+                    Snapshot.reviewed_at.is_(None),
+                )
+                .group_by(Candidate.field)
+                .all()
+            )
+
             issues = {(f if f is not None else "unknown"): c for f, c in field_counts}
-            
+
             # count distinct snapshots (urls) for host that are not reviewed
-            total_urls = session.query(func.count(distinct(Snapshot.id))).filter(
-                Snapshot.host == host,
-                Snapshot.reviewed_at.is_(None)
-            ).scalar()
-            
+            total_urls = (
+                session.query(func.count(distinct(Snapshot.id)))
+                .filter(Snapshot.host == host, Snapshot.reviewed_at.is_(None))
+                .scalar()
+            )
+
             out[host] = {"issues": issues, "total_urls": total_urls}
-        
+
         return out
 
 
@@ -1391,11 +1515,13 @@ def list_crawl_errors():
     Aggregates unique failure reasons per host with a sample URL and count.
     """
     with db_manager.get_session() as session:
-        snapshots = session.query(Snapshot).filter(
-            Snapshot.failure_reason.isnot(None),
-            Snapshot.failure_reason != ''
-        ).order_by(Snapshot.created_at.desc()).all()
-        
+        snapshots = (
+            session.query(Snapshot)
+            .filter(Snapshot.failure_reason.isnot(None), Snapshot.failure_reason != "")
+            .order_by(Snapshot.created_at.desc())
+            .all()
+        )
+
         out = {}
         for snap in snapshots:
             host = snap.host
@@ -1404,7 +1530,14 @@ def list_crawl_errors():
             # normalize reason string
             r = snap.failure_reason.strip() if snap.failure_reason else "unknown"
             grp = out[host]["errors"].get(
-                r, {"count": 0, "example_url": snap.url, "last_seen": snap.created_at.isoformat() if snap.created_at else None}
+                r,
+                {
+                    "count": 0,
+                    "example_url": snap.url,
+                    "last_seen": (
+                        snap.created_at.isoformat() if snap.created_at else None
+                    ),
+                },
             )
             grp["count"] = grp.get("count", 0) + 1
             # keep the earliest example
@@ -1415,7 +1548,7 @@ def list_crawl_errors():
             grp["last_seen"] = max(grp.get("last_seen") or "", current_time)
             out[host]["errors"][r] = grp
             out[host]["total"] += 1
-        
+
         return out
 
 
@@ -1441,7 +1574,9 @@ def telemetry_queue():
 def post_domain_feedback(host: str, payload: dict):
     """Upsert feedback for a host. Expects JSON with notes."""
     with db_manager.get_session() as session:
-        feedback = session.query(DomainFeedback).filter(DomainFeedback.host == host).first()
+        feedback = (
+            session.query(DomainFeedback).filter(DomainFeedback.host == host).first()
+        )
         if feedback:
             feedback.notes = payload.get("notes")
             feedback.updated_at = datetime.datetime.utcnow()
@@ -1449,7 +1584,7 @@ def post_domain_feedback(host: str, payload: dict):
             feedback = DomainFeedback(
                 host=host,
                 notes=payload.get("notes"),
-                updated_at=datetime.datetime.utcnow()
+                updated_at=datetime.datetime.utcnow(),
             )
             session.add(feedback)
         session.commit()
@@ -1463,7 +1598,7 @@ def migrate_domain_feedback(dry_run: bool | None = True):
     """
     return {
         "status": "noop",
-        "reason": "Schema managed by Alembic migrations. No migration needed."
+        "reason": "Schema managed by Alembic migrations. No migration needed.",
     }
 
 
@@ -1475,11 +1610,9 @@ def snapshots_by_host(host: str, include_reviewed: bool = False):
     with db_manager.get_session() as session:
         query = session.query(Snapshot).filter(Snapshot.host == host)
         if not include_reviewed:
-            query = query.filter(
-                Snapshot.reviewed_at.is_(None)
-            )
+            query = query.filter(Snapshot.reviewed_at.is_(None))
         snapshots = query.order_by(Snapshot.created_at.desc()).all()
-        
+
         out = []
         for snap in snapshots:
             rec = snap.to_dict()
@@ -1489,7 +1622,7 @@ def snapshots_by_host(host: str, include_reviewed: bool = False):
                 except Exception:
                     rec["parsed_fields"] = None
             out.append(rec)
-        
+
         return out
 
 
@@ -1507,22 +1640,30 @@ def ui_overview():
         "candidate_issues": 0,
         "dedupe_near_misses": 0,
     }
-    
+
     try:
         with db_manager.get_session() as session:
             # Get total article count from database
             from src.models import Article
+
             res["total_articles"] = session.query(Article).count()
-            
+
             # Count articles with wire service attribution
             # Wire column is JSON - manually check each article since JSON comparison is complex
             wire_count = 0
-            for article in session.query(Article).filter(Article.wire.isnot(None)).all():
+            for article in (
+                session.query(Article).filter(Article.wire.isnot(None)).all()
+            ):
                 if article.wire and article.wire not in ("null", "[]", ""):
                     # Parse JSON to check if array has elements
                     try:
                         import json
-                        wire_data = json.loads(article.wire) if isinstance(article.wire, str) else article.wire
+
+                        wire_data = (
+                            json.loads(article.wire)
+                            if isinstance(article.wire, str)
+                            else article.wire
+                        )
                         if wire_data and len(wire_data) > 0:
                             wire_count += 1
                     except (json.JSONDecodeError, TypeError):
@@ -1530,21 +1671,24 @@ def ui_overview():
                         if len(article.wire) > 2:  # More than just "[]"
                             wire_count += 1
             res["wire_count"] = wire_count
-            
+
             # candidate issues from DB (non-accepted)
             count = (
-                session.query(Candidate)
-                .filter(Candidate.accepted.is_(False))
-                .count()
+                session.query(Candidate).filter(Candidate.accepted.is_(False)).count()
             )
             res["candidate_issues"] = int(count)
-            
+
             # dedupe near-misses: dedupe_audit rows where dedupe_flag is 0 and similarity > 0.7
             try:
-                near_miss_count = session.query(DedupeAudit).filter(
-                    (DedupeAudit.dedupe_flag.is_(None)) | (DedupeAudit.dedupe_flag == 0),
-                    DedupeAudit.similarity > 0.7
-                ).count()
+                near_miss_count = (
+                    session.query(DedupeAudit)
+                    .filter(
+                        (DedupeAudit.dedupe_flag.is_(None))
+                        | (DedupeAudit.dedupe_flag == 0),
+                        DedupeAudit.similarity > 0.7,
+                    )
+                    .count()
+                )
                 res["dedupe_near_misses"] = int(near_miss_count)
             except Exception:
                 # if dedupe_audit missing or column types differ, ignore
@@ -1567,7 +1711,7 @@ def post_dedupe_records(payload: list[dict]):
         records = [payload]
     else:
         records = payload
-    
+
     with db_manager.get_session() as session:
         now = datetime.datetime.utcnow()
         inserted = 0
@@ -1584,14 +1728,18 @@ def post_dedupe_records(payload: list[dict]):
                         if r.get("dedupe_flag") is not None
                         else None
                     ),
-                    category=int(r.get("category")) if r.get("category") is not None else None,
+                    category=(
+                        int(r.get("category"))
+                        if r.get("category") is not None
+                        else None
+                    ),
                     stage=r.get("stage"),
                     details=(
                         json.dumps(r.get("details"))
                         if r.get("details") is not None
                         else None
                     ),
-                    created_at=now
+                    created_at=now,
                 )
                 session.add(audit)
                 session.flush()  # Get the ID
@@ -1600,7 +1748,7 @@ def post_dedupe_records(payload: list[dict]):
             except Exception:
                 # skip problematic rows but continue
                 continue
-        
+
         session.commit()
         return {"inserted": inserted, "sample_ids": samples}
 
@@ -1615,15 +1763,17 @@ def get_dedupe_records(
     """Query dedupe audit rows filtered by article_uid or host. Returns rows ordered by created_at desc."""
     with db_manager.get_session() as session:
         query = session.query(DedupeAudit)
-        
+
         if article_uid:
             query = query.filter(DedupeAudit.article_uid == article_uid)
         if host:
             query = query.filter(DedupeAudit.host == host)
-        
-        query = query.order_by(DedupeAudit.created_at.desc()).limit(limit).offset(offset)
+
+        query = (
+            query.order_by(DedupeAudit.created_at.desc()).limit(limit).offset(offset)
+        )
         records = query.all()
-        
+
         out = []
         for record in records:
             d = record.to_dict()
@@ -1634,7 +1784,7 @@ def get_dedupe_records(
                 except Exception:
                     pass
             out.append(d)
-        
+
         return {"count": len(out), "results": out}
 
 
@@ -1694,7 +1844,7 @@ def import_dupes_csv(payload: dict, dry_run: bool | None = True):
                             details=json.dumps(
                                 {"url": row.get("url"), "title": row.get("title")}
                             ),
-                            created_at=now
+                            created_at=now,
                         )
                         session.add(audit)
                         session.commit()
@@ -1714,7 +1864,7 @@ def accept_candidate(cid: str, payload: dict | None = None):
     val = True
     if payload is not None:
         val = payload.get("accepted", True)
-    
+
     with db_manager.get_session() as session:
         candidate = session.query(Candidate).filter(Candidate.id == cid).first()
         if not candidate:
@@ -1732,17 +1882,13 @@ def create_reextract_job(payload: dict):
     host = payload.get("host")
     if not host:
         raise HTTPException(status_code=400, detail="host required")
-    
+
     job_id = str(uuid.uuid4())
     now = datetime.datetime.utcnow()
-    
+
     with db_manager.get_session() as session:
         job = ReextractionJob(
-            id=job_id,
-            host=host,
-            status="pending",
-            created_at=now,
-            updated_at=now
+            id=job_id, host=host, status="pending", created_at=now, updated_at=now
         )
         session.add(job)
         session.commit()
@@ -1752,17 +1898,19 @@ def create_reextract_job(payload: dict):
 @app.get("/api/reextract_jobs/{job_id}")
 def get_reextract_job(job_id: str):
     with db_manager.get_session() as session:
-        job = session.query(ReextractionJob).filter(ReextractionJob.id == job_id).first()
+        job = (
+            session.query(ReextractionJob).filter(ReextractionJob.id == job_id).first()
+        )
         if not job:
             raise HTTPException(status_code=404, detail="job not found")
-        
+
         result_data = None
         if job.result_json:
             try:
                 result_data = json.loads(job.result_json)
             except Exception:
                 result_data = job.result_json
-        
+
         return {
             "id": job.id,
             "host": job.host,
@@ -1960,8 +2108,8 @@ def get_http_errors(
             query = session.query(
                 HttpErrorSummary.host,
                 HttpErrorSummary.status_code,
-                func.sum(HttpErrorSummary.count).label('error_count'),
-                func.max(HttpErrorSummary.last_seen).label('last_seen')
+                func.sum(HttpErrorSummary.count).label("error_count"),
+                func.max(HttpErrorSummary.last_seen).label("last_seen"),
             )
 
             # Apply filters
@@ -1977,9 +2125,8 @@ def get_http_errors(
 
             # Group and order
             query = query.group_by(
-                HttpErrorSummary.host,
-                HttpErrorSummary.status_code
-            ).order_by(desc('error_count'))
+                HttpErrorSummary.host, HttpErrorSummary.status_code
+            ).order_by(desc("error_count"))
 
             results = []
             for row in query.all():
@@ -1988,7 +2135,9 @@ def get_http_errors(
                         "host": row.host,
                         "status_code": row.status_code,
                         "error_count": row.error_count,
-                        "last_seen": row.last_seen.isoformat() if row.last_seen else None,
+                        "last_seen": (
+                            row.last_seen.isoformat() if row.last_seen else None
+                        ),
                     }
                 )
 
@@ -2009,18 +2158,20 @@ def get_method_performance(
     try:
         with db_manager.get_session() as session:
             # Build query with COALESCE for successful_method
-            method_col = func.coalesce(ExtractionTelemetryV2.successful_method, 'failed')
-            
+            method_col = func.coalesce(
+                ExtractionTelemetryV2.successful_method, "failed"
+            )
+
             query = session.query(
-                method_col.label('method'),
+                method_col.label("method"),
                 ExtractionTelemetryV2.host,
-                func.count().label('total_attempts'),
-                func.sum(
-                    case((ExtractionTelemetryV2.is_success, 1), else_=0)
-                ).label('successful_attempts'),
-                func.avg(ExtractionTelemetryV2.total_duration_ms).label('avg_duration'),
-                func.min(ExtractionTelemetryV2.total_duration_ms).label('min_duration'),
-                func.max(ExtractionTelemetryV2.total_duration_ms).label('max_duration')
+                func.count().label("total_attempts"),
+                func.sum(case((ExtractionTelemetryV2.is_success, 1), else_=0)).label(
+                    "successful_attempts"
+                ),
+                func.avg(ExtractionTelemetryV2.total_duration_ms).label("avg_duration"),
+                func.min(ExtractionTelemetryV2.total_duration_ms).label("min_duration"),
+                func.max(ExtractionTelemetryV2.total_duration_ms).label("max_duration"),
             )
 
             # Apply filters
@@ -2036,14 +2187,18 @@ def get_method_performance(
 
             # Group and order
             query = query.group_by(method_col, ExtractionTelemetryV2.host)
-            query = query.order_by(desc('total_attempts'))
+            query = query.order_by(desc("total_attempts"))
 
             results = []
             for row in query.all():
                 total_attempts = row.total_attempts or 0
                 successful_attempts = row.successful_attempts or 0
-                success_rate = (successful_attempts / total_attempts * 100) if total_attempts > 0 else 0
-                
+                success_rate = (
+                    (successful_attempts / total_attempts * 100)
+                    if total_attempts > 0
+                    else 0
+                )
+
                 results.append(
                     {
                         "method": row.method,
@@ -2051,9 +2206,15 @@ def get_method_performance(
                         "total_attempts": total_attempts,
                         "successful_attempts": successful_attempts,
                         "success_rate": round(success_rate, 2),
-                        "avg_duration": round(row.avg_duration, 2) if row.avg_duration else 0,
-                        "min_duration": round(row.min_duration, 2) if row.min_duration else 0,
-                        "max_duration": round(row.max_duration, 2) if row.max_duration else 0,
+                        "avg_duration": (
+                            round(row.avg_duration, 2) if row.avg_duration else 0
+                        ),
+                        "min_duration": (
+                            round(row.min_duration, 2) if row.min_duration else 0
+                        ),
+                        "max_duration": (
+                            round(row.max_duration, 2) if row.max_duration else 0
+                        ),
                     }
                 )
 
@@ -2071,17 +2232,19 @@ def get_publisher_stats(days: int = 7, host: str | None = None, min_attempts: in
     """Get publisher performance statistics."""
     try:
         with db_manager.get_session() as session:
-            method_col = func.coalesce(ExtractionTelemetryV2.successful_method, 'failed')
-            
+            method_col = func.coalesce(
+                ExtractionTelemetryV2.successful_method, "failed"
+            )
+
             query = session.query(
                 ExtractionTelemetryV2.host,
-                func.count().label('total_extractions'),
-                func.sum(
-                    case((ExtractionTelemetryV2.is_success, 1), else_=0)
-                ).label('successful_extractions'),
-                func.avg(ExtractionTelemetryV2.total_duration_ms).label('avg_duration'),
-                func.count(func.distinct(method_col)).label('methods_used'),
-                func.max(ExtractionTelemetryV2.created_at).label('last_attempt')
+                func.count().label("total_extractions"),
+                func.sum(case((ExtractionTelemetryV2.is_success, 1), else_=0)).label(
+                    "successful_extractions"
+                ),
+                func.avg(ExtractionTelemetryV2.total_duration_ms).label("avg_duration"),
+                func.count(func.distinct(method_col)).label("methods_used"),
+                func.max(ExtractionTelemetryV2.created_at).label("last_attempt"),
             )
 
             # Apply filters
@@ -2095,14 +2258,14 @@ def get_publisher_stats(days: int = 7, host: str | None = None, min_attempts: in
             # Group by host and apply HAVING clause
             query = query.group_by(ExtractionTelemetryV2.host)
             query = query.having(func.count() >= min_attempts)
-            query = query.order_by(desc('total_extractions'))
+            query = query.order_by(desc("total_extractions"))
 
             results = []
             for row in query.all():
                 total = row.total_extractions or 0
                 successful = row.successful_extractions or 0
                 success_rate = (successful / total * 100) if total > 0 else 0
-                
+
                 if success_rate < 50:
                     status = "poor"
                 elif success_rate > 80:
@@ -2116,9 +2279,13 @@ def get_publisher_stats(days: int = 7, host: str | None = None, min_attempts: in
                         "total_extractions": total,
                         "successful_extractions": successful,
                         "success_rate": round(success_rate, 2),
-                        "avg_duration": round(row.avg_duration, 2) if row.avg_duration else 0,
+                        "avg_duration": (
+                            round(row.avg_duration, 2) if row.avg_duration else 0
+                        ),
                         "methods_used": row.methods_used,
-                        "last_attempt": row.last_attempt.isoformat() if row.last_attempt else None,
+                        "last_attempt": (
+                            row.last_attempt.isoformat() if row.last_attempt else None
+                        ),
                         "status": status,
                     }
                 )
@@ -2146,7 +2313,7 @@ def get_field_extraction_stats(
             query = session.query(
                 ExtractionTelemetryV2.field_extraction,
                 ExtractionTelemetryV2.methods_attempted,
-                ExtractionTelemetryV2.successful_method
+                ExtractionTelemetryV2.successful_method,
             )
 
             # Apply filters
@@ -2159,14 +2326,18 @@ def get_field_extraction_stats(
 
             # Process results to calculate field extraction stats
             method_field_stats = {}
-            
+
             for row in query.all():
                 field_extraction_json = row.field_extraction
                 methods_json = row.methods_attempted
-                
+
                 try:
                     methods = json.loads(methods_json) if methods_json else []
-                    field_data = json.loads(field_extraction_json) if field_extraction_json else {}
+                    field_data = (
+                        json.loads(field_extraction_json)
+                        if field_extraction_json
+                        else {}
+                    )
                 except (json.JSONDecodeError, TypeError):
                     continue
 
@@ -2209,7 +2380,7 @@ def get_field_extraction_stats(
                     "content_success_rate": stats["content_success"] / denominator,
                     "date_success_rate": stats["date_success"] / denominator,
                 }
-                
+
                 # Filter by field if specified
                 if field:
                     field_counts = {
@@ -2240,24 +2411,27 @@ def get_poor_performing_sites(
     """Get sites with poor performance that may need attention."""
     try:
         with db_manager.get_session() as session:
-            method_col = func.coalesce(ExtractionTelemetryV2.successful_method, 'failed')
-            
+            method_col = func.coalesce(
+                ExtractionTelemetryV2.successful_method, "failed"
+            )
+
             # Calculate success rate in the query
             success_rate_calc = (
-                func.sum(case((ExtractionTelemetryV2.is_success, 1), else_=0)) * 100.0
+                func.sum(case((ExtractionTelemetryV2.is_success, 1), else_=0))
+                * 100.0
                 / func.count()
             )
-            
+
             query = session.query(
                 ExtractionTelemetryV2.host,
-                func.count().label('total_attempts'),
-                func.sum(
-                    case((ExtractionTelemetryV2.is_success, 1), else_=0)
-                ).label('successful_attempts'),
-                success_rate_calc.label('success_rate'),
-                func.avg(ExtractionTelemetryV2.total_duration_ms).label('avg_duration'),
-                func.max(ExtractionTelemetryV2.created_at).label('last_attempt'),
-                func.count(func.distinct(method_col)).label('methods_tried')
+                func.count().label("total_attempts"),
+                func.sum(case((ExtractionTelemetryV2.is_success, 1), else_=0)).label(
+                    "successful_attempts"
+                ),
+                success_rate_calc.label("success_rate"),
+                func.avg(ExtractionTelemetryV2.total_duration_ms).label("avg_duration"),
+                func.max(ExtractionTelemetryV2.created_at).label("last_attempt"),
+                func.count(func.distinct(method_col)).label("methods_tried"),
             )
 
             # Apply filters
@@ -2266,14 +2440,12 @@ def get_poor_performing_sites(
 
             # Group by host and apply HAVING clauses
             query = query.group_by(ExtractionTelemetryV2.host)
-            query = query.having(and_(
-                func.count() >= min_attempts,
-                success_rate_calc <= max_success_rate
-            ))
-            query = query.order_by(
-                success_rate_calc.asc(),
-                desc('total_attempts')
+            query = query.having(
+                and_(
+                    func.count() >= min_attempts, success_rate_calc <= max_success_rate
+                )
             )
+            query = query.order_by(success_rate_calc.asc(), desc("total_attempts"))
 
             results = []
             for row in query.all():
@@ -2284,8 +2456,12 @@ def get_poor_performing_sites(
                         "total_attempts": row.total_attempts,
                         "successful_attempts": row.successful_attempts or 0,
                         "success_rate": round(success_rate, 2),
-                        "avg_duration": round(row.avg_duration, 2) if row.avg_duration else 0,
-                        "last_attempt": row.last_attempt.isoformat() if row.last_attempt else None,
+                        "avg_duration": (
+                            round(row.avg_duration, 2) if row.avg_duration else 0
+                        ),
+                        "last_attempt": (
+                            row.last_attempt.isoformat() if row.last_attempt else None
+                        ),
                         "methods_tried": row.methods_tried,
                         "recommendation": "pause" if success_rate < 25 else "monitor",
                     }
@@ -2318,41 +2494,50 @@ def get_telemetry_summary(days: int = 7):
             pass
         with db_manager.get_session() as session:
             cutoff_date = datetime.datetime.utcnow() - datetime.timedelta(days=days)
-            
+
             # Overall extraction stats
-            method_col = func.coalesce(ExtractionTelemetryV2.successful_method, 'failed')
-            
+            method_col = func.coalesce(
+                ExtractionTelemetryV2.successful_method, "failed"
+            )
+
             overall_query = session.query(
-                func.count().label('total_extractions'),
-                func.sum(
-                    case((ExtractionTelemetryV2.is_success, 1), else_=0)
-                ).label('successful_extractions'),
-                func.count(func.distinct(ExtractionTelemetryV2.host)).label('unique_hosts'),
-                func.count(func.distinct(method_col)).label('methods_used'),
-                func.avg(ExtractionTelemetryV2.total_duration_ms).label('avg_duration')
+                func.count().label("total_extractions"),
+                func.sum(case((ExtractionTelemetryV2.is_success, 1), else_=0)).label(
+                    "successful_extractions"
+                ),
+                func.count(func.distinct(ExtractionTelemetryV2.host)).label(
+                    "unique_hosts"
+                ),
+                func.count(func.distinct(method_col)).label("methods_used"),
+                func.avg(ExtractionTelemetryV2.total_duration_ms).label("avg_duration"),
             ).filter(ExtractionTelemetryV2.created_at >= cutoff_date)
-            
+
             overall = overall_query.first()
             total = overall.total_extractions or 0
             successful = overall.successful_extractions or 0
             success_rate = (successful / total * 100) if total > 0 else 0
 
             # Method breakdown
-            method_query = session.query(
-                method_col.label('method'),
-                func.count().label('count'),
-                func.sum(
-                    case((ExtractionTelemetryV2.is_success, 1), else_=0)
-                ).label('successful')
-            ).filter(
-                ExtractionTelemetryV2.created_at >= cutoff_date
-            ).group_by(method_col).order_by(desc('count'))
+            method_query = (
+                session.query(
+                    method_col.label("method"),
+                    func.count().label("count"),
+                    func.sum(
+                        case((ExtractionTelemetryV2.is_success, 1), else_=0)
+                    ).label("successful"),
+                )
+                .filter(ExtractionTelemetryV2.created_at >= cutoff_date)
+                .group_by(method_col)
+                .order_by(desc("count"))
+            )
 
             method_stats = []
             for row in method_query.all():
                 count = row.count or 0
                 successful_count = row.successful or 0
-                method_success_rate = (successful_count / count * 100) if count > 0 else 0
+                method_success_rate = (
+                    (successful_count / count * 100) if count > 0 else 0
+                )
                 method_stats.append(
                     {
                         "method": row.method,
@@ -2363,14 +2548,16 @@ def get_telemetry_summary(days: int = 7):
                 )
 
             # HTTP error counts
-            error_query = session.query(
-                HttpErrorSummary.status_code,
-                func.sum(HttpErrorSummary.count).label('count')
-            ).filter(
-                HttpErrorSummary.last_seen >= cutoff_date
-            ).group_by(
-                HttpErrorSummary.status_code
-            ).order_by(desc('count')).limit(10)
+            error_query = (
+                session.query(
+                    HttpErrorSummary.status_code,
+                    func.sum(HttpErrorSummary.count).label("count"),
+                )
+                .filter(HttpErrorSummary.last_seen >= cutoff_date)
+                .group_by(HttpErrorSummary.status_code)
+                .order_by(desc("count"))
+                .limit(10)
+            )
 
             http_errors = [
                 {"status_code": row.status_code, "count": row.count}
@@ -2384,7 +2571,9 @@ def get_telemetry_summary(days: int = 7):
                     "success_rate": round(success_rate, 2),
                     "unique_hosts": overall.unique_hosts or 0,
                     "methods_used": overall.methods_used or 0,
-                    "avg_duration": round(overall.avg_duration, 2) if overall.avg_duration else 0,
+                    "avg_duration": (
+                        round(overall.avg_duration, 2) if overall.avg_duration else 0
+                    ),
                     "method_breakdown": method_stats,
                     "top_http_errors": http_errors,
                 }
@@ -2409,13 +2598,13 @@ def pause_site(request: SiteManagementRequest):
         with db_manager.get_session() as session:
             # Try to find existing source
             source = session.query(Source).filter(Source.host == request.host).first()
-            
+
             now = datetime.datetime.utcnow()
             reason = request.reason or "Poor performance detected"
-            
+
             if source:
                 # Update existing source
-                source.status = 'paused'
+                source.status = "paused"
                 source.paused_at = now
                 source.paused_reason = reason
             else:
@@ -2424,12 +2613,12 @@ def pause_site(request: SiteManagementRequest):
                     id=str(uuid.uuid4()),
                     host=request.host,
                     host_norm=request.host.lower(),
-                    status='paused',
+                    status="paused",
                     paused_at=now,
-                    paused_reason=reason
+                    paused_reason=reason,
                 )
                 session.add(source)
-            
+
             session.commit()
 
             return {
@@ -2457,13 +2646,16 @@ def resume_site(request: SiteManagementRequest):
                 )
 
             # Update the source status
-            source.status = 'active'
+            source.status = "active"
             source.paused_at = None
             source.paused_reason = None
-            
+
             session.commit()
 
-            return {"status": "success", "message": f"Site {request.host} has been resumed"}
+            return {
+                "status": "success",
+                "message": f"Site {request.host} has been resumed",
+            }
 
     except HTTPException as exc:
         raise exc
@@ -2479,17 +2671,24 @@ def get_paused_sites():
     """Get list of currently paused sites."""
     try:
         with db_manager.get_session() as session:
-            paused_sources = session.query(Source).filter(
-                Source.status == 'paused'
-            ).order_by(desc(Source.paused_at)).all()
+            paused_sources = (
+                session.query(Source)
+                .filter(Source.status == "paused")
+                .order_by(desc(Source.paused_at))
+                .all()
+            )
 
             paused_sites = []
             for source in paused_sources:
-                paused_sites.append({
-                    "host": source.host,
-                    "paused_at": source.paused_at.isoformat() if source.paused_at else None,
-                    "reason": source.paused_reason
-                })
+                paused_sites.append(
+                    {
+                        "host": source.host,
+                        "paused_at": (
+                            source.paused_at.isoformat() if source.paused_at else None
+                        ),
+                        "reason": source.paused_reason,
+                    }
+                )
 
             return {"paused_sites": paused_sites}
 
@@ -2510,7 +2709,9 @@ def get_site_status(host: str):
                 return {
                     "host": host,
                     "status": source.status or "active",
-                    "paused_at": source.paused_at.isoformat() if source.paused_at else None,
+                    "paused_at": (
+                        source.paused_at.isoformat() if source.paused_at else None
+                    ),
                     "paused_reason": source.paused_reason,
                 }
             else:

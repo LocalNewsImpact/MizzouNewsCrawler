@@ -129,14 +129,15 @@ class TestExtractionMetrics:
 
 def create_telemetry_tables(db_path: str) -> None:
     """Create telemetry tables manually for testing (without Alembic).
-    
+
     This replicates the schema from Alembic migration a1b2c3d4e5f6.
     """
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
-    
+
     # Create extraction_telemetry_v2 table
-    cur.execute("""
+    cur.execute(
+        """
         CREATE TABLE IF NOT EXISTS extraction_telemetry_v2 (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             operation_id TEXT NOT NULL,
@@ -171,8 +172,9 @@ def create_telemetry_tables(db_path: str) -> None:
             proxy_status INTEGER,
             proxy_error TEXT
         )
-    """)
-    
+    """
+    )
+
     # Create indexes
     cur.execute(
         "CREATE INDEX IF NOT EXISTS ix_extraction_telemetry_v2_operation_id "
@@ -206,11 +208,12 @@ def create_telemetry_tables(db_path: str) -> None:
         "CREATE INDEX IF NOT EXISTS ix_extraction_telemetry_v2_created_at "
         "ON extraction_telemetry_v2 (created_at)"
     )
-    
+
     # Create http_error_summary table
     # NOTE: UNIQUE(host, status_code) is required for ON CONFLICT to work.
     # This matches the production schema after migration 805164cd4665.
-    cur.execute("""
+    cur.execute(
+        """
         CREATE TABLE IF NOT EXISTS http_error_summary (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             host TEXT NOT NULL,
@@ -221,8 +224,9 @@ def create_telemetry_tables(db_path: str) -> None:
             last_seen TIMESTAMP NOT NULL,
             UNIQUE(host, status_code)
         )
-    """)
-    
+    """
+    )
+
     # Create indexes
     cur.execute(
         "CREATE INDEX IF NOT EXISTS ix_http_error_summary_host "
@@ -236,9 +240,10 @@ def create_telemetry_tables(db_path: str) -> None:
         "CREATE INDEX IF NOT EXISTS ix_http_error_summary_last_seen "
         "ON http_error_summary (last_seen)"
     )
-    
+
     # Create content_type_detection_telemetry table
-    cur.execute("""
+    cur.execute(
+        """
         CREATE TABLE IF NOT EXISTS content_type_detection_telemetry (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             article_id TEXT NOT NULL,
@@ -255,8 +260,9 @@ def create_telemetry_tables(db_path: str) -> None:
             detected_at TIMESTAMP,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
-    """)
-    
+    """
+    )
+
     # Create indexes
     cur.execute(
         "CREATE INDEX IF NOT EXISTS ix_content_type_detection_article_id "
@@ -270,9 +276,10 @@ def create_telemetry_tables(db_path: str) -> None:
         "CREATE INDEX IF NOT EXISTS ix_content_type_detection_created_at "
         "ON content_type_detection_telemetry (created_at)"
     )
-    
+
     # Create byline_cleaning_telemetry table
-    cur.execute("""
+    cur.execute(
+        """
         CREATE TABLE IF NOT EXISTS byline_cleaning_telemetry (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             session_id TEXT NOT NULL,
@@ -286,10 +293,12 @@ def create_telemetry_tables(db_path: str) -> None:
             extracted_names TEXT,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
-    """)
-    
+    """
+    )
+
     # Create content_cleaning_sessions table
-    cur.execute("""
+    cur.execute(
+        """
         CREATE TABLE IF NOT EXISTS content_cleaning_sessions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             session_id TEXT NOT NULL UNIQUE,
@@ -304,8 +313,9 @@ def create_telemetry_tables(db_path: str) -> None:
             removal_percentage REAL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
-    """)
-    
+    """
+    )
+
     conn.commit()
     conn.close()
 
@@ -321,7 +331,7 @@ class TestComprehensiveExtractionTelemetry:
 
         # Create tables manually (since we don't run Alembic migrations in tests)
         create_telemetry_tables(db_path)
-        
+
         telemetry = ComprehensiveExtractionTelemetry(db_path)
         yield telemetry, db_path
 
@@ -550,10 +560,10 @@ class TestContentExtractorIntegration:
         """Create a temporary database for testing."""
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
             db_path = f.name
-        
+
         # Create tables manually (since we don't run Alembic migrations in tests)
         create_telemetry_tables(db_path)
-        
+
         yield db_path
         Path(db_path).unlink(missing_ok=True)
 

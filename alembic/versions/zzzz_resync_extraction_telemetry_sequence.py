@@ -1,0 +1,50 @@
+"""resync_extraction_telemetry_sequence
+
+Revision ID: zzzz_resync_extraction_telemetry_sequence
+Revises: a1b2c3d4e5f6_add_extraction_telemetry_tables
+Create Date: 2025-10-21 09:30:00.000000
+
+"""
+from alembic import op
+
+# revision identifiers, used by Alembic.
+revision = 'zzzz_resync_extraction_telemetry_sequence'
+down_revision = 'a1b2c3d4e5f6_add_extraction_telemetry_tables'
+branch_labels = None
+depends_on = None
+
+
+def upgrade():
+    # Use SQL to set the telemetry sequence to max(id) on the table
+    op.execute(
+        """
+        DO $$
+        DECLARE
+            seq_name text;
+            max_id bigint;
+        BEGIN
+            SELECT pg_get_serial_sequence(
+                'extraction_telemetry_v2', 'id'
+            ) INTO seq_name;
+            IF seq_name IS NULL THEN
+                RAISE NOTICE 'No serial sequence found for extraction_telemetry_v2.id';
+                RETURN;
+            END IF;
+            EXECUTE format(
+                'SELECT COALESCE(MAX(id), 0) FROM extraction_telemetry_v2'
+            ) INTO max_id;
+            IF max_id IS NULL THEN
+                max_id := 0;
+            END IF;
+            -- Set sequence value to max_id, so nextval will return max_id+1
+            EXECUTE format('SELECT setval(%L, %s)', seq_name, max_id);
+            RAISE NOTICE 'Resynced sequence % to %', seq_name, max_id;
+        END
+        $$;
+        """
+    )
+
+
+def downgrade():
+    # No-op: sequence resync is a one-time operational fix
+    pass

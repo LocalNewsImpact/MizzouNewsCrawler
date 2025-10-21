@@ -36,6 +36,7 @@ class _DummyDBManager:
 
     def _make_mock_engine(self):
         """Create a mock engine that returns dataset-a UUID."""
+
         class MockResult:
             def fetchone(self):
                 # Return a mock UUID for dataset-a lookup

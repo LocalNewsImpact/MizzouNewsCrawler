@@ -45,11 +45,10 @@ def test_discovery_outcome_persists_without_sources_table(tracker_with_store, ca
     # Verify outcome was persisted by querying the store
     # Since this is an async store, we need to flush writes
     store.flush()
-    
+
     # Verify no errors occurred (check that no error logs were emitted)
     assert not any(
-        "Failed to record discovery outcome" in message
-        for message in caplog.messages
+        "Failed to record discovery outcome" in message for message in caplog.messages
     )
 
     with store.connection() as conn:

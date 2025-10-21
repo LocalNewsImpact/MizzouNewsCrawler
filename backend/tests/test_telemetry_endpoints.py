@@ -2,7 +2,7 @@
 
 Tests the new Cloud SQL-based telemetry endpoints added in PR #33:
 - Verification telemetry (5 endpoints)
-- Byline telemetry (4 endpoints)  
+- Byline telemetry (4 endpoints)
 - Code review telemetry (4 endpoints)
 """
 
@@ -256,9 +256,7 @@ class TestCodeReviewTelemetryEndpoints:
             "reviewer": "senior_dev",
         }
 
-        response = self.client.post(
-            "/api/telemetry/code_review/feedback", json=payload
-        )
+        response = self.client.post("/api/telemetry/code_review/feedback", json=payload)
 
         assert response.status_code == 200
         data = response.json()
@@ -355,12 +353,12 @@ class TestTelemetryIntegration:
         # 1. Use DatabaseManager() context manager
         # 2. Use SQLAlchemy ORM queries
         # 3. Call model.to_dict() for serialization
-        
+
         # Example pattern that should be used:
         # with DatabaseManager() as db:
         #     items = db.session.query(Model).filter(...).all()
         #     return [item.to_dict() for item in items]
-        
+
         # This test serves as documentation of the expected pattern
         assert True  # Placeholder - actual DB integration tests below
 

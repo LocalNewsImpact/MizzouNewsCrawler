@@ -242,17 +242,13 @@ def test_dataset_filtering_works_on_sqlite(sqlite_db: str):
 
     # Test: Filter by Dataset 1
     discovery = NewsDiscovery(database_url=sqlite_db)
-    sources_df, stats = discovery.get_sources_to_process(
-        dataset_label="Dataset-1"
-    )
+    sources_df, stats = discovery.get_sources_to_process(dataset_label="Dataset-1")
 
     assert len(sources_df) == 1, f"Expected 1 source, got {len(sources_df)}"
     assert sources_df.iloc[0]["name"] == "Source 1"
 
     # Test: Filter by Dataset 2
-    sources_df, stats = discovery.get_sources_to_process(
-        dataset_label="Dataset-2"
-    )
+    sources_df, stats = discovery.get_sources_to_process(dataset_label="Dataset-2")
 
     assert len(sources_df) == 1, f"Expected 1 source, got {len(sources_df)}"
     assert sources_df.iloc[0]["name"] == "Source 2"

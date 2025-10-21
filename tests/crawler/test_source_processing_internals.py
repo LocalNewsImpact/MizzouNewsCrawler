@@ -112,12 +112,13 @@ def test_store_candidates_classification(monkeypatch):
 
     class _MockConnection:
         """Mock connection that can be used as context manager."""
+
         def __enter__(self):
             return self
-        
+
         def __exit__(self, exc_type, exc, tb):
             return False
-        
+
         def execute(self, *args, **kwargs):
             # Return fake dataset result
             class _MockResult:
@@ -125,8 +126,9 @@ def test_store_candidates_classification(monkeypatch):
                     # Return a mock row with dataset id
                     # This simulates finding dataset-123
                     return ("dataset-123",)
+
             return _MockResult()
-    
+
     class _RecordingManager:
         def __init__(self):
             self.session = object()

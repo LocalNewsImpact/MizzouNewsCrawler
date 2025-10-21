@@ -442,14 +442,22 @@ class ContentExtractor:
         self.domain_locks: dict[str, Any] = {}
 
         # Rate limiting and backoff management
-        self.domain_request_times: dict[str, float] = {}  # Track last request time per domain
-        self.domain_backoff_until: dict[str, float] = {}  # Track when domain is available again
-        self.domain_error_counts: dict[str, int] = {}  # Track consecutive errors per domain
-        
+        self.domain_request_times: dict[str, float] = (
+            {}
+        )  # Track last request time per domain
+        self.domain_backoff_until: dict[str, float] = (
+            {}
+        )  # Track when domain is available again
+        self.domain_error_counts: dict[str, int] = (
+            {}
+        )  # Track consecutive errors per domain
+
         # Selenium-specific failure tracking (separate from requests failures)
         # This prevents disabling Selenium for CAPTCHA-protected domains
-        self._selenium_failure_counts: dict[str, int] = {}  # Track Selenium failures per domain
-        
+        self._selenium_failure_counts: dict[str, int] = (
+            {}
+        )  # Track Selenium failures per domain
+
         # Base inter-request delay (env tunable)
         try:
             self.inter_request_min = float(os.getenv("INTER_REQUEST_MIN", "1.5"))

@@ -392,7 +392,9 @@ class TelemetryStore:
             self._logger.info("TelemetryStore using Cloud SQL Python Connector")
 
             # Ensure all required config values are present
-            if not all([CLOUD_SQL_INSTANCE, DATABASE_USER, DATABASE_PASSWORD, DATABASE_NAME]):
+            if not all(
+                [CLOUD_SQL_INSTANCE, DATABASE_USER, DATABASE_PASSWORD, DATABASE_NAME]
+            ):
                 raise ValueError("Missing required Cloud SQL configuration")
 
             return create_cloud_sql_engine(

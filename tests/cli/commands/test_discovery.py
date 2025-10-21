@@ -74,7 +74,7 @@ def test_add_discovery_parser_defaults():
     assert args.func is discovery.handle_discovery_command
     assert args.max_articles == 50
     assert args.days_back == 7
-    assert args.due_only is True
+    assert args.due_only is False  # Changed from True to False in PR 99
     assert args.force_all is False
     assert args.source_filter is None
     assert args.source_limit is None

@@ -173,29 +173,29 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 @pytest.fixture
 def telemetry_store_with_migrations(tmp_path):
     """Create a TelemetryStore with proper Cloud SQL schema via SQLAlchemy ORM.
-    
+
     This fixture ensures tests use the same schema as production by using
     the SQLAlchemy ORM models to create all telemetry tables.
-    
+
     Returns:
         TelemetryStore: A store with all tables properly created.
     """
     from src.models.telemetry_orm import Base as TelemetryBase
-    
+
     db_path = tmp_path / "telemetry.db"
     db_url = f"sqlite:///{db_path}"
-    
+
     # Create engine
     engine = create_engine(db_url, echo=False)
-    
+
     # Create all telemetry tables using ORM
     TelemetryBase.metadata.create_all(engine)
-    
+
     # Create store
     store = TelemetryStore(database=db_url, async_writes=False, engine=engine)
-    
+
     yield store
-    
+
     # Cleanup
     store.shutdown()
     engine.dispose()

@@ -6,10 +6,11 @@ metadata:
 spec:
   serviceAccountName: argo-workflow
   entrypoint: pipeline
-  
+
   # Define reusable templates for the pipeline
   templates:
-  # Main pipeline orchestration
+  # Main pipeline orchestration (DAG) — allows overlap between discovery,
+  # verification and extraction via polling-based gates.
   - name: pipeline
     inputs:
       parameters:
@@ -27,9 +28,18 @@ spec:
       - name: batch-sleep
       - name: captcha-backoff-base
       - name: captcha-backoff-max
-    steps:
-    # Step 1: Discovery
-    - - name: discover-urls
+        value: "7200"
+      - name: min-candidates
+        value: "50"
+      - name: candidate-wait-seconds
+        value: "300"  # 5 minutes
+      - name: min-verified
+        value: "25"
+      - name: verified-wait-seconds
+        value: "300"
+    dag:
+      tasks:
+      - name: discover-urls
         template: discovery-step
         arguments:
           parameters:
@@ -41,11 +51,22 @@ spec:
             value: "{{inputs.parameters.max-articles}}"
           - name: days-back
             value: "{{inputs.parameters.days-back}}"
-    
-    # Step 2: Verification (conditional on discovery success)
-    - - name: verify-urls
+
+      # Start a parallel wait task that will poll the DB for new candidate
+      # links and only succeed when either min-candidates are present or
+      # the candidate-wait-seconds timeout is reached.
+      - name: wait-for-candidates
+        template: wait-for-candidates
+        arguments:
+          parameters:
+          - name: min-candidates
+            value: "{{inputs.parameters.min-candidates}}"
+          - name: timeout-seconds
+            value: "{{inputs.parameters.candidate-wait-seconds}}"
+
+      - name: verify-urls
         template: verification-step
-        when: "{{steps.discover-urls.status}} == Succeeded"
+        depends: "wait-for-candidates"
         arguments:
           parameters:
           - name: batch-size
@@ -56,11 +77,20 @@ spec:
             value: "{{inputs.parameters.inter-request-min}}"
           - name: inter-request-max
             value: "{{inputs.parameters.inter-request-max}}"
-    
-    # Step 3: Extraction (conditional on verification success)
-    - - name: extract-content
+
+      - name: wait-for-verified
+        template: wait-for-verified
+        depends: "verify-urls"
+        arguments:
+          parameters:
+          - name: min-verified
+            value: "{{inputs.parameters.min-verified}}"
+          - name: timeout-seconds
+            value: "{{inputs.parameters.verified-wait-seconds}}"
+
+      - name: extract-content
         template: extraction-step
-        when: "{{steps.verify-urls.status}} == Succeeded"
+        depends: "wait-for-verified"
         arguments:
           parameters:
           - name: dataset
@@ -357,3 +387,163 @@ spec:
         limits:
           cpu: 1000m
           memory: 3Gi
+
+  # Wait template: poll DB until a minimum number of candidate links exist
+  - name: wait-for-candidates
+    inputs:
+      parameters:
+      - name: min-candidates
+      - name: timeout-seconds
+    container:
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
+      command: ["/bin/sh","-c"]
+      args:
+        - |
+          python - <<'PY'
+            import time
+            import sys
+            from datetime import datetime, timedelta
+            from src import config
+            from sqlalchemy import create_engine, text
+
+            min_candidates = int('{{inputs.parameters.min-candidates}}')
+            timeout = int('{{inputs.parameters.timeout-seconds}}')
+            deadline = datetime.utcnow() + timedelta(seconds=timeout)
+
+            if getattr(config, 'USE_CLOUD_SQL_CONNECTOR', False) and getattr(config, 'CLOUD_SQL_INSTANCE', None):
+                from src.models.cloud_sql_connector import create_cloud_sql_engine
+                engine = create_cloud_sql_engine(
+                    instance_connection_name=config.CLOUD_SQL_INSTANCE,
+                    user=config.DATABASE_USER,
+                    password=config.DATABASE_PASSWORD,
+                    database=config.DATABASE_NAME,
+                )
+            else:
+                engine = create_engine(config.DATABASE_URL)
+
+            while True:
+                try:
+                    with engine.connect() as conn:
+                        r = conn.execute(text("SELECT COUNT(*) FROM candidate_links WHERE created_at >= now() - interval '1 hour'"))
+                        count = r.scalar() or 0
+                        print(f"candidates_in_last_hour={count}")
+                        if count >= min_candidates:
+                            print("threshold met")
+                            sys.exit(0)
+                except Exception as e:
+                    print(f"db check error: {e}")
+
+                if datetime.utcnow() >= deadline:
+                    print("timeout reached; proceeding")
+                    sys.exit(0)
+
+                time.sleep(15)
+          PY
+      env:
+      - name: DATABASE_ENGINE
+        value: "postgresql+psycopg2"
+      - name: DATABASE_HOST
+        value: "127.0.0.1"
+      - name: DATABASE_PORT
+        value: "5432"
+      - name: DATABASE_USER
+        valueFrom:
+          secretKeyRef:
+            name: cloudsql-db-credentials
+            key: username
+      - name: DATABASE_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: cloudsql-db-credentials
+            key: password
+      - name: DATABASE_NAME
+        valueFrom:
+          secretKeyRef:
+            name: cloudsql-db-credentials
+            key: database
+      - name: DATABASE_URL
+        value: "$(DATABASE_ENGINE)://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)"
+      - name: USE_CLOUD_SQL_CONNECTOR
+        value: "true"
+      - name: CLOUD_SQL_INSTANCE
+        value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+
+  # Wait template: poll DB until a minimum number of verified articles exist
+  - name: wait-for-verified
+    inputs:
+      parameters:
+      - name: min-verified
+      - name: timeout-seconds
+    container:
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
+      command: ["/bin/sh","-c"]
+      args:
+        - |
+          python - <<'PY'
+          import time
+          import sys
+          from datetime import datetime, timedelta
+          from src import config
+          from sqlalchemy import create_engine, text
+
+          min_verified = int('{{inputs.parameters.min-verified}}')
+          timeout = int('{{inputs.parameters.timeout-seconds}}')
+          deadline = datetime.utcnow() + timedelta(seconds=timeout)
+
+          if getattr(config, 'USE_CLOUD_SQL_CONNECTOR', False) and getattr(config, 'CLOUD_SQL_INSTANCE', None):
+              from src.models.cloud_sql_connector import create_cloud_sql_engine
+              engine = create_cloud_sql_engine(
+                  instance_connection_name=config.CLOUD_SQL_INSTANCE,
+                  user=config.DATABASE_USER,
+                  password=config.DATABASE_PASSWORD,
+                  database=config.DATABASE_NAME,
+              )
+          else:
+              engine = create_engine(config.DATABASE_URL)
+
+          while True:
+              try:
+                  with engine.connect() as conn:
+                      r = conn.execute(text("SELECT COUNT(*) FROM candidate_links WHERE verification_status = 'verified' AND verified_at >= now() - interval '1 hour'"))
+                      count = r.scalar() or 0
+                      print(f"verified_in_last_hour={count}")
+                      if count >= min_verified:
+                          print("verified threshold met")
+                          sys.exit(0)
+              except Exception as e:
+                  print(f"db check error: {e}")
+
+              if datetime.utcnow() >= deadline:
+                  print("timeout reached; proceeding")
+                  sys.exit(0)
+
+              time.sleep(15)
+          PY
+      env:
+      - name: DATABASE_ENGINE
+        value: "postgresql+psycopg2"
+      - name: DATABASE_HOST
+        value: "127.0.0.1"
+      - name: DATABASE_PORT
+        value: "5432"
+      - name: DATABASE_USER
+        valueFrom:
+          secretKeyRef:
+            name: cloudsql-db-credentials
+            key: username
+      - name: DATABASE_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: cloudsql-db-credentials
+            key: password
+      - name: DATABASE_NAME
+        valueFrom:
+          secretKeyRef:
+            name: cloudsql-db-credentials
+            key: database
+      - name: DATABASE_URL
+        value: "$(DATABASE_ENGINE)://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)"
+      - name: USE_CLOUD_SQL_CONNECTOR
+        value: "true"
+      - name: CLOUD_SQL_INSTANCE
+        value: "mizzou-news-crawler:us-central1:mizzou-db-prod"

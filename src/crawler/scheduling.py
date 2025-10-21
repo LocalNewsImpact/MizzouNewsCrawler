@@ -38,16 +38,21 @@ def parse_frequency_to_days(freq: str | None) -> float:
 
     f = str(freq).lower()
     if "daily" in f or f == "day":
-        # Daily outlets publish throughout the day; treat cadence as 12 hours
-        return 0.5
+        # Daily outlets publish throughout the day; our pipeline runs every
+        # 6 hours, so treat 'daily' sources as due every job (0.25 days).
+        return 0.25
     if "broadcast" in f:
-        # Broadcast stations (radio/TV) operate continuously; treat as 12 hours
-        return 0.5
+        # Broadcast stations (radio/TV) operate continuously; treat as due
+        # every 6 hours (same as daily sources).
+        return 0.25
     # Detect bi-weekly patterns before generic weekly
     if "bi-week" in f or "biweekly" in f or "every 2" in f:
         return 14
     if "weekly" in f or "week" in f:
-        return 7
+        # For weekly publications, prefer to run discovery twice per week
+        # (roughly every 3.5 days) so we capture weekly updates without
+        # discovering them on every 6-hour job.
+        return 3.5
     if "tri-week" in f or "triweekly" in f:
         return 7  # 3x per 21-day window, default weekly with additional checks
     if "monthly" in f or "month" in f:

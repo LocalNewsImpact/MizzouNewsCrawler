@@ -100,11 +100,9 @@ def handle_discovery_status_command(args) -> int:
             dataset_label=dataset_label, due_only=False
         )
 
-        print(f"\n⏰ Discovery Status:")
+        print("\n⏰ Discovery Status:")
         if not sources_df.empty:
-            never_attempted = len(
-                sources_df[sources_df["discovery_attempted"] == 0]
-            )
+            never_attempted = len(sources_df[sources_df["discovery_attempted"] == 0])
             previously_attempted = len(
                 sources_df[sources_df["discovery_attempted"] == 1]
             )
@@ -114,9 +112,11 @@ def handle_discovery_status_command(args) -> int:
 
             if args.verbose and never_attempted > 0:
                 print("\n   Sources never attempted:")
-                for _, row in sources_df[
-                    sources_df["discovery_attempted"] == 0
-                ].head(10).iterrows():
+                for _, row in (
+                    sources_df[sources_df["discovery_attempted"] == 0]
+                    .head(10)
+                    .iterrows()
+                ):
                     print(f"      - {row['name']}")
                 if never_attempted > 10:
                     print(f"      ... and {never_attempted - 10} more")
@@ -128,7 +128,7 @@ def handle_discovery_status_command(args) -> int:
             dataset_label=dataset_label, due_only=True
         )
 
-        print(f"\n✅ Scheduled Discovery (--due-only behavior):")
+        print("\n✅ Scheduled Discovery (--due-only behavior):")
         print(f"   • Sources due now: {len(sources_df_due)}")
         print(f"   • Sources skipped: {stats_due.get('sources_skipped', 0)}")
 
@@ -159,11 +159,11 @@ def handle_discovery_status_command(args) -> int:
             ).fetchall()
 
             if recent:
-                print(f"\n📈 Recent Discovery Activity (last 7 days):")
+                print("\n📈 Recent Discovery Activity (last 7 days):")
                 for row in recent:
                     print(f"   • {row[0]}: {row[1]} URLs discovered")
             else:
-                print(f"\n📈 Recent Discovery Activity: None in last 7 days")
+                print("\n📈 Recent Discovery Activity: None in last 7 days")
 
         print("\n" + "=" * 70)
         return 0

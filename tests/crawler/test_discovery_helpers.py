@@ -405,7 +405,7 @@ def test_update_source_meta_merges_existing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test that _update_source_meta is a no-op after sources table removal.
-    
+
     The sources table was removed and metadata updates are now skipped.
     This test verifies the function doesn't crash.
     """
@@ -425,7 +425,7 @@ def test_update_source_meta_merges_existing(
 
     # Should not raise an exception (best-effort, skips update)
     instance._update_source_meta("source-1", {"new": 2})
-    
+
     # Function should complete without error (metadata update is now skipped)
     # No assertion on executed since the UPDATE is commented out
 

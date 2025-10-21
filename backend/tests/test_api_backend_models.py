@@ -43,13 +43,13 @@ class TestReviewSerialization:
             notes="Great article",
             mentioned_locations='["Columbia, MO"]',
             missing_locations='["Jefferson City"]',
-            incorrect_locations='[]',
+            incorrect_locations="[]",
             inferred_tags='["government"]',
             missing_tags='["election"]',
-            incorrect_tags='[]',
-            body_errors='[]',
+            incorrect_tags="[]",
+            body_errors="[]",
             headline_errors='["Missing location"]',
-            author_errors='[]',
+            author_errors="[]",
             created_at=now,
             reviewed_at=now,
         )
@@ -326,9 +326,7 @@ class TestDatetimeHandling:
     def test_datetime_isoformat(self):
         """Test that datetime objects are converted to ISO format strings."""
         dt = datetime(2025, 10, 4, 12, 30, 45)
-        review = Review(
-            id="test", reviewer="user", created_at=dt, reviewed_at=dt
-        )
+        review = Review(id="test", reviewer="user", created_at=dt, reviewed_at=dt)
         result = review.to_dict()
         assert result["created_at"] == "2025-10-04T12:30:45"
         assert result["reviewed_at"] == "2025-10-04T12:30:45"

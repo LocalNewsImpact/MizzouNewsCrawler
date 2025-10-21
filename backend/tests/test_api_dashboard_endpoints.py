@@ -19,11 +19,11 @@ def test_db(tmp_path):
     db_path = tmp_path / "test.db"
     db_url = f"sqlite:///{db_path}"
     db_manager = DatabaseManager(db_url)
-    
+
     # Create all tables
     engine = db_manager.engine
     Base.metadata.create_all(engine)
-    
+
     # Seed test data
     with db_manager.get_session() as session:
         # Create candidate links
@@ -51,10 +51,10 @@ def test_db(tmp_path):
             source_name="Local News",
             source_county="Local County",
         )
-        
+
         session.add_all([link1, link2, link3])
         session.flush()
-        
+
         # Create articles
         article1 = Article(
             id=str(uuid4()),
@@ -70,7 +70,7 @@ def test_db(tmp_path):
             primary_label="local_news",
             primary_label_confidence=0.95,
         )
-        
+
         article2 = Article(
             id=str(uuid4()),
             candidate_link_id=link2.id,
@@ -85,7 +85,7 @@ def test_db(tmp_path):
             primary_label="national_news",
             primary_label_confidence=0.88,
         )
-        
+
         article3 = Article(
             id=str(uuid4()),
             candidate_link_id=link3.id,
@@ -100,10 +100,10 @@ def test_db(tmp_path):
             primary_label="local_news",
             primary_label_confidence=0.92,
         )
-        
+
         session.add_all([article1, article2, article3])
         session.flush()
-        
+
         # Create snapshots for candidate testing
         snapshot1 = Snapshot(
             id=str(uuid4()),
@@ -121,7 +121,7 @@ def test_db(tmp_path):
         )
         session.add_all([snapshot1, snapshot2])
         session.flush()
-        
+
         # Create candidates (non-accepted issues)
         candidate1 = Candidate(
             id=str(uuid4()),
@@ -149,7 +149,7 @@ def test_db(tmp_path):
         )
         session.add_all([candidate1, candidate2, candidate3])
         session.flush()
-        
+
         # Create dedupe audit entries
         dedupe1 = DedupeAudit(
             article_uid=article1.id,
@@ -166,7 +166,7 @@ def test_db(tmp_path):
             dedupe_flag=1,
         )
         session.add_all([dedupe1, dedupe2])
-        
+
         # Create a review for article1
         review1 = Review(
             article_uid=article1.id,
@@ -176,9 +176,9 @@ def test_db(tmp_path):
             tags="test,reviewed",
         )
         session.add(review1)
-        
+
         session.commit()
-        
+
         # Store article IDs for test assertions
         return {
             "db_manager": db_manager,
@@ -200,22 +200,22 @@ def test_ui_overview_returns_correct_counts(client, test_db):
     """Test that /api/ui_overview returns correct article and wire counts from database."""
     response = client.get("/api/ui_overview")
     assert response.status_code == 200
-    
+
     data = response.json()
     assert "total_articles" in data
     assert "wire_count" in data
     assert "candidate_issues" in data
     assert "dedupe_near_misses" in data
-    
+
     # Should have 3 articles total
     assert data["total_articles"] == 3
-    
+
     # Should have 1 wire article (article2 with non-empty wire JSON)
     assert data["wire_count"] == 1
-    
+
     # Should have 2 non-accepted candidates
     assert data["candidate_issues"] == 2
-    
+
     # Should have 1 dedupe near miss (similarity > 0.7 and dedupe_flag=0)
     assert data["dedupe_near_misses"] == 1
 
@@ -228,10 +228,10 @@ def test_ui_overview_handles_empty_database(client, test_db):
         session.query(Candidate).delete()
         session.query(DedupeAudit).delete()
         session.commit()
-    
+
     response = client.get("/api/ui_overview")
     assert response.status_code == 200
-    
+
     data = response.json()
     assert data["total_articles"] == 0
     assert data["wire_count"] == 0
@@ -243,14 +243,14 @@ def test_list_articles_returns_paginated_results(client, test_db):
     """Test that /api/articles returns paginated results from database."""
     response = client.get("/api/articles?limit=2&offset=0")
     assert response.status_code == 200
-    
+
     data = response.json()
     assert "count" in data
     assert "results" in data
-    
+
     assert data["count"] == 3  # Total articles
     assert len(data["results"]) == 2  # Limited to 2
-    
+
     # Check that results have expected fields
     for article in data["results"]:
         assert "url" in article
@@ -265,13 +265,13 @@ def test_list_articles_filters_by_reviewer(client, test_db):
     response = client.get("/api/articles")
     assert response.status_code == 200
     assert response.json()["count"] == 3
-    
+
     # With reviewer filter, should get 2 articles (article1 is reviewed by test_reviewer)
     response = client.get("/api/articles?reviewer=test_reviewer")
     assert response.status_code == 200
     data = response.json()
     assert data["count"] == 2
-    
+
     # Verify that article1 is not in the results
     article_ids = [a["id"] for a in data["results"]]
     assert test_db["article1_id"] not in article_ids
@@ -283,10 +283,10 @@ def test_list_articles_handles_empty_database(client, test_db):
     with test_db["db_manager"].get_session() as session:
         session.query(Article).delete()
         session.commit()
-    
+
     response = client.get("/api/articles")
     assert response.status_code == 200
-    
+
     data = response.json()
     assert data["count"] == 0
     assert len(data["results"]) == 0
@@ -297,7 +297,7 @@ def test_get_article_by_id(client, test_db):
     article_id = test_db["article1_id"]
     response = client.get(f"/api/articles/{article_id}")
     assert response.status_code == 200
-    
+
     data = response.json()
     assert data["id"] == article_id
     assert data["title"] == "Test Article 1"
@@ -319,17 +319,17 @@ def test_list_articles_pagination_second_page(client, test_db):
     response1 = client.get("/api/articles?limit=2&offset=0")
     assert response1.status_code == 200
     page1 = response1.json()
-    
+
     # Get second page
     response2 = client.get("/api/articles?limit=2&offset=2")
     assert response2.status_code == 200
     page2 = response2.json()
-    
+
     # Should have different articles
     page1_ids = {a["id"] for a in page1["results"]}
     page2_ids = {a["id"] for a in page2["results"]}
     assert page1_ids != page2_ids
-    
+
     # Second page should have 1 article (total is 3)
     assert len(page2["results"]) == 1
 
@@ -340,10 +340,10 @@ def test_wire_count_null_vs_empty_json(client, test_db):
     # - article1: wire=None (null)
     # - article2: wire=["Associated Press"] (populated)
     # - article3: wire=[] (empty array)
-    
+
     response = client.get("/api/ui_overview")
     assert response.status_code == 200
-    
+
     data = response.json()
     # Only article2 should count as wire content
     assert data["wire_count"] == 1

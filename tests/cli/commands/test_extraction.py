@@ -577,9 +577,10 @@ def test_run_article_entity_extraction_handles_skip(monkeypatch):
         lambda: FakeExtractor(),
     )
     monkeypatch.setattr(extraction, "DatabaseManager", lambda: FakeDB())
-    
+
     # Mock the entity_extraction module functions (lazy imported)
     import src.pipeline.entity_extraction as entity_mod
+
     monkeypatch.setattr(entity_mod, "get_gazetteer_rows", lambda *a, **k: [])
 
     def passthrough_matches(*_args, entities, **_kwargs):

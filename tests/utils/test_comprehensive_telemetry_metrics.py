@@ -54,8 +54,12 @@ def test_extraction_metrics_tracks_methods(monkeypatch):
     assert metrics.content_length == len("Body")
 
 
-def test_record_extraction_emits_content_type_detection(telemetry_store_with_migrations):
-    telemetry = ct.ComprehensiveExtractionTelemetry(store=telemetry_store_with_migrations)
+def test_record_extraction_emits_content_type_detection(
+    telemetry_store_with_migrations,
+):
+    telemetry = ct.ComprehensiveExtractionTelemetry(
+        store=telemetry_store_with_migrations
+    )
 
     metrics = ct.ExtractionMetrics(
         operation_id="op-detect",

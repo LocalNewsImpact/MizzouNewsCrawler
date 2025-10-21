@@ -1305,10 +1305,22 @@ class OperationTracker:
                 metrics.failed_items += 1
                 op["metrics"] = metrics
 
-        # Log the failure
-        self.logger.warning(
-            f"Site failure [{failure_type.value}] for {site_url}: {error}"
-        )
+        # Log the failure. Treat a common, non-actionable content case
+        # (no articles discovered from any method) as INFO to reduce noise.
+        error_text = str(error).lower()
+        if (
+            failure_type == FailureType.CONTENT_ERROR
+            and discovery_method == "all_methods"
+            and "no articles" in error_text
+        ):
+            # This typically indicates discovery simply found nothing new.
+            self.logger.info(
+                f"Site content-empty for {site_url}: {error}"
+            )
+        else:
+            self.logger.warning(
+                f"Site failure [{failure_type.value}] for {site_url}: {error}"
+            )
 
     def categorize_failure_type(
         self, error: Exception, http_status: int | None = None

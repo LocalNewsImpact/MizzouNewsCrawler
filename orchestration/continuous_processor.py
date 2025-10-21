@@ -91,7 +91,7 @@ class WorkQueue:
                 result = db.session.execute(
                     text(
                         "SELECT COUNT(*) FROM candidate_links "
-                        "WHERE status = 'article'"
+                        "WHERE status = 'article' OR status = 'verification_uncertain'"
                     )
                 )
                 counts["extraction_pending"] = result.scalar() or 0

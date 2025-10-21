@@ -52,6 +52,27 @@ _DEFAULT_HTTP_HEADERS: dict[str, str] = {
 
 _FALLBACK_GET_STATUSES = {403, 405}
 _RETRYABLE_STATUS_CODES = {429}
+_GET_FALLBACK_ATTEMPTS = 3
+_GET_FALLBACK_BACKOFF = 0.5  # seconds (exponential backoff)
+
+# Small pool of alternative User-Agent strings to use when sites block a single UA
+_ALT_USER_AGENTS = [
+    (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/117.0.0.0 Safari/537.36"
+    ),
+    (
+        "Mozilla/5.0 (X11; Linux x86_64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/115.0.0.0 Safari/537.36"
+    ),
+    (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_0) "
+        "AppleWebKit/605.1.15 (KHTML, like Gecko) "
+        "Version/15.1 Safari/605.1.15"
+    ),
+]
 
 
 class URLVerificationService:
@@ -248,39 +269,61 @@ class URLVerificationService:
 
     def _attempt_get_fallback(self, url: str) -> tuple[bool, int | None, str | None]:
         """Attempt a GET request when HEAD is blocked by the origin."""
-
+        # Try a few GET attempts with slight backoff and rotating User-Agent values.
         response = None
-        try:
-            response = self.http_session.get(  # type: ignore[attr-defined]
-                url,
-                allow_redirects=True,
-                timeout=self.http_timeout,
-                stream=True,
-            )
-            status_code = getattr(response, "status_code", None)
-            if status_code is None:
-                return False, None, "missing status code from GET"
-            if status_code < 400:
-                return True, status_code, None
-            return False, status_code, f"HTTP {status_code}"
-        except Timeout:
-            return (
-                False,
-                None,
-                (f"timeout after {self.http_timeout}s during GET fallback"),
-            )
-        except RequestException as exc:
-            status_code = getattr(
-                getattr(exc, "response", None),
-                "status_code",
-                None,
-            )
-            return False, status_code, str(exc)
-        finally:
-            if response is not None:
-                close_fn = getattr(response, "close", None)
-                if callable(close_fn):
-                    close_fn()
+        last_error: str | None = None
+        status_code: int | None = None
+
+        # Save original headers so we can restore them after attempts
+        original_headers = dict(getattr(self.http_session, "headers", {}) or {})
+
+        for attempt in range(1, _GET_FALLBACK_ATTEMPTS + 1):
+            try:
+                # Rotate User-Agent on retry attempts to evade simple UA blocks
+                if attempt > 1:
+                    ua = _ALT_USER_AGENTS[(attempt - 2) % len(_ALT_USER_AGENTS)]
+                    self.http_session.headers["User-Agent"] = ua
+
+                response = self.http_session.get(  # type: ignore[attr-defined]
+                    url,
+                    allow_redirects=True,
+                    timeout=self.http_timeout,
+                    stream=True,
+                )
+                status_code = getattr(response, "status_code", None)
+                if status_code is None:
+                    last_error = "missing status code from GET"
+                elif status_code < 400:
+                    # restore headers
+                    self.http_session.headers = original_headers
+                    return True, status_code, None
+                else:
+                    last_error = f"HTTP {status_code}"
+
+            except Timeout:
+                last_error = (f"timeout after {self.http_timeout}s during GET fallback")
+            except RequestException as exc:
+                status_code = getattr(
+                    getattr(exc, "response", None),
+                    "status_code",
+                    None,
+                )
+                last_error = str(exc)
+            finally:
+                if response is not None:
+                    close_fn = getattr(response, "close", None)
+                    if callable(close_fn):
+                        close_fn()
+
+            # If not the last attempt, sleep with exponential backoff
+            if attempt < _GET_FALLBACK_ATTEMPTS:
+                time.sleep(_GET_FALLBACK_BACKOFF * (2 ** (attempt - 1)))
+
+        # restore headers
+        self.http_session.headers = original_headers
+        if last_error is None:
+            last_error = "GET fallback failed"
+        return False, status_code, last_error
 
     def verify_url(self, url: str) -> dict:
         """Verify a single URL with pattern matching and StorySniffer.
@@ -317,25 +360,18 @@ class URLVerificationService:
             )
             return result
 
-        # Stage 2: HTTP health check
-        health = self._check_http_health(url)
-        http_ok, http_status, http_error, http_attempts = health
-        result["http_status"] = http_status
-        result["http_attempts"] = http_attempts
-
-        if not http_ok:
-            result["error"] = http_error
-            result["verification_time_ms"] = (time.time() - start_time) * 1000
-            self.logger.warning(f"HTTP verification failed for {url}: {http_error}")
-            return result
-
-        if http_status is not None:
-            self.logger.debug(
-                "HTTP check for %s returned %s after %s attempt(s)",
-                url,
-                http_status,
-                http_attempts,
-            )
+        # Stage 2: Skip lightweight HEAD/GET health checks.
+        #
+        # Rationale: the primary purpose of verification is to identify
+        # whether a URL looks like an article. StorySniffer performs a
+        # content-level classification and will be used as the authoritative
+        # signal. Lightweight HEAD checks often lead to premature failures
+        # (403/405) that prevent downstream extraction from attempting more
+        # sophisticated collection strategies. We therefore skip those
+        # checks here and let extraction-level processes handle stubborn
+        # origins with proxies or headless browser fallbacks.
+        result["http_status"] = None
+        result["http_attempts"] = 0
 
         # Stage 3: StorySniffer ML verification
         try:
@@ -407,7 +443,12 @@ class URLVerificationService:
             # Determine new status and update metrics
             if verification_result.get("error"):
                 batch_metrics["verification_errors"] += 1
-                new_status = "verification_failed"
+                # Do not discard URLs that failed lightweight verification checks.
+                # Mark them as 'verification_uncertain' so the extraction step
+                # (which has more robust failovers) can still attempt to collect
+                # the content. This prevents premature loss of potentially
+                # valid article URLs due to transient HTTP blocks.
+                new_status = "verification_uncertain"
                 error_message = verification_result["error"]
             elif verification_result.get("storysniffer_result"):
                 batch_metrics["verified_articles"] += 1

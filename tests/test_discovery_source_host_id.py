@@ -425,7 +425,7 @@ def test_discovery_skips_preexisting_candidate_links():
 
 def test_discovery_marks_rss_missing_after_repeated_failures(monkeypatch):
     """Test that repeated RSS failures are tracked in source metadata.
-    
+
     Note: This functionality is currently disabled after sources table removal.
     The _update_source_meta function is now a no-op. This test verifies
     that discovery doesn't crash when RSS fails repeatedly.
@@ -433,7 +433,7 @@ def test_discovery_marks_rss_missing_after_repeated_failures(monkeypatch):
     # This test now verifies discovery doesn't crash when RSS fails
     # Metadata tracking was removed with sources table removal
     pytest.skip("RSS failure tracking disabled after sources table removal")
-    
+
     with temporary_database() as (db_url, path):
         seed_source_records(db_url)
 
@@ -442,6 +442,7 @@ def test_discovery_marks_rss_missing_after_repeated_failures(monkeypatch):
 
         def fake_rss_failure(*_args, **_kwargs):
             import requests
+
             raise requests.exceptions.Timeout("timeout")
 
         monkeypatch.setattr(
@@ -551,12 +552,10 @@ def test_discovery_storysniffer_fallback_records_article(monkeypatch):
         assert telemetry.failure_calls == []
 
 
-@pytest.mark.xfail(
-    reason="Sources table removed - metadata tracking deprecated"
-)
+@pytest.mark.xfail(reason="Sources table removed - metadata tracking deprecated")
 def test_discovery_rss_timeout_resets_failure_state(monkeypatch):
     """Timeout errors should not increment RSS failure counters.
-    
+
     NOTE: This test is xfail because the sources table was removed
     and metadata tracking for RSS failures is no longer implemented.
     """

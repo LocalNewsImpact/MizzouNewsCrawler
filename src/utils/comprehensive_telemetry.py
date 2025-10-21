@@ -293,6 +293,8 @@ class ComprehensiveExtractionTelemetry:
     def record_extraction(self, metrics: ExtractionMetrics):
         """Record detailed extraction metrics."""
 
+        from sqlalchemy.exc import IntegrityError
+
         def writer(conn):
             is_success = bool(metrics.is_success)
             if not is_success:
@@ -301,9 +303,10 @@ class ComprehensiveExtractionTelemetry:
                 else:
                     is_success = any(metrics.method_success.values())
 
-            conn.execute(
-                """
-                INSERT INTO extraction_telemetry_v2 (
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO extraction_telemetry_v2 (
                     operation_id, article_id, url, publisher, host,
                     start_time, end_time, total_duration_ms,
                     http_status_code, http_error_type,
@@ -358,7 +361,18 @@ class ComprehensiveExtractionTelemetry:
                     metrics.error_message,
                     metrics.error_type,
                 ),
-            )
+                )
+            except IntegrityError as ie:
+                # Handle duplicate primary key insertions gracefully.
+                # In some deployments the telemetry sequence can get out of sync
+                # with existing rows, causing conflicting id assignment in the
+                # telemetry worker. Log and continue so extraction is not
+                # disrupted. A proper DB migration (setval on the sequence)
+                # should be applied to fix the root cause.
+                logger.warning(
+                    "Telemetry insert IntegrityError (ignored): %s", ie
+                )
+                return
 
             if metrics.http_status_code and metrics.http_error_type:
                 now = datetime.utcnow()

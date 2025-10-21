@@ -139,9 +139,7 @@ def get_verification_telemetry_stats() -> VerificationTelemetryStats:
 
         # Accuracy calculation
         total_reviewed = reviewed_correct + reviewed_incorrect
-        accuracy = (
-            (reviewed_correct / total_reviewed) if total_reviewed > 0 else None
-        )
+        accuracy = (reviewed_correct / total_reviewed) if total_reviewed > 0 else None
 
         # Average verification time
         avg_time = (

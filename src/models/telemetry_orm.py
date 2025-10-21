@@ -16,7 +16,14 @@ from datetime import datetime  # noqa: F401 - used in docstring example
 from typing import Any
 
 from sqlalchemy import (
-    Boolean, Column, DateTime, Float, Integer, String, Text, UniqueConstraint
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
 )
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -160,7 +167,7 @@ class ExtractionTelemetryV2(Base):
 
     # Timestamp
     created_at = Column(
-        DateTime, nullable=False, server_default='CURRENT_TIMESTAMP', index=True
+        DateTime, nullable=False, server_default="CURRENT_TIMESTAMP", index=True
     )
 
     def __repr__(self):
@@ -204,7 +211,7 @@ class ContentTypeDetectionTelemetry(Base):
     # Timestamps
     detected_at = Column(DateTime, nullable=True)
     created_at = Column(
-        DateTime, nullable=False, server_default='CURRENT_TIMESTAMP', index=True
+        DateTime, nullable=False, server_default="CURRENT_TIMESTAMP", index=True
     )
 
     def __repr__(self):
@@ -251,9 +258,7 @@ class ContentCleaningSession(Base):
     removal_percentage = Column(Float, nullable=True)
 
     # Timestamp
-    created_at = Column(
-        DateTime, server_default='CURRENT_TIMESTAMP', index=True
-    )
+    created_at = Column(DateTime, server_default="CURRENT_TIMESTAMP", index=True)
 
     def __repr__(self):
         return (
@@ -268,14 +273,14 @@ class HttpErrorSummary(Base):
     HTTP error summary table for tracking recurring errors by host and status code.
     Aggregates extraction_telemetry_v2 HTTP errors for monitoring and analysis.
     """
-    __tablename__ = 'http_error_summary'
+
+    __tablename__ = "http_error_summary"
     __table_args__ = (
         UniqueConstraint(
-            'host', 'status_code',
-            name='uq_http_error_summary_host_status'
+            "host", "status_code", name="uq_http_error_summary_host_status"
         ),
     )
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     host = Column(String, nullable=False, index=True)
     status_code = Column(Integer, nullable=False, index=True)
@@ -284,7 +289,7 @@ class HttpErrorSummary(Base):
     count = Column(Integer, nullable=False)
     first_seen = Column(DateTime, nullable=False)
     last_seen = Column(DateTime, nullable=False, index=True)
-    
+
     def __repr__(self):
         return (
             f"<HttpErrorSummary({self.host}, {self.status_code}, "

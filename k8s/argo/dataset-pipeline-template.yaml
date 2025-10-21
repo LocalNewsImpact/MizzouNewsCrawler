@@ -43,7 +43,7 @@ spec:
             
             # Discovery parameters - ADJUST based on your dataset size
             - name: source-limit
-              value: "50"        # Number of sources to check
+              value: ""          # Empty = process ALL sources in dataset (recommended)
             - name: max-articles
               value: "50"        # Max articles to discover per source
             - name: days-back
