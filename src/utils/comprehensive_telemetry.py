@@ -365,8 +365,8 @@ class ComprehensiveExtractionTelemetry:
                 conn.execute(
                     """
                     INSERT INTO http_error_summary
-                    (host, status_code, error_type, count, last_seen)
-                    VALUES (?, ?, ?, 1, ?)
+                    (host, status_code, error_type, count, first_seen, last_seen)
+                    VALUES (?, ?, ?, 1, ?, ?)
                     ON CONFLICT(host, status_code) DO UPDATE SET
                         count = count + 1,
                         last_seen = ?
@@ -375,6 +375,7 @@ class ComprehensiveExtractionTelemetry:
                         metrics.host,
                         metrics.http_status_code,
                         metrics.http_error_type,
+                        now,
                         now,
                         now,
                     ),

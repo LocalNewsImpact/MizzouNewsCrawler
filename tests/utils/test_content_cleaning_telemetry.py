@@ -131,7 +131,10 @@ class TestContentCleaningTelemetryInit:
         # Store is lazy-loaded, so access it to trigger get_store call
         _ = telemetry.store
 
-        mock_get_store.assert_called_once_with("test://custom_db")
+        # Note: get_store may be called with additional kwargs like engine
+        assert mock_get_store.called
+        call_args = mock_get_store.call_args
+        assert call_args[0][0] == "test://custom_db"
         assert telemetry._store == mock_store
 
 

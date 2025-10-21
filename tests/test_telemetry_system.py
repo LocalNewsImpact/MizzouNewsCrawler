@@ -237,6 +237,75 @@ def create_telemetry_tables(db_path: str) -> None:
         "ON http_error_summary (last_seen)"
     )
     
+    # Create content_type_detection_telemetry table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS content_type_detection_telemetry (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            article_id TEXT NOT NULL,
+            operation_id TEXT NOT NULL,
+            url TEXT NOT NULL,
+            publisher TEXT,
+            host TEXT,
+            status TEXT,
+            confidence TEXT,
+            confidence_score REAL,
+            reason TEXT,
+            evidence TEXT,
+            version TEXT,
+            detected_at TIMESTAMP,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # Create indexes
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS ix_content_type_detection_article_id "
+        "ON content_type_detection_telemetry (article_id)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS ix_content_type_detection_status "
+        "ON content_type_detection_telemetry (status)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS ix_content_type_detection_created_at "
+        "ON content_type_detection_telemetry (created_at)"
+    )
+    
+    # Create byline_cleaning_telemetry table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS byline_cleaning_telemetry (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL,
+            raw_byline TEXT,
+            article_id TEXT,
+            started_at TIMESTAMP NOT NULL,
+            finished_at TIMESTAMP,
+            total_time_ms REAL,
+            cleaning_method TEXT,
+            result_count INTEGER,
+            extracted_names TEXT,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # Create content_cleaning_sessions table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS content_cleaning_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL UNIQUE,
+            domain TEXT NOT NULL,
+            article_count INTEGER NOT NULL,
+            started_at TIMESTAMP NOT NULL,
+            finished_at TIMESTAMP,
+            total_time_ms REAL,
+            rough_candidates_found INTEGER,
+            segments_detected INTEGER,
+            total_removable_chars INTEGER,
+            removal_percentage REAL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
     conn.commit()
     conn.close()
 

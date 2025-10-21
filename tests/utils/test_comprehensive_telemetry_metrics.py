@@ -54,12 +54,8 @@ def test_extraction_metrics_tracks_methods(monkeypatch):
     assert metrics.content_length == len("Body")
 
 
-def test_record_extraction_emits_content_type_detection(tmp_path):
-    store = TelemetryStore(
-        database=f"sqlite:///{tmp_path / 'telemetry.db'}",
-        async_writes=False,
-    )
-    telemetry = ct.ComprehensiveExtractionTelemetry(store=store)
+def test_record_extraction_emits_content_type_detection(telemetry_store_with_migrations):
+    telemetry = ct.ComprehensiveExtractionTelemetry(store=telemetry_store_with_migrations)
 
     metrics = ct.ExtractionMetrics(
         operation_id="op-detect",
@@ -110,12 +106,10 @@ def test_set_http_metrics_categorizes_errors():
     assert metrics.http_error_type == "3xx_redirect"
 
 
-def test_comprehensive_telemetry_aggregates(tmp_path):
-    store = TelemetryStore(
-        database=f"sqlite:///{tmp_path / 'comprehensive.db'}",
-        async_writes=False,
+def test_comprehensive_telemetry_aggregates(telemetry_store_with_migrations):
+    telemetry = ct.ComprehensiveExtractionTelemetry(
+        store=telemetry_store_with_migrations
     )
-    telemetry = ct.ComprehensiveExtractionTelemetry(store=store)
 
     metrics_primary = ct.ExtractionMetrics(
         operation_id="agg-1",
@@ -217,7 +211,7 @@ def test_comprehensive_telemetry_aggregates(tmp_path):
     telemetry.record_extraction(metrics_primary)
     telemetry.record_extraction(metrics_secondary)
 
-    with store.connection() as conn:
+    with telemetry_store_with_migrations.connection() as conn:
         conn.execute("UPDATE content_type_detection_telemetry SET evidence = '{'")
         conn.commit()
 

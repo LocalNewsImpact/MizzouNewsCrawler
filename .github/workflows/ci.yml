@@ -54,6 +54,10 @@ jobs:
       - name: Check import sorting with isort
         run: python -m isort --check-only --profile black src/ tests/ web/
 
+      - name: Run mypy type checker
+        run: python -m mypy src/ --ignore-missing-imports
+        continue-on-error: true  # Advisory only, matching local Makefile behavior
+
   security:
     name: Security Scan (weekly/manual only)
     runs-on: ubuntu-latest

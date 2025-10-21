@@ -8,7 +8,6 @@ Create Date: 2025-10-20 16:57:38.434234
 from typing import Sequence, Union
 
 from alembic import op
-import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
@@ -22,18 +21,22 @@ def upgrade() -> None:
     """Upgrade schema."""
     # Add UNIQUE constraint on (host, status_code) to support ON CONFLICT
     # This is required for the upsert operation in comprehensive_telemetry.py
-    op.create_unique_constraint(
-        'uq_http_error_summary_host_status',
-        'http_error_summary',
-        ['host', 'status_code']
-    )
+    
+    # For PostgreSQL: Use create_unique_constraint
+    # For SQLite: Must use batch mode (table recreation)
+    
+    with op.batch_alter_table('http_error_summary', schema=None) as batch_op:
+        batch_op.create_unique_constraint(
+            'uq_http_error_summary_host_status',
+            ['host', 'status_code']
+        )
 
 
 def downgrade() -> None:
     """Downgrade schema."""
     # Remove UNIQUE constraint
-    op.drop_constraint(
-        'uq_http_error_summary_host_status',
-        'http_error_summary',
-        type_='unique'
-    )
+    with op.batch_alter_table('http_error_summary', schema=None) as batch_op:
+        batch_op.drop_constraint(
+            'uq_http_error_summary_host_status',
+            type_='unique'
+        )

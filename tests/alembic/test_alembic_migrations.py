@@ -146,9 +146,12 @@ class TestAlembicMigrations:
         # Check that we have migration history
         assert result.stdout.strip(), "No migration history found"
 
-        # Check for common issues in history
+        # Check for common issues in history (actual errors, not table names)
+        # Note: Don't check for "ERROR" as it appears in legitimate table names
+        # like "http_error_summary"
         assert "FAILED" not in result.stdout.upper()
-        assert "ERROR" not in result.stdout.upper()
+        assert " ERROR:" not in result.stdout  # Actual error messages
+        assert "ERROR (" not in result.stdout  # Error with context
 
         # Verify that we have migrations
         # Each migration should have a revision ID (hex string)

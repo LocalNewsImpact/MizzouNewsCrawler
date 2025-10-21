@@ -22,10 +22,9 @@ from src.utils.content_cleaning_telemetry import ContentCleaningTelemetry
 
 
 @pytest.fixture
-def sqlite_store(tmp_path):
-    """Create a SQLite store for testing."""
-    db_path = tmp_path / "deployment_test.db"
-    return TelemetryStore(database=f"sqlite:///{db_path}", async_writes=False)
+def sqlite_store(telemetry_store_with_migrations):
+    """Use the migrated store from conftest."""
+    return telemetry_store_with_migrations
 
 
 @pytest.fixture

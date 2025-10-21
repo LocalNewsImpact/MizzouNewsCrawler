@@ -12,10 +12,12 @@ Benefits of ORM approach:
 - Reduced risk of SQL injection
 """
 
-from datetime import datetime
-from typing import Any, Optional
+from datetime import datetime  # noqa: F401 - used in docstring example
+from typing import Any
 
-from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, Text
+from sqlalchemy import (
+    Boolean, Column, DateTime, Float, Integer, String, Text, UniqueConstraint
+)
 from sqlalchemy.ext.declarative import declarative_base
 
 Base: Any = declarative_base()
@@ -95,11 +97,12 @@ class BylineCleaningTelemetry(Base):
 
 class ExtractionTelemetryV2(Base):
     """
-    Version 2 of extraction telemetry with enhanced metrics.
+    Version 2 of extraction telemetry with comprehensive method-level metrics.
 
-    Tracks detailed extraction attempts, outcomes, and performance metrics.
+    Tracks detailed extraction attempts including multiple methods, proxy usage,
+    field-level attribution, and alternative extractions.
 
-    Column count: 27 (>20, recommended for ORM)
+    Column count: 30 (>20, recommended for ORM)
     """
 
     __tablename__ = "extraction_telemetry_v2"
@@ -109,54 +112,183 @@ class ExtractionTelemetryV2(Base):
 
     # Operation tracking
     operation_id = Column(String, nullable=False, index=True)
-    article_id = Column(Integer, nullable=False, index=True)
+    article_id = Column(String, nullable=False, index=True)
     url = Column(String, nullable=False, index=True)
+    publisher = Column(String, nullable=True, index=True)
+    host = Column(String, nullable=True, index=True)
 
-    # Outcome
-    outcome = Column(String, nullable=False, index=True)
-
-    # Performance metrics
-    extraction_time_ms = Column(Float, nullable=False, default=0.0)
+    # Timing
     start_time = Column(DateTime, nullable=False)
     end_time = Column(DateTime, nullable=False)
+    total_duration_ms = Column(Float, nullable=True)
 
     # HTTP metrics
     http_status_code = Column(Integer, nullable=True)
+    http_error_type = Column(String, nullable=True)
     response_size_bytes = Column(Integer, nullable=True)
+    response_time_ms = Column(Float, nullable=True)
 
-    # Content flags
-    has_title = Column(Boolean, nullable=False, default=False)
-    has_content = Column(Boolean, nullable=False, default=False)
-    has_author = Column(Boolean, nullable=False, default=False)
-    has_publish_date = Column(Boolean, nullable=False, default=False)
+    # Proxy metrics
+    proxy_used = Column(Integer, nullable=True)  # 0 or 1
+    proxy_url = Column(String, nullable=True)
+    proxy_authenticated = Column(Integer, nullable=True)  # 0 or 1
+    proxy_status = Column(String, nullable=True)
+    proxy_error = Column(String, nullable=True)
 
-    # Content quality
+    # Method tracking (JSON strings)
+    methods_attempted = Column(Text, nullable=True)  # JSON array
+    successful_method = Column(String, nullable=True, index=True)
+    method_timings = Column(Text, nullable=True)  # JSON object
+    method_success = Column(Text, nullable=True)  # JSON object
+    method_errors = Column(Text, nullable=True)  # JSON object
+
+    # Field extraction tracking (JSON strings)
+    field_extraction = Column(Text, nullable=True)  # JSON object
+    extracted_fields = Column(Text, nullable=True)  # JSON object
+    final_field_attribution = Column(Text, nullable=True)  # JSON object
+    alternative_extractions = Column(Text, nullable=True)  # JSON object
+
+    # Content metrics
     content_length = Column(Integer, nullable=True)
-    title_length = Column(Integer, nullable=True)
-    author_count = Column(Integer, nullable=True)
-    content_quality_score = Column(Float, nullable=True, index=True)
+
+    # Success classification
+    is_success = Column(Boolean, nullable=False, default=False, index=True)
 
     # Error tracking
     error_message = Column(Text, nullable=True)
     error_type = Column(String, nullable=True)
 
-    # Success classification
-    is_success = Column(Boolean, nullable=False, default=False, index=True)
-    is_content_success = Column(Boolean, nullable=False, default=False, index=True)
-    is_technical_failure = Column(Boolean, nullable=False, default=False)
-    is_bot_protection = Column(Boolean, nullable=False, default=False)
-
-    # Additional metadata (renamed to avoid SQLAlchemy reserved name)
-    metadata_json = Column(Text, nullable=True)
-
     # Timestamp
-    timestamp = Column(DateTime, nullable=True, index=True)
+    created_at = Column(
+        DateTime, nullable=False, server_default='CURRENT_TIMESTAMP', index=True
+    )
 
     def __repr__(self):
         return (
             f"<ExtractionTelemetryV2(id={self.id}, "
             f"article_id={self.article_id}, "
-            f"outcome={self.outcome!r})>"
+            f"successful_method={self.successful_method!r})>"
+        )
+
+
+class ContentTypeDetectionTelemetry(Base):
+    """
+    Telemetry for content type detection (news vs opinion vs other).
+
+    Tracks automatic content classification to help identify and filter
+    non-news content like opinion pieces and editorials.
+
+    Column count: 14
+    """
+
+    __tablename__ = "content_type_detection_telemetry"
+
+    # Primary key
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Article identifiers
+    article_id = Column(String, nullable=False, index=True)
+    operation_id = Column(String, nullable=False)
+    url = Column(String, nullable=False)
+    publisher = Column(String, nullable=True)
+    host = Column(String, nullable=True)
+
+    # Detection results
+    status = Column(String, nullable=True, index=True)  # e.g., 'opinion', 'news'
+    confidence = Column(String, nullable=True)  # e.g., 'high', 'medium', 'low'
+    confidence_score = Column(Float, nullable=True)
+    reason = Column(String, nullable=True)
+    evidence = Column(Text, nullable=True)  # JSON string
+    version = Column(String, nullable=True)
+
+    # Timestamps
+    detected_at = Column(DateTime, nullable=True)
+    created_at = Column(
+        DateTime, nullable=False, server_default='CURRENT_TIMESTAMP', index=True
+    )
+
+    def __repr__(self):
+        return (
+            f"<ContentTypeDetectionTelemetry(id={self.id}, "
+            f"article_id={self.article_id}, "
+            f"status={self.status!r})>"
+        )
+
+
+class ContentCleaningSession(Base):
+    """
+    Telemetry for content cleaning sessions.
+
+    Tracks domain-level cleaning operations that identify and remove
+    boilerplate content, navigation elements, and other non-article text.
+
+    Column count: 13
+    """
+
+    __tablename__ = "content_cleaning_sessions"
+
+    # Primary key
+    telemetry_id = Column(String, primary_key=True)
+
+    # Session info
+    session_id = Column(String, nullable=True)
+    domain = Column(String, nullable=True, index=True)
+    article_count = Column(Integer, nullable=True)
+
+    # Configuration
+    min_occurrences = Column(Integer, nullable=True)
+    min_boundary_score = Column(Float, nullable=True)
+
+    # Timing
+    start_time = Column(DateTime, nullable=True)
+    end_time = Column(DateTime, nullable=True)
+    processing_time_ms = Column(Float, nullable=True)
+
+    # Results
+    rough_candidates_found = Column(Integer, nullable=True)
+    segments_detected = Column(Integer, nullable=True)
+    total_removable_chars = Column(Integer, nullable=True)
+    removal_percentage = Column(Float, nullable=True)
+
+    # Timestamp
+    created_at = Column(
+        DateTime, server_default='CURRENT_TIMESTAMP', index=True
+    )
+
+    def __repr__(self):
+        return (
+            f"<ContentCleaningSession(telemetry_id={self.telemetry_id}, "
+            f"domain={self.domain!r}, "
+            f"segments_detected={self.segments_detected})>"
+        )
+
+
+class HttpErrorSummary(Base):
+    """
+    HTTP error summary table for tracking recurring errors by host and status code.
+    Aggregates extraction_telemetry_v2 HTTP errors for monitoring and analysis.
+    """
+    __tablename__ = 'http_error_summary'
+    __table_args__ = (
+        UniqueConstraint(
+            'host', 'status_code',
+            name='uq_http_error_summary_host_status'
+        ),
+    )
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    host = Column(String, nullable=False, index=True)
+    status_code = Column(Integer, nullable=False, index=True)
+    # e.g., '5xx_server_error', '4xx_client_error'
+    error_type = Column(String, nullable=False)
+    count = Column(Integer, nullable=False)
+    first_seen = Column(DateTime, nullable=False)
+    last_seen = Column(DateTime, nullable=False, index=True)
+    
+    def __repr__(self):
+        return (
+            f"<HttpErrorSummary({self.host}, {self.status_code}, "
+            f"count={self.count})>"
         )
 
 

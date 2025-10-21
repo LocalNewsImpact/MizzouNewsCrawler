@@ -114,13 +114,13 @@ def should_schedule_discovery(
     """
     now = now or datetime.utcnow()
 
-    cadence_days: int = 7
+    cadence_days: float = 7.0
     try:
         if source_meta and isinstance(source_meta, dict):
             freq = source_meta.get("frequency") or source_meta.get("freq")
-            cadence_days = int(parse_frequency_to_days(freq))
+            cadence_days = parse_frequency_to_days(freq)
     except Exception:
-        cadence_days = 7
+        cadence_days = 7.0
 
     dbm = db
     last = _get_last_processed_date(dbm, source_id)

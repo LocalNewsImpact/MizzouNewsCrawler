@@ -138,25 +138,19 @@ class TestExtractionTelemetryV2ORM:
             operation_id="op-123",
             article_id=456,
             url="https://example.com/article",
-            outcome="success",
-            extraction_time_ms=125.5,
+            publisher="Example Publisher",
+            host="example.com",
             start_time=now,
             end_time=now,
+            total_duration_ms=125.5,
             http_status_code=200,
             response_size_bytes=15000,
-            has_title=True,
-            has_content=True,
-            has_author=True,
-            has_publish_date=True,
+            response_time_ms=50.0,
+            methods_attempted='["primary", "fallback"]',
+            successful_method="primary",
             content_length=1200,
-            title_length=50,
-            author_count=1,
-            content_quality_score=0.85,
             is_success=True,
-            is_content_success=True,
-            is_technical_failure=False,
-            is_bot_protection=False,
-            timestamp=now,
+            created_at=now,
         )
 
         db_session.add(telemetry)
@@ -170,9 +164,9 @@ class TestExtractionTelemetryV2ORM:
         )
 
         assert result is not None
-        assert result.article_id == 456
-        assert result.outcome == "success"
-        assert result.extraction_time_ms == 125.5
+        assert result.article_id == "456"
+        assert result.publisher == "Example Publisher"
+        assert result.total_duration_ms == 125.5
         assert result.http_status_code == 200
         assert result.is_success is True
 
@@ -183,14 +177,15 @@ class TestExtractionTelemetryV2ORM:
             operation_id="op-error",
             article_id=789,
             url="https://example.com/error",
-            outcome="error",
-            extraction_time_ms=50.0,
+            publisher="Error Publisher",
+            host="error.example.com",
             start_time=now,
             end_time=now,
+            total_duration_ms=50.0,
             error_message="Connection timeout",
             error_type="timeout",
             is_success=False,
-            is_technical_failure=True,
+            created_at=now,
         )
 
         db_session.add(telemetry)
@@ -204,7 +199,7 @@ class TestExtractionTelemetryV2ORM:
 
         assert result.error_message == "Connection timeout"
         assert result.error_type == "timeout"
-        assert result.is_technical_failure is True
+        assert result.is_success is False
 
 
 class TestBulkInserts:
