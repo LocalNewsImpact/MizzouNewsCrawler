@@ -26,7 +26,7 @@ from sqlalchemy import (
     inspect,
     text,
 )
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Mapped, mapped_column
 
 from . import Base, create_database_engine
 
@@ -44,29 +44,26 @@ except Exception:
 
 
 class DatasetVersion(Base):
-    __tablename__ = "dataset_versions"
+    # NOTE: migrate fields incrementally to reduce mypy noise. Convert a
+    # small subset first (id, dataset_name, version_tag, created_at,
+    # status, row_count).
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    dataset_name: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    version_tag: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    dataset_name = Column(String, nullable=False, index=True)
-    version_tag = Column(String, nullable=False, index=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    # remaining fields keep using legacy Column() until migrated in follow-ups
     created_by_job = Column(String, nullable=True)
     snapshot_path = Column(String, nullable=True)
     description = Column(Text, nullable=True)
     parent_version = Column(String, nullable=True)
     # New metadata and lifecycle fields
-    status = Column(
-        String,
-        nullable=False,
-        default="pending",
-        index=True,
-    )  # pending|in_progress|ready|failed
+    status: Mapped[str] = mapped_column(String, nullable=False, default="pending", index=True)  # pending|in_progress|ready|failed
     checksum = Column(String, nullable=True)
-    row_count = Column(Integer, nullable=True)
+    row_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     claimed_by = Column(String, nullable=True)
     claimed_at = Column(DateTime, nullable=True)
     finished_at = Column(DateTime, nullable=True)
-
 
 class DatasetDelta(Base):
     __tablename__ = "dataset_deltas"
