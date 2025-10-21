@@ -138,9 +138,61 @@ jobs:
         env:
           # Use in-memory telemetry DB for deterministic unit tests
           TELEMETRY_DATABASE_URL: "sqlite:///:memory:"
+          # Ensure this quick-run doesn't pick up repo-level addopts (coverage)
+          PYTEST_ADDOPTS: ""
         run: |
-          # Run fast tests only; exclude integration/e2e/slow markers
-          pytest -q -k "not integration and not e2e and not slow"
+          # Run fast targeted checks only
+          python3 scripts/validate_workflow_templates.py
+          pytest -q tests/unit/test_argo_workflow_template.py tests/unit/test_verification_no_head.py -q
+
+  quick-checks:
+    name: Quick Workflow Template Checks (merge-to-main)
+    runs-on: ubuntu-latest
+    needs: [lint]
+    # Run on direct pushes to main (merge-to-main) and on PRs targeting main
+    if: |
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
+      || github.event_name == 'pull_request' && github.base_ref == 'main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'requirements*.txt'
+
+      - name: Cache pip downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        env:
+          PIP_CACHE_DIR: ~/.cache/pip
+        run: |
+          python -m pip install --upgrade pip
+          pip install --cache-dir "$PIP_CACHE_DIR" -r requirements.txt
+          pip install --cache-dir "$PIP_CACHE_DIR" -r requirements-dev.txt
+
+      - name: Create data directory for tests
+        run: mkdir -p data
+
+      - name: Quick validator and targeted tests
+        env:
+          TELEMETRY_DATABASE_URL: "sqlite:///:memory:"
+          # Ensure targeted run doesn't pick up repo-level coverage addopts
+          PYTEST_ADDOPTS: ""
+        run: |
+          # Validate Argo workflow templates and compile embedded scripts
+          python3 scripts/validate_workflow_templates.py
+          # Run the two targeted unit tests, ignore pytest.ini coverage and postgres plugins
+          pytest -q -c /dev/null -p no:pytest_cov -p no:pytest_postgresql tests/unit/test_argo_workflow_template.py tests/unit/test_verification_no_head.py
 
   origin-proxy-only:
     name: Origin-proxy tests (smoke)
