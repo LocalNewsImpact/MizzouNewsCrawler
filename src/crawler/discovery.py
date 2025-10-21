@@ -704,6 +704,76 @@ class NewsDiscovery:
             )
             return 0
 
+    def _validate_dataset(
+        self,
+        dataset_label: str,
+        db_manager: DatabaseManager,
+    ) -> bool:
+        """Validate that a dataset exists and has linked sources.
+
+        Args:
+            dataset_label: Dataset label to validate
+            db_manager: Database manager instance
+
+        Returns:
+            True if dataset exists and has sources, False otherwise
+        """
+        try:
+            with db_manager.engine.connect() as conn:
+                # Check if dataset exists
+                result = conn.execute(
+                    text("SELECT id, slug FROM datasets WHERE label = :label"),
+                    {"label": dataset_label},
+                ).fetchone()
+
+                if not result:
+                    logger.error(
+                        f"❌ Dataset '{dataset_label}' not found in database"
+                    )
+                    # List available datasets to help user
+                    available = conn.execute(
+                        text("SELECT label FROM datasets ORDER BY label")
+                    ).fetchall()
+                    if available:
+                        labels = [row[0] for row in available]
+                        logger.info(
+                            f"Available datasets: {', '.join(labels)}"
+                        )
+                    else:
+                        logger.info("No datasets found in database")
+                    return False
+
+                dataset_id = result[0]
+
+                # Check if dataset has linked sources
+                count_result = conn.execute(
+                    text(
+                        """
+                        SELECT COUNT(*)
+                        FROM dataset_sources
+                        WHERE dataset_id = :dataset_id
+                        """
+                    ),
+                    {"dataset_id": dataset_id},
+                ).fetchone()
+
+                source_count = count_result[0] if count_result else 0
+
+                if source_count == 0:
+                    logger.warning(
+                        f"⚠️  Dataset '{dataset_label}' has no linked sources"
+                    )
+                    return False
+
+                logger.info(
+                    f"✓ Dataset '{dataset_label}' validated: {source_count} sources"
+                )
+                return True
+
+        except Exception as e:
+            logger.error(f"Failed to validate dataset '{dataset_label}': {e}")
+            return False
+
     def get_sources_to_process(
         self,
         dataset_label: str | None = None,
@@ -729,6 +799,19 @@ class NewsDiscovery:
             Tuple of (DataFrame with source information, stats dict)
         """
         with DatabaseManager(self.database_url) as db:
+            # Validate dataset if specified
+            if dataset_label:
+                if not self._validate_dataset(dataset_label, db):
+                    logger.error(
+                        f"Dataset validation failed for '{dataset_label}'. "
+                        "Returning empty result."
+                    )
+                    return pd.DataFrame(), {
+                        "sources_available": 0,
+                        "sources_due": 0,
+                        "sources_skipped": 0,
+                    }
+
             # Use actual schema: id, host, host_norm, canonical_name,
             # city, county, owner, type, metadata
             # Prioritize sources that have never been attempted for discovery
@@ -758,26 +841,54 @@ class NewsDiscovery:
 
             where_sql = " AND ".join(where_clauses)
 
-            query = f"""
-            SELECT DISTINCT ON (s.id)
-                s.id,
-                s.canonical_name as name,
-                'https://' || s.host as url,
-                s.metadata,
-                s.city,
-                s.county,
-                s.type as type_classification,
-                s.host,
-                CASE
-                    WHEN cl.source_host_id IS NULL THEN 0
-                    ELSE 1
-                END as discovery_attempted
-            FROM sources s
-            LEFT JOIN candidate_links cl ON s.id = cl.source_host_id
-            {join_clause}
-            WHERE {where_sql}
-            ORDER BY s.id, discovery_attempted ASC, s.canonical_name ASC
-            """
+            # Detect database dialect and build appropriate query
+            dialect = db.engine.dialect.name
+            
+            if dialect == 'postgresql':
+                # PostgreSQL: Use DISTINCT ON for efficient deduplication
+                query = f"""
+                SELECT DISTINCT ON (s.id)
+                    s.id,
+                    s.canonical_name as name,
+                    'https://' || s.host as url,
+                    s.metadata,
+                    s.city,
+                    s.county,
+                    s.type as type_classification,
+                    s.host,
+                    CASE
+                        WHEN cl.source_host_id IS NULL THEN 0
+                        ELSE 1
+                    END as discovery_attempted
+                FROM sources s
+                LEFT JOIN candidate_links cl ON s.id = cl.source_host_id
+                {join_clause}
+                WHERE {where_sql}
+                ORDER BY s.id, discovery_attempted ASC, s.canonical_name ASC
+                """
+            else:
+                # SQLite: Use GROUP BY with aggregation
+                query = f"""
+                SELECT
+                    s.id,
+                    s.canonical_name as name,
+                    'https://' || s.host as url,
+                    s.metadata,
+                    s.city,
+                    s.county,
+                    s.type as type_classification,
+                    s.host,
+                    MIN(CASE
+                        WHEN cl.source_host_id IS NULL THEN 0
+                        ELSE 1
+                    END) as discovery_attempted
+                FROM sources s
+                LEFT JOIN candidate_links cl ON s.id = cl.source_host_id
+                {join_clause}
+                WHERE {where_sql}
+                GROUP BY s.id, s.canonical_name, s.host, s.metadata, s.city, s.county, s.type
+                ORDER BY discovery_attempted ASC, s.canonical_name ASC
+                """
 
             if limit:
                 try:
@@ -791,6 +902,7 @@ class NewsDiscovery:
             # SQLAlchemy converts :param to %s format required by pg8000
             from sqlalchemy import text as sql_text
 
+            logger.debug(f"Using {dialect} query syntax for get_sources_to_process")
             df = pd.read_sql_query(sql_text(query), db.engine, params=params or None)
 
             # If requested, filter to only sources that are due for
@@ -822,7 +934,21 @@ class NewsDiscovery:
                         is_due = should_schedule_discovery(
                             dbm, str(row["id"]), source_meta=meta
                         )
-                    except Exception:
+                        
+                        # Log skip reasons for better debugging
+                        if not is_due:
+                            last_disc = meta.get("last_discovery_at") if meta else None
+                            freq = meta.get("frequency") if meta else None
+                            logger.debug(
+                                f"⏭️  Skipping {row.get('name', 'unknown')}: not due for discovery "
+                                f"(frequency={freq}, last_discovery={last_disc})"
+                            )
+                    except Exception as e:
+                        # On error, default to scheduling the source to avoid silent failures
+                        logger.warning(
+                            f"Error checking schedule for {row.get('name', 'unknown')}: {e}. "
+                            "Defaulting to schedule source."
+                        )
                         is_due = True
                     due_mask.append(is_due)
 

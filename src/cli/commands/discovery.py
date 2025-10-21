@@ -93,16 +93,20 @@ def add_discovery_parser(subparsers) -> argparse.ArgumentParser:
     discover_parser.add_argument(
         "--due-only",
         action="store_true",
-        default=True,
+        default=False,
         help=(
-            "Only process sources due for discovery based on scheduling (default: True)"
+            "Only process sources due for discovery based on scheduling. "
+            "Use for production scheduled runs. Default is False to allow first-run discovery."
         ),
     )
 
     discover_parser.add_argument(
         "--force-all",
         action="store_true",
-        help=("Process all sources regardless of scheduling (disables due-only)"),
+        help=(
+            "Process all sources regardless of scheduling. "
+            "Alias for disabling --due-only (included for backwards compatibility)."
+        ),
     )
 
     discover_parser.add_argument(
@@ -163,7 +167,7 @@ def handle_discovery_command(args) -> int:
         if existing_article_limit is None and legacy_article_limit is not None:
             existing_article_limit = legacy_article_limit
 
-        due_only_enabled = getattr(args, "due_only", True) and not getattr(
+        due_only_enabled = getattr(args, "due_only", False) and not getattr(
             args, "force_all", False
         )
 
@@ -172,6 +176,14 @@ def handle_discovery_command(args) -> int:
         print(f"   Source limit: {getattr(args, 'source_limit', 'none')}")
         print(f"   Due only: {due_only_enabled}")
         print(f"   Force all: {getattr(args, 'force_all', False)}")
+        
+        # Warn if using scheduling that may skip sources
+        if due_only_enabled and not (uuid_list or getattr(args, "source_filter", None)):
+            print()
+            print("⚠️  Running with --due-only scheduling enabled.")
+            print("    Sources not yet due for discovery will be skipped.")
+            print("    Use --force-all to override scheduling on first run.")
+        
         print()
 
         stats = discovery.run_discovery(
