@@ -301,7 +301,7 @@ class URLVerificationService:
                     last_error = f"HTTP {status_code}"
 
             except Timeout:
-                last_error = (f"timeout after {self.http_timeout}s during GET fallback")
+                last_error = f"timeout after {self.http_timeout}s during GET fallback"
             except RequestException as exc:
                 status_code = getattr(
                     getattr(exc, "response", None),

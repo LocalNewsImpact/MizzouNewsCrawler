@@ -1,4 +1,5 @@
 import types
+
 import pytest
 
 
@@ -7,7 +8,7 @@ class DummySession:
         self.headers = {}
 
     def head(self, *args, **kwargs):
-        raise RuntimeError('HEAD should not be called in verification')
+        raise RuntimeError("HEAD should not be called in verification")
 
 
 class DummySniffer:
@@ -30,6 +31,6 @@ def test_verify_url_uses_storysniffer_and_no_head(monkeypatch):
     svc.sniffer = dummy_sniffer
 
     # Call verify_url - should not raise from DummySession.head
-    result = svc.verify_url('https://example.com/some-article')
-    assert result['storysniffer_result'] is True
+    result = svc.verify_url("https://example.com/some-article")
+    assert result["storysniffer_result"] is True
     assert dummy_sniffer.called

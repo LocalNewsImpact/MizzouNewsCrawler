@@ -1314,9 +1314,7 @@ class OperationTracker:
             and "no articles" in error_text
         ):
             # This typically indicates discovery simply found nothing new.
-            self.logger.info(
-                f"Site content-empty for {site_url}: {error}"
-            )
+            self.logger.info(f"Site content-empty for {site_url}: {error}")
         else:
             self.logger.warning(
                 f"Site failure [{failure_type.value}] for {site_url}: {error}"

@@ -321,46 +321,46 @@ class ComprehensiveExtractionTelemetry:
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (
-                    metrics.operation_id,
-                    metrics.article_id,
-                    metrics.url,
-                    metrics.publisher,
-                    metrics.host,
-                    metrics.start_time,
-                    metrics.end_time,
-                    metrics.total_duration_ms,
-                    metrics.http_status_code,
-                    metrics.http_error_type,
-                    metrics.response_size_bytes,
-                    metrics.response_time_ms,
                     (
-                        int(metrics.proxy_used)
-                        if metrics.proxy_used is not None
-                        else None
+                        metrics.operation_id,
+                        metrics.article_id,
+                        metrics.url,
+                        metrics.publisher,
+                        metrics.host,
+                        metrics.start_time,
+                        metrics.end_time,
+                        metrics.total_duration_ms,
+                        metrics.http_status_code,
+                        metrics.http_error_type,
+                        metrics.response_size_bytes,
+                        metrics.response_time_ms,
+                        (
+                            int(metrics.proxy_used)
+                            if metrics.proxy_used is not None
+                            else None
+                        ),
+                        metrics.proxy_url,
+                        (
+                            int(metrics.proxy_authenticated)
+                            if metrics.proxy_authenticated is not None
+                            else None
+                        ),
+                        metrics.proxy_status,
+                        metrics.proxy_error,
+                        json.dumps(metrics.methods_attempted),
+                        metrics.successful_method,
+                        json.dumps(metrics.method_timings),
+                        json.dumps(metrics.method_success),
+                        json.dumps(metrics.method_errors),
+                        json.dumps(metrics.field_extraction),
+                        json.dumps(metrics.extracted_fields),
+                        json.dumps(metrics.final_field_attribution),
+                        json.dumps(metrics.alternative_extractions),
+                        metrics.content_length,
+                        int(is_success),
+                        metrics.error_message,
+                        metrics.error_type,
                     ),
-                    metrics.proxy_url,
-                    (
-                        int(metrics.proxy_authenticated)
-                        if metrics.proxy_authenticated is not None
-                        else None
-                    ),
-                    metrics.proxy_status,
-                    metrics.proxy_error,
-                    json.dumps(metrics.methods_attempted),
-                    metrics.successful_method,
-                    json.dumps(metrics.method_timings),
-                    json.dumps(metrics.method_success),
-                    json.dumps(metrics.method_errors),
-                    json.dumps(metrics.field_extraction),
-                    json.dumps(metrics.extracted_fields),
-                    json.dumps(metrics.final_field_attribution),
-                    json.dumps(metrics.alternative_extractions),
-                    metrics.content_length,
-                    int(is_success),
-                    metrics.error_message,
-                    metrics.error_type,
-                ),
                 )
             except IntegrityError as ie:
                 # Handle duplicate primary key insertions gracefully.
@@ -369,9 +369,7 @@ class ComprehensiveExtractionTelemetry:
                 # telemetry worker. Log and continue so extraction is not
                 # disrupted. A proper DB migration (setval on the sequence)
                 # should be applied to fix the root cause.
-                logger.warning(
-                    "Telemetry insert IntegrityError (ignored): %s", ie
-                )
+                logger.warning("Telemetry insert IntegrityError (ignored): %s", ie)
                 return
 
             if metrics.http_status_code and metrics.http_error_type:
