@@ -3,12 +3,10 @@ name: Pre-Deployment Validation
 on:
   pull_request:
     branches:
-      - main
-      - develop
+      - main  # Only validate PRs to main
   push:
     branches:
-      - main
-      - develop
+      - main  # Only validate pushes to main
   workflow_dispatch:
 
 jobs:
