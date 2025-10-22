@@ -8,7 +8,7 @@ extracting location entities and storing them in the article_entities table.
 import logging
 import threading
 import time
-from typing import cast
+ 
 
 from sqlalchemy import text as sql_text
 
@@ -192,10 +192,10 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
                     )
                     save_article_entities(
                         session,
-                        cast(str, article_id),
+                        str(article_id),
                         entities,
                         extractor.extractor_version,
-                        cast(str | None, text_hash),
+                        text_hash,
                     )
                     log_and_print(f"✅ Saved entities to DB for article {article_id}")
 

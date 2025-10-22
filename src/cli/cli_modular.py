@@ -7,7 +7,7 @@ import logging
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from typing import cast
+# typing imports intentionally omitted; use inline type-ignore where necessary
 
 # ALL command modules are now lazy-loaded - nothing imported at module level
 # This makes CLI startup instant (~0.1s instead of ~15s with spacy/ML imports)
@@ -151,7 +151,8 @@ def _resolve_handler(
 
     func = getattr(args, "func", None)
     if callable(func):
-        return cast(CommandHandler, func)
+        # func is already a callable with the correct runtime signature
+        return func  # type: ignore[return-value]
 
     if command is None:
         return None
@@ -162,14 +163,14 @@ def _resolve_handler(
 
     handler = globals().get(attr_name)
     if callable(handler):
-        return cast(CommandHandler, handler)
+        return handler  # type: ignore[return-value]
 
     # Lazy load extraction handler to avoid slow spacy import (~14s)
     if command == "extract" and attr_name == "handle_extraction_command":
         try:
             from .commands.extraction import handle_extraction_command
 
-            return cast(CommandHandler, handle_extraction_command)
+            return handle_extraction_command  # type: ignore[return-value]
         except (ImportError, ModuleNotFoundError):
             return None  # spacy not available
 
@@ -183,7 +184,7 @@ def _resolve_handler(
                 handle_entity_extraction_command,
             )
 
-            return cast(CommandHandler, handle_entity_extraction_command)
+            return handle_entity_extraction_command  # type: ignore[return-value]
         except (ImportError, ModuleNotFoundError):
             return None  # spacy not available
 
@@ -192,7 +193,7 @@ def _resolve_handler(
         try:
             from .commands.analysis import handle_analysis_command
 
-            return cast(CommandHandler, handle_analysis_command)
+            return handle_analysis_command  # type: ignore[return-value]
         except (ImportError, ModuleNotFoundError):
             return None  # ML dependencies not available
 

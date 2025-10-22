@@ -8,7 +8,7 @@ from collections import OrderedDict
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
+ 
 
 import torch
 from transformers import (
@@ -175,9 +175,11 @@ class ArticleClassifier:
             raise TypeError("predict_batch expects a sequence of text strings")
 
         normalized: list[str] = [text or "" for text in texts]
-        raw_outputs = cast(
-            Sequence[Sequence[dict]],
-            self._pipeline(normalized, truncation=True),
+        # The transformers pipeline returns a sequence of dicts; keep a
+        # lightweight runtime assignment and add a narrow type comment
+        # for clarity rather than using `cast`.
+        raw_outputs: Sequence[Sequence[dict]] = (
+            self._pipeline(normalized, truncation=True)  # type: ignore[assignment]
         )
 
         predictions: list[list[Prediction]] = []

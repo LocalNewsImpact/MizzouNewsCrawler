@@ -3,7 +3,7 @@ from __future__ import annotations
 import types
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterable, Iterator, cast
+from typing import Any, Iterable, Iterator
 
 import pytest
 from sqlalchemy.orm import Session
@@ -104,10 +104,9 @@ def _make_failure(
 
 def test_iter_articles_builds_select_with_filters() -> None:
     session = _FakeSession([])
-    pipeline = ArticleLLMPipeline(
-        cast(Session, session),
-        cast(LLMOrchestrator, _DummyOrchestrator([])),
-    )
+    session_typed = session  # type: ignore[assignment]
+    orchestrator_typed = _DummyOrchestrator([])  # type: ignore[assignment]
+    pipeline = ArticleLLMPipeline(session_typed, orchestrator_typed)
 
     list(pipeline._iter_articles(statuses=("summarised",), limit=5))
 
@@ -121,10 +120,9 @@ def test_iter_articles_builds_select_with_filters() -> None:
 
 def test_render_prompt_formats_defaults_and_truncation() -> None:
     session = _FakeSession([])
-    pipeline = ArticleLLMPipeline(
-        cast(Session, session),
-        cast(LLMOrchestrator, _DummyOrchestrator([])),
-    )
+    session_typed = session  # type: ignore[assignment]
+    orchestrator_typed = _DummyOrchestrator([])  # type: ignore[assignment]
+    pipeline = ArticleLLMPipeline(session_typed, orchestrator_typed)
     long_content = "A" * 4050
     article = _make_article(
         title=None,
@@ -146,10 +144,9 @@ def test_render_prompt_formats_defaults_and_truncation() -> None:
 
 def test_render_prompt_falls_back_to_text_and_unknown_date() -> None:
     session = _FakeSession([])
-    pipeline = ArticleLLMPipeline(
-        cast(Session, session),
-        cast(LLMOrchestrator, _DummyOrchestrator([])),
-    )
+    session_typed = session  # type: ignore[assignment]
+    orchestrator_typed = _DummyOrchestrator([])  # type: ignore[assignment]
+    pipeline = ArticleLLMPipeline(session_typed, orchestrator_typed)
     article = _make_article(
         content="",
         text=" Replacement body ",
@@ -166,10 +163,9 @@ def test_run_dry_run_collects_results_without_commit() -> None:
     article = _make_article()
     session = _FakeSession([article])
     orchestrator = _DummyOrchestrator([_make_success(content="Civic summary")])
-    pipeline = ArticleLLMPipeline(
-        cast(Session, session),
-        cast(LLMOrchestrator, orchestrator),
-    )
+    session_typed = session  # type: ignore[assignment]
+    orchestrator_typed = orchestrator  # type: ignore[assignment]
+    pipeline = ArticleLLMPipeline(session_typed, orchestrator_typed)
 
     results = pipeline.run(dry_run=True)
 
@@ -206,10 +202,9 @@ def test_run_persists_success_and_failure() -> None:
             ),
         ]
     )
-    pipeline = ArticleLLMPipeline(
-        cast(Session, session),
-        cast(LLMOrchestrator, orchestrator),
-    )
+    session_typed = session  # type: ignore[assignment]
+    orchestrator_typed = orchestrator  # type: ignore[assignment]
+    pipeline = ArticleLLMPipeline(session_typed, orchestrator_typed)
 
     results = pipeline.run(dry_run=False)
 

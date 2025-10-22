@@ -14,7 +14,7 @@ import uuid
 from collections import defaultdict
 from collections.abc import Iterable
 from datetime import datetime
-from typing import Any, cast
+from typing import Any
 
 from sqlalchemy import text
 
@@ -94,7 +94,8 @@ ARTICLE_INSERT_SQL = text(
     "publish_date, content, text, status, metadata, wire, extracted_at, "
     "created_at, text_hash) VALUES (:id, :candidate_link_id, :url, :title, "
     ":author, :publish_date, :content, :text, :status, :metadata, :wire, "
-    ":extracted_at, :created_at, :text_hash)"
+    ":extracted_at, :created_at, :text_hash) "
+    "ON CONFLICT (url) DO NOTHING"
 )
 
 CANDIDATE_STATUS_UPDATE_SQL = text(
@@ -388,7 +389,9 @@ def handle_extraction_command(args) -> int:
     telemetry = ComprehensiveExtractionTelemetry()
 
     # Track hosts that return 403 responses within this run
-    host_403_tracker: dict[str, int] = {}
+    # Use defaultdict(int) so callers can increment without extra checks
+    # and to provide an explicit typed container for static checks.
+    host_403_tracker: dict[str, int] = defaultdict(int)
 
     try:
         domains_for_cleaning: dict[str, list[str]] = defaultdict(list)
@@ -549,7 +552,8 @@ def handle_extraction_command(args) -> int:
                     # Apply jitter to batch sleep
                     batch_jitter = float(os.getenv("BATCH_SLEEP_JITTER", "0.0"))
                     if batch_jitter > 0:
-                        jitter_amount = batch_sleep * batch_jitter
+                        # keep jitter_amount as int to match earlier usage
+                        jitter_amount = int(batch_sleep * batch_jitter)
                         actual_sleep = random.uniform(
                             batch_sleep - jitter_amount, batch_sleep + jitter_amount
                         )
@@ -1292,8 +1296,8 @@ def _run_article_entity_extraction(article_ids: Iterable[str], db=None) -> None:
 
             candidate = article.candidate_link
             if candidate:
-                source_id = cast(str | None, candidate.source_id)
-                dataset_id = cast(str | None, candidate.dataset_id)
+                source_id = candidate.source_id
+                dataset_id = candidate.dataset_id
             else:
                 source_id = None
                 dataset_id = None
@@ -1318,10 +1322,10 @@ def _run_article_entity_extraction(article_ids: Iterable[str], db=None) -> None:
             )
             save_article_entities(
                 session,
-                cast(str, article.id),
+                str(getattr(article, "id", "")),
                 entities,
                 extractor.extractor_version,
-                cast(str | None, article.text_hash),
+                getattr(article, "text_hash", None),
             )
     except Exception:
         session.rollback()

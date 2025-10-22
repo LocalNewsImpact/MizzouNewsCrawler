@@ -16,8 +16,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.parse import urljoin, urlparse
 
 import requests
-from bs4 import BeautifulSoup
-from bs4.element import Tag
+from bs4 import BeautifulSoup, Tag
 from dateutil import parser as dateparser
 
 from src.utils.bot_sensitivity_manager import BotSensitivityManager
@@ -90,6 +89,26 @@ except ImportError:
     logging.warning("selenium-stealth not available, using basic stealth mode")
 
 logger = logging.getLogger(__name__)
+
+
+def _ensure_attrs_dict(attrs: object) -> dict:
+    """Coerce BeautifulSoup `attrs` argument into a dict suitable for
+    `soup.find(selector, attrs=...)`.
+
+    BeautifulSoup allows attribute values to be a dict, a list, or other
+    types. This helper returns a dict when possible and falls back to an
+    empty dict otherwise.
+    """
+    if isinstance(attrs, dict):
+        return attrs
+    # Handle typical BeautifulSoup shapes: list/tuple of (k,v) pairs
+    if isinstance(attrs, (list, tuple)):
+        try:
+            return {k: v for k, v in attrs}  # type: ignore[misc]
+        except Exception:
+            return {}
+    # Unknown shape -> empty dict
+    return {}
 
 
 URL_DATE_FALLBACK_HOSTS = {
@@ -195,6 +214,11 @@ class NewsCrawler:
                 href = a_tag.get("href")
                 if not href:
                     continue
+
+                # BeautifulSoup `attrs` may be a list/tuple; normalize to a string
+                if isinstance(href, (list, tuple)):
+                    href = href[0] if href else ""
+                href = str(href)
 
                 # Resolve relative URLs
                 href = urljoin(seed_url, href)
@@ -905,7 +929,8 @@ class ContentExtractor:
             "cf-ray",
         ]
 
-        # Generic bot protection indicators
+        # Generic bot protection indicators (only check for active challenges)
+        # Note: Exclude passive "grecaptcha" CSS/JS references
         bot_protection_indicators = [
             "access denied",
             "blocked by",
@@ -915,8 +940,9 @@ class ContentExtractor:
             "browser check",
             "are you a robot",
             "please verify you are human",
-            "captcha",
-            "recaptcha",
+            "please complete the captcha",
+            "solve the captcha",
+            "captcha challenge",
         ]
 
         # Check for Cloudflare first (most common)
@@ -1713,25 +1739,10 @@ class ContentExtractor:
                         # Use CAPTCHA backoff for confirmed bot protection
                         self._handle_captcha_backoff(domain)
 
-                        metadata = {
-                            "extraction_method": "newspaper4k",
-                            "http_status": response.status_code,
-                            "error": "bot_protection",
-                            "bot_protection_type": protection_type,
-                        }
-                        for key, value in proxy_metadata.items():
-                            if value is not None:
-                                metadata[key] = value
-
-                        return {
-                            "url": url,
-                            "title": None,
-                            "author": None,
-                            "publish_date": None,
-                            "content": None,
-                            "metadata": metadata,
-                            "extracted_at": datetime.utcnow().isoformat(),
-                        }
+                        # Raise exception to stop batch processing for this domain
+                        raise RateLimitError(
+                            f"Bot protection in 200 response on {domain}: {protection_type}"
+                        )
 
                     # Reset error count on successful request
                     self._reset_error_count(domain)
@@ -2515,8 +2526,10 @@ class ContentExtractor:
         """Extract article title."""
         # Try Open Graph title first
         og_title = soup.find("meta", property="og:title")
-        if og_title and og_title.get("content"):
-            return og_title["content"].strip()
+        if isinstance(og_title, Tag):
+            content = og_title.get("content")
+            if content:
+                return str(content).strip()
 
         # Try standard title tag
         title_tag = soup.find("title")
@@ -2542,16 +2555,23 @@ class ContentExtractor:
             (".byline", {}),
         ]
 
+    # local imports kept minimal to avoid heavy startup costs
+
         for selector, attrs in author_selectors:
-            element = soup.find(selector, attrs)
-            if element:
+            element = soup.find(selector, _ensure_attrs_dict(attrs))
+            if isinstance(element, Tag):
                 if element.name == "meta":
                     author = element.get("content")
+                    if author is not None:
+                        author_str = str(author).strip()
+                        if author_str:
+                            return author_str
                 else:
-                    author = element.get_text().strip()
+                    author_txt = element.get_text().strip()
+                    if author_txt:
+                        return author_txt
 
-                if author:
-                    return author
+                
 
         return None
 

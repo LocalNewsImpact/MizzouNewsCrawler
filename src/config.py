@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, IO
+from os import PathLike
 from urllib.parse import quote_plus, urlencode
 
 try:
@@ -19,7 +20,15 @@ try:
 except Exception:  # pragma: no cover - optional dependency missing
     _HAVE_DOTENV = False  # pragma: no cover
 
-    def load_dotenv(*args, **kwargs) -> bool:  # pragma: no cover
+    # Provide a typed fallback that matches python-dotenv's load_dotenv signature
+    def load_dotenv(
+        dotenv_path: str | PathLike[str] | None = None,
+        stream: IO[str] | None = None,
+        verbose: bool = False,
+        override: bool = False,
+        interpolate: bool = True,
+        encoding: str | None = None,
+    ) -> bool:  # pragma: no cover
         return False
 
 

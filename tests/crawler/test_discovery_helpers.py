@@ -4,7 +4,7 @@ import json
 import pickle
 import types
 from datetime import datetime, timedelta
-from typing import Any, Iterable, cast
+from typing import Any, Iterable
 
 import pandas as pd
 import pytest
@@ -838,7 +838,7 @@ def test_process_source_stores_and_classifies_articles(
             self.failures.append(kwargs)
 
     telemetry = TelemetryStub()
-    instance.telemetry = cast(Any, telemetry)
+    instance.telemetry = telemetry  # type: ignore[assignment]
 
     existing_urls = {"https://existing.com/already"}
 
@@ -1023,7 +1023,7 @@ def test_source_processor_skips_rss_when_recently_missing(
             self.failures.append(kwargs)
 
     telemetry = TelemetryStub()
-    instance.telemetry = cast(Any, telemetry)
+    instance.telemetry = telemetry  # type: ignore[assignment]
     instance.delay = 0
     instance.days_back = 7
 
@@ -1184,7 +1184,7 @@ def test_source_processor_records_network_rss_failure(
             self.failures.append(dict(kwargs))
 
     telemetry = TelemetryStub()
-    instance.telemetry = cast(Any, telemetry)
+    instance.telemetry = telemetry  # type: ignore[assignment]
 
     existing_urls: set[str] = set()
 
@@ -1297,7 +1297,7 @@ def test_source_processor_marks_rss_missing_after_non_network_failure(
             self.failures.append(dict(kwargs))
 
     telemetry = TelemetryStub()
-    instance.telemetry = cast(Any, telemetry)
+    instance.telemetry = telemetry  # type: ignore[assignment]
 
     existing_urls: set[str] = set()
 
@@ -1411,7 +1411,7 @@ def test_source_processor_records_failures_for_downstream_methods(
             self.failures.append(dict(kwargs))
 
     telemetry = TelemetryStub()
-    instance.telemetry = cast(Any, telemetry)
+    instance.telemetry = telemetry  # type: ignore[assignment]
 
     existing_urls: set[str] = set()
 
@@ -1525,7 +1525,7 @@ def test_source_processor_skips_out_of_scope_urls(
             self.failures.append(dict(kwargs))
 
     telemetry = TelemetryStub()
-    instance.telemetry = cast(Any, telemetry)
+    instance.telemetry = telemetry  # type: ignore[assignment]
 
     existing_urls: set[str] = set()
 
@@ -1666,7 +1666,7 @@ def test_source_processor_stores_when_publish_date_parse_fails(
             self.failures.append(dict(kwargs))
 
     telemetry = TelemetryStub()
-    instance.telemetry = cast(Any, telemetry)
+    instance.telemetry = telemetry  # type: ignore[assignment]
 
     existing_urls: set[str] = set()
 
@@ -1805,7 +1805,7 @@ def test_source_processor_continues_when_upsert_raises(
             self.failures.append(dict(kwargs))
 
     telemetry = TelemetryStub()
-    instance.telemetry = cast(Any, telemetry)
+    instance.telemetry = telemetry  # type: ignore[assignment]
 
     existing_urls: set[str] = set()
 
@@ -1913,7 +1913,7 @@ def test_process_source_dedupes_query_urls(
     instance.max_articles_per_source = 5
     instance.cutoff_date = datetime.utcnow() - timedelta(days=2)
     instance.storysniffer = object()
-    instance.telemetry = cast(Any, None)
+    instance.telemetry = None  # type: ignore[assignment]
     instance.delay = 0
     instance.days_back = 7
 
@@ -2026,7 +2026,7 @@ def test_run_discovery_processes_sources(
 ) -> None:
     instance = _make_discovery_stub()
     telemetry = _FakeTelemetry()
-    instance.telemetry = cast(Any, telemetry)
+    instance.telemetry = telemetry  # type: ignore[assignment]
     instance.delay = 0
     instance.days_back = 7
 
@@ -2143,7 +2143,7 @@ def test_run_discovery_uuid_filter_returns_empty(
 ) -> None:
     instance = _make_discovery_stub()
     telemetry = _FakeTelemetry()
-    instance.telemetry = cast(Any, telemetry)
+    instance.telemetry = telemetry  # type: ignore[assignment]
     instance.delay = 0
     instance.days_back = 7
 

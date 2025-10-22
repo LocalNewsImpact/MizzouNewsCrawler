@@ -1,5 +1,5 @@
 import sqlite3
-from typing import Optional, cast
+from typing import Optional
 from unittest.mock import MagicMock, patch
 
 from src.utils.content_cleaner_balanced import BalancedBoundaryContentCleaner
@@ -139,7 +139,7 @@ def test_assess_locality_requires_text_and_context():
     assert (
         cleaner._assess_locality(
             "",
-            cast(dict[str, Optional[str]], {"publisher_city": "Jefferson"}),
+            {"publisher_city": "Jefferson"},  # type: ignore[arg-type]
             "example.com",
         )
         is None
@@ -147,7 +147,7 @@ def test_assess_locality_requires_text_and_context():
     assert (
         cleaner._assess_locality(
             "Wire copy without context",
-            cast(dict[str, Optional[str]], {}),
+            {},  # type: ignore[arg-type]
             "example.com",
         )
         is None
