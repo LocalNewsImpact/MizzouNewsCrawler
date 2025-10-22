@@ -78,16 +78,57 @@ RSS/Sitemaps → Discovery (Argo) → candidate_links table
 
 ### Installation
 
+**Local Development Setup:**
+
 ```bash
-git clone https://github.com/LocalNewsImpact/MizzouNewsCrawler-Scripts.git
-cd MizzouNewsCrawler-Scripts
+# Clone the repository
+git clone https://github.com/LocalNewsImpact/MizzouNewsCrawler.git
+cd MizzouNewsCrawler
+
+# Create and activate virtual environment
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install dependencies
 pip install --upgrade pip
 pip install -r requirements.txt
+
+# Optional: Install development tools (linting, testing)
+pip install -r requirements-dev.txt
+
+# Set up pre-commit hooks (recommended for contributors)
+./scripts/setup-git-hooks.sh
 ```
 
-If you use `pipx` or Conda, adapt the environment step accordingly. The repo ships a `requirements-dev.txt` with optional lint/test tools; install it via `pip install -r requirements-dev.txt` when you need the full contributor toolchain.
+**Docker-based Development (Alternative):**
+
+```bash
+# Start local development stack with Docker Compose
+docker-compose up -d
+
+# This starts:
+# - PostgreSQL database (local)
+# - API service (port 8000)
+# - Frontend (if configured)
+```
+
+**Environment Configuration:**
+
+Copy the example environment file and configure for your setup:
+
+```bash
+cp .env.example .env
+# Edit .env with your configuration
+```
+
+For local development, SQLite is used by default. To use PostgreSQL locally, set:
+```bash
+DATABASE_ENGINE=postgresql+psycopg2
+DATABASE_HOST=localhost
+DATABASE_PORT=5432
+DATABASE_NAME=mizzou_dev
+# ... other database settings
+```
 
 ### First Run Checklist
 
@@ -976,24 +1017,44 @@ curl http://localhost:8000/api/telemetry/poor-performers?max_success_rate=50
 
 ## Quick Start
 
+### Local Development Quick Start
+
 ```bash
-# Setup environment
+# 1. Setup environment
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 
-# Load sources into database (one-time setup)
+# 2. Load sources into database (one-time setup)
 python -m src.cli load-sources --csv sources/publinks.csv
 
-# Discover article URLs (smart scheduling)
+# 3. Discover article URLs (smart scheduling)
 python -m src.cli discover-urls --source-limit 10
 
-# Extract content from discovered articles
+# 4. Extract content from discovered articles
 python -m src.cli extract --limit 20
 
-# Check status and results
+# 5. Check status and results
 python -m src.cli status
 
-# Or run complete example workflow
+# Optional: Run complete example workflow
 python example_workflow.py
+```
+
+### Production Status Check
+
+```bash
+# Check Argo workflow status
+kubectl get cronworkflow mizzou-news-pipeline -n production
+
+# View recent workflow runs
+kubectl get workflows -n production --sort-by=.metadata.creationTimestamp
+
+# Check processor health
+kubectl get pods -n production -l app=mizzou-processor
+
+# View API service
+kubectl get service mizzou-api -n production
 ```
 
 ## CLI Usage
@@ -1459,33 +1520,24 @@ For local development and testing with SQLite:
 
 **Geographic Enhancement**: When new sources are loaded, the system automatically triggers gazetteer population in the background. This process geocodes publisher locations and discovers nearby geographic entities (schools, businesses, landmarks, etc.) using OpenStreetMap APIs.
 
-## Usage
+## Database Migrations
+
+The project uses Alembic for database schema migrations:
 
 ```bash
-# Run full pipeline
-papermill notebooks/0_crawler.ipynb artifacts/crawler_output.ipynb -p run_date 2024-01-01
-
-# Import existing CSV data
-python scripts/migrate_csv.py --input-dir ../MizzouNewsCrawler/processed
-
-# View run history
-python scripts/list_jobs.py
-```
-
-## Development
-
-```bash
-# Run tests
-pytest tests/
-
-# Database migrations
+# Run pending migrations
 alembic upgrade head
 
-# Lint code
-pre-commit run --all-files
+# Create a new migration
+alembic revision --autogenerate -m "Description of changes"
+
+# Rollback last migration
+alembic downgrade -1
 ```
 
-### Content Cleaning Tools
+See [docs/MIGRATION_RUNBOOK.md](docs/MIGRATION_RUNBOOK.md) for detailed migration procedures.
+
+## Content Cleaning Tools
 
 The project includes specialized tools for analyzing and implementing content cleaning:
 
@@ -1507,24 +1559,6 @@ python test_ml_telemetry.py
 ```
 
 These tools use the `BalancedBoundaryContentCleaner` and `ContentCleaningTelemetry` systems to identify and remove boilerplate content while maintaining comprehensive tracking for quality assurance and machine learning applications.
-
-## Running tests in VS Code
-
-1. Install the recommended extensions (Python, Pylance) or accept the workspace recommendations.
-
-1. Create and activate a virtual environment in the repository root (the default settings expect `.venv`):
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-1. Open the Test Explorer in VS Code (View → Testing). The workspace is configured to use `pytest` and will discover tests under the `tests/` directory.
-
-1. Run tests using the Test Explorer or run the `pytest: run all` task (Terminal → Run Task...). You can also run `pytest --cov=src --cov-report=term-missing --cov-fail-under=70` (or `make coverage`) in the integrated terminal; the repository enforces a 70% minimum line coverage threshold in CI. In addition, `src/utils/byline_cleaner.py` carries a dedicated 75% module floor enforced via a pytest session hook to protect the new regression suite.
-
-1. To debug a single test, use the Run/Debug gutter controls in the test file or create a debug configuration and point `program` to your `pytest` binary.
 
 ## Deployment
 
@@ -1687,64 +1721,160 @@ curl http://<API_IP>/api/telemetry/summary?days=7
 - Enhanced error recovery and retry mechanisms
 - Performance optimization for high-volume processing
 
-Quick local setup and run
+## Alternative Workflows
 
-1. Create a virtual environment and install dependencies:
+### Example Workflow Script
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-1. Run the example workflow (ensure `sources/publinks.csv` exists or use the included `sources/mizzou_sites.json` for a simple crawl):
+Run the complete example workflow that demonstrates the full pipeline:
 
 ```bash
-# Run the full example workflow (uses the modular `src.cli` commands)
+# Run the full example workflow (uses the modular src.cli commands)
 python example_workflow.py
-
-# Or run a single script to crawl sample sites.json into SQLite
-python scripts/crawl.py --sources sources/mizzou_sites.json --output-db data/mizzou.db --job-id local-001
 ```
 
-1. Run tests (after adding tests):
+### Legacy Tools
+
+Some legacy tools are available for specific use cases:
 
 ```bash
-pytest tests/
+# Import existing CSV data from old format
+python scripts/migrate_csv.py --input-dir ../MizzouNewsCrawler/processed
+
+# View job history
+python scripts/list_jobs.py
 ```
 
-Contributing & Next Steps
+## Documentation
 
-- If you're working on the fork, pick items from the roadmap and open a small PR with focused changes (one area per PR): tests, config, telemetry wiring, DB migration helpers, or Docker/CI.
+### Key Documentation Files
 
-- I'll continue by drafting a proposed architecture and a prioritized implementation plan (breaking tasks into issues/PRs). If you'd like I can also scaffold a `config.py`, add a `.env.example`, and create initial unit tests for `src/crawler`.
+**Architecture & Deployment:**
+- [docs/ORCHESTRATION_ARCHITECTURE.md](docs/ORCHESTRATION_ARCHITECTURE.md) - Complete orchestration guide and architecture overview
+- [docs/KUBERNETES_GUIDE.md](docs/KUBERNETES_GUIDE.md) - Kubernetes deployment guide
+- [docs/GCP_KUBERNETES_ROADMAP.md](docs/GCP_KUBERNETES_ROADMAP.md) - Migration roadmap and architectural decisions
+- [docs/DEPLOYMENT_BEST_PRACTICES.md](docs/DEPLOYMENT_BEST_PRACTICES.md) - Best practices for deployments and safety
+- [docs/CLOUD_SQL_CONNECTOR_MIGRATION.md](docs/CLOUD_SQL_CONNECTOR_MIGRATION.md) - Cloud SQL Connector setup
 
-Local markdown checks
+**Operations:**
+- [docs/PIPELINE_MONITORING.md](docs/PIPELINE_MONITORING.md) - Pipeline monitoring procedures
+- [docs/MIGRATION_RUNBOOK.md](docs/MIGRATION_RUNBOOK.md) - Database migration procedures
+- [docs/ROLLBACK_PROCEDURE.md](docs/ROLLBACK_PROCEDURE.md) - Emergency rollback procedures
+- [ops/RESYNC_RUNBOOK.md](ops/RESYNC_RUNBOOK.md) - Data resynchronization procedures
 
-If you don't want to install Node-based tools, there's a small, dependency-free
-script that performs common markdown checks and safe fixes. Run it from the
-repository root:
+**Development:**
+- [docs/DOCKER_GUIDE.md](docs/DOCKER_GUIDE.md) - Docker build and development guide
+- [docs/CUSTOM_SOURCELIST_WORKFLOW.md](docs/CUSTOM_SOURCELIST_WORKFLOW.md) - Adding custom news sources
+- [docs/DISCOVERY_QUICK_REFERENCE.md](docs/DISCOVERY_QUICK_REFERENCE.md) - Discovery command reference
+- [docs/TELEMETRY_TESTING_GUIDE.md](docs/TELEMETRY_TESTING_GUIDE.md) - Telemetry system testing
+
+**Templates:**
+- [k8s/templates/README.md](k8s/templates/README.md) - Kubernetes job templates documentation
+- [scripts/migrations/README.md](scripts/migrations/README.md) - Migration scripts and tools
+
+### Architecture Decision Records
+
+The project has evolved through several major phases:
+1. **Local SQLite Development** - Initial CLI-based crawler
+2. **Containerization** - Docker images for each service
+3. **GCP Migration** - Cloud SQL PostgreSQL and GKE deployment
+4. **Argo Workflows** - Orchestration refactoring ([Issue #77](https://github.com/LocalNewsImpact/MizzouNewsCrawler/issues/77))
+5. **Cloud SQL Connector** - Eliminated proxy sidecar pattern
+
+See [docs/PHASE_TRANSITION.md](docs/PHASE_TRANSITION.md) for phase transition details.
+
+## Contributing & Development
+
+### Contributing Guidelines
+
+We welcome contributions! Please follow these guidelines:
+
+1. **Fork and Branch**: Create a feature branch from `main`
+2. **Focused Changes**: Keep PRs focused on a single feature or fix
+3. **Tests Required**: Add tests for new functionality
+4. **Pre-commit Hooks**: Run `./scripts/setup-git-hooks.sh` before committing
+5. **Code Style**: Follow existing patterns and pass linting checks
+
+### Development Workflow
 
 ```bash
-python tools/markdownlint_check.py    # show issues
-python tools/markdownlint_check.py --apply   # apply safe fixes in-place
+# Create feature branch
+git checkout -b feature/your-feature-name
+
+# Make changes and test
+python -m pytest tests/
+
+# Run linters
+pre-commit run --all-files
+
+# Commit and push
+git add .
+git commit -m "Your commit message"
+git push origin feature/your-feature-name
 ```
 
-This script handles a subset of rules (tab replacement, trailing spaces,
-blank lines around fenced code blocks and lists, and ordered-list numbering).
-
-Node-based markdownlint (optional)
-
-If you prefer the full Node-based `markdownlint` toolchain, install dev
-dependencies and run the provided scripts (requires `npm`):
+### Testing
 
 ```bash
-# install dev dependencies
-npm install
+# Run all tests
+python -m pytest tests/
 
-# run checks
-npm run lint:md
+# Run with coverage
+python -m pytest tests/ --cov=src --cov-report=term-missing
 
-# run autofix (use with caution)
-npm run lint:md:fix
+# Run specific test module
+python -m pytest tests/test_telemetry_system.py -v
 ```
+
+See [docs/TESTING_OPERATIONS_DASHBOARD.md](docs/TESTING_OPERATIONS_DASHBOARD.md) for testing guidelines.
+
+### Code Quality Tools
+
+**Markdown Linting:**
+
+If you don't want to install Node-based tools, there's a small, dependency-free script that performs common markdown checks and safe fixes:
+
+```bash
+python tools/markdownlint_check.py          # show issues
+python tools/markdownlint_check.py --apply  # apply safe fixes in-place
+```
+
+Alternatively, use the full Node-based `markdownlint` toolchain (requires `npm`):
+
+```bash
+npm install          # install dev dependencies
+npm run lint:md      # run checks
+npm run lint:md:fix  # run autofix (use with caution)
+```
+
+**Python Linting:**
+
+```bash
+# Run all pre-commit checks
+pre-commit run --all-files
+
+# Run specific checks
+flake8 src/
+mypy src/
+```
+
+## Support and Community
+
+### Getting Help
+
+- **Issues**: Report bugs or request features via [GitHub Issues](https://github.com/LocalNewsImpact/MizzouNewsCrawler/issues)
+- **Discussions**: Ask questions and share ideas in [GitHub Discussions](https://github.com/LocalNewsImpact/MizzouNewsCrawler/discussions)
+- **Documentation**: Check the [docs/](docs/) directory for detailed guides
+
+### Related Resources
+
+- **Local News Impact**: [Project Website](https://localnewsimpact.org/)
+- **Critical Information Needs (CIN)**: Research on local news coverage patterns
+- **OpenStreetMap**: Geographic entity data source
+
+## License
+
+This project is maintained by the Local News Impact research group. See LICENSE file for details.
+
+## Acknowledgments
+
+This project builds on news crawling and analysis research from the Missouri School of Journalism and the Local News Impact initiative. Special thanks to all contributors and the open-source community for the tools and libraries that make this work possible.
