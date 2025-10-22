@@ -2,24 +2,79 @@
 
 [![CI](https://github.com/LocalNewsImpact/MizzouNewsCrawler-Scripts/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/LocalNewsImpact/MizzouNewsCrawler-Scripts/actions/workflows/ci.yml)
 
-A CSV-to-Database-driven production version of MizzouNewsCrawler with SQLite backend.
+A production news crawler system deployed on Google Cloud Platform (GCP) with Kubernetes orchestration.
 
 ## Overview
 
-This project converts the original MizzouNewsCrawler into a production-ready script architecture with a two-phase approach:
+MizzouNewsCrawler is a cloud-native news discovery and processing pipeline that automatically discovers, extracts, and analyzes local news articles. The system runs on Google Kubernetes Engine (GKE) with managed PostgreSQL, Argo Workflows orchestration, and containerized microservices.
 
-- **Phase 1 — Script-based**: CSV-to-Database-driven crawler with CLI interface and SQLite backend
+**Production Architecture:**
 
-- **Phase 2 — Production**: Deploy on GKE with Postgres, orchestrate with Kubernetes jobs
+- **Deployment**: Google Kubernetes Engine (GKE) cluster `mizzou-cluster` in `us-central1-a`
+- **Database**: Cloud SQL PostgreSQL (`mizzou-db-prod`) with Cloud SQL Connector
+- **Orchestration**: Argo Workflows with CronWorkflow scheduling for pipeline automation
+- **Container Registry**: Artifact Registry (`us-central1-docker.pkg.dev/mizzou-news-crawler`)
+- **CI/CD**: Cloud Build triggers for automated containerized deployments
+- **Local Development**: SQLite backend with Docker Compose support
+
+## System Architecture
+
+### Production Deployment (GCP/Kubernetes)
+
+**Infrastructure:**
+- **GKE Cluster**: `mizzou-cluster` in `us-central1-a` zone
+- **Database**: Cloud SQL PostgreSQL instance `mizzou-db-prod`
+- **Connection Pattern**: Cloud SQL Connector (no proxy sidecar required)
+- **Workload Identity**: Service account `mizzou-app` with IAM permissions
+- **Priority Classes**: `service-critical` (API), `service-standard` (processor), `batch-low` (jobs)
+
+**Deployed Services:**
+- **API Service** (`mizzou-api`): FastAPI backend with telemetry and admin endpoints (1 replica, LoadBalancer)
+- **Processor Service** (`mizzou-processor`): Continuous processor for cleaning, ML analysis, entity extraction (1 replica)
+- **Argo Workflows**: Pipeline orchestration with `mizzou-news-pipeline` CronWorkflow (runs every 6 hours)
+
+**Pipeline Components:**
+1. **Discovery**: Argo workflow discovers article URLs from RSS feeds and sitemaps
+2. **Verification**: Argo workflow validates URLs with StorySniffer
+3. **Extraction**: Argo workflow fetches and extracts article content
+4. **Cleaning**: Processor removes boilerplate and cleans content
+5. **ML Classification**: Processor applies Critical Information Needs (CIN) classification
+6. **Entity Extraction**: Processor extracts geographic entities and locations
+
+### Data Flow
+
+```
+RSS/Sitemaps → Discovery (Argo) → candidate_links table
+              ↓
+              Verification (Argo) → StorySniffer validation
+              ↓
+              Extraction (Argo) → articles table (status='extracted')
+              ↓
+              Cleaning (Processor) → status='cleaned'
+              ↓
+              ML Analysis (Processor) → status='labeled' + CIN classification
+              ↓
+              Entity Extraction (Processor) → locations table
+              ↓
+              BigQuery Export → analytics datasets
+```
 
 ## Getting Started
 
 ### Prerequisites
 
+**For Local Development:**
 - Python 3.11 or newer (the codebase targets modern typing features, numpy 2.x, and Torch 2.x)
 - `pip` and `virtualenv` tooling
-- SQLite 3 (bundled with Python)
+- SQLite 3 (bundled with Python) or PostgreSQL 16+
+- Optional: Docker and Docker Compose for containerized local development
 - Optional: Node.js 18+ if you want to run the markdown lint workflow under `npm`
+
+**For Production Deployment:**
+- Google Cloud Platform account with billing enabled
+- `gcloud` CLI configured with appropriate permissions
+- `kubectl` for Kubernetes management
+- Access to the `mizzou-news-crawler` GCP project
 
 ### Installation
 
@@ -352,9 +407,30 @@ python -m src.cli llm run --statuses cleaned local --limit 50
 
 - **Background Processing**: Automatic gazetteer population triggered by data loading events
 
-## Phase 1 Architecture
+## Recent Fixes and Improvements
 
-### Project Structure
+### Verification System
+- Fixed `exit_on_idle` logic to allow concurrent discovery/verification
+- Fixed `wait-for-candidates` SQL query (status vs verification_status)
+- Implemented `max_batches` polling behavior for better resource management
+
+### Bot Protection
+- Fixed false positives on passive reCAPTCHA elements (`grecaptcha-badge` CSS)
+- Now only triggers on active challenge text ("solve the captcha", etc.)
+- Consistent exception raising across all HTTP response codes
+- CAPTCHA backoff system: base 1800s, max 7200s with domain sensitivity management
+
+### Article Status Tracking
+- Fixed status field not updating to "labeled" after ML classification
+- Backfilled 6,235 articles with incorrect status
+- Status now properly reflects pipeline stage completion
+
+### Data Integrity
+- Added unique constraint on `articles.url` (`uq_articles_url`)
+- Implemented `ON CONFLICT` handling in extraction to prevent duplicates
+- Cleaned 1,210 invalid `verification_failed` candidates
+
+## Project Structure
 
 ```text
 ├── src/                    # Core business logic
@@ -1325,31 +1401,63 @@ python -m src.cli export-snapshot \
   --snapshot-compression snappy
 ```
 
-## Workflow
+## Production Workflow
 
-### Primary Workflow (Recommended)
+### Automated Pipeline (Argo Workflows)
 
-1. **Load Sources:** CSV → Database (candidate_links table) + **Auto-trigger gazetteer population**
+In production, the pipeline runs automatically via Argo CronWorkflow (`mizzou-news-pipeline`) every 6 hours:
 
-1. **Discover URLs:** Smart discovery using publication frequency and timing → Store URLs in articles table
+1. **Discovery Phase** (Argo Workflow)
+   - Discovers article URLs from RSS feeds, sitemaps, and homepages
+   - Stores discovered URLs in `candidate_links` table with status='pending'
+   - Respects publication frequency and timing
 
-1. **Extract Content:** Process discovered articles → Extract and clean content → Update articles table
+2. **Verification Phase** (Argo Workflow)
+   - Waits for minimum candidate links threshold
+   - Validates URLs using StorySniffer
+   - Updates status to 'article' for valid news articles
+   - Filters out non-article pages (category pages, tag pages, etc.)
 
-1. **Analyze:** ML processing → Store results in ml_results/locations tables
+3. **Extraction Phase** (Argo Workflow)
+   - Waits for minimum verified articles threshold
+   - Fetches and extracts article content (title, body, author, date)
+   - Stores in `articles` table with status='extracted'
+   - Handles rate limiting and CAPTCHA backoff
 
-### Alternative Legacy Workflow
+4. **Cleaning Phase** (Continuous Processor)
+   - Removes boilerplate content (navigation, sidebars, subscription prompts)
+   - Cleans and normalizes author names
+   - Updates status to 'cleaned'
 
-1. **Load Sources:** CSV → Database (candidate_links table) + **Auto-trigger gazetteer population**
+5. **ML Analysis Phase** (Continuous Processor)
+   - Applies Critical Information Needs (CIN) classification
+   - Generates article summaries (optional)
+   - Updates status to 'labeled'
 
-1. **Crawl:** Query database → Discover article URLs → Store in articles table
+6. **Entity Extraction Phase** (Continuous Processor)
+   - Extracts geographic entities using gazetteer
+   - Stores locations in `locations` table
+   - Links entities to articles
 
-1. **Extract:** Process articles → Extract content → Update articles table
+7. **BigQuery Export**
+   - Exports processed articles to BigQuery for analytics
+   - Scheduled via Data Transfer Service
 
-1. **Analyze:** ML processing → Store results in ml_results/locations tables
+### Local Development Workflow
+
+For local development and testing with SQLite:
+
+1. **Load Sources:** CSV → Database (candidate_links table) + Auto-trigger gazetteer population
+
+2. **Discover URLs:** `python -m src.cli discover-urls` - Smart discovery using publication frequency
+
+3. **Extract Content:** `python -m src.cli extract` - Process discovered articles
+
+4. **Clean Content:** Automatic via processor or `python -m src.cli content-cleaning`
+
+5. **Analyze:** `python -m src.cli analyze` - ML classification
 
 **Geographic Enhancement**: When new sources are loaded, the system automatically triggers gazetteer population in the background. This process geocodes publisher locations and discovers nearby geographic entities (schools, businesses, landmarks, etc.) using OpenStreetMap APIs.
-
-**Smart Discovery**: The `discover-urls` command uses intelligent scheduling based on publication frequency (daily, weekly, etc.) and last collection dates to optimize resource usage and respect publisher policies.
 
 ## Usage
 
@@ -1418,51 +1526,166 @@ pip install -r requirements.txt
 
 1. To debug a single test, use the Run/Debug gutter controls in the test file or create a debug configuration and point `program` to your `pytest` binary.
 
-## Phase 2 Migration (Future)
+## Deployment
 
-- **Cloud SQL**: Managed Postgres with connection pooling
+### Production Deployment (Kubernetes)
 
-- **GCS Storage**: Raw HTML and artifacts in cloud storage
+The system is deployed on GKE using Cloud Build triggers that automatically build and deploy container images.
 
-- **Kubernetes**: Dagster orchestration on GKE
+**Container Images:**
+- `processor`: Continuous processor for internal processing steps
+- `api`: FastAPI backend for telemetry and admin operations
+- `base`: Base image with common dependencies
+- `ml-base`: Extended base with ML models and dependencies
+- `migrator`: Database migration container with Alembic
 
-- **Monitoring**: Prometheus/Grafana observability stack
+**Deployment Process:**
+1. Push code to GitHub (triggers Cloud Build)
+2. Cloud Build builds container images
+3. Images pushed to Artifact Registry
+4. Kubernetes deployments updated with new images
+5. Rolling update with zero downtime
 
-- **CI/CD**: GitHub Actions deployment pipeline
+**Key Kubernetes Resources:**
+- `k8s/processor-deployment.yaml` - Continuous processor
+- `k8s/api-deployment.yaml` - API service with LoadBalancer
+- `k8s/argo/base-pipeline-workflow.yaml` - Argo workflow template
+- `k8s/argo/mizzou-pipeline-cronworkflow.yaml` - Scheduled pipeline runs
 
-## Fork & Roadmap
+See [docs/KUBERNETES_GUIDE.md](docs/KUBERNETES_GUIDE.md) for detailed deployment instructions.
 
-This fork is focused on hardening the CSV-to-Database pipeline, improving modularity, and preparing the project for a phased migration to production infrastructure (Postgres, GCS, Kubernetes).
+### Configuration and Secrets
 
-Short-term goals (this fork):
+**Database Configuration:**
+- Connection via Cloud SQL Connector (embedded in Python application)
+- No proxy sidecar required
+- Credentials stored in Kubernetes Secret `cloudsql-db-credentials`
+- Automatic connection pooling and SSL/TLS
+
+**Environment Variables:**
+```bash
+# Database
+DATABASE_ENGINE=postgresql+psycopg2
+DATABASE_HOST=127.0.0.1  # Cloud SQL Connector local endpoint
+DATABASE_PORT=5432
+USE_CLOUD_SQL_CONNECTOR=true
+CLOUD_SQL_INSTANCE=mizzou-news-crawler:us-central1:mizzou-db-prod
+
+# Pipeline Step Feature Flags (Issue #77 refactoring)
+ENABLE_DISCOVERY=false      # Moved to Argo workflows
+ENABLE_VERIFICATION=false   # Moved to Argo workflows
+ENABLE_EXTRACTION=false     # Moved to Argo workflows
+ENABLE_CLEANING=true        # Continuous processor
+ENABLE_ML_ANALYSIS=true     # Continuous processor
+ENABLE_ENTITY_EXTRACTION=true  # Continuous processor
+
+# Rate Limiting
+CAPTCHA_BACKOFF_BASE=1800   # 30 minutes base backoff
+CAPTCHA_BACKOFF_MAX=7200    # 2 hours max backoff
+```
+
+**Secrets Management:**
+- GCP Secret Manager for sensitive credentials
+- Kubernetes Secrets for database access
+- Workload Identity for secure GCP service authentication
+
+### Local Development
+
+For local development, the system uses SQLite by default but can connect to PostgreSQL.
+
+## Monitoring and Operations
+
+### Current Status
+
+**Operational Components:**
+- ✅ API service with telemetry endpoints
+- ✅ Continuous processor (cleaning, ML, entity extraction)
+- ✅ Argo Workflows orchestration (6-hour schedule)
+- ✅ Cloud SQL PostgreSQL with automated backups
+- ✅ BigQuery export for analytics
+
+**Known Gaps (Phase 8 - Observability):**
+- ⚠️ Limited centralized monitoring (no Prometheus/Grafana)
+- ⚠️ No automated alerting for pipeline failures
+- ⚠️ Manual health checking required
+- ⚠️ Network policies not configured
+
+### Monitoring Pipeline Status
+
+**Check Argo Workflows:**
+```bash
+# List workflow runs
+kubectl get workflows -n production
+
+# Check CronWorkflow schedule
+kubectl get cronworkflow mizzou-news-pipeline -n production
+
+# View workflow logs
+kubectl logs -n production -l workflows.argoproj.io/workflow=<workflow-name>
+```
+
+**Check Processor Status:**
+```bash
+# Check processor pod status
+kubectl get pods -n production -l app=mizzou-processor
+
+# View processor logs
+kubectl logs -n production -l app=mizzou-processor --follow
+
+# Check work queue status
+kubectl logs -n production -l app=mizzou-processor --tail=200 | grep "Work queue status"
+```
+
+**Check API Health:**
+```bash
+# Get API service endpoint
+kubectl get service mizzou-api -n production
+
+# Test API endpoint
+curl http://<API_IP>/api/telemetry/summary?days=7
+```
+
+### Known Issues and Limitations
+
+**Current Limitations:**
+- Frontend dashboard exists but deployment status unclear
+- No automated site-specific credentials for authenticated crawling ([Issue #101](https://github.com/LocalNewsImpact/MizzouNewsCrawler/issues/101))
+- Rate limiting is conservative to avoid bot detection
+- CAPTCHA backoff can delay processing for affected domains
+
+**Operational Procedures:**
+- See [docs/PIPELINE_MONITORING.md](docs/PIPELINE_MONITORING.md) for monitoring procedures
+- See [docs/MIGRATION_RUNBOOK.md](docs/MIGRATION_RUNBOOK.md) for database migrations
+- See [docs/DEPLOYMENT_BEST_PRACTICES.md](docs/DEPLOYMENT_BEST_PRACTICES.md) for deployment guidelines
+
+## Roadmap
+
+### Completed Features
 
 - ✅ **Geographic Enhancement**: Optimized OSM gazetteer integration with 67% API call reduction and comprehensive 11-category coverage
-
 - ✅ **Content Processing Enhancement**: Advanced byline cleaning with dynamic publication filtering, gazetteer integration, comma detection, first name protection, and comprehensive telemetry system
-
-- Stabilize and document the CLI-driven pipeline in `src/cli/main.py` and the example workflow in `example_workflow.py`.
-
-- Improve test coverage for `src/crawler`, `src/models`, and `src/utils` and add CI checks.
-
-- Make the codebase environment-configurable (use `python-dotenv` and a `config.py`) and add clear local dev instructions.
-
 - ✅ **Telemetry System**: Lightweight telemetry using `src/utils/telemetry.py` with detailed transformation tracking, confidence scoring, and quality metrics
+- ✅ **Database Migration**: SQLite → Cloud SQL PostgreSQL with Cloud SQL Connector
+- ✅ **Kubernetes Deployment**: GKE cluster with microservices architecture
+- ✅ **Argo Workflows**: Automated pipeline orchestration with DAG-based workflow
+- ✅ **CI/CD**: Cloud Build integration for automated deployments
 
-- Prepare database layering so SQLite is used for local dev and Postgres for production (use `DATABASE_URL` env var and connection helpers in `src/models/__init__.py`).
+### Planned Enhancements
 
-Medium-term goals:
+**Phase 8: Observability & Monitoring (High Priority)**
+- Implement Prometheus metrics collection
+- Deploy Grafana dashboards for visualization
+- Set up automated alerting (PagerDuty/email)
+- Add distributed tracing with OpenTelemetry
+- Create operational runbooks
 
-- Split the crawler into reusable components: discovery, fetching, parsing, and storage adapters.
-
-- Add idempotent job orchestration (job queue / lightweight scheduler) and integrate `OperationTracker` from `src/utils/telemetry.py` with database `jobs` table.
-
-- Provide Dockerfiles and Helm charts for deploying worker jobs to Kubernetes.
-
-Long-term goals:
-
-- Migrate storage to managed Postgres and Cloud Storage for raw HTML/artifacts.
-
-- Provide CI/CD pipelines, monitoring (Prometheus + Grafana), and automated model deployment for ML steps.
+**Future Improvements:**
+- Authenticated crawling for sites requiring login ([Issue #101](https://github.com/LocalNewsImpact/MizzouNewsCrawler/issues/101))
+- Frontend dashboard deployment and integration
+- Network policies for enhanced security
+- Cloud Storage for raw HTML archives
+- Enhanced error recovery and retry mechanisms
+- Performance optimization for high-volume processing
 
 Quick local setup and run
 
