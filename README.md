@@ -11,10 +11,15 @@ MizzouNewsCrawler is a cloud-native news discovery and processing pipeline that 
 **Production Architecture:**
 
 - **Deployment**: Google Kubernetes Engine (GKE) cluster `mizzou-cluster` in `us-central1-a`
+
 - **Database**: Cloud SQL PostgreSQL (`mizzou-db-prod`) with Cloud SQL Connector
+
 - **Orchestration**: Argo Workflows with CronWorkflow scheduling for pipeline automation
+
 - **Container Registry**: Artifact Registry (`us-central1-docker.pkg.dev/mizzou-news-crawler`)
+
 - **CI/CD**: Cloud Build triggers for automated containerized deployments
+
 - **Local Development**: SQLite backend with Docker Compose support
 
 ## System Architecture
@@ -22,24 +27,38 @@ MizzouNewsCrawler is a cloud-native news discovery and processing pipeline that 
 ### Production Deployment (GCP/Kubernetes)
 
 **Infrastructure:**
+
 - **GKE Cluster**: `mizzou-cluster` in `us-central1-a` zone
+
 - **Database**: Cloud SQL PostgreSQL instance `mizzou-db-prod`
+
 - **Connection Pattern**: Cloud SQL Connector (no proxy sidecar required)
+
 - **Workload Identity**: Service account `mizzou-app` with IAM permissions
+
 - **Priority Classes**: `service-critical` (API), `service-standard` (processor), `batch-low` (jobs)
 
 **Deployed Services:**
+
 - **API Service** (`mizzou-api`): FastAPI backend with telemetry and admin endpoints (1 replica, LoadBalancer)
+
 - **Processor Service** (`mizzou-processor`): Continuous processor for cleaning, ML analysis, entity extraction (1 replica)
+
 - **Argo Workflows**: Pipeline orchestration with `mizzou-news-pipeline` CronWorkflow (runs every 6 hours)
 
 **Pipeline Components:**
+
 1. **Discovery**: Argo workflow discovers article URLs from RSS feeds and sitemaps
-2. **Verification**: Argo workflow validates URLs with StorySniffer
-3. **Extraction**: Argo workflow fetches and extracts article content
-4. **Cleaning**: Processor removes boilerplate and cleans content
-5. **ML Classification**: Processor applies Critical Information Needs (CIN) classification
-6. **Entity Extraction**: Processor extracts geographic entities and locations
+
+1. **Verification**: Argo workflow validates URLs with StorySniffer
+
+1. **Extraction**: Argo workflow fetches and extracts article content
+
+1. **Cleaning**: Processor removes boilerplate and cleans content
+
+1. **ML Classification**: Processor applies Critical Information Needs (CIN) classification
+
+1. **Entity Extraction**: Processor extracts geographic entities and locations
 
 ### Data Flow
 
@@ -64,16 +83,25 @@ RSS/Sitemaps → Discovery (Argo) → candidate_links table
 ### Prerequisites
 
 **For Local Development:**
+
 - Python 3.11 or newer (the codebase targets modern typing features, numpy 2.x, and Torch 2.x)
+
 - `pip` and `virtualenv` tooling
+
 - SQLite 3 (bundled with Python) or PostgreSQL 16+
+
 - Optional: Docker and Docker Compose for containerized local development
+
 - Optional: Node.js 18+ if you want to run the markdown lint workflow under `npm`
 
 **For Production Deployment:**
+
 - Google Cloud Platform account with billing enabled
+
 - `gcloud` CLI configured with appropriate permissions
+
 - `kubectl` for Kubernetes management
+
 - Access to the `mizzou-news-crawler` GCP project
 
 ### Installation
@@ -122,6 +150,7 @@ cp .env.example .env
 ```
 
 For local development, SQLite is used by default. To use PostgreSQL locally, set:
+
 ```bash
 DATABASE_ENGINE=postgresql+psycopg2
 DATABASE_HOST=localhost
@@ -140,13 +169,13 @@ DATABASE_NAME=mizzou_dev
 
    This installs a pre-push hook that validates your changes before pushing.
 
-2. Seed the SQLite database with crawler sources:
+1. Seed the SQLite database with crawler sources:
 
    ```bash
    python -m src.cli load-sources --csv sources/publinks.csv
    ```
 
-3. Discover a small batch of URLs to confirm the pipeline wiring:
+1. Discover a small batch of URLs to confirm the pipeline wiring:
 
    ```bash
    python -m src.cli discover-urls --source-limit 10 --dry-run
@@ -168,6 +197,7 @@ DATABASE_NAME=mizzou_dev
 Use `scripts/manual_enqueue_urls.py` when you need to seed specific URLs directly into `candidate_links` without running discovery. Every upload is now tied to a dataset so the records remain traceable through verification, extraction, and analytics.
 
 1. Populate the template at `reports/manual_enqueue_template.csv`. Leave the `dataset_id` column blank unless you want to attach the batch to an existing dataset UUID—the script will create a new dataset automatically and print its ID/slug after the insert runs.
+
 1. Run the script from the project root:
 
    ```bash
@@ -180,6 +210,7 @@ Use `scripts/manual_enqueue_urls.py` when you need to seed specific URLs directl
    ```
 
    Use `--dataset-id` to reuse an existing dataset and `--dry-run` to preview the rows without touching the database.
+
 1. Check the console output for the generated dataset ID. The same identifier is written onto each new `candidate_links` row so you can filter processing telemetry or backfills by batch later.
 
 By default the script connects to the repository SQLite database. In tests you can monkeypatch `DatabaseManager` or set up a scratch database to keep local experiments isolated.
@@ -199,19 +230,29 @@ The `load-sources` command expects a UTF-8 CSV whose headers match the schema be
 The following fields are optional but strongly recommended because downstream jobs read them from `Source.meta` or the `candidate_links` table:
 
 - `frequency` – Free-text publishing cadence (`daily`, `weekly`, `bi-weekly`, etc.). Defaults to `unknown` when omitted.
+
 - `media_type` – One of `print native`, `digital_native`, `audio_broadcast`, `video_broadcast`, or other descriptive tags. The geo filter uses this to tune heuristics (broadcast outlets often contribute fewer URLs).
+
 - `address1` / `address2`, `State`, `zip` – Mailing address metadata. The loader converts `zip` values to strings and stores them for gazetteer enrichment. Two-letter state abbreviations keep the downstream map clean.
+
 - `owner` – Parent company or individual owner.
+
 - `source` – Provenance tag (e.g., `research`, `UNC`, `media cloud`) that helps track how the record entered the dataset.
 
 Cached entity columns capture precomputed coverage areas for the publication. Keep values pipe-delimited (`|`) with plain-text names; the strings are stored verbatim and later reused by the geography-aware filters:
 
 - `cached_geographic_entities`
+
 - `cached_institutions`
+
 - `cached_schools`
+
 - `cached_government`
+
 - `cached_healthcare`
+
 - `cached_businesses`
+
 - `cached_landmarks`
 
 Rows missing any required field are skipped, and duplicate `url_news` hosts collapse into existing `Source` records. When preparing new data drops, validate the header row and run `python -m src.cli load-sources --csv <path>` from a virtual environment to confirm the importer accepts your file.
@@ -227,12 +268,17 @@ For a fuller walkthrough (including the end-to-end workflow script and advanced 
 The pipeline is now split into two components:
 
 1. **Dataset-Specific Jobs** - Handle discovery and extraction per dataset with independent rate limiting
-2. **Continuous Processor** - Handles cleaning, ML analysis, and entity extraction for all datasets
+
+1. **Continuous Processor** - Handles cleaning, ML analysis, and entity extraction for all datasets
 
 This architecture provides:
+
 - Independent rate limiting per dataset (e.g., Lehigh 90-180s, Mizzou 5-15s)
+
 - Isolated CAPTCHA backoff (blocks on one dataset don't affect others)
+
 - Better monitoring and fault isolation
+
 - Easy scaling by adding new dataset jobs
 
 ### Running Dataset Jobs
@@ -254,14 +300,19 @@ The continuous processor now focuses only on internal processing steps:
 
 ```yaml
 env:
+
   - name: ENABLE_DISCOVERY
     value: "false"  # Moved to dataset jobs
+
   - name: ENABLE_EXTRACTION
     value: "false"  # Moved to dataset jobs
+
   - name: ENABLE_CLEANING
     value: "true"   # Remains in processor
+
   - name: ENABLE_ML_ANALYSIS
     value: "true"   # Remains in processor
+
   - name: ENABLE_ENTITY_EXTRACTION
     value: "true"   # Remains in processor
 ```
@@ -271,9 +322,13 @@ env:
 For detailed documentation on the new architecture, deployment strategy, and creating jobs for new datasets, see:
 
 - [docs/ORCHESTRATION_ARCHITECTURE.md](docs/ORCHESTRATION_ARCHITECTURE.md) - Complete orchestration guide
+
 - [k8s/templates/README.md](k8s/templates/README.md) - Job templates documentation
+
 - [docs/MIGRATION_RUNBOOK.md](docs/MIGRATION_RUNBOOK.md) - Database migration procedures and troubleshooting
+
 - [docs/DEPLOYMENT_BEST_PRACTICES.md](docs/DEPLOYMENT_BEST_PRACTICES.md) - Best practices for deployments, image tags, and safety
+
 - [scripts/migrations/README.md](scripts/migrations/README.md) - Migration scripts and tools
 
 ## Recent Maintenance (2025-09-27)
@@ -284,9 +339,11 @@ For detailed documentation on the new architecture, deployment strategy, and cre
   initial ingest step. Articles matching the new heuristics are stored with
   `status` values of `obituary` or `opinion`, and their detection metadata is
   preserved in `articles.metadata.content_type_detection` for review.
+
 - Tagging these content types ensures they bypass entity extraction and ML
   classification. Downstream services ignore the new statuses without any
   additional configuration.
+
 - Telemetry gains a `content_type_detection_telemetry` table (queried via
   `ComprehensiveExtractionTelemetry.get_content_type_detections`) so reviewers
   can audit heuristics and export high-signal samples for future model
@@ -297,13 +354,17 @@ For detailed documentation on the new architecture, deployment strategy, and cre
 ### Content cleaning telemetry refresh
 
 - `BalancedBoundaryContentCleaner.process_single_article` now returns rich `removal_details`, a `share_header_removed_text` payload, and honors `dry_run` so exploratory runs never mutate the database.
+
 - Social-share headers are detected as a first-class pattern with telemetry logging, giving the CLI immediate insight into what was stripped before persisting updates.
+
 - Telemetry sessions capture the full wire-detection story (including local byline overrides), allowing analytics jobs to distinguish suppressed wire content from genuine local stories.
 
 ### CLI content-cleaning commands
 
 - Introduced a `_clean_with_balanced` helper in `src/cli/commands/content_cleaning.py` so every subcommand (`analyze-domains`, `apply-cleaning`, `clean-article`, and the new `clean-content`) shares the same telemetry wiring, dry-run guard, and segment metadata.
+
 - Verbose output is now wrapped to within 79 columns and includes truncated article IDs, pattern classifications, and per-segment confidence/position data for easier triage.
+
 - CLI dry runs mirror production writes: the helper collects processing time, character deltas, and removal payloads even when no database commit occurs.
 
 ## Recent Maintenance (2025-09-24)
@@ -311,7 +372,9 @@ For detailed documentation on the new architecture, deployment strategy, and cre
 ### Telemetry alignment
 
 - Confirmed that the gazetteer enrichment telemetry is still emitting the full four-event sequence (attempt → geocoding → OSM query → enrichment result). You can tail `gazetteer_telemetry.log` in the repo root to verify the JSON payloads or run a focused dry run with `python scripts/populate_gazetteer.py --address "Columbia, MO" --dry-run` to generate fresh events without mutating the database.
+
 - Verified that `scripts/monitor_gazetteer.py` surfaces the `query_groups_used` counter so the slimmer grouped-query footprint remains visible in console summaries.
+
 - The telemetry JSON continues to play nicely with pytest captures; if you need to confirm structure, `python -m pytest tests/test_telemetry_system.py -k gazetteer -vv` validates the schema the log writer emits.
 
 ### Metadata & cleaning fixes
@@ -340,11 +403,13 @@ For detailed documentation on the new architecture, deployment strategy, and cre
   ```
 
 - After normalizing metadata, rerun the `clean_authors.py` smoke checks to ensure the Gazetteer-driven organization filters still match publication names pulled from metadata.
+
 - Spot-check content-cleaning telemetry with `python detailed_content_analysis.py --domain example.com` to confirm that newly captured segments continue to hydrate the `content_cleaning_telemetry` tables without JSON parsing errors.
 
 ### CIN classifier rollout
 
 - `models/productionmodel.pt` is now the default CIN checkpoint used by the CLI `analyze` command. The loader in `src/ml/article_classifier.py` remaps legacy `classifier_primary.*` keys so the model initializes cleanly on CPU. Expect an informational log confirming the resolved checkpoint path when the model loads.
+
 - To refresh the label store after the checkpoint swap, we executed:
 
   ```bash
@@ -357,7 +422,9 @@ For detailed documentation on the new architecture, deployment strategy, and cre
   ```
 
   The first pass reprocessed the 50 provisional articles; a second run without `--limit` cleared the remaining 2,341 eligible records.
+
 - The latest classification export lives in `reports/cin_labels_last14days_with_sources.csv`. It excludes wire stories, joins publication name/city/county metadata, and is written with UTF-8 encoding for compatibility with downstream analytics notebooks.
+
 - When adding new CIN labels, continue filtering on `articles.source_is_wire = 0` and persist the joined dataset via pandas’ `to_csv(..., encoding="utf-8", index=False)` to match the sanitized export format.
 
 ## LLM summarization pipeline
@@ -365,7 +432,9 @@ For detailed documentation on the new architecture, deployment strategy, and cre
 ### Why we summarize articles
 
 - **Editorial context**: Each run yields a few sentences that restate the article’s subject, the main action, plus the provider metadata saved in `Article.meta["llm"].summary`. The pipeline does not emit CIN predictions or other structured outputs on its own.
+
 - **Metadata smoke test**: The prompt template composes each request from the article title, author/byline, publish date, URL, and cleaned body text. If any of those fields are missing, the summary run highlights the gap (`unknown` placeholders surface immediately), making this an ideal checkpoint for validating DOM extraction rules.
+
 - **Model comparison**: Because the summarisation run captures the same article metadata used by the CIN classifier, you can compare LLM-derived interpretations with the classifier’s Critical Information Needs output or the predictions from other providers when you need a sanity check.
 
 ### Configuration
@@ -373,10 +442,15 @@ For detailed documentation on the new architecture, deployment strategy, and cre
 Populate the relevant environment variables (see `.env.example` for a full list):
 
 - `LLM_PROVIDER_SEQUENCE`: Comma-separated provider slugs in fallback order (default: `openai-gpt4.1,openai-gpt4.1-mini,claude-3.5-sonnet,gemini-1.5-flash`).
+
 - `OPENAI_API_KEY`, `OPENAI_ORGANIZATION`: Credentials for GPT‑4.1 models.
+
 - `ANTHROPIC_API_KEY`: Enables Claude 3.5 Sonnet.
+
 - `GOOGLE_API_KEY`: Enables Gemini 1.5 Flash.
+
 - `LLM_REQUEST_TIMEOUT`, `LLM_MAX_RETRIES`, `LLM_DEFAULT_MAX_OUTPUT_TOKENS`, `LLM_DEFAULT_TEMPERATURE`: Optional overrides for orchestration behavior.
+
 - `VECTOR_STORE_PROVIDER` (plus provider-specific keys like `PINECONE_API_KEY`, `WEAVIATE_URL`, etc.): Turns on embedding/vector storage when available; the factory falls back to a no-op when unset.
 
 ### CLI usage
@@ -393,13 +467,17 @@ python -m src.cli llm run --statuses cleaned local --limit 50
 ```
 
 - `llm status` prints the active provider order, which API keys are configured, and any vector-store integration that will be used.
+
 - `llm run` orchestrates the provider sequence, writing summary metadata (or failure details) back to each article. Use `--dry-run` while tuning selectors and `--show-failures` to inspect per-provider errors.
+
 - `--prompt-template` accepts a custom prompt file if you need domain-specific instructions for QA runs.
 
 ### Suggested QA workflow
 
 1. Run your usual discovery/extraction path to populate `Article` rows with CIN predictions and cleaned content.
+
 1. Execute `python -m src.cli llm run --statuses cleaned --limit 20 --dry-run --show-failures` to exercise the prompt template without committing results.
+
 1. Inspect the console output (or the `Article.meta["llm"]` payload when not in dry-run mode) and confirm that the title/byline/publish date fields look correct, the summary echoes the Critical Information Needs classification already applied by the CIN model, and provider failures (if any) call out missing credentials or rate limits before you scale up batches.
 
 ## Architecture
@@ -451,24 +529,37 @@ python -m src.cli llm run --statuses cleaned local --limit 50
 ## Recent Fixes and Improvements
 
 ### Verification System
+
 - Fixed `exit_on_idle` logic to allow concurrent discovery/verification
+
 - Fixed `wait-for-candidates` SQL query (status vs verification_status)
+
 - Implemented `max_batches` polling behavior for better resource management
 
 ### Bot Protection
+
 - Fixed false positives on passive reCAPTCHA elements (`grecaptcha-badge` CSS)
+
 - Now only triggers on active challenge text ("solve the captcha", etc.)
+
 - Consistent exception raising across all HTTP response codes
+
 - CAPTCHA backoff system: base 1800s, max 7200s with domain sensitivity management
 
 ### Article Status Tracking
+
 - Fixed status field not updating to "labeled" after ML classification
+
 - Backfilled 6,235 articles with incorrect status
+
 - Status now properly reflects pipeline stage completion
 
 ### Data Integrity
+
 - Added unique constraint on `articles.url` (`uq_articles_url`)
+
 - Implemented `ON CONFLICT` handling in extraction to prevent duplicates
+
 - Cleaned 1,210 invalid `verification_failed` candidates
 
 ## Project Structure
@@ -774,7 +865,9 @@ The project includes a comprehensive telemetry system for monitoring gazetteer p
 **Three-Tier Fallback System:**
 
 1. **street_address**: Full address geocoding (most precise)
+
 1. **city_county**: City + county + state fallback when address fails
+
 1. **zip_code**: ZIP code-only geocoding (least precise, maximum coverage)
 
 ### Production Usage
@@ -799,8 +892,11 @@ python scripts/populate_gazetteer.py --dataset "publinks-2025-09"
 **Comprehensive Testing Infrastructure:**
 
 - **7 pytest test cases** validating all telemetry functionality
+
 - **JSON structure validation** ensuring proper event formatting
+
 - **Parameter validation** for all telemetry methods
+
 - **Logging integration testing** with pytest `caplog` support
 
 **Running Telemetry Tests:**
@@ -816,9 +912,13 @@ python -m pytest tests/test_actual_telemetry.py -v -s --log-cli-level=INFO
 **Test Coverage:**
 
 - `test_log_enrichment_attempt`: Validates enrichment attempt logging
+
 - `test_log_geocoding_result_success/failure`: Tests geocoding result tracking
+
 - `test_log_osm_query_result`: Validates OSM query result logging
+
 - `test_log_enrichment_result_success/failure`: Tests final outcome tracking
+
 - `test_log_structure_consistency`: Ensures consistent JSON formatting
 
 ### Monitoring and Analysis
@@ -826,15 +926,21 @@ python -m pytest tests/test_actual_telemetry.py -v -s --log-cli-level=INFO
 **Performance Metrics:**
 
 - **API Usage Tracking**: Monitor OSM Overpass API calls and response times
+
 - **Geocoding Success Rates**: Track precision levels and fallback usage
+
 - **Processing Efficiency**: Monitor elements processed per source and timing
+
 - **Error Analysis**: Categorize and track failure modes for improvement
 
 **Data Quality Insights:**
 
 - **Geographic Coverage**: Analyze OSM element distribution by category
+
 - **Precision Analysis**: Understand geocoding accuracy across different location types
+
 - **Source Quality**: Identify sources with problematic geographic data
+
 - **Category Distribution**: Monitor which types of geographic entities are most/least common
 
 **Production Monitoring:**
@@ -855,8 +961,11 @@ grep "osm_query_result" gazetteer_telemetry.log | jq '.osm_data.total_elements' 
 **No More Production Debugging:**
 
 - **Comprehensive Test Suite**: All telemetry functionality validated before deployment
+
 - **Local Testing**: Full telemetry validation without external API calls
+
 - **Structured Logging**: Easy debugging with consistent JSON event format
+
 - **pytest Integration**: Proper logging configuration enables development testing
 
 **Development Best Practices:**
@@ -881,14 +990,19 @@ The project includes a comprehensive telemetry system for monitoring content ext
 **ExtractionMetrics Class:**
 
 - **Method-Level Tracking**: Detailed timing and success tracking for each extraction method (newspaper4k, beautifulsoup, fallback)
+
 - **HTTP Status Monitoring**: Automatic capture of HTTP status codes and error categorization (4xx_client_error, 5xx_server_error)
+
 - **Field-Level Success**: Granular tracking of title, content, author, and date extraction success rates
+
 - **Error Pattern Recognition**: Regex-based extraction of HTTP status codes from newspaper4k error messages
 
 **ComprehensiveExtractionTelemetry Database:**
 
 - **extraction_telemetry_v2**: Detailed extraction records with method timings, field success, and HTTP metrics
+
 - **http_error_summary**: Aggregated HTTP error tracking by host and status code
+
 - **Real-Time Aggregation**: Automatic rollup of error counts and performance statistics
 
 ### FastAPI Dashboard API Endpoints
@@ -943,7 +1057,9 @@ GET /api/site-management/status/example.com
 **Automatic HTTP Status Extraction:**
 
 - **Regex Pattern Matching**: Extracts HTTP status codes from newspaper4k error messages using pattern `Status code (\d+)`
+
 - **Error Type Categorization**: Automatically categorizes errors as 3xx_redirect, 4xx_client_error, or 5xx_server_error
+
 - **Publisher Error Aggregation**: Tracks error counts per host with first_seen and last_seen timestamps
 
 **Error Tracking Examples:**
@@ -952,7 +1068,7 @@ GET /api/site-management/status/example.com
 # Error message: "Article `download()` failed with Status code 403"
 # → Extracted: HTTP 403, Type: 4xx_client_error
 
-# Error message: "HTTP Error: Status code 500 Internal Server Error"  
+# Error message: "HTTP Error: Status code 500 Internal Server Error"
 # → Extracted: HTTP 500, Type: 5xx_server_error
 
 # Automatic site management recommendation based on error patterns
@@ -964,15 +1080,21 @@ GET /api/site-management/status/example.com
 **Real-Time Performance Monitoring:**
 
 - **Success Rate Tracking**: Publisher-level success rates with configurable thresholds
+
 - **Method Effectiveness**: Comparative performance of extraction methods across publishers
+
 - **HTTP Error Patterns**: Identification of systematic HTTP error patterns by host
+
 - **Field Extraction Quality**: Title, content, author extraction success rates per method
 
 **Automated Site Management:**
 
 - **Poor Performer Detection**: Automatic identification of sites with low success rates
+
 - **Pause/Resume Controls**: API-driven site management with reason tracking
+
 - **Human Feedback Loop**: Dashboard integration for manual site management decisions
+
 - **Performance Threshold Alerts**: Configurable thresholds for automated recommendations
 
 ### Comprehensive Test Suite
@@ -980,8 +1102,11 @@ GET /api/site-management/status/example.com
 **Test Coverage:**
 
 - **Unit Tests**: ExtractionMetrics class functionality and HTTP status extraction
+
 - **Integration Tests**: Database operations and ComprehensiveExtractionTelemetry methods
+
 - **API Tests**: FastAPI endpoint functionality with mocked databases
+
 - **End-to-End Tests**: Complete workflow simulation from extraction to dashboard data
 
 **Running Telemetry Tests:**
@@ -1106,12 +1231,19 @@ python -m src.cli discover-urls --existing-article-limit 75 --source-limit 30
 **Key Options:**
 
 - `--due-only`: Only process sources due for discovery (enabled by default)
+
 - `--force-all`: Override scheduling and process all sources (disables `--due-only`)
+
 - `--max-articles`: Articles to discover per source (default: 50); legacy alias `--article-limit`
+
 - `--existing-article-limit`: Skip sources that already have at least this many extracted articles (also set when using `--article-limit`)
+
 - `--source-filter` / `--source`: Match sources by name or URL substring
+
 - `--host`, `--city`, `--county`: Filter sources by metadata fields from `publinks`
+
 - `--host-limit`: Cap the number of unique hosts processed in one run
+
 - `--days-back`: How far back to look for articles (default: 7 days)
 
 #### Content Extraction
@@ -1165,10 +1297,15 @@ kubectl get job extract-custom-project-2025 -n production
 ```
 
 **Benefits:**
+
 - Isolated pod per dataset (failures don't affect other jobs)
+
 - Independent logging with dataset labels
+
 - Custom resource limits per dataset
+
 - Automatic cleanup after 24 hours
+
 - Parallel processing of multiple datasets
 
 See [CUSTOM_SOURCELIST_README.md](CUSTOM_SOURCELIST_README.md) for complete workflow documentation.
@@ -1180,6 +1317,7 @@ arguments to `discover-urls`. Prefer running `discover-urls` directly so you get
 access to the richer filtering options above. Example translation:
 
 - Legacy: `python -m src.cli crawl --filter HOST --host standard-democrat.com --article-limit 10`
+
 - Modern: `python -m src.cli discover-urls --host standard-democrat.com --article-limit 10`
 
 All existing automation that still invokes `crawl` will continue to work, but
@@ -1366,7 +1504,9 @@ python scripts/backfill_gazetteer_slow.py
 **Recommended for:**
 
 - Initial population of large source datasets (100+ sources)
+
 - Production environments where API rate limiting is critical
+
 - Unattended batch processing with comprehensive monitoring
 
 #### OSM Gazetteer Optimization
@@ -1469,39 +1609,61 @@ python -m src.cli export-snapshot \
 In production, the pipeline runs automatically via Argo CronWorkflow (`mizzou-news-pipeline`) every 6 hours:
 
 1. **Discovery Phase** (Argo Workflow)
+
    - Discovers article URLs from RSS feeds, sitemaps, and homepages
+
    - Stores discovered URLs in `candidate_links` table with status='pending'
+
    - Respects publication frequency and timing
 
-2. **Verification Phase** (Argo Workflow)
+1. **Verification Phase** (Argo Workflow)
+
    - Waits for minimum candidate links threshold
+
    - Validates URLs using StorySniffer
+
    - Updates status to 'article' for valid news articles
+
    - Filters out non-article pages (category pages, tag pages, etc.)
 
-3. **Extraction Phase** (Argo Workflow)
+1. **Extraction Phase** (Argo Workflow)
+
    - Waits for minimum verified articles threshold
+
    - Fetches and extracts article content (title, body, author, date)
+
    - Stores in `articles` table with status='extracted'
+
    - Handles rate limiting and CAPTCHA backoff
 
-4. **Cleaning Phase** (Continuous Processor)
+1. **Cleaning Phase** (Continuous Processor)
+
    - Removes boilerplate content (navigation, sidebars, subscription prompts)
+
    - Cleans and normalizes author names
+
    - Updates status to 'cleaned'
 
-5. **ML Analysis Phase** (Continuous Processor)
+1. **ML Analysis Phase** (Continuous Processor)
+
    - Applies Critical Information Needs (CIN) classification
+
    - Generates article summaries (optional)
+
    - Updates status to 'labeled'
 
-6. **Entity Extraction Phase** (Continuous Processor)
+1. **Entity Extraction Phase** (Continuous Processor)
+
    - Extracts geographic entities using gazetteer
+
    - Stores locations in `locations` table
+
    - Links entities to articles
 
-7. **BigQuery Export**
+1. **BigQuery Export**
+
    - Exports processed articles to BigQuery for analytics
+
    - Scheduled via Data Transfer Service
 
 ### Local Development Workflow
@@ -1510,13 +1672,13 @@ For local development and testing with SQLite:
 
 1. **Load Sources:** CSV → Database (candidate_links table) + Auto-trigger gazetteer population
 
-2. **Discover URLs:** `python -m src.cli discover-urls` - Smart discovery using publication frequency
+1. **Discover URLs:** `python -m src.cli discover-urls` - Smart discovery using publication frequency
 
-3. **Extract Content:** `python -m src.cli extract` - Process discovered articles
+1. **Extract Content:** `python -m src.cli extract` - Process discovered articles
 
-4. **Clean Content:** Automatic via processor or `python -m src.cli content-cleaning`
+1. **Clean Content:** Automatic via processor or `python -m src.cli content-cleaning`
 
-5. **Analyze:** `python -m src.cli analyze` - ML classification
+1. **Analyze:** `python -m src.cli analyze` - ML classification
 
 **Geographic Enhancement**: When new sources are loaded, the system automatically triggers gazetteer population in the background. This process geocodes publisher locations and discovers nearby geographic entities (schools, businesses, landmarks, etc.) using OpenStreetMap APIs.
 
@@ -1567,23 +1729,37 @@ These tools use the `BalancedBoundaryContentCleaner` and `ContentCleaningTelemet
 The system is deployed on GKE using Cloud Build triggers that automatically build and deploy container images.
 
 **Container Images:**
+
 - `processor`: Continuous processor for internal processing steps
+
 - `api`: FastAPI backend for telemetry and admin operations
+
 - `base`: Base image with common dependencies
+
 - `ml-base`: Extended base with ML models and dependencies
+
 - `migrator`: Database migration container with Alembic
 
 **Deployment Process:**
+
 1. Push code to GitHub (triggers Cloud Build)
-2. Cloud Build builds container images
-3. Images pushed to Artifact Registry
-4. Kubernetes deployments updated with new images
-5. Rolling update with zero downtime
+
+1. Cloud Build builds container images
+
+1. Images pushed to Artifact Registry
+
+1. Kubernetes deployments updated with new images
+
+1. Rolling update with zero downtime
 
 **Key Kubernetes Resources:**
+
 - `k8s/processor-deployment.yaml` - Continuous processor
+
 - `k8s/api-deployment.yaml` - API service with LoadBalancer
+
 - `k8s/argo/base-pipeline-workflow.yaml` - Argo workflow template
+
 - `k8s/argo/mizzou-pipeline-cronworkflow.yaml` - Scheduled pipeline runs
 
 See [docs/KUBERNETES_GUIDE.md](docs/KUBERNETES_GUIDE.md) for detailed deployment instructions.
@@ -1591,12 +1767,17 @@ See [docs/KUBERNETES_GUIDE.md](docs/KUBERNETES_GUIDE.md) for detailed deployment
 ### Configuration and Secrets
 
 **Database Configuration:**
+
 - Connection via Cloud SQL Connector (embedded in Python application)
+
 - No proxy sidecar required
+
 - Credentials stored in Kubernetes Secret `cloudsql-db-credentials`
+
 - Automatic connection pooling and SSL/TLS
 
 **Environment Variables:**
+
 ```bash
 # Database
 DATABASE_ENGINE=postgresql+psycopg2
@@ -1619,8 +1800,11 @@ CAPTCHA_BACKOFF_MAX=7200    # 2 hours max backoff
 ```
 
 **Secrets Management:**
+
 - GCP Secret Manager for sensitive credentials
+
 - Kubernetes Secrets for database access
+
 - Workload Identity for secure GCP service authentication
 
 ### Local Development
@@ -1632,21 +1816,31 @@ For local development, the system uses SQLite by default but can connect to Post
 ### Current Status
 
 **Operational Components:**
+
 - ✅ API service with telemetry endpoints
+
 - ✅ Continuous processor (cleaning, ML, entity extraction)
+
 - ✅ Argo Workflows orchestration (6-hour schedule)
+
 - ✅ Cloud SQL PostgreSQL with automated backups
+
 - ✅ BigQuery export for analytics
 
 **Known Gaps (Phase 8 - Observability):**
+
 - ⚠️ Limited centralized monitoring (no Prometheus/Grafana)
+
 - ⚠️ No automated alerting for pipeline failures
+
 - ⚠️ Manual health checking required
+
 - ⚠️ Network policies not configured
 
 ### Monitoring Pipeline Status
 
 **Check Argo Workflows:**
+
 ```bash
 # List workflow runs
 kubectl get workflows -n production
@@ -1659,6 +1853,7 @@ kubectl logs -n production -l workflows.argoproj.io/workflow=<workflow-name>
 ```
 
 **Check Processor Status:**
+
 ```bash
 # Check processor pod status
 kubectl get pods -n production -l app=mizzou-processor
@@ -1671,6 +1866,7 @@ kubectl logs -n production -l app=mizzou-processor --tail=200 | grep "Work queue
 ```
 
 **Check API Health:**
+
 ```bash
 # Get API service endpoint
 kubectl get service mizzou-api -n production
@@ -1682,14 +1878,21 @@ curl http://<API_IP>/api/telemetry/summary?days=7
 ### Known Issues and Limitations
 
 **Current Limitations:**
+
 - Frontend dashboard exists but deployment status unclear
+
 - No automated site-specific credentials for authenticated crawling ([Issue #101](https://github.com/LocalNewsImpact/MizzouNewsCrawler/issues/101))
+
 - Rate limiting is conservative to avoid bot detection
+
 - CAPTCHA backoff can delay processing for affected domains
 
 **Operational Procedures:**
+
 - See [docs/PIPELINE_MONITORING.md](docs/PIPELINE_MONITORING.md) for monitoring procedures
+
 - See [docs/MIGRATION_RUNBOOK.md](docs/MIGRATION_RUNBOOK.md) for database migrations
+
 - See [docs/DEPLOYMENT_BEST_PRACTICES.md](docs/DEPLOYMENT_BEST_PRACTICES.md) for deployment guidelines
 
 ## Roadmap
@@ -1697,28 +1900,45 @@ curl http://<API_IP>/api/telemetry/summary?days=7
 ### Completed Features
 
 - ✅ **Geographic Enhancement**: Optimized OSM gazetteer integration with 67% API call reduction and comprehensive 11-category coverage
+
 - ✅ **Content Processing Enhancement**: Advanced byline cleaning with dynamic publication filtering, gazetteer integration, comma detection, first name protection, and comprehensive telemetry system
+
 - ✅ **Telemetry System**: Lightweight telemetry using `src/utils/telemetry.py` with detailed transformation tracking, confidence scoring, and quality metrics
+
 - ✅ **Database Migration**: SQLite → Cloud SQL PostgreSQL with Cloud SQL Connector
+
 - ✅ **Kubernetes Deployment**: GKE cluster with microservices architecture
+
 - ✅ **Argo Workflows**: Automated pipeline orchestration with DAG-based workflow
+
 - ✅ **CI/CD**: Cloud Build integration for automated deployments
 
 ### Planned Enhancements
 
 **Phase 8: Observability & Monitoring (High Priority)**
+
 - Implement Prometheus metrics collection
+
 - Deploy Grafana dashboards for visualization
+
 - Set up automated alerting (PagerDuty/email)
+
 - Add distributed tracing with OpenTelemetry
+
 - Create operational runbooks
 
 **Future Improvements:**
+
 - Authenticated crawling for sites requiring login ([Issue #101](https://github.com/LocalNewsImpact/MizzouNewsCrawler/issues/101))
+
 - Frontend dashboard deployment and integration
+
 - Network policies for enhanced security
+
 - Cloud Storage for raw HTML archives
+
 - Enhanced error recovery and retry mechanisms
+
 - Performance optimization for high-volume processing
 
 ## Alternative Workflows
@@ -1749,36 +1969,56 @@ python scripts/list_jobs.py
 ### Key Documentation Files
 
 **Architecture & Deployment:**
+
 - [docs/ORCHESTRATION_ARCHITECTURE.md](docs/ORCHESTRATION_ARCHITECTURE.md) - Complete orchestration guide and architecture overview
+
 - [docs/KUBERNETES_GUIDE.md](docs/KUBERNETES_GUIDE.md) - Kubernetes deployment guide
+
 - [docs/GCP_KUBERNETES_ROADMAP.md](docs/GCP_KUBERNETES_ROADMAP.md) - Migration roadmap and architectural decisions
+
 - [docs/DEPLOYMENT_BEST_PRACTICES.md](docs/DEPLOYMENT_BEST_PRACTICES.md) - Best practices for deployments and safety
+
 - [docs/CLOUD_SQL_CONNECTOR_MIGRATION.md](docs/CLOUD_SQL_CONNECTOR_MIGRATION.md) - Cloud SQL Connector setup
 
 **Operations:**
+
 - [docs/PIPELINE_MONITORING.md](docs/PIPELINE_MONITORING.md) - Pipeline monitoring procedures
+
 - [docs/MIGRATION_RUNBOOK.md](docs/MIGRATION_RUNBOOK.md) - Database migration procedures
+
 - [docs/ROLLBACK_PROCEDURE.md](docs/ROLLBACK_PROCEDURE.md) - Emergency rollback procedures
+
 - [ops/RESYNC_RUNBOOK.md](ops/RESYNC_RUNBOOK.md) - Data resynchronization procedures
 
 **Development:**
+
 - [docs/DOCKER_GUIDE.md](docs/DOCKER_GUIDE.md) - Docker build and development guide
+
 - [docs/CUSTOM_SOURCELIST_WORKFLOW.md](docs/CUSTOM_SOURCELIST_WORKFLOW.md) - Adding custom news sources
+
 - [docs/DISCOVERY_QUICK_REFERENCE.md](docs/DISCOVERY_QUICK_REFERENCE.md) - Discovery command reference
+
 - [docs/TELEMETRY_TESTING_GUIDE.md](docs/TELEMETRY_TESTING_GUIDE.md) - Telemetry system testing
 
 **Templates:**
+
 - [k8s/templates/README.md](k8s/templates/README.md) - Kubernetes job templates documentation
+
 - [scripts/migrations/README.md](scripts/migrations/README.md) - Migration scripts and tools
 
 ### Architecture Decision Records
 
 The project has evolved through several major phases:
+
 1. **Local SQLite Development** - Initial CLI-based crawler
-2. **Containerization** - Docker images for each service
-3. **GCP Migration** - Cloud SQL PostgreSQL and GKE deployment
-4. **Argo Workflows** - Orchestration refactoring ([Issue #77](https://github.com/LocalNewsImpact/MizzouNewsCrawler/issues/77))
-5. **Cloud SQL Connector** - Eliminated proxy sidecar pattern
+
+1. **Containerization** - Docker images for each service
+
+1. **GCP Migration** - Cloud SQL PostgreSQL and GKE deployment
+
+1. **Argo Workflows** - Orchestration refactoring ([Issue #77](https://github.com/LocalNewsImpact/MizzouNewsCrawler/issues/77))
+
+1. **Cloud SQL Connector** - Eliminated proxy sidecar pattern
 
 See [docs/PHASE_TRANSITION.md](docs/PHASE_TRANSITION.md) for phase transition details.
 
@@ -1789,10 +2029,14 @@ See [docs/PHASE_TRANSITION.md](docs/PHASE_TRANSITION.md) for phase transition de
 We welcome contributions! Please follow these guidelines:
 
 1. **Fork and Branch**: Create a feature branch from `main`
-2. **Focused Changes**: Keep PRs focused on a single feature or fix
-3. **Tests Required**: Add tests for new functionality
-4. **Pre-commit Hooks**: Run `./scripts/setup-git-hooks.sh` before committing
-5. **Code Style**: Follow existing patterns and pass linting checks
+
+1. **Focused Changes**: Keep PRs focused on a single feature or fix
+
+1. **Tests Required**: Add tests for new functionality
+
+1. **Pre-commit Hooks**: Run `./scripts/setup-git-hooks.sh` before committing
+
+1. **Code Style**: Follow existing patterns and pass linting checks
 
 ### Development Workflow
 
@@ -1862,13 +2106,17 @@ mypy src/
 ### Getting Help
 
 - **Issues**: Report bugs or request features via [GitHub Issues](https://github.com/LocalNewsImpact/MizzouNewsCrawler/issues)
+
 - **Discussions**: Ask questions and share ideas in [GitHub Discussions](https://github.com/LocalNewsImpact/MizzouNewsCrawler/discussions)
+
 - **Documentation**: Check the [docs/](docs/) directory for detailed guides
 
 ### Related Resources
 
 - **Local News Impact**: [Project Website](https://localnewsimpact.org/)
+
 - **Critical Information Needs (CIN)**: Research on local news coverage patterns
+
 - **OpenStreetMap**: Geographic entity data source
 
 ## License
