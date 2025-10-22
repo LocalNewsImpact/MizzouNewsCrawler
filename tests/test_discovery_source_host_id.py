@@ -13,7 +13,7 @@ import pathlib
 import sqlite3
 import sys
 import tempfile
-from typing import Iterator, cast
+from typing import Iterator
 from unittest.mock import patch
 
 import pandas as pd
@@ -107,10 +107,7 @@ class TelemetryStub:
 
     def record_site_failure(self, **kwargs):
         self.failure_calls.append(kwargs)
-
-    def record_discovery_outcome(self, **kwargs):
-        self.outcomes.append(kwargs)
-
+    
     def track_http_status(self, *args, **kwargs):
         return None
 
@@ -489,7 +486,7 @@ def test_discovery_storysniffer_fallback_records_article(monkeypatch):
 
         discovery = NewsDiscovery(database_url=db_url)
         telemetry = TelemetryStub([DiscoveryMethod.STORYSNIFFER])
-        discovery.telemetry = cast(OperationTracker, telemetry)
+        discovery.telemetry = telemetry  # type: ignore[assignment]
 
         monkeypatch.setattr(
             discovery,
@@ -564,9 +561,7 @@ def test_discovery_rss_timeout_resets_failure_state(monkeypatch):
         seed_source_records(db_url)
 
         discovery = NewsDiscovery(database_url=db_url)
-        discovery.telemetry = cast(
-            OperationTracker, TelemetryStub([DiscoveryMethod.RSS_FEED])
-        )
+        discovery.telemetry = TelemetryStub([DiscoveryMethod.RSS_FEED])  # type: ignore[assignment]
 
         def raise_timeout(*_args, **_kwargs):
             raise requests.exceptions.Timeout()

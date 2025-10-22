@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
-from typing import cast
+
 
 import pytest
 from sqlalchemy import text
@@ -48,32 +48,32 @@ def test_create_claim_and_finalize_dataset_version(
         database_url=db_url,
     )
 
-    assert cast(str, version.status) == "pending"
-    assert cast(str, version.dataset_name) == "articles"
+    assert str(version.status) == "pending"
+    assert str(version.dataset_name) == "articles"
 
     assert claim_dataset_version(
-        cast(str, version.id),
+        str(version.id),
         claimer="worker-1",
         database_url=db_url,
     )
     assert not claim_dataset_version(
-        cast(str, version.id),
+        str(version.id),
         claimer="worker-2",
         database_url=db_url,
     )
 
     finalized = finalize_dataset_version(
-        cast(str, version.id),
+        str(version.id),
         snapshot_path=str(snapshot_path),
         row_count=5,
         checksum="abc123",
         database_url=db_url,
     )
 
-    assert cast(str, finalized.status) == "ready"
-    assert cast(int, finalized.row_count) == 5
-    assert cast(str, finalized.checksum) == "abc123"
-    assert cast(str, finalized.snapshot_path) == str(snapshot_path)
+    assert str(finalized.status) == "ready"
+    assert finalized.row_count == 5  # type: ignore[comparison-overlap]
+    assert str(finalized.checksum) == "abc123"
+    assert str(finalized.snapshot_path) == str(snapshot_path)
 
 
 def test_finalize_unknown_version_raises(ensure_tables: str):
@@ -91,7 +91,7 @@ def test_export_dataset_version_without_snapshot(ensure_tables: str):
 
     with pytest.raises(NotImplementedError):
         export_dataset_version(
-            cast(str, version.id),
+            str(version.id),
             "/tmp/output.parquet",
             database_url=db_url,
         )
@@ -118,7 +118,7 @@ def test_export_dataset_version_copies_snapshot(
 
     destination = tmp_path / "export.parquet"
     returned = export_dataset_version(
-        cast(str, version.id),
+        str(version.id),
         str(destination),
         database_url=db_url,
     )
@@ -190,7 +190,7 @@ def test_export_snapshot_for_version_pandas_fallback(
 
     output_path = tmp_path / "snapshot.parquet"
     result_path = export_snapshot_for_version(
-        cast(str, version.id),
+        str(version.id),
         "snapshot_source",
         str(output_path),
         database_url=db_url,
@@ -205,7 +205,8 @@ def test_export_snapshot_for_version_pandas_fallback(
     versions = list_dataset_versions(database_url=db_url)
     assert len(versions) == 1
     stored = versions[0]
-    assert cast(str, stored.status) == "ready"
-    assert cast(int, stored.row_count) == 2
-    assert cast(str, stored.snapshot_path) == str(output_path)
+    assert str(stored.status) == "ready"
+    # SQLite may return numeric types that are coercible to int
+    assert int(stored.row_count) == 2  # type: ignore[arg-type]
+    assert str(stored.snapshot_path) == str(output_path)
     assert stored.checksum is not None

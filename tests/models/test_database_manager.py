@@ -6,7 +6,7 @@ import sqlite3
 import tempfile
 import types
 from pathlib import Path
-from typing import cast
+ 
 
 import pandas as pd
 import pytest
@@ -743,9 +743,9 @@ def test_upsert_article_handles_lock_and_updates(monkeypatch):
 
             stored = db.session.get(Article, article_id)
             assert stored is not None
-            assert cast(str, stored.candidate_link_id) == "cand-lock"
-            assert cast(str, stored.status) == "processed"
-            assert cast(str, stored.text_hash) == calculate_content_hash(article_text)
+            assert str(stored.candidate_link_id) == "cand-lock"
+            assert str(stored.status) == "processed"
+            assert str(stored.text_hash) == calculate_content_hash(article_text)
             assert attempts["count"] >= 2
 
             upsert_article(
@@ -758,8 +758,8 @@ def test_upsert_article_handles_lock_and_updates(monkeypatch):
 
             stored_updated = db.session.get(Article, article_id)
             assert stored_updated is not None
-            assert cast(str, stored_updated.status) == "verified"
-            assert cast(str, stored_updated.title) == "Updated title"
+            assert str(stored_updated.status) == "verified"
+            assert str(stored_updated.title) == "Updated title"
 
 
 def test_prediction_to_tuple_variants():

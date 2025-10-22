@@ -175,7 +175,28 @@ def handle_proxy_test(args) -> int:
         extractor = ContentExtractor()
 
         start = time.time()
-        result = extractor.extract_article_data(test_url)
+        fetch = getattr(extractor, "fetch_page", None)
+        if callable(fetch):
+            html = fetch(test_url)
+        else:
+            # Fallback: some extractor implementations expose a different
+            # interface; in that case, attempt to call a generic fetch
+            # method or treat as failure.
+            alt_fetch = getattr(extractor, "fetch", None)
+            if callable(alt_fetch):
+                html = alt_fetch(test_url)
+            else:
+                html = None
+        elapsed = time.time() - start
+        if html is None:
+            print(f"\u274c Failed to fetch {test_url}")
+            manager.record_failure()
+            return 1
+
+        start = time.time()
+        # html is guaranteed non-None here (we checked earlier)
+        html_str = str(html)
+        result = extractor.extract_article_data(html_str, test_url)
         elapsed = time.time() - start
 
         if result and result.get("status") == "success":

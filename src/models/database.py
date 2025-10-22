@@ -534,6 +534,7 @@ def save_article_classification(
         article.label_version = label_version
         article.label_model_version = model_version
         article.labels_updated_at = now
+        article.status = "labeled"
 
     _commit_with_retry(session)
     return record

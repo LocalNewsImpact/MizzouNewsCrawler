@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from argparse import Namespace
-from typing import Any, cast
+from typing import Any
 
 import src.cli.commands.verification as verification
 
@@ -109,7 +109,7 @@ def test_show_verification_status_handles_exception(monkeypatch):
         lambda *args, **kwargs: None,
     )
 
-    broken_service = cast(Any, BrokenService())
+    broken_service = BrokenService()  # type: Any
 
     exit_code = verification.show_verification_status(broken_service)
 
@@ -127,7 +127,7 @@ def test_run_verification_service_handles_keyboard_interrupt(monkeypatch):
         lambda *args, **kwargs: None,
     )
 
-    interrupt_service = cast(Any, InterruptService())
+    interrupt_service = InterruptService()  # type: Any
 
     exit_code = verification.run_verification_service(
         interrupt_service,
@@ -156,7 +156,7 @@ def test_run_verification_service_handles_runtime_error(monkeypatch):
         lambda message, *args, **kwargs: errors.append(message),
     )
 
-    broken_service = cast(Any, BrokenService())
+    broken_service = BrokenService()  # type: Any
 
     exit_code = verification.run_verification_service(
         broken_service,

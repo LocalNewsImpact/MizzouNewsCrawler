@@ -294,8 +294,8 @@ class ComprehensiveExtractionTelemetry:
         """Record detailed extraction metrics."""
 
         from sqlalchemy.exc import IntegrityError
-
-        def writer(conn):
+        def _do_insert(conn) -> None:
+            """Perform the core INSERT for extraction telemetry."""
             is_success = bool(metrics.is_success)
             if not is_success:
                 if metrics.successful_method:
@@ -303,74 +303,123 @@ class ComprehensiveExtractionTelemetry:
                 else:
                     is_success = any(metrics.method_success.values())
 
-            try:
-                conn.execute(
-                    """
-                    INSERT INTO extraction_telemetry_v2 (
-                    operation_id, article_id, url, publisher, host,
-                    start_time, end_time, total_duration_ms,
-                    http_status_code, http_error_type,
-                    response_size_bytes, response_time_ms,
-                    proxy_used, proxy_url, proxy_authenticated,
-                    proxy_status, proxy_error,
-                    methods_attempted, successful_method,
-                    method_timings, method_success, method_errors,
-                    field_extraction, extracted_fields,
-                    final_field_attribution, alternative_extractions,
-                    content_length, is_success, error_message, error_type
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
+            conn.execute(
+                """
+                INSERT INTO extraction_telemetry_v2 (
+                operation_id, article_id, url, publisher, host,
+                start_time, end_time, total_duration_ms,
+                http_status_code, http_error_type,
+                response_size_bytes, response_time_ms,
+                proxy_used, proxy_url, proxy_authenticated,
+                proxy_status, proxy_error,
+                methods_attempted, successful_method,
+                method_timings, method_success, method_errors,
+                field_extraction, extracted_fields,
+                final_field_attribution, alternative_extractions,
+                content_length, is_success, error_message, error_type
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+                (
+                    metrics.operation_id,
+                    metrics.article_id,
+                    metrics.url,
+                    metrics.publisher,
+                    metrics.host,
+                    metrics.start_time,
+                    metrics.end_time,
+                    metrics.total_duration_ms,
+                    metrics.http_status_code,
+                    metrics.http_error_type,
+                    metrics.response_size_bytes,
+                    metrics.response_time_ms,
                     (
-                        metrics.operation_id,
-                        metrics.article_id,
-                        metrics.url,
-                        metrics.publisher,
-                        metrics.host,
-                        metrics.start_time,
-                        metrics.end_time,
-                        metrics.total_duration_ms,
-                        metrics.http_status_code,
-                        metrics.http_error_type,
-                        metrics.response_size_bytes,
-                        metrics.response_time_ms,
-                        (
-                            int(metrics.proxy_used)
-                            if metrics.proxy_used is not None
-                            else None
-                        ),
-                        metrics.proxy_url,
-                        (
-                            int(metrics.proxy_authenticated)
-                            if metrics.proxy_authenticated is not None
-                            else None
-                        ),
-                        metrics.proxy_status,
-                        metrics.proxy_error,
-                        json.dumps(metrics.methods_attempted),
-                        metrics.successful_method,
-                        json.dumps(metrics.method_timings),
-                        json.dumps(metrics.method_success),
-                        json.dumps(metrics.method_errors),
-                        json.dumps(metrics.field_extraction),
-                        json.dumps(metrics.extracted_fields),
-                        json.dumps(metrics.final_field_attribution),
-                        json.dumps(metrics.alternative_extractions),
-                        metrics.content_length,
-                        int(is_success),
-                        metrics.error_message,
-                        metrics.error_type,
+                        int(metrics.proxy_used)
+                        if metrics.proxy_used is not None
+                        else None
                     ),
-                )
+                    metrics.proxy_url,
+                    (
+                        int(metrics.proxy_authenticated)
+                        if metrics.proxy_authenticated is not None
+                        else None
+                    ),
+                    metrics.proxy_status,
+                    metrics.proxy_error,
+                    json.dumps(metrics.methods_attempted),
+                    metrics.successful_method,
+                    json.dumps(metrics.method_timings),
+                    json.dumps(metrics.method_success),
+                    json.dumps(metrics.method_errors),
+                    json.dumps(metrics.field_extraction),
+                    json.dumps(metrics.extracted_fields),
+                    json.dumps(metrics.final_field_attribution),
+                    json.dumps(metrics.alternative_extractions),
+                    metrics.content_length,
+                    int(is_success),
+                    metrics.error_message,
+                    metrics.error_type,
+                ),
+            )
+
+        def writer(conn):
+            # Try insert, on duplicate-key (IntegrityError) attempt a sequence
+            # resync for Postgres then retry once. This guards against
+            # out-of-sync SERIAL sequences causing 23505 failures.
+            try:
+                _do_insert(conn)
             except IntegrityError as ie:
-                # Handle duplicate primary key insertions gracefully.
-                # In some deployments the telemetry sequence can get out of sync
-                # with existing rows, causing conflicting id assignment in the
-                # telemetry worker. Log and continue so extraction is not
-                # disrupted. A proper DB migration (setval on the sequence)
-                # should be applied to fix the root cause.
-                logger.warning("Telemetry insert IntegrityError (ignored): %s", ie)
-                return
+                logger.warning("Telemetry insert IntegrityError: %s", ie)
+                try:
+                    # Only attempt resync if backing store is Postgres
+                    if hasattr(self._store, "_is_postgres") and self._store._is_postgres:
+                        # Try to set sequence to max(id) so nextval yields new id
+                        conn.execute(
+                            """
+                            DO $$
+                            DECLARE
+                                seq_name text;
+                                max_id bigint;
+                            BEGIN
+                                SELECT pg_get_serial_sequence(
+                                    'extraction_telemetry_v2', 'id'
+                                ) INTO seq_name;
+                                IF seq_name IS NULL THEN
+                                    RAISE NOTICE 'No serial sequence found for extraction_telemetry_v2.id';
+                                    RETURN;
+                                END IF;
+                                EXECUTE format(
+                                    'SELECT COALESCE(MAX(id), 0) FROM extraction_telemetry_v2'
+                                ) INTO max_id;
+                                IF max_id IS NULL THEN
+                                    max_id := 0;
+                                END IF;
+                                EXECUTE format('SELECT setval(%L, %s)', seq_name, max_id);
+                                RAISE NOTICE 'Resynced sequence % to %', seq_name, max_id;
+                            END
+                            $$;
+                            """,
+                        )
+
+                        # Retry insert once
+                        try:
+                            _do_insert(conn)
+                        except IntegrityError as ie2:
+                            logger.warning(
+                                "Telemetry insert failed again after sequence resync: %s",
+                                ie2,
+                            )
+                            return
+                    else:
+                        # Non-Postgres stores can't resync sequence; ignore
+                        logger.warning(
+                            "Telemetry insert IntegrityError on non-Postgres store, ignoring: %s",
+                            ie,
+                        )
+                        return
+                except Exception:
+                    logger.exception("Exception during telemetry resync attempt")
+                    return
 
             if metrics.http_status_code and metrics.http_error_type:
                 now = datetime.utcnow()

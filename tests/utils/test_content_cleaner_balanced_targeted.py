@@ -1,6 +1,6 @@
 import os
 import tempfile
-from typing import Optional, cast
+from typing import Optional
 from unittest.mock import Mock, patch
 
 from src.utils.byline_cleaner import BylineCleaner
@@ -577,8 +577,8 @@ class TestWireDetection:
         cleaner = BalancedBoundaryContentCleaner(
             db_path=":memory:", enable_telemetry=False
         )
-        cleaner.wire_detector = cast(
-            BylineCleaner, DummyWireDetector(is_wire_service=True)
+        cleaner.wire_detector = (
+            DummyWireDetector(is_wire_service=True)  # type: ignore[assignment]
         )
 
         result = cleaner._detect_wire_service_in_pattern(
@@ -593,10 +593,9 @@ class TestWireDetection:
         cleaner = BalancedBoundaryContentCleaner(
             db_path=":memory:", enable_telemetry=False
         )
-        cleaner.wire_detector = cast(
-            BylineCleaner,
-            DummyWireDetector(is_wire_service=True, is_own_source=True),
-        )
+        cleaner.wire_detector = DummyWireDetector(
+            is_wire_service=True, is_own_source=True
+        )  # type: ignore[assignment]
 
         result = cleaner._detect_wire_service_in_pattern(
             "Our AP-partnered report", "example.com"
@@ -608,12 +607,9 @@ class TestWireDetection:
         cleaner = BalancedBoundaryContentCleaner(
             db_path=":memory:", enable_telemetry=False
         )
-        cleaner.wire_detector = cast(
-            BylineCleaner,
-            DummyWireDetector(
-                is_wire_service=False, normalized_name="reuters normalized"
-            ),
-        )
+        cleaner.wire_detector = DummyWireDetector(
+            is_wire_service=False, normalized_name="reuters normalized"
+        )  # type: ignore[assignment]
 
         result = cleaner._detect_wire_service_in_pattern(
             "Reporting by Reuters staff", "localpaper.com"
@@ -627,8 +623,8 @@ class TestWireDetection:
         cleaner = BalancedBoundaryContentCleaner(
             db_path=":memory:", enable_telemetry=False
         )
-        cleaner.wire_detector = cast(
-            BylineCleaner, DummyWireDetector(is_wire_service=False)
+        cleaner.wire_detector = (
+            DummyWireDetector(is_wire_service=False)  # type: ignore[assignment]
         )
 
         result = cleaner._detect_wire_service_in_pattern(

@@ -7,7 +7,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -131,7 +131,10 @@ class ArticleLLMPipeline:
         orchestration: OrchestrationResult,
     ) -> None:
         meta = _coerce_meta(article.meta)
-        llm_meta = cast(dict[str, Any], meta.setdefault("llm", {}))
+        llm_meta = meta.get("llm")
+        if not isinstance(llm_meta, dict):
+            llm_meta = {}
+            meta["llm"] = llm_meta
         llm_meta.update(
             {
                 "summary": orchestration.content,
@@ -148,7 +151,10 @@ class ArticleLLMPipeline:
         orchestration: OrchestrationResult,
     ) -> None:
         meta = _coerce_meta(article.meta)
-        llm_meta = cast(dict[str, Any], meta.setdefault("llm", {}))
+        llm_meta = meta.get("llm")
+        if not isinstance(llm_meta, dict):
+            llm_meta = {}
+            meta["llm"] = llm_meta
         llm_meta.update(
             {
                 "summary": None,

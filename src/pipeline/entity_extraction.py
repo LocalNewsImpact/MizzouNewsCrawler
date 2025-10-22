@@ -7,9 +7,7 @@ import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import (
-    cast,
-)
+ 
 
 import spacy
 from rapidfuzz import fuzz
@@ -123,7 +121,7 @@ class ArticleEntityExtractor:
         if gazetteer_rows:
             seen_patterns: set[tuple[str, str]] = set()
             for row in gazetteer_rows:
-                name = cast(str | None, getattr(row, "name", None))
+                name = getattr(row, "name", None)
                 if not name:
                     continue
                 category_key = (getattr(row, "category", None) or "").lower()
@@ -143,10 +141,7 @@ class ArticleEntityExtractor:
                     pattern_entries.append((label_override, name))
                     seen_patterns.add(key)
 
-                name_norm = cast(
-                    str | None,
-                    getattr(row, "name_norm", None),
-                )
+                name_norm = getattr(row, "name_norm", None)
                 if name_norm and name_norm.strip():
                     norm_norm = _normalize_text(name_norm)
                     if norm_norm:
@@ -321,26 +316,32 @@ def _score_match(
 
     best_match: GazetteerMatch | None = None
     for entry in candidates:
-        name_norm = cast(str | None, getattr(entry, "name_norm", None))
-        entry_norm = name_norm or _normalize_text(cast(str, entry.name or ""))
+        name_norm = getattr(entry, "name_norm", None)
+        entry_norm = name_norm or _normalize_text(entry.name or "")
         if not entry_norm:
             continue
+
+        # Exact match - return immediately
         if entry_norm == norm_entity:
-            # Exact match - return immediately
             if entity_text and len(candidates) > 100:
-                logger.debug(f"✅ Exact match: '{entity_text}' → '{entry.name}'")
+                logger.debug(
+                    "✅ Exact match: '%s' → '%s'",
+                    entity_text,
+                    str(getattr(entry, "name", "")),
+                )
             return GazetteerMatch(
-                cast(str, entry.id),
+                str(getattr(entry, "id", "")),
                 1.0,
-                cast(str, entry.name),
+                str(getattr(entry, "name", "")) or "",
             )
+
         # Use rapidfuzz for fuzzy matching (10-100x faster than SequenceMatcher)
         score = fuzz.ratio(norm_entity, entry_norm) / 100.0
         if score >= 0.85 and (best_match is None or score > best_match.score):
             best_match = GazetteerMatch(
-                cast(str, entry.id),
+                str(getattr(entry, "id", "")),
                 score,
-                cast(str, entry.name),
+                str(getattr(entry, "name", "")) or "",
             )
 
     if best_match and entity_text and len(candidates) > 100:
@@ -412,8 +413,8 @@ def attach_gazetteer_matches(
     # Build normalized name index for fast direct lookups
     index: dict[str, list[Gazetteer]] = {}
     for row in gazetteer_rows:
-        name_norm = cast(str | None, getattr(row, "name_norm", None))
-        key = name_norm or _normalize_text(cast(str, row.name or ""))
+        name_norm = getattr(row, "name_norm", None)
+        key = name_norm or _normalize_text(row.name or "")
         if not key:
             continue
         index.setdefault(key, []).append(row)

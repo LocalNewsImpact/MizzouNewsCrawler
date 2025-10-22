@@ -1801,10 +1801,10 @@ class NewsDiscovery:
                                 "updated_parsed"
                             ):
                                 most_recent = datetime(*feed.feed.updated_parsed[:6])
-                            for e in feed.entries:
-                                if e.get("published_parsed"):
+                            for entry in feed.entries:
+                                if entry.get("published_parsed"):
                                     try:
-                                        d = datetime(*e.published_parsed[:6])
+                                        d = datetime(*entry.published_parsed[:6])
                                         if not most_recent or d > most_recent:
                                             most_recent = d
                                     except Exception:

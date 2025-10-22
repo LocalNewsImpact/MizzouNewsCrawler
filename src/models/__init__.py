@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import datetime
-from typing import Any, Optional, cast
+from typing import Any
 
 from sqlalchemy import (
     JSON,
@@ -23,29 +23,19 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 Base: Any = declarative_base()
 
-# Import API backend models after Base declaration
-# These are imported here to ensure they're registered with Base.metadata
-from src.models.api_backend import (  # noqa: E402  # type: ignore
-    BylineCleaningTelemetry,
-    BylineTransformationStep,
-    Candidate,
-    CodeReviewTelemetry,
-    DedupeAudit,
-    DomainFeedback,
-    ReextractionJob,
-    Review,
-    Snapshot,
-)
-from src.models.telemetry import (  # noqa: E402  # type: ignore
-    ExtractionTelemetryV2,
-    HttpErrorSummary,
-)
-from src.models.verification import (  # noqa: E402  # type: ignore
+# Import API backend models after Base declaration. These are imported here to
+# ensure they're registered with Base.metadata (side-effect imports).
+import src.models.api_backend  # noqa: E402,F401  # type: ignore
+import src.models.telemetry  # noqa: E402,F401  # type: ignore
+import src.models.verification  # noqa: E402,F401  # type: ignore
+
+# Backwards-compatibility: expose commonly-imported model names at package level
+from .verification import (
     URLVerification,
     VerificationJob,
-    VerificationPattern,
     VerificationTelemetry,
-)
+    VerificationPattern,
+)  # noqa: F401
 
 
 class SourceMetadata(Base):
@@ -53,14 +43,16 @@ class SourceMetadata(Base):
 
     __tablename__ = "source_metadata"
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
     host = Column(String, unique=True, nullable=False, index=True)
     bot_sensitivity = Column(Integer, default=1)  # 1-10 scale
     last_sensitivity_update = Column(DateTime)
     last_crawl_attempt = Column(DateTime)
     last_successful_crawl = Column(DateTime)
     consecutive_failures = Column(Integer, default=0)
-    meta = Column(JSON)
+    meta: Mapped[dict | None] = mapped_column(JSON)
     created_at = Column(
         DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
     )
@@ -72,7 +64,9 @@ class CandidateLink(Base):
 
     __tablename__ = "candidate_links"
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
     url = Column(String, nullable=False, unique=True, index=True)
     source = Column(String, nullable=False)  # Site/publisher name
     discovered_at = Column(DateTime, nullable=False, default=datetime.utcnow)
@@ -86,9 +80,11 @@ class CandidateLink(Base):
     content_hash = Column(String, index=True)  # SHA256 of raw content
 
     # Flexible metadata storage (avoid reserved name 'metadata')
-    meta = Column(JSON)  # Headers, redirect chain, etc.
+    meta: Mapped[dict | None] = mapped_column(JSON)  # Headers, redirect chain, etc.
     # First-class publish date for candidate links (nullable)
-    publish_date = Column(DateTime, nullable=True, index=True)
+    publish_date: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True, index=True
+    )
     # Fields expected by the CLI and bulk loaders
     source_host_id = Column(String, index=True)
     source_name = Column(String, index=True)
@@ -107,16 +103,16 @@ class CandidateLink(Base):
     cached_businesses = Column(String)
     cached_landmarks = Column(String)
     priority = Column(Integer, default=1, index=True)
-    processed_at = Column(DateTime)
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime)
     articles_found = Column(Integer, default=0)
-    error_message = Column(String)
+    error_message: Mapped[str | None] = mapped_column(String)
     # Allow raw SQL INSERTs to omit created_at by using a server default
     created_at = Column(
         DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP")
     )
     # Link to dataset and normalized source
-    dataset_id = Column(String, index=True)
-    source_id = Column(String, index=True)
+    dataset_id: Mapped[str | None] = mapped_column(String, index=True)
+    source_id: Mapped[str | None] = mapped_column(String, index=True)
 
     # Relationships
     articles = relationship("Article", back_populates="candidate_link")
@@ -140,8 +136,8 @@ class Article(Base):
     # Core content
     url = Column(String, index=True)
     title = Column(Text)
-    author = Column(String)
-    publish_date = Column(DateTime)
+    author: Mapped[str | None] = mapped_column(String)
+    publish_date: Mapped[datetime | None] = mapped_column(DateTime)
     content = Column(Text)
     # Keep older 'text' fields for compatibility
     text = Column(Text)
@@ -152,16 +148,20 @@ class Article(Base):
     status = Column(String, nullable=False, default="discovered", index=True)
     # `metadata` is a reserved attribute name on Declarative classes; expose
     # it on the DB row as the column name but use the attribute `meta` here.
-    meta = Column("metadata", JSON)
+    meta: Mapped[dict | None] = mapped_column("metadata", JSON)
     # Wire service attribution payload stored as JSON for downstream reports
-    wire = Column(JSON)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    wire: Mapped[dict | None] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow
+    )
 
     # Storage references
     raw_gcs_path = Column(String)  # Future: GCS path for raw HTML
 
     # Processing metadata
-    extracted_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    extracted_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow
+    )
     extraction_version = Column(String)  # Version of parsing logic
     # Classification outputs
     primary_label = Column(String)
@@ -170,7 +170,7 @@ class Article(Base):
     alternate_label_confidence = Column(Float)
     label_version = Column(String, index=True)
     label_model_version = Column(String)
-    labels_updated_at = Column(DateTime)
+    labels_updated_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     # Relationships
     candidate_link = relationship("CandidateLink", back_populates="articles")
@@ -203,12 +203,14 @@ class ArticleLabel(Base):
     label_version = Column(String, nullable=False, index=True)
     model_version = Column(String, nullable=False)
     model_path = Column(String)
-    primary_label = Column(String, nullable=False)
+    primary_label: Mapped[str] = mapped_column(String, nullable=False)
     primary_label_confidence = Column(Float)
     alternate_label = Column(String)
     alternate_label_confidence = Column(Float)
-    applied_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    meta = Column(JSON)
+    applied_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow
+    )
+    meta: Mapped[dict | None] = mapped_column(JSON)
 
     article = relationship("Article", back_populates="labels")
 
@@ -234,16 +236,20 @@ class MLResult(Base):
     model_type = Column(String, nullable=False)  # 'classifier', 'ner', etc.
 
     # Results
-    label = Column(String)
+    label: Mapped[str | None] = mapped_column(String)
     score = Column(Float)
     confidence = Column(Float)
 
     # Processing metadata
-    run_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    run_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow
+    )
     job_id = Column(String, ForeignKey("jobs.id"))
 
     # Detailed results
-    details = Column(JSON)  # Full model output, features, etc.
+    details: Mapped[dict | None] = mapped_column(
+        JSON
+    )  # Full model output, features, etc.
 
     # Relationships
     article = relationship("Article", back_populates="ml_results")
@@ -344,12 +350,14 @@ class Job(Base):
     exit_status = Column(String)  # 'success', 'failed', 'cancelled'
 
     # Parameters and context
-    params = Column(JSON)  # Input parameters
+    params: Mapped[dict | None] = mapped_column(JSON)  # Input parameters
     commit_sha = Column(String)  # Git commit for reproducibility
-    environment = Column(JSON)  # Python version, dependencies, etc.
+    environment: Mapped[dict | None] = mapped_column(
+        JSON
+    )  # Python version, dependencies, etc.
 
     # Artifacts and outputs
-    artifact_paths = Column(JSON)  # Snapshot file paths
+    artifact_paths: Mapped[dict | None] = mapped_column(JSON)  # Snapshot file paths
     logs_path = Column(String)
 
     # Metrics
@@ -482,8 +490,8 @@ class Gazetteer(Base):
     # OSM identifiers
     osm_type = Column(String, index=True)  # node/way/relation
     osm_id = Column(String, index=True)
-    name = Column(String, nullable=False)
-    name_norm = Column(String, index=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    name_norm: Mapped[str | None] = mapped_column(String, index=True)
     category = Column(
         String,
         index=True,
@@ -494,7 +502,7 @@ class Gazetteer(Base):
     lon = Column(Float, index=True)
 
     # Raw tags and metadata from OSM for later inspection
-    tags = Column(JSON)
+    tags: Mapped[dict | None] = mapped_column(JSON)
 
     # Distance from publisher centroid (miles) if computed
     distance_miles = Column(Float)
@@ -585,7 +593,7 @@ class BackgroundProcess(Base):
     started_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=datetime.utcnow
     )
-    updated_at = Column(
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
         default=datetime.utcnow,
@@ -594,26 +602,26 @@ class BackgroundProcess(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     # Results and metrics
-    result_summary = Column(JSON, nullable=True)  # Final results/statistics
-    error_message = Column(Text, nullable=True)
+    result_summary: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Metadata for filtering/grouping
-    dataset_id = Column(String, nullable=True, index=True)
-    source_id = Column(String, nullable=True, index=True)
-    process_metadata = Column(JSON, nullable=True)  # Additional context
+    dataset_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    source_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    process_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Parent process tracking (for spawned sub-processes)
-    parent_process_id = Column(
+    parent_process_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("background_processes.id"), nullable=True
     )
 
     @property
     def progress_percentage(self):
         """Calculate progress as percentage (0-100)."""
-        total = cast(int | None, self.progress_total)
+        total = self.progress_total
         if total is None or total == 0:
             return None
-        current = cast(int, self.progress_current or 0)
+        current = int(self.progress_current or 0)
         return min(100, (current / total) * 100)
 
     @property
@@ -625,7 +633,7 @@ class BackgroundProcess(Base):
     @property
     def is_active(self):
         """Check if process is still active."""
-        status_value = cast(str | None, self.status)
+        status_value = self.status
         return status_value in {"started", "running"}
 
     def update_progress(
@@ -641,7 +649,7 @@ class BackgroundProcess(Base):
         if message:
             self.progress_message = message
         self.updated_at = datetime.utcnow()
-        status_value = cast(str | None, self.status)
+        status_value = self.status
         if status_value == "started":
             self.status = "running"
 

@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import cast
 
 import pytest
-from sqlalchemy.orm import Session
+# Session typing not required in this test file after refactors
 
 from src.pipeline import entity_extraction as extraction
 
@@ -43,8 +42,10 @@ def test_score_match_prefers_exact_over_fuzzy():
         name="Springfield School",
         name_norm="springfield school",
     )
-    candidates = cast(list[extraction.Gazetteer], [near, exact])
-    result = extraction._score_match("springfield high school", candidates)
+    candidates = [near, exact]  # type: ignore[list-item]
+    result = extraction._score_match(
+        "springfield high school", candidates  # type: ignore[arg-type]
+    )
     assert result is not None
     assert result.gazetteer_id == "1"
     assert pytest.approx(result.score) == 1.0
@@ -65,7 +66,7 @@ def test_attach_gazetteer_matches_applies_best_candidate():
             category="schools",
         ),
     ]
-    typed_rows = cast(list[extraction.Gazetteer], rows)
+    typed_rows = rows  # type: ignore[assignment]
 
     entities: list[dict[str, object]] = [
         {
@@ -78,18 +79,20 @@ def test_attach_gazetteer_matches_applies_best_candidate():
         },
     ]
 
-    session_stub = cast(Session, None)
+    session_stub = None  # type: ignore[assignment]
 
     updated = extraction.attach_gazetteer_matches(
-        session=session_stub,
+        session=session_stub,  # type: ignore[arg-type]
         source_id=None,
         dataset_id=None,
         entities=entities,
-        gazetteer_rows=typed_rows,
+        gazetteer_rows=typed_rows,  # type: ignore[arg-type]
     )
 
     schools = {entity["entity_text"]: entity for entity in updated}
     assert schools["Springfield High School"]["matched_gazetteer_id"] == "2"
     assert schools["Springfield Clinic"]["matched_gazetteer_id"] == "1"
-    clinic_score = cast(float, schools["Springfield Clinic"]["match_score"])
+    clinic_score = float(
+        schools["Springfield Clinic"]["match_score"]  # type: ignore[arg-type]
+    )
     assert clinic_score >= 0.85

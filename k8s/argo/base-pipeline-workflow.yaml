@@ -400,44 +400,44 @@ spec:
       args:
         - |
           python - <<'PY'
-            import time
-            import sys
-            from datetime import datetime, timedelta
-            from src import config
-            from sqlalchemy import create_engine, text
+          import time
+          import sys
+          from datetime import datetime, timedelta
+          from src import config
+          from sqlalchemy import create_engine, text
 
-            min_candidates = int('{{inputs.parameters.min-candidates}}')
-            timeout = int('{{inputs.parameters.timeout-seconds}}')
-            deadline = datetime.utcnow() + timedelta(seconds=timeout)
+          min_candidates = int('{{inputs.parameters.min-candidates}}')
+          timeout = int('{{inputs.parameters.timeout-seconds}}')
+          deadline = datetime.utcnow() + timedelta(seconds=timeout)
 
-            if getattr(config, 'USE_CLOUD_SQL_CONNECTOR', False) and getattr(config, 'CLOUD_SQL_INSTANCE', None):
-                from src.models.cloud_sql_connector import create_cloud_sql_engine
-                engine = create_cloud_sql_engine(
-                    instance_connection_name=config.CLOUD_SQL_INSTANCE,
-                    user=config.DATABASE_USER,
-                    password=config.DATABASE_PASSWORD,
-                    database=config.DATABASE_NAME,
-                )
-            else:
-                engine = create_engine(config.DATABASE_URL)
+          if getattr(config, 'USE_CLOUD_SQL_CONNECTOR', False) and getattr(config, 'CLOUD_SQL_INSTANCE', None):
+              from src.models.cloud_sql_connector import create_cloud_sql_engine
+              engine = create_cloud_sql_engine(
+                  instance_connection_name=config.CLOUD_SQL_INSTANCE,
+                  user=config.DATABASE_USER,
+                  password=config.DATABASE_PASSWORD,
+                  database=config.DATABASE_NAME,
+              )
+          else:
+              engine = create_engine(config.DATABASE_URL)
 
-            while True:
-                try:
-                    with engine.connect() as conn:
-                        r = conn.execute(text("SELECT COUNT(*) FROM candidate_links WHERE created_at >= now() - interval '1 hour'"))
-                        count = r.scalar() or 0
-                        print(f"candidates_in_last_hour={count}")
-                        if count >= min_candidates:
-                            print("threshold met")
-                            sys.exit(0)
-                except Exception as e:
-                    print(f"db check error: {e}")
+          while True:
+              try:
+                  with engine.connect() as conn:
+                      r = conn.execute(text("SELECT COUNT(*) FROM candidate_links WHERE created_at >= now() - interval '1 hour'"))
+                      count = r.scalar() or 0
+                      print(f"candidates_in_last_hour={count}")
+                      if count >= min_candidates:
+                          print("threshold met")
+                          sys.exit(0)
+              except Exception as e:
+                  print(f"db check error: {e}")
 
-                if datetime.utcnow() >= deadline:
-                    print("timeout reached; proceeding")
-                    sys.exit(0)
+              if datetime.utcnow() >= deadline:
+                  print("timeout reached; proceeding")
+                  sys.exit(0)
 
-                time.sleep(15)
+              time.sleep(15)
           PY
       env:
       - name: DATABASE_ENGINE
@@ -504,7 +504,7 @@ spec:
           while True:
               try:
                   with engine.connect() as conn:
-                      r = conn.execute(text("SELECT COUNT(*) FROM candidate_links WHERE verification_status = 'verified' AND verified_at >= now() - interval '1 hour'"))
+                      r = conn.execute(text("SELECT COUNT(*) FROM candidate_links WHERE status = 'article' AND verified_at >= now() - interval '1 hour'"))
                       count = r.scalar() or 0
                       print(f"verified_in_last_hour={count}")
                       if count >= min_verified:
