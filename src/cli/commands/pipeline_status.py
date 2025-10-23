@@ -76,7 +76,12 @@ def handle_pipeline_status_command(args) -> int:
 
             # Overall pipeline health
             print("━━━ OVERALL PIPELINE HEALTH ━━━")
-            _check_overall_health(session, hours)
+            try:
+                _check_overall_health(session, hours)
+            except Exception as e:
+                session.rollback()
+                error_type = type(e).__name__
+                print(f"  ⚠️  Could not compute overall health: {error_type}")
             print()
 
         print("=" * 80)
@@ -337,8 +342,9 @@ def _check_entity_extraction_status(session, hours, detailed):
 
 def _check_analysis_status(session, hours, detailed):
     """Check analysis/classification pipeline status."""
-    # Check if article_classifications table exists
+    # Query the article_labels table (the actual classification results table)
     try:
+        # Count articles eligible for classification
         result = session.execute(
             text(
                 """
@@ -346,45 +352,49 @@ def _check_analysis_status(session, hours, detailed):
                 FROM articles a
                 WHERE a.status IN ('extracted', 'cleaned', 'local')
                 AND NOT EXISTS (
-                    SELECT 1 FROM article_classifications ac WHERE ac.article_id = a.id
+                    SELECT 1 FROM article_labels al
+                    WHERE al.article_id = a.id
                 )
             """
             )
         )
         ready_for_analysis = result.scalar() or 0
 
+        # Count total articles with classification labels
         result = session.execute(
-            text("SELECT COUNT(DISTINCT article_id) FROM article_classifications")
+            text("SELECT COUNT(DISTINCT article_id) FROM article_labels")
         )
         total_analyzed = result.scalar() or 0
 
+        # Count recent classifications
         cutoff = datetime.utcnow() - timedelta(hours=hours)
         result = session.execute(
             text(
                 """
                 SELECT COUNT(DISTINCT article_id)
-                FROM article_classifications
-                WHERE created_at >= :cutoff
+                FROM article_labels
+                WHERE applied_at >= :cutoff
             """
             ),
             {"cutoff": cutoff},
         )
         analyzed_recent = result.scalar() or 0
 
-        print(f"  Ready for analysis: {ready_for_analysis}")
-        print(f"  Articles analyzed (total): {total_analyzed}")
-        print(f"  Analyzed (last {hours}h): {analyzed_recent}")
+        print(f"  Ready for classification: {ready_for_analysis}")
+        print(f"  Articles classified (total): {total_analyzed}")
+        print(f"  Classified (last {hours}h): {analyzed_recent}")
 
         if ready_for_analysis > 1000:
             print(f"  ⚠️  WARNING: Large backlog of {ready_for_analysis} articles!")
 
         if analyzed_recent > 0:
-            print(f"  ✓ Analysis active in last {hours}h")
+            print(f"  ✓ Classification active in last {hours}h")
         else:
-            print(f"  ⚠️  WARNING: No analysis activity in last {hours}h!")
+            print(f"  ⚠️  WARNING: No classification activity in last {hours}h!")
 
-    except Exception:
-        print("  ℹ️  Analysis table not available or error checking status")
+    except Exception as e:
+        session.rollback()
+        print(f"  ℹ️  Error checking classification status: {type(e).__name__}")
 
 
 def _check_overall_health(session, hours):

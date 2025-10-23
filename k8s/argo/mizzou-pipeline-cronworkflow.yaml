@@ -15,6 +15,12 @@ spec:
   workflowSpec:
     entrypoint: mizzou-pipeline-wrapper
     serviceAccountName: argo-workflow
+    # Add workflow-level metadata for log correlation
+    workflowMetadata:
+      labels:
+        dataset: mizzou-missouri-state
+        pipeline-type: scheduled
+        schedule: every-6-hours
     
     templates:
     # Wrapper that calls the reusable template

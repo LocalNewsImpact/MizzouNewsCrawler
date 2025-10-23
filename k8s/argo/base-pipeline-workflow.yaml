@@ -122,6 +122,8 @@ spec:
     metadata:
       labels:
         stage: discovery
+        workflow-name: "{{workflow.name}}"
+        workflow-uid: "{{workflow.uid}}"
     retryStrategy:
       limit: 2
       retryPolicy: "OnFailure"
@@ -205,6 +207,8 @@ spec:
     metadata:
       labels:
         stage: verification
+        workflow-name: "{{workflow.name}}"
+        workflow-uid: "{{workflow.uid}}"
     retryStrategy:
       limit: 2
       retryPolicy: "OnFailure"
@@ -293,6 +297,8 @@ spec:
     metadata:
       labels:
         stage: extraction
+        workflow-name: "{{workflow.name}}"
+        workflow-uid: "{{workflow.uid}}"
     retryStrategy:
       limit: 2
       retryPolicy: "OnFailure"
@@ -394,6 +400,11 @@ spec:
       parameters:
       - name: min-candidates
       - name: timeout-seconds
+    metadata:
+      labels:
+        stage: wait-candidates
+        workflow-name: "{{workflow.name}}"
+        workflow-uid: "{{workflow.uid}}"
     container:
       image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
       command: ["/bin/sh","-c"]
@@ -474,6 +485,11 @@ spec:
       parameters:
       - name: min-verified
       - name: timeout-seconds
+    metadata:
+      labels:
+        stage: wait-verified
+        workflow-name: "{{workflow.name}}"
+        workflow-uid: "{{workflow.uid}}"
     container:
       image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
       command: ["/bin/sh","-c"]

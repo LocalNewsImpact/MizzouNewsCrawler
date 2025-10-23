@@ -405,8 +405,8 @@ class BylineCleaningTelemetry:
                             id, telemetry_id, step_number, step_name,
                             input_text, output_text, transformation_type,
                             removed_content, added_content, confidence_delta,
-                            processing_time_ms, notes, timestamp
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            processing_time_ms, notes, timestamp, created_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             step["id"],
@@ -422,6 +422,7 @@ class BylineCleaningTelemetry:
                             step["processing_time_ms"],
                             step.get("notes"),
                             step["timestamp"],
+                            datetime.utcnow(),
                         ),
                     )
             finally:
