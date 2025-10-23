@@ -49,6 +49,8 @@ except Exception:
 
 
 class DatasetVersion(Base):
+    __tablename__ = "dataset_versions"
+    
     # NOTE: migrate fields incrementally to reduce mypy noise. Convert a
     # small subset first (id, dataset_name, version_tag, created_at,
     # status, row_count).
@@ -71,7 +73,6 @@ class DatasetVersion(Base):
         String, nullable=False, default="pending", index=True
     )  # pending|in_progress|ready|failed
 
- 
     checksum: Mapped[str | None] = mapped_column(String, nullable=True)
     row_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     claimed_by: Mapped[str | None] = mapped_column(String, nullable=True)
