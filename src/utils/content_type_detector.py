@@ -24,7 +24,56 @@ class ContentTypeResult:
 class ContentTypeDetector:
     """Detect high-signal opinion and obituary content types."""
 
-    VERSION = "2025-09-27a"
+    VERSION = "2025-10-23a"
+
+    # Wire service indicators for dateline detection
+    _WIRE_SERVICE_PATTERNS = (
+        # Format: (pattern, canonical_name, case_sensitive)
+        (r"\b(AP|A\.P\.)\b", "Associated Press", False),
+        (r"\b(ASSOCIATED PRESS|Associated Press)\b", "Associated Press", True),
+        (r"\bREUTERS\b", "Reuters", False),
+        (r"\b(Reuters)\b", "Reuters", True),
+        (r"\b(CNN|C\.N\.N\.)\b", "CNN", False),
+        (r"\b(Bloomberg|BLOOMBERG)\b", "Bloomberg", False),
+        (r"\b(NPR|N\.P\.R\.)\b", "NPR", False),
+        (r"\b(PBS|P\.B\.S\.)\b", "PBS", False),
+        (r"\b(UPI|U\.P\.I\.)\b", "UPI", False),
+        (r"\b(AFP|Agence France-Presse)\b", "AFP", False),
+        (r"\bThe New York Times\b", "The New York Times", True),
+        (r"\bThe Washington Post\b", "The Washington Post", True),
+        (r"\bUSA TODAY\b", "USA TODAY", True),
+        (r"\bWall Street Journal\b", "Wall Street Journal", True),
+        (r"\bLos Angeles Times\b", "Los Angeles Times", True),
+        (r"\bTribune News Service\b", "Tribune News Service", True),
+        (r"\bGannett\b", "Gannett", True),
+        (r"\bMcClatchy\b", "McClatchy", True),
+    )
+    
+    # Common dateline patterns (CITY_NAME, STATE/COUNTRY (WIRE_SERVICE))
+    _DATELINE_PATTERN = re.compile(
+        r"^([A-Z][A-Z\s,\.'-]+)\s*[–—-]\s*",
+        re.MULTILINE
+    )
+
+    _WIRE_URL_PATTERNS = (
+        "cnn.com",
+        "apnews.com",
+        "reuters.com",
+        "bloomberg.com",
+        "npr.org",
+        "pbs.org",
+        "nytimes.com",
+        "washingtonpost.com",
+        "usatoday.com",
+        "wsj.com",
+        "latimes.com",
+        "/ap-",
+        "/cnn-",
+        "/reuters-",
+        "/wire/",
+        "/national/",
+        "/world/",
+    )
 
     _OBITUARY_TITLE_KEYWORDS = (
         "obituary",
@@ -162,6 +211,14 @@ class ContentTypeDetector:
         keywords = self._normalize_keywords(normalized_metadata.get("keywords"))
         meta_description = normalized_metadata.get("meta_description")
 
+        # Check for wire service content first (highest priority)
+        wire_result = self._detect_wire_service(
+            url=url,
+            content=content,
+        )
+        if wire_result:
+            return wire_result
+
         obituary_result = self._detect_obituary(
             url=url,
             title=title,
@@ -177,6 +234,126 @@ class ContentTypeDetector:
             title=title,
             keywords=keywords,
             meta_description=meta_description,
+        )
+
+    def _detect_wire_service(
+        self,
+        *,
+        url: str,
+        content: str | None,
+    ) -> ContentTypeResult | None:
+        """
+        Detect wire service content by analyzing URL patterns and article datelines.
+        
+        Wire services are often indicated in:
+        1. First 150 characters (opening dateline: "WASHINGTON (AP) —")
+        2. Last 150 characters (attribution: "©2025 The Associated Press")
+        3. URL patterns (/cnn-, /ap-, cnn.com, etc.)
+        """
+        matches: dict[str, list[str]] = {}
+        detected_services: set[str] = set()
+        
+        # Check URL for wire service patterns
+        url_lower = url.lower()
+        url_wire_matches = []
+        for pattern in self._WIRE_URL_PATTERNS:
+            if pattern in url_lower:
+                url_wire_matches.append(pattern)
+                # Try to extract service name from URL
+                if "cnn" in pattern:
+                    detected_services.add("CNN")
+                elif "ap" in pattern:
+                    detected_services.add("Associated Press")
+                elif "reuters" in pattern:
+                    detected_services.add("Reuters")
+                elif "bloomberg" in pattern:
+                    detected_services.add("Bloomberg")
+                elif "npr" in pattern:
+                    detected_services.add("NPR")
+                elif "nytimes" in pattern:
+                    detected_services.add("The New York Times")
+                elif "washingtonpost" in pattern:
+                    detected_services.add("The Washington Post")
+                elif "usatoday" in pattern:
+                    detected_services.add("USA TODAY")
+                elif "wsj" in pattern:
+                    detected_services.add("Wall Street Journal")
+                elif "latimes" in pattern:
+                    detected_services.add("Los Angeles Times")
+        
+        if url_wire_matches:
+            matches["url"] = url_wire_matches
+        
+        # Check article content (datelines appear in first/last 150 chars)
+        if content:
+            content_matches = []
+            
+            # Check first 150 characters for opening dateline
+            opening = content[:150] if len(content) > 150 else content
+            for pattern, service_name, case_sensitive in self._WIRE_SERVICE_PATTERNS:
+                flags = 0 if case_sensitive else re.IGNORECASE
+                if re.search(pattern, opening, flags):
+                    content_matches.append(f"{service_name} (opening)")
+                    detected_services.add(service_name)
+            
+            # Check last 150 characters for attribution/copyright
+            closing = content[-150:] if len(content) > 150 else content
+            for pattern, service_name, case_sensitive in self._WIRE_SERVICE_PATTERNS:
+                flags = 0 if case_sensitive else re.IGNORECASE
+                if re.search(pattern, closing, flags):
+                    # Avoid duplicate if already found in opening
+                    marker = f"{service_name} (closing)"
+                    opening_marker = f"{service_name} (opening)"
+                    already_found = (
+                        marker in content_matches
+                        or opening_marker in content_matches
+                    )
+                    if not already_found:
+                        content_matches.append(marker)
+                        detected_services.add(service_name)
+            
+            # Check for common dateline patterns in first 100 chars
+            dateline_match = self._DATELINE_PATTERN.search(opening)
+            if dateline_match:
+                dateline_city = dateline_match.group(1).strip()
+                # Common wire dateline cities
+                wire_cities = {
+                    "WASHINGTON", "NEW YORK", "LONDON", "PARIS", "BEIJING",
+                    "MOSCOW", "BRUSSELS", "GENEVA", "UNITED NATIONS"
+                }
+                if any(city in dateline_city.upper() for city in wire_cities):
+                    content_matches.append(f"dateline: {dateline_city}")
+            
+            if content_matches:
+                matches["content"] = content_matches
+        
+        # Return wire detection result if we found evidence
+        if not matches:
+            return None
+        
+        # Build evidence summary
+        evidence = matches.copy()
+        if detected_services:
+            evidence["detected_services"] = sorted(detected_services)
+        
+        # Calculate confidence based on evidence
+        score = 0
+        if "url" in matches:
+            score += 2  # URL patterns are strong indicators
+        if "content" in matches:
+            score += 2  # Content patterns are strong indicators
+        
+        # Normalize score (max 4 points)
+        confidence_score = min(score / 4.0, 1.0)
+        confidence = "high" if score >= 3 else "medium"
+        
+        return ContentTypeResult(
+            status="wire",
+            confidence_score=confidence_score,
+            confidence=confidence,
+            reason="wire_service_detected",
+            evidence=evidence,
+            detector_version=self.VERSION,
         )
 
     def _detect_obituary(
