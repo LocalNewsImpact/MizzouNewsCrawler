@@ -901,7 +901,24 @@ def _process_batch(
                         CANDIDATE_STATUS_UPDATE_SQL,
                         {"status": article_status, "id": str(url_id)},
                     )
-                    session.commit()
+                    
+                    # Explicit commit with logging to catch silent failures
+                    try:
+                        session.commit()
+                        logger.debug(
+                            "Successfully committed article %s (%s) to database",
+                            article_id,
+                            url[:80]
+                        )
+                    except Exception as commit_error:
+                        logger.error(
+                            "Database commit failed for article %s: %s",
+                            article_id,
+                            commit_error,
+                            exc_info=True
+                        )
+                        raise
+                    
                     telemetry.record_extraction(metrics)
                     domains_for_cleaning[domain].append(article_id)
                     processed += 1
