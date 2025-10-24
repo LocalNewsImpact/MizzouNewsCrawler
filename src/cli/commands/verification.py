@@ -157,9 +157,10 @@ def run_verification_service(
 
         if max_batches_supported:
             loop_kwargs["max_batches"] = max_batches
-        # Only exit on idle if continuous is False AND max_batches is NOT set
-        # When max_batches is set, keep polling until we hit the batch limit
-        if exit_on_idle_supported and not continuous and max_batches is None:
+        # Exit on idle unless --continuous flag is explicitly set
+        # When max_batches is set, we still want to exit if there's no work
+        # rather than polling forever
+        if exit_on_idle_supported and not continuous:
             loop_kwargs["exit_on_idle"] = True
 
         if loop_kwargs:
