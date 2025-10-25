@@ -708,10 +708,11 @@ def _process_batch(
         )
         if not rows:
             logger.warning("⚠️  No articles found matching extraction criteria")
-            # Log database connection details for debugging
+            # Log database connection details for debugging (with password masked)
+            masked_url = db._mask_password_in_url(db.database_url)
             logger.warning(
                 "Database URL being used: %s",
-                db.database_url[:50] + "..." if len(db.database_url) > 50 else db.database_url,
+                masked_url[:80] + "..." if len(masked_url) > 80 else masked_url,
             )
             return {"processed": 0}
 
