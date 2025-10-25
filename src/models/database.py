@@ -79,17 +79,35 @@ class DatabaseManager:
                 database_url = "sqlite:///data/mizzou.db"
 
         self.database_url = database_url
+        
+        # Log database URL for debugging (mask password)
+        url_for_log = database_url
+        if "@" in url_for_log and "://" in url_for_log:
+            # Mask password in connection string
+            parts = url_for_log.split("://", 1)
+            if len(parts) == 2 and "@" in parts[1]:
+                scheme = parts[0]
+                remainder = parts[1]
+                auth_and_rest = remainder.split("@", 1)
+                if ":" in auth_and_rest[0]:
+                    user = auth_and_rest[0].split(":")[0]
+                    url_for_log = f"{scheme}://{user}:***@{auth_and_rest[1]}"
+        logger.info("DatabaseManager initialized with URL: %s", url_for_log)
 
         # Check if we should use Cloud SQL Python Connector
         use_cloud_sql = self._should_use_cloud_sql_connector()
 
         if use_cloud_sql:
+            logger.info("Using Cloud SQL Python Connector")
             self.engine = self._create_cloud_sql_engine()
         else:
             # Traditional connection (SQLite or direct PostgreSQL)
             connect_args = {}
             if "sqlite" in database_url:
                 connect_args = {"check_same_thread": False, "timeout": 30}
+                logger.info("Using SQLite database with WAL mode")
+            else:
+                logger.info("Using direct PostgreSQL connection (no Cloud SQL connector)")
 
             self.engine = create_engine(
                 database_url,
