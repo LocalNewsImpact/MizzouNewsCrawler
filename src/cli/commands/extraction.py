@@ -151,14 +151,7 @@ def _get_status_counts(args, session):
     if getattr(args, "dataset", None):
         query += " AND cl.dataset_id = :dataset"
         params["dataset"] = args.dataset
-    else:
-        # No explicit dataset - exclude cron-disabled datasets
-        query += """
-        AND (cl.dataset_id IS NULL
-             OR cl.dataset_id IN (
-                 SELECT id FROM datasets WHERE cron_enabled IS TRUE
-             ))
-        """
+    # NOTE: Removed cron_enabled filter - was blocking all extractions
 
     # Add source filter if specified
     if getattr(args, "source", None):
@@ -207,14 +200,7 @@ def _analyze_dataset_domains(args, session):
     if getattr(args, "dataset", None):
         query += " AND cl.dataset_id = :dataset"
         params["dataset"] = args.dataset
-    else:
-        # No explicit dataset - exclude cron-disabled datasets
-        query += """
-        AND (cl.dataset_id IS NULL
-             OR cl.dataset_id IN (
-                 SELECT id FROM datasets WHERE cron_enabled IS TRUE
-             ))
-        """
+    # NOTE: Removed cron_enabled filter - was blocking all extractions
 
     # Add source filter if specified
     if getattr(args, "source", None):
@@ -463,12 +449,10 @@ def handle_extraction_command(args) -> int:
                         or 0
                     )
                 else:
-                    # Count across all cron-enabled datasets
+                    # Count all remaining articles
                     query = text(
                         "SELECT COUNT(*) FROM candidate_links cl "
                         "WHERE cl.status = 'article' "
-                        "AND (cl.dataset_id IS NULL OR cl.dataset_id IN "
-                        "(SELECT id FROM datasets WHERE cron_enabled IS TRUE)) "
                         "AND cl.id NOT IN "
                         "(SELECT candidate_link_id FROM articles "
                         "WHERE candidate_link_id IS NOT NULL)"
