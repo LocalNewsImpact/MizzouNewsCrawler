@@ -95,7 +95,13 @@ ARTICLE_INSERT_SQL = text(
     "created_at, text_hash) VALUES (:id, :candidate_link_id, :url, :title, "
     ":author, :publish_date, :content, :text, :status, :metadata, :wire, "
     ":extracted_at, :created_at, :text_hash) "
-    "ON CONFLICT (url) DO NOTHING"
+    # Avoid specifying a conflict target here (ON CONFLICT (url) ...) if the
+    # corresponding unique constraint may not exist in some deployments. Using
+    # a plain DO NOTHING will avoid raising InvalidColumnReference while still
+    # allowing PostgreSQL to skip inserts when a relevant unique constraint is
+    # present. To enforce deduplication permanently, add a UNIQUE constraint on
+    # `articles.url` in the DB (see migration instructions in the logs).
+    "ON CONFLICT DO NOTHING"
 )
 
 CANDIDATE_STATUS_UPDATE_SQL = text(

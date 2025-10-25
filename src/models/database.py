@@ -60,7 +60,24 @@ def _configure_sqlite_engine(engine, timeout: float | None) -> None:
 class DatabaseManager:
     """Manages database connections and operations."""
 
-    def __init__(self, database_url: str = "sqlite:///data/mizzou.db"):
+    def __init__(self, database_url: str | None = None):
+        """
+        Initialize DatabaseManager.
+
+        If `database_url` is not provided, prefer the application's configured
+        DATABASE_URL from `src.config`. This allows call sites to simply use
+        `DatabaseManager()` in deployed environments while still falling back
+        to the default local SQLite path for quick local runs and tests.
+        """
+        # Defer import to avoid import-time side effects in test/bootstrap code
+        if not database_url:
+            try:
+                from src.config import DATABASE_URL as _cfg_db_url
+
+                database_url = _cfg_db_url
+            except Exception:
+                database_url = "sqlite:///data/mizzou.db"
+
         self.database_url = database_url
 
         # Check if we should use Cloud SQL Python Connector
