@@ -685,21 +685,8 @@ def _process_batch(
             )
             params["dataset"] = args.dataset
             logger.info("🔍 Extraction query filtering by dataset: %s", args.dataset)
-        else:
-            # No explicit dataset - exclude cron-disabled datasets
-            # Protects custom source lists from automated jobs
-            q = q.replace(
-                "WHERE cl.status = 'article'",
-                """WHERE cl.status = 'article'
-                AND (cl.dataset_id IS NULL
-                     OR cl.dataset_id IN (
-                         SELECT id FROM datasets WHERE cron_enabled IS TRUE
-                     ))""",
-            )
-            logger.info(
-                "🔍 Extraction query: processing ALL datasets "
-                "(excluding cron_enabled=false)"
-            )
+        # NOTE: Removed cron_enabled filter - was blocking all extractions
+        # All candidate_links with status='article' are fair game
 
         # Add source filter if specified
         if getattr(args, "source", None):
