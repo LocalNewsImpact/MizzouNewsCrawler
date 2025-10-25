@@ -95,12 +95,11 @@ ARTICLE_INSERT_SQL = text(
     "created_at, text_hash) VALUES (:id, :candidate_link_id, :url, :title, "
     ":author, :publish_date, :content, :text, :status, :metadata, :wire, "
     ":extracted_at, :created_at, :text_hash) "
-    # Avoid specifying a conflict target here (ON CONFLICT (url) ...) if the
-    # corresponding unique constraint may not exist in some deployments. Using
-    # a plain DO NOTHING will avoid raising InvalidColumnReference while still
-    # allowing PostgreSQL to skip inserts when a relevant unique constraint is
-    # present. To enforce deduplication permanently, add a UNIQUE constraint on
-    # `articles.url` in the DB (see migration instructions in the logs).
+    # ON CONFLICT DO NOTHING handles duplicate URLs gracefully.
+    # After migration 1a2b3c4d5e6f runs, a UNIQUE constraint on articles.url
+    # will exist, and this will prevent duplicate URL inserts.
+    # Note: Using plain DO NOTHING (instead of ON CONFLICT (url) DO NOTHING)
+    # ensures compatibility with databases that haven't run the migration yet.
     "ON CONFLICT DO NOTHING"
 )
 
