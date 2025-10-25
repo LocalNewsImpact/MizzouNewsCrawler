@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: extraction-test-fixed
+  namespace: production
+spec:
+  serviceAccountName: argo-workflow
+  entrypoint: extraction-step
+  workflowTemplateRef:
+    name: news-pipeline-template
+  arguments:
+    parameters:
+    - name: dataset
+      value: "Mizzou-Missouri-State"
+    - name: limit
+      value: "50"
+    - name: batches
+      value: "1"
+    - name: inter-request-min
+      value: "2.0"
+    - name: inter-request-max
+      value: "5.0"
+    - name: batch-sleep
+      value: "0.5"
+    - name: captcha-backoff-base
+      value: "60"
+    - name: captcha-backoff-max
+      value: "7200"

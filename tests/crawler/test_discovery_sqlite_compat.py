@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+from sqlalchemy import text
 
 from src.crawler.discovery import NewsDiscovery
 from src.models.database import DatabaseManager
@@ -25,7 +26,7 @@ def sqlite_db(tmp_path: Path) -> str:
     with db.engine.begin() as conn:
         # Create sources table
         conn.execute(
-            """
+            text("""
             CREATE TABLE IF NOT EXISTS sources (
                 id TEXT PRIMARY KEY,
                 canonical_name TEXT,
@@ -36,35 +37,35 @@ def sqlite_db(tmp_path: Path) -> str:
                 type TEXT,
                 metadata TEXT
             )
-            """
+            """)
         )
 
         # Create datasets table
         conn.execute(
-            """
+            text("""
             CREATE TABLE IF NOT EXISTS datasets (
                 id TEXT PRIMARY KEY,
                 label TEXT UNIQUE,
                 slug TEXT,
                 created_at TEXT
             )
-            """
+            """)
         )
 
         # Create dataset_sources junction table
         conn.execute(
-            """
+            text("""
             CREATE TABLE IF NOT EXISTS dataset_sources (
                 dataset_id TEXT,
                 source_id TEXT,
                 PRIMARY KEY (dataset_id, source_id)
             )
-            """
+            """)
         )
 
         # Create candidate_links table
         conn.execute(
-            """
+            text("""
             CREATE TABLE IF NOT EXISTS candidate_links (
                 id TEXT PRIMARY KEY,
                 source_id TEXT,
@@ -73,40 +74,40 @@ def sqlite_db(tmp_path: Path) -> str:
                 discovered_at TEXT,
                 processed_at TEXT
             )
-            """
+            """)
         )
 
         # Create telemetry tables (minimal)
         conn.execute(
-            """
+            text("""
             CREATE TABLE IF NOT EXISTS operations (
                 id TEXT PRIMARY KEY,
                 operation_type TEXT,
                 created_at TEXT
             )
-            """
+            """)
         )
 
         conn.execute(
-            """
+            text("""
             CREATE TABLE IF NOT EXISTS discovery_outcomes (
                 id TEXT PRIMARY KEY,
                 operation_id TEXT,
                 source_id TEXT,
                 created_at TEXT
             )
-            """
+            """)
         )
 
         conn.execute(
-            """
+            text("""
             CREATE TABLE IF NOT EXISTS discovery_method_effectiveness (
                 id TEXT PRIMARY KEY,
                 source_id TEXT,
                 discovery_method TEXT,
                 created_at TEXT
             )
-            """
+            """)
         )
 
     return database_url
@@ -120,11 +121,11 @@ def test_get_sources_query_works_on_sqlite(sqlite_db: str):
     dataset_id = str(uuid.uuid4())
     with db.engine.begin() as conn:
         conn.execute(
-            """
+            text("""
             INSERT INTO datasets (id, label, slug, created_at)
-            VALUES (?, ?, ?, datetime('now'))
-            """,
-            (dataset_id, "test-dataset", "test-dataset"),
+            VALUES (:dataset_id, :label, :slug, datetime('now'))
+            """),
+            {"dataset_id": dataset_id, "label": "test-dataset", "slug": "test-dataset"},
         )
 
     # Insert test sources
@@ -135,26 +136,26 @@ def test_get_sources_query_works_on_sqlite(sqlite_db: str):
 
         with db.engine.begin() as conn:
             conn.execute(
-                """
+                text("""
                 INSERT INTO sources (id, canonical_name, host, city, county)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (
-                    source_id,
-                    f"Test Source {i+1}",
-                    f"test{i+1}.example.com",
-                    "TestCity",
-                    "TestCounty",
-                ),
+                VALUES (:id, :name, :host, :city, :county)
+                """),
+                {
+                    "id": source_id,
+                    "name": f"Test Source {i+1}",
+                    "host": f"test{i+1}.example.com",
+                    "city": "TestCity",
+                    "county": "TestCounty",
+                },
             )
 
             # Link to dataset
             conn.execute(
-                """
+                text("""
                 INSERT INTO dataset_sources (dataset_id, source_id)
-                VALUES (?, ?)
-                """,
-                (dataset_id, source_id),
+                VALUES (:dataset_id, :source_id)
+                """),
+                {"dataset_id": dataset_id, "source_id": source_id},
             )
 
     # Test: get_sources_to_process should not raise SQL error
@@ -186,22 +187,19 @@ def test_dataset_filtering_works_on_sqlite(sqlite_db: str):
     dataset2_id = str(uuid.uuid4())
 
     with db.engine.begin() as conn:
-        conn.execute(
-            """
+        conn.execute(text("""
             INSERT INTO datasets (id, label, slug, created_at)
             VALUES 
                 (?, ?, ?, datetime('now')),
                 (?, ?, ?, datetime('now'))
-            """,
-            (
+            """), (
                 dataset1_id,
                 "Dataset-1",
                 "dataset-1",
                 dataset2_id,
                 "Dataset-2",
                 "dataset-2",
-            ),
-        )
+            ))
 
     # Create sources for each dataset
     source1_id = str(uuid.uuid4())
@@ -209,36 +207,24 @@ def test_dataset_filtering_works_on_sqlite(sqlite_db: str):
 
     with db.engine.begin() as conn:
         # Source 1 in Dataset 1
-        conn.execute(
-            """
+        conn.execute(text("""
             INSERT INTO sources (id, canonical_name, host)
             VALUES (?, ?, ?)
-            """,
-            (source1_id, "Source 1", "source1.com"),
-        )
-        conn.execute(
-            """
+            """), (source1_id, "Source 1", "source1.com"))
+        conn.execute(text("""
             INSERT INTO dataset_sources (dataset_id, source_id)
             VALUES (?, ?)
-            """,
-            (dataset1_id, source1_id),
-        )
+            """), (dataset1_id, source1_id))
 
         # Source 2 in Dataset 2
-        conn.execute(
-            """
+        conn.execute(text("""
             INSERT INTO sources (id, canonical_name, host)
             VALUES (?, ?, ?)
-            """,
-            (source2_id, "Source 2", "source2.com"),
-        )
-        conn.execute(
-            """
+            """), (source2_id, "Source 2", "source2.com"))
+        conn.execute(text("""
             INSERT INTO dataset_sources (dataset_id, source_id)
             VALUES (?, ?)
-            """,
-            (dataset2_id, source2_id),
-        )
+            """), (dataset2_id, source2_id))
 
     # Test: Filter by Dataset 1
     discovery = NewsDiscovery(database_url=sqlite_db)
@@ -261,13 +247,10 @@ def test_invalid_dataset_returns_empty_with_error(sqlite_db: str, caplog):
     # Create a valid dataset
     dataset_id = str(uuid.uuid4())
     with db.engine.begin() as conn:
-        conn.execute(
-            """
+        conn.execute(text("""
             INSERT INTO datasets (id, label, slug, created_at)
             VALUES (?, ?, ?, datetime('now'))
-            """,
-            (dataset_id, "Valid-Dataset", "valid-dataset"),
-        )
+            """), (dataset_id, "Valid-Dataset", "valid-dataset"))
 
     # Test: Query with invalid dataset
     discovery = NewsDiscovery(database_url=sqlite_db)
@@ -298,12 +281,10 @@ def test_due_only_filtering_on_sqlite(sqlite_db: str):
     metadata = {"last_discovery_at": "2025-10-21T00:00:00", "frequency": "daily"}
 
     with db.engine.begin() as conn:
-        conn.execute(
-            """
+        conn.execute(text("""
             INSERT INTO sources (id, canonical_name, host, metadata)
             VALUES (?, ?, ?, ?)
-            """,
-            (source_id, "Test Source", "test.com", json.dumps(metadata)),
+            """), (source_id, "Test Source", "test.com", json.dumps(metadata)),
         )
 
     discovery = NewsDiscovery(database_url=sqlite_db)
@@ -332,13 +313,10 @@ def test_database_dialect_detection(sqlite_db: str):
     # Insert a test source
     source_id = str(uuid.uuid4())
     with db.engine.begin() as conn:
-        conn.execute(
-            """
+        conn.execute(text("""
             INSERT INTO sources (id, canonical_name, host)
             VALUES (?, ?, ?)
-            """,
-            (source_id, "Test", "test.com"),
-        )
+            """), (source_id, "Test", "test.com"))
 
     # This should work without DISTINCT ON syntax error
     sources_df, _ = discovery.get_sources_to_process()
