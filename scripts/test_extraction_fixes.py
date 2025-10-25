@@ -35,13 +35,15 @@ def test_database_manager_logging():
     import tempfile
     
     # Create a test database with proper temp file
-    with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
-        test_db_path = f.name
-    
-    test_db_url = f"sqlite:///{test_db_path}"
-    os.environ['DATABASE_URL'] = test_db_url
+    # Use a temp directory to ensure cleanup
+    import shutil
+    temp_dir = tempfile.mkdtemp()
     
     try:
+        test_db_path = os.path.join(temp_dir, 'test_extraction_fixes.db')
+        test_db_url = f"sqlite:///{test_db_path}"
+        os.environ['DATABASE_URL'] = test_db_url
+        
         # Capture logs
         db = DatabaseManager()
         
@@ -51,9 +53,13 @@ def test_database_manager_logging():
         db.close()
         logger.info("✓ DatabaseManager logging works")
     finally:
-        # Clean up
-        if os.path.exists(test_db_path):
-            os.unlink(test_db_path)
+        # Clean up temp directory
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def _is_truthy(value):
+    """Check if environment variable value is truthy."""
+    return value.lower() in ('true', '1', 'yes')
 
 
 def test_extraction_dump_sql_flag():
@@ -62,13 +68,13 @@ def test_extraction_dump_sql_flag():
     
     # Test flag detection
     os.environ['EXTRACTION_DUMP_SQL'] = 'false'
-    assert os.getenv('EXTRACTION_DUMP_SQL', '').lower() not in ('true', '1', 'yes')
+    assert not _is_truthy(os.getenv('EXTRACTION_DUMP_SQL', ''))
     
     os.environ['EXTRACTION_DUMP_SQL'] = 'true'
-    assert os.getenv('EXTRACTION_DUMP_SQL', '').lower() in ('true', '1', 'yes')
+    assert _is_truthy(os.getenv('EXTRACTION_DUMP_SQL', ''))
     
     os.environ['EXTRACTION_DUMP_SQL'] = '1'
-    assert os.getenv('EXTRACTION_DUMP_SQL', '').lower() in ('true', '1', 'yes')
+    assert _is_truthy(os.getenv('EXTRACTION_DUMP_SQL', ''))
     
     logger.info("✓ EXTRACTION_DUMP_SQL flag works")
 
