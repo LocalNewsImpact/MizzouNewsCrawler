@@ -79,17 +79,25 @@ class DatabaseManager:
                 database_url = "sqlite:///data/mizzou.db"
 
         self.database_url = database_url
+        
+        # Log database URL for debugging (mask password)
+        url_for_log = self._mask_password_in_url(database_url)
+        logger.info("DatabaseManager initialized with URL: %s", url_for_log)
 
         # Check if we should use Cloud SQL Python Connector
         use_cloud_sql = self._should_use_cloud_sql_connector()
 
         if use_cloud_sql:
+            logger.info("Using Cloud SQL Python Connector")
             self.engine = self._create_cloud_sql_engine()
         else:
             # Traditional connection (SQLite or direct PostgreSQL)
             connect_args = {}
             if "sqlite" in database_url:
                 connect_args = {"check_same_thread": False, "timeout": 30}
+                logger.info("Using SQLite database with WAL mode")
+            else:
+                logger.info("Using direct PostgreSQL connection (no Cloud SQL connector)")
 
             self.engine = create_engine(
                 database_url,
@@ -117,6 +125,48 @@ class DatabaseManager:
             return USE_CLOUD_SQL_CONNECTOR and bool(CLOUD_SQL_INSTANCE)
         except ImportError:
             return False
+
+    @staticmethod
+    def _mask_password_in_url(database_url: str) -> str:
+        """Mask password in database URL for safe logging.
+        
+        Converts URLs like:
+        postgresql://user:password@host/db -> postgresql://user:***@host/db
+        sqlite:///path/to/db.db -> sqlite:///path/to/db.db (unchanged)
+        """
+        if "@" not in database_url or "://" not in database_url:
+            # No authentication in URL, safe to return as-is
+            return database_url
+        
+        try:
+            # Split by ://
+            parts = database_url.split("://", 1)
+            if len(parts) != 2:
+                return database_url
+            
+            scheme = parts[0]
+            remainder = parts[1]
+            
+            # Find the last @ which separates auth from host
+            # (passwords may contain @ symbols)
+            last_at_index = remainder.rfind("@")
+            if last_at_index == -1:
+                return database_url
+            
+            auth_part = remainder[:last_at_index]
+            host_part = remainder[last_at_index + 1:]
+            
+            # Split auth into user:password
+            if ":" not in auth_part:
+                # No password in URL
+                return database_url
+                
+            user = auth_part.split(":", 1)[0]
+            # Mask the password
+            return f"{scheme}://{user}:***@{host_part}"
+        except Exception:
+            # If masking fails for any reason, return a safe placeholder
+            return "***database_url_masking_failed***"
 
     def _create_cloud_sql_engine(self):
         """Create database engine using Cloud SQL Python Connector."""

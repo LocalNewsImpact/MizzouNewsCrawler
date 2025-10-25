@@ -95,12 +95,11 @@ ARTICLE_INSERT_SQL = text(
     "created_at, text_hash) VALUES (:id, :candidate_link_id, :url, :title, "
     ":author, :publish_date, :content, :text, :status, :metadata, :wire, "
     ":extracted_at, :created_at, :text_hash) "
-    # Avoid specifying a conflict target here (ON CONFLICT (url) ...) if the
-    # corresponding unique constraint may not exist in some deployments. Using
-    # a plain DO NOTHING will avoid raising InvalidColumnReference while still
-    # allowing PostgreSQL to skip inserts when a relevant unique constraint is
-    # present. To enforce deduplication permanently, add a UNIQUE constraint on
-    # `articles.url` in the DB (see migration instructions in the logs).
+    # ON CONFLICT DO NOTHING handles duplicate URLs gracefully.
+    # After migration 1a2b3c4d5e6f runs, a UNIQUE constraint on articles.url
+    # will exist, and this will prevent duplicate URL inserts.
+    # Note: Using plain DO NOTHING (instead of ON CONFLICT (url) DO NOTHING)
+    # ensures compatibility with databases that haven't run the migration yet.
     "ON CONFLICT DO NOTHING"
 )
 
@@ -692,6 +691,14 @@ def _process_batch(
                 )
             params["source"] = args.source
 
+        # Debug SQL dumping if EXTRACTION_DUMP_SQL=true
+        if os.getenv("EXTRACTION_DUMP_SQL", "").lower() in ("true", "1", "yes"):
+            logger.info(
+                "🔍 EXTRACTION_DUMP_SQL enabled - SQL query:\n%s\nParams: %s",
+                q,
+                params,
+            )
+
         result = session.execute(text(q), params)
         rows = result.fetchall()
         logger.info(
@@ -701,6 +708,12 @@ def _process_batch(
         )
         if not rows:
             logger.warning("⚠️  No articles found matching extraction criteria")
+            # Log database connection details for debugging (with password masked)
+            masked_url = db._mask_password_in_url(db.database_url)
+            logger.warning(
+                "Database URL being used: %s",
+                masked_url[:80] + "..." if len(masked_url) > 80 else masked_url,
+            )
             return {"processed": 0}
 
         processed = 0
@@ -906,6 +919,47 @@ def _process_batch(
                             exc_info=True
                         )
                         raise
+                    
+                    # POST-COMMIT VERIFICATION: Query back the article to verify it persisted
+                    # This catches silent commit failures (e.g., Cloud SQL connector bugs)
+                    try:
+                        verify_query = text("SELECT id FROM articles WHERE id = :id")
+                        verify_result = session.execute(verify_query, {"id": article_id}).fetchone()
+                        
+                        if verify_result is None:
+                            # Article was not found after commit - silent failure detected!
+                            logger.error(
+                                "❌ POST-COMMIT VERIFICATION FAILED: Article %s was not found "
+                                "in database after commit. URL: %s, Title: %s. "
+                                "This indicates a silent commit failure!",
+                                article_id,
+                                url,
+                                content.get("title", "")[:80],
+                            )
+                            # Also check candidate_link status
+                            cl_verify = text("SELECT status FROM candidate_links WHERE id = :id")
+                            cl_result = session.execute(cl_verify, {"id": str(url_id)}).fetchone()
+                            if cl_result:
+                                logger.error(
+                                    "Candidate link %s has status: %s (expected: %s)",
+                                    url_id,
+                                    cl_result[0],
+                                    article_status,
+                                )
+                            else:
+                                logger.error("Candidate link %s not found in database!", url_id)
+                        else:
+                            logger.debug(
+                                "✓ Post-commit verification passed for article %s",
+                                article_id,
+                            )
+                    except Exception as verify_error:
+                        logger.error(
+                            "Post-commit verification query failed for article %s: %s",
+                            article_id,
+                            verify_error,
+                            exc_info=True,
+                        )
                     
                     telemetry.record_extraction(metrics)
                     domains_for_cleaning[domain].append(article_id)
