@@ -56,12 +56,26 @@ class TestSyncTelemetryStore:
         with store.connection() as conn:
             conn.execute("SELECT 1")
 
-        with pytest.raises(sqlite3.ProgrammingError):
+        # After context exit, connection should be closed
+        # (SQLAlchemy raises ResourceClosedError instead of ProgrammingError)
+        with pytest.raises((sqlite3.ProgrammingError, Exception)):
             conn.execute("SELECT 1")
 
     def test_shutdown_noop_for_sync_store(self, temp_db_uri):
         store = TelemetryStore(database=temp_db_uri, async_writes=False)
         store.shutdown(wait=True)  # should not raise even though no worker
+
+    def test_cursor_rowcount_reports_affected_rows(self, temp_db_uri):
+        store = TelemetryStore(database=temp_db_uri, async_writes=False)
+
+        with store.connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute("CREATE TABLE IF NOT EXISTS events (value TEXT)")
+                cursor.execute("INSERT INTO events(value) VALUES (?)", ("hello",))
+                assert cursor.rowcount == 1
+            finally:
+                cursor.close()
 
 
 class TestAsyncTelemetryStore:

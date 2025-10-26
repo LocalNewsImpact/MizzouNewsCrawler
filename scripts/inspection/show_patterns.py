@@ -2,6 +2,7 @@
 """
 CLI tool to view ML training vs telemetry patterns.
 """
+
 import os
 import sys
 
@@ -27,8 +28,8 @@ def show_pattern_analysis(domain=None, show_ml_only=False, show_dynamic=True):
             print(f"❌ No patterns found for {domain}")
             return
 
-        ml_eligible = [p for p in all_patterns if p['is_ml_training_eligible']]
-        dynamic_only = [p for p in all_patterns if not p['is_ml_training_eligible']]
+        ml_eligible = [p for p in all_patterns if p["is_ml_training_eligible"]]
+        dynamic_only = [p for p in all_patterns if not p["is_ml_training_eligible"]]
 
         print("📊 Pattern Summary:")
         print(f"   Total patterns: {len(all_patterns)}")
@@ -55,7 +56,9 @@ def show_pattern_analysis(domain=None, show_ml_only=False, show_dynamic=True):
             print("\n🔍 TELEMETRY PATTERNS (Includes Dynamic):")
             print("-" * 40)
             for i, pattern in enumerate(dynamic_only[:10], 1):  # Show max 10
-                status = "✅ ML" if pattern['is_ml_training_eligible'] else "🔍 Telemetry"
+                status = (
+                    "✅ ML" if pattern["is_ml_training_eligible"] else "🔍 Telemetry"
+                )
                 print(f"{i}. {status} | {pattern['pattern_type'].upper()}")
                 print(f"   Confidence: {pattern['confidence_score']:.2f}")
                 print(f"   Occurrences: {pattern['occurrences_total']}")
@@ -70,8 +73,8 @@ def show_pattern_analysis(domain=None, show_ml_only=False, show_dynamic=True):
         ml_patterns = cleaner.telemetry.get_ml_training_patterns()
         all_patterns = cleaner.telemetry.get_telemetry_patterns()
 
-        domains_with_ml = set(p['domain'] for p in ml_patterns)
-        domains_with_patterns = set(p['domain'] for p in all_patterns)
+        domains_with_ml = set(p["domain"] for p in ml_patterns)
+        domains_with_patterns = set(p["domain"] for p in all_patterns)
 
         print("📊 Global Pattern Summary:")
         print(f"   Domains with any patterns: {len(domains_with_patterns)}")
@@ -84,16 +87,19 @@ def show_pattern_analysis(domain=None, show_ml_only=False, show_dynamic=True):
             print("✅ DOMAINS WITH ML TRAINING PATTERNS:")
             print("-" * 40)
             for domain in sorted(domains_with_ml)[:10]:
-                domain_patterns = [p for p in ml_patterns if p['domain'] == domain]
+                domain_patterns = [p for p in ml_patterns if p["domain"] == domain]
                 print(f"   {domain}: {len(domain_patterns)} patterns")
 
         print("\n🔍 DOMAINS WITH TELEMETRY PATTERNS:")
         print("-" * 40)
         for domain in sorted(domains_with_patterns)[:10]:
-            domain_patterns = [p for p in all_patterns if p['domain'] == domain]
-            ml_count = sum(1 for p in domain_patterns if p['is_ml_training_eligible'])
+            domain_patterns = [p for p in all_patterns if p["domain"] == domain]
+            ml_count = sum(1 for p in domain_patterns if p["is_ml_training_eligible"])
             dynamic_count = len(domain_patterns) - ml_count
-            print(f"   {domain}: {len(domain_patterns)} total ({ml_count} ML + {dynamic_count} dynamic)")
+            print(
+                f"   {domain}: {len(domain_patterns)} total ({ml_count} ML + {dynamic_count} dynamic)"
+            )
+
 
 def main():
     """Main CLI entry point."""
@@ -101,25 +107,21 @@ def main():
         description="View ML training vs telemetry patterns"
     )
     parser.add_argument(
-        'domain', nargs='?',
-        help='Domain to analyze (omit for cross-domain view)'
+        "domain", nargs="?", help="Domain to analyze (omit for cross-domain view)"
     )
     parser.add_argument(
-        '--ml-only', action='store_true',
-        help='Show only ML training eligible patterns'
+        "--ml-only", action="store_true", help="Show only ML training eligible patterns"
     )
     parser.add_argument(
-        '--no-dynamic', action='store_true',
-        help='Hide dynamic patterns'
+        "--no-dynamic", action="store_true", help="Hide dynamic patterns"
     )
 
     args = parser.parse_args()
 
     show_pattern_analysis(
-        domain=args.domain,
-        show_ml_only=args.ml_only,
-        show_dynamic=not args.no_dynamic
+        domain=args.domain, show_ml_only=args.ml_only, show_dynamic=not args.no_dynamic
     )
+
 
 if __name__ == "__main__":
     main()

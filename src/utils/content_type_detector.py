@@ -24,7 +24,53 @@ class ContentTypeResult:
 class ContentTypeDetector:
     """Detect high-signal opinion and obituary content types."""
 
-    VERSION = "2025-09-27a"
+    VERSION = "2025-10-23b"
+
+    # Wire service indicators for dateline detection
+    _WIRE_SERVICE_PATTERNS = (
+        # Format: (pattern, canonical_name, case_sensitive)
+        (r"\b(AP|A\.P\.)\b", "Associated Press", False),
+        (r"\b(ASSOCIATED PRESS|Associated Press)\b", "Associated Press", True),
+        (r"\bREUTERS\b", "Reuters", False),
+        (r"\b(Reuters)\b", "Reuters", True),
+        (r"\b(CNN|C\.N\.N\.)\b", "CNN", False),
+        (r"\b(Bloomberg|BLOOMBERG)\b", "Bloomberg", False),
+        (r"\b(NPR|N\.P\.R\.)\b", "NPR", False),
+        (r"\b(PBS|P\.B\.S\.)\b", "PBS", False),
+        (r"\b(UPI|U\.P\.I\.)\b", "UPI", False),
+        (r"\b(AFP|Agence France-Presse)\b", "AFP", False),
+        (r"\bThe New York Times\b", "The New York Times", True),
+        (r"\bThe Washington Post\b", "The Washington Post", True),
+        (r"\bUSA TODAY\b", "USA TODAY", True),
+        (r"\bWall Street Journal\b", "Wall Street Journal", True),
+        (r"\bLos Angeles Times\b", "Los Angeles Times", True),
+        (r"\bTribune News Service\b", "Tribune News Service", True),
+        (r"\bGannett\b", "Gannett", True),
+        (r"\bMcClatchy\b", "McClatchy", True),
+    )
+
+    # Common dateline patterns (CITY_NAME, STATE/COUNTRY (WIRE_SERVICE))
+    _DATELINE_PATTERN = re.compile(r"^([A-Z][A-Z\s,\.'-]+)\s*[–—-]\s*", re.MULTILINE)
+
+    _WIRE_URL_PATTERNS = (
+        "cnn.com",
+        "apnews.com",
+        "reuters.com",
+        "bloomberg.com",
+        "npr.org",
+        "pbs.org",
+        "nytimes.com",
+        "washingtonpost.com",
+        "usatoday.com",
+        "wsj.com",
+        "latimes.com",
+        "/ap-",
+        "/cnn-",
+        "/reuters-",
+        "/wire/",
+        "/national/",
+        "/world/",
+    )
 
     _OBITUARY_TITLE_KEYWORDS = (
         "obituary",
@@ -162,6 +208,14 @@ class ContentTypeDetector:
         keywords = self._normalize_keywords(normalized_metadata.get("keywords"))
         meta_description = normalized_metadata.get("meta_description")
 
+        # Check for wire service content first (highest priority)
+        wire_result = self._detect_wire_service(
+            url=url,
+            content=content,
+        )
+        if wire_result:
+            return wire_result
+
         obituary_result = self._detect_obituary(
             url=url,
             title=title,
@@ -177,6 +231,214 @@ class ContentTypeDetector:
             title=title,
             keywords=keywords,
             meta_description=meta_description,
+        )
+
+    def _detect_wire_service(
+        self,
+        *,
+        url: str,
+        content: str | None,
+    ) -> ContentTypeResult | None:
+        """
+        Detect wire service content by analyzing URL patterns and article datelines.
+
+        Wire services are often indicated in:
+        1. First 150 characters (opening dateline: "WASHINGTON (AP) —")
+        2. Last 150 characters (attribution: "©2025 The Associated Press")
+        3. URL patterns (/cnn-, /ap-, cnn.com, etc.)
+
+        IMPORTANT: This detector is conservative and requires STRONG evidence:
+        - URL pattern match from major wire service domain, OR
+        - Explicit wire service byline/dateline in opening (e.g. "By AP")
+
+        It will NOT trigger on:
+        - Just a city dateline (local reporters file from DC too)
+        - Just a mention in closing credits (local articles cite sources)
+        - Weak URL patterns like /national/ or /world/ (outlets have these)
+        """
+        matches: dict[str, list[str]] = {}
+        detected_services: set[str] = set()
+        wire_byline_found = False
+        strong_url_match = False
+
+        # Check URL for STRONG wire service patterns (actual wire service domains)
+        url_lower = url.lower()
+        url_wire_matches = []
+
+        # Strong URL patterns (actual wire service domains)
+        strong_url_patterns = {
+            "cnn.com": "CNN",
+            "apnews.com": "Associated Press",
+            "reuters.com": "Reuters",
+            "bloomberg.com": "Bloomberg",
+            "npr.org": "NPR",
+            "pbs.org": "PBS",
+            "nytimes.com": "The New York Times",
+            "washingtonpost.com": "The Washington Post",
+            "usatoday.com": "USA TODAY",
+            "wsj.com": "Wall Street Journal",
+            "latimes.com": "Los Angeles Times",
+        }
+
+        for domain, service_name in strong_url_patterns.items():
+            if domain in url_lower:
+                url_wire_matches.append(domain)
+                detected_services.add(service_name)
+                strong_url_match = True
+
+        # Weak URL patterns (syndication markers on local sites)
+        # Only count these if we also have strong content evidence
+        weak_url_patterns = ["/ap-", "/cnn-", "/reuters-", "/wire/"]
+        weak_url_match = False
+        for pattern in weak_url_patterns:
+            if pattern in url_lower:
+                url_wire_matches.append(pattern)
+                weak_url_match = True
+                # Extract service name from pattern
+                if "ap" in pattern:
+                    detected_services.add("Associated Press")
+                elif "cnn" in pattern:
+                    detected_services.add("CNN")
+                elif "reuters" in pattern:
+                    detected_services.add("Reuters")
+
+        if url_wire_matches:
+            matches["url"] = url_wire_matches
+
+        # Check article content for STRONG wire service indicators
+        if content:
+            content_matches = []
+
+            # Check first 150 characters for opening dateline/byline
+            opening = content[:150] if len(content) > 150 else content
+
+            # Look for explicit wire service bylines (STRONG evidence)
+            # Format: "By [Service]", "[Service] —", "([Service])"
+            wire_byline_patterns = [
+                (r"^By (AP|Associated Press|A\.P\.)", "Associated Press"),
+                (r"^(AP|Associated Press|A\.P\.)\s*[—–-]", "Associated Press"),
+                (r"^By (Reuters)", "Reuters"),
+                (r"^(Reuters)\s*[—–-]", "Reuters"),
+                (r"^By (CNN)", "CNN"),
+                (r"^(CNN)\s*[—–-]", "CNN"),
+                (r"^By (Bloomberg)", "Bloomberg"),
+                (r"^(Bloomberg)\s*[—–-]", "Bloomberg"),
+                (r"^By (NPR|National Public Radio)", "NPR"),
+                (r"^(NPR)\s*[—–-]", "NPR"),
+            ]
+
+            for pattern, service_name in wire_byline_patterns:
+                if re.search(pattern, opening, re.MULTILINE | re.IGNORECASE):
+                    content_matches.append(f"{service_name} (byline)")
+                    detected_services.add(service_name)
+                    wire_byline_found = True
+
+            # Check for wire service patterns in opening (less strong)
+            if not wire_byline_found:
+                for (
+                    pattern,
+                    service_name,
+                    case_sensitive,
+                ) in self._WIRE_SERVICE_PATTERNS:
+                    flags = 0 if case_sensitive else re.IGNORECASE
+                    if re.search(pattern, opening, flags):
+                        # Only count if it looks like attribution
+                        # Look for: "According to AP", "AP reports", etc.
+                        context_pattern = rf"(?:By|according to|reports?)\s+{pattern}"
+                        if re.search(context_pattern, opening, flags | re.IGNORECASE):
+                            content_matches.append(f"{service_name} (opening)")
+                            detected_services.add(service_name)
+
+            # Check last 150 characters for copyright/attribution (STRONG)
+            closing = content[-150:] if len(content) > 150 else content
+            copyright_patterns = [
+                (
+                    r"©\s*\d{4}\s+(Associated Press|AP|Reuters|CNN|Bloomberg)",
+                    "copyright",
+                ),
+                (
+                    r"Copyright\s+\d{4}\s+"
+                    r"(Associated Press|AP|Reuters|CNN|Bloomberg)",
+                    "copyright",
+                ),
+                (
+                    r"All rights reserved\.?\s+" r"(Associated Press|AP|Reuters|CNN)",
+                    "copyright",
+                ),
+            ]
+
+            for pattern, marker_type in copyright_patterns:
+                match = re.search(pattern, closing, re.IGNORECASE)
+                if match:
+                    service = match.group(1)
+                    # Normalize service name
+                    if service.upper() in ("AP", "ASSOCIATED PRESS"):
+                        service_name = "Associated Press"
+                    elif service.upper() == "REUTERS":
+                        service_name = "Reuters"
+                    elif service.upper() == "CNN":
+                        service_name = "CNN"
+                    elif service.upper() == "BLOOMBERG":
+                        service_name = "Bloomberg"
+                    else:
+                        service_name = service
+
+                    content_matches.append(f"{service_name} ({marker_type})")
+                    detected_services.add(service_name)
+
+            if content_matches:
+                matches["content"] = content_matches
+
+        # CONSERVATIVE DECISION LOGIC:
+        # Only mark as wire if we have STRONG evidence:
+        # 1. Strong URL match (actual wire domain), OR
+        # 2. Wire byline in opening, OR
+        # 3. Copyright/attribution in closing, OR
+        # 4. Weak URL match + strong content evidence
+
+        if not matches:
+            return None
+
+        # Require strong evidence
+        has_strong_evidence = (
+            strong_url_match
+            or wire_byline_found
+            or any(
+                "copyright" in m or "byline" in m for m in matches.get("content", [])
+            )
+        )
+
+        # Weak URL + weak content = not enough
+        if weak_url_match and not has_strong_evidence:
+            return None
+
+        # Just a dateline or vague mention = not enough
+        if not has_strong_evidence:
+            return None
+
+        # Build evidence summary
+        evidence = matches.copy()
+        if detected_services:
+            evidence["detected_services"] = sorted(detected_services)
+
+        # Calculate confidence based on evidence
+        score = 0
+        if "url" in matches:
+            score += 2  # URL patterns are strong indicators
+        if "content" in matches:
+            score += 2  # Content patterns are strong indicators
+
+        # Normalize score (max 4 points)
+        confidence_score = min(score / 4.0, 1.0)
+        confidence = "high" if score >= 3 else "medium"
+
+        return ContentTypeResult(
+            status="wire",
+            confidence_score=confidence_score,
+            confidence=confidence,
+            reason="wire_service_detected",
+            evidence=evidence,
+            detector_version=self.VERSION,
         )
 
     def _detect_obituary(
@@ -366,13 +628,13 @@ class ContentTypeDetector:
         )
 
     @staticmethod
-    def _normalize_keywords(raw_keywords: object | None) -> list[str]:
+    def _normalize_keywords(raw_keywords: str | list[str] | None) -> list[str]:
         if not raw_keywords:
             return []
         if isinstance(raw_keywords, str):
             return [raw_keywords.lower()]
         keywords: list[str] = []
-        for keyword in raw_keywords:  # type: ignore[assignment]
+        for keyword in raw_keywords:
             if not keyword:
                 continue
             keywords.append(str(keyword).lower())

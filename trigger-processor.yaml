@@ -1,0 +1,9 @@
+name: build-processor-manual
+description: Auto-build on main, manual for feature branches
+github:
+  owner: LocalNewsImpact
+  name: MizzouNewsCrawler
+  push:
+    branch: ^main$
+filename: cloudbuild-processor-v1.2.2.yaml
+serviceAccount: projects/mizzou-news-crawler/serviceAccounts/145096615031-compute@developer.gserviceaccount.com

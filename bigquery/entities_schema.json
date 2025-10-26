@@ -1,0 +1,11 @@
+[
+  {"name": "article_id", "type": "STRING", "mode": "REQUIRED", "description": "Article UUID"},
+  {"name": "entity_type", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "entity_text", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "confidence", "type": "FLOAT"},
+  {"name": "start_char", "type": "INTEGER"},
+  {"name": "end_char", "type": "INTEGER"},
+  {"name": "article_url", "type": "STRING"},
+  {"name": "article_title", "type": "STRING"},
+  {"name": "created_at", "type": "TIMESTAMP"}
+]

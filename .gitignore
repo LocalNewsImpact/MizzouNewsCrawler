@@ -53,6 +53,11 @@ gazetteer_backfill_full.log
 *.db-wal
 *.db.backup*
 data/
+!lookups/
+!lookups/**/*.db
+
+# Test artifacts
+lookups/snapshots/*
 
 # Node
 node_modules/
@@ -79,3 +84,9 @@ coverage.xml
 # Project specific
 models/productionmodel.pt
 backend/reviews.db*
+.decodo-credentials
+
+# Test databases
+*.db
+*.db-*
+test_*.db

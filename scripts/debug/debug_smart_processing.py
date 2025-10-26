@@ -3,7 +3,7 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 from utils.byline_cleaner import BylineCleaner
 
@@ -16,7 +16,7 @@ def debug_smart_processing():
     print(f"Debugging: {test}")
 
     # Manually walk through the logic
-    comma_parts = test.split(',')
+    comma_parts = test.split(",")
     print(f"Comma parts: {comma_parts}")
 
     part_types = []
@@ -26,19 +26,16 @@ def debug_smart_processing():
         print(f"  '{part.strip()}' → {part_type}")
 
     # Count different types
-    non_name_count = sum(1 for _, ptype in part_types
-                         if ptype in ['email', 'title'])
+    non_name_count = sum(1 for _, ptype in part_types if ptype in ["email", "title"])
     print(f"Non-name count: {non_name_count}")
 
     # Smart processing condition
-    condition = (non_name_count >= 2 or
-                 (non_name_count >= 1 and len(comma_parts) >= 3))
+    condition = non_name_count >= 2 or (non_name_count >= 1 and len(comma_parts) >= 3)
     print(f"Smart processing condition: {condition}")
 
     if condition:
         # Find parts that are clearly names
-        name_parts = [part for part, ptype in part_types
-                      if ptype == 'name']
+        name_parts = [part for part, ptype in part_types if ptype == "name"]
         print(f"Name parts: {name_parts}")
 
         if name_parts:
@@ -48,7 +45,7 @@ def debug_smart_processing():
             # If no clear names, take the first part that's not email/title
             for part, ptype in part_types:
                 print(f"  Checking '{part}' with type '{ptype}'")
-                if ptype not in ['email', 'title'] and part:
+                if ptype not in ["email", "title"] and part:
                     print(f"  Would return: {part}")
                     break
             else:

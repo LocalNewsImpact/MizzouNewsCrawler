@@ -68,9 +68,7 @@ def gather_articles(
     if not statuses:
         return []
 
-    status_params = {
-        f"status_{index}": value for index, value in enumerate(statuses)
-    }
+    status_params = {f"status_{index}": value for index, value in enumerate(statuses)}
     placeholders = ", ".join(f":{key}" for key in status_params)
     query = text(
         f"""
@@ -111,9 +109,7 @@ def main() -> int:
                 continue
 
             domain_map[domain] = article_ids
-            logger.info(
-                "Queued %s articles for domain %s", len(article_ids), domain
-            )
+            logger.info("Queued %s articles for domain %s", len(article_ids), domain)
 
         if not domain_map:
             logger.warning("Nothing to clean.")

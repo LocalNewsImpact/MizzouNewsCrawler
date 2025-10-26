@@ -36,9 +36,7 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def build_module_stats(
-    xml_path: Path, root_prefix: str
-) -> list[tuple[str, int, int]]:
+def build_module_stats(xml_path: Path, root_prefix: str) -> list[tuple[str, int, int]]:
     tree = ET.parse(xml_path)
     root = tree.getroot()
 
@@ -89,9 +87,7 @@ def format_markdown(rows: list[tuple[str, int, int]], max_rows: int) -> str:
     for filename, statements, covered in sorted_rows[:max_rows]:
         miss = statements - covered
         coverage_pct = (covered / statements) * 100 if statements else 0.0
-        body.append(
-            f"| `{filename}` | {statements} | {miss} | {coverage_pct:.1f}% |"
-        )
+        body.append(f"| `{filename}` | {statements} | {miss} | {coverage_pct:.1f}% |")
 
     if not body:
         body.append("| *(no files matched)* | 0 | 0 | 0.0% |")

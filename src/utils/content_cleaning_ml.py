@@ -208,7 +208,7 @@ class ContentCleaningMLFeatureExtractor:
 
     def _extract_pattern_features(self, text: str) -> dict[str, Any]:
         """Extract pattern-based features."""
-        features = {}
+        features: dict[str, Any] = {}
 
         # Boilerplate term counts and presence
         boilerplate_count = sum(1 for term in self.boilerplate_terms if term in text)
@@ -254,7 +254,7 @@ class ContentCleaningMLFeatureExtractor:
         words = text.split()
         sentences = re.split(r"[.!?]+", text)
 
-        features = {}
+        features: dict[str, Any] = {}
 
         if words:
             # Word-level features
@@ -292,7 +292,7 @@ class ContentCleaningMLFeatureExtractor:
 
     def _extract_structural_features(self, text: str) -> dict[str, Any]:
         """Extract structural features from text."""
-        features = {}
+        features: dict[str, Any] = {}
 
         # HTML/markup patterns (in case some made it through)
         features["has_html_tags"] = bool(re.search(r"<[^>]+>", text))

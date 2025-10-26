@@ -1,0 +1,20 @@
+name: build-migrator
+description: Build and push the database migrator image
+filename: cloudbuild-migrator.yaml
+github:
+  name: MizzouNewsCrawler
+  owner: LocalNewsImpact
+  push:
+    branch: ^main$
+includedFiles:
+  - Dockerfile.migrator
+  - requirements-migrator.txt
+  - alembic.ini
+  - alembic/**
+  - src/models/**
+  - src/config.py
+  - scripts/migrations/**
+  - cloudbuild-migrator.yaml
+tags:
+  - migrator
+  - database

@@ -4,7 +4,7 @@ Fix author field format inconsistency in the articles table.
 
 This script:
 1. Converts all author fields to consistent JSON array format
-2. Cleans any remaining source name contamination 
+2. Cleans any remaining source name contamination
 3. Handles both current JSON and plain string formats
 """
 
@@ -18,7 +18,7 @@ def fix_author_formats():
     """Fix author field format inconsistencies."""
 
     # Connect to database
-    conn = sqlite3.connect('data/mizzou.db')
+    conn = sqlite3.connect("data/mizzou.db")
     cursor = conn.cursor()
 
     # Initialize byline cleaner
@@ -52,7 +52,7 @@ def fix_author_formats():
         needs_update = False
 
         # Check if it's already JSON format
-        if author.startswith('[') and author.endswith(']'):
+        if author.startswith("[") and author.endswith("]"):
             json_format_count += 1
             try:
                 # Parse JSON to check for contamination
@@ -60,7 +60,10 @@ def fix_author_formats():
                 if isinstance(author_list, list) and author_list:
                     # Check for source contamination
                     for author_name in author_list:
-                        if any(source in author_name.lower() for source in ['webster citizen', 'citizen']):
+                        if any(
+                            source in author_name.lower()
+                            for source in ["webster citizen", "citizen"]
+                        ):
                             contaminated_count += 1
                             needs_update = True
                             break
@@ -73,7 +76,9 @@ def fix_author_formats():
             needs_update = True
 
             # Check for contamination in string format too
-            if any(source in author.lower() for source in ['webster citizen', 'citizen']):
+            if any(
+                source in author.lower() for source in ["webster citizen", "citizen"]
+            ):
                 contaminated_count += 1
 
         if needs_update:
@@ -97,13 +102,13 @@ def fix_author_formats():
     for article_id, url, original_author in updates_needed:
         try:
             # Parse existing author field
-            if original_author.startswith('[') and original_author.endswith(']'):
+            if original_author.startswith("[") and original_author.endswith("]"):
                 # Already JSON, try to parse and clean
                 try:
                     author_list = json.loads(original_author)
                     if isinstance(author_list, list):
                         # Join for cleaning, then re-split
-                        byline_text = ', '.join(author_list)
+                        byline_text = ", ".join(author_list)
                     else:
                         byline_text = str(author_list)
                 except json.JSONDecodeError:
@@ -123,11 +128,14 @@ def fix_author_formats():
                 new_author_json = json.dumps([])
 
             # Update database
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE articles 
                 SET author = ? 
                 WHERE id = ?
-            """, (new_author_json, article_id))
+            """,
+                (new_author_json, article_id),
+            )
 
             successful_updates += 1
 
@@ -174,11 +182,14 @@ def fix_author_formats():
 
     remaining_contamination = cursor.fetchone()[0]
     if remaining_contamination > 0:
-        print(f"⚠️  Warning: {remaining_contamination} articles still have source contamination")
+        print(
+            f"⚠️  Warning: {remaining_contamination} articles still have source contamination"
+        )
     else:
         print("✅ No source contamination detected")
 
     conn.close()
+
 
 if __name__ == "__main__":
     fix_author_formats()

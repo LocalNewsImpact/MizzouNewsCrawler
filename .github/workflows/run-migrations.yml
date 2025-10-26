@@ -1,0 +1,206 @@
+name: Database Migrations
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      commit_sha:
+        description: 'Commit SHA for migrator image (leave empty to use current)'
+        required: false
+        type: string
+      skip_approval:
+        description: 'Skip manual approval for staging (production always requires approval)'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  approve-production:
+    name: Approve Production Migration
+    runs-on: ubuntu-latest
+    if: github.event.inputs.environment == 'production'
+    environment: production-migrations
+    steps:
+      - name: Manual approval gate
+        run: |
+          echo "Production migration approved by: ${{ github.actor }}"
+          echo "Target environment: ${{ github.event.inputs.environment }}"
+          echo "Commit SHA: ${{ github.event.inputs.commit_sha || github.sha }}"
+
+  run-migrations:
+    name: Run Migrations (${{ github.event.inputs.environment }})
+    runs-on: ubuntu-latest
+    needs: [approve-production]
+    if: always() && (needs.approve-production.result == 'success' || github.event.inputs.environment == 'staging')
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          service_account_key: ${{ secrets.GCP_SA_KEY }}
+          export_default_credentials: true
+
+      - name: Configure kubectl
+        run: |
+          gcloud container clusters get-credentials mizzou-cluster \
+            --zone=us-central1-a \
+            --project=${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Determine image tag
+        id: image-tag
+        run: |
+          if [ -n "${{ github.event.inputs.commit_sha }}" ]; then
+            echo "tag=${{ github.event.inputs.commit_sha }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check migrator image exists
+        run: |
+          IMAGE="us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/mizzou-crawler/migrator:${{ steps.image-tag.outputs.tag }}"
+          echo "Checking if image exists: $IMAGE"
+          
+          gcloud artifacts docker images describe "$IMAGE" || {
+            echo "ERROR: Migrator image not found: $IMAGE"
+            echo "Please build the migrator image first with:"
+            echo "  gcloud builds submit --config=cloudbuild-migrator.yaml"
+            exit 1
+          }
+          
+          echo "✓ Migrator image found"
+
+      - name: Create migration job manifest
+        run: |
+          IMAGE_TAG="${{ steps.image-tag.outputs.tag }}"
+          NAMESPACE="${{ github.event.inputs.environment }}"
+          JOB_NAME="alembic-migration-$(date +%s)"
+          
+          cat > /tmp/migration-job.yaml <<EOF
+          apiVersion: batch/v1
+          kind: Job
+          metadata:
+            name: ${JOB_NAME}
+            namespace: ${NAMESPACE}
+            labels:
+              app: migrator
+              component: database
+              triggered-by: github-actions
+              run-id: "${{ github.run_id }}"
+          spec:
+            backoffLimit: 1
+            template:
+              metadata:
+                labels:
+                  app: migrator
+                  component: database
+              spec:
+                restartPolicy: Never
+                containers:
+                  - name: alembic-migrate
+                    image: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/mizzou-crawler/migrator:${IMAGE_TAG}
+                    imagePullPolicy: IfNotPresent
+                    env:
+                      - name: USE_CLOUD_SQL_CONNECTOR
+                        value: "true"
+                      - name: CLOUD_SQL_INSTANCE
+                        valueFrom:
+                          secretKeyRef:
+                            name: cloudsql-db-credentials
+                            key: instance-connection-name
+                      - name: DATABASE_USER
+                        valueFrom:
+                          secretKeyRef:
+                            name: cloudsql-db-credentials
+                            key: username
+                      - name: DATABASE_PASSWORD
+                        valueFrom:
+                          secretKeyRef:
+                            name: cloudsql-db-credentials
+                            key: password
+                      - name: DATABASE_NAME
+                        valueFrom:
+                          secretKeyRef:
+                            name: cloudsql-db-credentials
+                            key: database
+                    resources:
+                      requests:
+                        memory: "256Mi"
+                        cpu: "250m"
+                      limits:
+                        memory: "512Mi"
+                        cpu: "500m"
+            ttlSecondsAfterFinished: 86400
+          EOF
+          
+          echo "Created job manifest: ${JOB_NAME}"
+          cat /tmp/migration-job.yaml
+
+      - name: Apply migration job
+        run: |
+          kubectl apply -f /tmp/migration-job.yaml
+          
+          JOB_NAME=$(kubectl get job -n ${{ github.event.inputs.environment }} \
+            -l triggered-by=github-actions,run-id="${{ github.run_id }}" \
+            -o jsonpath='{.items[0].metadata.name}')
+          
+          echo "job_name=${JOB_NAME}" >> $GITHUB_ENV
+
+      - name: Wait for migration to complete
+        run: |
+          echo "Waiting for migration job to complete..."
+          echo "Job name: ${{ env.job_name }}"
+          
+          # Wait up to 10 minutes for job to complete
+          kubectl wait --for=condition=complete \
+            --timeout=600s \
+            job/${{ env.job_name }} \
+            -n ${{ github.event.inputs.environment }} || {
+            echo "Job did not complete in time, checking status..."
+            kubectl describe job/${{ env.job_name }} -n ${{ github.event.inputs.environment }}
+            exit 1
+          }
+          
+          echo "✓ Migration job completed successfully"
+
+      - name: Get migration logs
+        if: always()
+        run: |
+          echo "Fetching migration logs..."
+          kubectl logs -n ${{ github.event.inputs.environment }} \
+            -l job-name=${{ env.job_name }} \
+            --tail=500 || echo "Could not fetch logs"
+
+      - name: Check job status
+        run: |
+          STATUS=$(kubectl get job/${{ env.job_name }} \
+            -n ${{ github.event.inputs.environment }} \
+            -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}')
+          
+          if [ "$STATUS" != "True" ]; then
+            echo "ERROR: Migration job failed"
+            kubectl describe job/${{ env.job_name }} -n ${{ github.event.inputs.environment }}
+            exit 1
+          fi
+          
+          echo "✓ Migration completed successfully"
+
+  cleanup:
+    name: Cleanup
+    runs-on: ubuntu-latest
+    needs: [run-migrations]
+    if: always()
+    steps:
+      - name: Summary
+        run: |
+          echo "Migration workflow completed for ${{ github.event.inputs.environment }}"
+          echo "Status: ${{ needs.run-migrations.result }}"

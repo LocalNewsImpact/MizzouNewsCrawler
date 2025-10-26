@@ -4,6 +4,7 @@ import logging
 import re
 import sqlite3
 from collections import defaultdict
+from typing import Any
 
 
 class ProperBoundaryContentCleaner:
@@ -64,7 +65,7 @@ class ProperBoundaryContentCleaner:
         ORDER BY id DESC
         """
 
-        params = [f"%{domain}%"]
+        params: list[Any] = [f"%{domain}%"]
         if sample_size:
             query += " LIMIT ?"
             params.append(sample_size)

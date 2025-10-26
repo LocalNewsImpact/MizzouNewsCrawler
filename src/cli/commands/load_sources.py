@@ -13,7 +13,8 @@ from sqlalchemy.orm import sessionmaker
 
 from src.cli.context import trigger_gazetteer_population_background
 from src.models import Dataset, DatasetSource, Source
-from src.models.database import DatabaseManager
+from src.models.database import DatabaseManager, safe_session_execute
+from src.utils.telemetry import OperationTracker, OperationType
 
 logger = logging.getLogger(__name__)
 
@@ -144,7 +145,7 @@ def _detect_duplicate_urls(df: pd.DataFrame) -> list[str]:
             host_messages.append(f"{host_norm}: {entries}")
 
         messages.append(
-            ("Duplicate host values detected " "(same domain appears multiple times): ")
+            ("Duplicate host values detected (same domain appears multiple times): ")
             + "; ".join(host_messages)
         )
 
@@ -155,6 +156,9 @@ def handle_load_sources_command(args) -> int:
     """Execute the load-sources command."""
     csv_path = args.csv
     logger.info("Loading sources from %s", csv_path)
+
+    # Initialize OperationTracker for telemetry
+    tracker = OperationTracker()
 
     try:
         df = pd.read_csv(csv_path)
@@ -198,159 +202,179 @@ def handle_load_sources_command(args) -> int:
     Session = sessionmaker(bind=db.engine)
     session = Session()
 
-    try:
-        dataset_slug = csv_path.split("/")[-1].replace(".", "_")
-        dataset_slug = f"publinks-{dataset_slug}"
-
-        dataset = session.execute(
-            select(Dataset).where(Dataset.slug == dataset_slug)
-        ).scalar_one_or_none()
-
-        if dataset:
-            logger.info("Using existing dataset: %s", dataset_slug)
-        else:
-            dataset = Dataset(
-                slug=dataset_slug,
-                label=f"Publisher Links from {csv_path.split('/')[-1]}",
-                name=f"Dataset from {csv_path}",
-                description=f"Publisher data imported from {csv_path}",
-                ingested_by="load_sources_command",
-                meta={"source_file": csv_path, "total_rows": len(df)},
-            )
-            session.add(dataset)
-            session.flush()
-            logger.info("Created new dataset: %s (ID: %s)", dataset_slug, dataset.id)
-
-        sources_created = 0
-        dataset_sources_created = 0
-        candidate_links: list[dict[str, Any]] = []
-
-        for _, row in df.iterrows():
-            url = row["url_news"]
-            host = row["_parsed_host"]
-            host_norm = row["_parsed_host_norm"]
-
-            existing_source = session.execute(
-                select(Source).where(Source.host_norm == host_norm)
-            ).scalar_one_or_none()
-
-            if existing_source:
-                source = existing_source
-            else:
-                source = Source(
-                    host=host,
-                    host_norm=host_norm,
-                    canonical_name=row["name"],
-                    city=row["city"],
-                    county=row["county"],
-                    owner=row.get("owner", ""),
-                    type=row.get("media_type", "unknown"),
-                    meta={
-                        "address1": row.get("address1", ""),
-                        "address2": row.get("address2", ""),
-                        "state": row.get("State", "MO"),
-                        "zip": (
-                            str(row.get("zip", "")) if pd.notna(row.get("zip")) else ""
-                        ),
-                        "frequency": row.get("frequency", ""),
-                        "cached_geographic_entities": row.get(
-                            "cached_geographic_entities",
-                            "",
-                        ),
-                        "cached_institutions": row.get(
-                            "cached_institutions",
-                            "",
-                        ),
-                        "cached_schools": row.get("cached_schools", ""),
-                        "cached_government": row.get(
-                            "cached_government",
-                            "",
-                        ),
-                        "cached_healthcare": row.get(
-                            "cached_healthcare",
-                            "",
-                        ),
-                        "cached_businesses": row.get(
-                            "cached_businesses",
-                            "",
-                        ),
-                        "cached_landmarks": row.get(
-                            "cached_landmarks",
-                            "",
-                        ),
-                    },
-                )
-                session.add(source)
-                session.flush()
-                sources_created += 1
-                logger.info(
-                    "Created source: %s (ID: %s)",
-                    source.canonical_name,
-                    source.id,
-                )
-
-            mapping = session.execute(
-                select(DatasetSource).where(
-                    DatasetSource.dataset_id == dataset.id,
-                    DatasetSource.source_id == source.id,
-                )
-            ).scalar_one_or_none()
-
-            if not mapping:
-                original_csv_row = row.drop(
-                    labels=["_parsed_host", "_parsed_host_norm"],
-                    errors="ignore",
-                ).to_dict()
-                dataset_source = DatasetSource(
-                    dataset_id=dataset.id,
-                    source_id=source.id,
-                    legacy_host_id=str(row["host_id"]),
-                    legacy_meta={"original_csv_row": original_csv_row},
-                )
-                session.add(dataset_source)
-                dataset_sources_created += 1
-
-            link_data = _normalize_source_row(row)
-            link_data.update(
-                {
-                    "dataset_id": dataset.id,
-                    "source_id": source.id,
-                }
-            )
-            candidate_links.append(link_data)
-
-        session.commit()
-        logger.info(
-            "Created %s sources and %s dataset mappings",
-            sources_created,
-            dataset_sources_created,
-        )
-
-        if candidate_links:
-            result_df = pd.DataFrame(candidate_links)
-            db.upsert_candidate_links(result_df)
-            logger.info("Loaded %s candidate links", len(candidate_links))
-
-        print("\n=== Load Summary ===")
-        print(f"Dataset: {dataset.slug}")
-        print(f"Total sources created: {sources_created}")
-        print(f"Total candidate links: {len(candidate_links)}")
-        print(f"Unique counties: {df['county'].nunique()}")
-        print(f"Unique cities: {df['city'].nunique()}")
-        if "media_type" in df.columns:
-            print("Media types: " f"{df['media_type'].value_counts().to_dict()}")
-
-        logger.info("Auto-triggering gazetteer population for new dataset")
+    # Start tracking the load-sources operation
+    with tracker.track_operation(
+        OperationType.LOAD_SOURCES, source_file=csv_path, total_rows=len(df)
+    ) as operation:
         try:
-            trigger_gazetteer_population_background(str(dataset.slug), logger)
-        except Exception as exc:  # pragma: no cover - best effort
-            logger.warning("Failed to trigger gazetteer population: %s", exc)
+            dataset_slug = csv_path.split("/")[-1].replace(".", "_")
+            dataset_slug = f"publinks-{dataset_slug}"
 
-        return 0
+            dataset = safe_session_execute(
+                session, select(Dataset).where(Dataset.slug == dataset_slug)
+            ).scalar_one_or_none()
 
-    except Exception as exc:
-        logger.error("Failed to load sources: %s", exc)
-        session.rollback()
-        return 1
-    finally:
-        session.close()
+            if dataset:
+                logger.info("Using existing dataset: %s", dataset_slug)
+            else:
+                dataset = Dataset(
+                    slug=dataset_slug,
+                    label=f"Publisher Links from {csv_path.split('/')[-1]}",
+                    name=f"Dataset from {csv_path}",
+                    description=f"Publisher data imported from {csv_path}",
+                    ingested_by="load_sources_command",
+                    meta={"source_file": csv_path, "total_rows": len(df)},
+                )
+                session.add(dataset)
+                session.flush()
+                logger.info(
+                    "Created new dataset: %s (ID: %s)", dataset_slug, dataset.id
+                )
+
+            sources_created = 0
+            dataset_sources_created = 0
+            candidate_links: list[dict[str, Any]] = []
+
+            total_rows = len(df)
+            operation.update_progress(0, total_rows, "Initializing load")
+
+            for idx, (_, row) in enumerate(df.iterrows(), start=1):
+                url = row["url_news"]
+                host = row["_parsed_host"]
+                host_norm = row["_parsed_host_norm"]
+
+                existing_source = safe_session_execute(
+                    session, select(Source).where(Source.host_norm == host_norm)
+                ).scalar_one_or_none()
+
+                if existing_source:
+                    source = existing_source
+                else:
+                    source = Source(
+                        host=host,
+                        host_norm=host_norm,
+                        canonical_name=row["name"],
+                        city=row["city"],
+                        county=row["county"],
+                        owner=row.get("owner", ""),
+                        type=row.get("media_type", "unknown"),
+                        meta={
+                            "address1": row.get("address1", ""),
+                            "address2": row.get("address2", ""),
+                            "state": row.get("State", "MO"),
+                            "zip": (
+                                str(row.get("zip", ""))
+                                if pd.notna(row.get("zip"))
+                                else ""
+                            ),
+                            "frequency": row.get("frequency", ""),
+                            "cached_geographic_entities": row.get(
+                                "cached_geographic_entities",
+                                "",
+                            ),
+                            "cached_institutions": row.get(
+                                "cached_institutions",
+                                "",
+                            ),
+                            "cached_schools": row.get("cached_schools", ""),
+                            "cached_government": row.get(
+                                "cached_government",
+                                "",
+                            ),
+                            "cached_healthcare": row.get(
+                                "cached_healthcare",
+                                "",
+                            ),
+                            "cached_businesses": row.get(
+                                "cached_businesses",
+                                "",
+                            ),
+                            "cached_landmarks": row.get(
+                                "cached_landmarks",
+                                "",
+                            ),
+                        },
+                    )
+                    session.add(source)
+                    session.flush()
+                    sources_created += 1
+                    logger.info(
+                        "Created source: %s (ID: %s)",
+                        source.canonical_name,
+                        source.id,
+                    )
+
+                mapping = safe_session_execute(
+                    session,
+                    select(DatasetSource).where(
+                        DatasetSource.dataset_id == dataset.id,
+                        DatasetSource.source_id == source.id,
+                    ),
+                ).scalar_one_or_none()
+
+                if not mapping:
+                    original_csv_row = row.drop(
+                        labels=["_parsed_host", "_parsed_host_norm"],
+                        errors="ignore",
+                    ).to_dict()
+                    dataset_source = DatasetSource(
+                        dataset_id=dataset.id,
+                        source_id=source.id,
+                        legacy_host_id=str(row["host_id"]),
+                        legacy_meta={"original_csv_row": original_csv_row},
+                    )
+                    session.add(dataset_source)
+                    dataset_sources_created += 1
+
+                link_data = _normalize_source_row(row)
+                link_data.update(
+                    {
+                        "dataset_id": dataset.id,
+                        "source_id": source.id,
+                    }
+                )
+                candidate_links.append(link_data)
+
+                # Update progress periodically
+                if idx % 10 == 0 or idx == total_rows:
+                    operation.update_progress(
+                        idx,
+                        total_rows,
+                        f"Processed {idx} of {total_rows} rows",
+                    )
+
+            session.commit()
+            logger.info(
+                "Created %s sources and %s dataset mappings",
+                sources_created,
+                dataset_sources_created,
+            )
+
+            if candidate_links:
+                result_df = pd.DataFrame(candidate_links)
+                db.upsert_candidate_links(result_df)
+                logger.info("Loaded %s candidate links", len(candidate_links))
+
+            print("\n=== Load Summary ===")
+            print(f"Dataset: {dataset.slug}")
+            print(f"Total sources created: {sources_created}")
+            print(f"Total candidate links: {len(candidate_links)}")
+            print(f"Unique counties: {df['county'].nunique()}")
+            print(f"Unique cities: {df['city'].nunique()}")
+            if "media_type" in df.columns:
+                print(f"Media types: {df['media_type'].value_counts().to_dict()}")
+
+            logger.info("Auto-triggering gazetteer population for new dataset")
+            try:
+                trigger_gazetteer_population_background(str(dataset.slug), logger)
+            except Exception as exc:  # pragma: no cover - best effort
+                logger.warning("Failed to trigger gazetteer population: %s", exc)
+
+            return 0
+
+        except Exception as exc:
+            logger.error("Failed to load sources: %s", exc)
+            session.rollback()
+            return 1
+        finally:
+            session.close()

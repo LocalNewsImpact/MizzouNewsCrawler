@@ -17,13 +17,13 @@ from src.models.database import DatabaseManager  # noqa: E402
 
 
 def test_parse_frequency_daily():
-    assert parse_frequency_to_days("daily") == 0.5
-    assert parse_frequency_to_days("Daily") == 0.5
+    assert parse_frequency_to_days("daily") == 0.25
+    assert parse_frequency_to_days("Daily") == 0.25
 
 
 def test_parse_frequency_broadcast():
-    assert parse_frequency_to_days("broadcast station") == 0.5
-    assert parse_frequency_to_days("Video_Broadcast") == 0.5
+    assert parse_frequency_to_days("broadcast station") == 0.25
+    assert parse_frequency_to_days("Video_Broadcast") == 0.25
 
 
 def test_parse_frequency_weekly():
@@ -49,11 +49,12 @@ def test_parse_frequency_unknown():
 
 def test_should_schedule_discovery_daily_respects_12_hour_window():
     now = datetime(2025, 9, 28, 12, 0, 0)
-    # Last discovery was 6 hours ago; daily cadence should be 12 hours
-    six_hours_ago = now - timedelta(hours=6)
+    # Daily cadence is now 6 hours (0.25 days); test should NOT schedule
+    # if less than 6 hours has passed
+    three_hours_ago = now - timedelta(hours=3)
     patch_target = "src.crawler.scheduling._get_last_processed_date"
     with DatabaseManager("sqlite:///:memory:") as db:
-        with patch(patch_target, return_value=six_hours_ago):
+        with patch(patch_target, return_value=three_hours_ago):
             assert not should_schedule_discovery(
                 db,
                 "source-1",
@@ -61,8 +62,8 @@ def test_should_schedule_discovery_daily_respects_12_hour_window():
                 now=now,
             )
 
-        thirteen_hours_ago = now - timedelta(hours=13)
-        with patch(patch_target, return_value=thirteen_hours_ago):
+        seven_hours_ago = now - timedelta(hours=7)
+        with patch(patch_target, return_value=seven_hours_ago):
             assert should_schedule_discovery(
                 db,
                 "source-1",
@@ -73,10 +74,11 @@ def test_should_schedule_discovery_daily_respects_12_hour_window():
 
 def test_should_schedule_discovery_broadcast_uses_12_hour_window():
     now = datetime(2025, 9, 28, 12, 0, 0)
-    eleven_hours_ago = now - timedelta(hours=11)
+    # Broadcast cadence is now 6 hours (0.25 days)
+    five_hours_ago = now - timedelta(hours=5)
     patch_target = "src.crawler.scheduling._get_last_processed_date"
     with DatabaseManager("sqlite:///:memory:") as db:
-        with patch(patch_target, return_value=eleven_hours_ago):
+        with patch(patch_target, return_value=five_hours_ago):
             assert not should_schedule_discovery(
                 db,
                 "source-1",

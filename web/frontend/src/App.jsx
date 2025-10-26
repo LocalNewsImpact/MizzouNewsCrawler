@@ -10,6 +10,7 @@ import BylineReviewInterface from './BylineReviewInterface'
 import VerificationReviewInterface from './VerificationReviewInterface'
 import CodeReviewInterface from './CodeReviewInterface'
 import GazetteerTelemetry from './GazetteerTelemetry'
+import OperationsDashboard from './OperationsDashboard'
 
 export default function App(){
   const [activeTab, setActiveTab] = useState('dashboard') // 'dashboard' | 'review' | 'dedupe' | 'wire' | 'domain-reports'
@@ -2004,6 +2005,7 @@ export default function App(){
         {/* Simple top tabs */}
         <div style={{display:'flex', gap:8, marginBottom:12}}>
           <button onClick={()=>setActiveTab('dashboard')} style={{padding:8, background: activeTab==='dashboard' ? '#ddd' : 'transparent'}}>Dashboard</button>
+          <button onClick={()=>setActiveTab('operations')} style={{padding:8, background: activeTab==='operations' ? '#ddd' : 'transparent'}}>🚀 Operations</button>
           <button onClick={()=>setActiveTab('crawl')} style={{padding:8, background: activeTab==='crawl' ? '#ddd' : 'transparent'}}>Crawl</button>
           <button onClick={()=>setActiveTab('domain-reports')} style={{padding:8, background: activeTab==='domain-reports' ? '#ddd' : 'transparent'}}>Extraction</button>
           <button onClick={()=>setActiveTab('dedupe')} style={{padding:8, background: activeTab==='dedupe' ? '#ddd' : 'transparent'}}>Deduplication</button>
@@ -2017,6 +2019,8 @@ export default function App(){
 
         {activeTab === 'dashboard' ? (
           <Dashboard onOpen={(tab)=>setActiveTab(tab)} />
+        ) : activeTab === 'operations' ? (
+          <OperationsDashboard />
         ) : activeTab === 'domain-reports' ? (
           <DomainReports />
         ) : activeTab === 'dedupe' ? (

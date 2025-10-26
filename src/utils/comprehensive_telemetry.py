@@ -6,6 +6,7 @@ methods, publishers, and error conditions to optimize extraction strategies.
 """
 
 import json
+import logging
 import time
 from collections.abc import Sequence
 from datetime import datetime
@@ -14,6 +15,28 @@ from typing import Any
 from urllib.parse import urlparse
 
 from src.telemetry.store import TelemetryStore, get_store
+
+logger = logging.getLogger(__name__)
+
+
+# Proxy status codes for telemetry database (integer field)
+PROXY_STATUS_DISABLED = 0
+PROXY_STATUS_SUCCESS = 1
+PROXY_STATUS_FAILED = 2
+PROXY_STATUS_BYPASSED = 3
+
+
+def proxy_status_to_int(status: str | None) -> int | None:
+    """Convert string proxy status to integer for database storage."""
+    if status is None:
+        return None
+    status_map = {
+        "disabled": PROXY_STATUS_DISABLED,
+        "success": PROXY_STATUS_SUCCESS,
+        "failed": PROXY_STATUS_FAILED,
+        "bypassed": PROXY_STATUS_BYPASSED,
+    }
+    return status_map.get(status.lower())
 
 
 class ExtractionMetrics:
@@ -28,30 +51,30 @@ class ExtractionMetrics:
 
         # Overall timing
         self.start_time = datetime.utcnow()
-        self.end_time = None
-        self.total_duration_ms = 0
+        self.end_time: datetime | None = None
+        self.total_duration_ms: float = 0.0
 
         # HTTP metrics
-        self.http_status_code = None
-        self.http_error_type = None
+        self.http_status_code: int | None = None
+        self.http_error_type: str | None = None
         self.response_size_bytes = 0
-        self.response_time_ms = 0
+        self.response_time_ms: float = 0.0
 
         # Method tracking
-        self.methods_attempted = []
-        self.method_timings = {}
-        self.method_success = {}
-        self.method_errors = {}
-        self.successful_method = None
+        self.methods_attempted: list[str] = []
+        self.method_timings: dict[str, float] = {}
+        self.method_success: dict[str, bool] = {}
+        self.method_errors: dict[str, str] = {}
+        self.successful_method: str | None = None
 
         # Field extraction tracking
-        self.field_extraction = {}
+        self.field_extraction: dict[str, dict[str, Any]] = {}
 
         # Final field attribution (which method provided each field)
-        self.final_field_attribution = {}
+        self.final_field_attribution: dict[str, str] = {}
 
         # Track alternative extractions (later methods vs. current fields)
-        self.alternative_extractions = {}
+        self.alternative_extractions: dict[str, dict[str, Any]] = {}
 
         # Final results
         self.extracted_fields = {
@@ -69,6 +92,14 @@ class ExtractionMetrics:
 
         # Content type detection
         self.content_type_detection: dict[str, Any] | None = None
+
+        # Proxy metrics
+        self.proxy_used: bool = False
+        self.proxy_url: str | None = None
+        self.proxy_authenticated: bool = False
+        # 0=disabled, 1=success, 2=failed, 3=bypassed
+        self.proxy_status: int | None = None
+        self.proxy_error: str | None = None
 
     def start_method(self, method_name: str):
         """Start timing a specific extraction method."""
@@ -109,6 +140,16 @@ class ExtractionMetrics:
             if http_status and self.http_status_code is None:
                 # Use first HTTP status we encounter
                 self.set_http_metrics(http_status, 0, 0)
+
+            # Extract proxy info from metadata if available
+            if "proxy_used" in metadata and not self.proxy_used:
+                self.set_proxy_metrics(
+                    proxy_used=metadata.get("proxy_used", False),
+                    proxy_url=metadata.get("proxy_url"),
+                    proxy_authenticated=metadata.get("proxy_authenticated", False),
+                    proxy_status=metadata.get("proxy_status"),
+                    proxy_error=metadata.get("proxy_error"),
+                )
 
     def record_alternative_extraction(
         self,
@@ -154,6 +195,31 @@ class ExtractionMetrics:
         elif status_code >= 500:
             self.http_error_type = "5xx_server_error"
 
+    def set_proxy_metrics(
+        self,
+        proxy_used: bool,
+        proxy_url: str | None = None,
+        proxy_authenticated: bool = False,
+        proxy_status: str | None = None,
+        proxy_error: str | None = None,
+    ):
+        """Record proxy-level metrics.
+
+        Args:
+            proxy_used: Whether proxy was used for this request
+            proxy_url: The proxy URL if used
+            proxy_authenticated: Whether proxy credentials were present
+            proxy_status: Status of proxy usage: success, failed, bypassed, disabled
+            proxy_error: Error message if proxy failed
+        """
+        self.proxy_used = proxy_used
+        self.proxy_url = proxy_url
+        self.proxy_authenticated = proxy_authenticated
+        self.proxy_status = proxy_status_to_int(proxy_status)
+        if proxy_error:
+            # Truncate long error messages
+            self.proxy_error = proxy_error[:500]
+
     def finalize(self, final_result: dict[str, Any]):
         """Finalize metrics with the overall extraction result."""
         self.end_time = datetime.utcnow()
@@ -192,157 +258,69 @@ class ComprehensiveExtractionTelemetry:
         """Initialize telemetry system."""
         if store is not None:
             self._store = store
+            self._database_url = None  # Unknown when store provided directly
         else:
             if db_path is not None:
                 resolved = Path(db_path)
                 resolved.parent.mkdir(parents=True, exist_ok=True)
                 database_url = f"sqlite:///{resolved}"
+                self._database_url = database_url
                 self._store = TelemetryStore(
                     database=database_url,
                     async_writes=False,
                 )
             else:
-                self._store = get_store()
+                # Use DatabaseManager's existing engine
+                # This handles Cloud SQL Connector automatically
+                from src.models.database import DatabaseManager
 
-        self._ensure_telemetry_tables()
+                db = DatabaseManager()
+                database_url = str(db.engine.url)
+                self._database_url = database_url
+                # Pass the engine so telemetry uses existing Cloud SQL connection
+                self._store = get_store(database_url, engine=db.engine)
 
-    def _ensure_telemetry_tables(self):
-        """Create telemetry tables if they don't exist."""
-        with self._store.connection() as conn:
-            # Enhanced extraction telemetry table
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS extraction_telemetry_v2 (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    operation_id TEXT NOT NULL,
-                    article_id TEXT NOT NULL,
-                    url TEXT NOT NULL,
-                    publisher TEXT,
-                    host TEXT,
+        # NOTE: Telemetry tables should already exist via Alembic migrations
+        # Do NOT create tables at runtime from application code
 
-                    -- Timing metrics
-                    start_time TIMESTAMP NOT NULL,
-                    end_time TIMESTAMP,
-                    total_duration_ms REAL,
-
-                    -- HTTP metrics
-                    http_status_code INTEGER,
-                    http_error_type TEXT,
-                    response_size_bytes INTEGER,
-                    response_time_ms REAL,
-
-                    -- Method tracking
-                    methods_attempted TEXT,
-                    successful_method TEXT,
-                    method_timings TEXT,
-                    method_success TEXT,
-                    method_errors TEXT,
-
-                    -- Field extraction tracking
-                    field_extraction TEXT,
-                    extracted_fields TEXT,
-                    final_field_attribution TEXT,
-                    alternative_extractions TEXT,
-
-                    -- Results
-                    content_length INTEGER,
-                    is_success BOOLEAN,
-                    error_message TEXT,
-                    error_type TEXT,
-
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """
-            )
-
-            # Add alternative_extractions column if it doesn't exist
-            try:
-                conn.execute(
-                    """
-                    ALTER TABLE extraction_telemetry_v2
-                    ADD COLUMN alternative_extractions TEXT
-                """
-                )
-                print("Added alternative_extractions column")
-            except Exception:
-                # Column already exists
-                pass
-
-            # HTTP error tracking
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS http_error_summary (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    host TEXT NOT NULL,
-                    status_code INTEGER NOT NULL,
-                    error_type TEXT NOT NULL,
-                    count INTEGER DEFAULT 1,
-                    first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-                    UNIQUE(host, status_code)
-                )
-            """
-            )
-
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS content_type_detection_telemetry (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    article_id TEXT NOT NULL,
-                    operation_id TEXT,
-                    url TEXT NOT NULL,
-                    publisher TEXT,
-                    host TEXT,
-                    status TEXT NOT NULL,
-                    confidence TEXT,
-                    confidence_score REAL,
-                    reason TEXT,
-                    evidence TEXT,
-                    version TEXT,
-                    detected_at TIMESTAMP,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """
-            )
-
-            try:
-                conn.execute(
-                    """
-                    ALTER TABLE content_type_detection_telemetry
-                    ADD COLUMN confidence_score REAL
-                    """
-                )
-            except Exception:
-                pass
-
-            conn.commit()
+    # REMOVED: _ensure_telemetry_tables() method
+    # Schema changes should be handled via Alembic migrations, NOT at runtime
+    # If telemetry tables don't exist, they should be created via:
+    # 1. alembic upgrade head (for new deployments)
+    # 2. Manual SQL scripts (for existing databases)
+    # 3. NOT from application code during normal operation
 
     def record_extraction(self, metrics: ExtractionMetrics):
         """Record detailed extraction metrics."""
 
-        def writer(conn):
+        from sqlalchemy.exc import IntegrityError
+
+        def _do_insert(conn) -> None:
+            """Perform the core INSERT for extraction telemetry."""
             is_success = bool(metrics.is_success)
             if not is_success:
                 if metrics.successful_method:
                     is_success = True
                 else:
                     is_success = any(metrics.method_success.values())
+
             conn.execute(
                 """
                 INSERT INTO extraction_telemetry_v2 (
-                    operation_id, article_id, url, publisher, host,
-                    start_time, end_time, total_duration_ms,
-                    http_status_code, http_error_type,
-                    response_size_bytes, response_time_ms,
-                    methods_attempted, successful_method,
-                    method_timings, method_success, method_errors,
-                    field_extraction, extracted_fields,
-                    final_field_attribution, alternative_extractions,
-                    content_length, is_success, error_message, error_type
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                         ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
+                operation_id, article_id, url, publisher, host,
+                start_time, end_time, total_duration_ms,
+                http_status_code, http_error_type,
+                response_size_bytes, response_time_ms,
+                proxy_used, proxy_url, proxy_authenticated,
+                proxy_status, proxy_error,
+                methods_attempted, successful_method,
+                method_timings, method_success, method_errors,
+                field_extraction, extracted_fields,
+                final_field_attribution, alternative_extractions,
+                content_length, is_success, error_message, error_type
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
                 (
                     metrics.operation_id,
                     metrics.article_id,
@@ -356,6 +334,19 @@ class ComprehensiveExtractionTelemetry:
                     metrics.http_error_type,
                     metrics.response_size_bytes,
                     metrics.response_time_ms,
+                    (
+                        int(metrics.proxy_used)
+                        if metrics.proxy_used is not None
+                        else None
+                    ),
+                    metrics.proxy_url,
+                    (
+                        int(metrics.proxy_authenticated)
+                        if metrics.proxy_authenticated is not None
+                        else None
+                    ),
+                    metrics.proxy_status,
+                    metrics.proxy_error,
                     json.dumps(metrics.methods_attempted),
                     metrics.successful_method,
                     json.dumps(metrics.method_timings),
@@ -372,13 +363,75 @@ class ComprehensiveExtractionTelemetry:
                 ),
             )
 
+        def writer(conn):
+            # Try insert, on duplicate-key (IntegrityError) attempt a sequence
+            # resync for Postgres then retry once. This guards against
+            # out-of-sync SERIAL sequences causing 23505 failures.
+            try:
+                _do_insert(conn)
+            except IntegrityError as ie:
+                logger.warning("Telemetry insert IntegrityError: %s", ie)
+                try:
+                    # Only attempt resync if backing store is Postgres
+                    if (
+                        hasattr(self._store, "_is_postgres")
+                        and self._store._is_postgres
+                    ):
+                        # Try to set sequence to max(id) so nextval yields new id
+                        conn.execute(
+                            """
+                            DO $$
+                            DECLARE
+                                seq_name text;
+                                max_id bigint;
+                            BEGIN
+                                SELECT pg_get_serial_sequence(
+                                    'extraction_telemetry_v2', 'id'
+                                ) INTO seq_name;
+                                IF seq_name IS NULL THEN
+                                    RAISE NOTICE 'No serial sequence found for extraction_telemetry_v2.id';
+                                    RETURN;
+                                END IF;
+                                EXECUTE format(
+                                    'SELECT COALESCE(MAX(id), 0) FROM extraction_telemetry_v2'
+                                ) INTO max_id;
+                                IF max_id IS NULL THEN
+                                    max_id := 0;
+                                END IF;
+                                EXECUTE format('SELECT setval(%L, %s)', seq_name, max_id);
+                                RAISE NOTICE 'Resynced sequence % to %', seq_name, max_id;
+                            END
+                            $$;
+                            """,
+                        )
+
+                        # Retry insert once
+                        try:
+                            _do_insert(conn)
+                        except IntegrityError as ie2:
+                            logger.warning(
+                                "Telemetry insert failed again after sequence resync: %s",
+                                ie2,
+                            )
+                            return
+                    else:
+                        # Non-Postgres stores can't resync sequence; ignore
+                        logger.warning(
+                            "Telemetry insert IntegrityError on non-Postgres store, ignoring: %s",
+                            ie,
+                        )
+                        return
+                except Exception:
+                    logger.exception("Exception during telemetry resync attempt")
+                    return
+
             if metrics.http_status_code and metrics.http_error_type:
                 now = datetime.utcnow()
                 conn.execute(
                     """
                     INSERT INTO http_error_summary
-                    (host, status_code, error_type, count, last_seen)
-                    VALUES (?, ?, ?, 1, ?)
+                    (host, status_code, error_type, count, first_seen, last_seen)
+                    VALUES (?, ?, ?, 1, ?, ?)
                     ON CONFLICT(host, status_code) DO UPDATE SET
                         count = count + 1,
                         last_seen = ?
@@ -387,6 +440,7 @@ class ComprehensiveExtractionTelemetry:
                         metrics.host,
                         metrics.http_status_code,
                         metrics.http_error_type,
+                        now,
                         now,
                         now,
                     ),
@@ -410,7 +464,8 @@ class ComprehensiveExtractionTelemetry:
                         metrics.publisher,
                         metrics.host,
                         detection.get("status"),
-                        detection.get("confidence"),
+                        # confidence column expects float, not text label
+                        detection.get("confidence_score"),
                         detection.get("confidence_score"),
                         detection.get("reason"),
                         (
@@ -423,7 +478,15 @@ class ComprehensiveExtractionTelemetry:
                     ),
                 )
 
-        self._store.submit(writer)
+        try:
+            self._store.submit(writer)
+        except (RuntimeError, RecursionError):
+            # Telemetry disabled or Cloud SQL incompatibility
+            pass
+        except Exception as exc:
+            # Log but don't fail extraction
+            exc_msg = str(exc).split("\n")[0][:80]
+            print(f"Warning: Telemetry failed: {type(exc).__name__}: {exc_msg}")
 
     def get_error_summary(self, days: int = 7) -> list:
         """Get HTTP error summary for the last N days."""

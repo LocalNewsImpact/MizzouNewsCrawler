@@ -11,7 +11,7 @@ import sys
 from collections import Counter, defaultdict
 
 # Add the src directory to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 try:
     from src.utils.byline_cleaner import BylineCleaner
@@ -23,13 +23,12 @@ except ImportError:
 def parse_authors_json(authors_json: str) -> list[str]:
     """Parse authors JSON string into list of author names."""
     try:
-        if not authors_json or authors_json.strip() == '':
+        if not authors_json or authors_json.strip() == "":
             return []
 
-        if authors_json.startswith('[') and authors_json.endswith(']'):
+        if authors_json.startswith("[") and authors_json.endswith("]"):
             authors = json.loads(authors_json)
-            return [str(author).strip() for author in authors
-                    if str(author).strip()]
+            return [str(author).strip() for author in authors if str(author).strip()]
         else:
             return [authors_json.strip()] if authors_json.strip() else []
     except (json.JSONDecodeError, ValueError):
@@ -83,26 +82,43 @@ def analyze_author_changes(current: list[str], new: list[str]) -> dict:
     # Detect improvements
     is_improvement = (
         # Same or more authors with better quality
-        (len(new) >= len(current) and new_quality >= current_quality) or
+        (len(new) >= len(current) and new_quality >= current_quality)
+        or
         # Removed obvious noise while keeping real names
-        (len(new) < len(current) and new_quality >= current_quality and
-         any(removed.lower() in ['cnn', 'ap', 'reuters', 'staff', 'reporter',
-                               'editor', 'news', 'forum', 'owner', 'inc']
-             for removed in (current_set - new_set)))
+        (
+            len(new) < len(current)
+            and new_quality >= current_quality
+            and any(
+                removed.lower()
+                in [
+                    "cnn",
+                    "ap",
+                    "reuters",
+                    "staff",
+                    "reporter",
+                    "editor",
+                    "news",
+                    "forum",
+                    "owner",
+                    "inc",
+                ]
+                for removed in (current_set - new_set)
+            )
+        )
     )
 
     return {
-        'current_count': len(current),
-        'new_count': len(new),
-        'current_authors': current,
-        'new_authors': new,
-        'added': list(new_set - current_set),
-        'removed': list(current_set - new_set),
-        'unchanged': list(current_set & new_set),
-        'is_changed': current != new,
-        'is_improvement': is_improvement,
-        'current_quality': current_quality,
-        'new_quality': new_quality
+        "current_count": len(current),
+        "new_count": len(new),
+        "current_authors": current,
+        "new_authors": new,
+        "added": list(new_set - current_set),
+        "removed": list(current_set - new_set),
+        "unchanged": list(current_set & new_set),
+        "is_changed": current != new,
+        "is_improvement": is_improvement,
+        "current_quality": current_quality,
+        "new_quality": new_quality,
     }
 
 
@@ -113,7 +129,7 @@ def run_comprehensive_dry_run():
     print("=" * 60)
 
     # Database path
-    db_path = os.path.join(os.path.dirname(__file__), 'data', 'mizzou.db')
+    db_path = os.path.join(os.path.dirname(__file__), "data", "mizzou.db")
     if not os.path.exists(db_path):
         print(f"❌ Database not found at {db_path}")
         return
@@ -164,8 +180,7 @@ def run_comprehensive_dry_run():
 
             # Test the byline cleaning
             try:
-                new_authors = cleaner.clean_byline(original_byline,
-                                                 return_json=False)
+                new_authors = cleaner.clean_byline(original_byline, return_json=False)
             except Exception:
                 new_authors = []
 
@@ -176,15 +191,17 @@ def run_comprehensive_dry_run():
             scenario_key = f"{len(current_authors)}_authors"
             format_key = f"format_{byline_format}"
 
-            scenario_results[scenario_key][format_key].append({
-                'article_id': article_id,
-                'original_byline': original_byline,
-                'analysis': analysis
-            })
+            scenario_results[scenario_key][format_key].append(
+                {
+                    "article_id": article_id,
+                    "original_byline": original_byline,
+                    "analysis": analysis,
+                }
+            )
 
-            if analysis['is_improvement']:
+            if analysis["is_improvement"]:
                 overall_improvements += 1
-            elif analysis['is_changed'] and not analysis['is_improvement']:
+            elif analysis["is_changed"] and not analysis["is_improvement"]:
                 overall_degradations += 1
 
     # Generate report
@@ -197,7 +214,9 @@ def run_comprehensive_dry_run():
     print(f"   Total tests: {total_tests:,}")
     print(f"   Improvements: {overall_improvements:,}")
     print(f"   Degradations: {overall_degradations:,}")
-    print(f"   Unchanged: {total_tests - overall_improvements - overall_degradations:,}")
+    print(
+        f"   Unchanged: {total_tests - overall_improvements - overall_degradations:,}"
+    )
     improvement_rate = (overall_improvements / total_tests) * 100
     print(f"   Improvement rate: {improvement_rate:.1f}%")
 
@@ -207,9 +226,10 @@ def run_comprehensive_dry_run():
     for scenario, formats in scenario_results.items():
         total_scenario_tests = sum(len(results) for results in formats.values())
         scenario_improvements = sum(
-            1 for results in formats.values()
+            1
+            for results in formats.values()
             for result in results
-            if result['analysis']['is_improvement']
+            if result["analysis"]["is_improvement"]
         )
 
         scenario_rate = (scenario_improvements / total_scenario_tests) * 100
@@ -221,15 +241,15 @@ def run_comprehensive_dry_run():
         # Show examples for this scenario
         for format_key, results in formats.items():
             if results:
-                improvements = [r for r in results if r['analysis']['is_improvement']]
+                improvements = [r for r in results if r["analysis"]["is_improvement"]]
                 if improvements:
                     example = improvements[0]  # Take first improvement example
-                    analysis = example['analysis']
+                    analysis = example["analysis"]
                     print(f"     Example ({format_key}):")
-                    print(f"       Byline: \"{example['original_byline']}\"")
+                    print(f'       Byline: "{example["original_byline"]}"')
                     print(f"       Before: {analysis['current_authors']}")
                     print(f"       After: {analysis['new_authors']}")
-                    if analysis['removed']:
+                    if analysis["removed"]:
                         print(f"       Removed: {analysis['removed']}")
 
     # Detailed analysis of what gets removed
@@ -239,13 +259,13 @@ def run_comprehensive_dry_run():
     for scenario, formats in scenario_results.items():
         for format_key, results in formats.items():
             for result in results:
-                analysis = result['analysis']
-                for removed in analysis.get('removed', []):
+                analysis = result["analysis"]
+                for removed in analysis.get("removed", []):
                     removed_terms[removed.lower()] += 1
 
     print("   Most frequently removed terms:")
     for term, count in removed_terms.most_common(10):
-        print(f"     \"{term}\": {count} times")
+        print(f'     "{term}": {count} times')
 
     # Final recommendation
     print("\n💡 FINAL ASSESSMENT:")
@@ -269,5 +289,5 @@ def run_comprehensive_dry_run():
     print("=" * 60)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     run_comprehensive_dry_run()

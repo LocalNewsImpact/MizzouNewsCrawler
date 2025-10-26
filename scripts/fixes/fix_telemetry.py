@@ -4,7 +4,7 @@
 
 
 # Read the file
-with open('src/utils/telemetry.py') as f:
+with open("src/utils/telemetry.py") as f:
     content = f.read()
 
 # Find the specific pattern and replace it
@@ -39,7 +39,7 @@ new_pattern = """            with self.db_engine.connect() as conn:
 content = content.replace(old_pattern, new_pattern)
 
 # Write back to file
-with open('src/utils/telemetry.py', 'w') as f:
+with open("src/utils/telemetry.py", "w") as f:
     f.write(content)
 
 print("Fixed telemetry.py - moved commit after sources update")

@@ -1,0 +1,66 @@
+# Multi-stage Dockerfile for Crawler services
+# Handles discovery, extraction, and verification
+# Optimized using shared base image
+
+# Use ARG to allow override of base image location
+ARG BASE_IMAGE=mizzou-base:latest
+
+# Stage 1: Base with additional crawler system dependencies
+FROM ${BASE_IMAGE} AS base-crawler
+
+# Install additional system dependencies for browser automation (Playwright, Selenium)
+# Base image has gcc, g++, libpq-dev, wget, ca-certificates
+# We add browser-specific packages here
+RUN apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* && \
+    apt-get update -o Acquire::Check-Valid-Until=false && \
+    (apt-get install -y --no-install-recommends --allow-unauthenticated \
+        fonts-liberation libnss3 libxss1 xdg-utils || \
+     apt-get install -y --no-install-recommends --fix-missing \
+        fonts-liberation libnss3 libxss1 xdg-utils) && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Stage 2: Install Crawler-specific dependencies
+FROM base-crawler AS deps
+
+# Copy only crawler-specific requirements (selenium, newspaper4k, etc.)
+COPY requirements-crawler.txt ./
+
+# Install crawler-specific Python packages
+RUN pip install --no-cache-dir -r requirements-crawler.txt
+
+# Stage 3: Final runtime image
+FROM base-crawler AS runtime
+
+WORKDIR /app
+
+# Copy crawler-specific packages from deps stage
+# Base packages and spacy model are already in the base image
+COPY --from=deps /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=deps /usr/local/bin /usr/local/bin
+COPY --from=deps /root/.cache /root/.cache
+
+# appuser already created in base image, just set ownership
+RUN chown -R appuser:appuser /app
+
+# Copy application code
+COPY --chown=appuser:appuser src/ ./src/
+COPY --chown=appuser:appuser lookups/ ./lookups/
+COPY --chown=appuser:appuser orchestration/ ./orchestration/
+
+# Create data directory for SQLite (will be replaced with Cloud SQL)
+RUN mkdir -p /app/data && chown -R appuser:appuser /app/data
+
+# Switch to non-root user
+USER appuser
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+# Default command (can be overridden in Kubernetes)
+# NOTE: --dataset parameter ensures candidate_links get proper dataset_id assignment
+# For Missouri sources, use "Mizzou Missouri State" dataset label
+CMD ["python", "-m", "src.cli.main", "discover-urls", "--dataset", "Mizzou Missouri State", "--source-limit", "50"]

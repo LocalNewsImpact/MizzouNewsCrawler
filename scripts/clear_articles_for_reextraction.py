@@ -9,7 +9,7 @@ import sqlite3
 
 def clear_articles_table():
     """Clear all articles to allow fresh extraction with new fallback system."""
-    db_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'mizzou.db')
+    db_path = os.path.join(os.path.dirname(__file__), "..", "data", "mizzou.db")
 
     if not os.path.exists(db_path):
         print(f"Database not found at: {db_path}")
@@ -54,6 +54,7 @@ def clear_articles_table():
         return False
     finally:
         conn.close()
+
 
 if __name__ == "__main__":
     print("🗑️  Clearing articles table for fresh extraction with new fallback system")

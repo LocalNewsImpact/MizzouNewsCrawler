@@ -6,19 +6,17 @@ import logging
 import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from difflib import SequenceMatcher
 from functools import lru_cache
-from typing import (
-    cast,
-)
 
 import spacy
+from rapidfuzz import fuzz
 from spacy import about as spacy_about
 from spacy.pipeline import EntityRuler
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.models import Gazetteer
+from src.models.database import safe_session_execute
 from src.pipeline.text_cleaning import decode_rot47_segments
 
 logger = logging.getLogger(__name__)
@@ -123,7 +121,7 @@ class ArticleEntityExtractor:
         if gazetteer_rows:
             seen_patterns: set[tuple[str, str]] = set()
             for row in gazetteer_rows:
-                name = cast(str | None, getattr(row, "name", None))
+                name = getattr(row, "name", None)
                 if not name:
                     continue
                 category_key = (getattr(row, "category", None) or "").lower()
@@ -143,10 +141,7 @@ class ArticleEntityExtractor:
                     pattern_entries.append((label_override, name))
                     seen_patterns.add(key)
 
-                name_norm = cast(
-                    str | None,
-                    getattr(row, "name_norm", None),
-                )
+                name_norm = getattr(row, "name_norm", None)
                 if name_norm and name_norm.strip():
                     norm_norm = _normalize_text(name_norm)
                     if norm_norm:
@@ -232,6 +227,8 @@ class ArticleEntityExtractor:
             if norm_key in seen_norms:
                 continue
             override = category_overrides.get(norm_value)
+            category: str | None
+            subcategory: str | None
             if override:
                 category, subcategory = override
             else:
@@ -296,27 +293,63 @@ class ArticleEntityExtractor:
 
 
 def _score_match(
-    norm_entity: str, candidates: Sequence[Gazetteer]
+    norm_entity: str, candidates: Sequence[Gazetteer], entity_text: str = ""
 ) -> GazetteerMatch | None:
+    """Score fuzzy matches between entity and gazetteer candidates.
+
+    Args:
+        norm_entity: Normalized entity text
+        candidates: List of gazetteer entries to compare against
+        entity_text: Original entity text (for logging)
+
+    Returns:
+        Best matching gazetteer entry with score >= 0.85, or None
+    """
+    if not candidates:
+        return None
+
+    # Log when doing expensive fuzzy matching on many candidates
+    if len(candidates) > 100 and entity_text:
+        logger.debug(
+            f"🔍 Fuzzy matching '{entity_text}' against {len(candidates)} candidates"
+        )
+
     best_match: GazetteerMatch | None = None
     for entry in candidates:
-        name_norm = cast(str | None, getattr(entry, "name_norm", None))
-        entry_norm = name_norm or _normalize_text(cast(str, entry.name or ""))
+        name_norm = getattr(entry, "name_norm", None)
+        entry_norm = name_norm or _normalize_text(entry.name or "")
         if not entry_norm:
             continue
+
+        # Exact match - return immediately
         if entry_norm == norm_entity:
+            if entity_text and len(candidates) > 100:
+                logger.debug(
+                    "✅ Exact match: '%s' → '%s'",
+                    entity_text,
+                    str(getattr(entry, "name", "")),
+                )
             return GazetteerMatch(
-                cast(str, entry.id),
+                str(getattr(entry, "id", "")),
                 1.0,
-                cast(str, entry.name),
+                str(getattr(entry, "name", "")) or "",
             )
-        score = SequenceMatcher(None, norm_entity, entry_norm).ratio()
+
+        # Use rapidfuzz for fuzzy matching (10-100x faster than SequenceMatcher)
+        score = fuzz.ratio(norm_entity, entry_norm) / 100.0
         if score >= 0.85 and (best_match is None or score > best_match.score):
             best_match = GazetteerMatch(
-                cast(str, entry.id),
+                str(getattr(entry, "id", "")),
                 score,
-                cast(str, entry.name),
+                str(getattr(entry, "name", "")) or "",
             )
+
+    if best_match and entity_text and len(candidates) > 100:
+        logger.debug(
+            f"✅ Fuzzy match: '{entity_text}' → '{best_match.name}' "
+            f"(score: {best_match.score:.2f})"
+        )
+
     return best_match
 
 
@@ -334,12 +367,15 @@ def get_gazetteer_rows(
         return []
 
     stmt = select(Gazetteer)
-    if len(filters) == 1:
-        stmt = stmt.where(filters[0])
-    else:
-        stmt = stmt.where(or_(*filters))
+    # Use OR when multiple filters (get gazetteer entries for source OR dataset)
+    from sqlalchemy import or_
 
-    return list(session.execute(stmt).scalars().all())
+    if len(filters) > 1:
+        stmt = stmt.where(or_(*filters))
+    else:
+        stmt = stmt.where(filters[0])
+
+    return list(safe_session_execute(session, stmt).scalars().all())
 
 
 def attach_gazetteer_matches(
@@ -349,6 +385,18 @@ def attach_gazetteer_matches(
     entities: list[dict[str, object]],
     gazetteer_rows: list[Gazetteer] | None = None,
 ) -> list[dict[str, object]]:
+    """Attach gazetteer matches to extracted entities using fuzzy matching.
+
+    Args:
+        session: Database session
+        source_id: Source ID filter for gazetteer
+        dataset_id: Dataset ID filter for gazetteer
+        entities: List of extracted entities to match
+        gazetteer_rows: Optional pre-loaded gazetteer entries
+
+    Returns:
+        Entities with matched_gazetteer_id, match_score, and match_name added
+    """
     if not entities:
         return entities
 
@@ -357,30 +405,60 @@ def attach_gazetteer_matches(
     if not gazetteer_rows:
         return entities
 
+    logger.debug(
+        f"🗺️  Matching {len(entities)} entities against "
+        f"{len(gazetteer_rows)} gazetteer entries"
+    )
+
+    # Build normalized name index for fast direct lookups
     index: dict[str, list[Gazetteer]] = {}
     for row in gazetteer_rows:
-        name_norm = cast(str | None, getattr(row, "name_norm", None))
-        key = name_norm or _normalize_text(cast(str, row.name or ""))
+        name_norm = getattr(row, "name_norm", None)
+        key = name_norm or _normalize_text(row.name or "")
         if not key:
             continue
         index.setdefault(key, []).append(row)
 
-    for entity in entities:
+    matched_count = 0
+    fallback_count = 0
+
+    for i, entity in enumerate(entities):
+        entity_text = str(entity.get("entity_text", ""))
+
+        # Log progress for large batches
+        if len(entities) > 20 and (i + 1) % 10 == 0:
+            logger.debug(f"   Entity matching progress: {i + 1}/{len(entities)}")
+
         norm = entity.get("entity_norm")
         if not isinstance(norm, str) or not norm:
-            norm = _normalize_text(str(entity.get("entity_text", "")))
+            norm = _normalize_text(entity_text)
             entity["entity_norm"] = norm
+
+        # Try direct match first (fast O(1) lookup)
         direct_matches = index.get(norm, [])
-        match = _score_match(norm, direct_matches)
-        if not match and index:
+        match = _score_match(norm, direct_matches, entity_text)
+
+        # Fallback: fuzzy match against all candidates
+        # With rapidfuzz, this is now 50-100x faster (seconds instead of hours)
+        if not match and index and len(gazetteer_rows) < 50000:
+            # Only do fallback for reasonable-sized gazetteers
+            # This prevents extreme cases but allows normal operation
+            fallback_count += 1
             all_candidates: Iterable[Gazetteer] = (
                 candidate for candidates in index.values() for candidate in candidates
             )
-            match = _score_match(norm, list(all_candidates))
+            match = _score_match(norm, list(all_candidates), entity_text)
+
         if match:
             entity["matched_gazetteer_id"] = match.gazetteer_id
             entity["match_score"] = match.score
             entity["match_name"] = match.name
+            matched_count += 1
+
+    logger.debug(
+        f"✅ Matched {matched_count}/{len(entities)} entities "
+        f"({fallback_count} required fallback fuzzy matching)"
+    )
 
     return entities
 

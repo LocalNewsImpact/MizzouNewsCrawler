@@ -9,7 +9,7 @@ def debug_journalism_filtering():
     cleaner = BylineCleaner()
 
     # Test if the terms are actually in the list
-    test_terms = ['team', 'department', 'name']
+    test_terms = ["team", "department", "name"]
 
     print("Checking if terms are in JOURNALISM_NOUNS:")
     for term in test_terms:
@@ -18,6 +18,7 @@ def debug_journalism_filtering():
 
     print(f"\nJOURNALISM_NOUNS contains {len(cleaner.JOURNALISM_NOUNS)} terms")
     print("Sample terms:", list(cleaner.JOURNALISM_NOUNS)[:10])
+
 
 if __name__ == "__main__":
     debug_journalism_filtering()

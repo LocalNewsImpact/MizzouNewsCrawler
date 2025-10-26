@@ -13,7 +13,7 @@ def debug_failing_cases():
     failing_cases = [
         "O'Connor, Sean, Staff Reporter",
         "Photos, John Smith",
-        "D'Artagnan, Jean-Luc"
+        "D'Artagnan, Jean-Luc",
     ]
 
     print("🔍 DEBUGGING FAILING CASES")
@@ -23,13 +23,13 @@ def debug_failing_cases():
         print(f"\nDebugging: '{case}'")
 
         # Test part type identification for each comma-separated part
-        parts = case.split(',')
+        parts = case.split(",")
         print(f"  Parts: {[p.strip() for p in parts]}")
 
         for i, part in enumerate(parts):
             part = part.strip()
             part_type = cleaner._identify_part_type(part)
-            print(f"    Part {i+1}: '{part}' -> type: '{part_type}'")
+            print(f"    Part {i + 1}: '{part}' -> type: '{part_type}'")
 
         # Test the extraction
         result = cleaner._extract_authors(case)

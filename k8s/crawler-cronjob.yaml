@@ -1,0 +1,57 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mizzou-crawler
+  namespace: production
+  labels:
+    app: mizzou-crawler
+    component: crawler
+spec:
+  # Run daily at 2 AM UTC (adjust as needed)
+  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: mizzou-crawler
+            component: crawler
+        spec:
+          serviceAccountName: mizzou-app
+          priorityClassName: scheduled-high  # High priority, can preempt batch jobs
+          restartPolicy: OnFailure
+          containers:
+          # Main crawler container
+          - name: crawler
+            image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:latest
+            env:
+            # Cloud SQL Connector configuration (no proxy sidecar needed)
+            - name: USE_CLOUD_SQL_CONNECTOR
+              value: "true"
+            - name: CLOUD_SQL_INSTANCE
+              value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: username
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: password
+            - name: DATABASE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: database
+            resources:
+              requests:
+                cpu: 200m
+                memory: 1Gi
+              limits:
+                cpu: 1000m
+                memory: 2Gi

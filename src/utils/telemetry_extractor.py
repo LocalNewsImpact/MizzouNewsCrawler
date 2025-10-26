@@ -180,11 +180,11 @@ class TelemetryContentExtractor:
             elif 400 <= response.status_code < 500:
                 if response.status_code == 404:
                     raise Exception(
-                        f"HTTP_ERROR: Page not found " f"({response.status_code})"
+                        f"HTTP_ERROR: Page not found ({response.status_code})"
                     )
                 else:
                     raise Exception(
-                        f"HTTP_ERROR: Client error " f"({response.status_code})"
+                        f"HTTP_ERROR: Client error ({response.status_code})"
                     )
             elif response.status_code >= 500:
                 raise Exception(f"HTTP_ERROR: Server error ({response.status_code})")
@@ -270,7 +270,7 @@ class TelemetryContentExtractor:
     def _analyze_content_quality(self, content_data: dict[str, Any]) -> dict[str, Any]:
         """Analyze the quality and completeness of extracted
         content."""
-        analysis = {
+        analysis: dict[str, Any] = {
             "has_title": bool(content_data.get("title", "").strip()),
             "has_content": bool(content_data.get("content", "").strip()),
             "has_author": bool(content_data.get("author", "").strip()),
@@ -304,7 +304,7 @@ class TelemetryContentExtractor:
 
     def _analyze_field_quality(self, content_data: dict[str, Any]) -> dict[str, Any]:
         """Perform detailed quality analysis for each extracted field."""
-        quality_analysis = {
+        quality_analysis: dict[str, Any] = {
             "title_quality_issues": [],
             "content_quality_issues": [],
             "author_quality_issues": [],

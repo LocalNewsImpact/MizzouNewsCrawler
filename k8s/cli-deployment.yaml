@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mizzou-cli
+  namespace: production
+  labels:
+    app: mizzou-cli
+    component: utility
+spec:
+  replicas: 0  # Scale to 1 when CLI access needed, 0 when not in use
+  selector:
+    matchLabels:
+      app: mizzou-cli
+  template:
+    metadata:
+      labels:
+        app: mizzou-cli
+        component: utility
+    spec:
+      serviceAccountName: mizzou-app
+      restartPolicy: Always
+      
+      containers:
+      - name: cli
+        image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:d44fe7b
+        imagePullPolicy: Always
+        
+        # Keep pod alive but do nothing - waiting for kubectl exec commands
+        command: ["tail"]
+        args: ["-f", "/dev/null"]
+        
+        env:
+        # Cloud SQL Connector configuration
+        - name: USE_CLOUD_SQL_CONNECTOR
+          value: "true"
+        - name: CLOUD_SQL_INSTANCE
+          value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+        
+        # Database configuration
+        - name: DATABASE_ENGINE
+          value: "postgresql+psycopg2"
+        - name: DATABASE_HOST
+          value: "127.0.0.1"
+        - name: DATABASE_PORT
+          value: "5432"
+        
+        # Database credentials from secret
+        - name: DATABASE_USER
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: username
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: password
+        - name: DATABASE_NAME
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: database
+        
+        # Proxy configuration
+        - name: PROXY_HOST
+          valueFrom:
+            secretKeyRef:
+              name: proxy-credentials
+              key: host
+              optional: true
+        - name: PROXY_PORT
+          valueFrom:
+            secretKeyRef:
+              name: proxy-credentials
+              key: port
+              optional: true
+        - name: PROXY_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: proxy-credentials
+              key: username
+              optional: true
+        - name: PROXY_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: proxy-credentials
+              key: password
+              optional: true
+        
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"

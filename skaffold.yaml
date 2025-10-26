@@ -1,0 +1,50 @@
+# Skaffold configuration for Cloud Deploy
+# Defines how to deploy each service to Kubernetes
+apiVersion: skaffold/v4beta6
+kind: Config
+metadata:
+  name: mizzou-news-crawler
+
+# Define the services to deploy
+build:
+  artifacts:
+    - image: processor
+      docker:
+        dockerfile: Dockerfile.processor
+    - image: api
+      docker:
+        dockerfile: Dockerfile.api
+    - image: crawler
+      docker:
+        dockerfile: Dockerfile.crawler
+
+# Deployment manifests
+manifests:
+  rawYaml:
+    - k8s/processor-deployment.yaml
+    - k8s/api-deployment.yaml
+    - k8s/crawler-cronjob.yaml
+    - k8s/cli-deployment.yaml
+    - k8s/pdbs/mizzou-api-pdb.yaml
+    - k8s/pdbs/mizzou-processor-pdb.yaml
+
+# Deploy to Kubernetes
+deploy:
+  kubectl: {}
+
+# Profiles for different environments (future use)
+profiles:
+  - name: lab
+    manifests:
+      rawYaml:
+        - k8s/lab/processor-deployment.yaml
+        - k8s/lab/api-deployment.yaml
+  - name: production
+    manifests:
+      rawYaml:
+        - k8s/processor-deployment.yaml
+        - k8s/api-deployment.yaml
+        - k8s/crawler-cronjob.yaml
+        - k8s/cli-deployment.yaml
+        - k8s/pdbs/mizzou-api-pdb.yaml
+        - k8s/pdbs/mizzou-processor-pdb.yaml

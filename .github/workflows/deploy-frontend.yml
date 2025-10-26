@@ -1,0 +1,107 @@
+# Deploy Frontend to Cloud Storage
+
+name: Deploy Frontend
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'web/frontend/**'
+      - '.github/workflows/deploy-frontend.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy-frontend:
+    name: Build and Deploy Frontend
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      PROJECT_ID: mizzou-news-crawler
+      BUCKET_NAME: mizzou-news-frontend
+      REGION: us-central1
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: web/frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: web/frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: web/frontend
+        env:
+          VITE_API_URL: https://api.mizzounews.org
+          NODE_ENV: production
+        run: npm run build
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/${{ secrets.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github/providers/github'
+          service_account: 'github-actions@${{ env.PROJECT_ID }}.iam.gserviceaccount.com'
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Create bucket if not exists
+        run: |
+          if ! gsutil ls gs://${{ env.BUCKET_NAME }} 2>/dev/null; then
+            echo "Creating bucket..."
+            gsutil mb -l ${{ env.REGION }} gs://${{ env.BUCKET_NAME }}
+            gsutil web set -m index.html -e index.html gs://${{ env.BUCKET_NAME }}
+            gsutil iam ch allUsers:objectViewer gs://${{ env.BUCKET_NAME }}
+          else
+            echo "Bucket already exists"
+          fi
+
+      - name: Deploy to Cloud Storage
+        working-directory: web/frontend
+        run: |
+          # Upload files with proper cache headers
+          gsutil -m rsync -r -d \
+            -x ".*\.map$" \
+            dist/ gs://${{ env.BUCKET_NAME }}/
+          
+          # Set cache headers for static assets
+          gsutil -m setmeta -h "Cache-Control:public, max-age=31536000" \
+            "gs://${{ env.BUCKET_NAME }}/assets/**"
+          
+          # Set cache headers for HTML files  
+          gsutil -m setmeta -h "Cache-Control:no-cache, max-age=0" \
+            "gs://${{ env.BUCKET_NAME }}/*.html"
+
+      - name: Invalidate CDN cache (if configured)
+        run: |
+          echo "Note: If using Cloud CDN, add cache invalidation here"
+          # gcloud compute url-maps invalidate-cdn-cache LOAD_BALANCER_NAME \
+          #   --path "/*" --async
+
+      - name: Deployment summary
+        run: |
+          echo "=== Frontend Deployment Summary ==="
+          echo "Bucket: gs://${{ env.BUCKET_NAME }}"
+          echo "Public URL: https://storage.googleapis.com/${{ env.BUCKET_NAME }}/index.html"
+          echo ""
+          echo "Deployed files:"
+          gsutil ls -lh gs://${{ env.BUCKET_NAME }}/ | head -20
+
+      - name: Test deployment
+        run: |
+          echo "Testing frontend deployment..."
+          curl -f -I "https://storage.googleapis.com/${{ env.BUCKET_NAME }}/index.html" || {
+            echo "❌ Frontend not accessible"
+            exit 1
+          }
+          echo "✅ Frontend is accessible"

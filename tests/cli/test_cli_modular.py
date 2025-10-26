@@ -1,7 +1,5 @@
 import sys
 
-import pytest
-
 from src.cli import cli_modular
 
 
@@ -11,24 +9,10 @@ def _install_add_stubs(
     with_defaults=False,
     handler_value=None,
 ):
-    """Replace add_* parser helpers with minimal stubs for testing."""
+    """Replace _load_command_parser with a stub for testing."""
 
-    commands = {
-        "add_verification_parser": "verify-urls",
-        "add_discovery_parser": "discover-urls",
-        "add_extraction_parser": "extract",
-        "add_load_sources_parser": "load-sources",
-        "add_list_sources_parser": "list-sources",
-        "add_crawl_parser": "crawl",
-        "add_discovery_report_parser": "discovery-report",
-        "add_http_status_parser": "dump-http-status",
-        "add_telemetry_parser": "telemetry",
-        "add_status_parser": "status",
-        "add_queue_parser": "queue",
-    }
-
-    def make_stub(command_name):
-        def stub(subparsers):
+    def make_stub_loader(command_name):
+        def add_parser_stub(subparsers):
             parser = subparsers.add_parser(command_name)
             if with_defaults:
                 parser.set_defaults(
@@ -36,10 +20,16 @@ def _install_add_stubs(
                 )
             return parser
 
-        return stub
+        def handler_stub(args):
+            return handler_value
 
-    for attr, command_name in commands.items():
-        monkeypatch.setattr(cli_modular, attr, make_stub(command_name))
+        return (add_parser_stub, handler_stub)
+
+    def stub_load_command_parser(command):
+        # Return stub parser and handler for any command
+        return make_stub_loader(command)
+
+    monkeypatch.setattr(cli_modular, "_load_command_parser", stub_load_command_parser)
 
 
 def test_cli_modular_main_uses_default_func(monkeypatch):
@@ -54,20 +44,22 @@ def test_cli_modular_main_uses_default_func(monkeypatch):
 
 
 def test_cli_modular_main_routes_without_default(monkeypatch):
-    _install_add_stubs(monkeypatch, with_defaults=False)
-
     calls = {}
 
     def fake_discovery_handler(args):
         calls["discovery"] = args.command
         return 42
 
-    monkeypatch.setattr(
-        cli_modular,
-        "handle_discovery_command",
-        fake_discovery_handler,
-    )
+    def stub_add_parser(subparsers):
+        parser = subparsers.add_parser("discover-urls")
+        return parser
 
+    def stub_load_command_parser(command):
+        if command == "discover-urls":
+            return (stub_add_parser, fake_discovery_handler)
+        return None
+
+    monkeypatch.setattr(cli_modular, "_load_command_parser", stub_load_command_parser)
     monkeypatch.setattr(sys, "argv", ["prog", "discover-urls"])
 
     result = cli_modular.main()
@@ -77,42 +69,53 @@ def test_cli_modular_main_routes_without_default(monkeypatch):
 
 
 def test_cli_modular_unknown_command(monkeypatch, capsys):
-    _install_add_stubs(monkeypatch, with_defaults=False)
+    # Stub that returns None for unknown commands
+    def stub_load_command_parser(command):
+        return None  # Unknown command
 
+    monkeypatch.setattr(cli_modular, "_load_command_parser", stub_load_command_parser)
     monkeypatch.setattr(sys, "argv", ["prog", "unknown"])
 
-    with pytest.raises(SystemExit) as excinfo:
-        cli_modular.main()
+    result = cli_modular.main()
 
-    assert excinfo.value.code == 2
+    assert result == 1  # Error code for unknown command
     captured = capsys.readouterr().err
-    assert "invalid choice" in captured
+    assert "Unknown command" in captured
 
 
 def test_cli_modular_routes_all_supported_commands(monkeypatch):
-    _install_add_stubs(monkeypatch, with_defaults=False)
+    commands = [
+        "verify-urls",
+        "discover-urls",
+        "extract",
+        "load-sources",
+        "list-sources",
+        "crawl",
+        "discovery-report",
+        "queue",
+        "status",
+        "dump-http-status",
+    ]
 
-    command_to_handler = {
-        "verify-urls": "handle_verification_command",
-        "discover-urls": "handle_discovery_command",
-        "extract": "handle_extraction_command",
-        "load-sources": "handle_load_sources_command",
-        "list-sources": "handle_list_sources_command",
-        "crawl": "handle_crawl_command",
-        "discovery-report": "handle_discovery_report_command",
-        "queue": "handle_queue_command",
-        "status": "handle_status_command",
-        "dump-http-status": "handle_http_status_command",
-    }
-
-    for command, handler_attr in command_to_handler.items():
+    for command in commands:
         called = {}
 
         def handler(args, command=command, called=called):
             called["command"] = getattr(args, "command", None)
             return f"handled-{command}"
 
-        monkeypatch.setattr(cli_modular, handler_attr, handler)
+        def stub_add_parser(subparsers, cmd=command):
+            parser = subparsers.add_parser(cmd)
+            return parser
+
+        def stub_load_command_parser(cmd, handler=handler, stub_add=stub_add_parser):
+            if cmd == command:
+                return (stub_add, handler)
+            return None
+
+        monkeypatch.setattr(
+            cli_modular, "_load_command_parser", stub_load_command_parser
+        )
         monkeypatch.setattr(sys, "argv", ["prog", command])
 
         result = cli_modular.main()

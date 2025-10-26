@@ -1,0 +1,46 @@
+# Shared Base Docker Image for MizzouNewsCrawler
+# Contains common dependencies used by all services (API, Processor, Crawler)
+# This image is built infrequently and speeds up service builds from 15min to 2-3min
+
+FROM python:3.11-slim AS base
+
+# Install system dependencies (retry with --fix-missing on hash errors)
+# These are needed for building Python packages (gcc, g++) and PostgreSQL (libpq-dev)
+RUN apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* && \
+    apt-get update -o Acquire::Check-Valid-Until=false && \
+    (apt-get install -y --no-install-recommends --allow-unauthenticated \
+        gcc g++ libpq-dev wget ca-certificates || \
+     apt-get install -y --no-install-recommends --fix-missing \
+        gcc g++ libpq-dev wget ca-certificates) && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy base requirements file
+COPY requirements-base.txt ./
+
+# Install base Python packages
+# These are shared across all services: pandas, sqlalchemy, spacy, pytest, etc.
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements-base.txt
+
+# Download spacy model (used by processor and some crawler functions)
+RUN python -m spacy download en_core_web_sm
+
+# Create non-root user for security
+RUN useradd -m -u 1000 appuser && \
+    chown -R appuser:appuser /app
+
+# Metadata
+LABEL maintainer="MizzouNewsCrawler"
+LABEL description="Base image with common dependencies for all services"
+LABEL version="1.0"
+LABEL usage="docker build -t mizzou-base:latest -f Dockerfile.base ."
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+# Note: This base image is not meant to be run directly
+# It serves as the foundation for service-specific images

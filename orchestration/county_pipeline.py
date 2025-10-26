@@ -182,9 +182,7 @@ def orchestrate_pipeline(
     verification_batch_size = forced_batch_size
 
     if run_verification:
-        batches_needed = math.ceil(
-            discovered_pending / verification_batch_size
-        )
+        batches_needed = math.ceil(discovered_pending / verification_batch_size)
 
         if verification_batches is None:
             verification_batches = batches_needed
@@ -222,10 +220,7 @@ def orchestrate_pipeline(
             extraction_ready = queue_counts["article"]
     elif not skip_verification:
         logging.info(
-
-                "No candidate links with status 'discovered'; "
-                "skipping verification"
-
+            "No candidate links with status 'discovered'; skipping verification"
         )
     else:
         logging.info("Skipping verification step per user request")
@@ -241,10 +236,7 @@ def orchestrate_pipeline(
 
         if extraction_ready == 0:
             logging.info(
-
-                    "No candidate links with status 'article'; "
-                    "skipping extraction"
-
+                "No candidate links with status 'article'; skipping extraction"
             )
         else:
             _run_cli_step(
@@ -289,9 +281,7 @@ def orchestrate_pipeline(
 
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description=(
-            "Orchestrate the discovery → verification → extraction pipeline"
-        ),
+        description=("Orchestrate the discovery → verification → extraction pipeline"),
     )
     parser.add_argument(
         "--counties",
@@ -337,10 +327,7 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--verification-batches",
         type=int,
-        help=(
-            "Cap the number of verification batches "
-            "(default: run until idle)"
-        ),
+        help=("Cap the number of verification batches (default: run until idle)"),
     )
     parser.add_argument(
         "--verification-sleep",
@@ -416,8 +403,7 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--cli-module",
         default=DEFAULT_CLI_MODULE,
         help=(
-            "Python module to execute for CLI commands "
-            f"(default: {DEFAULT_CLI_MODULE})"
+            f"Python module to execute for CLI commands (default: {DEFAULT_CLI_MODULE})"
         ),
     )
     parser.add_argument(

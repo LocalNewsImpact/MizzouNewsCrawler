@@ -1,0 +1,61 @@
+substitutions:
+  _BASE_IMAGE: us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/base:latest
+  _REGISTRY: us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler
+  _RELEASE_VERSION: '1.3.1'
+
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '--build-arg'
+      - 'BASE_IMAGE=${_BASE_IMAGE}'
+      - '-f'
+      - 'Dockerfile.crawler'
+      - '-t'
+      - '${_REGISTRY}/crawler:${SHORT_SHA}'
+      - '-t'
+      - '${_REGISTRY}/crawler:latest'
+      - '-t'
+      - '${_REGISTRY}/crawler:v${_RELEASE_VERSION}'
+      - '.'
+  # Get GKE credentials for kubectl commands
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'get-gke-credentials'
+    args:
+      - 'container'
+      - 'clusters'
+      - 'get-credentials'
+      - 'mizzou-cluster'
+      - '--zone=us-central1-a'
+
+    # Note: Crawler image is used in Argo Workflows, not Kubernetes CronJobs
+  # Workflows pull the :latest tag automatically on each run
+  # The image push above is sufficient for workflows to pick up the new version
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'verify-workflow-exists'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=us-central1-a'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=mizzou-cluster'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        echo "ℹ️  Crawler image pushed: ${_REGISTRY}/crawler:${SHORT_SHA}"
+        echo "ℹ️  Argo Workflows will use :latest tag automatically"
+        if kubectl get cronworkflow mizzou-news-pipeline -n production &>/dev/null; then
+          echo "✅ Found Argo CronWorkflow: mizzou-news-pipeline"
+        else
+          echo "⚠️  Argo CronWorkflow not found (may not be deployed yet)"
+        fi
+    waitFor: ['get-gke-credentials']
+
+images:
+  - '${_REGISTRY}/crawler:${SHORT_SHA}'
+  - '${_REGISTRY}/crawler:v${_RELEASE_VERSION}'
+  - '${_REGISTRY}/crawler:latest'
+timeout: 1800s
+options:
+  machineType: 'N1_HIGHCPU_8'
+  diskSizeGb: 100
+  logging: CLOUD_LOGGING_ONLY
+  substitutionOption: 'ALLOW_LOOSE'

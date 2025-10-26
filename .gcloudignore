@@ -1,0 +1,58 @@
+# Exclude common unnecessary files and directories
+.git/
+.gitignore
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+venv/
+env/
+ENV/
+
+# Exclude data and logs
+data/
+logs/
+*.log
+*.db
+*.db-shm
+*.db-wal
+!lookups/
+!lookups/**
+
+# Exclude test and development files
+tests/
+artifacts/
+reports/
+docs/
+telemetry_demo/
+
+# Exclude node modules and frontend
+node_modules/
+package.json
+package-lock.json
+
+# Exclude misc
+.DS_Store
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Exclude large model files that will be downloaded
+models/
+
+# Keep these directories (needed for builds):
+# src/
+# orchestration/
+# lookups/
+# requirements.txt
+# requirements-dev.txt
+# Dockerfile.*
+# cloudbuild*.yaml

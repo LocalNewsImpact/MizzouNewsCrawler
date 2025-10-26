@@ -29,7 +29,7 @@ class BylineTelemetryAnalyzer:
     def __init__(self):
         """Initialize the analyzer."""
         # Convert DATABASE_URL to file path
-        self.db_path = DATABASE_URL.replace('sqlite:///', '')
+        self.db_path = DATABASE_URL.replace("sqlite:///", "")
 
     def get_cleaning_summary(self, days: int = 7) -> dict:
         """Get overall cleaning performance summary."""
@@ -74,8 +74,12 @@ class BylineTelemetryAnalyzer:
             "source_names_removed": result[8],
             "total_duplicates_removed": result[9],
             "unique_sources": result[10],
-            "success_rate": round((result[4] / result[0]) * 100, 1) if result[0] > 0 else 0,
-            "noise_rate": round((result[5] / result[0]) * 100, 1) if result[0] > 0 else 0
+            "success_rate": round((result[4] / result[0]) * 100, 1)
+            if result[0] > 0
+            else 0,
+            "noise_rate": round((result[5] / result[0]) * 100, 1)
+            if result[0] > 0
+            else 0,
         }
 
         conn.close()
@@ -110,18 +114,24 @@ class BylineTelemetryAnalyzer:
         source_stats = []
         for row in results:
             total = row[1]
-            source_stats.append({
-                "source_name": row[0],
-                "cleaning_count": total,
-                "avg_confidence": round(row[2] or 0, 3),
-                "avg_processing_time_ms": round(row[3] or 0, 2),
-                "avg_authors": round(row[4] or 0, 2),
-                "success_rate": round((row[5] / total) * 100, 1) if total > 0 else 0,
-                "noise_rate": round((row[6] / total) * 100, 1) if total > 0 else 0,
-                "review_rate": round((row[7] / total) * 100, 1) if total > 0 else 0,
-                "source_removal_rate": round((row[8] / total) * 100, 1) if total > 0 else 0,
-                "avg_input_length": round(row[9] or 0, 1)
-            })
+            source_stats.append(
+                {
+                    "source_name": row[0],
+                    "cleaning_count": total,
+                    "avg_confidence": round(row[2] or 0, 3),
+                    "avg_processing_time_ms": round(row[3] or 0, 2),
+                    "avg_authors": round(row[4] or 0, 2),
+                    "success_rate": round((row[5] / total) * 100, 1)
+                    if total > 0
+                    else 0,
+                    "noise_rate": round((row[6] / total) * 100, 1) if total > 0 else 0,
+                    "review_rate": round((row[7] / total) * 100, 1) if total > 0 else 0,
+                    "source_removal_rate": round((row[8] / total) * 100, 1)
+                    if total > 0
+                    else 0,
+                    "avg_input_length": round(row[9] or 0, 1),
+                }
+            )
 
         conn.close()
         return source_stats
@@ -154,16 +164,18 @@ class BylineTelemetryAnalyzer:
 
         patterns = []
         for row in results:
-            patterns.append({
-                "raw_byline": row[0],
-                "cleaned_result": row[1],
-                "source_name": row[2],
-                "confidence_score": row[3],
-                "authors_count": row[4],
-                "cleaning_method": row[5],
-                "likely_valid": bool(row[6]),
-                "frequency": row[7]
-            })
+            patterns.append(
+                {
+                    "raw_byline": row[0],
+                    "cleaned_result": row[1],
+                    "source_name": row[2],
+                    "confidence_score": row[3],
+                    "authors_count": row[4],
+                    "cleaning_method": row[5],
+                    "likely_valid": bool(row[6]),
+                    "frequency": row[7],
+                }
+            )
 
         conn.close()
         return patterns
@@ -172,7 +184,7 @@ class BylineTelemetryAnalyzer:
         self,
         output_file: str,
         min_confidence: float = 0.3,
-        include_features: bool = True
+        include_features: bool = True,
     ) -> dict:
         """Export data suitable for ML training."""
         conn = sqlite3.connect(self.db_path)
@@ -209,28 +221,32 @@ class BylineTelemetryAnalyzer:
 
         if include_features:
             # Add engineered features
-            df['input_length_category'] = pd.cut(
-                df['raw_byline_length'],
-                bins=[0, 20, 50, 100, float('inf')],
-                labels=['short', 'medium', 'long', 'very_long']
+            df["input_length_category"] = pd.cut(
+                df["raw_byline_length"],
+                bins=[0, 20, 50, 100, float("inf")],
+                labels=["short", "medium", "long", "very_long"],
             )
 
-            df['words_per_author'] = df['raw_byline_words'] / (df['final_authors_count'] + 1)
+            df["words_per_author"] = df["raw_byline_words"] / (
+                df["final_authors_count"] + 1
+            )
 
-            df['complexity_score'] = (
-                df['raw_byline_length'] / 50 +
-                df['raw_byline_words'] / 10 +
-                df['has_email'].astype(int) * 0.2 +
-                df['has_organization'].astype(int) * 0.3
+            df["complexity_score"] = (
+                df["raw_byline_length"] / 50
+                + df["raw_byline_words"] / 10
+                + df["has_email"].astype(int) * 0.2
+                + df["has_organization"].astype(int) * 0.3
             )
 
             # Parse final authors JSON for analysis
-            df['author_names'] = df['final_authors_json'].apply(
+            df["author_names"] = df["final_authors_json"].apply(
                 lambda x: json.loads(x) if x else []
             )
-            df['has_multiple_authors'] = df['author_names'].apply(len) > 1
-            df['avg_name_length'] = df['author_names'].apply(
-                lambda names: sum(len(name) for name in names) / len(names) if names else 0
+            df["has_multiple_authors"] = df["author_names"].apply(len) > 1
+            df["avg_name_length"] = df["author_names"].apply(
+                lambda names: sum(len(name) for name in names) / len(names)
+                if names
+                else 0
             )
 
         # Export to CSV
@@ -243,7 +259,7 @@ class BylineTelemetryAnalyzer:
             "output_file": output_file,
             "confidence_threshold": min_confidence,
             "columns": list(df.columns),
-            "feature_engineering": include_features
+            "feature_engineering": include_features,
         }
 
     def get_error_analysis(self) -> dict:
@@ -267,7 +283,7 @@ class BylineTelemetryAnalyzer:
             "total_sessions_with_issues": 0,
             "common_errors": [],
             "common_warnings": [],
-            "error_patterns": {}
+            "error_patterns": {},
         }
 
         all_errors = []
@@ -276,26 +292,23 @@ class BylineTelemetryAnalyzer:
         for row in results:
             error_analysis["total_sessions_with_issues"] += 1
 
-            if row[1] and row[1] != '[]':
+            if row[1] and row[1] != "[]":
                 try:
                     errors = json.loads(row[1])
-                    all_errors.extend(
-                        [err.get('message', '') for err in errors]
-                    )
+                    all_errors.extend([err.get("message", "") for err in errors])
                 except (json.JSONDecodeError, TypeError) as exc:
                     logger.debug("Failed to parse telemetry errors: %s", exc)
 
-            if row[2] and row[2] != '[]':
+            if row[2] and row[2] != "[]":
                 try:
                     warnings = json.loads(row[2])
-                    all_warnings.extend(
-                        [warn.get('message', '') for warn in warnings]
-                    )
+                    all_warnings.extend([warn.get("message", "") for warn in warnings])
                 except (json.JSONDecodeError, TypeError) as exc:
                     logger.debug("Failed to parse telemetry warnings: %s", exc)
 
         # Count error frequencies
         from collections import Counter
+
         error_counts = Counter(all_errors)
         warning_counts = Counter(all_warnings)
 
@@ -325,14 +338,18 @@ class BylineTelemetryAnalyzer:
         errors = self.get_error_analysis()
 
         # Generate report
-        with open(report_file, 'w') as f:
+        with open(report_file, "w") as f:
             f.write("# Byline Cleaning Training Data Report\\n")
             f.write(f"Generated: {datetime.now().isoformat()}\\n\\n")
 
             f.write("## Executive Summary\\n")
-            f.write(f"- **Total Cleanings (30 days)**: {summary.get('total_cleanings', 0):,}\\n")
+            f.write(
+                f"- **Total Cleanings (30 days)**: {summary.get('total_cleanings', 0):,}\\n"
+            )
             f.write(f"- **Success Rate**: {summary.get('success_rate', 0)}%\\n")
-            f.write(f"- **Average Confidence**: {summary.get('avg_confidence_score', 0)}\\n")
+            f.write(
+                f"- **Average Confidence**: {summary.get('avg_confidence_score', 0)}\\n"
+            )
             f.write(f"- **Unique Sources**: {summary.get('unique_sources', 0)}\\n\\n")
 
             f.write("## Performance Metrics\\n")
@@ -361,17 +378,19 @@ class BylineTelemetryAnalyzer:
                 f.write(f"**Confidence**: {pattern['confidence_score']}\\n\\n")
 
             f.write("## Error Analysis\\n")
-            f.write(f"Sessions with issues: {errors['total_sessions_with_issues']}\\n\\n")
+            f.write(
+                f"Sessions with issues: {errors['total_sessions_with_issues']}\\n\\n"
+            )
 
-            if errors['common_errors']:
+            if errors["common_errors"]:
                 f.write("### Most Common Errors\\n")
-                for error in errors['common_errors']:
+                for error in errors["common_errors"]:
                     f.write(f"- {error['message']} ({error['count']} times)\\n")
                 f.write("\\n")
 
-            if errors['common_warnings']:
+            if errors["common_warnings"]:
                 f.write("### Most Common Warnings\\n")
-                for warning in errors['common_warnings']:
+                for warning in errors["common_warnings"]:
                     f.write(f"- {warning['message']} ({warning['count']} times)\\n")
 
         return report_file
@@ -444,14 +463,14 @@ def main():
         print("=" * 30)
         print(f"Sessions with issues: {errors['total_sessions_with_issues']}")
 
-        if errors['common_errors']:
+        if errors["common_errors"]:
             print("\\nMost Common Errors:")
-            for error in errors['common_errors']:
+            for error in errors["common_errors"]:
                 print(f"  - {error['message']} ({error['count']} times)")
 
-        if errors['common_warnings']:
+        if errors["common_warnings"]:
             print("\\nMost Common Warnings:")
-            for warning in errors['common_warnings']:
+            for warning in errors["common_warnings"]:
                 print(f"  - {warning['message']} ({warning['count']} times)")
 
     elif command == "report":

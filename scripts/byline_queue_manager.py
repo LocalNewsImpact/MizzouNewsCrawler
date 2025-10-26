@@ -37,7 +37,8 @@ class BylineCleaningQueue:
 
         try:
             # Create queue table for tracking cleaning tasks
-            session.execute(text("""
+            session.execute(
+                text("""
                 CREATE TABLE IF NOT EXISTS byline_cleaning_queue (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     article_id TEXT NOT NULL,
@@ -49,13 +50,16 @@ class BylineCleaningQueue:
                     retry_count INTEGER DEFAULT 0,
                     FOREIGN KEY (article_id) REFERENCES articles(id)
                 )
-            """))
+            """)
+            )
 
             # Create index for efficient processing
-            session.execute(text("""
+            session.execute(
+                text("""
                 CREATE INDEX IF NOT EXISTS idx_byline_queue_status 
                 ON byline_cleaning_queue(status, created_at)
-            """))
+            """)
+            )
 
             session.commit()
             logger.debug("Byline cleaning queue table ready")
@@ -69,11 +73,11 @@ class BylineCleaningQueue:
     def add_article_to_queue(self, article_id: str, raw_author: str) -> bool:
         """
         Add an article to the byline cleaning queue.
-        
+
         Args:
             article_id: Article ID needing cleaning
             raw_author: Raw author string to clean
-            
+
         Returns:
             True if successfully added to queue
         """
@@ -87,7 +91,7 @@ class BylineCleaningQueue:
                     WHERE article_id = :article_id 
                     AND status IN ('pending', 'processing')
                 """),
-                {"article_id": article_id}
+                {"article_id": article_id},
             ).fetchone()
 
             if existing:
@@ -104,8 +108,8 @@ class BylineCleaningQueue:
                 {
                     "article_id": article_id,
                     "raw_author": raw_author,
-                    "created_at": datetime.utcnow().isoformat()
-                }
+                    "created_at": datetime.utcnow().isoformat(),
+                },
             )
             session.commit()
 
@@ -122,10 +126,10 @@ class BylineCleaningQueue:
     def process_queue_batch(self, batch_size: int = 10) -> int:
         """
         Process a batch of items from the cleaning queue.
-        
+
         Args:
             batch_size: Number of items to process in this batch
-            
+
         Returns:
             Number of items successfully processed
         """
@@ -142,7 +146,7 @@ class BylineCleaningQueue:
                     ORDER BY created_at ASC
                     LIMIT :batch_size
                 """),
-                {"batch_size": batch_size}
+                {"batch_size": batch_size},
             ).fetchall()
 
             if not pending_items:
@@ -169,8 +173,9 @@ class BylineCleaningQueue:
 
         return processed_count
 
-    def _process_single_item(self, session, queue_id: int,
-                           article_id: str, raw_author: str) -> bool:
+    def _process_single_item(
+        self, session, queue_id: int, article_id: str, raw_author: str
+    ) -> bool:
         """Process a single item from the queue."""
         try:
             # Mark as processing
@@ -180,7 +185,7 @@ class BylineCleaningQueue:
                     SET status = 'processing' 
                     WHERE id = :queue_id
                 """),
-                {"queue_id": queue_id}
+                {"queue_id": queue_id},
             )
 
             # Clean the author field
@@ -198,12 +203,14 @@ class BylineCleaningQueue:
                     {
                         "cleaned_author": cleaned_author,
                         "updated_at": datetime.utcnow().isoformat(),
-                        "article_id": article_id
-                    }
+                        "article_id": article_id,
+                    },
                 )
 
-                logger.info(f"Cleaned author for {article_id[:8]}...: "
-                           f"'{raw_author}' → '{cleaned_author}'")
+                logger.info(
+                    f"Cleaned author for {article_id[:8]}...: "
+                    f"'{raw_author}' → '{cleaned_author}'"
+                )
 
             # Mark as completed
             session.execute(
@@ -213,10 +220,7 @@ class BylineCleaningQueue:
                         processed_at = :processed_at
                     WHERE id = :queue_id
                 """),
-                {
-                    "processed_at": datetime.utcnow().isoformat(),
-                    "queue_id": queue_id
-                }
+                {"processed_at": datetime.utcnow().isoformat(), "queue_id": queue_id},
             )
 
             return True
@@ -235,8 +239,8 @@ class BylineCleaningQueue:
                 {
                     "error": str(e),
                     "processed_at": datetime.utcnow().isoformat(),
-                    "queue_id": queue_id
-                }
+                    "queue_id": queue_id,
+                },
             )
 
             logger.error(f"Failed to process queue item {queue_id}: {e}")
@@ -247,13 +251,15 @@ class BylineCleaningQueue:
         session = self.db.session
 
         try:
-            status = session.execute(text("""
+            status = session.execute(
+                text("""
                 SELECT 
                     status,
                     COUNT(*) as count
                 FROM byline_cleaning_queue 
                 GROUP BY status
-            """)).fetchall()
+            """)
+            ).fetchall()
 
             return {row[0]: row[1] for row in status}
 
@@ -303,7 +309,8 @@ def auto_queue_new_articles():
 
     try:
         # Find articles with raw author data that haven't been queued
-        articles = session.execute(text("""
+        articles = session.execute(
+            text("""
             SELECT a.id, a.author 
             FROM articles a
             LEFT JOIN byline_cleaning_queue q ON a.id = q.article_id
@@ -320,7 +327,8 @@ def auto_queue_new_articles():
                 a.author LIKE 'By %'
             )
             LIMIT 100
-        """)).fetchall()
+        """)
+        ).fetchall()
 
         added_count = 0
         for article_id, raw_author in articles:
@@ -345,13 +353,17 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
     parser = argparse.ArgumentParser(description="Byline cleaning queue manager")
-    parser.add_argument("action", choices=[
-        "process", "status", "queue", "cleanup"
-    ], help="Action to perform")
-    parser.add_argument("--batch-size", type=int, default=10,
-                       help="Batch size for processing")
-    parser.add_argument("--cleanup-days", type=int, default=7,
-                       help="Days to keep completed items")
+    parser.add_argument(
+        "action",
+        choices=["process", "status", "queue", "cleanup"],
+        help="Action to perform",
+    )
+    parser.add_argument(
+        "--batch-size", type=int, default=10, help="Batch size for processing"
+    )
+    parser.add_argument(
+        "--cleanup-days", type=int, default=7, help="Days to keep completed items"
+    )
 
     args = parser.parse_args()
 

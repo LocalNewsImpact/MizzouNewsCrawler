@@ -3,7 +3,7 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 from utils.byline_cleaner import BylineCleaner
 
@@ -21,7 +21,7 @@ def trace_part_type():
         return
 
     # Check for email
-    if '@' in part and '.' in part:
+    if "@" in part and "." in part:
         print("→ email (has @ and .)")
         return
 
@@ -32,11 +32,12 @@ def trace_part_type():
     print(f"Words: {part_words}")
 
     # Check for non-name contexts with Roman numerals
-    if (len(part_words) == 2 and
-            part_words[0] in ['chapter', 'section', 'volume', 'part',
-                              'book', 'act', 'scene'] and
-            part_words[1] in ['ii', 'iii', 'iv', 'v', 'vi', 'vii',
-                              'viii', 'ix', 'x']):
+    if (
+        len(part_words) == 2
+        and part_words[0]
+        in ["chapter", "section", "volume", "part", "book", "act", "scene"]
+        and part_words[1] in ["ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x"]
+    ):
         print("→ title (non-name Roman context)")
         return
 
@@ -50,13 +51,18 @@ def trace_part_type():
         elif word in cleaner.JOURNALISM_NOUNS:
             is_title_word = True
             print(f"  '{word}' in JOURNALISM_NOUNS")
-        elif (word.endswith(('st', 'nd', 'rd', 'th')) and
-              len(word) > 2 and word[:-2].isdigit()):
+        elif (
+            word.endswith(("st", "nd", "rd", "th"))
+            and len(word) > 2
+            and word[:-2].isdigit()
+        ):
             is_title_word = True
             print(f"  '{word}' is ordinal")
-        elif (word.endswith(('1st', '2nd', '3rd')) or
-              (len(word) >= 3 and word[-3:] in ['1st', '2nd', '3rd']) or
-              (len(word) >= 2 and word[-2:].isdigit())):
+        elif (
+            word.endswith(("1st", "2nd", "3rd"))
+            or (len(word) >= 3 and word[-3:] in ["1st", "2nd", "3rd"])
+            or (len(word) >= 2 and word[-2:].isdigit())
+        ):
             is_title_word = True
             print(f"  '{word}' has number pattern")
 
@@ -69,8 +75,10 @@ def trace_part_type():
     has_title_pattern = False
     for i, word in enumerate(part_words):
         word_lower = word.lower()
-        if (word_lower in cleaner.TITLES_TO_REMOVE or
-            word_lower in cleaner.JOURNALISM_NOUNS):
+        if (
+            word_lower in cleaner.TITLES_TO_REMOVE
+            or word_lower in cleaner.JOURNALISM_NOUNS
+        ):
             has_title_pattern = True
             print(f"  Found title pattern with '{word}'")
             break
@@ -95,9 +103,12 @@ def trace_part_type():
     # Check if it looks like a name
     name_conditions = [
         len(part_words) <= 3,
-        all(word.replace('.', '').isalpha() for word in part_words),
-        not any(word.lower() in cleaner.TITLES_TO_REMOVE or
-               word.lower() in cleaner.JOURNALISM_NOUNS for word in part_words)
+        all(word.replace(".", "").isalpha() for word in part_words),
+        not any(
+            word.lower() in cleaner.TITLES_TO_REMOVE
+            or word.lower() in cleaner.JOURNALISM_NOUNS
+            for word in part_words
+        ),
     ]
 
     print(f"Name conditions: {name_conditions}")

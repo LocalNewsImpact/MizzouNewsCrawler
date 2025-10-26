@@ -1,0 +1,97 @@
+# Kubernetes Job Manifest Template for Dataset Extraction
+# 
+# This template creates an isolated extraction job for a specific dataset.
+# Dataset-specific extraction allows independent rate limiting, monitoring,
+# and CAPTCHA backoff isolation per dataset.
+#
+# Placeholders to replace:
+#   - DATASET_SLUG: Dataset identifier (e.g., "Penn-State-Lehigh", "Mizzou")
+#   - PROCESSOR_IMAGE: Container image path
+#   - LIMIT: Articles per batch (default: 20)
+#   - BATCHES: Number of batches to process (default: 60)
+#
+# To apply: kubectl apply -f <your-customized-file.yaml>
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  labels:
+    app: extract-dataset_slug
+    dataset: DATASET_SLUG
+    type: extraction
+  name: extract-dataset_slug
+  namespace: production
+spec:
+  template:
+    metadata:
+      labels:
+        app: extract-dataset_slug
+        dataset: DATASET_SLUG
+        type: extraction
+    spec:
+      containers:
+      - command:
+        - python
+        - -m
+        - src.cli.cli_modular
+        - extract
+        - --dataset
+        - DATASET_SLUG
+        - --limit
+        - '20'
+        - --batches
+        - '60'
+        env:
+        - name: DATABASE_ENGINE
+          value: postgresql+psycopg2
+        - name: DATABASE_HOST
+          value: 127.0.0.1
+        - name: DATABASE_PORT
+          value: '5432'
+        - name: DATABASE_USER
+          valueFrom:
+            secretKeyRef:
+              key: username
+              name: cloudsql-db-credentials
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: password
+              name: cloudsql-db-credentials
+        - name: DATABASE_NAME
+          valueFrom:
+            secretKeyRef:
+              key: database
+              name: cloudsql-db-credentials
+        - name: USE_CLOUD_SQL_CONNECTOR
+          value: 'true'
+        - name: CLOUD_SQL_INSTANCE
+          value: mizzou-news-crawler:us-central1:mizzou-db-prod
+        - name: PROXY_PROVIDER
+          value: decodo
+        - name: USE_ORIGIN_PROXY
+          value: 'true'
+        - name: SELENIUM_PROXY
+          valueFrom:
+            secretKeyRef:
+              key: selenium-proxy-url
+              name: origin-proxy-credentials
+        - name: NO_PROXY
+          value: localhost,127.0.0.1,metadata.google.internal,huggingface.co,*.huggingface.co
+        envFrom:
+        - secretRef:
+            name: origin-proxy-credentials
+        image: PROCESSOR_IMAGE
+        name: extraction
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 3Gi
+          requests:
+            cpu: 250m
+            memory: 1Gi
+      restartPolicy: Never
+      serviceAccountName: mizzou-app
+      priorityClassName: batch-standard
+  ttlSecondsAfterFinished: 86400
+

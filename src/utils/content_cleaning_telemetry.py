@@ -33,7 +33,9 @@ class ContentCleaningTelemetry:
         self.enable_telemetry = enable_telemetry
         self.session_id = str(uuid.uuid4())
         self.detection_counter = 0
-        self._store: TelemetryStore = store or get_store(database_url)
+        self._store: TelemetryStore | None = store
+        self._database_url = database_url
+        self._tables_initialized = False
 
         # Current cleaning session data
         self.current_session: dict[str, Any] | None = None
@@ -41,6 +43,24 @@ class ContentCleaningTelemetry:
         self.wire_detection_events: list[dict[str, Any]] = []
         self.locality_detection_events: list[dict[str, Any]] = []
         self._last_boundary_assessment: dict[str, Any] | None = None
+
+    @property
+    def store(self) -> TelemetryStore:
+        """Lazy-load the store only when needed."""
+        if not self.enable_telemetry:
+            raise RuntimeError("Telemetry is disabled")
+
+        if self._store is None:
+            # Use DatabaseManager's engine if available (for Cloud SQL)
+            try:
+                from src.models.database import DatabaseManager
+
+                db = DatabaseManager()
+                self._store = get_store(self._database_url, engine=db.engine)
+            except Exception:
+                # Fallback to creating own connection
+                self._store = get_store(self._database_url)
+        return self._store
 
     def start_cleaning_session(
         self,
@@ -267,12 +287,20 @@ class ContentCleaningTelemetry:
         def writer(conn: sqlite3.Connection) -> None:
             self._write_payload_to_database(conn, payload)
 
-        self._store.submit(writer)
+        try:
+            self.store.submit(writer)
+        except RuntimeError:
+            # Telemetry disabled or not supported
+            pass
 
     def flush(self) -> None:
         """Block until all queued telemetry writes have been processed."""
         if self.enable_telemetry:
-            self._store.flush()
+            try:
+                self.store.flush()
+            except RuntimeError:
+                # Telemetry disabled or not supported
+                pass
 
     def shutdown(self, wait: bool = False) -> None:
         """Signal the writer thread to terminate and optionally wait for it."""
@@ -448,7 +476,13 @@ class ContentCleaningTelemetry:
     def get_persistent_patterns(self, domain: str) -> list[dict]:
         """Get persistent boilerplate patterns for a domain."""
         try:
-            with self._store.connection() as conn:
+            store = self.store
+        except RuntimeError:
+            # Telemetry disabled or not supported
+            return []
+
+        try:
+            with store.connection() as conn:
                 self._ensure_persistent_patterns_table(conn)
                 cursor = conn.cursor()
                 try:
@@ -458,7 +492,7 @@ class ContentCleaningTelemetry:
                                occurrences_total, removal_reason,
                                is_ml_training_eligible
                         FROM persistent_boilerplate_patterns
-                        WHERE domain = ? AND is_active = 1
+                        WHERE domain = ? AND is_active IS TRUE
                         ORDER BY confidence_score DESC, occurrences_total DESC
                         """,
                         (domain,),
@@ -488,7 +522,7 @@ class ContentCleaningTelemetry:
     def get_ml_training_patterns(self, domain: str | None = None) -> list[dict]:
         """Get ML training patterns (excludes dynamic ones)."""
         try:
-            with self._store.connection() as conn:
+            with self.store.connection() as conn:
                 self._ensure_persistent_patterns_table(conn)
                 cursor = conn.cursor()
                 try:
@@ -499,8 +533,8 @@ class ContentCleaningTelemetry:
                                    confidence_score, occurrences_total,
                                    removal_reason
                             FROM persistent_boilerplate_patterns
-                            WHERE domain = ? AND is_active = 1
-                                  AND is_ml_training_eligible = 1
+                    WHERE domain = ? AND is_active IS TRUE
+                        AND is_ml_training_eligible IS TRUE
                     ORDER BY confidence_score DESC,
                          occurrences_total DESC
                             """,
@@ -513,7 +547,7 @@ class ContentCleaningTelemetry:
                                    confidence_score, occurrences_total,
                                    removal_reason
                             FROM persistent_boilerplate_patterns
-                            WHERE is_active = 1 AND is_ml_training_eligible = 1
+                            WHERE is_active IS TRUE AND is_ml_training_eligible IS TRUE
                             ORDER BY domain, confidence_score DESC,
                                      occurrences_total DESC
                             """
@@ -547,7 +581,7 @@ class ContentCleaningTelemetry:
     ) -> list[dict]:
         """Get telemetry patterns, optionally including dynamic types."""
         try:
-            with self._store.connection() as conn:
+            with self.store.connection() as conn:
                 self._ensure_persistent_patterns_table(conn)
                 cursor = conn.cursor()
                 try:
@@ -556,7 +590,7 @@ class ContentCleaningTelemetry:
                       occurrences_total, removal_reason,
                       is_ml_training_eligible
                         FROM persistent_boilerplate_patterns
-                        WHERE is_active = 1
+                        WHERE is_active IS TRUE
                     """
 
                     params: list[str] = []
@@ -877,7 +911,7 @@ class ContentCleaningTelemetry:
             return {}
 
         try:
-            with self._store.connection() as conn:
+            with self.store.connection() as conn:
                 self._ensure_tables_exist(conn)
                 cursor = conn.cursor()
                 try:

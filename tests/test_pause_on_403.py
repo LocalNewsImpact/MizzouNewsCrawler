@@ -67,8 +67,7 @@ def db_manager(tmp_path):
 
         res = conn.execute(
             text(
-                "SELECT name FROM sqlite_master WHERE type='table' "
-                "AND name='articles'"
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='articles'"
             )
         )
         if not res.fetchone():
@@ -190,7 +189,7 @@ def test_pause_on_two_403s(db_manager):
     # Now verify candidate_links rows are paused
     with dm.engine.begin() as conn:
         res = conn.execute(
-            text("SELECT id, status, error_message, url" " FROM candidate_links")
+            text("SELECT id, status, error_message, url FROM candidate_links")
         )
         rows = list(res)
         assert len(rows) == 2

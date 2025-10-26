@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Generator, Optional, cast
+from typing import Generator, Optional
 
 import pytest
 from sqlalchemy import create_engine
@@ -250,7 +250,7 @@ def test_attach_gazetteer_matches_handles_direct_and_fuzzy(
         entity for entity in result if entity["matched_gazetteer_id"] == "fuzzy"
     )
     assert fuzzy_entity["entity_norm"] == "boone gen hospital"
-    match_score = cast(float, fuzzy_entity["match_score"])
+    match_score = float(fuzzy_entity["match_score"])  # type: ignore[arg-type]
     assert match_score >= 0.85
 
 

@@ -23,12 +23,17 @@ try:
     import pandas as pd  # optional dependency used when available
 except Exception:
     pd = None
+
+
 try:
     import sqlalchemy
     from sqlalchemy import create_engine
 except Exception:
-    sqlalchemy = None
-    create_engine = None
+    # When SQLAlchemy isn't available at runtime we keep the names but
+    # assign None so runtime imports gracefully degrade. Use a narrow
+    # type-ignore instead of cast to keep static checkers happy.
+    sqlalchemy = None  # type: ignore[assignment]
+    create_engine = None  # type: ignore[assignment]
 
 
 def ensure_dir(path: str) -> None:

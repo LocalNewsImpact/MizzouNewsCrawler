@@ -33,16 +33,43 @@ class BylineCleaningTelemetry:
         self.enable_telemetry = enable_telemetry
         self.session_id = str(uuid.uuid4())
         self.step_counter = 0
-        self._store: TelemetryStore = store or get_store(database_url)
+        self._store: TelemetryStore | None = store
+        self._database_url = database_url
+        self._tables_initialized = False
 
         # Current cleaning session data
         self.current_session: dict[str, Any] | None = None
         self.transformation_steps: list[dict[str, Any]] = []
 
-        self._ensure_tables()
+    @property
+    def store(self) -> TelemetryStore:
+        """Lazy-load the store only when needed."""
+        if not self.enable_telemetry:
+            raise RuntimeError("Telemetry is disabled")
+
+        if self._store is None:
+            # Use DatabaseManager's engine if available (for Cloud SQL)
+            try:
+                from src.models.database import DatabaseManager
+
+                db = DatabaseManager()
+                self._store = get_store(self._database_url, engine=db.engine)
+            except Exception:
+                # Fallback to creating own connection
+                self._store = get_store(self._database_url)
+        if not self._tables_initialized:
+            self._ensure_tables()
+            self._tables_initialized = True
+        return self._store
 
     def _ensure_tables(self) -> None:
-        with self._store.connection() as conn:
+        try:
+            store = self.store
+        except RuntimeError:
+            # Telemetry disabled or not supported (e.g., PostgreSQL)
+            return
+
+        with store.connection() as conn:
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS byline_cleaning_telemetry (
@@ -73,6 +100,10 @@ class BylineCleaningTelemetry:
                     requires_manual_review BOOLEAN,
                     cleaning_errors TEXT,
                     parsing_warnings TEXT,
+                    human_label TEXT,
+                    human_notes TEXT,
+                    reviewed_by TEXT,
+                    reviewed_at TIMESTAMP,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
                 """
@@ -269,7 +300,11 @@ class BylineCleaningTelemetry:
             return
 
         # Calculate final metrics
-        total_time = (time.time() - self.current_session["start_time"]) * 1000
+        start_time = self.current_session.get("start_time")
+        if start_time is None:
+            total_time = 0.0
+        else:
+            total_time = (time.time() - start_time) * 1000
 
         # Update session with final data
         self.current_session.update(
@@ -322,9 +357,10 @@ class BylineCleaningTelemetry:
                         source_name_removed, duplicates_removed_count,
                         likely_valid_authors, likely_noise,
                         requires_manual_review, cleaning_errors,
-                        parsing_warnings
+                        parsing_warnings, human_label, human_notes,
+                        reviewed_by, reviewed_at, created_at
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         session["telemetry_id"],
@@ -354,6 +390,11 @@ class BylineCleaningTelemetry:
                         session.get("requires_manual_review"),
                         session.get("cleaning_errors"),
                         session.get("parsing_warnings"),
+                        session.get("human_label"),
+                        session.get("human_notes"),
+                        session.get("reviewed_by"),
+                        session.get("reviewed_at"),
+                        datetime.utcnow(),
                     ),
                 )
 
@@ -364,8 +405,8 @@ class BylineCleaningTelemetry:
                             id, telemetry_id, step_number, step_name,
                             input_text, output_text, transformation_type,
                             removed_content, added_content, confidence_delta,
-                            processing_time_ms, notes, timestamp
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            processing_time_ms, notes, timestamp, created_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             step["id"],
@@ -381,20 +422,37 @@ class BylineCleaningTelemetry:
                             step["processing_time_ms"],
                             step.get("notes"),
                             step["timestamp"],
+                            datetime.utcnow(),
                         ),
                     )
             finally:
                 cursor.close()
 
         try:
-            self._store.submit(writer)
+            store = self.store
+            store.submit(writer)
+        except RecursionError as exc:  # pragma: no cover
+            # Cloud SQL Connector async issue - should be fixed now
+            exc_name = type(exc).__name__
+            print(f"Warning: Telemetry recursion error: {exc_name}")
+            pass
+        except RuntimeError:
+            # Telemetry disabled or not supported
+            pass
         except Exception as exc:  # pragma: no cover - telemetry best effort
-            print(f"Warning: Failed to store telemetry data: {exc}")
+            # Get just the exception type and first line of message
+            exc_msg = str(exc).split("\n")[0][:80]
+            exc_name = type(exc).__name__
+            print(f"Warning: Failed telemetry: {exc_name}: {exc_msg}")
             # Don't fail the cleaning process due to telemetry issues
 
     def flush(self) -> None:
         if self.enable_telemetry:
-            self._store.flush()
+            try:
+                self.store.flush()
+            except RuntimeError:
+                # Telemetry disabled or not supported
+                pass
 
     def get_session_summary(self) -> dict[str, Any] | None:
         """Get a summary of the current cleaning session."""

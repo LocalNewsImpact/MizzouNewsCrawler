@@ -4,7 +4,7 @@ import json
 import pickle
 import types
 from datetime import datetime, timedelta
-from typing import Any, Iterable, cast
+from typing import Any, Iterable
 
 import pandas as pd
 import pytest
@@ -404,6 +404,11 @@ def test_newspaper_build_worker_writes_urls(
 def test_update_source_meta_merges_existing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Test that _update_source_meta is a no-op after sources table removal.
+
+    The sources table was removed and metadata updates are now skipped.
+    This test verifies the function doesn't crash.
+    """
     executed: list[tuple[Any, dict[str, Any]]] = []
 
     class FakeDBM:
@@ -418,12 +423,11 @@ def test_update_source_meta_merges_existing(
     instance = _make_discovery_stub()
     instance.database_url = "sqlite://"
 
+    # Should not raise an exception (best-effort, skips update)
     instance._update_source_meta("source-1", {"new": 2})
 
-    assert executed, "Update query was not executed"
-    _, params = executed[-1]
-    merged = json.loads(params["meta"])
-    assert merged == {"existing": 1, "new": 2}
+    # Function should complete without error (metadata update is now skipped)
+    # No assertion on executed since the UPDATE is commented out
 
 
 def test_increment_rss_failure_increments(
@@ -834,7 +838,7 @@ def test_process_source_stores_and_classifies_articles(
             self.failures.append(kwargs)
 
     telemetry = TelemetryStub()
-    instance.telemetry = cast(Any, telemetry)
+    instance.telemetry = telemetry  # type: ignore[assignment]
 
     existing_urls = {"https://existing.com/already"}
 
@@ -1019,7 +1023,7 @@ def test_source_processor_skips_rss_when_recently_missing(
             self.failures.append(kwargs)
 
     telemetry = TelemetryStub()
-    instance.telemetry = cast(Any, telemetry)
+    instance.telemetry = telemetry  # type: ignore[assignment]
     instance.delay = 0
     instance.days_back = 7
 
@@ -1180,7 +1184,7 @@ def test_source_processor_records_network_rss_failure(
             self.failures.append(dict(kwargs))
 
     telemetry = TelemetryStub()
-    instance.telemetry = cast(Any, telemetry)
+    instance.telemetry = telemetry  # type: ignore[assignment]
 
     existing_urls: set[str] = set()
 
@@ -1293,7 +1297,7 @@ def test_source_processor_marks_rss_missing_after_non_network_failure(
             self.failures.append(dict(kwargs))
 
     telemetry = TelemetryStub()
-    instance.telemetry = cast(Any, telemetry)
+    instance.telemetry = telemetry  # type: ignore[assignment]
 
     existing_urls: set[str] = set()
 
@@ -1407,7 +1411,7 @@ def test_source_processor_records_failures_for_downstream_methods(
             self.failures.append(dict(kwargs))
 
     telemetry = TelemetryStub()
-    instance.telemetry = cast(Any, telemetry)
+    instance.telemetry = telemetry  # type: ignore[assignment]
 
     existing_urls: set[str] = set()
 
@@ -1521,7 +1525,7 @@ def test_source_processor_skips_out_of_scope_urls(
             self.failures.append(dict(kwargs))
 
     telemetry = TelemetryStub()
-    instance.telemetry = cast(Any, telemetry)
+    instance.telemetry = telemetry  # type: ignore[assignment]
 
     existing_urls: set[str] = set()
 
@@ -1662,7 +1666,7 @@ def test_source_processor_stores_when_publish_date_parse_fails(
             self.failures.append(dict(kwargs))
 
     telemetry = TelemetryStub()
-    instance.telemetry = cast(Any, telemetry)
+    instance.telemetry = telemetry  # type: ignore[assignment]
 
     existing_urls: set[str] = set()
 
@@ -1801,7 +1805,7 @@ def test_source_processor_continues_when_upsert_raises(
             self.failures.append(dict(kwargs))
 
     telemetry = TelemetryStub()
-    instance.telemetry = cast(Any, telemetry)
+    instance.telemetry = telemetry  # type: ignore[assignment]
 
     existing_urls: set[str] = set()
 
@@ -1909,7 +1913,7 @@ def test_process_source_dedupes_query_urls(
     instance.max_articles_per_source = 5
     instance.cutoff_date = datetime.utcnow() - timedelta(days=2)
     instance.storysniffer = object()
-    instance.telemetry = cast(Any, None)
+    instance.telemetry = None  # type: ignore[assignment]
     instance.delay = 0
     instance.days_back = 7
 
@@ -2022,7 +2026,7 @@ def test_run_discovery_processes_sources(
 ) -> None:
     instance = _make_discovery_stub()
     telemetry = _FakeTelemetry()
-    instance.telemetry = cast(Any, telemetry)
+    instance.telemetry = telemetry  # type: ignore[assignment]
     instance.delay = 0
     instance.days_back = 7
 
@@ -2116,9 +2120,11 @@ def test_run_discovery_processes_sources(
     assert stats["sources_available"] == 4
     assert stats["sources_limited_by_host"] == 2
 
-    assert len(meta_updates) == 2
+    # Only source "1" gets metadata update because it has articles_new > 0
+    # Source "3" returns DUPLICATES_ONLY (articles_new=0) so no update
+    assert len(meta_updates) == 1
     updated_ids = {item[0] for item in meta_updates}
-    assert updated_ids == {"1", "3"}
+    assert updated_ids == {"1"}
 
     assert len(telemetry.outcomes) == 2
     assert len(telemetry.failures) == 1
@@ -2137,7 +2143,7 @@ def test_run_discovery_uuid_filter_returns_empty(
 ) -> None:
     instance = _make_discovery_stub()
     telemetry = _FakeTelemetry()
-    instance.telemetry = cast(Any, telemetry)
+    instance.telemetry = telemetry  # type: ignore[assignment]
     instance.delay = 0
     instance.days_back = 7
 

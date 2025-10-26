@@ -1,0 +1,147 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: origin-sitecustomize
+  namespace: production
+  labels:
+    app: mizzou-processor
+    component: processor
+    role: origin-proxy
+    managed-by: "manual"
+data:
+  sitecustomize.py: |
+    """Global origin proxy shim injected via ConfigMap.
+
+    This module is imported automatically by Python when placed at
+    site-packages/sitecustomize.py. It installs origin-proxy support on Python
+    HTTP clients when USE_ORIGIN_PROXY is enabled.
+    """
+
+    import logging
+    import os
+    import sys
+
+    from types import MethodType
+
+    logger = logging.getLogger("origin.sitecustomize")
+    logger.addHandler(logging.NullHandler())
+
+    try:  # Keep metadata bypass list in sync with origin_proxy module
+        from src.crawler.origin_proxy import METADATA_HOSTS as _METADATA_HOSTS  # type: ignore
+    except Exception:  # pragma: no cover
+        _METADATA_HOSTS = {
+            "metadata.google.internal",
+            "metadata.google.internal.",
+            "metadata",
+            "169.254.169.254",
+        }
+
+
+    def _merge_env_list(var_name: str, values: set[str]) -> None:
+        current = os.getenv(var_name)
+        if current:
+            items = [item.strip() for item in current.split(",") if item.strip()]
+        else:
+            items = []
+
+        existing_lower = {item.lower() for item in items}
+        changed = False
+
+        for value in values:
+            if value.lower() not in existing_lower:
+                items.append(value)
+                existing_lower.add(value.lower())
+                changed = True
+
+        if changed or current is None:
+            os.environ[var_name] = ",".join(items)
+            logger.debug("Updated %%s to ensure metadata bypass: %%s", var_name, os.environ[var_name])
+
+
+    def _ensure_metadata_bypass_env() -> None:
+        bypass_hosts = set(_METADATA_HOSTS)
+        _merge_env_list("NO_PROXY", bypass_hosts)
+        _merge_env_list("no_proxy", bypass_hosts)
+        _merge_env_list("ORIGIN_PROXY_BYPASS", bypass_hosts)
+
+
+    def _should_enable() -> bool:
+        value = os.getenv("USE_ORIGIN_PROXY", "").lower()
+        return value in ("1", "true", "yes")
+
+
+    def _install_for_requests() -> None:
+        try:
+            import requests  # type: ignore
+            from src.crawler.origin_proxy import enable_origin_proxy  # type: ignore
+        except Exception as exc:  # pragma: no cover
+            logger.debug("Requests or origin proxy unavailable: %s", exc)
+            return
+
+        marker = "_origin_sitecustomize_wrapped"
+        if getattr(requests.Session, marker, False):
+            return
+
+        original_init = requests.Session.__init__
+
+        def _wrapped_init(self, *args, **kwargs):
+            original_init(self, *args, **kwargs)
+            if not _should_enable():
+                return
+            try:
+                enable_origin_proxy(self)
+                logger.debug("Origin proxy enabled on new requests.Session")
+            except Exception:  # pragma: no cover
+                logger.exception("Failed to enable origin proxy on requests.Session")
+
+        requests.Session.__init__ = _wrapped_init  # type: ignore
+        setattr(requests.Session, marker, True)
+        logger.info("Installed origin proxy hook for requests.Session")
+
+
+    def _install_for_cloudscraper() -> None:
+        try:
+            import cloudscraper  # type: ignore
+        except Exception:  # pragma: no cover
+            return
+
+        if getattr(cloudscraper, "_origin_sitecustomize_wrapped", False):
+            return
+
+        create_scraper = getattr(cloudscraper, "create_scraper", None)
+        if create_scraper is None:
+            return
+
+        def _wrapped_create_scraper(*args, **kwargs):
+            scraper = create_scraper(*args, **kwargs)
+            if _should_enable():
+                try:
+                    from src.crawler.origin_proxy import enable_origin_proxy  # type: ignore
+
+                    enable_origin_proxy(scraper)
+                except Exception:  # pragma: no cover
+                    logger.exception("Failed to enable origin proxy on cloudscraper")
+            return scraper
+
+        cloudscraper.create_scraper = _wrapped_create_scraper  # type: ignore
+        setattr(cloudscraper, "_origin_sitecustomize_wrapped", True)
+        logger.info("Installed origin proxy hook for cloudscraper")
+
+
+    def _log_site_flag() -> None:
+        if "site" not in sys.modules:
+            logger.warning(
+                "Python started without site module (-S); sitecustomize may not load automatically."
+            )
+
+
+    def _main() -> None:
+        try:
+            _log_site_flag()
+            _ensure_metadata_bypass_env()
+            _install_for_requests()
+            _install_for_cloudscraper()
+        except Exception:  # pragma: no cover
+            logger.exception("sitecustomize initialization failed")
+
+    _main()

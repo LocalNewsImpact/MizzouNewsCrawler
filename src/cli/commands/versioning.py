@@ -114,7 +114,7 @@ def handle_create_version_command(args: argparse.Namespace) -> int:
         print(f"Failed to create dataset version: {exc}")
         return 1
 
-    print("Created dataset version: " f"{version.id} (tag={version.version_tag})")
+    print(f"Created dataset version: {version.id} (tag={version.version_tag})")
     return 0
 
 
@@ -181,5 +181,5 @@ def handle_export_snapshot_command(args: argparse.Namespace) -> int:
 
     version_id = getattr(version, "id", args.version_id)
     snapshot_path = getattr(version, "snapshot_path", str(version))
-    print("Snapshot created and version finalized: " f"{version_id} -> {snapshot_path}")
+    print(f"Snapshot created and version finalized: {version_id} -> {snapshot_path}")
     return 0

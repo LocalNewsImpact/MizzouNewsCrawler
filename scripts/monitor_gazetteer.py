@@ -89,7 +89,7 @@ def monitor_gazetteer():
         print(f"  Total sources: {total}")
         print(f"  Populated: {populated}")
         print(f"  Remaining: {remaining}")
-        print(f"  Coverage: {populated/total*100:.1f}%")
+        print(f"  Coverage: {populated / total * 100:.1f}%")
 
 
 if __name__ == "__main__":

@@ -47,5 +47,6 @@ def debug_cleaning():
     final_authors = [author for author in cleaned_authors if author.strip()]
     print(f"Final authors: {final_authors}")
 
+
 if __name__ == "__main__":
     debug_cleaning()

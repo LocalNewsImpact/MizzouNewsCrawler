@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import types
 from pathlib import Path
-from typing import Sequence, cast
 
 import pytest
 
 import src.ml.article_classifier as article_classifier
+
+# typing imports intentionally minimal for test
 
 
 def _make_prediction_dict(label: str, score: float) -> dict:
@@ -147,7 +148,7 @@ def test_predict_batch_validates_input(tmp_path, monkeypatch):
     with pytest.raises(TypeError):
         classifier.predict_batch("not-a-sequence")
 
-    inputs = cast(Sequence[str], ["", None])
+    inputs = ["", None]  # type: ignore[list-item]
     preds = classifier.predict_batch(inputs, top_k=1)
     assert runner_calls["texts"] == ["", ""]
     assert preds[0][0].label == "ok"
@@ -236,6 +237,6 @@ def test_load_pt_classifier_normalizes_state_dict(tmp_path, monkeypatch):
     assert pipeline_calls["device"] == -1
     assert model_identifier == str(checkpoint)
     assert model_version == checkpoint.stem
-    outputs = cast(list[list[dict[str, float]]], runner(["text"]))
-    first_prediction = outputs[0][0]
+    outputs = runner(["text"])  # type: ignore[assignment]
+    first_prediction = outputs[0][0]  # type: ignore[index]
     assert first_prediction["label"] == "label"

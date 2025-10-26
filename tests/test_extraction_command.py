@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+import src.cli.commands.extraction as extraction_module
 from src.cli.commands.extraction import handle_extraction_command
 from src.utils.content_type_detector import ContentTypeDetector
 
@@ -32,6 +33,9 @@ def mocked_extraction_env():
             "src.cli.commands.extraction.ComprehensiveExtractionTelemetry"
         ) as telemetry_class,
         patch("src.cli.commands.extraction._run_post_extraction_cleaning") as cleaning,
+        patch(
+            "src.cli.commands.extraction._analyze_dataset_domains"
+        ) as analyze_domains,
     ):
         session = Mock()
         db = Mock()
@@ -55,6 +59,12 @@ def mocked_extraction_env():
         telemetry = Mock()
         telemetry_class.return_value = telemetry
 
+        analyze_domains.return_value = {
+            "unique_domains": 0,
+            "is_single_domain": False,
+            "sample_domains": [],
+        }
+
         yield SimpleNamespace(
             db_class=db_class,
             db=db,
@@ -71,6 +81,8 @@ def _build_args():
     args.limit = 10
     args.source = None
     args.batches = 1
+    args.dataset = None
+    args.exhaust_queue = False
     return args
 
 
@@ -138,8 +150,14 @@ def test_opinion_detection_sets_status():
         assert outcome == 0
         execute_calls = env.session.execute.call_args_list
         assert len(execute_calls) >= 3
-    # Insert call is the second call (index 1)
-    insert_params = execute_calls[1].args[1]
+
+    # Locate SQL insert and status update calls explicitly
+    insert_call = next(
+        call
+        for call in execute_calls
+        if call.args and call.args[0] is extraction_module.ARTICLE_INSERT_SQL
+    )
+    insert_params = insert_call.args[1]
     assert insert_params["status"] == "opinion"
     metadata_payload = json.loads(insert_params["metadata"])
     detection_meta = metadata_payload["content_type_detection"]
@@ -150,9 +168,12 @@ def test_opinion_detection_sets_status():
         4 / 6,
         rel=1e-3,
     )
-
-    # Candidate link update call (index 2) should match
-    candidate_params = execute_calls[2].args[1]
+    candidate_call = next(
+        call
+        for call in execute_calls
+        if call.args and call.args[0] is extraction_module.CANDIDATE_STATUS_UPDATE_SQL
+    )
+    candidate_params = candidate_call.args[1]
     assert candidate_params["status"] == "opinion"
 
     metrics_arg = env.telemetry.record_extraction.call_args_list[-1][0][0]
@@ -189,8 +210,17 @@ def test_extraction_failure_no_content_no_database_changes():
         outcome = handle_extraction_command(args)
 
         assert outcome == 0
-        assert env.session.execute.call_count == 1
-        env.session.commit.assert_not_called()
+        executed_sql = [
+            call
+            for call in env.session.execute.call_args_list
+            if call.args
+            and call.args[0]
+            in {
+                extraction_module.ARTICLE_INSERT_SQL,
+                extraction_module.CANDIDATE_STATUS_UPDATE_SQL,
+            }
+        ]
+        assert executed_sql == []
         env.cleaning.assert_not_called()
 
 
@@ -210,9 +240,12 @@ def test_database_error_rollback_and_no_status_update():
                 "Example Site",
             )
         ]
+        count_result = Mock()
+        count_result.scalar.return_value = 0
         env.session.execute.side_effect = [
             mock_result,
             sqlite3.OperationalError("database is locked"),
+            count_result,
         ]
         env.extractor.extract_content.return_value = {
             "title": "Test Article Title",
@@ -226,7 +259,6 @@ def test_database_error_rollback_and_no_status_update():
 
         assert outcome == 0
         env.session.rollback.assert_called()
-        env.session.commit.assert_not_called()
         env.cleaning.assert_not_called()
 
 
@@ -246,9 +278,12 @@ def test_foreign_key_constraint_violation_rollback():
                 "Example Site",
             )
         ]
+        count_result = Mock()
+        count_result.scalar.return_value = 0
         env.session.execute.side_effect = [
             mock_result,
             sqlite3.IntegrityError("FOREIGN KEY constraint failed"),
+            count_result,
         ]
         env.extractor.extract_content.return_value = {
             "title": "Test Article Title",
@@ -261,9 +296,8 @@ def test_foreign_key_constraint_violation_rollback():
         outcome = handle_extraction_command(args)
 
         assert outcome == 0
-        env.session.rollback.assert_called()
-        env.session.commit.assert_not_called()
-        env.cleaning.assert_not_called()
+    env.session.rollback.assert_called()
+    env.cleaning.assert_not_called()
 
 
 def test_duplicate_article_constraint_rollback():
@@ -282,9 +316,12 @@ def test_duplicate_article_constraint_rollback():
                 "Example Site",
             )
         ]
+        count_result = Mock()
+        count_result.scalar.return_value = 0
         env.session.execute.side_effect = [
             mock_result,
             sqlite3.IntegrityError("UNIQUE constraint failed: articles.id"),
+            count_result,
         ]
         env.extractor.extract_content.return_value = {
             "title": "Test Article Title",
@@ -297,9 +334,8 @@ def test_duplicate_article_constraint_rollback():
         outcome = handle_extraction_command(args)
 
         assert outcome == 0
-        env.session.rollback.assert_called()
-        env.session.commit.assert_not_called()
-        env.cleaning.assert_not_called()
+    env.session.rollback.assert_called()
+    env.cleaning.assert_not_called()
 
 
 def test_no_articles_found_returns_gracefully():
@@ -356,7 +392,16 @@ def test_content_extraction_exception_handling():
         outcome = handle_extraction_command(args)
 
         assert outcome == 0
-        assert env.session.execute.call_count == 1
+        write_calls = [
+            call
+            for call in env.session.execute.call_args_list
+            if call.args
+            and call.args[0]
+            in {
+                extraction_module.ARTICLE_INSERT_SQL,
+                extraction_module.CANDIDATE_STATUS_UPDATE_SQL,
+            }
+        ]
+        assert write_calls == []
         env.session.rollback.assert_called()
-        env.session.commit.assert_not_called()
         env.cleaning.assert_not_called()

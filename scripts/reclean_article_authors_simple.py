@@ -25,16 +25,13 @@ from src.utils.byline_cleaner import BylineCleaner
 
 def setup_logging():
     """Setup logging configuration."""
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_file = f"data/reclean_authors_{timestamp}.log"
 
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(log_file),
-            logging.StreamHandler(sys.stdout)
-        ]
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        handlers=[logging.FileHandler(log_file), logging.StreamHandler(sys.stdout)],
     )
 
     logger = logging.getLogger(__name__)
@@ -45,7 +42,7 @@ def setup_logging():
 
 def create_backup(db_path, logger):
     """Create a backup of the articles table."""
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     backup_id = f"articles_backup_{timestamp}"
 
     logger.info(f"Creating backup: {backup_id}")
@@ -87,24 +84,21 @@ def get_articles_to_reclean(db_path, limit=None):
 
 def clean_author_byline(cleaner, article_data):
     """Clean a single article's byline."""
-    raw_byline = article_data['raw_byline']
-    source_name = (article_data['source_name'] or
-                  article_data['candidate_source_name'])
+    raw_byline = article_data["raw_byline"]
+    source_name = article_data["source_name"] or article_data["candidate_source_name"]
 
     # Clean using improved BylineCleaner
     cleaned_authors = cleaner.clean_byline(
-        byline=raw_byline,
-        source_name=source_name,
-        return_json=False
+        byline=raw_byline, source_name=source_name, return_json=False
     )
 
     # Convert to JSON for storage
     new_author_json = json.dumps(cleaned_authors) if cleaned_authors else None
 
     # Parse current authors for comparison
-    current_author = article_data['current_author']
+    current_author = article_data["current_author"]
     try:
-        if current_author.startswith('['):
+        if current_author.startswith("["):
             current_authors = json.loads(current_author)
         else:
             current_authors = [current_author] if current_author else []
@@ -120,24 +114,29 @@ def clean_author_byline(cleaner, article_data):
         # Check for name completions (truncation fixes)
         for old_name in current_authors:
             for new_name in cleaned_authors:
-                if (old_name and new_name and
-                    old_name in new_name and len(new_name) > len(old_name)):
+                if (
+                    old_name
+                    and new_name
+                    and old_name in new_name
+                    and len(new_name) > len(old_name)
+                ):
                     improvement = True
                     details.append(f"Fixed: '{old_name}' -> '{new_name}'")
 
         # Check for "Associated Press" fix
-        if ('Associated' in str(current_authors) and
-            'Associated Press' in str(cleaned_authors)):
+        if "Associated" in str(current_authors) and "Associated Press" in str(
+            cleaned_authors
+        ):
             improvement = True
             details.append("Fixed 'Associated Press' truncation")
 
     return {
-        'new_author_json': new_author_json,
-        'changed': changed,
-        'improvement': improvement,
-        'details': details,
-        'old_authors': current_authors,
-        'new_authors': cleaned_authors
+        "new_author_json": new_author_json,
+        "changed": changed,
+        "improvement": improvement,
+        "details": details,
+        "old_authors": current_authors,
+        "new_authors": cleaned_authors,
     }
 
 
@@ -147,25 +146,27 @@ def update_article_author(db_path, article_id, new_author_json, dry_run=False):
         return True
 
     with sqlite3.connect(db_path) as conn:
-        conn.execute("""
+        conn.execute(
+            """
             UPDATE articles 
             SET author = ?, processed_at = CURRENT_TIMESTAMP 
             WHERE id = ?
-        """, (new_author_json, article_id))
+        """,
+            (new_author_json, article_id),
+        )
         return conn.total_changes > 0
 
 
 def main():
     """Main processing function."""
-    parser = argparse.ArgumentParser(
-        description="Re-clean article author names"
+    parser = argparse.ArgumentParser(description="Re-clean article author names")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Show changes without updating database"
     )
-    parser.add_argument('--dry-run', action='store_true',
-                       help='Show changes without updating database')
-    parser.add_argument('--limit', type=int,
-                       help='Only process N articles')
-    parser.add_argument('--db-path', default='data/mizzou.db',
-                       help='Database file path')
+    parser.add_argument("--limit", type=int, help="Only process N articles")
+    parser.add_argument(
+        "--db-path", default="data/mizzou.db", help="Database file path"
+    )
 
     args = parser.parse_args()
 
@@ -189,17 +190,12 @@ def main():
         return
 
     # Process articles
-    stats = {
-        'total': 0,
-        'changed': 0,
-        'improvements': 0,
-        'errors': 0
-    }
+    stats = {"total": 0, "changed": 0, "improvements": 0, "errors": 0}
 
     changes_log = []
 
     for i, article_data in enumerate(articles, 1):
-        article_id = article_data['article_id']
+        article_id = article_data["article_id"]
 
         if i % 50 == 0:
             logger.info(f"Processing {i}/{len(articles)}: {article_id}")
@@ -207,44 +203,46 @@ def main():
         try:
             # Clean the byline
             result = clean_author_byline(cleaner, article_data)
-            stats['total'] += 1
+            stats["total"] += 1
 
-            if result['changed'] and result['new_author_json']:
+            if result["changed"] and result["new_author_json"]:
                 # Update database
                 success = update_article_author(
-                    args.db_path, article_id,
-                    result['new_author_json'], args.dry_run
+                    args.db_path, article_id, result["new_author_json"], args.dry_run
                 )
 
                 if success:
-                    stats['changed'] += 1
-                    if result['improvement']:
-                        stats['improvements'] += 1
-                        logger.info(f"IMPROVEMENT {article_id}: "
-                                  f"{' | '.join(result['details'])}")
+                    stats["changed"] += 1
+                    if result["improvement"]:
+                        stats["improvements"] += 1
+                        logger.info(
+                            f"IMPROVEMENT {article_id}: {' | '.join(result['details'])}"
+                        )
 
                     # Log change
-                    changes_log.append({
-                        'article_id': article_id,
-                        'raw_byline': article_data['raw_byline'],
-                        'old_authors': result['old_authors'],
-                        'new_authors': result['new_authors'],
-                        'improvement': result['improvement'],
-                        'details': result['details']
-                    })
+                    changes_log.append(
+                        {
+                            "article_id": article_id,
+                            "raw_byline": article_data["raw_byline"],
+                            "old_authors": result["old_authors"],
+                            "new_authors": result["new_authors"],
+                            "improvement": result["improvement"],
+                            "details": result["details"],
+                        }
+                    )
                 else:
-                    stats['errors'] += 1
+                    stats["errors"] += 1
                     logger.error(f"Failed to update article {article_id}")
 
         except Exception as e:
-            stats['errors'] += 1
+            stats["errors"] += 1
             logger.error(f"Error processing {article_id}: {e}")
 
     # Save changes log
     if changes_log:
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         changes_file = f"data/author_changes_{timestamp}.json"
-        with open(changes_file, 'w') as f:
+        with open(changes_file, "w") as f:
             json.dump(changes_log, f, indent=2)
         logger.info(f"Changes saved to: {changes_file}")
 
@@ -256,14 +254,14 @@ def main():
     logger.info(f"Improvements: {stats['improvements']}")
     logger.info(f"Errors: {stats['errors']}")
 
-    if stats['total'] > 0:
-        change_rate = (stats['changed'] / stats['total']) * 100
-        improvement_rate = (stats['improvements'] / stats['total']) * 100
+    if stats["total"] > 0:
+        change_rate = (stats["changed"] / stats["total"]) * 100
+        improvement_rate = (stats["improvements"] / stats["total"]) * 100
         logger.info(f"Change rate: {change_rate:.1f}%")
         logger.info(f"Improvement rate: {improvement_rate:.1f}%")
 
     logger.info("=" * 50)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

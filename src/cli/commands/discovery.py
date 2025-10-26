@@ -93,17 +93,20 @@ def add_discovery_parser(subparsers) -> argparse.ArgumentParser:
     discover_parser.add_argument(
         "--due-only",
         action="store_true",
-        default=True,
+        default=False,
         help=(
-            "Only process sources due for discovery based on scheduling "
-            "(default: True)"
+            "Only process sources due for discovery based on scheduling. "
+            "Use for production scheduled runs. Default is False to allow first-run discovery."
         ),
     )
 
     discover_parser.add_argument(
         "--force-all",
         action="store_true",
-        help=("Process all sources regardless of scheduling " "(disables due-only)"),
+        help=(
+            "Process all sources regardless of scheduling. "
+            "Alias for disabling --due-only (included for backwards compatibility)."
+        ),
     )
 
     discover_parser.add_argument(
@@ -115,9 +118,7 @@ def add_discovery_parser(subparsers) -> argparse.ArgumentParser:
     discover_parser.add_argument(
         "--existing-article-limit",
         type=int,
-        help=(
-            "Skip sources that already have at least this many extracted " "articles"
-        ),
+        help=("Skip sources that already have at least this many extracted articles"),
     )
 
     discover_parser.set_defaults(func=handle_discovery_command)
@@ -143,6 +144,8 @@ def handle_discovery_command(args) -> int:
     try:
         from src.crawler.discovery import NewsDiscovery
 
+        # Print to stdout immediately for visibility in cloud logs
+        print("🚀 Starting URL discovery pipeline...")
         logger.info("Starting URL discovery pipeline")
 
         uuid_list = _collect_source_uuids(
@@ -164,9 +167,24 @@ def handle_discovery_command(args) -> int:
         if existing_article_limit is None and legacy_article_limit is not None:
             existing_article_limit = legacy_article_limit
 
-        due_only_enabled = getattr(args, "due_only", True) and not getattr(
+        due_only_enabled = getattr(args, "due_only", False) and not getattr(
             args, "force_all", False
         )
+
+        # Show configuration immediately
+        print(f"   Dataset: {getattr(args, 'dataset', 'all')}")
+        print(f"   Source limit: {getattr(args, 'source_limit', 'none')}")
+        print(f"   Due only: {due_only_enabled}")
+        print(f"   Force all: {getattr(args, 'force_all', False)}")
+
+        # Warn if using scheduling that may skip sources
+        if due_only_enabled and not (uuid_list or getattr(args, "source_filter", None)):
+            print()
+            print("⚠️  Running with --due-only scheduling enabled.")
+            print("    Sources not yet due for discovery will be skipped.")
+            print("    Use --force-all to override scheduling on first run.")
+
+        print()
 
         stats = discovery.run_discovery(
             dataset_label=getattr(args, "dataset", None),
@@ -197,8 +215,7 @@ def handle_discovery_command(args) -> int:
             print(f"Sources with no content: {stats['sources_no_content']}")
 
         print(
-            "Total candidate URLs discovered: "
-            f"{stats['total_candidates_discovered']}"
+            f"Total candidate URLs discovered: {stats['total_candidates_discovered']}"
         )
 
         if stats["sources_processed"] > 0:
@@ -219,6 +236,8 @@ def handle_discovery_command(args) -> int:
             print(f"Average candidates per source: {avg_candidates:.1f}")
 
         if stats["sources_failed"] > 0:
+            print()
+            print("⚠️  Errors encountered during discovery")
             active_ops = discovery.telemetry.list_active_operations()
             if active_ops:
                 recent_op_id = active_ops[-1].get("operation_id")
@@ -229,14 +248,13 @@ def handle_discovery_command(args) -> int:
                     if failure_summary.get("total_failures", 0) > 0:
                         print("\n=== Failure Analysis ===")
                         print(
-                            "Total site failures: "
-                            f"{failure_summary['total_failures']}"
+                            f"Total site failures: {failure_summary['total_failures']}"
                         )
                         most_common = failure_summary.get(
                             "most_common_failure",
                             "Unknown",
                         )
-                        print("Most common failure type: " f"{most_common}")
+                        print(f"Most common failure type: {most_common}")
                         print("\nFailure breakdown:")
                         for failure_type, count in failure_summary[
                             "failure_types"
@@ -244,7 +262,7 @@ def handle_discovery_command(args) -> int:
                             percentage = (
                                 count / failure_summary["total_failures"]
                             ) * 100
-                            print(f"  {failure_type}: {count} " f"({percentage:.1f}%)")
+                            print(f"  {failure_type}: {count} ({percentage:.1f}%)")
 
         return 0
 

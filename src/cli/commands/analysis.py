@@ -11,7 +11,7 @@ from sqlalchemy import select
 
 from src.ml.article_classifier import ArticleClassifier
 from src.models import Article, ArticleLabel
-from src.models.database import DatabaseManager
+from src.models.database import DatabaseManager, safe_session_execute
 from src.services.classification_service import ArticleClassificationService
 
 logger = logging.getLogger(__name__)
@@ -78,7 +78,7 @@ def _snapshot_labels(
     else:
         stmt = stmt.where(Article.status.in_(list(statuses)))
 
-    rows = session.execute(stmt).all()
+    rows = safe_session_execute(session, stmt).all()
     snapshot: dict[str, dict[str, str | None]] = {}
     for article_id, url, primary, alternate in rows:
         snapshot[str(article_id)] = {
@@ -286,7 +286,11 @@ def handle_analysis_command(args) -> int:
     filtered_statuses = _filtered_statuses(resolved_statuses)
     batch_size = max(1, args.batch_size or 16)
     top_k = max(1, args.top_k or 2)
-    model_path = Path(args.model_path or "models").expanduser()
+    import os
+
+    model_path = Path(
+        args.model_path or os.getenv("MODEL_PATH") or "models"
+    ).expanduser()
     collect_diff = bool(args.report_path)
 
     try:
@@ -329,10 +333,7 @@ def handle_analysis_command(args) -> int:
             print("\nDry-run mode: no labels were persisted.")
 
         logger.info(
-            (
-                "Classification complete: processed=%s labeled=%s "
-                "skipped=%s errors=%s"
-            ),
+            ("Classification complete: processed=%s labeled=%s skipped=%s errors=%s"),
             stats.processed,
             stats.labeled,
             stats.skipped,

@@ -31,6 +31,35 @@ class _TelemetryStub:
 class _DummyDBManager:
     def __init__(self):
         self.session = object()
+        # Mock engine for dataset resolution
+        self.engine = self._make_mock_engine()
+
+    def _make_mock_engine(self):
+        """Create a mock engine that returns dataset-a UUID."""
+
+        class MockResult:
+            def fetchone(self):
+                # Return a mock UUID for dataset-a lookup
+                return ("dataset-uuid-a",)
+
+        class MockConnection:
+            def execute(self, query, params=None):
+                return MockResult()
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+        class MockEngine:
+            def connect(self):
+                return MockConnection()
+
+            def begin(self):
+                return MockConnection()
+
+        return MockEngine()
 
     def __enter__(self):
         return self
@@ -157,6 +186,7 @@ def test_process_source_classifies_and_stores_articles(discovery_setup):
     candidate = stored[0]
     assert candidate["url"] == "https://example.com/new-story"
     assert candidate["source_id"] == "source-1"
-    assert candidate["dataset_id"] == "dataset-a"
+    # dataset_id is now a UUID resolved from dataset label
+    assert candidate["dataset_id"] == "dataset-uuid-a"
     assert candidate["meta"]["publish_date"].startswith("20")
     assert candidate["meta"]["section"] == "local"

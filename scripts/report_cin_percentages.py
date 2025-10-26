@@ -34,8 +34,7 @@ def _sanitize_category(category: str) -> str:
 def main() -> None:
     if not SOURCE_PATH.exists():
         message = (
-            "Source CSV not found at "
-            f"{SOURCE_PATH}. Run CIN labeling export first."
+            f"Source CSV not found at {SOURCE_PATH}. Run CIN labeling export first."
         )
         raise FileNotFoundError(message)
 
@@ -47,7 +46,8 @@ def main() -> None:
         reader = csv.DictReader(infile)
         fieldnames = reader.fieldnames or []
         missing_columns = {
-            name for name in ("primary_label", "publication_county")
+            name
+            for name in ("primary_label", "publication_county")
             if name not in fieldnames
         }
         if missing_columns:
@@ -72,9 +72,7 @@ def main() -> None:
         raise ValueError("No categories found in source data.")
 
     sorted_categories = sorted(categories)
-    column_suffix_map = {
-        cat: _sanitize_category(cat) for cat in sorted_categories
-    }
+    column_suffix_map = {cat: _sanitize_category(cat) for cat in sorted_categories}
 
     with OUTPUT_PATH.open("w", newline="", encoding="utf-8") as outfile:
         fieldnames = ["county", "total_articles"]

@@ -22,7 +22,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import text
 
-from ..models.database import DatabaseManager
+from ..models.database import DatabaseManager, safe_execute
 
 logger = logging.getLogger(__name__)
 
@@ -38,18 +38,21 @@ def parse_frequency_to_days(freq: str | None) -> float:
 
     f = str(freq).lower()
     if "daily" in f or f == "day":
-        # Daily outlets publish throughout the day; treat cadence as 12 hours
-        return 0.5
+        # Daily outlets publish throughout the day; our pipeline runs every
+        # 6 hours, so treat 'daily' sources as due every job (0.25 days).
+        return 0.25
     if "broadcast" in f:
-        # Broadcast stations (radio/TV) operate continuously; treat as 12 hours
-        return 0.5
-    # Detect bi-weekly patterns before generic weekly
+        # Broadcast stations (radio/TV) operate continuously; treat as due
+        # every 6 hours (same as daily sources).
+        return 0.25
+    # Detect bi-weekly and tri-weekly patterns before generic weekly
     if "bi-week" in f or "biweekly" in f or "every 2" in f:
         return 14
-    if "weekly" in f or "week" in f:
-        return 7
     if "tri-week" in f or "triweekly" in f:
         return 7  # 3x per 21-day window, default weekly with additional checks
+    if "weekly" in f or "week" in f:
+        # For weekly publications, prefer to run discovery once per week
+        return 7
     if "monthly" in f or "month" in f:
         return 30
     if "hour" in f or "hourly" in f:
@@ -73,7 +76,7 @@ def _get_last_processed_date(
                 "SELECT MAX(processed_at) as last FROM candidate_links "
                 "WHERE source_id = :sid"
             )
-            res = conn.execute(text(sql), {"sid": source_id}).fetchone()
+            res = safe_execute(conn, text(sql), {"sid": source_id}).fetchone()
             if not res:
                 return None
             last = res[0]
@@ -114,13 +117,13 @@ def should_schedule_discovery(
     """
     now = now or datetime.utcnow()
 
-    cadence_days = 7
+    cadence_days: float = 7.0
     try:
         if source_meta and isinstance(source_meta, dict):
             freq = source_meta.get("frequency") or source_meta.get("freq")
             cadence_days = parse_frequency_to_days(freq)
     except Exception:
-        cadence_days = 7
+        cadence_days = 7.0
 
     dbm = db
     last = _get_last_processed_date(dbm, source_id)

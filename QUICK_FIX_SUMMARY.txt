@@ -1,0 +1,13 @@
+# Quick Fix Summary
+
+**Problem 1**: Memory too high (2065Mi)  
+**Solution**: Lazy load crawler + remove CSV files  
+**Result**: -107Mi (5.2% reduction)
+
+**Problem 2**: Entity extraction stuck (20+ min for 13 articles)  
+**Solution**: Cache gazetteer rows (N+1 query fix)  
+**Result**: Expected <30 seconds instead of 20+ minutes
+
+**Status**: Both fixes committed and ready to deploy.
+
+**Next**: Build new image with commit `0233eb8` or later.

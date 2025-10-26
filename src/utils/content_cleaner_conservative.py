@@ -6,6 +6,7 @@ that might look like boilerplate (like related article headlines).
 """
 
 import re
+from typing import Any
 
 from .content_cleaner_improved import ImprovedContentCleaner
 
@@ -200,9 +201,9 @@ class ConservativeContentCleaner(ImprovedContentCleaner):
         self,
         content: str,
         domain: str,
-        article_id: str | None = None,
+        article_id: int | None = None,
         dry_run: bool = True,
-    ) -> tuple[str, any]:
+    ) -> tuple[str, Any]:
         """Clean content with conservative approach."""
 
         # Get the base results

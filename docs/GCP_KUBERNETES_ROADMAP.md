@@ -1765,42 +1765,45 @@ CREATE INDEX idx_articles_source ON articles(source_id);
    - Single database with row-level security
    - See "6. Multi-tenancy Design" section for full implementation
 
-### 🔄 Pending Decisions
+1. **Budget**: ~~What's the monthly budget for GCP costs?~~
+   - **ANSWER**: $150-200/month target
+   - Estimated baseline: $200-400/month, bursts to $500-800/month
+   - **ACTION**: Need to optimize for lower costs using preemptible nodes, auto-scaling to zero
+   - Will use committed use discounts and regional (not multi-region) resources
 
-1. **Budget**: What's the monthly budget for GCP costs?
-   - Estimated: $200-400/month baseline, $500-800/month during heavy crawling
-   - Need to confirm acceptable range
+2. **Timeline**: ~~Is 12 weeks realistic, or do we need to adjust scope?~~
+   - **ANSWER**: Yes, 12 weeks is realistic and may go faster
+   - **APPROACH**: Iterative deployment, all phases are must-have
+   - Will deploy incrementally and test each phase
 
-2. **Timeline**: Is 12 weeks realistic, or do we need to adjust scope?
-   - Can compress by parallelizing phases
-   - Can extend by adding buffer for testing
-   - Need to confirm deadline/launch date
+3. **Team**: ~~Who will be responsible for each phase?~~
+   - **ANSWER**: TBD (to be determined)
+   - Likely single full-stack developer handling all aspects
+   - Can seek help for specific areas as needed
 
-3. **Team**: Who will be responsible for each phase?
-   - Backend development (Python/FastAPI)
-   - Frontend development (React/TypeScript)
-   - DevOps/Infrastructure (Docker/Kubernetes/GCP)
-   - Testing/QA
+4. **Priorities**: ~~Which phases are must-have vs. nice-to-have?~~
+   - **ANSWER**: ALL phases are must-have, deployed iteratively
+   - Phase 1 (Docker) → Phase 2 (GCP) → Phase 3 (K8s) → etc.
+   - Each phase builds on the previous
+   - **START**: Phase 1 (Containerization) immediately
 
-4. **Priorities**: Which phases are must-have vs. nice-to-have?
-   - Must-have: Phases 1-5, 7 (Docker, GCP, K8s, CI/CD, migration, security)
-   - Nice-to-have: Phase 6 (full frontend), Phase 8 (advanced observability)
-   - Need to confirm based on launch goals
+6. **Data retention**: ~~How long should we keep raw HTML, articles, etc.?~~
+   - **ANSWER**: Will decide policies after launch
+   - Start with: Articles (indefinite), Raw HTML (1 year), Logs (90 days)
+   - Can adjust based on actual usage and costs
 
-6. **Data retention**: How long should we keep raw HTML, articles, etc.?
-   - Recommendation: Articles (indefinite), Raw HTML (1 year), Logs (90 days)
-   - Need to confirm for compliance/research needs
+7. **Compliance**: ~~Any specific compliance requirements (GDPR, CCPA, etc.)?~~
+   - **ANSWER**: No specific compliance requirements
+   - Educational/research data, no PII concerns
+   - Standard security practices sufficient
 
-7. **Compliance**: Any specific compliance requirements (GDPR, CCPA, etc.)?
-   - Educational/research data may have different requirements
-   - Need to clarify if handling any PII
-   - Impact on data retention and access logs
-
-8. **Disaster recovery**: What's the acceptable RTO/RPO?
-   - RTO = Recovery Time Objective (how long can system be down?)
-   - RPO = Recovery Point Objective (how much data loss is acceptable?)
-   - Recommendation: RTO 4 hours, RPO 24 hours (daily backups)
-   - Impacts backup frequency and HA configuration
+8. **Disaster recovery**: ~~What's the acceptable RTO/RPO?~~
+   - **ANSWER**: Downtime acceptable, critical data loss is NOT acceptable
+   - **RTO**: 24 hours (system can be down for a day)
+   - **RPO**: Near-zero (cannot lose articles/data)
+   - **APPROACH**: Daily automated backups + transaction logs for point-in-time recovery
+   - Cloud SQL automated backups (7-day retention)
+   - Export to BigQuery provides additional backup layer
 
 ---
 

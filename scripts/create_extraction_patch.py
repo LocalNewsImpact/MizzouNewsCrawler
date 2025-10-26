@@ -85,9 +85,11 @@ def add_extraction_function():
 '''
 
     # Write the function to a patch file that can be imported
-    patch_file = Path(__file__).parent.parent / "src" / "utils" / "extraction_telemetry_patch.py"
+    patch_file = (
+        Path(__file__).parent.parent / "src" / "utils" / "extraction_telemetry_patch.py"
+    )
 
-    with open(patch_file, 'w') as f:
+    with open(patch_file, "w") as f:
         f.write(f'''"""
 Patch module for extraction telemetry functionality.
 This adds the record_extraction_outcome method to TelemetryReporter.

@@ -26,8 +26,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -45,7 +44,7 @@ def extract_hostname(url: str) -> str:
 def backfill_source_host_ids(db_path: str = "data/mizzou.db", dry_run: bool = True):
     """
     Backfill NULL source_host_id values in candidate_links.
-    
+
     Args:
         db_path: Path to SQLite database
         dry_run: If True, only show what would be changed without making changes
@@ -64,7 +63,7 @@ def backfill_source_host_ids(db_path: str = "data/mizzou.db", dry_run: bool = Tr
             FROM candidate_links 
             WHERE source_host_id IS NULL
         """)
-        null_count = cursor.fetchone()['count']
+        null_count = cursor.fetchone()["count"]
         logger.info(f"Found {null_count} candidate_links with NULL source_host_id")
 
         if null_count == 0:
@@ -85,14 +84,14 @@ def backfill_source_host_ids(db_path: str = "data/mizzou.db", dry_run: bool = Tr
 
         for source in sources:
             # Map by host (normalized)
-            if source['host']:
-                host_to_source_id[source['host'].lower()] = source['id']
-            if source['host_norm']:
-                host_to_source_id[source['host_norm']] = source['id']
+            if source["host"]:
+                host_to_source_id[source["host"].lower()] = source["id"]
+            if source["host_norm"]:
+                host_to_source_id[source["host_norm"]] = source["id"]
 
             # Map by canonical name (normalized)
-            if source['canonical_name']:
-                name_to_source_id[source['canonical_name'].lower()] = source['id']
+            if source["canonical_name"]:
+                name_to_source_id[source["canonical_name"].lower()] = source["id"]
 
         # Get candidate_links that need updating
         cursor.execute("""
@@ -105,57 +104,57 @@ def backfill_source_host_ids(db_path: str = "data/mizzou.db", dry_run: bool = Tr
 
         # Track matching statistics
         stats = {
-            'total_processed': 0,
-            'matched_by_url_host': 0,
-            'matched_by_source_name': 0,
-            'matched_by_source_field': 0,
-            'no_match_found': 0,
-            'would_update': 0
+            "total_processed": 0,
+            "matched_by_url_host": 0,
+            "matched_by_source_name": 0,
+            "matched_by_source_field": 0,
+            "no_match_found": 0,
+            "would_update": 0,
         }
 
         updates_to_make = []
 
         for link in candidate_links:
-            stats['total_processed'] += 1
+            stats["total_processed"] += 1
             source_id = None
             match_method = None
 
             # Method 1: Match by URL hostname
-            if link['url'] and not source_id:
-                hostname = extract_hostname(link['url'])
+            if link["url"] and not source_id:
+                hostname = extract_hostname(link["url"])
                 if hostname and hostname in host_to_source_id:
                     source_id = host_to_source_id[hostname]
-                    match_method = 'url_host'
-                    stats['matched_by_url_host'] += 1
+                    match_method = "url_host"
+                    stats["matched_by_url_host"] += 1
 
             # Method 2: Match by source_name field
-            if link['source_name'] and not source_id:
-                name_key = link['source_name'].lower()
+            if link["source_name"] and not source_id:
+                name_key = link["source_name"].lower()
                 if name_key in name_to_source_id:
                     source_id = name_to_source_id[name_key]
-                    match_method = 'source_name'
-                    stats['matched_by_source_name'] += 1
+                    match_method = "source_name"
+                    stats["matched_by_source_name"] += 1
 
             # Method 3: Match by legacy source field
-            if link['source'] and not source_id:
-                source_key = link['source'].lower()
+            if link["source"] and not source_id:
+                source_key = link["source"].lower()
                 if source_key in name_to_source_id:
                     source_id = name_to_source_id[source_key]
-                    match_method = 'source_field'
-                    stats['matched_by_source_field'] += 1
+                    match_method = "source_field"
+                    stats["matched_by_source_field"] += 1
 
             if source_id:
-                updates_to_make.append((source_id, link['id']))
-                stats['would_update'] += 1
+                updates_to_make.append((source_id, link["id"]))
+                stats["would_update"] += 1
 
-                if stats['total_processed'] <= 5:  # Log first few matches
+                if stats["total_processed"] <= 5:  # Log first few matches
                     logger.info(
                         f"Match #{stats['total_processed']}: {link['url']} -> "
                         f"source_id {source_id} (via {match_method})"
                     )
             else:
-                stats['no_match_found'] += 1
-                if stats['no_match_found'] <= 3:  # Log first few unmatched
+                stats["no_match_found"] += 1
+                if stats["no_match_found"] <= 3:  # Log first few unmatched
                     logger.warning(
                         f"No match for: URL={link['url']}, "
                         f"source={link['source']}, source_name={link['source_name']}"
@@ -173,11 +172,14 @@ def backfill_source_host_ids(db_path: str = "data/mizzou.db", dry_run: bool = Tr
             # Perform the updates
             logger.info(f"Applying updates to {len(updates_to_make)} records...")
 
-            cursor.executemany("""
+            cursor.executemany(
+                """
                 UPDATE candidate_links 
                 SET source_host_id = ? 
                 WHERE id = ?
-            """, updates_to_make)
+            """,
+                updates_to_make,
+            )
 
             conn.commit()
             logger.info(f"Successfully updated {len(updates_to_make)} candidate_links")
@@ -188,7 +190,7 @@ def backfill_source_host_ids(db_path: str = "data/mizzou.db", dry_run: bool = Tr
                 FROM candidate_links 
                 WHERE source_host_id IS NULL
             """)
-            remaining_nulls = cursor.fetchone()['count']
+            remaining_nulls = cursor.fetchone()["count"]
             logger.info(f"Remaining NULL source_host_id records: {remaining_nulls}")
 
     except Exception as e:
@@ -209,17 +211,15 @@ if __name__ == "__main__":
         "--dry-run",
         action="store_true",
         default=True,
-        help="Show what would be changed without making changes (default: True)"
+        help="Show what would be changed without making changes (default: True)",
     )
     parser.add_argument(
-        "--apply",
-        action="store_true",
-        help="Apply the changes (sets dry_run=False)"
+        "--apply", action="store_true", help="Apply the changes (sets dry_run=False)"
     )
     parser.add_argument(
         "--db-path",
         default="data/mizzou.db",
-        help="Path to SQLite database (default: data/mizzou.db)"
+        help="Path to SQLite database (default: data/mizzou.db)",
     )
 
     args = parser.parse_args()

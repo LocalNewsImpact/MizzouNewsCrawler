@@ -1,0 +1,58 @@
+# Multi-stage Dockerfile for FastAPI backend
+# Optimized for size and layer caching using shared base image
+
+# Use ARG to allow override of base image location
+ARG BASE_IMAGE=mizzou-base:latest
+
+# Stage 1: Install API-specific dependencies
+FROM ${BASE_IMAGE} AS deps
+
+WORKDIR /app
+
+# Copy only API-specific requirements
+COPY requirements-api.txt ./
+
+# Install API-specific Python packages
+RUN pip install --no-cache-dir -r requirements-api.txt
+
+# Stage 2: Final runtime image
+FROM ${BASE_IMAGE} AS runtime
+
+WORKDIR /app
+
+# Copy API-specific packages from deps stage
+# Base packages are already in the base image
+COPY --from=deps /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=deps /usr/local/bin /usr/local/bin
+
+# appuser already created in base image, just set ownership
+RUN chown -R appuser:appuser /app
+
+# Copy application code
+COPY --chown=appuser:appuser backend/ ./backend/
+COPY --chown=appuser:appuser src/ ./src/
+COPY --chown=appuser:appuser web/ ./web/
+COPY --chown=appuser:appuser alembic/ ./alembic/
+COPY --chown=appuser:appuser alembic.ini ./alembic.ini
+
+# Create data and lookups directories
+# Note: New telemetry endpoints use Cloud SQL, legacy endpoints still use SQLite
+RUN mkdir -p /app/data /app/lookups && chown -R appuser:appuser /app/data /app/lookups
+
+# Switch to non-root user
+USER appuser
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PORT=8000
+
+# Run FastAPI with uvicorn
+CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]

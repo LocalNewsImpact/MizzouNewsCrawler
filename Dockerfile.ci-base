@@ -1,0 +1,27 @@
+# CI Base Docker Image for MizzouNewsCrawler
+# Extends production base image and adds test-only dependencies
+# This ensures CI tests run with the same base as production, plus test tools
+
+# Use production base image as foundation
+ARG BASE_IMAGE=us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/base:latest
+FROM ${BASE_IMAGE}
+
+WORKDIR /app
+
+# Copy test-only requirements
+COPY requirements-dev.txt ./
+
+# Install test-only dependencies on top of production base
+# These are heavy packages only needed for tests (PyTorch, transformers, etc)
+RUN pip install --no-cache-dir torch>=2.1.0 transformers>=4.30.0 && \
+    pip install --no-cache-dir -r requirements-dev.txt
+
+# Metadata
+LABEL maintainer="MizzouNewsCrawler"
+LABEL description="CI base image extending production base with test dependencies"
+LABEL version="1.0"
+LABEL usage="docker build -t mizzou-ci-base:latest -f Dockerfile.ci-base ."
+
+# Note: This CI base image is used by GitHub Actions to run tests
+# It layers test dependencies on top of the production base image
+# Ensures tests run with same foundation as production services

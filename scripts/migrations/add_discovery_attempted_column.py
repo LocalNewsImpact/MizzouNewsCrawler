@@ -45,8 +45,9 @@ def add_discovery_attempted_column():
         print(f"Error adding column: {e}")
         return False
     finally:
-        if 'conn' in locals():
+        if "conn" in locals():
             conn.close()
+
 
 if __name__ == "__main__":
     add_discovery_attempted_column()

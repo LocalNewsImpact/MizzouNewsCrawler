@@ -1,0 +1,148 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cleanup-completed-jobs
+  namespace: production
+  labels:
+    app: cleanup
+    component: maintenance
+spec:
+  # Run every 30 minutes
+  schedule: "*/30 * * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      # Clean up this cleanup job itself after 1 hour
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          labels:
+            app: cleanup
+            component: maintenance
+        spec:
+          serviceAccountName: cleanup-service-account
+          restartPolicy: OnFailure
+          containers:
+          - name: kubectl
+            image: bitnami/kubectl:latest
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              echo "🧹 Starting cleanup of completed and failed resources..."
+              echo "Timestamp: $(date -u)"
+              echo ""
+              
+              # Clean up completed jobs older than 1 hour
+              echo "Cleaning up completed jobs older than 1 hour..."
+              COMPLETED_JOBS=$(kubectl get jobs -n production --field-selector status.successful=1 -o json | \
+                jq -r '.items[] | select(.status.completionTime != null) | 
+                select((now - (.status.completionTime | fromdateiso8601)) > 3600) | .metadata.name')
+              
+              if [ -n "$COMPLETED_JOBS" ]; then
+                echo "Found completed jobs to delete:"
+                echo "$COMPLETED_JOBS"
+                echo "$COMPLETED_JOBS" | xargs -r kubectl delete job -n production
+                echo "✅ Deleted completed jobs"
+              else
+                echo "ℹ️  No completed jobs to clean up"
+              fi
+              
+              echo ""
+              
+              # Clean up failed jobs older than 6 hours
+              echo "Cleaning up failed jobs older than 6 hours..."
+              FAILED_JOBS=$(kubectl get jobs -n production --field-selector status.successful=0 -o json | \
+                jq -r '.items[] | select(.status.conditions != null) | 
+                select(.status.conditions[] | select(.type == "Failed" and .status == "True")) |
+                select((now - (.status.conditions[] | select(.type == "Failed") | .lastTransitionTime | fromdateiso8601)) > 21600) | 
+                .metadata.name')
+              
+              if [ -n "$FAILED_JOBS" ]; then
+                echo "Found failed jobs to delete:"
+                echo "$FAILED_JOBS"
+                echo "$FAILED_JOBS" | xargs -r kubectl delete job -n production
+                echo "✅ Deleted failed jobs"
+              else
+                echo "ℹ️  No failed jobs to clean up"
+              fi
+              
+              echo ""
+              
+              # Clean up evicted/failed pods older than 1 hour
+              echo "Cleaning up evicted/failed pods older than 1 hour..."
+              EVICTED_PODS=$(kubectl get pods -n production --field-selector status.phase=Failed -o json | \
+                jq -r '.items[] | select(.status.reason == "Evicted" or .status.phase == "Failed") |
+                select((now - (.status.startTime | fromdateiso8601)) > 3600) | .metadata.name' 2>/dev/null || true)
+              
+              if [ -n "$EVICTED_PODS" ]; then
+                echo "Found evicted/failed pods to delete:"
+                echo "$EVICTED_PODS"
+                echo "$EVICTED_PODS" | xargs -r kubectl delete pod -n production
+                echo "✅ Deleted evicted/failed pods"
+              else
+                echo "ℹ️  No evicted/failed pods to clean up"
+              fi
+              
+              echo ""
+              
+              # Clean up succeeded pods (from completed jobs) older than 30 minutes
+              echo "Cleaning up succeeded pods older than 30 minutes..."
+              SUCCEEDED_PODS=$(kubectl get pods -n production --field-selector status.phase=Succeeded -o json | \
+                jq -r '.items[] | select((now - (.status.startTime | fromdateiso8601)) > 1800) | .metadata.name' 2>/dev/null || true)
+              
+              if [ -n "$SUCCEEDED_PODS" ]; then
+                echo "Found succeeded pods to delete:"
+                echo "$SUCCEEDED_PODS"
+                echo "$SUCCEEDED_PODS" | xargs -r kubectl delete pod -n production
+                echo "✅ Deleted succeeded pods"
+              else
+                echo "ℹ️  No succeeded pods to clean up"
+              fi
+              
+              echo ""
+              echo "🎉 Cleanup completed successfully!"
+              echo "Timestamp: $(date -u)"
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+              limits:
+                cpu: 100m
+                memory: 64Mi
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cleanup-service-account
+  namespace: production
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cleanup-role
+  namespace: production
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "delete"]
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["get", "list", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cleanup-role-binding
+  namespace: production
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: cleanup-role
+subjects:
+- kind: ServiceAccount
+  name: cleanup-service-account
+  namespace: production

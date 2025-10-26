@@ -7,11 +7,13 @@ import sqlite3
 
 def clean_duplicate_authors():
     """Remove duplicate authors from existing articles."""
-    conn = sqlite3.connect('data/mizzou.db')
+    conn = sqlite3.connect("data/mizzou.db")
     cursor = conn.cursor()
 
     # Get articles with author data
-    cursor.execute('SELECT id, author FROM articles WHERE author IS NOT NULL AND author != ""')
+    cursor.execute(
+        'SELECT id, author FROM articles WHERE author IS NOT NULL AND author != ""'
+    )
     articles = cursor.fetchall()
 
     cleaned_count = 0
@@ -35,17 +37,20 @@ def clean_duplicate_authors():
                     # Update if we removed duplicates
                     if len(cleaned_authors) < len(authors):
                         cleaned_json = json.dumps(cleaned_authors)
-                        cursor.execute('UPDATE articles SET author = ? WHERE id = ?',
-                                     (cleaned_json, article_id))
+                        cursor.execute(
+                            "UPDATE articles SET author = ? WHERE id = ?",
+                            (cleaned_json, article_id),
+                        )
                         cleaned_count += 1
-                        print(f'Cleaned: {authors} -> {cleaned_authors}')
+                        print(f"Cleaned: {authors} -> {cleaned_authors}")
             except json.JSONDecodeError:
                 continue
 
     conn.commit()
     conn.close()
 
-    print(f'\nCleaned {cleaned_count} articles with duplicate authors')
+    print(f"\nCleaned {cleaned_count} articles with duplicate authors")
+
 
 if __name__ == "__main__":
     clean_duplicate_authors()

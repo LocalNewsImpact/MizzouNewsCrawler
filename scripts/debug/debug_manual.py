@@ -3,7 +3,7 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 from utils.byline_cleaner import BylineCleaner
 
@@ -28,12 +28,12 @@ def test_manual():
     print(f"Words: {part_words}")
 
     # Check if iii is somehow in the sets
-    if 'iii' in cleaner.TITLES_TO_REMOVE:
+    if "iii" in cleaner.TITLES_TO_REMOVE:
         print("'iii' IS in TITLES_TO_REMOVE")
     else:
         print("'iii' is NOT in TITLES_TO_REMOVE")
 
-    if 'iii' in cleaner.JOURNALISM_NOUNS:
+    if "iii" in cleaner.JOURNALISM_NOUNS:
         print("'iii' IS in JOURNALISM_NOUNS")
     else:
         print("'iii' is NOT in JOURNALISM_NOUNS")

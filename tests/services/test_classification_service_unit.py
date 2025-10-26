@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import types
 from datetime import datetime
-from typing import Any, cast
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 from sqlalchemy.orm import Session
 
 from src.ml.article_classifier import Prediction
-from src.models import Article
+
+# Article imported previously for casting; not required after test refactor
 from src.services.classification_service import (
     ArticleClassificationService,
     ClassificationStats,
@@ -67,10 +68,12 @@ def test_prepare_text_prefers_first_non_empty_field():
         text="  candidate text  ",
         title="Headline",
     )
-    assert service._prepare_text(cast(Article, article)) == ("  candidate text  ")
+    assert service._prepare_text(article) == (  # type: ignore[arg-type]
+        "  candidate text  "
+    )
 
     empty_article = _make_article(content="", text="   ", title="  ")
-    assert service._prepare_text(cast(Article, empty_article)) is None
+    assert service._prepare_text(empty_article) is None  # type: ignore[arg-type]
 
 
 def test_apply_classification_returns_empty_stats_when_statuses_filtered():
@@ -367,27 +370,28 @@ def test_apply_classification_handles_none_statuses(monkeypatch):
 
 
 def test_batch_iter_requires_positive_size():
-    articles = [cast(Article, _make_article(id="a"))]
+    articles = [_make_article(id="a")]  # type: ignore[arg-type]
     with pytest.raises(ValueError):
-        list(_batch_iter(articles, 0))
+        list(_batch_iter(articles, 0))  # type: ignore[arg-type]
 
 
 def test_batch_iter_yields_even_chunks():
     items = [
-        cast(Article, _make_article(id="1")),
-        cast(Article, _make_article(id="2")),
-        cast(Article, _make_article(id="3")),
-        cast(Article, _make_article(id="4")),
-        cast(Article, _make_article(id="5")),
-    ]
-    chunks = list(_batch_iter(items, 2))
+        _make_article(id="1"),
+        _make_article(id="2"),
+        _make_article(id="3"),
+        _make_article(id="4"),
+        _make_article(id="5"),
+    ]  # type: ignore[arg-type]
+    chunks = list(_batch_iter(items, 2))  # type: ignore[arg-type]
     assert chunks == [items[0:2], items[2:4], items[4:5]]
 
 
 def test_select_articles_applies_limit_clause():
     service = _make_service()
-    session_mock = cast(MagicMock, service.session)
-    session_mock.scalars.return_value = iter(())
+    session_mock = service.session  # type: ignore[assignment]
+    # session_mock is a MagicMock in tests; mypy cannot infer attributes here
+    session_mock.scalars.return_value = iter(())  # type: ignore[attr-defined]
 
     results = service._select_articles(
         statuses=("cleaned",),
@@ -397,6 +401,6 @@ def test_select_articles_applies_limit_clause():
     )
 
     assert results == []
-    stmt = session_mock.scalars.call_args[0][0]
+    stmt = session_mock.scalars.call_args[0][0]  # type: ignore[union-attr]
     assert getattr(stmt, "_limit_clause", None) is not None
     assert getattr(stmt._limit_clause, "value", None) == 5

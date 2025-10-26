@@ -10,6 +10,7 @@ Enhanced with OpenStreetMap data for local businesses, schools, and landmarks.
 import random
 import re
 import time
+from typing import Any
 
 import pandas as pd
 
@@ -25,11 +26,11 @@ class PublisherGeoFilter:
 
     def __init__(self, publinks_path: str = "sources/publinks.csv"):
         self.publinks_path = publinks_path
-        self.publishers = {}
-        self.publisher_gazetteers = {}
+        self.publishers: dict[str, Any] = {}
+        self.publisher_gazetteers: dict[str, Any] = {}
 
         # Coverage radius by media type (in miles)
-        self.coverage_radius_by_type = {
+        self.coverage_radius_by_type: dict[str, Any] = {
             "daily": {"metro": 30, "small_city": 18},  # Daily papers
             "weekly": 12,  # Weekly papers
             "bi-weekly": 12,  # Bi-weekly papers
@@ -41,7 +42,7 @@ class PublisherGeoFilter:
         }
 
         # Dynamic geographic data for building gazetteers (per publisher)
-        self.publisher_local_geography = {}
+        self.publisher_local_geography: dict[str, dict[str, Any]] = {}
         self._load_publisher_data()
 
         # OSM Overpass API endpoint
@@ -140,7 +141,7 @@ class PublisherGeoFilter:
         state = state.strip().lower() if state else ""
 
         # Initialize geography for this publisher
-        local_geography = {
+        local_geography: dict[str, dict[str, Any]] = {
             "cities": {},
             "counties": {},
             "regions": {},
@@ -269,8 +270,7 @@ class PublisherGeoFilter:
                 }
         except Exception as e:
             print(
-                f"Warning: Could not load publisher data from "
-                f"{self.publinks_path}: {e}"
+                f"Warning: Could not load publisher data from {self.publinks_path}: {e}"
             )
             self.publishers = {}
 
@@ -300,6 +300,7 @@ class PublisherGeoFilter:
 
             # Find the publisher row by host ID and update with cached data
             # Convert host_id to int if it's numeric for proper matching
+            host_id_val: int | str
             try:
                 host_id_val = int(host_id)
             except ValueError:
@@ -333,7 +334,7 @@ class PublisherGeoFilter:
                 df.to_csv(self.publinks_path, index=False)
                 print(f"Updated cached gazetteer for {host_id}")
         except Exception as e:
-            print(f"Warning: Could not save gazetteer cache for " f"{host_id}: {e}")
+            print(f"Warning: Could not save gazetteer cache for {host_id}: {e}")
 
     def _query_osm_entities(
         self,
@@ -372,7 +373,7 @@ class PublisherGeoFilter:
                 overpass_query = f"""
                 [out:json][timeout:45];
                 (
-                    {' '.join(query_parts)}
+                    {" ".join(query_parts)}
                 );
                 out center meta;
                 """
@@ -381,7 +382,7 @@ class PublisherGeoFilter:
                 if attempt > 0:
                     # Exponential backoff + jitter
                     delay = base_delay * (2**attempt) + 1
-                    print(f"    Retrying {entity_type} after " f"{delay:.1f}s delay...")
+                    print(f"    Retrying {entity_type} after {delay:.1f}s delay...")
                     time.sleep(delay)
 
                 # Make API request with longer timeout
@@ -414,10 +415,7 @@ class PublisherGeoFilter:
                         print(f"Max retries reached for {entity_type}")
                         return []
                 else:
-                    print(
-                        f"OSM query failed for {entity_type}: "
-                        f"{response.status_code}"
-                    )
+                    print(f"OSM query failed for {entity_type}: {response.status_code}")
                     return []
 
             except requests.exceptions.Timeout:
@@ -502,7 +500,7 @@ class PublisherGeoFilter:
         # Rough conversion: 1 degree ≈ 69 miles
         return ((lat_diff**2) + (lon_diff**2)) ** 0.5 * 69
 
-    def _get_zipcode_coordinates(self, zipcode: str) -> tuple:
+    def _get_zipcode_coordinates(self, zipcode: str) -> tuple[float, float] | None:
         """Get coordinates for a zipcode using a REST API as fallback."""
         try:
             import requests
@@ -524,7 +522,7 @@ class PublisherGeoFilter:
                 print(f"Found coordinates for zipcode {zip5}: ({lat}, {lon})")
                 return (lat, lon)
         except Exception as e:
-            print("Warning: Could not get coordinates for zipcode " f"{zipcode}: {e}")
+            print(f"Warning: Could not get coordinates for zipcode {zipcode}: {e}")
         return None
 
     def build_publisher_gazetteer(self, host_id: str) -> set[str]:
@@ -604,7 +602,7 @@ class PublisherGeoFilter:
 
         # Add simple aliases for publisher city (e.g., G'ville, gville)
         def city_aliases(city: str) -> set[str]:
-            aliases = set()
+            aliases: set[str] = set()
             if not city:
                 return aliases
             aliases.add(city)
@@ -746,7 +744,7 @@ class PublisherGeoFilter:
         title: str | None = None,
         authors: str | None = None,
         authors_count: int | None = None,
-    ) -> dict[str, any]:
+    ) -> dict[str, Any]:
         """Detect geographic signals using publisher-specific gazetteer.
 
         Optional `title` and `authors` can be provided by scrapers to
@@ -1352,8 +1350,7 @@ class PublisherGeoFilter:
         counts = df["classification"].value_counts().to_dict()
         print("Publisher-specific geographic filtering results:")
         print(
-            "- Articles with geographic signals: "
-            f"{df['has_geographic_signals'].sum()}"
+            f"- Articles with geographic signals: {df['has_geographic_signals'].sum()}"
         )
         print(f"- Classification counts: {counts}")
 
@@ -1388,7 +1385,7 @@ if __name__ == "__main__":
     for host_id in ["163", "203", "220"]:  # Examples from the CSV
         if host_id in geo_filter.publishers:
             pub = geo_filter.publishers[host_id]
-            print(f"\nPublisher: {pub['name']} " f"({pub['city']}, {pub['county']})")
+            print(f"\nPublisher: {pub['name']} ({pub['city']}, {pub['county']})")
             print(
                 f"Media type: {pub['media_type']}, "
                 f"Coverage radius: {pub['coverage_radius']} miles"

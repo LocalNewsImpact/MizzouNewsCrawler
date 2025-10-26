@@ -2,7 +2,7 @@
 """
 Patch script to add record_extraction_outcome method to telemetry.py.
 
-This script adds the extraction outcome recording functionality to the 
+This script adds the extraction outcome recording functionality to the
 TelemetryReporter class, following the same pattern as discovery outcomes.
 
 Usage:
@@ -117,7 +117,7 @@ def patch_telemetry_file():
 '''
 
     # Find the end of record_discovery_outcome method
-    pattern = r'(\n\s+def record_discovery_outcome\(.*?\n(?:\s{4,}.*\n)*)'
+    pattern = r"(\n\s+def record_discovery_outcome\(.*?\n(?:\s{4,}.*\n)*)"
     match = re.search(pattern, content, re.DOTALL)
 
     if not match:
@@ -126,10 +126,12 @@ def patch_telemetry_file():
 
     # Insert the new function after record_discovery_outcome
     insertion_point = match.end()
-    new_content = content[:insertion_point] + extraction_function + content[insertion_point:]
+    new_content = (
+        content[:insertion_point] + extraction_function + content[insertion_point:]
+    )
 
     # Write the patched file
-    with open(telemetry_path, 'w') as f:
+    with open(telemetry_path, "w") as f:
         f.write(new_content)
 
     print("✓ Successfully added record_extraction_outcome method to telemetry.py")

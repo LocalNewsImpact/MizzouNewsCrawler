@@ -1,6 +1,7 @@
 import json
 from datetime import datetime, timedelta
 from typing import Any
+from unittest.mock import Mock
 
 import pandas as pd
 
@@ -109,9 +110,31 @@ def test_store_candidates_classification(monkeypatch):
         lambda _session, **payload: stored_payloads.append(payload),
     )
 
+    class _MockConnection:
+        """Mock connection that can be used as context manager."""
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def execute(self, *args, **kwargs):
+            # Return fake dataset result
+            class _MockResult:
+                def fetchone(self):
+                    # Return a mock row with dataset id
+                    # This simulates finding dataset-123
+                    return ("dataset-123",)
+
+            return _MockResult()
+
     class _RecordingManager:
         def __init__(self):
             self.session = object()
+            # Mock engine attribute needed by dataset resolution
+            self.engine = Mock()
+            self.engine.connect = Mock(return_value=_MockConnection())
 
         def __enter__(self) -> "_RecordingManager":
             return self

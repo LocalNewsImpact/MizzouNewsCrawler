@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from types import SimpleNamespace
-from typing import Optional, cast
+from typing import Optional
 
 import pytest
 
 import src.crawler.scheduling as scheduling
-from src.models.database import DatabaseManager
+
+# Import kept for historical reference; tests use duck-typed _Database fixtures
+# Tests use duck-typed _Database and dummy objects; keep type-ignores on call sites.
 
 
 @pytest.mark.parametrize(
@@ -15,8 +17,8 @@ from src.models.database import DatabaseManager
     [
         (None, 7),
         ("", 7),
-        ("Daily updates", 0.5),
-        ("Broadcast", 0.5),
+        ("Daily updates", 0.25),
+        ("Broadcast", 0.25),
         ("Bi-weekly", 14),
         ("Weekly", 7),
         ("Triweekly", 7),
@@ -61,9 +63,11 @@ class _Database:
 def test_get_last_processed_date_returns_datetime():
     last = datetime(2025, 9, 1, 12, 0, 0)
     connection = _Connection((last,))
-    db = cast(DatabaseManager, _Database(connection))
+    db = _Database(connection)  # type: ignore[assignment]
 
-    result = scheduling._get_last_processed_date(db, "source-1")
+    result = scheduling._get_last_processed_date(
+        db, "source-1"
+    )  # type: ignore[arg-type]
 
     assert result == last
     assert connection.executed_params == {"sid": "source-1"}
@@ -71,9 +75,9 @@ def test_get_last_processed_date_returns_datetime():
 
 def test_get_last_processed_date_parses_iso_string():
     connection = _Connection(("2025-09-01T12:00:00",))
-    db = cast(DatabaseManager, _Database(connection))
+    db = _Database(connection)  # type: ignore[assignment]
 
-    result = scheduling._get_last_processed_date(db, "abc")
+    result = scheduling._get_last_processed_date(db, "abc")  # type: ignore[arg-type]
 
     assert isinstance(result, datetime)
     assert result.isoformat() == "2025-09-01T12:00:00"
@@ -85,14 +89,16 @@ def test_get_last_processed_date_parses_iso_string():
 )
 def test_get_last_processed_date_handles_missing_rows(db_rows):
     connection = _Connection(db_rows)
-    db = cast(DatabaseManager, _Database(connection))
+    db = _Database(connection)  # type: ignore[assignment]
 
-    assert scheduling._get_last_processed_date(db, "sid") is None
+    assert (
+        scheduling._get_last_processed_date(db, "sid") is None  # type: ignore[arg-type]
+    )
 
 
 def test_get_last_processed_date_swallows_errors():
     connection = _Connection((None,), raises=RuntimeError("boom"))
-    db = cast(DatabaseManager, _Database(connection))
+    db = _Database(connection)  # type: ignore[assignment]
 
     assert scheduling._get_last_processed_date(db, "sid") is None
 
@@ -104,8 +110,13 @@ def test_should_schedule_discovery_returns_true_without_history(monkeypatch):
         lambda _db, _sid: None,
     )
 
-    dummy_db = cast(DatabaseManager, object())
-    assert scheduling.should_schedule_discovery(dummy_db, "123", {}) is True
+    dummy_db = object()  # type: ignore[assignment]
+    assert (
+        scheduling.should_schedule_discovery(  # type: ignore[arg-type]
+            dummy_db, "123", {}
+        )
+        is True
+    )
 
 
 def test_should_schedule_discovery_uses_last_discovery_timestamp(monkeypatch):
@@ -117,9 +128,9 @@ def test_should_schedule_discovery_uses_last_discovery_timestamp(monkeypatch):
     now = datetime(2025, 9, 30, 12, 0, 0)
     source_meta = {"last_discovery_at": "2025-09-10T00:00:00"}
 
-    dummy_db = cast(DatabaseManager, object())
+    dummy_db = object()  # type: ignore[assignment]
     assert scheduling.should_schedule_discovery(
-        dummy_db,
+        dummy_db,  # type: ignore[arg-type]
         "123",
         source_meta,
         now,
@@ -135,9 +146,9 @@ def test_should_schedule_discovery_respects_cadence(monkeypatch):
         lambda _db, _sid: last_processed,
     )
 
-    dummy_db = cast(DatabaseManager, object())
+    dummy_db = object()  # type: ignore[assignment]
     assert scheduling.should_schedule_discovery(
-        dummy_db,
+        dummy_db,  # type: ignore[arg-type]
         "123",
         {"frequency": "weekly"},
         now,
@@ -155,7 +166,7 @@ def test_should_schedule_discovery_returns_false_when_not_due(monkeypatch):
 
     assert (
         scheduling.should_schedule_discovery(
-            cast(DatabaseManager, object()),
+            object(),  # type: ignore[arg-type]
             "123",
             {"frequency": "hourly"},
             now,
@@ -173,7 +184,12 @@ def test_should_schedule_discovery_handles_bad_meta(monkeypatch):
         lambda _db, _sid: last_processed,
     )
 
-    bad_meta = cast(dict, 42)
-    dummy_db = cast(DatabaseManager, object())
+    bad_meta = 42  # type: ignore[assignment]
+    dummy_db = object()  # type: ignore[assignment]
 
-    assert scheduling.should_schedule_discovery(dummy_db, "123", bad_meta, now)
+    assert scheduling.should_schedule_discovery(
+        dummy_db,  # type: ignore[arg-type]
+        "123",
+        bad_meta,  # type: ignore[arg-type]
+        now,
+    )

@@ -8,6 +8,7 @@ deletes older duplicates. After deduplication, it creates a unique index on
 
 Run: python3 backend/dedupe_reviews.py
 """
+
 import sqlite3
 import sys
 from pathlib import Path

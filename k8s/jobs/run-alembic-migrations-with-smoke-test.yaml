@@ -1,0 +1,100 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: run-alembic-migrations-with-smoke-test
+  namespace: default
+  labels:
+    app: migrator
+    component: database
+spec:
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        app: migrator
+        component: database
+    spec:
+      restartPolicy: Never
+      # Use init container for migration, main container for smoke test
+      initContainers:
+        - name: alembic-migrate
+          # IMPORTANT: Replace <COMMIT_SHA> with actual commit SHA before applying
+          # Example: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/migrator:abc123def
+          # DO NOT use :latest in production - use immutable tags (commit SHA)
+          image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/migrator:<COMMIT_SHA>
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: USE_CLOUD_SQL_CONNECTOR
+              value: "true"
+            - name: CLOUD_SQL_INSTANCE
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: instance-connection-name
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: username
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: password
+            - name: DATABASE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: database
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+      
+      containers:
+        - name: smoke-test
+          # Use same migrator image which has smoke test script
+          image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/migrator:<COMMIT_SHA>
+          imagePullPolicy: IfNotPresent
+          command: ["python3"]
+          args: ["/app/scripts/smoke_test_migrations.py"]
+          env:
+            - name: USE_CLOUD_SQL_CONNECTOR
+              value: "true"
+            - name: CLOUD_SQL_INSTANCE
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: instance-connection-name
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: username
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: password
+            - name: DATABASE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: database
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+      
+      # In case your cluster requires imagePullSecrets, add them below
+      # imagePullSecrets:
+      #   - name: artifact-registry-secret
+  
+  # Keep job around for 24 hours for inspection, then auto-delete
+  ttlSecondsAfterFinished: 86400

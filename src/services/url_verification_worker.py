@@ -18,7 +18,8 @@ from typing import Any
 
 __all__ = ["WorkerStats", "AsyncVerificationWorker"]
 
-Processor = Callable[[Any], Awaitable[None] | None]
+# Processor may be an async callable returning an Awaitable[None] or a sync function.
+Processor = Callable[[Any], Any]
 
 
 @dataclass(slots=True)
@@ -190,7 +191,17 @@ class AsyncVerificationWorker:
 
     async def _run_processor(self, item: Any) -> None:
         if self._processor_is_async:
-            await self._processor(item)  # type: ignore[arg-type]
+            # If the processor is async, call it and await the result. We avoid
+            # the previous cast-based approach by checking at runtime that the
+            # returned value is awaitable; this keeps behavior identical while
+            # clearer to static checkers.
+            result = self._processor(item)
+            if isinstance(result, Awaitable):
+                await result
+            else:
+                # Best-effort: if processor labeled as async but returned a
+                # non-awaitable (unlikely), run it in a thread to be safe.
+                await asyncio.to_thread(lambda: result)
             return
 
         # Run synchronous processor in a worker thread to avoid blocking

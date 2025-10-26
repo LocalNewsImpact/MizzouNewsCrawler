@@ -20,7 +20,7 @@ from src.config import DATABASE_URL
 def create_telemetry_tables():
     """Create all byline cleaning telemetry tables."""
     # Convert DATABASE_URL to file path (remove sqlite:/// prefix)
-    db_path = DATABASE_URL.replace('sqlite:///', '')
+    db_path = DATABASE_URL.replace("sqlite:///", "")
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
@@ -151,7 +151,7 @@ def create_telemetry_tables():
             "CREATE INDEX IF NOT EXISTS idx_source_analytics_source_id ON source_cleaning_analytics(source_id)",
             "CREATE INDEX IF NOT EXISTS idx_ml_samples_telemetry_id ON ml_training_samples(telemetry_id)",
             "CREATE INDEX IF NOT EXISTS idx_ml_samples_type ON ml_training_samples(sample_type)",
-            "CREATE INDEX IF NOT EXISTS idx_ml_samples_validated ON ml_training_samples(human_validated)"
+            "CREATE INDEX IF NOT EXISTS idx_ml_samples_validated ON ml_training_samples(human_validated)",
         ]
 
         for index_sql in indexes:
@@ -172,22 +172,25 @@ def create_telemetry_tables():
     finally:
         conn.close()
 
+
 def verify_tables():
     """Verify the created tables exist and show their structure."""
     # Convert DATABASE_URL to file path (remove sqlite:/// prefix)
-    db_path = DATABASE_URL.replace('sqlite:///', '')
+    db_path = DATABASE_URL.replace("sqlite:///", "")
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
     tables = [
-        'byline_cleaning_telemetry',
-        'byline_transformation_steps',
-        'source_cleaning_analytics',
-        'ml_training_samples'
+        "byline_cleaning_telemetry",
+        "byline_transformation_steps",
+        "source_cleaning_analytics",
+        "ml_training_samples",
     ]
 
     for table in tables:
-        cursor.execute(f"SELECT sql FROM sqlite_master WHERE type='table' AND name='{table}'")
+        cursor.execute(
+            f"SELECT sql FROM sqlite_master WHERE type='table' AND name='{table}'"
+        )
         result = cursor.fetchone()
         if result:
             print(f"\n✅ Table '{table}' created successfully")
@@ -195,6 +198,7 @@ def verify_tables():
             print(f"❌ Table '{table}' not found")
 
     conn.close()
+
 
 if __name__ == "__main__":
     print("Creating byline cleaning telemetry tables...")

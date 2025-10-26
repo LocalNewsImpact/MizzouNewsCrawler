@@ -3,7 +3,7 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 from utils.byline_cleaner import BylineCleaner
 
@@ -21,13 +21,13 @@ def debug_suffix_issue():
     print("Expected: ['Mary Jones Sr.', 'Robert Davis III']")
 
     # Check part types
-    comma_parts = test.split(',')
+    comma_parts = test.split(",")
     print(f"Comma parts: {comma_parts}")
 
     for i, part in enumerate(comma_parts):
         part = part.strip()
         part_type = cleaner._identify_part_type(part)
-        print(f"  Part {i+1}: '{part}' → {part_type}")
+        print(f"  Part {i + 1}: '{part}' → {part_type}")
 
 
 if __name__ == "__main__":

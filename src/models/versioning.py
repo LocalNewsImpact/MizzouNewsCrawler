@@ -13,6 +13,7 @@ import os
 import shutil
 import uuid
 from datetime import datetime
+from typing import Any
 
 import pandas as pd
 from sqlalchemy import (
@@ -26,15 +27,21 @@ from sqlalchemy import (
     inspect,
     text,
 )
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Mapped, mapped_column, sessionmaker
+
+from src.models.database import safe_execute
 
 from . import Base, create_database_engine
 
 # Optional dependency: prefer pyarrow for streaming parquet writes
+pa: Any = None
+pq: Any = None
 try:
-    import pyarrow as pa
-    import pyarrow.parquet as pq
+    import pyarrow as _pyarrow_mod
+    import pyarrow.parquet as _pyarrow_parquet
 
+    pa = _pyarrow_mod
+    pq = _pyarrow_parquet
     _HAS_PYARROW = True
 except Exception:
     _HAS_PYARROW = False
@@ -46,26 +53,33 @@ except Exception:
 class DatasetVersion(Base):
     __tablename__ = "dataset_versions"
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    dataset_name = Column(String, nullable=False, index=True)
-    version_tag = Column(String, nullable=False, index=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    created_by_job = Column(String, nullable=True)
-    snapshot_path = Column(String, nullable=True)
-    description = Column(Text, nullable=True)
-    parent_version = Column(String, nullable=True)
+    # NOTE: migrate fields incrementally to reduce mypy noise. Convert a
+    # small subset first (id, dataset_name, version_tag, created_at,
+    # status, row_count).
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    dataset_name: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    version_tag: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow
+    )
+
+    # remaining fields migrated to typed Mapped[...] to reduce mypy noise
+    created_by_job: Mapped[str | None] = mapped_column(String, nullable=True)
+    snapshot_path: Mapped[str | None] = mapped_column(String, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    parent_version: Mapped[str | None] = mapped_column(String, nullable=True)
     # New metadata and lifecycle fields
-    status = Column(
-        String,
-        nullable=False,
-        default="pending",
-        index=True,
+    status: Mapped[str] = mapped_column(
+        String, nullable=False, default="pending", index=True
     )  # pending|in_progress|ready|failed
-    checksum = Column(String, nullable=True)
-    row_count = Column(Integer, nullable=True)
-    claimed_by = Column(String, nullable=True)
-    claimed_at = Column(DateTime, nullable=True)
-    finished_at = Column(DateTime, nullable=True)
+
+    checksum: Mapped[str | None] = mapped_column(String, nullable=True)
+    row_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    claimed_by: Mapped[str | None] = mapped_column(String, nullable=True)
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class DatasetDelta(Base):
@@ -82,7 +96,7 @@ class DatasetDelta(Base):
     changed_by_job = Column(String, nullable=True)
 
 
-def create_versioning_tables(database_url: str = None):
+def create_versioning_tables(database_url: str | None = None):
     """Helper to create versioning tables.
 
     If `database_url` is provided, a new engine is created; otherwise
@@ -126,7 +140,7 @@ def create_dataset_version(
 
 
 def claim_dataset_version(
-    version_id: str, claimer: str = None, database_url: str = None
+    version_id: str, claimer: str | None = None, database_url: str | None = None
 ) -> bool:
     """Attempt to claim a DatasetVersion for snapshotting.
 
@@ -157,11 +171,11 @@ def claim_dataset_version(
 def finalize_dataset_version(
     version_id: str,
     *,
-    snapshot_path: str = None,
-    row_count: int = None,
-    checksum: str = None,
+    snapshot_path: str | None = None,
+    row_count: int | None = None,
+    checksum: str | None = None,
     succeeded: bool = True,
-    database_url: str = None,
+    database_url: str | None = None,
 ) -> DatasetVersion:
     """Finalize a DatasetVersion record after snapshotting.
 
@@ -249,7 +263,7 @@ def _fsync_path(path: str) -> None:
 
 
 def list_dataset_versions(
-    dataset_name: str = None, database_url: str = None
+    dataset_name: str | None = None, database_url: str | None = None
 ) -> list[DatasetVersion]:
     """Return list of DatasetVersion records, optionally filtered by dataset_name."""
     engine = create_database_engine(database_url or "sqlite:///data/mizzou.db")
@@ -264,7 +278,7 @@ def list_dataset_versions(
 
 
 def export_dataset_version(
-    version_id: str, output_path: str, database_url: str = None
+    version_id: str, output_path: str, database_url: str | None = None
 ) -> str:
     """Export a version by copying its snapshot to `output_path`.
 
@@ -291,7 +305,7 @@ def export_snapshot_for_version(
     version_id: str,
     table_name: str,
     output_path: str,
-    database_url: str = None,
+    database_url: str | None = None,
     chunksize: int = 10000,
     compression: str | None = None,
 ) -> str:
@@ -342,8 +356,8 @@ def export_snapshot_for_version(
         lock_id = _compute_advisory_lock_id(dv.dataset_name or "", dv.id)
         try:
             with engine.connect() as conn:
-                res = conn.execute(
-                    text("SELECT pg_try_advisory_lock(:id)"), {"id": lock_id}
+                res = safe_execute(
+                    conn, "SELECT pg_try_advisory_lock(:id)", {"id": lock_id}
                 )
                 pg_lock_acquired = bool(res.scalar())
         except Exception:
@@ -362,15 +376,14 @@ def export_snapshot_for_version(
                 pass
 
             raise RuntimeError(
-                f"Failed to acquire Postgres advisory lock "
-                f"for DatasetVersion {dv.id}"
+                f"Failed to acquire Postgres advisory lock for DatasetVersion {dv.id}"
             )
 
     total_rows = 0
     try:
         if _HAS_PYARROW:
             first = True
-            writer = None
+            writer: Any = None
 
             select_sql = text(f"SELECT * FROM {table_name}")
 
@@ -379,12 +392,12 @@ def export_snapshot_for_version(
                 # snapshot
                 with engine.connect() as conn:
                     with conn.begin():
-                        conn.execute(
-                            text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+                        safe_execute(
+                            conn,
+                            text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ"),
                         )
-                        result = conn.execution_options(stream_results=True).execute(
-                            select_sql
-                        )
+                        exec_conn = conn.execution_options(stream_results=True)
+                        result = safe_execute(exec_conn, select_sql)
                         cols = result.keys()
 
                         while True:
@@ -416,9 +429,8 @@ def export_snapshot_for_version(
                                 writer.write_table(table)
             else:
                 with engine.connect() as conn:
-                    result = conn.execution_options(stream_results=True).execute(
-                        select_sql
-                    )
+                    exec_conn = conn.execution_options(stream_results=True)
+                    result = safe_execute(exec_conn, select_sql)
                     cols = result.keys()
 
                     while True:
@@ -458,32 +470,27 @@ def export_snapshot_for_version(
             os.replace(temp_path, output_path)
             _fsync_path(output_path)
         else:
-            # pandas fallback
+            # pandas fallback: use read_sql_table for simplicity
             df = pd.read_sql_table(table_name, con=engine)
             total_rows = len(df)
-            # pandas will accept compression=None
-            df.to_parquet(temp_path, index=False, compression=compression)
+            # pandas will accept compression=None; cast to Any to satisfy mypy
+            # pandas accepts compression=None or a compression string. Keep
+            # a narrow Any-typed local to satisfy static checkers without
+            # importing cast at runtime.
+            compression_arg: Any = compression
+            df.to_parquet(temp_path, index=False, compression=compression_arg)
             _fsync_path(temp_path)
             os.replace(temp_path, output_path)
             _fsync_path(output_path)
 
         # compute checksum and finalize
-        try:
-            checksum = _compute_file_checksum(output_path)
-        except Exception:
-            checksum = None
-
-        try:
-            row_count = total_rows
-        except Exception:
-            row_count = None
-
-        dv = finalize_dataset_version(
+        checksum = _compute_file_checksum(output_path)
+        finalize_dataset_version(
             dv.id,
-            snapshot_path=output_path,
-            row_count=row_count,
-            checksum=checksum,
             succeeded=True,
+            row_count=total_rows,
+            snapshot_path=output_path,
+            checksum=checksum,
             database_url=database_url,
         )
 
@@ -491,8 +498,10 @@ def export_snapshot_for_version(
         if pg_lock_acquired and lock_id is not None and _is_postgres_engine(engine):
             try:
                 with engine.connect() as conn:
-                    conn.execute(
-                        text("SELECT pg_advisory_unlock(:id)"), {"id": lock_id}
+                    safe_execute(
+                        conn,
+                        "SELECT pg_advisory_unlock(:id)",
+                        {"id": lock_id},
                     )
             except Exception:
                 # ignore unlock errors
@@ -510,8 +519,10 @@ def export_snapshot_for_version(
         if pg_lock_acquired and lock_id is not None and _is_postgres_engine(engine):
             try:
                 with engine.connect() as conn:
-                    conn.execute(
-                        text("SELECT pg_advisory_unlock(:id)"), {"id": lock_id}
+                    safe_execute(
+                        conn,
+                        "SELECT pg_advisory_unlock(:id)",
+                        {"id": lock_id},
                     )
             except Exception:
                 # ignore unlock errors

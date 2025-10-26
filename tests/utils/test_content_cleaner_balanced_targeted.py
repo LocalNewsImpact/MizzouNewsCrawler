@@ -1,6 +1,6 @@
 import os
 import tempfile
-from typing import Optional, cast
+from typing import Optional
 from unittest.mock import Mock, patch
 
 from src.utils.byline_cleaner import BylineCleaner
@@ -110,15 +110,24 @@ class TestDomainAnalysis:
         """Test article fetching from database."""
         cleaner = BalancedBoundaryContentCleaner(db_path=":memory:")
 
-        mock_conn = Mock()
-        mock_cursor = Mock()
-        mock_conn.cursor.return_value = mock_cursor
-        mock_cursor.fetchall.return_value = [
+        mock_result = Mock()
+        mock_result.fetchall.return_value = [
             (1, "https://example.com/art1", "Article 1 content", "hash1"),
             (2, "https://example.com/art2", "Article 2 content", "hash2"),
         ]
 
-        with patch.object(cleaner, "_connect_to_db", return_value=mock_conn):
+        mock_session = Mock()
+        mock_session.execute.return_value = mock_result
+        mock_session.__enter__ = Mock(return_value=mock_session)
+        mock_session.__exit__ = Mock(return_value=False)
+
+        mock_db = Mock()
+        mock_db.get_session.return_value = mock_session
+
+        with patch(
+            "src.utils.content_cleaner_balanced.DatabaseManager",
+            return_value=mock_db,
+        ):
             articles = cleaner._get_articles_for_domain("example.com")
 
         assert len(articles) == 2
@@ -260,7 +269,7 @@ class TestNavigationExtraction:
         )
 
         content_with_nav = (
-            "Home > News > Sports > Article Title\n" "This is the main article content."
+            "Home > News > Sports > Article Title\nThis is the main article content."
         )
 
         result = cleaner._extract_navigation_prefix(content_with_nav)
@@ -568,9 +577,9 @@ class TestWireDetection:
         cleaner = BalancedBoundaryContentCleaner(
             db_path=":memory:", enable_telemetry=False
         )
-        cleaner.wire_detector = cast(
-            BylineCleaner, DummyWireDetector(is_wire_service=True)
-        )
+        cleaner.wire_detector = DummyWireDetector(
+            is_wire_service=True
+        )  # type: ignore[assignment]
 
         result = cleaner._detect_wire_service_in_pattern(
             "Story courtesy of the Associated Press", "example.com"
@@ -584,10 +593,9 @@ class TestWireDetection:
         cleaner = BalancedBoundaryContentCleaner(
             db_path=":memory:", enable_telemetry=False
         )
-        cleaner.wire_detector = cast(
-            BylineCleaner,
-            DummyWireDetector(is_wire_service=True, is_own_source=True),
-        )
+        cleaner.wire_detector = DummyWireDetector(
+            is_wire_service=True, is_own_source=True
+        )  # type: ignore[assignment]
 
         result = cleaner._detect_wire_service_in_pattern(
             "Our AP-partnered report", "example.com"
@@ -599,12 +607,9 @@ class TestWireDetection:
         cleaner = BalancedBoundaryContentCleaner(
             db_path=":memory:", enable_telemetry=False
         )
-        cleaner.wire_detector = cast(
-            BylineCleaner,
-            DummyWireDetector(
-                is_wire_service=False, normalized_name="reuters normalized"
-            ),
-        )
+        cleaner.wire_detector = DummyWireDetector(
+            is_wire_service=False, normalized_name="reuters normalized"
+        )  # type: ignore[assignment]
 
         result = cleaner._detect_wire_service_in_pattern(
             "Reporting by Reuters staff", "localpaper.com"
@@ -618,9 +623,9 @@ class TestWireDetection:
         cleaner = BalancedBoundaryContentCleaner(
             db_path=":memory:", enable_telemetry=False
         )
-        cleaner.wire_detector = cast(
-            BylineCleaner, DummyWireDetector(is_wire_service=False)
-        )
+        cleaner.wire_detector = DummyWireDetector(
+            is_wire_service=False
+        )  # type: ignore[assignment]
 
         result = cleaner._detect_wire_service_in_pattern(
             "Photos via AP News", "associatedpress.com"

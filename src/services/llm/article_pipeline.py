@@ -7,12 +7,13 @@ from collections.abc import Iterable, Sequence
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.models import Article
+from src.models.database import safe_session_execute
 
 from .orchestrator import LLMOrchestrator, LLMTaskConfig, OrchestrationResult
 
@@ -101,7 +102,7 @@ class ArticleLLMPipeline:
             stmt = stmt.where(Article.status.in_(list(statuses)))
         if limit:
             stmt = stmt.limit(limit)
-        for article in self._session.execute(stmt).scalars():
+        for article in safe_session_execute(self._session, stmt).scalars():
             yield article
 
     def _render_prompt(self, article: Article) -> str:
@@ -131,7 +132,10 @@ class ArticleLLMPipeline:
         orchestration: OrchestrationResult,
     ) -> None:
         meta = _coerce_meta(article.meta)
-        llm_meta = cast(dict[str, Any], meta.setdefault("llm", {}))
+        llm_meta = meta.get("llm")
+        if not isinstance(llm_meta, dict):
+            llm_meta = {}
+            meta["llm"] = llm_meta
         llm_meta.update(
             {
                 "summary": orchestration.content,
@@ -148,7 +152,10 @@ class ArticleLLMPipeline:
         orchestration: OrchestrationResult,
     ) -> None:
         meta = _coerce_meta(article.meta)
-        llm_meta = cast(dict[str, Any], meta.setdefault("llm", {}))
+        llm_meta = meta.get("llm")
+        if not isinstance(llm_meta, dict):
+            llm_meta = {}
+            meta["llm"] = llm_meta
         llm_meta.update(
             {
                 "summary": None,

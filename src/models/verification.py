@@ -93,6 +93,14 @@ class URLVerification(Base):
     # Additional metadata
     meta = Column(JSON)  # Any additional verification metadata
 
+    # Human feedback fields for telemetry review
+    article_headline = Column(String)  # Extracted headline for review
+    article_excerpt = Column(Text)  # Extracted excerpt for review
+    human_label = Column(String)  # "correct", "incorrect"
+    human_notes = Column(Text)
+    reviewed_by = Column(String)
+    reviewed_at = Column(DateTime)
+
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     # Relationships

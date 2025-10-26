@@ -16,12 +16,11 @@ logger = logging.getLogger(__name__)
 
 
 def determine_field_attribution(
-    field_extraction: dict[str, dict[str, bool]],
-    extracted_fields: dict[str, bool]
+    field_extraction: dict[str, dict[str, bool]], extracted_fields: dict[str, bool]
 ) -> dict[str, str]:
     """
     Determine which method provided each field in the final result.
-    
+
     Logic:
     1. For each field that was successfully extracted (extracted_fields[field] == True)
     2. Find the first method that successfully extracted that field
@@ -31,10 +30,10 @@ def determine_field_attribution(
     attribution = {}
 
     # Priority order for methods (first successful method wins)
-    method_priority = ['newspaper4k', 'beautifulsoup', 'selenium']
+    method_priority = ["newspaper4k", "beautifulsoup", "selenium"]
 
     # Standard fields to check
-    fields = ['title', 'author', 'content', 'publish_date', 'metadata']
+    fields = ["title", "author", "content", "publish_date", "metadata"]
 
     for field in fields:
         # Check if this field was successfully extracted in the final result
@@ -42,8 +41,9 @@ def determine_field_attribution(
             # Find the first method (by priority) that extracted this field
             attributed_method = None
             for method in method_priority:
-                if (method in field_extraction and
-                    field_extraction[method].get(field, False)):
+                if method in field_extraction and field_extraction[method].get(
+                    field, False
+                ):
                     attributed_method = method
                     break
 
@@ -55,15 +55,17 @@ def determine_field_attribution(
                         attributed_method = method
                         break
 
-            attribution[field] = attributed_method or 'unknown'
+            attribution[field] = attributed_method or "unknown"
         else:
             # Field was not successfully extracted
-            attribution[field] = 'none'
+            attribution[field] = "none"
 
     return attribution
 
 
-def backfill_telemetry_attribution(db_path: str = './data/mizzou.db', dry_run: bool = True):
+def backfill_telemetry_attribution(
+    db_path: str = "./data/mizzou.db", dry_run: bool = True
+):
     """Backfill final_field_attribution for existing telemetry entries."""
 
     conn = sqlite3.connect(db_path)
@@ -71,13 +73,13 @@ def backfill_telemetry_attribution(db_path: str = './data/mizzou.db', dry_run: b
 
     try:
         # Get entries that need backfilling
-        cursor.execute('''
+        cursor.execute("""
             SELECT id, field_extraction, extracted_fields 
             FROM extraction_telemetry_v2 
             WHERE final_field_attribution IS NULL
             AND field_extraction IS NOT NULL
             ORDER BY id
-        ''')
+        """)
 
         entries = cursor.fetchall()
         logger.info(f"Found {len(entries)} entries to backfill")
@@ -88,23 +90,30 @@ def backfill_telemetry_attribution(db_path: str = './data/mizzou.db', dry_run: b
         for entry_id, field_extraction_json, extracted_fields_json in entries:
             try:
                 # Parse the JSON data
-                field_extraction = json.loads(field_extraction_json or '{}')
-                extracted_fields = json.loads(extracted_fields_json or '{}')
+                field_extraction = json.loads(field_extraction_json or "{}")
+                extracted_fields = json.loads(extracted_fields_json or "{}")
 
                 # Determine field attribution
-                attribution = determine_field_attribution(field_extraction, extracted_fields)
+                attribution = determine_field_attribution(
+                    field_extraction, extracted_fields
+                )
                 attribution_json = json.dumps(attribution)
 
                 if dry_run:
                     # Just log what we would do
-                    logger.debug(f"ID {entry_id}: Would set attribution to {attribution}")
+                    logger.debug(
+                        f"ID {entry_id}: Would set attribution to {attribution}"
+                    )
                 else:
                     # Update the database
-                    cursor.execute('''
+                    cursor.execute(
+                        """
                         UPDATE extraction_telemetry_v2 
                         SET final_field_attribution = ? 
                         WHERE id = ?
-                    ''', (attribution_json, entry_id))
+                    """,
+                        (attribution_json, entry_id),
+                    )
 
                 backfilled_count += 1
 
@@ -118,24 +127,28 @@ def backfill_telemetry_attribution(db_path: str = './data/mizzou.db', dry_run: b
         if not dry_run:
             conn.commit()
 
-        logger.info(f"Backfill complete: {backfilled_count} entries processed, {error_count} errors")
+        logger.info(
+            f"Backfill complete: {backfilled_count} entries processed, {error_count} errors"
+        )
 
         # Show some examples
         if dry_run and backfilled_count > 0:
             logger.info("Sample attributions that would be created:")
-            cursor.execute('''
+            cursor.execute("""
                 SELECT id, field_extraction, extracted_fields 
                 FROM extraction_telemetry_v2 
                 WHERE final_field_attribution IS NULL
                 AND field_extraction IS NOT NULL
                 LIMIT 3
-            ''')
+            """)
 
             samples = cursor.fetchall()
             for entry_id, field_extraction_json, extracted_fields_json in samples:
-                field_extraction = json.loads(field_extraction_json or '{}')
-                extracted_fields = json.loads(extracted_fields_json or '{}')
-                attribution = determine_field_attribution(field_extraction, extracted_fields)
+                field_extraction = json.loads(field_extraction_json or "{}")
+                extracted_fields = json.loads(extracted_fields_json or "{}")
+                attribution = determine_field_attribution(
+                    field_extraction, extracted_fields
+                )
 
                 print(f"\nEntry {entry_id}:")
                 print(f"  Field extraction: {field_extraction}")

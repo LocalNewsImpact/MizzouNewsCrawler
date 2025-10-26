@@ -12,7 +12,9 @@ from src.utils.process_tracker import ProcessContext
 
 logger = logging.getLogger(__name__)
 
-_SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "scripts"
+# scripts/ is at the project root, not in src/
+# __file__ is src/cli/commands/gazetteer.py, so parents[3] gets us to project root
+_SCRIPTS_DIR = Path(__file__).resolve().parents[3] / "scripts"
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
@@ -22,7 +24,11 @@ try:  # pragma: no cover - import side effect
     )
 except Exception as exc:  # pragma: no cover - import failure logging
     run_gazetteer_population = None
-    logger.debug("populate_gazetteer module unavailable: %s", exc)
+    logger.warning(
+        "populate_gazetteer module unavailable (scripts dir: %s): %s",
+        _SCRIPTS_DIR,
+        exc,
+    )
 
 
 def add_gazetteer_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -114,11 +120,12 @@ def handle_gazetteer_command(args: argparse.Namespace) -> int:
             from sqlalchemy.orm import sessionmaker
 
             from src.models import Dataset
+            from src.models.database import safe_session_execute
 
             Session = sessionmaker(bind=db.engine)
             with Session() as session:
-                dataset = session.execute(
-                    select(Dataset).where(Dataset.slug == dataset_slug)
+                dataset = safe_session_execute(
+                    session, select(Dataset).where(Dataset.slug == dataset_slug)
                 ).scalar_one_or_none()
                 if dataset:
                     metadata["dataset_id"] = str(dataset.id)

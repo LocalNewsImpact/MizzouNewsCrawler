@@ -27,15 +27,18 @@ def setup_logging():
         format="%(asctime)s - %(levelname)s - %(message)s",
         handlers=[
             logging.StreamHandler(),
-            logging.FileHandler("logs/extraction_telemetry.log")
-        ]
+            logging.FileHandler("logs/extraction_telemetry.log"),
+        ],
     )
     return logging.getLogger(__name__)
 
 
-def get_candidates_for_extraction(db: DatabaseManager, limit: int = None,
-                                  candidate_id: str = None,
-                                  source_name: str = None):
+def get_candidates_for_extraction(
+    db: DatabaseManager,
+    limit: int = None,
+    candidate_id: str = None,
+    source_name: str = None,
+):
     """Get candidate links that need content extraction."""
 
     if candidate_id:
@@ -80,7 +83,7 @@ def create_article_from_candidate(
 
     # TODO: Persist article data using `extraction_result`
     # once the article persistence schema is finalized.
-    return candidate['id']
+    return candidate["id"]
 
 
 def update_candidate_status(
@@ -92,25 +95,25 @@ def update_candidate_status(
 ):
     """Update candidate_links status after extraction attempt."""
     update_data = {
-        'candidate_id': candidate_id,
-        'status': status,
-        'processed_at': datetime.now().isoformat()
+        "candidate_id": candidate_id,
+        "status": status,
+        "processed_at": datetime.now().isoformat(),
     }
 
     # Build dynamic update query based on provided fields
-    set_clauses = ['status = :status', 'processed_at = :processed_at']
+    set_clauses = ["status = :status", "processed_at = :processed_at"]
 
     if publish_date:
-        set_clauses.append('publish_date = :publish_date')
-        update_data['publish_date'] = publish_date
+        set_clauses.append("publish_date = :publish_date")
+        update_data["publish_date"] = publish_date
 
     if error_message:
-        set_clauses.append('error_message = :error_message')
-        update_data['error_message'] = error_message
+        set_clauses.append("error_message = :error_message")
+        update_data["error_message"] = error_message
 
     update_query = f"""
         UPDATE candidate_links 
-        SET {', '.join(set_clauses)}
+        SET {", ".join(set_clauses)}
         WHERE id = :candidate_id
     """
 
@@ -121,9 +124,7 @@ def update_candidate_status(
 
 def main():
     """Main extraction function with telemetry."""
-    parser = argparse.ArgumentParser(
-        description="Extract content with telemetry"
-    )
+    parser = argparse.ArgumentParser(description="Extract content with telemetry")
     parser.add_argument(
         "--limit", type=int, help="Limit number of candidates to process"
     )
@@ -131,8 +132,10 @@ def main():
         "--candidate-id", type=str, help="Extract specific candidate by ID"
     )
     parser.add_argument(
-        "--source", type=str, default="ABC 17 KMIZ News",
-        help="Source name to filter candidates (default: ABC 17 KMIZ News)"
+        "--source",
+        type=str,
+        default="ABC 17 KMIZ News",
+        help="Source name to filter candidates (default: ABC 17 KMIZ News)",
     )
     parser.add_argument(
         "--timeout", type=int, default=20, help="Request timeout in seconds"
@@ -157,7 +160,9 @@ def main():
         candidates = get_candidates_for_extraction(
             db, args.limit, args.candidate_id, args.source
         )
-        logger.info(f"Found {len(candidates)} candidates for extraction from {args.source}")
+        logger.info(
+            f"Found {len(candidates)} candidates for extraction from {args.source}"
+        )
     except Exception as e:
         logger.error(f"Failed to query candidates: {e}")
         return 1
@@ -168,85 +173,101 @@ def main():
 
     # Process each candidate
     results_summary = {
-        'total': len(candidates),
-        'successful': 0,
-        'failed': 0,
-        'outcomes': {}
+        "total": len(candidates),
+        "successful": 0,
+        "failed": 0,
+        "outcomes": {},
     }
 
     for i, candidate_row in enumerate(candidates, 1):
-        candidate = dict(candidate_row._mapping) if hasattr(candidate_row, "_mapping") else dict(candidate_row)
+        candidate = (
+            dict(candidate_row._mapping)
+            if hasattr(candidate_row, "_mapping")
+            else dict(candidate_row)
+        )
 
-        logger.info(f"[{i}/{len(candidates)}] Processing candidate {candidate['id']}: {candidate['url']}")
+        logger.info(
+            f"[{i}/{len(candidates)}] Processing candidate {candidate['id']}: {candidate['url']}"
+        )
 
         try:
             # Extract content with telemetry
             extraction_result = extractor.extract_content_with_telemetry(
-                url=candidate['url'],
+                url=candidate["url"],
                 article_id=None,  # Will be set after article creation
-                operation_id=operation_id
+                operation_id=operation_id,
             )
 
             # Create article from candidate and extraction result
-            article_id = create_article_from_candidate(
-                db, candidate, extraction_result
-            )
+            article_id = create_article_from_candidate(db, candidate, extraction_result)
 
             # Update extraction result with article_id and record telemetry
             extraction_result.article_id = article_id
             telemetry.record_extraction_outcome(
                 operation_id=operation_id,
                 article_id=article_id,
-                url=candidate['url'],
-                extraction_result=extraction_result
+                url=candidate["url"],
+                extraction_result=extraction_result,
             )
 
             # Update result summary
             outcome = extraction_result.outcome.value
-            results_summary['outcomes'][outcome] = results_summary['outcomes'].get(outcome, 0) + 1
+            results_summary["outcomes"][outcome] = (
+                results_summary["outcomes"].get(outcome, 0) + 1
+            )
 
             if extraction_result.is_success:
-                results_summary['successful'] += 1
-                logger.info(f"✓ Successfully extracted content (quality score: {extraction_result.content_quality_score:.2f})")
+                results_summary["successful"] += 1
+                logger.info(
+                    f"✓ Successfully extracted content (quality score: {extraction_result.content_quality_score:.2f})"
+                )
 
                 # Update candidate status to 'extracted' with publish date if available
                 extracted_publish_date = None
                 if extraction_result.extracted_content:
-                    extracted_publish_date = extraction_result.extracted_content.get('publish_date')
+                    extracted_publish_date = extraction_result.extracted_content.get(
+                        "publish_date"
+                    )
 
                 update_candidate_status(
                     db=db,
-                    candidate_id=candidate['id'],
-                    status='extracted',
-                    publish_date=extracted_publish_date
+                    candidate_id=candidate["id"],
+                    status="extracted",
+                    publish_date=extracted_publish_date,
                 )
             else:
-                results_summary['failed'] += 1
-                logger.warning(f"✗ Extraction failed: {outcome} - {extraction_result.error_message}")
+                results_summary["failed"] += 1
+                logger.warning(
+                    f"✗ Extraction failed: {outcome} - {extraction_result.error_message}"
+                )
 
                 # Update candidate status to 'failed' with error message
                 update_candidate_status(
                     db=db,
-                    candidate_id=candidate['id'],
-                    status='failed',
-                    error_message=extraction_result.error_message
+                    candidate_id=candidate["id"],
+                    status="failed",
+                    error_message=extraction_result.error_message,
                 )
 
         except Exception as e:
-            results_summary['failed'] += 1
-            logger.error(f"✗ Unexpected error processing candidate {candidate['id']}: {e}")
+            results_summary["failed"] += 1
+            logger.error(
+                f"✗ Unexpected error processing candidate {candidate['id']}: {e}"
+            )
 
     # Print summary
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("EXTRACTION SUMMARY")
-    print("="*60)
+    print("=" * 60)
     print(f"Operation ID: {operation_id}")
     print(f"Total candidates: {results_summary['total']}")
     print(f"Successful: {results_summary['successful']}")
     print(f"Failed: {results_summary['failed']}")
-    print(f"Success rate: {(results_summary['successful'] / results_summary['total'] * 100):.1f}%")
+    print(
+        f"Success rate: {(results_summary['successful'] / results_summary['total'] * 100):.1f}%"
+    )
     print("\nOutcome breakdown:")
-    for outcome, count in sorted(results_summary['outcomes'].items()):
+    for outcome, count in sorted(results_summary["outcomes"].items()):
         print(f"  {outcome}: {count}")
 
     # Get and display telemetry stats
@@ -255,9 +276,11 @@ def main():
         if stats:
             print("\nDetailed telemetry:")
             for stat in stats:
-                print(f"  {stat['outcome']}: {stat['count']} articles, "
-                      f"avg time: {stat['avg_time_ms']:.1f}ms, "
-                      f"avg quality: {stat['avg_quality_score']:.2f}")
+                print(
+                    f"  {stat['outcome']}: {stat['count']} articles, "
+                    f"avg time: {stat['avg_time_ms']:.1f}ms, "
+                    f"avg quality: {stat['avg_quality_score']:.2f}"
+                )
     except Exception as e:
         logger.warning(f"Failed to retrieve telemetry stats: {e}")
 

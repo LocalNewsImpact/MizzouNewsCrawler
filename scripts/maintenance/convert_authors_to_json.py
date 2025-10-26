@@ -18,9 +18,9 @@ def parse_normal_author(author_str: str) -> list[str]:
         return []
 
     # Handle comma-separated authors
-    if ',' in author_str:
+    if "," in author_str:
         # Split by comma and clean each author
-        authors = [author.strip() for author in author_str.split(',')]
+        authors = [author.strip() for author in author_str.split(",")]
         authors = [author for author in authors if author]  # Remove empty
         return authors
     else:
@@ -42,7 +42,7 @@ def convert_normal_to_json_format():
     print("=" * 50)
 
     # Database path
-    db_path = os.path.join(os.path.dirname(__file__), 'data', 'mizzou.db')
+    db_path = os.path.join(os.path.dirname(__file__), "data", "mizzou.db")
     if not os.path.exists(db_path):
         print(f"❌ Database not found at {db_path}")
         return
@@ -51,13 +51,13 @@ def convert_normal_to_json_format():
     cursor = conn.cursor()
 
     # First, get all normal format entries
-    cursor.execute('''
+    cursor.execute("""
         SELECT id, author 
         FROM articles 
         WHERE author IS NOT NULL 
         AND author != '' 
         AND author NOT LIKE '[%'
-    ''')
+    """)
 
     normal_entries = cursor.fetchall()
 
@@ -73,14 +73,14 @@ def convert_normal_to_json_format():
     for i, (article_id, author) in enumerate(normal_entries[:5], 1):
         authors_list = parse_normal_author(author)
         json_format = convert_to_json_format(authors_list)
-        print(f"   {i}. \"{author}\" → {json_format}")
+        print(f'   {i}. "{author}" → {json_format}')
 
     if len(normal_entries) > 5:
         print(f"   ... and {len(normal_entries) - 5} more entries")
 
     # Ask for confirmation
     response = input(f"\n❓ Convert {len(normal_entries)} entries? (y/N): ")
-    if response.lower() != 'y':
+    if response.lower() != "y":
         print("❌ Conversion cancelled")
         conn.close()
         return
@@ -99,11 +99,14 @@ def convert_normal_to_json_format():
             json_author = convert_to_json_format(authors_list)
 
             # Update the database
-            cursor.execute('''
+            cursor.execute(
+                """
                 UPDATE articles 
                 SET author = ? 
                 WHERE id = ?
-            ''', (json_author, article_id))
+            """,
+                (json_author, article_id),
+            )
 
             converted_count += 1
 
@@ -122,20 +125,20 @@ def convert_normal_to_json_format():
     print(f"   Errors: {error_count}")
 
     # Verify the conversion
-    cursor.execute('''
+    cursor.execute("""
         SELECT COUNT(*) 
         FROM articles 
         WHERE author IS NOT NULL 
         AND author != '' 
         AND author NOT LIKE '[%'
-    ''')
+    """)
     remaining_normal = cursor.fetchone()[0]
 
-    cursor.execute('''
+    cursor.execute("""
         SELECT COUNT(*) 
         FROM articles 
         WHERE author LIKE '[%'
-    ''')
+    """)
     total_json = cursor.fetchone()[0]
 
     print("\n📊 Post-conversion statistics:")
@@ -144,12 +147,12 @@ def convert_normal_to_json_format():
 
     # Show some examples after conversion
     if total_json > 0:
-        cursor.execute('''
+        cursor.execute("""
             SELECT author 
             FROM articles 
             WHERE author LIKE '[%' 
             LIMIT 5
-        ''')
+        """)
         json_examples = [row[0] for row in cursor.fetchall()]
 
         print("\n📋 Examples after conversion:")
@@ -164,5 +167,5 @@ def convert_normal_to_json_format():
         print(f"\n⚠️  {remaining_normal} entries still in normal format")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     convert_normal_to_json_format()

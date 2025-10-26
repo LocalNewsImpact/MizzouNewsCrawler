@@ -18,18 +18,14 @@ def debug_author_extraction():
 
     cleaner = BylineCleaner(enable_telemetry=False)
 
-    test_cases = [
-        "tom reporter",
-        "Tom Reporter",
-        "John Smith",
-        "jane doe"
-    ]
+    test_cases = ["tom reporter", "Tom Reporter", "John Smith", "jane doe"]
 
     for test_text in test_cases:
         print(f"Testing: '{test_text}'")
         authors = cleaner._extract_authors(test_text)
         print(f"   Extracted: {authors}")
         print()
+
 
 if __name__ == "__main__":
     debug_author_extraction()

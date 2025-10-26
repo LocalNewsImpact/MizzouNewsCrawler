@@ -8,6 +8,7 @@ import sqlite3
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ class ImprovedContentCleaner:
         self.db_path = db_path
         self.confidence_threshold = confidence_threshold
         self.min_occurrence_count = 3
-        self._boilerplate_cache = {}
+        self._boilerplate_cache: dict[str, Any] = {}
 
     def analyze_domain(self, domain: str, sample_size: int | None = None) -> dict:
         """Analyze content from a domain to identify boilerplate."""
@@ -221,7 +222,7 @@ class ImprovedContentCleaner:
         ORDER BY id DESC
         """
 
-        params = [f"%{domain}%"]
+        params: list[Any] = [f"%{domain}%"]
         if sample_size:
             query += " LIMIT ?"
             params.append(sample_size)
@@ -237,7 +238,7 @@ class ImprovedContentCleaner:
 
     def _find_common_segments_improved(self, articles: list[dict]) -> dict:
         """Find text segments using multiple improved strategies."""
-        segment_occurrences = defaultdict(
+        segment_occurrences: dict[str, dict[str, Any]] = defaultdict(
             lambda: {
                 "count": 0,
                 "text": "",

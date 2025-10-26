@@ -17,8 +17,10 @@ def test_add_extraction_parser_defaults():
     args = _parse_args([])
 
     assert args.limit == 10
-    assert args.batches == 1
+    assert args.batches is None  # None means process all available
     assert args.source is None
+    assert args.dataset is None
+    assert args.exhaust_queue is True  # Default to exhausting queue
     assert args.func is extraction.handle_extraction_command
 
 
@@ -61,10 +63,21 @@ def test_handle_extraction_command_success(monkeypatch):
         domains_for_cleaning.setdefault("example.com", []).append(
             f"article-{batch_num}"
         )
-        return {"processed": 1}
+        return {
+            "processed": 1,
+            "domains_processed": ["example.com"],
+            "same_domain_consecutive": 0,
+        }
 
     def fake_post_clean(domains):
         calls["post_clean_domains"] = domains
+
+    def fake_domain_analysis(args, session):
+        return {
+            "unique_domains": 1,
+            "is_single_domain": False,
+            "sample_domains": ["example.com"],
+        }
 
     monkeypatch.setattr(extraction, "ContentExtractor", FakeExtractor)
     monkeypatch.setattr(extraction, "BylineCleaner", lambda: object())
@@ -79,9 +92,10 @@ def test_handle_extraction_command_success(monkeypatch):
         "_run_post_extraction_cleaning",
         fake_post_clean,
     )
+    monkeypatch.setattr(extraction, "_analyze_dataset_domains", fake_domain_analysis)
     monkeypatch.setattr(extraction.time, "sleep", lambda *_a, **_k: None)
 
-    args = Namespace(batches=2, limit=1, source=None)
+    args = Namespace(batches=2, limit=1, source=None, dataset=None, exhaust_queue=False)
 
     exit_code = extraction.handle_extraction_command(args)
 
@@ -112,8 +126,16 @@ def test_handle_extraction_command_handles_exception(monkeypatch):
     def failing_process(*_args, **_kwargs):
         raise RuntimeError("boom")
 
+    def fake_domain_analysis(args, session):
+        return {
+            "unique_domains": 0,
+            "is_single_domain": False,
+            "sample_domains": [],
+        }
+
     monkeypatch.setattr(extraction, "ContentExtractor", FakeExtractor)
     monkeypatch.setattr(extraction, "BylineCleaner", lambda: object())
+    monkeypatch.setattr(extraction, "_analyze_dataset_domains", fake_domain_analysis)
     monkeypatch.setattr(
         extraction,
         "ComprehensiveExtractionTelemetry",
@@ -127,7 +149,7 @@ def test_handle_extraction_command_handles_exception(monkeypatch):
     )
     monkeypatch.setattr(extraction.time, "sleep", lambda *_a, **_k: None)
 
-    args = Namespace(batches=1, limit=1, source=None)
+    args = Namespace(batches=1, limit=1, source=None, dataset=None, exhaust_queue=False)
 
     exit_code = extraction.handle_extraction_command(args)
 
@@ -424,6 +446,84 @@ def test_run_post_extraction_cleaning_updates_status(monkeypatch):
     assert any(call[0] == "entities" for call in cleaner_calls)
 
 
+def test_analyze_dataset_domains_single_domain():
+    """Test domain analysis for single-domain dataset."""
+    from argparse import Namespace
+
+    from sqlalchemy import text
+
+    class FakeSession:
+        def execute(self, query, params):
+            class FakeResult:
+                def fetchall(self):
+                    # Return URLs from a single domain
+                    return [
+                        ("https://example.com/article1",),
+                        ("https://example.com/article2",),
+                        ("https://example.com/article3",),
+                    ]
+
+            return FakeResult()
+
+    args = Namespace(dataset="test-dataset", source=None)
+    session = FakeSession()
+
+    result = extraction._analyze_dataset_domains(args, session)
+
+    assert result["unique_domains"] == 1
+    assert result["is_single_domain"] is True
+    assert "example.com" in result["sample_domains"]
+
+
+def test_analyze_dataset_domains_multiple_domains():
+    """Test domain analysis for multi-domain dataset."""
+    from argparse import Namespace
+
+    class FakeSession:
+        def execute(self, query, params):
+            class FakeResult:
+                def fetchall(self):
+                    # Return URLs from multiple domains
+                    return [
+                        ("https://example1.com/article1",),
+                        ("https://example2.com/article2",),
+                        ("https://example3.com/article3",),
+                    ]
+
+            return FakeResult()
+
+    args = Namespace(dataset="test-dataset", source=None)
+    session = FakeSession()
+
+    result = extraction._analyze_dataset_domains(args, session)
+
+    assert result["unique_domains"] == 3
+    assert result["is_single_domain"] is False
+    assert len(result["sample_domains"]) == 3
+
+
+def test_analyze_dataset_domains_no_urls():
+    """Test domain analysis when no URLs are available."""
+    from argparse import Namespace
+
+    class FakeSession:
+        def execute(self, query, params):
+            class FakeResult:
+                def fetchall(self):
+                    return []
+
+            return FakeResult()
+
+    args = Namespace(dataset="test-dataset", source=None)
+    session = FakeSession()
+
+    result = extraction._analyze_dataset_domains(args, session)
+
+    assert result["unique_domains"] == 0
+    assert result["is_single_domain"] is False
+    assert result["sample_domains"] == []
+
+
 def test_run_article_entity_extraction_handles_skip(monkeypatch):
     class FakeExtractor:
         extractor_version = "v1"
@@ -477,13 +577,17 @@ def test_run_article_entity_extraction_handles_skip(monkeypatch):
         lambda: FakeExtractor(),
     )
     monkeypatch.setattr(extraction, "DatabaseManager", lambda: FakeDB())
-    monkeypatch.setattr(extraction, "get_gazetteer_rows", lambda *a, **k: [])
+
+    # Mock the entity_extraction module functions (lazy imported)
+    import src.pipeline.entity_extraction as entity_mod
+
+    monkeypatch.setattr(entity_mod, "get_gazetteer_rows", lambda *a, **k: [])
 
     def passthrough_matches(*_args, entities, **_kwargs):
         return entities
 
     monkeypatch.setattr(
-        extraction,
+        entity_mod,
         "attach_gazetteer_matches",
         passthrough_matches,
     )

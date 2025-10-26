@@ -25,7 +25,7 @@ def add_discovery_report_parser(subparsers) -> argparse.ArgumentParser:
         "--hours-back",
         type=int,
         default=24,
-        help=("Hours back to analyze when no operation is provided " "(default: 24)"),
+        help=("Hours back to analyze when no operation is provided (default: 24)"),
     )
     parser.add_argument(
         "--format",
@@ -74,8 +74,8 @@ def _print_summary_discovery_report(report: dict[str, Any]) -> None:
 
     print("\n=== Discovery Outcomes Summary ===")
     print(f"Total sources processed: {summary.get('total_sources', 0)}")
-    print("Technical success rate: " f"{summary.get('technical_success_rate', 0)}%")
-    print("Content success rate: " f"{summary.get('content_success_rate', 0)}%")
+    print(f"Technical success rate: {summary.get('technical_success_rate', 0)}%")
+    print(f"Content success rate: {summary.get('content_success_rate', 0)}%")
     print(f"New articles found: {summary.get('total_new_articles', 0)}")
     avg_time = summary.get("avg_discovery_time_ms")
     if avg_time is not None:

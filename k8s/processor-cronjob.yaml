@@ -1,0 +1,57 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mizzou-processor
+  namespace: production
+  labels:
+    app: mizzou-processor
+    component: processor
+spec:
+  # Run every 6 hours (adjust as needed)
+  schedule: "0 */6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: mizzou-processor
+            component: processor
+        spec:
+          serviceAccountName: mizzou-app
+          priorityClassName: scheduled-standard  # Can preempt batch jobs
+          restartPolicy: OnFailure
+          containers:
+          # Main processor container
+          - name: processor
+            image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:v1.2.0
+            env:
+            # Cloud SQL Connector configuration (no proxy sidecar needed)
+            - name: USE_CLOUD_SQL_CONNECTOR
+              value: "true"
+            - name: CLOUD_SQL_INSTANCE
+              value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: username
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: password
+            - name: DATABASE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: database
+            resources:
+              requests:
+                cpu: 150m
+                memory: 1Gi
+              limits:
+                cpu: 750m
+                memory: 2Gi

@@ -1,5 +1,6 @@
 import datetime
 import json
+import logging
 import math
 import os
 import queue as pyqueue
@@ -18,14 +19,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from src.telemetry.store import get_store as get_telemetry_store
+import requests
+
+logger = logging.getLogger(__name__)
 
 # Add gazetteer telemetry imports
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(BASE_DIR))
-# Add comprehensive telemetry imports
-from src.utils.comprehensive_telemetry import (  # noqa: E402
-    ComprehensiveExtractionTelemetry,
-)
 from web.gazetteer_telemetry_api import (  # noqa: E402
     AddressEditRequest,
     ReprocessRequest,
@@ -37,16 +38,139 @@ from web.gazetteer_telemetry_api import (  # noqa: E402
     update_publisher_address,
 )
 
+# Add Cloud SQL imports for migration
+from src.models.database import DatabaseManager  # noqa: E402
+from src.models.api_backend import (  # noqa: E402
+    Review,
+    DomainFeedback,
+    Snapshot,
+    Candidate,
+    ReextractionJob,
+    DedupeAudit,
+)
+from src.models.telemetry import (  # noqa: E402
+    ExtractionTelemetryV2,
+    HttpErrorSummary,
+)
+from src.models import Source  # noqa: E402
+from sqlalchemy import func, case, desc, and_, or_, literal  # noqa: E402
+from backend.app.telemetry import (  # noqa: E402
+    verification,
+    byline,
+    code_review,
+    operations,
+    proxy,
+)
+
 # pydantic.Field not used here
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 # point to the full processed CSV with labels and geo
 ARTICLES_CSV = BASE_DIR / "processed" / "articleslabelledgeo_8.csv"
 DB_PATH = BASE_DIR / "backend" / "reviews.db"
-# Main database path for telemetry data
-MAIN_DB_PATH = BASE_DIR / "data" / "mizzou.db"
 
 app = FastAPI(title="MizzouNewsCrawler Reviewer API")
+
+# Set up lifecycle handlers for centralized resource management
+# This initializes telemetry, database, HTTP session, and origin proxy
+try:
+    from backend.app.lifecycle import setup_lifecycle_handlers  # noqa: E402
+
+    setup_lifecycle_handlers(app)
+except Exception:
+    # If lifecycle wiring isn't present (e.g., in minimal test environments),
+    # fall back to the legacy startup/shutdown wiring to keep the app usable.
+    def _install_origin_proxy_if_enabled(session: requests.Session) -> None:
+        try:
+            from src.crawler.origin_proxy import enable_origin_proxy
+
+            if os.environ.get("USE_ORIGIN_PROXY", "false").lower() in (
+                "1",
+                "true",
+                "yes",
+            ):
+                enable_origin_proxy(session)
+        except Exception:
+            logger.debug("Origin proxy adapter not installed or failed to enable.")
+
+    @app.on_event("startup")
+    def app_startup_resources():
+        # Telemetry store: allow tests to override DATABASE_URL via env
+        database_url = os.environ.get("TELEMETRY_DATABASE_URL", None)
+        if database_url:
+            telemetry = get_telemetry_store(database=database_url)
+        else:
+            telemetry = get_telemetry_store()
+
+        app.state.telemetry_store = telemetry
+
+        # Ensure DatabaseManager is present on state for endpoints/tests to use.
+        try:
+            # db_manager already initialized at module import; store a reference
+            app.state.db_manager = db_manager
+        except Exception:
+            app.state.db_manager = None
+
+        # Shared HTTP session used by handlers that perform outbound requests
+        shared = requests.Session()
+        _install_origin_proxy_if_enabled(shared)
+        app.state.shared_session = shared
+
+    @app.on_event("shutdown")
+    def app_shutdown_resources():
+        # Flush and shutdown telemetry store if present
+        try:
+            ts = getattr(app.state, "telemetry_store", None)
+            if ts is not None:
+                ts.shutdown(wait=True)
+        except Exception:
+            logger.exception("Error shutting down telemetry store")
+
+        # Close shared session
+        try:
+            sess = getattr(app.state, "shared_session", None)
+            if sess is not None:
+                sess.close()
+        except Exception:
+            logger.exception("Error closing shared_session")
+
+
+# Initialize database connection using DatabaseManager
+# This will use Cloud SQL connector if USE_CLOUD_SQL_CONNECTOR=true
+# NOTE: This is kept for backward compatibility with existing code that
+# uses the module-level db_manager. New code should use dependency injection
+# via get_db_manager() from backend.app.lifecycle
+from src import config as app_config
+
+# IMPORTANT: Lazy initialization to avoid creating database connection at import time
+# This allows tests to set DATABASE_URL environment variable before connection is made
+_db_manager = None
+
+
+def _get_module_db_manager():
+    """Lazy initialization of module-level db_manager for backward compatibility."""
+    global _db_manager
+    if _db_manager is None:
+        _db_manager = DatabaseManager(app_config.DATABASE_URL)
+        logger.info(f"Database initialized: {app_config.DATABASE_URL[:50]}...")
+    return _db_manager
+
+
+# Expose as db_manager for backward compatibility, but it's now lazy
+class _LazyDatabaseManager:
+    """Proxy object that creates DatabaseManager on first access."""
+
+    def __getattr__(self, name):
+        return getattr(_get_module_db_manager(), name)
+
+    def __enter__(self):
+        return _get_module_db_manager().__enter__()
+
+    def __exit__(self, *args):
+        return _get_module_db_manager().__exit__(*args)
+
+
+db_manager = _LazyDatabaseManager()
 
 # CORS configuration - allow origins can be configured via
 # ALLOWED_ORIGINS env var (comma-separated)
@@ -63,6 +187,64 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for load balancer probes."""
+    return {"status": "healthy", "service": "api"}
+
+
+@app.get("/ready")
+async def readiness_check():
+    """Readiness check endpoint for orchestration systems.
+
+    Returns 200 if the application is ready to serve traffic:
+    - Startup completed successfully
+    - Database is accessible
+    - Critical resources are initialized
+
+    Returns 503 if not ready.
+    """
+    from fastapi import Request, HTTPException, Depends
+    from backend.app.lifecycle import (
+        is_ready,
+        get_db_manager,
+        check_db_health,
+        get_telemetry_store,
+    )
+
+    # This is a workaround since we can't use Depends in the signature
+    # when defined inline. Instead we'll access app.state directly
+    ready = getattr(app.state, "ready", False)
+
+    if not ready:
+        raise HTTPException(
+            status_code=503, detail="Application not ready: startup incomplete"
+        )
+
+    # Check database health
+    db = getattr(app.state, "db_manager", None)
+    db_healthy, db_message = check_db_health(db)
+
+    if not db_healthy:
+        raise HTTPException(
+            status_code=503, detail=f"Application not ready: {db_message}"
+        )
+
+    telemetry = getattr(app.state, "telemetry_store", None)
+    http_session = getattr(app.state, "http_session", None)
+
+    return {
+        "status": "ready",
+        "service": "api",
+        "resources": {
+            "database": "available" if db_healthy else "unavailable",
+            "telemetry": "available" if telemetry else "unavailable",
+            "http_session": "available" if http_session else "unavailable",
+        },
+    }
+
 
 # Serve the simple static frontend (no build) at /web for quick local testing
 try:
@@ -112,285 +294,66 @@ class CandidateIn(BaseModel):
 
 
 def init_db():
-    # Use a connection with a timeout and set busy timeout to allow SQLite
-    # to wait for transient locks. Retry on OperationalError 'locked'.
-    attempts = 6
-    backoff = 0.5
-    last_exc = None
-    for attempt in range(1, attempts + 1):
-        try:
-            conn = sqlite3.connect(DB_PATH, timeout=30.0)
-            try:
-                conn.execute("PRAGMA journal_mode=WAL")
-            except Exception:
-                pass
-            try:
-                conn.execute("PRAGMA busy_timeout=30000")
-            except Exception:
-                pass
-            cur = conn.cursor()
-            break
-        except (sqlite3.OperationalError, sqlite3.DatabaseError) as oe:
-            last_exc = oe
-            if "locked" in str(oe).lower() and attempt < attempts:
-                _time.sleep(backoff * (2 ** (attempt - 1)))
-                continue
-            raise
-    if last_exc is not None and cur is None:
-        # couldn't obtain DB connection
-        raise last_exc
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS reviews (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            article_idx INTEGER,
-                secondary_rating INTEGER,
-            article_uid TEXT,
-            reviewer TEXT,
-            rating INTEGER,
-            tags TEXT,
-            notes TEXT,
-            mentioned_locations TEXT,
-            missing_locations TEXT,
-            incorrect_locations TEXT,
-            'inferred_tags TEXT',
-            missing_tags TEXT,
-            incorrect_tags TEXT,
-            body_errors TEXT,
-            headline_errors TEXT,
-            author_errors TEXT,
-            created_at TEXT
-            ,
-            UNIQUE(article_idx, reviewer)
-        )
-        """
-    )
-    # Ensure older DBs get new columns if missing
-    cur.execute("PRAGMA table_info(reviews)")
-    existing_cols = [r[1] for r in cur.fetchall()]
-    for col in ("body_errors", "headline_errors", "author_errors"):
-        if col not in existing_cols:
-            try:
-                cur.execute(f"ALTER TABLE reviews ADD COLUMN {col} TEXT")
-            except Exception:
-                pass
-    # Add secondary_rating column if missing
-    if "secondary_rating" not in existing_cols:
-        try:
-            cur.execute(
-                "ALTER TABLE reviews ADD COLUMN secondary_rating INTEGER"
-            )
-        except Exception:
-            pass
-    # Add missing_locations column if missing
-    if "missing_locations" not in existing_cols:
-        try:
-            cur.execute(
-                "ALTER TABLE reviews ADD COLUMN missing_locations TEXT"
-            )
-        except Exception:
-            pass
-    # Add incorrect_locations column if missing
-    if "incorrect_locations" not in existing_cols:
-        try:
-            cur.execute(
-                "ALTER TABLE reviews ADD COLUMN incorrect_locations TEXT"
-            )
-        except Exception:
-            pass
-    # Add inferred_tags column if missing
-    if "inferred_tags" not in existing_cols:
-        try:
-            cur.execute("ALTER TABLE reviews ADD COLUMN inferred_tags TEXT")
-        except Exception:
-            pass
-    # Add mentioned_locations column if missing
-    if "mentioned_locations" not in existing_cols:
-        try:
-            cur.execute(
-                "ALTER TABLE reviews ADD COLUMN mentioned_locations TEXT"
-            )
-        except Exception:
-            pass
-    # Add article_uid column if missing
-    # (unique identifier from CSV 'id' column)
-    if "article_uid" not in existing_cols:
-        try:
-            cur.execute("ALTER TABLE reviews ADD COLUMN article_uid TEXT")
-        except Exception:
-            pass
-    # Add missing_tags/incorrect_tags if missing
-    if "missing_tags" not in existing_cols:
-        try:
-            cur.execute(
-                "ALTER TABLE reviews ADD COLUMN missing_tags TEXT"
-            )
-        except Exception:
-            pass
-    if "incorrect_tags" not in existing_cols:
-        try:
-            cur.execute(
-                "ALTER TABLE reviews ADD COLUMN incorrect_tags TEXT"
-            )
-        except Exception:
-            pass
-    # Add reviewed_at column to mark when a reviewer saved/marked
-    # the article as reviewed
-    if "reviewed_at" not in existing_cols:
-        try:
-            cur.execute("ALTER TABLE reviews ADD COLUMN reviewed_at TEXT")
-        except Exception:
-            pass
-    # Ensure a unique index exists for (article_idx, reviewer)
-    # so UPSERT targets it
-    try:
-        cur.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS "
-            "reviews_article_reviewer_idx "
-            "ON reviews(article_idx, reviewer)"
-        )
-    except Exception:
-        # ignore index creation errors on older SQLite versions
-        pass
-    # Also ensure a unique index exists for (article_uid, reviewer) for UPSERTs by uid
-    try:
-        cur.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS "
-            "reviews_articleuid_reviewer_idx "
-            "ON reviews(article_uid, reviewer)"
-        )
-    except Exception:
-        pass
-    conn.commit()
-    conn.close()
+    """Database initialization - now handled by Alembic migrations.
 
-    # Ensure domain_feedback table exists to store reviewer feedback per host
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        cur = conn.cursor()
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS domain_feedback (
-                host TEXT PRIMARY KEY,
-                priority TEXT,
-                needs_dev INTEGER DEFAULT 0,
-                assigned_to TEXT,
-                notes TEXT,
-                updated_at TEXT
-            )
-            """
-        )
-        conn.commit()
-    except Exception:
-        pass
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+    This function has been converted to a no-op as part of the Cloud SQL migration.
+    Database schema is now managed by Alembic migrations (see alembic/versions/).
+    Tables are created automatically when DatabaseManager is first used.
+    """
+    # No-op: Schema creation handled by Alembic
+    pass
 
 
 def init_snapshot_tables():
-    # create snapshots and candidates tables if missing
-    # Open with a short timeout while initializing tables
-    conn = sqlite3.connect(DB_PATH, timeout=5.0)
-    cur = conn.cursor()
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS snapshots (
-            id TEXT PRIMARY KEY,
-            host TEXT,
-            url TEXT,
-            path TEXT,
-            pipeline_run_id TEXT,
-            failure_reason TEXT,
-            parsed_fields TEXT,
-            model_confidence REAL,
-            status TEXT,
-            created_at TEXT,
-            reviewed_at TEXT
-        )
-        """
-    )
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS candidates (
-            id TEXT PRIMARY KEY,
-            snapshot_id TEXT,
-            selector TEXT,
-            field TEXT,
-            score REAL,
-            words INTEGER,
-            snippet TEXT,
-            alts TEXT,
-            accepted INTEGER DEFAULT 0,
-            created_at TEXT
-        )
-        """
-    )
-    # lightweight job queue for re-extraction after committing a site rule
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS reextract_jobs (
-            id TEXT PRIMARY KEY,
-            host TEXT NOT NULL,
-            status TEXT NOT NULL DEFAULT 'pending',
-            result_json TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
+    """Snapshot tables initialization - now handled by Alembic migrations.
+
+    This function has been converted to a no-op as part of the Cloud SQL migration.
+    Database schema is now managed by Alembic migrations (see alembic/versions/).
+    Tables (snapshots, candidates, reextract_jobs, dedupe_audit) are created
+    automatically when DatabaseManager is first used.
     """
-    )
-    # deduplication audit table to record pairwise similarity, flags and metadata
+    # For production the schema is managed by Alembic / DatabaseManager and
+    # this function intentionally does nothing. However, a number of unit
+    # tests monkeypatch `DB_PATH` to point at a temporary SQLite file and
+    # expect this function to initialize the local SQLite schema. To keep
+    # tests working while preserving production behavior, detect when
+    # `DB_PATH` looks like a local SQLite path and create tables there.
     try:
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS dedupe_audit (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                article_uid TEXT,
-                neighbor_uid TEXT,
-                host TEXT,
-                similarity REAL,
-                dedupe_flag INTEGER,
-                category INTEGER,
-                stage TEXT,
-                details TEXT,
-                created_at TEXT
-            )
-        """
-        )
-        # helpful index for querying by article_uid or host
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS dedupe_audit_article_idx "
-            "ON dedupe_audit(article_uid)"
-        )
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS dedupe_audit_host_idx ON dedupe_audit(host)"
-        )
+        from pathlib import Path
+        from src.models import create_tables, create_database_engine
+
+        # If DB_PATH is a Path object (tests set it to a tmp Path), create
+        # a sqlite URL and ensure tables exist.
+        if isinstance(DB_PATH, Path):
+            db_url = f"sqlite:///{DB_PATH}"
+        elif isinstance(DB_PATH, str) and DB_PATH.startswith("sqlite"):
+            db_url = DB_PATH
+        else:
+            # Not a local SQLite path; leave as no-op for Cloud SQL setups
+            return
+
+        engine = create_database_engine(db_url)
+        create_tables(engine)
+
+        # If we're using a local SQLite DB for tests, reinitialize the
+        # module-level db_manager so API endpoints that use db_manager
+        # operate against the same test DB file. This keeps test
+        # expectations simple (DB_PATH -> DB used by endpoints) while
+        # preserving production behavior.
+        try:
+            global db_manager
+
+            # Only replace db_manager when pointing at a sqlite URL
+            from src.models.database import DatabaseManager
+
+            db_manager = DatabaseManager(db_url)
+        except Exception:
+            # Non-fatal; endpoints will fail later if DB isn't usable
+            pass
     except Exception:
-        # ignore if another process created table concurrently
-        pass
-    # ensure older DBs get the 'alts' column if it was added later
-    try:
-        cur.execute("PRAGMA table_info(candidates)")
-        existing = [r[1] for r in cur.fetchall()]
-        if "alts" not in existing:
-            try:
-                cur.execute("ALTER TABLE candidates ADD COLUMN alts TEXT")
-            except Exception:
-                # ignore if another process added it concurrently
-                pass
-    except Exception:
-        pass
-    conn.commit()
-    # Enable WAL journal mode to reduce writer locking during concurrent access
-    try:
-        cur.execute("PRAGMA journal_mode=WAL")
-        cur.execute("PRAGMA synchronous=NORMAL")
-    except Exception:
-        pass
-    conn.commit()
-    conn.close()
+        # Don't let test setup failures raise; tests will surface errors
+        # via assertions if tables are still missing.
+        return
 
 
 # In-process queue and worker to serialize DB writes so HTTP handlers return
@@ -402,9 +365,8 @@ _worker_thread = None
 
 
 def _db_writer_worker():
-    """Background thread that serially writes snapshot rows to SQLite.
-    Each queue item is a dict with keys matching the previous insert.
-    The worker performs the same retry/backoff on 'database is locked'.
+    """Background thread that serially writes snapshot rows to Cloud SQL.
+    Each queue item is a dict with keys matching the snapshot insert.
     """
     while not _worker_stop_event.is_set():
         try:
@@ -413,65 +375,30 @@ def _db_writer_worker():
             # timeout, check stop flag again
             continue
         try:
-            sid = item.get("id")
-            attempts = 8
-            backoff = 0.5
-            last_exc = None
-            for attempt in range(1, attempts + 1):
-                try:
-                    conn = sqlite3.connect(
-                        DB_PATH, timeout=30.0
-                    )
-                    try:
-                        conn.execute("PRAGMA journal_mode=WAL")
-                    except Exception:
-                        pass
-                    try:
-                        conn.execute("PRAGMA busy_timeout=30000")
-                    except Exception:
-                        pass
-                    cur = conn.cursor()
-                    cur.execute(
-                        (
-                            "INSERT INTO snapshots (id, host, url, path, pipeline_run_id, "
-                            "failure_reason, parsed_fields, "
-                            "model_confidence, status, created_at) "
-                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-                        ),
-                        (
-                            sid,
-                            item.get("host"),
-                            item.get("url"),
-                            item.get("path"),
-                            item.get("pipeline_run_id"),
-                            item.get("failure_reason"),
-                            (
-                                json.dumps(item.get("parsed_fields"))
-                                if item.get("parsed_fields") is not None
-                                else None
-                            ),
-                            item.get("model_confidence"),
-                            item.get("status") or "pending",
-                            item.get("created_at"),
-                        ),
-                    )
-                    conn.commit()
-                    conn.close()
-                    last_exc = None
-                    break
-                except (sqlite3.OperationalError, sqlite3.DatabaseError) as oe:
-                    last_exc = oe
-                    msg = str(oe).lower()
-                    if "locked" in msg and attempt < attempts:
-                        _time.sleep(backoff * (2 ** (attempt - 1)))
-                        continue
-                    # give up on other DB errors
-                    break
-            if last_exc is not None:
-                # Failed after retries: log to server console for diagnostics
-                import traceback
+            with db_manager.get_session() as session:
+                snapshot = Snapshot(
+                    id=item.get("id"),
+                    host=item.get("host"),
+                    url=item.get("url"),
+                    path=item.get("path"),
+                    pipeline_run_id=item.get("pipeline_run_id"),
+                    failure_reason=item.get("failure_reason"),
+                    parsed_fields=(
+                        json.dumps(item.get("parsed_fields"))
+                        if item.get("parsed_fields") is not None
+                        else None
+                    ),
+                    model_confidence=item.get("model_confidence"),
+                    status=item.get("status") or "pending",
+                    created_at=item.get("created_at"),
+                )
+                session.add(snapshot)
+                session.commit()
+        except Exception as exc:
+            import traceback
 
-                traceback.print_exc()
+            logger.exception("Snapshot write failed", exc_info=exc)
+            traceback.print_exc()
         finally:
             try:
                 snapshots_queue.task_done()
@@ -496,9 +423,7 @@ def shutdown_writer():
     _worker_stop_event.set()
     try:
         if _worker_thread is not None:
-            _worker_thread.join(
-                timeout=5.0
-            )
+            _worker_thread.join(timeout=5.0)
     except Exception:
         pass
 
@@ -520,70 +445,228 @@ def startup_gazetteer_tables():
 
 
 @app.get("/api/articles")
-def list_articles(
-    limit: int = 20, offset: int = 0, reviewer: str | None = None
-):
-    if not ARTICLES_CSV.exists():
-        return {"count": 0, "results": []}
-    df = pd.read_csv(ARTICLES_CSV)
-    # replace infinite values and NaN with None for JSON safety
-    df = df.replace(
-        [np.inf, -np.inf], None
-    )
-    df = df.where(pd.notnull(df), None)
-    # If caller provided a reviewer, filter out articles
-    # already reviewed by that reviewer
-    if reviewer:
-        try:
-            # use a longer timeout to wait for transient locks to clear
-            conn = sqlite3.connect(DB_PATH, timeout=30.0)
-            cur = conn.cursor()
-            cur.execute(
-                "SELECT DISTINCT article_idx FROM reviews WHERE reviewer=? AND reviewed_at IS NOT NULL",
-                (reviewer,),
+def list_articles(limit: int = 20, offset: int = 0, reviewer: str | None = None):
+    """List articles from database with pagination and optional reviewer filtering.
+
+    Returns articles in a format compatible with the legacy CSV-based frontend.
+    Uses article database ID as __idx for review posting.
+    """
+    try:
+        from src.models import Article, CandidateLink
+
+        with db_manager.get_session() as session:
+            # Start with base query joining with candidate_link to get source info
+            query = session.query(Article).join(
+                CandidateLink, Article.candidate_link_id == CandidateLink.id
             )
-            reviewed = {int(r[0]) for r in cur.fetchall() if r and r[0] is not None}
-            conn.close()
-        except Exception:
-            reviewed = set()
-        # preserve original csv indices so frontend can POST back using the CSV index
-        df = df.reset_index()  # original indices in column 'index'
-        df = df[~df["index"].isin(reviewed)]
-        df = df.reset_index(drop=True)
-        # total and slicing apply to filtered df
-        total = len(df)
-        selected = df.iloc[offset : offset + limit]
-        rows = selected.to_dict(orient="records")
-        # attach original CSV index as __idx so frontend can reference it
-        safe_rows = []
-        for r in rows:
-            orig_idx = r.get("index") if "index" in r else None
-            sr = sanitize_record(r)
-            sr["__idx"] = int(orig_idx) if orig_idx is not None else None
-            safe_rows.append(sr)
-        return {"count": total, "results": safe_rows}
-    else:
-        total = len(df)
-        rows = df.iloc[offset : offset + limit].to_dict(orient="records")
-        safe_rows = [sanitize_record(r) for r in rows]
-        # also add __idx for consistency
-        for i, sr in enumerate(safe_rows):
-            sr["__idx"] = offset + i
-        return {"count": total, "results": safe_rows}
+
+            # If reviewer filter provided, exclude articles they've already reviewed
+            if reviewer:
+                reviewed_subquery = (
+                    session.query(Review.article_uid)
+                    .filter(Review.reviewer == reviewer, Review.reviewed_at.isnot(None))
+                    .distinct()
+                    .subquery()
+                )
+
+                query = query.filter(~Article.id.in_(reviewed_subquery))
+
+            # Get total count before pagination
+            total = query.count()
+
+            # Apply pagination
+            articles = (
+                query.order_by(Article.created_at.desc())
+                .offset(offset)
+                .limit(limit)
+                .all()
+            )
+
+            # Convert articles to frontend-compatible format
+            safe_rows = []
+            for article in articles:
+                # Map database article to CSV-like structure expected by frontend
+                rec = {
+                    "id": article.id,
+                    "url": article.url,
+                    "title": article.title,
+                    "author": article.author,
+                    "date": (
+                        article.publish_date.isoformat()
+                        if article.publish_date
+                        else None
+                    ),
+                    "content": article.content or article.text,
+                    "hostname": (
+                        article.candidate_link.source_host_id
+                        if article.candidate_link
+                        else None
+                    ),
+                    "name": (
+                        article.candidate_link.source_name
+                        if article.candidate_link
+                        else None
+                    ),
+                    "domain": (
+                        article.candidate_link.source_host_id
+                        if article.candidate_link
+                        else None
+                    ),
+                    "county": (
+                        article.candidate_link.source_county
+                        if article.candidate_link
+                        else None
+                    ),
+                    "predictedlabel1": article.primary_label,
+                    "ALTpredictedlabel": article.alternate_label,
+                    "news": 1,  # Default assumption - can be refined with classification
+                    "inferred_tags": [],  # Would need separate entity extraction data
+                    "inferred_tags_set1": "",
+                    "locmentions": "",
+                    "wire": article.wire,  # JSON field with wire service info
+                }
+                sr = sanitize_record(rec)
+                # Use article ID as __idx for review posting (more stable than offset+i)
+                sr["__idx"] = article.id
+                safe_rows.append(sr)
+
+            return {"count": total, "results": safe_rows}
+
+    except Exception as e:
+        logger.error(f"Error in list_articles: {e}")
+        # Fallback to CSV if database query fails (for local development)
+        if ARTICLES_CSV.exists():
+            df = pd.read_csv(ARTICLES_CSV)
+            df = df.replace([np.inf, -np.inf], None)
+            df = df.where(pd.notnull(df), None)
+
+            if reviewer:
+                try:
+                    with db_manager.get_session() as session:
+                        reviewed_rows = (
+                            session.query(Review.article_idx)
+                            .filter(
+                                Review.reviewer == reviewer,
+                                Review.reviewed_at.isnot(None),
+                            )
+                            .distinct()
+                            .all()
+                        )
+                        reviewed = {
+                            int(r.article_idx)
+                            for r in reviewed_rows
+                            if r.article_idx is not None
+                        }
+                except Exception:
+                    reviewed = set()
+                df = df.reset_index()
+                df = df[~df["index"].isin(reviewed)]
+                df = df.reset_index(drop=True)
+                total = len(df)
+                selected = df.iloc[offset : offset + limit]
+                rows = selected.to_dict(orient="records")
+                safe_rows = []
+                for r in rows:
+                    orig_idx = r.get("index") if "index" in r else None
+                    sr = sanitize_record(r)
+                    sr["__idx"] = int(orig_idx) if orig_idx is not None else None
+                    safe_rows.append(sr)
+                return {"count": total, "results": safe_rows}
+            else:
+                total = len(df)
+                rows = df.iloc[offset : offset + limit].to_dict(orient="records")
+                safe_rows = [sanitize_record(r) for r in rows]
+                for i, sr in enumerate(safe_rows):
+                    sr["__idx"] = offset + i
+                return {"count": total, "results": safe_rows}
+
+        # If no CSV and database fails, return empty
+        return {"count": 0, "results": []}
 
 
 @app.get("/api/articles/{idx}")
-def get_article(idx: int):
-    if not ARTICLES_CSV.exists():
-        raise HTTPException(status_code=404, detail="Articles CSV not found")
-    df = pd.read_csv(ARTICLES_CSV)
-    # sanitize special float values before returning
-    df = df.replace([np.inf, -np.inf], None)
-    df = df.where(pd.notnull(df), None)
-    if idx < 0 or idx >= len(df):
+def get_article(idx: str):
+    """Get a single article by ID.
+
+    The idx parameter can be either a database article ID (UUID string) or
+    a numeric CSV index for backward compatibility.
+    """
+    try:
+        from src.models import Article, CandidateLink
+
+        with db_manager.get_session() as session:
+            # Try to find article by ID first (UUID string)
+            article = session.query(Article).filter(Article.id == idx).first()
+
+            # If not found and idx is numeric, try finding by offset (less reliable)
+            if not article and idx.isdigit():
+                article = (
+                    session.query(Article)
+                    .order_by(Article.created_at.desc())
+                    .offset(int(idx))
+                    .limit(1)
+                    .first()
+                )
+
+            if not article:
+                raise HTTPException(status_code=404, detail="Article not found")
+
+            # Convert to frontend format
+            rec = {
+                "id": article.id,
+                "url": article.url,
+                "title": article.title,
+                "author": article.author,
+                "date": (
+                    article.publish_date.isoformat() if article.publish_date else None
+                ),
+                "content": article.content or article.text,
+                "hostname": (
+                    article.candidate_link.source_host_id
+                    if article.candidate_link
+                    else None
+                ),
+                "name": (
+                    article.candidate_link.source_name
+                    if article.candidate_link
+                    else None
+                ),
+                "domain": (
+                    article.candidate_link.source_host_id
+                    if article.candidate_link
+                    else None
+                ),
+                "county": (
+                    article.candidate_link.source_county
+                    if article.candidate_link
+                    else None
+                ),
+                "predictedlabel1": article.primary_label,
+                "ALTpredictedlabel": article.alternate_label,
+                "news": 1,
+                "inferred_tags": [],
+                "inferred_tags_set1": "",
+                "locmentions": "",
+                "wire": article.wire,
+            }
+            return sanitize_record(rec)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in get_article: {e}")
+        # Fallback to CSV for backward compatibility
+        if ARTICLES_CSV.exists():
+            df = pd.read_csv(ARTICLES_CSV)
+            df = df.replace([np.inf, -np.inf], None)
+            df = df.where(pd.notnull(df), None)
+            idx_int = int(idx) if idx.isdigit() else -1
+            if idx_int < 0 or idx_int >= len(df):
+                raise HTTPException(status_code=404, detail="Article not found")
+            rec = df.iloc[idx_int].to_dict()
+            return sanitize_record(rec)
+
         raise HTTPException(status_code=404, detail="Article not found")
-    rec = df.iloc[idx].to_dict()
-    return sanitize_record(rec)
 
 
 def sanitize_value(v):
@@ -636,9 +719,7 @@ def sanitize_record(rec: dict) -> dict:
     # include requested keys with sanitized values
     # (fall back to None)
     for k in wanted:
-        out[k] = (
-            sanitize_value(rec.get(k)) if k in rec else None
-        )
+        out[k] = sanitize_value(rec.get(k)) if k in rec else None
     # Also keep other keys present in the record so the frontend
     # can use them if needed
     for k, v in rec.items():
@@ -705,6 +786,81 @@ def stable_stringify(obj):
         return json.dumps(None, separators=(",", ":"))
 
 
+@app.get("/api/options/counties")
+def get_counties():
+    """Get distinct county values from articles in the database.
+
+    Returns:
+        List of distinct county names, sorted alphabetically
+    """
+    try:
+        from src.models import Article, CandidateLink
+
+        with db_manager.get_session() as session:
+            # Query distinct counties from CandidateLink (joined with Article)
+            counties = (
+                session.query(CandidateLink.source_county)
+                .join(Article, Article.candidate_link_id == CandidateLink.id)
+                .filter(CandidateLink.source_county.isnot(None))
+                .filter(CandidateLink.source_county != "")
+                .distinct()
+                .order_by(CandidateLink.source_county)
+                .all()
+            )
+            return [c[0] for c in counties]
+    except Exception as e:
+        logger.error(f"Error getting counties: {e}")
+        raise HTTPException(status_code=500, detail="Database error")
+
+
+@app.get("/api/options/sources")
+def get_sources():
+    """Get distinct source names from the database.
+
+    Returns:
+        List of distinct source names, sorted alphabetically
+    """
+    try:
+        with db_manager.get_session() as session:
+            # Query distinct source names from Source table
+            sources = (
+                session.query(Source.canonical_name)
+                .filter(Source.canonical_name.isnot(None))
+                .filter(Source.canonical_name != "")
+                .distinct()
+                .order_by(Source.canonical_name)
+                .all()
+            )
+            return [s[0] for s in sources]
+    except Exception as e:
+        logger.error(f"Error getting sources: {e}")
+        raise HTTPException(status_code=500, detail="Database error")
+
+
+@app.get("/api/options/reviewers")
+def get_reviewers():
+    """Get distinct reviewer names from the database.
+
+    Returns:
+        List of distinct reviewer names who have created reviews, sorted alphabetically
+    """
+    try:
+        with db_manager.get_session() as session:
+            # Query distinct reviewers from Review table
+            reviewers = (
+                session.query(Review.reviewer)
+                .filter(Review.reviewer.isnot(None))
+                .filter(Review.reviewer != "")
+                .distinct()
+                .order_by(Review.reviewer)
+                .all()
+            )
+            return [r[0] for r in reviewers]
+    except Exception as e:
+        logger.error(f"Error getting reviewers: {e}")
+        raise HTTPException(status_code=500, detail="Database error")
+
+
 @app.get("/api/options/{opt_name}")
 def get_options(opt_name: str):
     """Provide simple option lists expected by the frontend for local testing.
@@ -743,40 +899,15 @@ def post_review(idx: int, payload: ReviewIn):
     The route accepts the CSV index (idx) for convenience but the payload may
     include `article_uid` to bind the review to the article's stable unique id.
     """
-    init_db()
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    # ensure migration: reviews.reviewed_at column exists
-    try:
-        cur.execute("PRAGMA table_info(reviews)")
-        cols = [r[1] for r in cur.fetchall()]
-        if "reviewed_at" not in cols:
-            try:
-                cur.execute("ALTER TABLE reviews ADD COLUMN reviewed_at TEXT")
-                conn.commit()
-            except Exception:
-                # ignore concurrent/migration failures
-                pass
-    except Exception:
-        pass
-    now = datetime.datetime.utcnow().isoformat()
+    now = datetime.datetime.utcnow()
     tags_str = ",".join(payload.tags) if payload.tags else None
-    body_str = (
-        ",".join(payload.body_errors) if payload.body_errors else None
-    )
+    body_str = ",".join(payload.body_errors) if payload.body_errors else None
     headline_str = (
         ",".join(payload.headline_errors) if payload.headline_errors else None
     )
-    author_str = (
-        ",".join(payload.author_errors)
-        if payload.author_errors
-        else None
-    )
-    # Prefer an explicit article_uid if supplied in the payload;
-    # otherwise attempt to map from the numeric CSV idx to the
-    # article's `id` column.
-    # Prefer explicit article_uid from the incoming payload
-    # when provided.
+    author_str = ",".join(payload.author_errors) if payload.author_errors else None
+
+    # Prefer an explicit article_uid if supplied in the payload
     article_uid = getattr(payload, "article_uid", None) or None
     # try to read the CSV to map idx -> id if available
     try:
@@ -787,453 +918,164 @@ def post_review(idx: int, payload: ReviewIn):
     except Exception:
         pass
 
-    # DEBUG: print SQL and params length to help diagnose
-    # placeholder mismatch. include reviewed_at so saving a review
-    # marks it reviewed for that reviewer
-    sql_stmt = (
-        "INSERT INTO reviews ("
-        "article_idx, article_uid, reviewer, rating, "
-        "secondary_rating, tags, notes, "
-        "mentioned_locations, missing_locations, "
-        "incorrect_locations, inferred_tags, missing_tags, "
-        "incorrect_tags, body_errors, headline_errors, "
-        "author_errors, reviewed_at, created_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
-        "?, ?, ?, ?, ?) "
-        "ON CONFLICT(article_uid, reviewer) DO UPDATE SET "
-        "rating=excluded.rating, "
-        "secondary_rating=excluded.secondary_rating, "
-        "tags=excluded.tags, "
-        "notes=excluded.notes, "
-        "mentioned_locations=excluded.mentioned_locations, "
-        "missing_locations=excluded.missing_locations, "
-        "incorrect_locations=excluded.incorrect_locations, "
-        "inferred_tags=excluded.inferred_tags, "
-        "missing_tags=excluded.missing_tags, "
-        "incorrect_tags=excluded.incorrect_tags, "
-        "body_errors=excluded.body_errors, "
-        "headline_errors=excluded.headline_errors, "
-        "author_errors=excluded.author_errors, "
-        "reviewed_at=excluded.reviewed_at, "
-        "created_at=excluded.created_at"
-    )
-
-    params = (
-        idx,
-        article_uid,
-        payload.reviewer,
-        payload.rating,
-        payload.secondary_rating,
-        tags_str,
-        payload.notes,
-        # store mentioned_locations as CSV text
-        (
-            ",".join(payload.mentioned_locations)
-            if payload.mentioned_locations
-            else None
-        ),
-        # store missing_locations as CSV text
-        (
-            ",".join(payload.missing_locations)
-            if getattr(payload, "missing_locations", None)
-            else None
-        ),
-        # store incorrect_locations as CSV text
-        (
-            ",".join(payload.incorrect_locations)
-            if getattr(payload, "incorrect_locations", None)
-            else None
-        ),
-        # store inferred_tags as CSV text
-        (
-            ",".join(payload.inferred_tags)
-            if getattr(payload, "inferred_tags", None)
-            else None
-        ),
-        # store missing_tags as CSV text
-        (
-            ",".join(payload.missing_tags)
-            if getattr(payload, "missing_tags", None)
-            else None
-        ),
-        # store incorrect_tags as CSV text
-        (
-            ",".join(payload.incorrect_tags)
-            if getattr(payload, "incorrect_tags", None)
-            else None
-        ),
-        body_str,
-        headline_str,
-        author_str,
-        # reviewed_at: mark review as reviewed on save
-        now,
-        now,
-    )
-
-    # end debug
-
-    cur.execute(sql_stmt, params)
-    conn.commit()
-    # Retrieve the canonical row for this review so callers
-    # receive the authoritative, server-normalized representation
-    # immediately.
-    cols_sql = (
-        "id, article_idx, article_uid, reviewer, rating, "
-        "secondary_rating, "
-        "tags, notes, mentioned_locations, missing_locations, "
-        "incorrect_locations, inferred_tags, missing_tags, "
-        "incorrect_tags, body_errors, headline_errors, "
-        "author_errors, created_at"
-    )
-
-    # Try to use the sqlite cursor's lastrowid which points to
-    # the row inserted by the most recent INSERT. This handles
-    # the common case where the operation was an INSERT and we
-    # can return that exact row.
-    created_id = (
-        cur.lastrowid if hasattr(cur, "lastrowid") else None
-    )
-    row = None
-    if created_id:
-        cur.execute(
-            f"SELECT {cols_sql} FROM reviews WHERE id=?",
-            (created_id,),
-        )
-        row = cur.fetchone()
-
-    # If lastrowid wasn't available (e.g. the statement performed
-    # an UPDATE as part of an upsert), fall back to selecting by
-    # article_uid+reviewer or article_idx+reviewer.
-    if not row:
+    with db_manager.get_session() as session:
+        # Try to find existing review for upsert
+        existing_review = None
         if article_uid:
-            cur.execute(
-                f"SELECT {cols_sql} FROM reviews "
-                "WHERE article_uid=? AND reviewer=?",
-                (article_uid, payload.reviewer),
-            )
-            row = cur.fetchone()
-        if not row:
-            cur.execute(
-                f"SELECT {cols_sql} FROM reviews "
-                "WHERE article_idx=? AND reviewer=?",
-                (idx, payload.reviewer),
-            )
-            row = cur.fetchone()
-
-    result = None
-
-    # helper to split comma-separated stored strings into lists
-    def _split_csv_field(s):
-        if s is None:
-            return []
-        if not isinstance(s, str):
-            return s
-        s = s.strip()
-        if s == "":
-            return []
-        # Treat literal 'NONE' or 'None' as empty as some
-        # older records had that
-        if s.upper() == "NONE" or s == "None":
-            return []
-        return [p for p in s.split(",") if p]
-
-    if row:
-        cols = cols_sql.split(", ")
-        result = dict(zip(cols, row, strict=False))
-        # Normalize CSV fields into arrays for API clients
-        result["tags"] = _split_csv_field(result.get("tags"))
-        result["body_errors"] = _split_csv_field(
-            result.get("body_errors")
-        )
-        result["headline_errors"] = _split_csv_field(
-            result.get("headline_errors")
-        )
-        result["author_errors"] = _split_csv_field(
-            result.get("author_errors")
-        )
-        # normalize mentioned_locations into an array
-        result["mentioned_locations"] = _split_csv_field(
-            result.get("mentioned_locations")
-        )
-        # normalize missing_locations into an array
-        result["missing_locations"] = _split_csv_field(
-            result.get("missing_locations")
-        )
-        # normalize incorrect_locations into an array
-        result["incorrect_locations"] = _split_csv_field(
-            result.get("incorrect_locations")
-        )
-        # normalize inferred_tags
-        result["inferred_tags"] = _split_csv_field(
-            result.get("inferred_tags")
-        )
-        # normalize missing_tags/incorrect_tags
-        result["missing_tags"] = _split_csv_field(
-            result.get("missing_tags")
-        )
-        result["incorrect_tags"] = _split_csv_field(
-            result.get("incorrect_tags")
-        )
-    else:
-        # As a last resort, return the id if we can find any row
-        # for this (article_idx, reviewer) pair.
-        cur.execute(
-            "SELECT id FROM reviews WHERE article_idx=? AND reviewer=?",
-            (idx, payload.reviewer),
-        )
-        rid_row = cur.fetchone()
-        created_id = rid_row[0] if rid_row else None
-        result = {"id": created_id}
-
-    # Build a canonical payload object that mirrors what the frontend's
-    # `buildServerPayloadFromUI` expects so callers can use the server
-    # authoritative representation to compute savedness/deduping.
-    def build_canonical(r):
-        if not r:
-            return None
-        # rating vs primary naming: prefer primary_rating if present on row
-        primary = r.get("rating") if r.get("rating") is not None else r.get("rating")
-        # Some rows may include 'secondary_rating' already
-        secondary = (
-            r.get("secondary_rating")
-            if r.get("secondary_rating") is not None
-            else r.get("secondary_rating")
-        )
-
-        # Build tags from explicit tag arrays if present, otherwise derive from error arrays
-        body = r.get("body_errors") or []
-        headline = r.get("headline_errors") or []
-        author = r.get("author_errors") or []
-        # combine and normalize tags as frontend does (dedupe, remove NONE, sort)
-        tags = []
-        try:
-            tags = list(
-                {
-                    str(t)
-                    for t in (
-                        [*(body or []), *(headline or []), *(author or [])]
-                        if True
-                        else []
-                    )
-                    if t and str(t).upper() not in ("NONE", "None")
-                }
-            )
-            tags.sort()
-        except Exception:
-            tags = []
-
-        canonical = {
-            "article_uid": r.get("article_uid"),
-            "reviewer": r.get("reviewer"),
-            "primary_rating": primary if primary is not None else 3,
-            "secondary_rating": secondary if secondary is not None else 3,
-            "body": list(body) if isinstance(body, (list, tuple)) else body or [],
-            "headline": (
-                list(headline)
-                if isinstance(headline, (list, tuple))
-                else headline or []
-            ),
-            "author": (
-                list(author) if isinstance(author, (list, tuple)) else author or []
-            ),
-            "tags": tags,
-            "notes": r.get("notes") or "",
-            "mentioned_locations": r.get("mentioned_locations") or [],
-            "missing_locations": r.get("missing_locations") or [],
-            "inferred_tags": r.get("inferred_tags") or [],
-            "missing_tags": r.get("missing_tags") or [],
-        }
-        return canonical
-
-    def canonical_hash(obj):
-        try:
-            return stable_stringify(obj)
-        except Exception:
-            try:
-                return json.dumps(
-                    obj, sort_keys=True, separators=(",", ":")
+            existing_review = (
+                session.query(Review)
+                .filter(
+                    Review.article_uid == article_uid,
+                    Review.reviewer == payload.reviewer,
                 )
-            except Exception:
-                return None
-
-    # Attach canonical payload and hash to the returned row so
-    # the frontend can rely on a server-authoritative
-    # representation for savedness checks.
-    if result:
-        try:
-            result["canonical"] = build_canonical(result)
-            result["canonical_hash"] = canonical_hash(
-                result["canonical"]
+                .first()
             )
-        except Exception:
-            pass
+        if not existing_review:
+            existing_review = (
+                session.query(Review)
+                .filter(Review.article_idx == idx, Review.reviewer == payload.reviewer)
+                .first()
+            )
 
-    conn.close()
-    return result
-
-
-@app.put("/api/reviews/{rid}")
-def update_review(rid: int, payload: ReviewIn):
-    """Update an existing review by id.
-    Returns 404 if the review does not exist.
-    """
-    if not DB_PATH.exists():
-        raise HTTPException(status_code=404, detail="DB not found")
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("SELECT id FROM reviews WHERE id=?", (rid,))
-    row = cur.fetchone()
-    if not row:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Review not found")
-    # ensure reviewed_at column exists (no-op if present)
-    try:
-        cur.execute("PRAGMA table_info(reviews)")
-        cols = [r[1] for r in cur.fetchall()]
-        if "reviewed_at" not in cols:
-            try:
-                cur.execute("ALTER TABLE reviews ADD COLUMN reviewed_at TEXT")
-                conn.commit()
-            except Exception:
-                pass
-    except Exception:
-        pass
-
-    cur.execute(
-        (
-            "UPDATE reviews SET reviewer=?, rating=?, "
-            "secondary_rating=?, tags=?, notes=?, "
-            "mentioned_locations=?, missing_locations=?, "
-            "incorrect_locations=?, inferred_tags=?, "
-            "missing_tags=?, incorrect_tags=?, body_errors=?, "
-            "headline_errors=?, author_errors=?, reviewed_at=? "
-            "WHERE id=?"
-        ),
-        (
-            payload.reviewer,
-            payload.rating,
-            payload.secondary_rating,
-            ",".join(payload.tags) if payload.tags else None,
-            payload.notes,
-            (
+        if existing_review:
+            # Update existing review
+            existing_review.rating = payload.rating
+            existing_review.secondary_rating = payload.secondary_rating
+            existing_review.tags = tags_str
+            existing_review.notes = payload.notes
+            existing_review.mentioned_locations = (
                 ",".join(payload.mentioned_locations)
                 if payload.mentioned_locations
                 else None
-            ),
-            (
+            )
+            existing_review.missing_locations = (
                 ",".join(payload.missing_locations)
                 if getattr(payload, "missing_locations", None)
                 else None
-            ),
-            (
+            )
+            existing_review.incorrect_locations = (
                 ",".join(payload.incorrect_locations)
                 if getattr(payload, "incorrect_locations", None)
                 else None
-            ),
-            (
+            )
+            existing_review.inferred_tags = (
                 ",".join(payload.inferred_tags)
                 if getattr(payload, "inferred_tags", None)
                 else None
-            ),
-            (
+            )
+            existing_review.missing_tags = (
                 ",".join(payload.missing_tags)
                 if getattr(payload, "missing_tags", None)
                 else None
-            ),
-            (
+            )
+            existing_review.incorrect_tags = (
                 ",".join(payload.incorrect_tags)
                 if getattr(payload, "incorrect_tags", None)
                 else None
-            ),
-            ",".join(payload.body_errors) if payload.body_errors else None,
-            ",".join(payload.headline_errors) if payload.headline_errors else None,
-            ",".join(payload.author_errors) if payload.author_errors else None,
-            datetime.datetime.utcnow().isoformat(),
-            rid,
-        ),
-    )
-    conn.commit()
-    conn.close()
-    return {"status": "ok", "id": rid}
+            )
+            existing_review.body_errors = body_str
+            existing_review.headline_errors = headline_str
+            existing_review.author_errors = author_str
+            existing_review.reviewed_at = now
+            review_obj = existing_review
+        else:
+            # Create new review
+            review_obj = Review(
+                article_idx=idx,
+                article_uid=article_uid,
+                reviewer=payload.reviewer,
+                rating=payload.rating,
+                secondary_rating=payload.secondary_rating,
+                tags=tags_str,
+                notes=payload.notes,
+                mentioned_locations=(
+                    ",".join(payload.mentioned_locations)
+                    if payload.mentioned_locations
+                    else None
+                ),
+                missing_locations=(
+                    ",".join(payload.missing_locations)
+                    if getattr(payload, "missing_locations", None)
+                    else None
+                ),
+                incorrect_locations=(
+                    ",".join(payload.incorrect_locations)
+                    if getattr(payload, "incorrect_locations", None)
+                    else None
+                ),
+                inferred_tags=(
+                    ",".join(payload.inferred_tags)
+                    if getattr(payload, "inferred_tags", None)
+                    else None
+                ),
+                missing_tags=(
+                    ",".join(payload.missing_tags)
+                    if getattr(payload, "missing_tags", None)
+                    else None
+                ),
+                incorrect_tags=(
+                    ",".join(payload.incorrect_tags)
+                    if getattr(payload, "incorrect_tags", None)
+                    else None
+                ),
+                body_errors=body_str,
+                headline_errors=headline_str,
+                author_errors=author_str,
+                reviewed_at=now,
+                created_at=now,
+            )
+            session.add(review_obj)
 
+        session.commit()
+        session.refresh(review_obj)
 
-@app.get("/api/reviews")
-def get_reviews(
-    article_idx: int | None = None,
-    article_uid: str | None = None
-):
-    if not DB_PATH.exists():
-        return []
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cols_sql = (
-        "id, article_idx, article_uid, reviewer, rating, "
-        "secondary_rating, "
-        "tags, notes, mentioned_locations, missing_locations, "
-        "incorrect_locations, inferred_tags, missing_tags, "
-        "incorrect_tags, body_errors, headline_errors, "
-        "author_errors, created_at"
-    )
-    if article_uid:
-        cur.execute(
-            (
-                f"SELECT {cols_sql} FROM reviews "
-                "WHERE article_uid=? ORDER BY id DESC"
-            ),
-            (article_uid,),
+        # Convert to dict and split CSV fields
+        result = review_obj.to_dict()
+
+        # helper to split comma-separated stored strings into lists
+        def _split_csv_field(s):
+            if s is None:
+                return []
+            if not isinstance(s, str):
+                return s
+            s = s.strip()
+            if s == "":
+                return []
+            if s.upper() == "NONE" or s == "None":
+                return []
+            return [p for p in s.split(",") if p]
+
+        # Normalize CSV fields into arrays for API clients
+        result["tags"] = _split_csv_field(result.get("tags"))
+        result["body_errors"] = _split_csv_field(result.get("body_errors"))
+        result["headline_errors"] = _split_csv_field(result.get("headline_errors"))
+        result["author_errors"] = _split_csv_field(result.get("author_errors"))
+        result["mentioned_locations"] = _split_csv_field(
+            result.get("mentioned_locations")
         )
-    elif article_idx is None:
-        cur.execute(
-
-                f"SELECT {cols_sql} FROM reviews "
-                "ORDER BY id DESC LIMIT 200"
-
+        result["missing_locations"] = _split_csv_field(result.get("missing_locations"))
+        result["incorrect_locations"] = _split_csv_field(
+            result.get("incorrect_locations")
         )
-    else:
-        cur.execute(
-            (
-                f"SELECT {cols_sql} FROM reviews "
-                "WHERE article_idx=? ORDER BY id DESC"
-            ),
-            (article_idx,),
-        )
-    rows = cur.fetchall()
-    conn.close()
+        result["inferred_tags"] = _split_csv_field(result.get("inferred_tags"))
+        result["missing_tags"] = _split_csv_field(result.get("missing_tags"))
+        result["incorrect_tags"] = _split_csv_field(result.get("incorrect_tags"))
 
-    cols = cols_sql.split(", ")
-
-    def _split_csv_field(s):
-        if s is None:
-            return []
-        if not isinstance(s, str):
-            return s
-        s = s.strip()
-        if s == "":
-            return []
-        if s.upper() == "NONE" or s == "None":
-            return []
-        return [p for p in s.split(",") if p]
-
-    results = []
-    for r in rows:
-        d = dict(zip(cols, r, strict=False))
-        # normalize CSV-stored fields to arrays to match POST/PUT responses
-        d["tags"] = _split_csv_field(d.get("tags"))
-        d["body_errors"] = _split_csv_field(d.get("body_errors"))
-        d["headline_errors"] = _split_csv_field(d.get("headline_errors"))
-        d["author_errors"] = _split_csv_field(d.get("author_errors"))
-        d["mentioned_locations"] = _split_csv_field(d.get("mentioned_locations"))
-        d["inferred_tags"] = _split_csv_field(d.get("inferred_tags"))
-        d["missing_locations"] = _split_csv_field(d.get("missing_locations"))
-        d["incorrect_locations"] = _split_csv_field(d.get("incorrect_locations"))
-        d["missing_tags"] = _split_csv_field(d.get("missing_tags"))
-        d["incorrect_tags"] = _split_csv_field(d.get("incorrect_tags"))
-
-        # Build canonical payload for each row similar to POST response
-        try:
-            body = d.get("body_errors") or []
-            headline = d.get("headline_errors") or []
-            author = d.get("author_errors") or []
+        # Build canonical payload
+        def build_canonical(r):
+            if not r:
+                return None
+            primary = (
+                r.get("rating") if r.get("rating") is not None else r.get("rating")
+            )
+            secondary = (
+                r.get("secondary_rating")
+                if r.get("secondary_rating") is not None
+                else r.get("secondary_rating")
+            )
+            body = r.get("body_errors") or []
+            headline = r.get("headline_errors") or []
+            author = r.get("author_errors") or []
             tags = []
             try:
                 tags = list(
@@ -1250,15 +1092,12 @@ def get_reviews(
                 tags.sort()
             except Exception:
                 tags = []
+
             canonical = {
-                "article_uid": d.get("article_uid"),
-                "reviewer": d.get("reviewer"),
-                "primary_rating": d.get("rating") if d.get("rating") is not None else 3,
-                "secondary_rating": (
-                    d.get("secondary_rating")
-                    if d.get("secondary_rating") is not None
-                    else 3
-                ),
+                "article_uid": r.get("article_uid"),
+                "reviewer": r.get("reviewer"),
+                "primary_rating": primary if primary is not None else 3,
+                "secondary_rating": secondary if secondary is not None else 3,
                 "body": list(body) if isinstance(body, (list, tuple)) else body or [],
                 "headline": (
                     list(headline)
@@ -1269,26 +1108,205 @@ def get_reviews(
                     list(author) if isinstance(author, (list, tuple)) else author or []
                 ),
                 "tags": tags,
-                "notes": d.get("notes") or "",
-                "mentioned_locations": d.get("mentioned_locations") or [],
-                "missing_locations": d.get("missing_locations") or [],
-                "inferred_tags": d.get("inferred_tags") or [],
-                "missing_tags": d.get("missing_tags") or [],
+                "notes": r.get("notes") or "",
+                "mentioned_locations": r.get("mentioned_locations") or [],
+                "missing_locations": r.get("missing_locations") or [],
+                "inferred_tags": r.get("inferred_tags") or [],
+                "missing_tags": r.get("missing_tags") or [],
             }
-            # Attach canonical object and a stable canonical_hash string
-            d["canonical"] = canonical
-            try:
-                d["canonical_hash"] = json.dumps(
-                    canonical, sort_keys=True, separators=(",", ":")
-                )
-            except Exception:
-                d["canonical_hash"] = None
-        except Exception:
-            d["canonical"] = None
-            d["canonical_hash"] = None
-        results.append(d)
+            return canonical
 
-    return results
+        def canonical_hash(obj):
+            try:
+                return stable_stringify(obj)
+            except Exception:
+                try:
+                    return json.dumps(obj, sort_keys=True, separators=(",", ":"))
+                except Exception:
+                    return None
+
+        # Attach canonical payload and hash
+        try:
+            result["canonical"] = build_canonical(result)
+            result["canonical_hash"] = canonical_hash(result["canonical"])
+        except Exception:
+            pass
+
+        return result
+
+
+@app.put("/api/reviews/{rid}")
+def update_review(rid: str, payload: ReviewIn):
+    """Update an existing review by id.
+    Returns 404 if the review does not exist.
+    """
+    with db_manager.get_session() as session:
+        review = session.query(Review).filter(Review.id == rid).first()
+        if not review:
+            raise HTTPException(status_code=404, detail="Review not found")
+
+        # Update fields
+        review.reviewer = payload.reviewer
+        review.rating = payload.rating
+        review.secondary_rating = payload.secondary_rating
+        review.tags = ",".join(payload.tags) if payload.tags else None
+        review.notes = payload.notes
+        review.mentioned_locations = (
+            ",".join(payload.mentioned_locations)
+            if payload.mentioned_locations
+            else None
+        )
+        review.missing_locations = (
+            ",".join(payload.missing_locations)
+            if getattr(payload, "missing_locations", None)
+            else None
+        )
+        review.incorrect_locations = (
+            ",".join(payload.incorrect_locations)
+            if getattr(payload, "incorrect_locations", None)
+            else None
+        )
+        review.inferred_tags = (
+            ",".join(payload.inferred_tags)
+            if getattr(payload, "inferred_tags", None)
+            else None
+        )
+        review.missing_tags = (
+            ",".join(payload.missing_tags)
+            if getattr(payload, "missing_tags", None)
+            else None
+        )
+        review.incorrect_tags = (
+            ",".join(payload.incorrect_tags)
+            if getattr(payload, "incorrect_tags", None)
+            else None
+        )
+        review.body_errors = (
+            ",".join(payload.body_errors) if payload.body_errors else None
+        )
+        review.headline_errors = (
+            ",".join(payload.headline_errors) if payload.headline_errors else None
+        )
+        review.author_errors = (
+            ",".join(payload.author_errors) if payload.author_errors else None
+        )
+        review.reviewed_at = datetime.datetime.utcnow()
+
+        session.commit()
+        return {"status": "ok", "id": rid}
+
+
+@app.get("/api/reviews")
+def get_reviews(article_idx: int | None = None, article_uid: str | None = None):
+    with db_manager.get_session() as session:
+        query = session.query(Review)
+
+        if article_uid:
+            query = query.filter(Review.article_uid == article_uid)
+        elif article_idx is not None:
+            query = query.filter(Review.article_idx == article_idx)
+        else:
+            query = query.limit(200)
+
+        query = query.order_by(Review.id.desc())
+        reviews = query.all()
+
+        if not reviews:
+            return []
+
+        def _split_csv_field(s):
+            if s is None:
+                return []
+            if not isinstance(s, str):
+                return s
+            s = s.strip()
+            if s == "":
+                return []
+            if s.upper() == "NONE" or s == "None":
+                return []
+            return [p for p in s.split(",") if p]
+
+        results = []
+        for review in reviews:
+            d = review.to_dict()
+            # normalize CSV-stored fields to arrays to match POST/PUT responses
+            d["tags"] = _split_csv_field(d.get("tags"))
+            d["body_errors"] = _split_csv_field(d.get("body_errors"))
+            d["headline_errors"] = _split_csv_field(d.get("headline_errors"))
+            d["author_errors"] = _split_csv_field(d.get("author_errors"))
+            d["mentioned_locations"] = _split_csv_field(d.get("mentioned_locations"))
+            d["inferred_tags"] = _split_csv_field(d.get("inferred_tags"))
+            d["missing_locations"] = _split_csv_field(d.get("missing_locations"))
+            d["incorrect_locations"] = _split_csv_field(d.get("incorrect_locations"))
+            d["missing_tags"] = _split_csv_field(d.get("missing_tags"))
+            d["incorrect_tags"] = _split_csv_field(d.get("incorrect_tags"))
+
+            # Build canonical payload for each row similar to POST response
+            try:
+                body = d.get("body_errors") or []
+                headline = d.get("headline_errors") or []
+                author = d.get("author_errors") or []
+                tags = []
+                try:
+                    tags = list(
+                        {
+                            str(t)
+                            for t in (
+                                [*(body or []), *(headline or []), *(author or [])]
+                                if True
+                                else []
+                            )
+                            if t and str(t).upper() not in ("NONE", "None")
+                        }
+                    )
+                    tags.sort()
+                except Exception:
+                    tags = []
+                canonical = {
+                    "article_uid": d.get("article_uid"),
+                    "reviewer": d.get("reviewer"),
+                    "primary_rating": (
+                        d.get("rating") if d.get("rating") is not None else 3
+                    ),
+                    "secondary_rating": (
+                        d.get("secondary_rating")
+                        if d.get("secondary_rating") is not None
+                        else 3
+                    ),
+                    "body": (
+                        list(body) if isinstance(body, (list, tuple)) else body or []
+                    ),
+                    "headline": (
+                        list(headline)
+                        if isinstance(headline, (list, tuple))
+                        else headline or []
+                    ),
+                    "author": (
+                        list(author)
+                        if isinstance(author, (list, tuple))
+                        else author or []
+                    ),
+                    "tags": tags,
+                    "notes": d.get("notes") or "",
+                    "mentioned_locations": d.get("mentioned_locations") or [],
+                    "missing_locations": d.get("missing_locations") or [],
+                    "inferred_tags": d.get("inferred_tags") or [],
+                    "missing_tags": d.get("missing_tags") or [],
+                }
+                # Attach canonical object and a stable canonical_hash string
+                d["canonical"] = canonical
+                try:
+                    d["canonical_hash"] = json.dumps(
+                        canonical, sort_keys=True, separators=(",", ":")
+                    )
+                except Exception:
+                    d["canonical_hash"] = None
+            except Exception:
+                d["canonical"] = None
+                d["canonical_hash"] = None
+            results.append(d)
+
+        return results
 
 
 @app.exception_handler(Exception)
@@ -1316,7 +1334,6 @@ def post_snapshot(payload: SnapshotIn):
     Enqueue the snapshot for background DB write and return 202 with snapshot id/path.
     """
     # Save HTML to disk immediately (fast filesystem op) and enqueue DB write
-    init_snapshot_tables()
     sid = str(uuid.uuid4())
     host_dir = BASE_DIR / "lookups" / "snapshots" / payload.host
     host_dir.mkdir(parents=True, exist_ok=True)
@@ -1352,33 +1369,25 @@ def post_snapshot(payload: SnapshotIn):
     # best-effort synchronous write so the snapshot is immediately queryable.
     try:
         if _worker_thread is None or not _worker_thread.is_alive():
-            conn = sqlite3.connect(DB_PATH)
-            cur = conn.cursor()
-            cur.execute(
-                (
-                    "INSERT OR REPLACE INTO snapshots (id, host, url, path, pipeline_run_id, "
-                    "failure_reason, parsed_fields, model_confidence, status, created_at) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-                ),
-                (
-                    sid,
-                    payload.host,
-                    payload.url,
-                    path,
-                    payload.pipeline_run_id,
-                    payload.failure_reason,
-                    (
+            with db_manager.get_session() as session:
+                snapshot = Snapshot(
+                    id=sid,
+                    host=payload.host,
+                    url=payload.url,
+                    path=path,
+                    pipeline_run_id=payload.pipeline_run_id,
+                    failure_reason=payload.failure_reason,
+                    parsed_fields=(
                         json.dumps(payload.parsed_fields)
                         if payload.parsed_fields is not None
                         else None
                     ),
-                    payload.model_confidence,
-                    "pending",
-                    now,
-                ),
-            )
-            conn.commit()
-            conn.close()
+                    model_confidence=payload.model_confidence,
+                    status="pending",
+                    created_at=datetime.datetime.fromisoformat(now),
+                )
+                session.add(snapshot)
+                session.commit()
     except Exception:
         # best-effort: if sync write fails, rely on background worker
         pass
@@ -1390,205 +1399,141 @@ def post_snapshot(payload: SnapshotIn):
 
 @app.get("/api/snapshots/{sid}")
 def get_snapshot(sid: str):
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute(
-        (
-            "SELECT id, host, url, path, pipeline_run_id, failure_reason, "
-            "parsed_fields, model_confidence, status, created_at "
-            "FROM snapshots WHERE id=?"
-        ),
-        (sid,),
-    )
-    row = cur.fetchone()
-    if not row:
-        raise HTTPException(status_code=404, detail="snapshot not found")
-    cols = [
-        "id",
-        "host",
-        "url",
-        "path",
-        "pipeline_run_id",
-        "failure_reason",
-        "parsed_fields",
-        "model_confidence",
-        "status",
-        "created_at",
-    ]
-    rec = dict(zip(cols, row, strict=False))
-    # load candidates
-    cur.execute(
-        (
-            "SELECT id, selector, field, score, words, snippet, accepted, "
-            "created_at, alts FROM candidates WHERE snapshot_id=?"
-        ),
-        (sid,),
-    )
-    cand_rows = cur.fetchall()
-    cand_cols = [
-        "id",
-        "selector",
-        "field",
-        "score",
-        "words",
-        "snippet",
-        "accepted",
-        "created_at",
-        "alts",
-    ]
-    rec["candidates"] = []
-    for r in cand_rows:
-        obj = dict(zip(cand_cols, r, strict=False))
-        # attempt to parse alts JSON
-        if obj.get("alts"):
+    with db_manager.get_session() as session:
+        snapshot = session.query(Snapshot).filter(Snapshot.id == sid).first()
+        if not snapshot:
+            raise HTTPException(status_code=404, detail="snapshot not found")
+
+        rec = snapshot.to_dict()
+
+        # load candidates
+        candidates = session.query(Candidate).filter(Candidate.snapshot_id == sid).all()
+        rec["candidates"] = []
+        for cand in candidates:
+            obj = cand.to_dict()
+            # attempt to parse alts JSON
+            if obj.get("alts"):
+                try:
+                    obj["alts"] = json.loads(obj["alts"])
+                except Exception:
+                    # leave raw string if parsing fails
+                    pass
+            rec["candidates"].append(obj)
+
+        # parse parsed_fields JSON
+        if rec.get("parsed_fields"):
             try:
-                obj["alts"] = json.loads(obj["alts"])
+                rec["parsed_fields"] = json.loads(rec["parsed_fields"])
             except Exception:
-                # leave raw string if parsing fails
-                pass
-        rec["candidates"].append(obj)
-    # parse parsed_fields JSON
-    if rec.get("parsed_fields"):
-        try:
-            rec["parsed_fields"] = json.loads(rec["parsed_fields"])
-        except Exception:
-            rec["parsed_fields"] = None
-    conn.close()
-    return rec
+                rec["parsed_fields"] = None
+
+        return rec
 
 
 @app.get("/api/snapshots/{sid}/html")
 def get_snapshot_html(sid: str):
     """Return the saved raw HTML for a snapshot if present."""
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("SELECT path FROM snapshots WHERE id=?", (sid,))
-    row = cur.fetchone()
-    conn.close()
-    if not row:
-        raise HTTPException(status_code=404, detail="snapshot not found")
-    path = row[0]
-    try:
-        content = Path(path).read_text(encoding="utf-8")
-        return HTMLResponse(content=content)
-    except Exception:
-        # failed to read the snapshot file from disk
-        raise HTTPException(status_code=500, detail="failed to read snapshot html")
+    with db_manager.get_session() as session:
+        snapshot = session.query(Snapshot).filter(Snapshot.id == sid).first()
+        if not snapshot:
+            raise HTTPException(status_code=404, detail="snapshot not found")
+        path = snapshot.path
+        try:
+            content = Path(path).read_text(encoding="utf-8")
+            return HTMLResponse(content=content)
+        except Exception:
+            # failed to read the snapshot file from disk
+            raise HTTPException(status_code=500, detail="failed to read snapshot html")
 
 
 @app.post("/api/snapshots/{sid}/candidates")
 def post_candidates(sid: str, payload: list[CandidateIn]):
-    init_snapshot_tables()
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    now = datetime.datetime.utcnow().isoformat()
-    inserted = []
-    for c in payload:
-        cid = str(uuid.uuid4())
-        # prepare alts as JSON if present
-        alts_json = None
-        try:
-            if getattr(c, "alts", None) is not None:
-                alts_json = json.dumps(c.alts)
-        except Exception:
+    with db_manager.get_session() as session:
+        now = datetime.datetime.utcnow()
+        inserted = []
+        for c in payload:
+            cid = str(uuid.uuid4())
+            # prepare alts as JSON if present
             alts_json = None
-        cur.execute(
-            (
-                "INSERT INTO candidates (id, snapshot_id, selector, field, "
-                "score, words, snippet, alts, accepted, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-            ),
-            (
-                cid,
-                sid,
-                c.selector,
-                getattr(c, "field", None),
-                c.score,
-                c.words,
-                getattr(c, "snippet", None),
-                alts_json,
-                0,
-                now,
-            ),
-        )
-        inserted.append(cid)
-    conn.commit()
-    conn.close()
-    return {"inserted": inserted}
+            try:
+                if getattr(c, "alts", None) is not None:
+                    alts_json = json.dumps(c.alts)
+            except Exception:
+                alts_json = None
+
+            candidate = Candidate(
+                id=cid,
+                snapshot_id=sid,
+                selector=c.selector,
+                field=getattr(c, "field", None),
+                score=c.score,
+                words=c.words,
+                snippet=getattr(c, "snippet", None),
+                alts=alts_json,
+                accepted=False,
+                created_at=now,
+            )
+            session.add(candidate)
+            inserted.append(cid)
+
+        session.commit()
+        return {"inserted": inserted}
 
 
 @app.get("/api/domain_issues")
 def get_domain_issues():
     """Aggregate issues by host for the domain reports UI."""
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    out = {}
-    # Find hosts that have non-accepted candidates (flagged issues)
-    # Exclude snapshots that have been reviewed (snapshots.reviewed_at IS NOT NULL)
-    cur.execute(
+    from sqlalchemy import func, distinct
 
-            "SELECT DISTINCT snapshots.host FROM candidates "
-            "JOIN snapshots ON candidates.snapshot_id=snapshots.id "
-            "WHERE candidates.accepted=0 AND (snapshots.reviewed_at IS NULL OR snapshots.reviewed_at='')"
+    with db_manager.get_session() as session:
+        out = {}
 
-    )
-    host_rows = cur.fetchall()
-    for (host,) in host_rows:
-        # aggregate candidate counts by field for this host (only non-accepted)
-        cur.execute(
-            (
-                "SELECT candidates.field, COUNT(*) "
-                "FROM candidates JOIN snapshots ON candidates.snapshot_id=snapshots.id "
-                "WHERE snapshots.host=? AND candidates.accepted=0 AND (snapshots.reviewed_at IS NULL OR snapshots.reviewed_at='') GROUP BY candidates.field"
-            ),
-            (host,),
+        # Find hosts that have non-accepted candidates (flagged issues)
+        # Exclude snapshots that have been reviewed
+        hosts = (
+            session.query(distinct(Snapshot.host))
+            .join(Candidate, Candidate.snapshot_id == Snapshot.id)
+            .filter(Candidate.accepted.is_(False), Snapshot.reviewed_at.is_(None))
+            .all()
         )
-        cand_rows = cur.fetchall()
-        issues = {(f if f is not None else "unknown"): c for f, c in cand_rows}
-        # count distinct snapshots (urls) for host that are not reviewed
-        cur.execute(
-            "SELECT COUNT(DISTINCT id) FROM snapshots WHERE host=? AND (reviewed_at IS NULL OR reviewed_at='')",
-            (host,),
-        )
-        total_urls = cur.fetchone()[0]
-        out[host] = {"issues": issues, "total_urls": total_urls}
-    conn.close()
-    return out
+
+        for (host,) in hosts:
+            # aggregate candidate counts by field for this host (only non-accepted)
+            field_counts = (
+                session.query(Candidate.field, func.count(Candidate.id))
+                .join(Snapshot, Candidate.snapshot_id == Snapshot.id)
+                .filter(
+                    Snapshot.host == host,
+                    Candidate.accepted.is_(False),
+                    Snapshot.reviewed_at.is_(None),
+                )
+                .group_by(Candidate.field)
+                .all()
+            )
+
+            issues = {(f if f is not None else "unknown"): c for f, c in field_counts}
+
+            # count distinct snapshots (urls) for host that are not reviewed
+            total_urls = (
+                session.query(func.count(distinct(Snapshot.id)))
+                .filter(Snapshot.host == host, Snapshot.reviewed_at.is_(None))
+                .scalar()
+            )
+
+            out[host] = {"issues": issues, "total_urls": total_urls}
+
+        return out
 
 
 @app.get("/api/domain_feedback")
 def list_domain_feedback():
     """Return all saved domain feedback rows as a mapping keyed by host."""
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    # make handler tolerant to schema changes: older schema had priority/needs_dev/assigned_to
-    cur.execute("PRAGMA table_info(domain_feedback)")
-    cols = [r[1] for r in cur.fetchall()]
-    out = {}
-    if "priority" in cols:
-        cur.execute(
-            "SELECT host, priority, needs_dev, assigned_to, notes, updated_at FROM domain_feedback"
-        )
-        rows = cur.fetchall()
-        for host, priority, needs_dev, assigned_to, notes, updated_at in rows:
-            out[host] = {
-                "priority": priority,
-                "needs_dev": bool(needs_dev),
-                "assigned_to": assigned_to,
-                "notes": notes,
-                "updated_at": updated_at,
-            }
-    else:
-        # new compact schema: host, notes, updated_at
-        cur.execute("SELECT host, notes, updated_at FROM domain_feedback")
-        rows = cur.fetchall()
-        for host, notes, updated_at in rows:
-            out[host] = {
-                "notes": notes,
-                "updated_at": updated_at,
-            }
-    conn.close()
-    return out
+    with db_manager.get_session() as session:
+        feedbacks = session.query(DomainFeedback).all()
+        out = {}
+        for fb in feedbacks:
+            out[fb.host] = fb.to_dict()
+        return out
 
 
 @app.get("/api/crawl_errors")
@@ -1596,32 +1541,42 @@ def list_crawl_errors():
     """Return snapshots that failed to fetch or parse, grouped by host and failure reason.
     Aggregates unique failure reasons per host with a sample URL and count.
     """
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    out = {}
-    # Select snapshots that have a non-empty failure_reason
-    cur.execute(
-        "SELECT host, failure_reason, url, created_at FROM snapshots WHERE failure_reason IS NOT NULL AND failure_reason!='' ORDER BY created_at DESC"
-    )
-    rows = cur.fetchall()
-    for host, reason, url, created_at in rows:
-        if host not in out:
-            out[host] = {"errors": {}, "total": 0}
-        # normalize reason string
-        r = reason.strip() if reason else "unknown"
-        grp = out[host]["errors"].get(
-            r, {"count": 0, "example_url": url, "last_seen": created_at}
+    with db_manager.get_session() as session:
+        snapshots = (
+            session.query(Snapshot)
+            .filter(Snapshot.failure_reason.isnot(None), Snapshot.failure_reason != "")
+            .order_by(Snapshot.created_at.desc())
+            .all()
         )
-        grp["count"] = grp.get("count", 0) + 1
-        # keep the earliest example (rows are ordered by created_at desc so preserve first seen)
-        if not grp.get("example_url"):
-            grp["example_url"] = url
-        # update last_seen to most recent
-        grp["last_seen"] = max(grp.get("last_seen") or "", created_at or "")
-        out[host]["errors"][r] = grp
-        out[host]["total"] += 1
-    conn.close()
-    return out
+
+        out = {}
+        for snap in snapshots:
+            host = snap.host
+            if host not in out:
+                out[host] = {"errors": {}, "total": 0}
+            # normalize reason string
+            r = snap.failure_reason.strip() if snap.failure_reason else "unknown"
+            grp = out[host]["errors"].get(
+                r,
+                {
+                    "count": 0,
+                    "example_url": snap.url,
+                    "last_seen": (
+                        snap.created_at.isoformat() if snap.created_at else None
+                    ),
+                },
+            )
+            grp["count"] = grp.get("count", 0) + 1
+            # keep the earliest example
+            if not grp.get("example_url"):
+                grp["example_url"] = snap.url
+            # update last_seen to most recent
+            current_time = snap.created_at.isoformat() if snap.created_at else ""
+            grp["last_seen"] = max(grp.get("last_seen") or "", current_time)
+            out[host]["errors"][r] = grp
+            out[host]["total"] += 1
+
+        return out
 
 
 @app.get("/api/telemetry/queue")
@@ -1644,131 +1599,34 @@ def telemetry_queue():
 
 @app.post("/api/domain_feedback/{host}")
 def post_domain_feedback(host: str, payload: dict):
-    """Upsert feedback for a host. Expects JSON with priority, needs_dev, assigned_to, notes."""
-    init_db()
-    now = datetime.datetime.utcnow().isoformat()
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    # Be tolerant to schema: if old columns exist, write them; otherwise write compact row
-    cur.execute("PRAGMA table_info(domain_feedback)")
-    cols = [r[1] for r in cur.fetchall()]
-    if "priority" in cols:
-        cur.execute(
-            "INSERT OR REPLACE INTO domain_feedback (host, priority, needs_dev, assigned_to, notes, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (
-                host,
-                payload.get("priority"),
-                1 if payload.get("needs_dev") else 0,
-                payload.get("assigned_to"),
-                payload.get("notes"),
-                now,
-            ),
+    """Upsert feedback for a host. Expects JSON with notes."""
+    with db_manager.get_session() as session:
+        feedback = (
+            session.query(DomainFeedback).filter(DomainFeedback.host == host).first()
         )
-    else:
-        cur.execute(
-            "INSERT OR REPLACE INTO domain_feedback (host, notes, updated_at) VALUES (?, ?, ?)",
-            (host, payload.get("notes"), now),
-        )
-    conn.commit()
-    conn.close()
-    return {"status": "ok", "host": host}
+        if feedback:
+            feedback.notes = payload.get("notes")
+            feedback.updated_at = datetime.datetime.utcnow()
+        else:
+            feedback = DomainFeedback(
+                host=host,
+                notes=payload.get("notes"),
+                updated_at=datetime.datetime.utcnow(),
+            )
+            session.add(feedback)
+        session.commit()
+        return {"status": "ok", "host": host}
 
 
 @app.post("/api/migrate_domain_feedback")
 def migrate_domain_feedback(dry_run: bool | None = True):
-    """Migrate existing domain_feedback columns (priority, needs_dev, assigned_to)
-    into an audit table and recreate the `domain_feedback` table with only
-    (host, notes, updated_at). This endpoint is idempotent and safe to run
-    multiple times. By default it performs a dry-run; pass `?dry_run=false`
-    to execute the migration.
-    Returns a summary of actions performed.
+    """Migration endpoint for SQLite schema changes.
+    Now a no-op since schema is managed by Alembic migrations.
     """
-    init_db()
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    # check if domain_feedback exists
-    cur.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='domain_feedback'"
-    )
-    if not cur.fetchone():
-        conn.close()
-        return {"status": "noop", "reason": "domain_feedback table not found"}
-    # inspect columns
-    cur.execute("PRAGMA table_info(domain_feedback)")
-    cols = [r[1] for r in cur.fetchall()]
-    # if old columns not present, nothing to do
-    old_cols = {"priority", "needs_dev", "assigned_to"}
-    if not (old_cols & set(cols)):
-        conn.close()
-        return {
-            "status": "noop",
-            "reason": "migration already applied or columns absent",
-        }
-
-    # count rows to be migrated
-    cur.execute("SELECT COUNT(*) FROM domain_feedback")
-    total_rows = cur.fetchone()[0]
-
-    if dry_run:
-        conn.close()
-        return {"status": "dry_run", "rows_found": total_rows, "columns": cols}
-
-    now = datetime.datetime.utcnow().isoformat()
-    # create audit table if missing
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS domain_feedback_audit (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-    # Ensure existing databases get the new column if missing (safe ALTER)
-    try:
-        cur.execute("PRAGMA table_info(snapshots)")
-        cols = [r[1] for r in cur.fetchall()]
-        if 'reviewed_at' not in cols:
-            cur.execute('ALTER TABLE snapshots ADD COLUMN reviewed_at TEXT')
-            conn.commit()
-    except Exception:
-        # If ALTER fails (old SQLite versions or locked db), ignore; presence check in queries will handle it
-        pass
-            host TEXT,
-            priority TEXT,
-            needs_dev INTEGER,
-            assigned_to TEXT,
-            notes TEXT,
-            migrated_at TEXT
-        )
-        """
-    )
-    # copy existing rows into audit
-    cur.execute(
-        "INSERT INTO domain_feedback_audit (host, priority, needs_dev, assigned_to, notes, migrated_at) SELECT host, priority, needs_dev, assigned_to, notes, ? FROM domain_feedback",
-        (now,),
-    )
-    # create new compact domain_feedback table
-    cur.execute(
-        """
-        CREATE TABLE domain_feedback_new (
-            host TEXT PRIMARY KEY,
-            notes TEXT,
-            updated_at TEXT
-        )
-        """
-    )
-    # copy host, notes, updated_at into new table
-    cur.execute(
-        "INSERT INTO domain_feedback_new (host, notes, updated_at) SELECT host, notes, updated_at FROM domain_feedback"
-    )
-    # drop old table and rename new table
-    cur.execute("DROP TABLE domain_feedback")
-    cur.execute("ALTER TABLE domain_feedback_new RENAME TO domain_feedback")
-    conn.commit()
-
-    # return summary counts
-    cur.execute("SELECT COUNT(*) FROM domain_feedback")
-    new_count = cur.fetchone()[0]
-    cur.execute("SELECT COUNT(*) FROM domain_feedback_audit")
-    audit_count = cur.fetchone()[0]
-    conn.close()
-    return {"status": "ok", "migrated_rows": new_count, "audit_rows": audit_count}
+    return {
+        "status": "noop",
+        "reason": "Schema managed by Alembic migrations. No migration needed.",
+    }
 
 
 @app.get("/api/snapshots_by_host/{host}")
@@ -1776,54 +1634,30 @@ def snapshots_by_host(host: str, include_reviewed: bool = False):
     """Return a short listing of snapshots for a host (id, url, status, parsed_fields, model_confidence).
     By default exclude snapshots that have been marked reviewed (reviewed_at is non-empty). Set include_reviewed=true to show all.
     """
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    if include_reviewed:
-        cur.execute(
-            (
-                "SELECT id, url, path, pipeline_run_id, failure_reason, parsed_fields, model_confidence, status, created_at "
-                "FROM snapshots WHERE host=? ORDER BY created_at DESC"
-            ),
-            (host,),
-        )
-    else:
-        cur.execute(
-            (
-                "SELECT id, url, path, pipeline_run_id, failure_reason, parsed_fields, model_confidence, status, created_at "
-                "FROM snapshots WHERE host=? AND (reviewed_at IS NULL OR reviewed_at='') ORDER BY created_at DESC"
-            ),
-            (host,),
-        )
-    rows = cur.fetchall()
-    cols = [
-        "id",
-        "url",
-        "path",
-        "pipeline_run_id",
-        "failure_reason",
-        "parsed_fields",
-        "model_confidence",
-        "status",
-        "created_at",
-    ]
-    out = []
-    for r in rows:
-        rec = dict(zip(cols, r, strict=False))
-        if rec.get("parsed_fields"):
-            try:
-                rec["parsed_fields"] = json.loads(rec["parsed_fields"])
-            except Exception:
-                rec["parsed_fields"] = None
-        out.append(rec)
-    conn.close()
-    return out
+    with db_manager.get_session() as session:
+        query = session.query(Snapshot).filter(Snapshot.host == host)
+        if not include_reviewed:
+            query = query.filter(Snapshot.reviewed_at.is_(None))
+        snapshots = query.order_by(Snapshot.created_at.desc()).all()
+
+        out = []
+        for snap in snapshots:
+            rec = snap.to_dict()
+            if rec.get("parsed_fields"):
+                try:
+                    rec["parsed_fields"] = json.loads(rec["parsed_fields"])
+                except Exception:
+                    rec["parsed_fields"] = None
+            out.append(rec)
+
+        return out
 
 
 @app.get("/api/ui_overview")
 def ui_overview():
     """Return simple aggregated counts for dashboard UI.
-    - total_articles: number of rows in processed CSV
-    - wire_count: rows where wire==1
+    - total_articles: number of articles in database
+    - wire_count: articles with wire service attribution
     - candidate_issues: count of non-accepted candidates
     - dedupe_near_misses: dedupe_audit rows with dedupe_flag=0 but similarity > 0.7
     """
@@ -1833,42 +1667,62 @@ def ui_overview():
         "candidate_issues": 0,
         "dedupe_near_misses": 0,
     }
-    # total and wire count from CSV
-    try:
-        if ARTICLES_CSV.exists():
-            df = pd.read_csv(ARTICLES_CSV)
-            res["total_articles"] = len(df)
-            if "wire" in df.columns:
-                # coerce wire truthy values (1, "1", or truthy booleans)
-                res["wire_count"] = int(
-                    ((df["wire"] == 1) | (df["wire"] == "1") | df["wire"]).sum()
-                )
-    except Exception:
-        pass
 
-    # candidate issues from DB (non-accepted)
     try:
-        conn = sqlite3.connect(DB_PATH)
-        cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM candidates WHERE accepted=0")
-        r = cur.fetchone()
-        if r:
-            res["candidate_issues"] = int(r[0])
-        # dedupe near-misses: dedupe_audit rows where dedupe_flag is 0 and similarity > 0.7
-        try:
-            cur.execute(
-                "SELECT COUNT(*) FROM dedupe_audit WHERE (dedupe_flag IS NULL OR dedupe_flag=0) AND similarity>?",
-                (0.7,),
+        with db_manager.get_session() as session:
+            # Get total article count from database
+            from src.models import Article
+
+            res["total_articles"] = session.query(Article).count()
+
+            # Count articles with wire service attribution
+            # Wire column is JSON - manually check each article since JSON comparison is complex
+            wire_count = 0
+            for article in (
+                session.query(Article).filter(Article.wire.isnot(None)).all()
+            ):
+                if article.wire and article.wire not in ("null", "[]", ""):
+                    # Parse JSON to check if array has elements
+                    try:
+                        import json
+
+                        wire_data = (
+                            json.loads(article.wire)
+                            if isinstance(article.wire, str)
+                            else article.wire
+                        )
+                        if wire_data and len(wire_data) > 0:
+                            wire_count += 1
+                    except (json.JSONDecodeError, TypeError):
+                        # If it's not valid JSON but has content, count it
+                        if len(article.wire) > 2:  # More than just "[]"
+                            wire_count += 1
+            res["wire_count"] = wire_count
+
+            # candidate issues from DB (non-accepted)
+            count = (
+                session.query(Candidate).filter(Candidate.accepted.is_(False)).count()
             )
-            rr = cur.fetchone()
-            if rr:
-                res["dedupe_near_misses"] = int(rr[0])
-        except Exception:
-            # if dedupe_audit missing or column types differ, ignore
-            pass
-        conn.close()
-    except Exception:
-        pass
+            res["candidate_issues"] = int(count)
+
+            # dedupe near-misses: dedupe_audit rows where dedupe_flag is 0 and similarity > 0.7
+            try:
+                near_miss_count = (
+                    session.query(DedupeAudit)
+                    .filter(
+                        (DedupeAudit.dedupe_flag.is_(None))
+                        | (DedupeAudit.dedupe_flag == 0),
+                        DedupeAudit.similarity > 0.7,
+                    )
+                    .count()
+                )
+                res["dedupe_near_misses"] = int(near_miss_count)
+            except Exception:
+                # if dedupe_audit missing or column types differ, ignore
+                pass
+    except Exception as e:
+        logger.error(f"Error in ui_overview: {e}")
+        # Return zeros on error to avoid breaking dashboard
 
     return res
 
@@ -1880,48 +1734,50 @@ def post_dedupe_records(payload: list[dict]):
     dedupe_flag (0/1), category (int), stage (str), details (dict or str).
     Returns inserted count and sample ids.
     """
-    init_snapshot_tables()
     if not isinstance(payload, list):
         records = [payload]
     else:
         records = payload
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    now = datetime.datetime.utcnow().isoformat()
-    inserted = 0
-    samples = []
-    for r in records:
-        try:
-            cur.execute(
-                "INSERT INTO dedupe_audit (article_uid, neighbor_uid, host, similarity, dedupe_flag, category, stage, details, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    r.get("article_uid"),
-                    r.get("neighbor_uid"),
-                    r.get("host"),
-                    r.get("similarity"),
-                    (
+
+    with db_manager.get_session() as session:
+        now = datetime.datetime.utcnow()
+        inserted = 0
+        samples = []
+        for r in records:
+            try:
+                audit = DedupeAudit(
+                    article_uid=r.get("article_uid"),
+                    neighbor_uid=r.get("neighbor_uid"),
+                    host=r.get("host"),
+                    similarity=r.get("similarity"),
+                    dedupe_flag=(
                         int(r.get("dedupe_flag"))
                         if r.get("dedupe_flag") is not None
                         else None
                     ),
-                    int(r.get("category")) if r.get("category") is not None else None,
-                    r.get("stage"),
-                    (
+                    category=(
+                        int(r.get("category"))
+                        if r.get("category") is not None
+                        else None
+                    ),
+                    stage=r.get("stage"),
+                    details=(
                         json.dumps(r.get("details"))
                         if r.get("details") is not None
                         else None
                     ),
-                    now,
-                ),
-            )
-            inserted += 1
-            samples.append(cur.lastrowid)
-        except Exception:
-            # skip problematic rows but continue
-            continue
-    conn.commit()
-    conn.close()
-    return {"inserted": inserted, "sample_ids": samples}
+                    created_at=now,
+                )
+                session.add(audit)
+                session.flush()  # Get the ID
+                inserted += 1
+                samples.append(audit.id)
+            except Exception:
+                # skip problematic rows but continue
+                continue
+
+        session.commit()
+        return {"inserted": inserted, "sample_ids": samples}
 
 
 @app.get("/api/dedupe_records")
@@ -1932,49 +1788,31 @@ def get_dedupe_records(
     offset: int = 0,
 ):
     """Query dedupe audit rows filtered by article_uid or host. Returns rows ordered by created_at desc."""
-    if not DB_PATH.exists():
-        return {"count": 0, "results": []}
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    base_sql = "SELECT id, article_uid, neighbor_uid, host, similarity, dedupe_flag, category, stage, details, created_at FROM dedupe_audit"
-    params = []
-    where = []
-    if article_uid:
-        where.append("article_uid=?")
-        params.append(article_uid)
-    if host:
-        where.append("host=?")
-        params.append(host)
-    if where:
-        base_sql = base_sql + " WHERE " + " AND ".join(where)
-    base_sql = base_sql + " ORDER BY created_at DESC LIMIT ? OFFSET ?"
-    params.extend([limit, offset])
-    cur.execute(base_sql, tuple(params))
-    rows = cur.fetchall()
-    conn.close()
-    cols = [
-        "id",
-        "article_uid",
-        "neighbor_uid",
-        "host",
-        "similarity",
-        "dedupe_flag",
-        "category",
-        "stage",
-        "details",
-        "created_at",
-    ]
-    out = []
-    for r in rows:
-        d = dict(zip(cols, r, strict=False))
-        # attempt to parse details JSON
-        if d.get("details"):
-            try:
-                d["details"] = json.loads(d["details"])
-            except Exception:
-                pass
-        out.append(d)
-    return {"count": len(out), "results": out}
+    with db_manager.get_session() as session:
+        query = session.query(DedupeAudit)
+
+        if article_uid:
+            query = query.filter(DedupeAudit.article_uid == article_uid)
+        if host:
+            query = query.filter(DedupeAudit.host == host)
+
+        query = (
+            query.order_by(DedupeAudit.created_at.desc()).limit(limit).offset(offset)
+        )
+        records = query.all()
+
+        out = []
+        for record in records:
+            d = record.to_dict()
+            # attempt to parse details JSON
+            if d.get("details"):
+                try:
+                    d["details"] = json.loads(d["details"])
+                except Exception:
+                    pass
+            out.append(d)
+
+        return {"count": len(out), "results": out}
 
 
 @app.post("/api/import_dupes_csv")
@@ -2019,30 +1857,26 @@ def import_dupes_csv(payload: dict, dry_run: bool | None = True):
                 )
             # if not dry_run, insert into dedupe_audit table
             if not dry_run:
-                conn = sqlite3.connect(DB_PATH)
-                cur = conn.cursor()
-                now = datetime.datetime.utcnow().isoformat()
                 try:
-                    cur.execute(
-                        "INSERT INTO dedupe_audit (article_uid, neighbor_uid, host, similarity, dedupe_flag, category, stage, details, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        (
-                            row.get("id"),
-                            None,
-                            row.get("hostname"),
-                            None,
-                            dup_flag,
-                            None,
-                            "imported_csv",
-                            json.dumps(
+                    with db_manager.get_session() as session:
+                        now = datetime.datetime.utcnow()
+                        audit = DedupeAudit(
+                            article_uid=row.get("id"),
+                            neighbor_uid=None,
+                            host=row.get("hostname"),
+                            similarity=None,
+                            dedupe_flag=dup_flag,
+                            category=None,
+                            stage="imported_csv",
+                            details=json.dumps(
                                 {"url": row.get("url"), "title": row.get("title")}
                             ),
-                            now,
-                        ),
-                    )
+                            created_at=now,
+                        )
+                        session.add(audit)
+                        session.commit()
                 except Exception:
                     pass
-                conn.commit()
-                conn.close()
     summary = {"rows_seen": total, "dup_counts": dup_counts, "samples": sample_rows}
     if dry_run:
         return {"status": "dry_run", **summary}
@@ -2054,15 +1888,17 @@ def accept_candidate(cid: str, payload: dict | None = None):
     """Mark a candidate as accepted (accepted=1) or rejected (accepted=0).
     Payload optional: {"accepted": true|false}
     """
-    val = 1
+    val = True
     if payload is not None:
-        val = 1 if payload.get("accepted", True) else 0
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("UPDATE candidates SET accepted=? WHERE id=?", (val, cid))
-    conn.commit()
-    conn.close()
-    return {"status": "ok", "id": cid, "accepted": bool(val)}
+        val = payload.get("accepted", True)
+
+    with db_manager.get_session() as session:
+        candidate = session.query(Candidate).filter(Candidate.id == cid).first()
+        if not candidate:
+            raise HTTPException(status_code=404, detail="candidate not found")
+        candidate.accepted = val
+        session.commit()
+        return {"status": "ok", "id": cid, "accepted": bool(val)}
 
 
 @app.post("/api/reextract_jobs")
@@ -2073,44 +1909,43 @@ def create_reextract_job(payload: dict):
     host = payload.get("host")
     if not host:
         raise HTTPException(status_code=400, detail="host required")
-    import time
-    import uuid
 
     job_id = str(uuid.uuid4())
-    now = time.strftime("%Y-%m-%dT%H:%M:%S")
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute(
-        "INSERT INTO reextract_jobs (id, host, status, created_at, updated_at) VALUES (?,?,?,?,?)",
-        (job_id, host, "pending", now, now),
-    )
-    conn.commit()
-    conn.close()
-    return {"status": "ok", "job_id": job_id}
+    now = datetime.datetime.utcnow()
+
+    with db_manager.get_session() as session:
+        job = ReextractionJob(
+            id=job_id, host=host, status="pending", created_at=now, updated_at=now
+        )
+        session.add(job)
+        session.commit()
+        return {"status": "ok", "job_id": job_id}
 
 
 @app.get("/api/reextract_jobs/{job_id}")
 def get_reextract_job(job_id: str):
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT id, host, status, result_json, created_at, updated_at FROM reextract_jobs WHERE id=?",
-        (job_id,),
-    )
-    row = cur.fetchone()
-    conn.close()
-    if not row:
-        raise HTTPException(status_code=404, detail="job not found")
-    import json
+    with db_manager.get_session() as session:
+        job = (
+            session.query(ReextractionJob).filter(ReextractionJob.id == job_id).first()
+        )
+        if not job:
+            raise HTTPException(status_code=404, detail="job not found")
 
-    return {
-        "id": row[0],
-        "host": row[1],
-        "status": row[2],
-        "result": json.loads(row[3]) if row[3] else None,
-        "created_at": row[4],
-        "updated_at": row[5],
-    }
+        result_data = None
+        if job.result_json:
+            try:
+                result_data = json.loads(job.result_json)
+            except Exception:
+                result_data = job.result_json
+
+        return {
+            "id": job.id,
+            "host": job.host,
+            "status": job.status,
+            "result": result_data,
+            "created_at": job.created_at.isoformat() if job.created_at else None,
+            "updated_at": job.updated_at.isoformat() if job.updated_at else None,
+        }
 
 
 @app.post("/api/site_rules/commit")
@@ -2232,6 +2067,7 @@ def commit_site_rule(payload: dict):
 
 # Gazetteer Telemetry API Endpoints
 
+
 @app.get("/api/gazetteer/stats")
 def get_gazetteer_telemetry_stats():
     """Get overall gazetteer telemetry statistics."""
@@ -2268,10 +2104,7 @@ def update_gazetteer_address(request: AddressEditRequest):
     try:
         success = update_publisher_address(request.source_id, request)
         if success:
-            return {
-                "status": "success",
-                "message": "Address updated successfully"
-            }
+            return {"status": "success", "message": "Address updated successfully"}
         else:
             raise HTTPException(status_code=404, detail="Publisher not found")
     except Exception as e:
@@ -2293,63 +2126,49 @@ def reprocess_gazetteer_sources(request: ReprocessRequest):
 # Telemetry API endpoints for React dashboard
 @app.get("/api/telemetry/http-errors")
 def get_http_errors(
-    days: int = 7,
-    host: str | None = None,
-    status_code: int | None = None
+    days: int = 7, host: str | None = None, status_code: int | None = None
 ):
     """Get HTTP error statistics for dashboard monitoring."""
     try:
-        ComprehensiveExtractionTelemetry(str(MAIN_DB_PATH))
-
-        # Build WHERE conditions based on parameters
-        conditions = []
-        params = []
-
-        if days:
-            conditions.append(
-                f"last_seen >= datetime('now', '-{days} days')"
+        with db_manager.get_session() as session:
+            # Build query with filters
+            query = session.query(
+                HttpErrorSummary.host,
+                HttpErrorSummary.status_code,
+                func.sum(HttpErrorSummary.count).label("error_count"),
+                func.max(HttpErrorSummary.last_seen).label("last_seen"),
             )
 
-        if host:
-            conditions.append("host = ?")
-            params.append(host)
+            # Apply filters
+            if days:
+                cutoff_date = datetime.datetime.utcnow() - datetime.timedelta(days=days)
+                query = query.filter(HttpErrorSummary.last_seen >= cutoff_date)
 
-        if status_code:
-            conditions.append("status_code = ?")
-            params.append(status_code)
+            if host:
+                query = query.filter(HttpErrorSummary.host == host)
 
-        where_clause = " AND ".join(conditions) if conditions else "1=1"
+            if status_code:
+                query = query.filter(HttpErrorSummary.status_code == status_code)
 
-        conn = sqlite3.connect(str(MAIN_DB_PATH))
-        cur = conn.cursor()
+            # Group and order
+            query = query.group_by(
+                HttpErrorSummary.host, HttpErrorSummary.status_code
+            ).order_by(desc("error_count"))
 
-        # Get error counts by status code and host
-        query = f"""
-        SELECT
-            host,
-            status_code,
-            SUM(count) as error_count,
-            MAX(last_seen) as last_seen
-        FROM http_error_summary
-        WHERE {where_clause}
-        GROUP BY host, status_code
-        ORDER BY error_count DESC
-        """
+            results = []
+            for row in query.all():
+                results.append(
+                    {
+                        "host": row.host,
+                        "status_code": row.status_code,
+                        "error_count": row.error_count,
+                        "last_seen": (
+                            row.last_seen.isoformat() if row.last_seen else None
+                        ),
+                    }
+                )
 
-        cur.execute(query, params)
-        rows = cur.fetchall()
-
-        results = []
-        for row in rows:
-            results.append({
-                "host": row[0],
-                "status_code": row[1],
-                "error_count": row[2],
-                "last_seen": row[3]
-            })
-
-        conn.close()
-        return {"http_errors": results}
+            return {"http_errors": results}
 
     except Exception as e:
         raise HTTPException(
@@ -2360,73 +2179,73 @@ def get_http_errors(
 
 @app.get("/api/telemetry/method-performance")
 def get_method_performance(
-    days: int = 7,
-    method: str | None = None,
-    host: str | None = None
+    days: int = 7, method: str | None = None, host: str | None = None
 ):
     """Get extraction method performance statistics."""
     try:
-        ComprehensiveExtractionTelemetry(str(MAIN_DB_PATH))
-
-        # Build WHERE conditions
-        conditions = []
-        params = []
-
-        if days:
-            conditions.append(
-                f"created_at >= datetime('now', '-{days} days')"
+        with db_manager.get_session() as session:
+            # Build query with COALESCE for successful_method
+            method_col = func.coalesce(
+                ExtractionTelemetryV2.successful_method, "failed"
             )
 
-        if method:
-            conditions.append("method = ?")
-            params.append(method)
+            query = session.query(
+                method_col.label("method"),
+                ExtractionTelemetryV2.host,
+                func.count().label("total_attempts"),
+                func.sum(
+                    case((ExtractionTelemetryV2.is_success, literal(1)), else_=literal(0))
+                ).label("successful_attempts"),
+                func.avg(ExtractionTelemetryV2.total_duration_ms).label("avg_duration"),
+                func.min(ExtractionTelemetryV2.total_duration_ms).label("min_duration"),
+                func.max(ExtractionTelemetryV2.total_duration_ms).label("max_duration"),
+            )
 
-        if host:
-            conditions.append("host = ?")
-            params.append(host)
+            # Apply filters
+            if days:
+                cutoff_date = datetime.datetime.utcnow() - datetime.timedelta(days=days)
+                query = query.filter(ExtractionTelemetryV2.created_at >= cutoff_date)
 
-        where_clause = " AND ".join(conditions) if conditions else "1=1"
+            if method:
+                query = query.filter(method_col == method)
 
-        conn = sqlite3.connect(str(MAIN_DB_PATH))
-        cur = conn.cursor()
+            if host:
+                query = query.filter(ExtractionTelemetryV2.host == host)
 
-        # Get method performance stats
-        query = f"""
-        SELECT
-            COALESCE(successful_method, 'failed') as method,
-            host,
-            COUNT(*) as total_attempts,
-            SUM(
-                CASE WHEN is_success = 1 THEN 1 ELSE 0 END
-            ) as successful_attempts,
-            AVG(total_duration_ms) as avg_duration,
-            MIN(total_duration_ms) as min_duration,
-            MAX(total_duration_ms) as max_duration
-        FROM extraction_telemetry_v2
-        WHERE {where_clause}
-        GROUP BY COALESCE(successful_method, 'failed'), host
-        ORDER BY total_attempts DESC
-        """
+            # Group and order
+            query = query.group_by(method_col, ExtractionTelemetryV2.host)
+            query = query.order_by(desc("total_attempts"))
 
-        cur.execute(query, params)
-        rows = cur.fetchall()
+            results = []
+            for row in query.all():
+                total_attempts = row.total_attempts or 0
+                successful_attempts = row.successful_attempts or 0
+                success_rate = (
+                    (successful_attempts / total_attempts * 100)
+                    if total_attempts > 0
+                    else 0
+                )
 
-        results = []
-        for row in rows:
-            success_rate = (row[3] / row[2] * 100) if row[2] > 0 else 0
-            results.append({
-                "method": row[0],
-                "host": row[1],
-                "total_attempts": row[2],
-                "successful_attempts": row[3],
-                "success_rate": round(success_rate, 2),
-                "avg_duration": round(row[4], 2) if row[4] else 0,
-                "min_duration": round(row[5], 2) if row[5] else 0,
-                "max_duration": round(row[6], 2) if row[6] else 0
-            })
+                results.append(
+                    {
+                        "method": row.method,
+                        "host": row.host,
+                        "total_attempts": total_attempts,
+                        "successful_attempts": successful_attempts,
+                        "success_rate": round(success_rate, 2),
+                        "avg_duration": (
+                            round(row.avg_duration, 2) if row.avg_duration else 0
+                        ),
+                        "min_duration": (
+                            round(row.min_duration, 2) if row.min_duration else 0
+                        ),
+                        "max_duration": (
+                            round(row.max_duration, 2) if row.max_duration else 0
+                        ),
+                    }
+                )
 
-        conn.close()
-        return {"method_performance": results}
+            return {"method_performance": results}
 
     except Exception as e:
         raise HTTPException(
@@ -2436,78 +2255,69 @@ def get_method_performance(
 
 
 @app.get("/api/telemetry/publisher-stats")
-def get_publisher_stats(
-    days: int = 7,
-    host: str | None = None,
-    min_attempts: int = 5
-):
+def get_publisher_stats(days: int = 7, host: str | None = None, min_attempts: int = 5):
     """Get publisher performance statistics."""
     try:
-        conn = sqlite3.connect(str(MAIN_DB_PATH))
-        cur = conn.cursor()
-
-        # Build WHERE conditions
-        conditions = []
-        params = []
-
-        if days:
-            conditions.append(
-                f"created_at >= datetime('now', '-{days} days')"
+        with db_manager.get_session() as session:
+            method_col = func.coalesce(
+                ExtractionTelemetryV2.successful_method, "failed"
             )
 
-        if host:
-            conditions.append("host = ?")
-            params.append(host)
+            query = session.query(
+                ExtractionTelemetryV2.host,
+                func.count().label("total_extractions"),
+                func.sum(
+                    case((ExtractionTelemetryV2.is_success, literal(1)), else_=literal(0))
+                ).label("successful_extractions"),
+                func.avg(ExtractionTelemetryV2.total_duration_ms).label("avg_duration"),
+                func.count(func.distinct(method_col)).label("methods_used"),
+                func.max(ExtractionTelemetryV2.created_at).label("last_attempt"),
+            )
 
-        where_clause = " AND ".join(conditions) if conditions else "1=1"
+            # Apply filters
+            if days:
+                cutoff_date = datetime.datetime.utcnow() - datetime.timedelta(days=days)
+                query = query.filter(ExtractionTelemetryV2.created_at >= cutoff_date)
 
-        # Get comprehensive publisher stats
-        query = f"""
-        SELECT
-            host,
-            COUNT(*) as total_extractions,
-            SUM(
-                CASE WHEN is_success = 1 THEN 1 ELSE 0 END
-            ) as successful_extractions,
-            AVG(total_duration_ms) as avg_duration,
-            COUNT(
-                DISTINCT COALESCE(successful_method, 'failed')
-            ) as methods_used,
-            MAX(created_at) as last_attempt
-        FROM extraction_telemetry_v2
-        WHERE {where_clause}
-        GROUP BY host
-        HAVING COUNT(*) >= ?
-        ORDER BY total_extractions DESC
-        """
+            if host:
+                query = query.filter(ExtractionTelemetryV2.host == host)
 
-        params.append(min_attempts)
-        cur.execute(query, params)
-        rows = cur.fetchall()
+            # Group by host and apply HAVING clause
+            query = query.group_by(ExtractionTelemetryV2.host)
+            query = query.having(func.count() >= min_attempts)
+            query = query.order_by(desc("total_extractions"))
 
-        results = []
-        for row in rows:
-            success_rate = (row[2] / row[1] * 100) if row[1] > 0 else 0
-            if success_rate < 50:
-                status = "poor"
-            elif success_rate > 80:
-                status = "good"
-            else:
-                status = "fair"
+            results = []
+            for row in query.all():
+                total = row.total_extractions or 0
+                successful = row.successful_extractions or 0
+                success_rate = (successful / total * 100) if total > 0 else 0
 
-            results.append({
-                "host": row[0],
-                "total_extractions": row[1],
-                "successful_extractions": row[2],
-                "success_rate": round(success_rate, 2),
-                "avg_duration": round(row[3], 2) if row[3] else 0,
-                "methods_used": row[4],
-                "last_attempt": row[5],
-                "status": status,
-            })
+                if success_rate < 50:
+                    status = "poor"
+                elif success_rate > 80:
+                    status = "good"
+                else:
+                    status = "fair"
 
-        conn.close()
-        return {"publisher_stats": results}
+                results.append(
+                    {
+                        "host": row.host,
+                        "total_extractions": total,
+                        "successful_extractions": successful,
+                        "success_rate": round(success_rate, 2),
+                        "avg_duration": (
+                            round(row.avg_duration, 2) if row.avg_duration else 0
+                        ),
+                        "methods_used": row.methods_used,
+                        "last_attempt": (
+                            row.last_attempt.isoformat() if row.last_attempt else None
+                        ),
+                        "status": status,
+                    }
+                )
+
+            return {"publisher_stats": results}
 
     except Exception as e:
         raise HTTPException(
@@ -2521,29 +2331,98 @@ def get_field_extraction_stats(
     days: int = 7,
     field: str | None = None,
     method: str | None = None,
-    host: str | None = None
+    host: str | None = None,
 ):
     """Get field-level extraction statistics."""
     try:
-        telemetry = ComprehensiveExtractionTelemetry(str(MAIN_DB_PATH))
-        stats = telemetry.get_field_extraction_stats(
-            publisher=host,
-            method=method,
-        )
+        with db_manager.get_session() as session:
+            # Build query
+            query = session.query(
+                ExtractionTelemetryV2.field_extraction,
+                ExtractionTelemetryV2.methods_attempted,
+                ExtractionTelemetryV2.successful_method,
+            )
 
-        if field:
-            filtered = []
-            for entry in stats:
-                counts = {
-                    "title": entry.get("title_success", 0),
-                    "author": entry.get("author_success", 0),
-                    "content": entry.get("content_success", 0),
-                    "publish_date": entry.get("date_success", 0),
+            # Apply filters
+            if days:
+                cutoff_date = datetime.datetime.utcnow() - datetime.timedelta(days=days)
+                query = query.filter(ExtractionTelemetryV2.created_at >= cutoff_date)
+
+            if host:
+                query = query.filter(ExtractionTelemetryV2.publisher == host)
+
+            # Process results to calculate field extraction stats
+            method_field_stats = {}
+
+            for row in query.all():
+                field_extraction_json = row.field_extraction
+                methods_json = row.methods_attempted
+
+                try:
+                    methods = json.loads(methods_json) if methods_json else []
+                    field_data = (
+                        json.loads(field_extraction_json)
+                        if field_extraction_json
+                        else {}
+                    )
+                except (json.JSONDecodeError, TypeError):
+                    continue
+
+                for method_name in methods:
+                    if method and method_name != method:
+                        continue
+
+                    stats = method_field_stats.setdefault(
+                        method_name,
+                        {
+                            "count": 0,
+                            "title_success": 0,
+                            "author_success": 0,
+                            "content_success": 0,
+                            "date_success": 0,
+                        },
+                    )
+
+                    stats["count"] += 1
+                    method_fields = field_data.get(method_name, {})
+                    if method_fields.get("title"):
+                        stats["title_success"] += 1
+                    if method_fields.get("author"):
+                        stats["author_success"] += 1
+                    if method_fields.get("content"):
+                        stats["content_success"] += 1
+                    if method_fields.get("publish_date"):
+                        stats["date_success"] += 1
+
+            # Format results
+            results = []
+            for method_name, stats in method_field_stats.items():
+                count = stats["count"]
+                denominator = count if count else 1
+                entry = {
+                    "method": method_name,
+                    "count": count,
+                    "title_success_rate": stats["title_success"] / denominator,
+                    "author_success_rate": stats["author_success"] / denominator,
+                    "content_success_rate": stats["content_success"] / denominator,
+                    "date_success_rate": stats["date_success"] / denominator,
                 }
-                if counts.get(field):
-                    filtered.append(entry)
-            stats = filtered
-        return {"field_extraction_stats": stats}
+
+                # Filter by field if specified
+                if field:
+                    field_counts = {
+                        "title": stats["title_success"],
+                        "author": stats["author_success"],
+                        "content": stats["content_success"],
+                        "publish_date": stats["date_success"],
+                    }
+                    if field_counts.get(field, 0) > 0:
+                        results.append(entry)
+                else:
+                    results.append(entry)
+
+            results.sort(key=lambda item: item["count"], reverse=True)
+            return {"field_extraction_stats": results}
 
     except Exception as e:
         raise HTTPException(
@@ -2554,137 +2433,185 @@ def get_field_extraction_stats(
 
 @app.get("/api/telemetry/poor-performers")
 def get_poor_performing_sites(
-    days: int = 7,
-    min_attempts: int = 10,
-    max_success_rate: float = 50.0
+    days: int = 7, min_attempts: int = 10, max_success_rate: float = 50.0
 ):
     """Get sites with poor performance that may need attention."""
     try:
-        conn = sqlite3.connect(str(MAIN_DB_PATH))
-        cur = conn.cursor()
+        with db_manager.get_session() as session:
+            method_col = func.coalesce(
+                ExtractionTelemetryV2.successful_method, "failed"
+            )
 
-        # Find sites with low success rates
-        query = f"""
-        SELECT
-            host,
-            COUNT(*) as total_attempts,
-            SUM(
-                CASE WHEN is_success = 1 THEN 1 ELSE 0 END
-            ) as successful_attempts,
-            (
-                SUM(CASE WHEN is_success = 1 THEN 1 ELSE 0 END) * 100.0
-                / COUNT(*)
-            ) as success_rate,
-            AVG(total_duration_ms) as avg_duration,
-            MAX(created_at) as last_attempt,
-            COUNT(
-                DISTINCT COALESCE(successful_method, 'failed')
-            ) as methods_tried
-        FROM extraction_telemetry_v2
-        WHERE created_at >= datetime('now', '-{days} days')
-        GROUP BY host
-        HAVING COUNT(*) >= ? AND success_rate <= ?
-        ORDER BY success_rate ASC, total_attempts DESC
-        """
+            # Calculate success rate in the query
+            success_rate_calc = (
+                func.sum(
+                    case((ExtractionTelemetryV2.is_success, literal(1)), else_=literal(0))
+                )
+                * 100.0
+                / func.count()
+            )
 
-        cur.execute(query, [min_attempts, max_success_rate])
-        rows = cur.fetchall()
+            query = session.query(
+                ExtractionTelemetryV2.host,
+                func.count().label("total_attempts"),
+                func.sum(
+                    case((ExtractionTelemetryV2.is_success, literal(1)), else_=literal(0))
+                ).label("successful_attempts"),
+                success_rate_calc.label("success_rate"),
+                func.avg(ExtractionTelemetryV2.total_duration_ms).label("avg_duration"),
+                func.max(ExtractionTelemetryV2.created_at).label("last_attempt"),
+                func.count(func.distinct(method_col)).label("methods_tried"),
+            )
 
-        results = []
-        for row in rows:
-            results.append({
-                "host": row[0],
-                "total_attempts": row[1],
-                "successful_attempts": row[2],
-                "success_rate": round(row[3], 2),
-                "avg_duration": round(row[4], 2) if row[4] else 0,
-                "last_attempt": row[5],
-                "methods_tried": row[6],
-                "recommendation": "pause" if row[3] < 25 else "monitor"
-            })
+            # Apply filters
+            cutoff_date = datetime.datetime.utcnow() - datetime.timedelta(days=days)
+            query = query.filter(ExtractionTelemetryV2.created_at >= cutoff_date)
 
-        conn.close()
-        return {"poor_performers": results}
+            # Group by host and apply HAVING clauses
+            query = query.group_by(ExtractionTelemetryV2.host)
+            query = query.having(
+                and_(
+                    func.count() >= min_attempts, success_rate_calc <= max_success_rate
+                )
+            )
+            query = query.order_by(success_rate_calc.asc(), desc("total_attempts"))
+
+            results = []
+            for row in query.all():
+                success_rate = row.success_rate or 0
+                results.append(
+                    {
+                        "host": row.host,
+                        "total_attempts": row.total_attempts,
+                        "successful_attempts": row.successful_attempts or 0,
+                        "success_rate": round(success_rate, 2),
+                        "avg_duration": (
+                            round(row.avg_duration, 2) if row.avg_duration else 0
+                        ),
+                        "last_attempt": (
+                            row.last_attempt.isoformat() if row.last_attempt else None
+                        ),
+                        "methods_tried": row.methods_tried,
+                        "recommendation": "pause" if success_rate < 25 else "monitor",
+                    }
+                )
+
+            return {"poor_performers": results}
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching poor performers: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching poor performers: {str(e)}"
+        )
 
 
 @app.get("/api/telemetry/summary")
 def get_telemetry_summary(days: int = 7):
     """Get overall telemetry summary for dashboard overview."""
     try:
-        conn = sqlite3.connect(str(MAIN_DB_PATH))
-        cur = conn.cursor()
+        # Ensure telemetry tables exist on the current engine. Tests sometimes
+        # swap out db_manager.engine at runtime; calling create_tables here
+        # guarantees the SQLAlchemy models are present on that engine so
+        # queries below won't silently return empty results due to missing
+        # tables.
+        try:
+            from src.models import create_tables
 
-        # Overall extraction stats
-        cur.execute(f"""
-        SELECT 
-            COUNT(*) as total_extractions,
-            SUM(CASE WHEN is_success = 1 THEN 1 ELSE 0 END) as successful_extractions,
-            COUNT(DISTINCT host) as unique_hosts,
-            COUNT(DISTINCT COALESCE(successful_method, 'failed')) as methods_used,
-            AVG(total_duration_ms) as avg_duration
-        FROM extraction_telemetry_v2 
-        WHERE created_at >= datetime('now', '-{days} days')
-        """)
+            create_tables(db_manager.engine)
+        except Exception:
+            # Non-fatal: if table creation fails we'll let the query raise
+            # and the HTTPException below will surface the error to tests.
+            pass
+        with db_manager.get_session() as session:
+            cutoff_date = datetime.datetime.utcnow() - datetime.timedelta(days=days)
 
-        overall = cur.fetchone()
-        success_rate = (overall[1] / overall[0] * 100) if overall[0] > 0 else 0
+            # Overall extraction stats
+            method_col = func.coalesce(
+                ExtractionTelemetryV2.successful_method, "failed"
+            )
 
-        # Method breakdown
-        cur.execute(f"""
-        SELECT 
-            COALESCE(successful_method, 'failed') as method,
-            COUNT(*) as count,
-            SUM(CASE WHEN is_success = 1 THEN 1 ELSE 0 END) as successful
-        FROM extraction_telemetry_v2 
-        WHERE created_at >= datetime('now', '-{days} days')
-        GROUP BY COALESCE(successful_method, 'failed')
-        ORDER BY count DESC
-        """)
+            overall_query = session.query(
+                func.count().label("total_extractions"),
+                func.sum(case((ExtractionTelemetryV2.is_success, literal(1)), else_=literal(0))).label(
+                    "successful_extractions"
+                ),
+                func.count(func.distinct(ExtractionTelemetryV2.host)).label(
+                    "unique_hosts"
+                ),
+                func.count(func.distinct(method_col)).label("methods_used"),
+                func.avg(ExtractionTelemetryV2.total_duration_ms).label("avg_duration"),
+            ).filter(ExtractionTelemetryV2.created_at >= cutoff_date)
 
-        method_stats = []
-        for row in cur.fetchall():
-            method_success_rate = (row[2] / row[1] * 100) if row[1] > 0 else 0
-            method_stats.append({
-                "method": row[0],
-                "attempts": row[1],
-                "successful": row[2],
-                "success_rate": round(method_success_rate, 2)
-            })
+            overall = overall_query.first()
+            total = overall.total_extractions or 0
+            successful = overall.successful_extractions or 0
+            success_rate = (successful / total * 100) if total > 0 else 0
 
-        # HTTP error counts
-        cur.execute(f"""
-        SELECT
-            status_code,
-            SUM(count) as count
-        FROM http_error_summary
-        WHERE last_seen >= datetime('now', '-{days} days')
-        GROUP BY status_code
-        ORDER BY count DESC
-        LIMIT 10
-        """)
+            # Method breakdown
+            method_query = (
+                session.query(
+                    method_col.label("method"),
+                    func.count().label("count"),
+                    func.sum(
+                        case((ExtractionTelemetryV2.is_success, literal(1)), else_=literal(0))
+                    ).label("successful"),
+                )
+                .filter(ExtractionTelemetryV2.created_at >= cutoff_date)
+                .group_by(method_col)
+                .order_by(desc("count"))
+            )
 
-        http_errors = [{"status_code": row[0], "count": row[1]} for row in cur.fetchall()]
+            method_stats = []
+            for row in method_query.all():
+                count = row.count or 0
+                successful_count = row.successful or 0
+                method_success_rate = (
+                    (successful_count / count * 100) if count > 0 else 0
+                )
+                method_stats.append(
+                    {
+                        "method": row.method,
+                        "attempts": count,
+                        "successful": successful_count,
+                        "success_rate": round(method_success_rate, 2),
+                    }
+                )
 
-        conn.close()
+            # HTTP error counts
+            error_query = (
+                session.query(
+                    HttpErrorSummary.status_code,
+                    func.sum(HttpErrorSummary.count).label("count"),
+                )
+                .filter(HttpErrorSummary.last_seen >= cutoff_date)
+                .group_by(HttpErrorSummary.status_code)
+                .order_by(desc("count"))
+                .limit(10)
+            )
 
-        return {
-            "summary": {
-                "total_extractions": overall[0],
-                "successful_extractions": overall[1],
-                "success_rate": round(success_rate, 2),
-                "unique_hosts": overall[2],
-                "methods_used": overall[3],
-                "avg_duration": round(overall[4], 2) if overall[4] else 0,
-                "method_breakdown": method_stats,
-                "top_http_errors": http_errors
+            http_errors = [
+                {"status_code": row.status_code, "count": row.count}
+                for row in error_query.all()
+            ]
+
+            return {
+                "summary": {
+                    "total_extractions": total,
+                    "successful_extractions": successful,
+                    "success_rate": round(success_rate, 2),
+                    "unique_hosts": overall.unique_hosts or 0,
+                    "methods_used": overall.methods_used or 0,
+                    "avg_duration": (
+                        round(overall.avg_duration, 2) if overall.avg_duration else 0
+                    ),
+                    "method_breakdown": method_stats,
+                    "top_http_errors": http_errors,
+                }
             }
-        }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching telemetry summary: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching telemetry summary: {str(e)}"
+        )
 
 
 # Site Management API endpoints
@@ -2697,50 +2624,38 @@ class SiteManagementRequest(BaseModel):
 def pause_site(request: SiteManagementRequest):
     """Pause a site from further crawling due to poor performance."""
     try:
-        conn = sqlite3.connect(str(MAIN_DB_PATH))
-        cur = conn.cursor()
+        with db_manager.get_session() as session:
+            # Try to find existing source
+            source = session.query(Source).filter_by(host=request.host).first()
 
-        # Add status column if it doesn't exist
-        try:
-            cur.execute("ALTER TABLE sources ADD COLUMN status VARCHAR DEFAULT 'active'")
-        except sqlite3.OperationalError:
-            # Column already exists
-            pass
+            now = datetime.datetime.utcnow()
+            reason = request.reason or "Poor performance detected"
 
-        # Add paused_at and paused_reason columns if they don't exist
-        try:
-            cur.execute("ALTER TABLE sources ADD COLUMN paused_at TIMESTAMP")
-            cur.execute("ALTER TABLE sources ADD COLUMN paused_reason TEXT")
-        except sqlite3.OperationalError:
-            # Columns already exist
-            pass
+            if source:
+                # Update existing source
+                source.status = "paused"
+                source.paused_at = now
+                source.paused_reason = reason
+            else:
+                # Create new source
+                source = Source(
+                    id=str(uuid.uuid4()),
+                    host=request.host,
+                    host_norm=request.host.lower(),
+                    status="paused",
+                    paused_at=now,
+                    paused_reason=reason,
+                )
+                session.add(source)
 
-        # Update the source status
-        cur.execute("""
-        UPDATE sources 
-        SET status = 'paused', 
-            paused_at = datetime('now'), 
-            paused_reason = ?
-        WHERE host = ?
-        """, [request.reason or "Poor performance detected", request.host])
+            session.commit()
 
-        if cur.rowcount == 0:
-            # Source doesn't exist, create it
-            cur.execute("""
-            INSERT INTO sources (id, host, host_norm, status, paused_at, paused_reason)
-            VALUES (?, ?, ?, 'paused', datetime('now'), ?)
-            """, [request.host, request.host, request.host.lower(),
-                  request.reason or "Poor performance detected"])
-
-        conn.commit()
-        conn.close()
-
-        return {
-            "status": "success",
-            "message": f"Site {request.host} has been paused",
-            "paused_at": "now",
-            "reason": request.reason or "Poor performance detected"
-        }
+            return {
+                "status": "success",
+                "message": f"Site {request.host} has been paused",
+                "paused_at": now.isoformat(),
+                "reason": reason,
+            }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error pausing site: {str(e)}")
@@ -2750,28 +2665,26 @@ def pause_site(request: SiteManagementRequest):
 def resume_site(request: SiteManagementRequest):
     """Resume a previously paused site."""
     try:
-        conn = sqlite3.connect(str(MAIN_DB_PATH))
-        cur = conn.cursor()
+        with db_manager.get_session() as session:
+            # Find the source
+            source = session.query(Source).filter_by(host=request.host).first()
 
-        # Update the source status
-        cur.execute("""
-        UPDATE sources 
-        SET status = 'active', 
-            paused_at = NULL, 
-            paused_reason = NULL
-        WHERE host = ?
-        """, [request.host])
+            if not source:
+                raise HTTPException(
+                    status_code=404, detail=f"Site {request.host} not found"
+                )
 
-        if cur.rowcount == 0:
-            raise HTTPException(status_code=404, detail=f"Site {request.host} not found")
+            # Update the source status
+            source.status = "active"
+            source.paused_at = None
+            source.paused_reason = None
 
-        conn.commit()
-        conn.close()
+            session.commit()
 
-        return {
-            "status": "success",
-            "message": f"Site {request.host} has been resumed"
-        }
+            return {
+                "status": "success",
+                "message": f"Site {request.host} has been resumed",
+            }
 
     except HTTPException as exc:
         raise exc
@@ -2786,61 +2699,223 @@ def resume_site(request: SiteManagementRequest):
 def get_paused_sites():
     """Get list of currently paused sites."""
     try:
-        conn = sqlite3.connect(str(MAIN_DB_PATH))
-        cur = conn.cursor()
+        with db_manager.get_session() as session:
+            paused_sources = (
+                session.query(Source)
+                .filter_by(status="paused")
+                .order_by(desc(Source.paused_at))
+                .all()
+            )
 
-        cur.execute("""
-        SELECT host, paused_at, paused_reason
-        FROM sources
-        WHERE status = 'paused'
-        ORDER BY paused_at DESC
-        """)
+            paused_sites = []
+            for source in paused_sources:
+                paused_sites.append(
+                    {
+                        "host": source.host,
+                        "paused_at": (
+                            source.paused_at.isoformat() if source.paused_at else None
+                        ),
+                        "reason": source.paused_reason,
+                    }
+                )
 
-        paused_sites = []
-        for row in cur.fetchall():
-            paused_sites.append({
-                "host": row[0],
-                "paused_at": row[1],
-                "reason": row[2]
-            })
-
-        conn.close()
-        return {"paused_sites": paused_sites}
+            return {"paused_sites": paused_sites}
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching paused sites: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching paused sites: {str(e)}"
+        )
 
 
 @app.get("/api/site-management/status/{host}")
 def get_site_status(host: str):
     """Get the current status of a specific site."""
     try:
-        conn = sqlite3.connect(str(MAIN_DB_PATH))
-        cur = conn.cursor()
+        with db_manager.get_session() as session:
+            source = session.query(Source).filter_by(host=host).first()
 
-        cur.execute("""
-        SELECT status, paused_at, paused_reason
-        FROM sources
-        WHERE host = ?
-        """, [host])
-
-        result = cur.fetchone()
-        conn.close()
-
-        if result:
-            return {
-                "host": host,
-                "status": result[0] or "active",
-                "paused_at": result[1],
-                "paused_reason": result[2]
-            }
-        else:
-            return {
-                "host": host,
-                "status": "active",
-                "paused_at": None,
-                "paused_reason": None
-            }
+            if source:
+                return {
+                    "host": host,
+                    "status": source.status or "active",
+                    "paused_at": (
+                        source.paused_at.isoformat() if source.paused_at else None
+                    ),
+                    "paused_reason": source.paused_reason,
+                }
+            else:
+                return {
+                    "host": host,
+                    "status": "active",
+                    "paused_at": None,
+                    "paused_reason": None,
+                }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching site status: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching site status: {str(e)}"
+        )
+
+
+# ============================================================================
+# Telemetry API Endpoints (Cloud SQL Migration)
+# ============================================================================
+
+
+@app.get("/api/telemetry/verification/pending")
+async def get_pending_verification_reviews(limit: int = 50):
+    """Get URL verifications that need human review."""
+    try:
+        return {"items": verification.get_pending_verification_reviews(limit)}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching verification reviews: {str(e)}"
+        )
+
+
+@app.post("/api/telemetry/verification/feedback")
+async def submit_verification_feedback(feedback: dict):
+    """Submit human feedback for a URL verification result."""
+    try:
+        verification.submit_verification_feedback(feedback)
+        return {"status": "success", "message": "Feedback submitted"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error submitting feedback: {str(e)}"
+        )
+
+
+@app.get("/api/telemetry/verification/stats")
+async def get_verification_stats(days: int = 30):
+    """Get verification telemetry statistics."""
+    try:
+        return verification.get_verification_telemetry_stats(days)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching verification stats: {str(e)}"
+        )
+
+
+@app.get("/api/telemetry/verification/labeled_training_data")
+async def get_verification_training_data(limit: int = 1000):
+    """Get labeled verification data for model training."""
+    try:
+        return {"data": verification.get_labeled_verification_training_data(limit)}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching training data: {str(e)}"
+        )
+
+
+@app.post("/api/telemetry/verification/enhance")
+async def enhance_verification_with_content(verification_id: str):
+    """Enhance verification record with article content."""
+    try:
+        verification.enhance_verification_with_content(verification_id)
+        return {"status": "success", "message": "Verification enhanced"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error enhancing verification: {str(e)}"
+        )
+
+
+# Byline Telemetry Endpoints
+
+
+@app.get("/api/telemetry/byline/pending")
+async def get_pending_byline_reviews(limit: int = 50):
+    """Get byline extractions that need human review."""
+    try:
+        return {"items": byline.get_pending_byline_reviews(limit)}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching byline reviews: {str(e)}"
+        )
+
+
+@app.post("/api/telemetry/byline/feedback")
+async def submit_byline_feedback(feedback: dict):
+    """Submit human feedback for a byline cleaning result."""
+    try:
+        byline.submit_byline_feedback(feedback)
+        return {"status": "success", "message": "Feedback submitted"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error submitting feedback: {str(e)}"
+        )
+
+
+@app.get("/api/telemetry/byline/stats")
+async def get_byline_stats(days: int = 30):
+    """Get byline telemetry statistics."""
+    try:
+        return byline.get_byline_telemetry_stats(days)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching byline stats: {str(e)}"
+        )
+
+
+@app.get("/api/telemetry/byline/labeled_training_data")
+async def get_byline_training_data(limit: int = 1000):
+    """Get labeled byline data for model training."""
+    try:
+        return {"data": byline.get_labeled_training_data(limit)}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching training data: {str(e)}"
+        )
+
+
+# Code Review Telemetry Endpoints
+
+
+@app.get("/api/telemetry/code_review/pending")
+async def get_pending_code_reviews(limit: int = 50):
+    """Get code review items that need attention."""
+    try:
+        return {"items": code_review.get_pending_code_reviews(limit)}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching code reviews: {str(e)}"
+        )
+
+
+@app.post("/api/telemetry/code_review/feedback")
+async def submit_code_review_feedback(feedback: dict):
+    """Submit feedback for a code review item."""
+    try:
+        code_review.submit_code_review_feedback(feedback)
+        return {"status": "success", "message": "Feedback submitted"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error submitting feedback: {str(e)}"
+        )
+
+
+@app.get("/api/telemetry/code_review/stats")
+async def get_code_review_stats():
+    """Get code review telemetry statistics."""
+    try:
+        return code_review.get_code_review_stats()
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching code review stats: {str(e)}"
+        )
+
+
+@app.post("/api/telemetry/code_review/add")
+async def add_code_review_item(item: dict):
+    """Add a new code review item."""
+    try:
+        code_review.add_code_review_item(item)
+        return {"status": "success", "message": "Code review item added"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error adding code review item: {str(e)}"
+        )
+
+
+# Include telemetry routers
+app.include_router(operations.router)  # Real-time pod monitoring
+app.include_router(proxy.router)  # Proxy usage metrics and analysis

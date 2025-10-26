@@ -1,0 +1,122 @@
+substitutions:
+  _BASE_IMAGE: us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/base:latest
+  _REGISTRY: us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler
+  _RELEASE_VERSION: '1.3.1'
+
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-api'
+    args:
+      - 'build'
+      - '--build-arg'
+      - 'BASE_IMAGE=${_BASE_IMAGE}'
+      - '-t'
+      - '${_REGISTRY}/api:${SHORT_SHA}'
+      - '-t'
+      - '${_REGISTRY}/api:latest'
+      - '-t'
+      - '${_REGISTRY}/api:v${_RELEASE_VERSION}'
+      - '-f'
+      - 'Dockerfile.api'
+      - '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-api'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGISTRY}/api'
+    waitFor: ['build-api']
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'resolve-current-tags'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        DEFAULT_PROCESSOR="${_REGISTRY}/processor:latest"
+        DEFAULT_CRAWLER="${_REGISTRY}/crawler:latest"
+
+        LAST_RELEASE=$$(gcloud deploy releases list \
+          --delivery-pipeline=mizzou-news-crawler \
+          --region=us-central1 \
+          --sort-by="~createTime" \
+          --limit=1 \
+          --format="value(name)")
+
+        if [ -n "$${LAST_RELEASE}" ]; then
+          gcloud deploy releases describe "$${LAST_RELEASE}" \
+            --delivery-pipeline=mizzou-news-crawler \
+            --region=us-central1 \
+            --format=json > /workspace/last_release.json
+
+          python3 -c "import json, sys; from pathlib import Path; registry, default_processor, default_crawler = sys.argv[1:]; data=json.load(open('/workspace/last_release.json')); artifacts={item.get('image'): item.get('tag') for item in data.get('buildArtifacts', [])}; processor=artifacts.get('processor', default_processor); crawler=artifacts.get('crawler', default_crawler); Path('/workspace/current-tags.env').write_text(f'PROCESSOR_IMAGE={processor}\nCRAWLER_IMAGE={crawler}\n')" "${_REGISTRY}" "$${DEFAULT_PROCESSOR}" "$${DEFAULT_CRAWLER}"
+        else
+          printf 'PROCESSOR_IMAGE=%s\nCRAWLER_IMAGE=%s\n' "$${DEFAULT_PROCESSOR}" "$${DEFAULT_CRAWLER}" > /workspace/current-tags.env
+        fi
+
+        echo "Resolved tags:" && cat /workspace/current-tags.env
+    waitFor: ['push-api']
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'create-release'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        source /workspace/current-tags.env
+
+        API_IMAGE="${_REGISTRY}/api:${SHORT_SHA}"
+
+        echo "Creating Cloud Deploy release with:"
+        echo "  API: $${API_IMAGE}"
+        echo "  Processor: $${PROCESSOR_IMAGE}"
+        echo "  Crawler: $${CRAWLER_IMAGE}"
+
+        gcloud deploy releases create api-${SHORT_SHA} \
+          --delivery-pipeline=mizzou-news-crawler \
+          --region=us-central1 \
+          --annotations=commitId=${REVISION_ID},service=api \
+          --images=api=$${API_IMAGE},processor=$${PROCESSOR_IMAGE},crawler=$${CRAWLER_IMAGE}
+
+        echo "✅ Created Cloud Deploy release for API"
+    waitFor: ['resolve-current-tags']
+
+  # Force pod update by setting image directly
+  # This is the fix - Cloud Deploy doesn't update hardcoded tags in YAML
+  # kubectl set image modifies deployment spec -> triggers NEW ReplicaSet -> rolling update
+  # No duplicate pods because new RS has different hash in pod names
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'get-gke-credentials'
+    args:
+      - 'container'
+      - 'clusters'
+      - 'get-credentials'
+      - 'mizzou-cluster'
+      - '--zone=us-central1-a'
+    waitFor: ['create-release']
+
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'force-api-update'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=us-central1-a'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=mizzou-cluster'
+    args:
+      - 'set'
+      - 'image'
+      - 'deployment/mizzou-api'
+      - 'api=${_REGISTRY}/api:${SHORT_SHA}'
+      - '--namespace=production'
+    waitFor: ['get-gke-credentials']
+
+images:
+  - '${_REGISTRY}/api:${SHORT_SHA}'
+  - '${_REGISTRY}/api:v${_RELEASE_VERSION}'
+timeout: 1800s
+options:
+  machineType: 'N1_HIGHCPU_8'
+  diskSizeGb: 100
+  logging: CLOUD_LOGGING_ONLY
+  substitutionOption: 'ALLOW_LOOSE'

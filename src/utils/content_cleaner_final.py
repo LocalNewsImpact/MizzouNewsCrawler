@@ -12,6 +12,7 @@ import sqlite3
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -155,7 +156,7 @@ class ContentCleaner:
         ORDER BY id DESC
         """
 
-        params = [f"%{domain}%"]
+        params: list[Any] = [f"%{domain}%"]
         if sample_size:
             query += " LIMIT ?"
             params.append(sample_size)
@@ -171,7 +172,7 @@ class ContentCleaner:
 
     def _find_common_segments(self, articles: list[dict]) -> dict:
         """Find text segments that appear across multiple articles."""
-        segment_occurrences = defaultdict(
+        segment_occurrences: dict[str, dict[str, Any]] = defaultdict(
             lambda: {"count": 0, "text": "", "positions": [], "article_ids": []}
         )
 

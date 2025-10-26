@@ -1,0 +1,20 @@
+# Processor-specific requirements
+# These packages are only needed for the background processor service
+# Note: Heavy ML dependencies (torch, transformers, etc.) are in requirements-ml.txt
+# and installed in the ml-base image to speed up processor builds
+
+# Processor-specific utilities only
+# (Currently all heavy dependencies are in ml-base, so this file is minimal)
+# Add lightweight processor-specific packages here as needed
+
+# Fast fuzzy string matching for entity extraction
+rapidfuzz>=3.0.0  # 50-100x faster than difflib for gazetteer matching
+
+# Browser automation used for last-resort extraction in processor
+selenium>=4.10.0
+undetected-chromedriver>=3.5.0
+selenium-stealth>=1.0.6
+
+# Data export and analytics
+google-cloud-bigquery[pandas]>=3.13.0  # BigQuery export for analytics pipeline
+cloud-sql-python-connector[pg8000]>=1.11.0  # Cloud SQL connector for database access

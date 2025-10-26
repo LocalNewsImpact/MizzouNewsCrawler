@@ -44,7 +44,7 @@ def test_telemetry_json_output():
         source_name="Springfield Daily News",
         city="Springfield",
         county="Greene",
-        state="MO"
+        state="MO",
     )
 
     # 2. Geocoding result
@@ -54,7 +54,7 @@ def test_telemetry_json_output():
         address_used="Springfield, Greene County, MO",
         success=True,
         lat=37.2153,
-        lon=-93.2982
+        lon=-93.2982,
     )
 
     # 3. OSM query result
@@ -69,10 +69,10 @@ def test_telemetry_json_output():
             "healthcare": 15,
             "religious": 34,
             "entertainment": 22,
-            "sports": 45
+            "sports": 45,
         },
         query_groups_used=3,
-        radius_miles=20
+        radius_miles=20,
     )
 
     # 4. Enrichment result
@@ -88,9 +88,9 @@ def test_telemetry_json_output():
             "healthcare": 15,
             "religious": 34,
             "entertainment": 22,
-            "sports": 45
+            "sports": 45,
         },
-        processing_time_seconds=67.3
+        processing_time_seconds=67.3,
     )
 
     # Validate all logs are proper JSON

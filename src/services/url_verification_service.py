@@ -14,6 +14,7 @@ import time
 import uuid
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 # Add the src directory to the path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -21,7 +22,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import storysniffer  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
-from src.models.database import DatabaseManager  # noqa: E402
+from src.models.database import (  # noqa: E402
+    DatabaseManager,
+    safe_execute,
+    safe_session_execute,
+)
 from src.models.verification import (  # noqa: E402
     URLVerification,
     VerificationJob,
@@ -87,7 +92,7 @@ class URLVerificationService:
             query += f" LIMIT {limit}"
 
         with self.db.engine.connect() as conn:
-            result = conn.execute(text(query))
+            result = safe_execute(conn, query)
             return [dict(row._mapping) for row in result.fetchall()]
 
     def verify_url(self, url: str) -> dict:
@@ -100,7 +105,7 @@ class URLVerificationService:
         result = {
             "url": url,
             "storysniffer_result": None,
-            "verification_time_ms": 0,
+            "verification_time_ms": 0.0,
             "error": None,
         }
 
@@ -133,15 +138,19 @@ class URLVerificationService:
         """
 
         with self.db.engine.connect() as conn:
-            conn.execute(
-                text(update_query),
+            safe_execute(
+                conn,
+                update_query,
                 {
                     "candidate_id": candidate_id,
                     "status": new_status,
                     "processed_at": datetime.now(),
                 },
             )
-            conn.commit()
+            try:
+                conn.commit()
+            except Exception:
+                pass
 
         self.logger.debug(f"Updated candidate {candidate_id} to status: {new_status}")
 
@@ -173,12 +182,12 @@ class URLVerificationService:
 
     def process_batch(self, candidates: list[dict]) -> dict:
         """Process a batch of candidates and return metrics."""
-        batch_metrics = {
+        batch_metrics: dict[str, Any] = {
             "total_processed": 0,
             "verified_articles": 0,
             "verified_non_articles": 0,
             "verification_errors": 0,
-            "total_time_ms": 0,
+            "total_time_ms": 0.0,
         }
 
         batch_start_time = time.time()
@@ -237,8 +246,9 @@ class URLVerificationService:
         """
 
         with self.db.engine.connect() as conn:
-            conn.execute(
-                text(update_query),
+            safe_execute(
+                conn,
+                update_query,
                 {
                     "job_id": self.current_job.id,
                     "processed": batch_metrics["total_processed"],
@@ -248,12 +258,15 @@ class URLVerificationService:
                     "batch_time": batch_metrics["batch_time_seconds"],
                 },
             )
-            conn.commit()
+            try:
+                conn.commit()
+            except Exception:
+                pass
 
     def generate_telemetry(self, batch_metrics: dict, candidates: list[dict]):
         """Generate telemetry data for this batch."""
         # Group candidates by source for telemetry
-        source_metrics = {}
+        source_metrics: dict[str, dict[str, Any]] = {}
         for candidate in candidates:
             source_name = candidate.get("source_name", "Unknown")
             if source_name not in source_metrics:
@@ -282,8 +295,8 @@ class URLVerificationService:
         """
         )
 
-        results = session.execute(
-            verification_query, {"job_id": self.current_job.id}
+        results = safe_session_execute(
+            session, verification_query, {"job_id": self.current_job.id}
         ).fetchall()
 
         for result in results:
@@ -322,8 +335,18 @@ class URLVerificationService:
 
         session.commit()
 
-    def run_verification_loop(self, max_batches: int | None = None):
-        """Run the main verification loop."""
+    def run_verification_loop(
+        self,
+        *,
+        max_batches: int | None = None,
+        exit_on_idle: bool = False,
+    ) -> None:
+        """Run the main verification loop.
+
+        Args:
+            max_batches: Optional maximum number of batches to process.
+            exit_on_idle: When True, stop polling once no URLs remain.
+        """
         self.running = True
         batch_count = 0
 
@@ -342,6 +365,8 @@ class URLVerificationService:
                         "No URLs to verify, sleeping for "
                         f"{self.sleep_interval} seconds..."
                     )
+                    if exit_on_idle:
+                        break
                     time.sleep(self.sleep_interval)
                     continue
 
@@ -388,8 +413,11 @@ class URLVerificationService:
 
         # Get final totals
         with self.db.engine.connect() as conn:
-            result = conn.execute(
-                text("SELECT COUNT(*) FROM candidate_links WHERE status = 'discovered'")
+            result = safe_execute(
+                conn,
+                text(
+                    "SELECT COUNT(*) FROM candidate_links WHERE status = 'discovered'"
+                ),
             ).fetchone()
             remaining_discovered = result[0] if result else 0
 
@@ -405,15 +433,19 @@ class URLVerificationService:
                 WHERE id = :job_id
             """
 
-            conn.execute(
-                text(update_query),
+            safe_execute(
+                conn,
+                update_query,
                 {
                     "job_id": self.current_job.id,
                     "status": "completed" if remaining_discovered == 0 else "paused",
                     "completed_at": datetime.now(),
                 },
             )
-            conn.commit()
+            try:
+                conn.commit()
+            except Exception:
+                pass
 
         self.logger.info(
             f"Finished verification job: {self.current_job.job_name} "
@@ -504,7 +536,10 @@ def main():
         logger.info(f"Starting verification service with job ID: {job_id}")
 
         # Run verification loop
-        service.run_verification_loop(max_batches=args.max_batches)
+        service.run_verification_loop(
+            max_batches=args.max_batches,
+            exit_on_idle=True,
+        )
 
         logger.info("Verification service completed successfully")
         return 0

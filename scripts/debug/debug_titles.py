@@ -3,7 +3,7 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 from utils.byline_cleaner import BylineCleaner
 
@@ -20,7 +20,7 @@ def debug_specific_cases():
     print(f"Test 1: {test1}")
 
     # Check what type each part gets
-    parts = test1.split(',')
+    parts = test1.split(",")
     for i, part in enumerate(parts):
         part_type = cleaner._identify_part_type(part.strip())
         print(f"  Part {i}: '{part.strip()}' → {part_type}")
@@ -33,7 +33,7 @@ def debug_specific_cases():
     test2 = "Senior Editor II, Managing Director III"
     print(f"Test 2: {test2}")
 
-    parts = test2.split(',')
+    parts = test2.split(",")
     for i, part in enumerate(parts):
         part_type = cleaner._identify_part_type(part.strip())
         print(f"  Part {i}: '{part.strip()}' → {part_type}")

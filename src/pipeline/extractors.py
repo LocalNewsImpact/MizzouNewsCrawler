@@ -35,7 +35,7 @@ class HostSelector:
                 self.selectors[k] = [s.strip() for s in v.split(",") if s.strip()]
 
     def extract_with_selectors(self, soup: BeautifulSoup) -> dict[str, str | None]:
-        out = {
+        out: dict[str, str | None] = {
             "title": None,
             "byline": None,
             "date": None,
@@ -44,6 +44,19 @@ class HostSelector:
             "lead_image": None,
         }
         out["html"] = str(soup)
+
+        # Helper to normalize attribute values that may be
+        # BeautifulSoup's AttributeValueList, plain str, or None.
+        def _attr_to_str(v: Any) -> str | None:
+            if v is None:
+                return None
+            if isinstance(v, str):
+                return v
+            try:
+                return str(v)
+            except Exception:
+                return None
+
         # title
         tit = self.selectors.get("title")
         if tit:
@@ -66,7 +79,7 @@ class HostSelector:
             for sel in dt if isinstance(dt, list) else [dt]:
                 node = soup.select_one(sel)
                 if node and node.get("datetime"):
-                    out["date"] = node.get("datetime")
+                    out["date"] = _attr_to_str(node.get("datetime"))
                     break
                 if node and node.get_text(strip=True):
                     out["date"] = node.get_text(" ", strip=True)
@@ -89,10 +102,10 @@ class HostSelector:
                 # common patterns: <img src=> or <meta property="og:image"
                 # content=>
                 if node.get("src"):
-                    out["lead_image"] = node.get("src")
+                    out["lead_image"] = _attr_to_str(node.get("src"))
                     break
                 if node.name == "meta" and node.get("content"):
-                    out["lead_image"] = node.get("content")
+                    out["lead_image"] = _attr_to_str(node.get("content"))
                     break
         return out
 
@@ -125,11 +138,11 @@ def extract_schemaorg(soup: BeautifulSoup) -> dict[str, Any] | None:
     scripts = soup.find_all("script", type="application/ld+json")
     for s in scripts:
         try:
-            payload = json.loads(s.string or "{}")
+            payload = json.loads(getattr(s, "string", None) or "{}")
         except Exception:
             # sometimes multiple JSON objects or leading/trailing text; try to
             # salvage
-            txt = (s.string or "").strip()
+            txt = (getattr(s, "string", None) or "").strip()
             try:
                 # find first { ... }
                 m = re.search(r"\{.*\}", txt, flags=re.S)
@@ -143,14 +156,10 @@ def extract_schemaorg(soup: BeautifulSoup) -> dict[str, Any] | None:
         if isinstance(payload, list):
             for item in payload:
                 if item.get("@type", "").lower() in ("newsarticle", "article"):
+                    auth = item.get("author")
                     return {
                         "title": item.get("headline") or item.get("name"),
-                        "byline": item.get("author")
-                        and (
-                            item.get("author").get("name")
-                            if isinstance(item.get("author"), dict)
-                            else None
-                        ),
+                        "byline": auth.get("name") if isinstance(auth, dict) else None,
                         "date": item.get("datePublished"),
                         "text": item.get("articleBody"),
                         "lead_image": _lead_image_field(item.get("image")),
@@ -158,14 +167,10 @@ def extract_schemaorg(soup: BeautifulSoup) -> dict[str, Any] | None:
                     }
         elif isinstance(payload, dict):
             if payload.get("@type", "").lower() in ("newsarticle", "article"):
+                auth = payload.get("author")
                 return {
                     "title": payload.get("headline") or payload.get("name"),
-                    "byline": payload.get("author")
-                    and (
-                        payload.get("author").get("name")
-                        if isinstance(payload.get("author"), dict)
-                        else None
-                    ),
+                    "byline": auth.get("name") if isinstance(auth, dict) else None,
                     "date": payload.get("datePublished"),
                     "text": payload.get("articleBody"),
                     "lead_image": _lead_image_field(payload.get("image")),

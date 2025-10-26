@@ -10,6 +10,7 @@ This script demonstrates the complete workflow:
 Run this after setting up your environment with:
   pip install -r requirements.txt
 """
+
 import subprocess
 import sys
 from pathlib import Path
@@ -17,7 +18,7 @@ from pathlib import Path
 
 def run_command(cmd, description):
     """Run a command and print results."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"STEP: {description}")
     print(f"CMD: {' '.join(cmd)}")
     print("=" * 60)
@@ -119,9 +120,7 @@ def main():
     print("1. Crawl more sources:")
     print("   python -m src.cli crawl --filter ALL --host-limit 10")
     print("\n2. Crawl specific host:")
-    print(
-        "   python -m src.cli crawl --filter HOST --host 'standard-democrat'"
-    )
+    print("   python -m src.cli crawl --filter HOST --host 'standard-democrat'")
     print("\n3. Extract more content:")
     print("   python -m src.cli extract --limit 20")
 

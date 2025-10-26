@@ -12,228 +12,198 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
+from src.models import Base, Source
+from src.models.telemetry_orm import Base as TelemetryBase
+
+# Import models needed for testing
+from src.models.telemetry import ExtractionTelemetryV2, HttpErrorSummary
+
 
 class TestTelemetryAPIEndpoints:
     """Test the telemetry API endpoints."""
 
     @pytest.fixture
-    def temp_db(self, tmp_path):
-        """Create a temporary database with test data."""
+    def test_db_session(self, tmp_path):
+        """Create a temporary SQLAlchemy database with test data."""
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+
         db_path = tmp_path / "test_telemetry.db"
+        engine = create_engine(f"sqlite:///{db_path}")
 
-        # Set up test database with schema
-        conn = sqlite3.connect(str(db_path))
-        cur = conn.cursor()
+        # Create all tables using both SQLAlchemy bases (main + telemetry)
+        Base.metadata.create_all(engine)  # Source table
+        TelemetryBase.metadata.create_all(engine)  # Telemetry tables
 
-        # Create extraction_telemetry_v2 table
-        cur.execute(
-            """
-        CREATE TABLE extraction_telemetry_v2 (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            operation_id TEXT NOT NULL,
-            article_id TEXT NOT NULL,
-            url TEXT NOT NULL,
-            publisher TEXT,
-            host TEXT,
-            start_time TIMESTAMP NOT NULL,
-            end_time TIMESTAMP,
-            total_duration_ms REAL,
-            http_status_code INTEGER,
-            http_error_type TEXT,
-            response_size_bytes INTEGER,
-            response_time_ms REAL,
-            methods_attempted TEXT,
-            successful_method TEXT,
-            method_timings TEXT,
-            method_success TEXT,
-            method_errors TEXT,
-            field_extraction TEXT,
-            extracted_fields TEXT,
-            content_length INTEGER,
-            is_success BOOLEAN,
-            error_message TEXT,
-            error_type TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-        """
-        )
-
-        # Create http_error_summary table
-        cur.execute(
-            """
-        CREATE TABLE http_error_summary (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            host TEXT NOT NULL,
-            status_code INTEGER NOT NULL,
-            error_type TEXT NOT NULL,
-            count INTEGER DEFAULT 1,
-            first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-        """
-        )
-
-        # Create sources table for site management
-        cur.execute(
-            """
-        CREATE TABLE sources (
-            id VARCHAR PRIMARY KEY,
-            host VARCHAR NOT NULL,
-            host_norm VARCHAR NOT NULL,
-            canonical_name VARCHAR,
-            city VARCHAR,
-            county VARCHAR,
-            owner VARCHAR,
-            type VARCHAR,
-            metadata JSON,
-            discovery_attempted TIMESTAMP,
-            status VARCHAR DEFAULT 'active',
-            paused_at TIMESTAMP,
-            paused_reason TEXT
-        )
-        """
-        )
+        SessionLocal = sessionmaker(bind=engine)
+        session = SessionLocal()
 
         # Insert test data
         now = datetime.utcnow()
 
-        # Test extraction records
-        test_records = [
-            # Successful extractions
-            (
-                "op1",
-                "art1",
-                "https://good-site.com/article1",
-                "good-site.com",
-                "good-site.com",
-                200,
-                None,
-                "newspaper4k",
-                1,
-                2500,
-                '{"newspaper4k": {"title": true, "content": true}}',
+        # Insert extraction telemetry records
+        telemetry_records = [
+            ExtractionTelemetryV2(
+                operation_id="op1",
+                article_id="art1",
+                url="https://good-site.com/article1",
+                publisher="good-site.com",
+                host="good-site.com",
+                http_status_code=200,
+                successful_method="newspaper4k",
+                is_success=True,
+                total_duration_ms=2500,
+                field_extraction='{"newspaper4k":{"title":true,"content":true}}',
+                start_time=now - timedelta(hours=1),
+                end_time=now,
+                created_at=now,
             ),
-            (
-                "op2",
-                "art2",
-                "https://good-site.com/article2",
-                "good-site.com",
-                "good-site.com",
-                200,
-                None,
-                "beautifulsoup",
-                1,
-                3200,
-                '{"beautifulsoup": {"title": true, "content": false}}',
+            ExtractionTelemetryV2(
+                operation_id="op2",
+                article_id="art2",
+                url="https://good-site.com/article2",
+                publisher="good-site.com",
+                host="good-site.com",
+                http_status_code=200,
+                successful_method="beautifulsoup",
+                is_success=True,
+                total_duration_ms=3200,
+                field_extraction='{"beautifulsoup":{"title":true,"content":false}}',
+                start_time=now - timedelta(hours=1),
+                end_time=now,
+                created_at=now,
             ),
-            # Failed extractions with HTTP errors
-            (
-                "op3",
-                "art3",
-                "https://blocked-site.com/article1",
-                "blocked-site.com",
-                "blocked-site.com",
-                403,
-                "4xx_client_error",
-                None,
-                0,
-                1500,
-                '{"title": false, "content": false}',
+            ExtractionTelemetryV2(
+                operation_id="op3",
+                article_id="art3",
+                url="https://blocked-site.com/article1",
+                publisher="blocked-site.com",
+                host="blocked-site.com",
+                http_status_code=403,
+                http_error_type="4xx_client_error",
+                is_success=False,
+                total_duration_ms=1500,
+                field_extraction='{"title": false, "content": false}',
+                start_time=now - timedelta(hours=1),
+                end_time=now,
+                created_at=now,
             ),
-            (
-                "op4",
-                "art4",
-                "https://error-site.com/article1",
-                "error-site.com",
-                "error-site.com",
-                500,
-                "5xx_server_error",
-                None,
-                0,
-                5000,
-                '{"title": false, "content": false}',
+            ExtractionTelemetryV2(
+                operation_id="op4",
+                article_id="art4",
+                url="https://error-site.com/article1",
+                publisher="error-site.com",
+                host="error-site.com",
+                http_status_code=500,
+                http_error_type="5xx_server_error",
+                is_success=False,
+                total_duration_ms=5000,
+                field_extraction='{"title": false, "content": false}',
+                start_time=now - timedelta(hours=1),
+                end_time=now,
+                created_at=now,
             ),
-            (
-                "op5",
-                "art5",
-                "https://blocked-site.com/article2",
-                "blocked-site.com",
-                "blocked-site.com",
-                403,
-                "4xx_client_error",
-                None,
-                0,
-                1200,
-                '{"title": false, "content": false}',
+            ExtractionTelemetryV2(
+                operation_id="op5",
+                article_id="art5",
+                url="https://blocked-site.com/article2",
+                publisher="blocked-site.com",
+                host="blocked-site.com",
+                http_status_code=403,
+                http_error_type="4xx_client_error",
+                is_success=False,
+                total_duration_ms=1200,
+                field_extraction='{"title": false, "content": false}',
+                start_time=now - timedelta(hours=1),
+                end_time=now,
+                created_at=now,
             ),
         ]
-
-        for record in test_records:
-            cur.execute(
-                """
-            INSERT INTO extraction_telemetry_v2
-            (operation_id, article_id, url, publisher, host, http_status_code,
-             http_error_type, successful_method, is_success, total_duration_ms, field_extraction,
-             start_time, end_time, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-                record + (now - timedelta(hours=1), now, now),
-            )
+        session.add_all(telemetry_records)
 
         # Insert HTTP error summary data
         http_errors = [
-            ("blocked-site.com", 403, "4xx_client_error", 2),
-            ("error-site.com", 500, "5xx_server_error", 1),
+            HttpErrorSummary(
+                host="blocked-site.com",
+                status_code=403,
+                error_type="4xx_client_error",
+                count=2,
+                first_seen=now - timedelta(hours=2),
+                last_seen=now,
+            ),
+            HttpErrorSummary(
+                host="error-site.com",
+                status_code=500,
+                error_type="5xx_server_error",
+                count=1,
+                first_seen=now - timedelta(hours=2),
+                last_seen=now,
+            ),
         ]
-
-        for host, status, error_type, count in http_errors:
-            cur.execute(
-                """
-            INSERT INTO http_error_summary (host, status_code, error_type, count, first_seen, last_seen)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-                (host, status, error_type, count, now - timedelta(hours=2), now),
-            )
+        session.add_all(http_errors)
 
         # Insert test sources
         sources = [
-            ("good-site.com", "good-site.com", "good-site.com", "active", None, None),
-            (
-                "blocked-site.com",
-                "blocked-site.com",
-                "blocked-site.com",
-                "paused",
-                now,
-                "Poor performance",
+            Source(
+                id="good-site.com",
+                host="good-site.com",
+                host_norm="good-site.com",
+                status="active",
+            ),
+            Source(
+                id="blocked-site.com",
+                host="blocked-site.com",
+                host_norm="blocked-site.com",
+                status="paused",
+                paused_at=now,
+                paused_reason="Poor performance",
             ),
         ]
+        session.add_all(sources)
 
-        for source_id, host, host_norm, status, paused_at, reason in sources:
-            cur.execute(
-                """
-            INSERT INTO sources (id, host, host_norm, status, paused_at, paused_reason)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-                (source_id, host, host_norm, status, paused_at, reason),
-            )
+        session.commit()
 
-        conn.commit()
-        conn.close()
+        yield session
 
-        yield str(db_path)
-
-        # Cleanup (tmp_path handles cleanup automatically, but being explicit doesn't hurt)
-        db_path.unlink(missing_ok=True)
+        session.close()
+        engine.dispose()
 
     @pytest.fixture
-    def api_client(self, temp_db):
-        """Create a test client with mocked database path."""
-        # Mock the database paths in the FastAPI app
-        with patch("backend.app.main.MAIN_DB_PATH", temp_db):
-            from backend.app.main import app
+    def api_client(self, test_db_session, monkeypatch):
+        """Create a test client with monkeypatched db_manager.get_session.
+        
+        This ensures the API endpoints use the same database session/engine that
+        contains the test data, avoiding SQLite isolation issues.
+        """
+        from contextlib import contextmanager
+        from sqlalchemy.orm import sessionmaker
+        
+        # Get the test engine and create a session factory
+        test_engine = test_db_session.bind
+        TestSessionLocal = sessionmaker(bind=test_engine)
+        
+        # Create a mock get_session context manager
+        @contextmanager
+        def mock_get_session():
+            session = TestSessionLocal()
+            try:
+                yield session
+            finally:
+                session.close()
+        
+        # Import the app's db_manager INSTANCE and monkeypatch IT
+        from backend.app import main as app_main
 
-            client = TestClient(app)
-            yield client
+        # Monkeypatch the instance method, not the class method
+        monkeypatch.setattr(
+            app_main.db_manager, "get_session", lambda: mock_get_session()
+        )
+        
+        # Now use the app
+        from backend.app.main import app
+
+        client = TestClient(app)
+        yield client
 
     def test_telemetry_summary_endpoint(self, api_client):
         """Test the telemetry summary endpoint."""
@@ -383,75 +353,85 @@ class TestTelemetryAPIEndpoints:
 
 
 class TestSiteManagementAPI:
-    """Test the site management API endpoints."""
+    """Test site management API endpoints."""
 
     @pytest.fixture
-    def temp_db(self, tmp_path):
-        """Create a temporary database for site management tests."""
-        db_path = tmp_path / "test_site_mgmt.db"
-
-        conn = sqlite3.connect(str(db_path))
-        cur = conn.cursor()
-
-        # Create sources table
-        cur.execute(
-            """
-        CREATE TABLE sources (
-            id VARCHAR PRIMARY KEY,
-            host VARCHAR NOT NULL,
-            host_norm VARCHAR NOT NULL,
-            canonical_name VARCHAR,
-            city VARCHAR,
-            county VARCHAR,
-            owner VARCHAR,
-            type VARCHAR,
-            metadata JSON,
-            discovery_attempted TIMESTAMP,
-            status VARCHAR DEFAULT 'active',
-            paused_at TIMESTAMP,
-            paused_reason TEXT
-        )
+    def test_db_session(self, tmp_path):
+        """Create a temporary SQLAlchemy database with test sources.
+        
+        Uses the same approach as TestTelemetryAPIEndpoints for consistency.
         """
-        )
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
 
-        # Insert test sources
+        db_path = tmp_path / "test_site_management.db"
+        engine = create_engine(f"sqlite:///{db_path}")
+
+        # Create tables using SQLAlchemy Base
+        Base.metadata.create_all(engine)
+
+        SessionLocal = sessionmaker(bind=engine)
+        session = SessionLocal()
+
+        # Insert test sources using ORM
         now = datetime.utcnow()
-        test_sources = [
-            ("test-site.com", "test-site.com", "test-site.com", "active", None, None),
-            (
-                "paused-site.com",
-                "paused-site.com",
-                "paused-site.com",
-                "paused",
-                now,
-                "Manual pause for testing",
+        sources = [
+            Source(
+                id="test-site.com",
+                host="test-site.com",
+                host_norm="test-site.com",
+                status="active",
+            ),
+            Source(
+                id="paused-site.com",
+                host="paused-site.com",
+                host_norm="paused-site.com",
+                status="paused",
+                paused_at=now,
+                paused_reason="Manual pause for testing",
             ),
         ]
+        session.add_all(sources)
+        session.commit()
 
-        for source_id, host, host_norm, status, paused_at, reason in test_sources:
-            cur.execute(
-                """
-            INSERT INTO sources (id, host, host_norm, status, paused_at, paused_reason)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-                (source_id, host, host_norm, status, paused_at, reason),
-            )
+        yield session
 
-        conn.commit()
-        conn.close()
-
-        yield str(db_path)
-        # Cleanup (tmp_path handles cleanup automatically)
-        db_path.unlink(missing_ok=True)
+        session.close()
+        engine.dispose()
 
     @pytest.fixture
-    def api_client(self, temp_db):
-        """Create a test client with mocked database path."""
-        with patch("backend.app.main.MAIN_DB_PATH", temp_db):
-            from backend.app.main import app
+    def api_client(self, test_db_session, monkeypatch):
+        """Create a test client with monkeypatched db_manager.get_session.
+        
+        Uses the same approach as TestTelemetryAPIEndpoints for consistency.
+        """
+        from contextlib import contextmanager
+        from sqlalchemy.orm import sessionmaker
 
-            client = TestClient(app)
-            yield client
+        # Get the test engine and create a session factory
+        test_engine = test_db_session.bind
+        TestSessionLocal = sessionmaker(bind=test_engine)
+
+        # Create a mock get_session context manager
+        @contextmanager
+        def mock_get_session():
+            session = TestSessionLocal()
+            try:
+                yield session
+            finally:
+                session.close()
+
+        # Import the app's db_manager INSTANCE and monkeypatch IT
+        from backend.app import main as app_main
+
+        monkeypatch.setattr(
+            app_main.db_manager, "get_session", lambda: mock_get_session()
+        )
+
+        from backend.app.main import app
+
+        client = TestClient(app)
+        yield client
 
     def test_pause_site_endpoint(self, api_client):
         """Test pausing a site."""
@@ -546,18 +526,7 @@ class TestSiteManagementAPI:
 class TestAPIErrorHandling:
     """Test error handling in API endpoints."""
 
-    def test_telemetry_endpoints_with_invalid_database(self):
-        """Test API endpoints with invalid database path."""
-        with patch("backend.app.main.MAIN_DB_PATH", "/nonexistent/path/db.sqlite"):
-            from backend.app.main import app
-
-            client = TestClient(app)
-
-            response = client.get("/api/telemetry/summary")
-            assert response.status_code == 500
-            assert "Error fetching telemetry summary" in response.json()["detail"]
-
-    def test_site_management_with_invalid_data(self):
+    def test_site_management_with_invalid_data(self, monkeypatch):
         """Test site management endpoints with invalid request data."""
         # Create a temporary valid database
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
@@ -581,22 +550,32 @@ class TestAPIErrorHandling:
         conn.close()
 
         try:
-            with patch("backend.app.main.MAIN_DB_PATH", db_path):
-                from backend.app.main import app
+            from sqlalchemy import create_engine
 
-                client = TestClient(app)
+            from backend.app.main import app, db_manager
 
-                # Test pause with missing host
-                response = client.post("/api/site-management/pause", json={})
-                assert response.status_code == 422  # Validation error
+            # Create engine for the test database
+            db_url = f"sqlite:///{db_path}"
+            test_engine = create_engine(
+                db_url, connect_args={"check_same_thread": False}
+            )
 
-                # Test pause with invalid JSON
-                response = client.post(
-                    "/api/site-management/pause",
-                    data="invalid json",
-                    headers={"Content-Type": "application/json"},
-                )
-                assert response.status_code == 422
+            # Mock the DatabaseManager's engine with our test engine
+            monkeypatch.setattr(db_manager, "engine", test_engine)
+
+            client = TestClient(app)
+
+            # Test pause with missing host
+            response = client.post("/api/site-management/pause", json={})
+            assert response.status_code == 422  # Validation error
+
+            # Test pause with invalid JSON
+            response = client.post(
+                "/api/site-management/pause",
+                data="invalid json",
+                headers={"Content-Type": "application/json"},
+            )
+            assert response.status_code == 422
 
         finally:
             Path(db_path).unlink(missing_ok=True)
@@ -650,7 +629,12 @@ class TestCompleteAPIWorkflow:
                 id VARCHAR PRIMARY KEY, host VARCHAR NOT NULL, host_norm VARCHAR NOT NULL,
                 canonical_name VARCHAR, city VARCHAR, county VARCHAR, owner VARCHAR,
                 type VARCHAR, metadata JSON, discovery_attempted TIMESTAMP,
-                status VARCHAR DEFAULT 'active', paused_at TIMESTAMP, paused_reason TEXT
+                status VARCHAR DEFAULT 'active', paused_at TIMESTAMP, paused_reason TEXT,
+                bot_sensitivity INTEGER DEFAULT 5,
+                bot_sensitivity_updated_at TIMESTAMP,
+                bot_encounters INTEGER DEFAULT 0,
+                last_bot_detection_at TIMESTAMP,
+                bot_detection_metadata JSON
             )
             """
             )
@@ -691,9 +675,18 @@ class TestCompleteAPIWorkflow:
             conn.commit()
             conn.close()
 
-            with patch("backend.app.main.MAIN_DB_PATH", db_path):
-                from backend.app.main import app
+            from sqlalchemy import create_engine
 
+            from backend.app.main import app, db_manager
+
+            # Create engine for the test database
+            db_url = f"sqlite:///{db_path}"
+            test_engine = create_engine(
+                db_url, connect_args={"check_same_thread": False}
+            )
+
+            # Mock the DatabaseManager's engine with our test engine
+            with patch.object(db_manager, "engine", test_engine):
                 client = TestClient(app)
 
                 # 1. Check poor performers

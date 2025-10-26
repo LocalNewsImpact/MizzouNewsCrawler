@@ -13,11 +13,7 @@ def main():
     print("🔧 Adding Wire column to articles table...")
 
     # Find database
-    db_paths = [
-        Path('data/mizzou.db'),
-        Path('mizzou.db'),
-        Path('news_crawler.db')
-    ]
+    db_paths = [Path("data/mizzou.db"), Path("mizzou.db"), Path("news_crawler.db")]
 
     db_path = None
     for path in db_paths:
@@ -39,7 +35,7 @@ def main():
         cursor.execute("PRAGMA table_info(articles)")
         columns = [row[1] for row in cursor.fetchall()]
 
-        if 'wire' in columns:
+        if "wire" in columns:
             print("✅ Wire column already exists")
             conn.close()
             return True

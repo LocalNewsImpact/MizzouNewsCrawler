@@ -46,8 +46,7 @@ class ProcessTracker:
             session.refresh(process)
 
             logger.info(
-                f"Registered {process_type} process {process.id} "
-                f"(PID: {process.pid})"
+                f"Registered {process_type} process {process.id} (PID: {process.pid})"
             )
             return process
 
@@ -68,7 +67,11 @@ class ProcessTracker:
                     process.status = status
                 session.commit()
                 logger.debug(
-                    f"Updated process {process_id}: {current}/{total or '?'} - {message}"
+                    "Updated process %s: %s/%s - %s",
+                    process_id,
+                    current,
+                    total or "?",
+                    message,
                 )
 
     def complete_process(
@@ -167,7 +170,7 @@ class ProcessContext:
         self.dataset_id = dataset_id
         self.source_id = source_id
         self.metadata = metadata
-        self.process = None
+        self.process: BackgroundProcess | None = None
 
     def __enter__(self) -> BackgroundProcess:
         """Start process tracking."""
@@ -183,12 +186,13 @@ class ProcessContext:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Complete process tracking."""
         if self.process:
+            pid_str = str(getattr(self.process, "id", ""))
             if exc_type is None:
-                self.tracker.complete_process(self.process.id, "completed")
+                self.tracker.complete_process(pid_str, "completed")
             else:
                 error_msg = str(exc_val) if exc_val else "Unknown error"
                 self.tracker.complete_process(
-                    self.process.id, "failed", error_message=error_msg
+                    pid_str, "failed", error_message=error_msg
                 )
 
 

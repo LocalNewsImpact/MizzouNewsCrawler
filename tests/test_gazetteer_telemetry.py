@@ -11,7 +11,9 @@ import logging
 import sys
 from pathlib import Path
 from types import SimpleNamespace
-from typing import cast
+from typing import (
+    Any,
+)
 from unittest.mock import Mock, patch
 
 import pytest
@@ -373,7 +375,7 @@ class TestGazetteerTelemetryErrorHandling:
         telemetry = GazetteerTelemetry()
 
         with caplog.at_level(logging.INFO):
-            none_value = cast(str, None)
+            none_value = None  # type: ignore[assignment]
             telemetry.log_enrichment_attempt(
                 source_id="test",
                 source_name="Example Source",

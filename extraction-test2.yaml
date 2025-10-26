@@ -1,0 +1,75 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: extraction-test-
+  namespace: production
+spec:
+  serviceAccountName: argo-workflow
+  entrypoint: extract
+  templates:
+  - name: extract
+    container:
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:b8ff543
+      imagePullPolicy: Always
+      command:
+        - python
+        - -m
+        - src.cli.cli_modular
+        - extract
+        - --limit
+        - "50"
+        - --batches
+        - "1"
+      envFrom:
+      - secretRef:
+          name: origin-proxy-credentials
+      env:
+      - name: DATABASE_ENGINE
+        value: "postgresql+psycopg2"
+      - name: DATABASE_HOST
+        value: "127.0.0.1"
+      - name: DATABASE_PORT
+        value: "5432"
+      - name: DATABASE_USER
+        valueFrom:
+          secretKeyRef:
+            name: cloudsql-db-credentials
+            key: username
+      - name: DATABASE_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: cloudsql-db-credentials
+            key: password
+      - name: DATABASE_NAME
+        valueFrom:
+          secretKeyRef:
+            name: cloudsql-db-credentials
+            key: database
+      - name: DATABASE_URL
+        value: "$(DATABASE_ENGINE)://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)"
+      - name: USE_CLOUD_SQL_CONNECTOR
+        value: "false"
+      - name: CLOUD_SQL_INSTANCE
+        value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+      - name: INTER_REQUEST_MIN
+        value: "2.0"
+      - name: INTER_REQUEST_MAX
+        value: "5.0"
+      - name: BATCH_SLEEP_SECONDS
+        value: "0.5"
+    sidecars:
+    - name: cloud-sql-proxy
+      image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.8.0
+      args:
+        - "--structured-logs"
+        - "--port=5432"
+        - "mizzou-news-crawler:us-central1:mizzou-db-prod"
+      securityContext:
+        runAsNonRoot: true
+      resources:
+        requests:
+          memory: "512Mi"
+          cpu: "250m"
+        limits:
+          memory: "1Gi"
+          cpu: "500m"

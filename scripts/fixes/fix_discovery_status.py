@@ -2,8 +2,9 @@
 
 # Fix discovery_status function in quick_query.py to use discovery_attempted column
 
+
 def fix_discovery_status():
-    with open('scripts/quick_query.py') as f:
+    with open("scripts/quick_query.py") as f:
         content = f.read()
 
     # Find and replace the old discovery_status function
@@ -48,10 +49,11 @@ def fix_discovery_status():
 
     content = content.replace(old_function, new_function)
 
-    with open('scripts/quick_query.py', 'w') as f:
+    with open("scripts/quick_query.py", "w") as f:
         f.write(content)
 
     print("Updated discovery_status function to use discovery_attempted column")
+
 
 if __name__ == "__main__":
     fix_discovery_status()

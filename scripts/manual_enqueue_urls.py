@@ -70,10 +70,7 @@ def _read_urls(path: Path, column: str | None) -> list[str]:
         df = pd.read_csv(path, sep=sep)
         if column not in df.columns:
             available = ", ".join(df.columns.astype(str))
-            message = (
-                f"Column '{column}' not present in {path}. "
-                f"Available: {available}"
-            )
+            message = f"Column '{column}' not present in {path}. Available: {available}"
             raise ValueError(message)
         urls = df[column].dropna().astype(str).tolist()
     elif suffix in {".csv", ".tsv"}:
@@ -86,11 +83,7 @@ def _read_urls(path: Path, column: str | None) -> list[str]:
             )
         urls = df[url_col].dropna().astype(str).tolist()
     else:
-        urls = [
-            line.strip()
-            for line in path.read_text().splitlines()
-            if line.strip()
-        ]
+        urls = [line.strip() for line in path.read_text().splitlines() if line.strip()]
 
     # Deduplicate while preserving order
     seen = set()
@@ -162,8 +155,7 @@ def _ensure_dataset(
         dataset = session.get(Dataset, dataset_id)
         if not dataset:
             raise ValueError(
-                "Provided dataset_id does not exist in datasets table: "
-                f"{dataset_id}"
+                f"Provided dataset_id does not exist in datasets table: {dataset_id}"
             )
         return str(dataset.id), False, dataset.slug
 
@@ -264,9 +256,7 @@ def enqueue_urls(
             df, if_exists="append", dataset_id=resolved_dataset_id
         )
 
-    summary = (
-        f"Inserted {inserted} new candidate links (out of {len(df)} prepared)."
-    )
+    summary = f"Inserted {inserted} new candidate links (out of {len(df)} prepared)."
     print(summary)
     print(
         "Dataset {dataset_id} ({slug}) {action}.".format(
@@ -281,16 +271,12 @@ def enqueue_urls(
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Manually enqueue URLs for extraction"
-    )
+    parser = argparse.ArgumentParser(description="Manually enqueue URLs for extraction")
     parser.add_argument(
         "--input",
         required=True,
         type=Path,
-        help=(
-            "Path to newline-delimited text, CSV, or TSV file containing URLs"
-        ),
+        help=("Path to newline-delimited text, CSV, or TSV file containing URLs"),
     )
     parser.add_argument(
         "--column",
@@ -305,9 +291,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--discovered-by",
         default="manual-import",
-        help=(
-            "Value for candidate_links.discovered_by (default: manual-import)"
-        ),
+        help=("Value for candidate_links.discovered_by (default: manual-import)"),
     )
     parser.add_argument(
         "--priority",

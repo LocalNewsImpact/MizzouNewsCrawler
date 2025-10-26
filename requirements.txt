@@ -10,6 +10,9 @@ urllib3>=1.26.0
 # Database
 sqlalchemy>=2.0.0
 alembic>=1.12.0
+psycopg2-binary>=2.9.0  # PostgreSQL adapter for production
+cloud-sql-python-connector[pg8000]>=1.11.0  # Google Cloud SQL connector (replaces proxy sidecar)
+google-cloud-bigquery[pandas]>=3.13.0  # BigQuery client for analytics export
 
 # Papermill
 papermill>=2.4.0
@@ -42,6 +45,7 @@ uvicorn[standard]>=0.23.0
 ftfy>=6.1.0
 textblob>=0.17.0
 python-dateutil>=2.8.0
+rapidfuzz>=3.0.0  # Fast fuzzy string matching (10-100x faster than difflib)
 
 # Testing
 pytest>=7.4.0

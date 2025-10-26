@@ -483,7 +483,9 @@ def test_extraction_pipeline_handles_failure_and_gazetteer_miss(
     setup_manager.close()
 
     try:
-        args = SimpleNamespace(batches=1, limit=2, source=None)
+        args = SimpleNamespace(
+            batches=1, limit=2, source=None, dataset=None, exhaust_queue=False
+        )
         exit_code = extraction.handle_extraction_command(args)
         assert exit_code == 0
 

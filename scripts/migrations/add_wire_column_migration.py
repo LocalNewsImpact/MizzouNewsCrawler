@@ -14,8 +14,7 @@ try:
     from utils.database import DatabaseManager
 except ImportError as exc:  # noqa: E402
     raise SystemExit(
-        "Unable to import DatabaseManager. "
-        "Run this script from the project root."
+        "Unable to import DatabaseManager. Run this script from the project root."
     ) from exc
 
 
@@ -36,7 +35,7 @@ def add_wire_column():
             cursor.execute("PRAGMA table_info(articles)")
             columns = [row[1] for row in cursor.fetchall()]
 
-            if 'wire' in columns:
+            if "wire" in columns:
                 print("✅ Wire column already exists in articles table")
                 return True
 
@@ -93,7 +92,7 @@ def verify_migration():
 
             wire_column = None
             for col in columns:
-                if col[1] == 'wire':
+                if col[1] == "wire":
                     wire_column = col
                     break
 
@@ -113,7 +112,7 @@ def verify_migration():
 
             wire_index_found = False
             for index in indexes:
-                if 'wire' in index[1]:
+                if "wire" in index[1]:
                     wire_index_found = True
                     print(f"✅ Wire index found: {index[1]}")
                     break

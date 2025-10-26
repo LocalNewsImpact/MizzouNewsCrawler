@@ -6,7 +6,6 @@ import sqlite3
 import tempfile
 import types
 from pathlib import Path
-from typing import cast
 
 import pandas as pd
 import pytest
@@ -312,8 +311,7 @@ def test_bulk_insert_candidate_links_non_sqlite_dataset_insert(monkeypatch):
         with manager.engine.connect() as conn:
             ds_rows = conn.execute(
                 text(
-                    "SELECT dataset_id, legacy_host_id, source_id "
-                    "FROM dataset_sources"
+                    "SELECT dataset_id, legacy_host_id, source_id FROM dataset_sources"
                 )
             ).fetchall()
 
@@ -669,7 +667,7 @@ def test_bulk_insert_articles_migrates_schema_and_adds_defaults():
 
         with manager.engine.connect() as conn:
             row = conn.execute(
-                text("SELECT candidate_link_id, status, created_at " "FROM articles")
+                text("SELECT candidate_link_id, status, created_at FROM articles")
             ).one()
             columns = {
                 info[1] for info in conn.execute(text("PRAGMA table_info(articles)"))
@@ -744,9 +742,9 @@ def test_upsert_article_handles_lock_and_updates(monkeypatch):
 
             stored = db.session.get(Article, article_id)
             assert stored is not None
-            assert cast(str, stored.candidate_link_id) == "cand-lock"
-            assert cast(str, stored.status) == "processed"
-            assert cast(str, stored.text_hash) == calculate_content_hash(article_text)
+            assert str(stored.candidate_link_id) == "cand-lock"
+            assert str(stored.status) == "processed"
+            assert str(stored.text_hash) == calculate_content_hash(article_text)
             assert attempts["count"] >= 2
 
             upsert_article(
@@ -759,8 +757,8 @@ def test_upsert_article_handles_lock_and_updates(monkeypatch):
 
             stored_updated = db.session.get(Article, article_id)
             assert stored_updated is not None
-            assert cast(str, stored_updated.status) == "verified"
-            assert cast(str, stored_updated.title) == "Updated title"
+            assert str(stored_updated.status) == "verified"
+            assert str(stored_updated.title) == "Updated title"
 
 
 def test_prediction_to_tuple_variants():

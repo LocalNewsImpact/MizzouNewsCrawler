@@ -24,11 +24,11 @@ from src.utils.byline_cleaner import BylineCleaner
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler('byline_cleaner_daemon.log'),
-        logging.StreamHandler()
-    ]
+        logging.FileHandler("byline_cleaner_daemon.log"),
+        logging.StreamHandler(),
+    ],
 )
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ class BylineCleanerDaemon:
     def __init__(self, check_interval: int = 30):
         """
         Initialize the daemon.
-        
+
         Args:
             check_interval: Seconds between database checks
         """
@@ -106,11 +106,11 @@ class BylineCleanerDaemon:
     def clean_article_author(self, article_id: str, raw_author: str) -> bool:
         """
         Clean the author field for a specific article.
-        
+
         Args:
             article_id: Article ID to update
             raw_author: Raw author string to clean
-            
+
         Returns:
             True if successful, False otherwise
         """
@@ -132,13 +132,15 @@ class BylineCleanerDaemon:
                     {
                         "cleaned_author": cleaned_author,
                         "updated_at": datetime.utcnow().isoformat(),
-                        "article_id": article_id
-                    }
+                        "article_id": article_id,
+                    },
                 )
                 session.commit()
 
-                logger.info(f"Cleaned author for article {article_id[:8]}...: "
-                           f"'{raw_author}' → '{cleaned_author}'")
+                logger.info(
+                    f"Cleaned author for article {article_id[:8]}...: "
+                    f"'{raw_author}' → '{cleaned_author}'"
+                )
                 return True
             else:
                 logger.debug(f"No cleaning needed for article {article_id[:8]}...")
@@ -190,8 +192,10 @@ class BylineCleanerDaemon:
                 total_cleaned += cycle_cleaned
 
                 if cycles % 20 == 0:  # Log status every 20 cycles
-                    logger.info(f"Status: {total_cleaned} total authors cleaned "
-                               f"over {cycles} cycles")
+                    logger.info(
+                        f"Status: {total_cleaned} total authors cleaned "
+                        f"over {cycles} cycles"
+                    )
 
                 # Wait for next cycle
                 time.sleep(self.check_interval)
@@ -214,12 +218,10 @@ if __name__ == "__main__":
         "--interval",
         type=int,
         default=30,
-        help="Check interval in seconds (default: 30)"
+        help="Check interval in seconds (default: 30)",
     )
     parser.add_argument(
-        "--once",
-        action="store_true",
-        help="Run once and exit (don't run as daemon)"
+        "--once", action="store_true", help="Run once and exit (don't run as daemon)"
     )
 
     args = parser.parse_args()

@@ -1,0 +1,58 @@
+name: 'GCP Cloud Build CI'
+
+# DISABLED: Use manual gcloud builds submit or Cloud Build triggers instead
+# This workflow was causing duplicate builds
+on:
+  # push:
+  #   branches:
+  #     - 'main'
+  #     - 'feature/**'
+  workflow_dispatch: {}  # Keep manual trigger option
+
+jobs:
+  cloud-build:
+    name: Submit Cloud Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Install gcloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          version: '418.0.0'
+          project_id: ${{ secrets.GCP_PROJECT }}
+
+      - name: Configure Docker creds for GCR
+        run: |
+          gcloud auth configure-docker --quiet
+
+      - name: Build processor image via Cloud Build
+        run: |
+          gcloud builds submit --config cloudbuild-processor-v1.2.2.yaml --project=${{ secrets.GCP_PROJECT }} 
+
+      - name: Build crawler image via Cloud Build (if present)
+        run: |
+          if [ -f cloudbuild-crawler.yaml ]; then
+            gcloud builds submit --config cloudbuild-crawler.yaml --project=${{ secrets.GCP_PROJECT }} || true
+          else
+            echo "No cloudbuild-crawler.yaml found, skipping."
+          fi
+
+      - name: Build API image via Cloud Build (if present)
+        run: |
+          if [ -f cloudbuild-api.yaml ]; then
+            gcloud builds submit --config cloudbuild-api.yaml --project=${{ secrets.GCP_PROJECT }} || true
+          else
+            echo "No cloudbuild-api.yaml found, skipping."
+          fi
+
+      - name: Output image locations
+        run: |
+          echo "Images should be available in GCR/Artifact Registry under project: ${{ secrets.GCP_PROJECT }}"

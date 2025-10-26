@@ -90,7 +90,7 @@ def test_obituary_name_with_content_signals_is_high_confidence():
         title="Randy Tallman",
         metadata=None,
         content=(
-            "Randy Tallman passed away on Monday. Visitation will be held " "Friday."
+            "Randy Tallman passed away on Monday. Visitation will be held Friday."
         ),
     )
     assert result is not None

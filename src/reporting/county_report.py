@@ -221,8 +221,10 @@ def generate_county_report(
 
     db = DatabaseManager(database_url=config.database_url)
     try:
-        with db.engine.connect() as conn:
-            df = pd.read_sql_query(query, conn, params=params)
+        # Pass the real SQLAlchemy Engine to pandas so TextClause queries
+        # are supported. If we pass a proxied Connection object, pandas may
+        # treat the connection as a DB-API object and require a string SQL.
+        df = pd.read_sql_query(query, db.engine, params=params)
     finally:
         db.close()
 

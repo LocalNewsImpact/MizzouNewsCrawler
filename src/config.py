@@ -7,8 +7,9 @@ exposes simple constants and a small helper to access configuration values.
 from __future__ import annotations
 
 import os
+from os import PathLike
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 from urllib.parse import quote_plus, urlencode
 
 try:
@@ -19,7 +20,15 @@ try:
 except Exception:  # pragma: no cover - optional dependency missing
     _HAVE_DOTENV = False  # pragma: no cover
 
-    def load_dotenv(*args, **kwargs) -> bool:  # pragma: no cover
+    # Provide a typed fallback that matches python-dotenv's load_dotenv signature
+    def load_dotenv(
+        dotenv_path: str | PathLike[str] | None = None,
+        stream: IO[str] | None = None,
+        verbose: bool = False,
+        override: bool = False,
+        interpolate: bool = True,
+        encoding: str | None = None,
+    ) -> bool:  # pragma: no cover
         return False
 
 
@@ -77,6 +86,12 @@ DATABASE_PASSWORD: str | None = os.getenv("DATABASE_PASSWORD")
 DATABASE_SSLMODE: str | None = os.getenv("DATABASE_SSLMODE")
 DATABASE_REQUIRE_SSL: bool = _env_bool("DATABASE_REQUIRE_SSL", False)
 
+# Cloud SQL Connector configuration (replaces proxy sidecar)
+USE_CLOUD_SQL_CONNECTOR: bool = _env_bool("USE_CLOUD_SQL_CONNECTOR", False)
+CLOUD_SQL_INSTANCE: str | None = os.getenv(
+    "CLOUD_SQL_INSTANCE"
+)  # Format: project:region:instance
+
 _database_url = os.getenv("DATABASE_URL")
 
 if not _database_url and all([DATABASE_HOST, DATABASE_NAME, DATABASE_USER]):
@@ -115,7 +130,7 @@ if TELEMETRY_BASE_PATH and not TELEMETRY_BASE_PATH.startswith("/"):
 if not TELEMETRY_URL and TELEMETRY_HOST:
     port_fragment = f":{TELEMETRY_PORT}" if TELEMETRY_PORT else ""
     TELEMETRY_URL = (
-        f"{TELEMETRY_SCHEME}://{TELEMETRY_HOST}{port_fragment}" f"{TELEMETRY_BASE_PATH}"
+        f"{TELEMETRY_SCHEME}://{TELEMETRY_HOST}{port_fragment}{TELEMETRY_BASE_PATH}"
     )
 
 # OAuth / Auth configuration (optional - used by future work)

@@ -9,7 +9,7 @@ detected during content extraction, helping identify patterns and problems.
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 import argparse
 import json
@@ -56,9 +56,9 @@ def generate_field_quality_report(operation_id=None, limit=50):
             LIMIT :limit
         """
 
-        params = {'limit': limit}
+        params = {"limit": limit}
         if operation_id:
-            params['operation_id'] = operation_id
+            params["operation_id"] = operation_id
 
         results = db.session.execute(text(query), params).fetchall()
 
@@ -71,18 +71,18 @@ def generate_field_quality_report(operation_id=None, limit=50):
 
         # Field presence analysis
         field_stats = {
-            'title': {'present': 0, 'missing': 0, 'issues': 0},
-            'content': {'present': 0, 'missing': 0, 'issues': 0},
-            'author': {'present': 0, 'missing': 0, 'issues': 0},
-            'publish_date': {'present': 0, 'missing': 0, 'issues': 0}
+            "title": {"present": 0, "missing": 0, "issues": 0},
+            "content": {"present": 0, "missing": 0, "issues": 0},
+            "author": {"present": 0, "missing": 0, "issues": 0},
+            "publish_date": {"present": 0, "missing": 0, "issues": 0},
         }
 
         # Quality issue tracking
         all_issues = {
-            'title': Counter(),
-            'content': Counter(),
-            'author': Counter(),
-            'publish_date': Counter()
+            "title": Counter(),
+            "content": Counter(),
+            "author": Counter(),
+            "publish_date": Counter(),
         }
 
         quality_scores = []
@@ -98,48 +98,56 @@ def generate_field_quality_report(operation_id=None, limit=50):
                 perfect_scores += 1
 
             # Field presence tracking
-            field_stats['title']['present'] += 1 if row.has_title else 0
-            field_stats['title']['missing'] += 1 if not row.has_title else 0
-            field_stats['title']['issues'] += 1 if row.title_has_issues else 0
+            field_stats["title"]["present"] += 1 if row.has_title else 0
+            field_stats["title"]["missing"] += 1 if not row.has_title else 0
+            field_stats["title"]["issues"] += 1 if row.title_has_issues else 0
 
-            field_stats['content']['present'] += 1 if row.has_content else 0
-            field_stats['content']['missing'] += 1 if not row.has_content else 0
-            field_stats['content']['issues'] += 1 if row.content_has_issues else 0
+            field_stats["content"]["present"] += 1 if row.has_content else 0
+            field_stats["content"]["missing"] += 1 if not row.has_content else 0
+            field_stats["content"]["issues"] += 1 if row.content_has_issues else 0
 
-            field_stats['author']['present'] += 1 if row.has_author else 0
-            field_stats['author']['missing'] += 1 if not row.has_author else 0
-            field_stats['author']['issues'] += 1 if row.author_has_issues else 0
+            field_stats["author"]["present"] += 1 if row.has_author else 0
+            field_stats["author"]["missing"] += 1 if not row.has_author else 0
+            field_stats["author"]["issues"] += 1 if row.author_has_issues else 0
 
-            field_stats['publish_date']['present'] += 1 if row.has_publish_date else 0
-            field_stats['publish_date']['missing'] += 1 if not row.has_publish_date else 0
-            field_stats['publish_date']['issues'] += 1 if row.publish_date_has_issues else 0
+            field_stats["publish_date"]["present"] += 1 if row.has_publish_date else 0
+            field_stats["publish_date"]["missing"] += (
+                1 if not row.has_publish_date else 0
+            )
+            field_stats["publish_date"]["issues"] += (
+                1 if row.publish_date_has_issues else 0
+            )
 
             # Parse and count specific quality issues
             try:
-                title_issues = json.loads(row.title_quality_issues or '[]')
-                content_issues = json.loads(row.content_quality_issues or '[]')
-                author_issues = json.loads(row.author_quality_issues or '[]')
-                date_issues = json.loads(row.publish_date_quality_issues or '[]')
+                title_issues = json.loads(row.title_quality_issues or "[]")
+                content_issues = json.loads(row.content_quality_issues or "[]")
+                author_issues = json.loads(row.author_quality_issues or "[]")
+                date_issues = json.loads(row.publish_date_quality_issues or "[]")
 
                 for issue in title_issues:
-                    all_issues['title'][issue] += 1
+                    all_issues["title"][issue] += 1
                 for issue in content_issues:
-                    all_issues['content'][issue] += 1
+                    all_issues["content"][issue] += 1
                 for issue in author_issues:
-                    all_issues['author'][issue] += 1
+                    all_issues["author"][issue] += 1
                 for issue in date_issues:
-                    all_issues['publish_date'][issue] += 1
+                    all_issues["publish_date"][issue] += 1
 
                 # Collect samples of articles with issues
                 if any([title_issues, content_issues, author_issues, date_issues]):
-                    sample_issues.append({
-                        'url': row.url[:80] + '...' if len(row.url) > 80 else row.url,
-                        'quality_score': row.overall_quality_score,
-                        'title_issues': title_issues,
-                        'content_issues': content_issues,
-                        'author_issues': author_issues,
-                        'date_issues': date_issues
-                    })
+                    sample_issues.append(
+                        {
+                            "url": row.url[:80] + "..."
+                            if len(row.url) > 80
+                            else row.url,
+                            "quality_score": row.overall_quality_score,
+                            "title_issues": title_issues,
+                            "content_issues": content_issues,
+                            "author_issues": author_issues,
+                            "date_issues": date_issues,
+                        }
+                    )
 
             except json.JSONDecodeError:
                 continue
@@ -149,10 +157,12 @@ def generate_field_quality_report(operation_id=None, limit=50):
         print("-" * 40)
         total = len(results)
         for field, stats in field_stats.items():
-            present_pct = (stats['present'] / total) * 100
-            issues_pct = (stats['issues'] / total) * 100 if total > 0 else 0
-            print(f"{field.upper():>12}: {stats['present']:>3}/{total} present ({present_pct:>5.1f}%), "
-                  f"{stats['issues']:>3} with issues ({issues_pct:>5.1f}%)")
+            present_pct = (stats["present"] / total) * 100
+            issues_pct = (stats["issues"] / total) * 100 if total > 0 else 0
+            print(
+                f"{field.upper():>12}: {stats['present']:>3}/{total} present ({present_pct:>5.1f}%), "
+                f"{stats['issues']:>3} with issues ({issues_pct:>5.1f}%)"
+            )
 
         print()
 
@@ -164,7 +174,9 @@ def generate_field_quality_report(operation_id=None, limit=50):
         print("-" * 40)
         print(f"Average Quality Score: {avg_quality:.3f}")
         print(f"Perfect Scores (1.0):  {perfect_scores}/{total} ({perfect_pct:.1f}%)")
-        print(f"Score Range:           {min(quality_scores):.2f} - {max(quality_scores):.2f}")
+        print(
+            f"Score Range:           {min(quality_scores):.2f} - {max(quality_scores):.2f}"
+        )
         print()
 
         # Print specific quality issues
@@ -186,35 +198,36 @@ def generate_field_quality_report(operation_id=None, limit=50):
             print("=" * 60)
 
             # Sort by quality score (worst first)
-            sample_issues.sort(key=lambda x: x['quality_score'])
+            sample_issues.sort(key=lambda x: x["quality_score"])
 
             for i, sample in enumerate(sample_issues[:5], 1):
                 print(f"\n{i}. Quality Score: {sample['quality_score']:.2f}")
                 print(f"   URL: {sample['url']}")
 
-                if sample['title_issues']:
+                if sample["title_issues"]:
                     print(f"   Title Issues: {', '.join(sample['title_issues'])}")
-                if sample['content_issues']:
+                if sample["content_issues"]:
                     print(f"   Content Issues: {', '.join(sample['content_issues'])}")
-                if sample['author_issues']:
+                if sample["author_issues"]:
                     print(f"   Author Issues: {', '.join(sample['author_issues'])}")
-                if sample['date_issues']:
+                if sample["date_issues"]:
                     print(f"   Date Issues: {', '.join(sample['date_issues'])}")
 
 
 def main():
     """Main function."""
     parser = argparse.ArgumentParser(description="Field Quality Analysis Report")
-    parser.add_argument('--operation-id', help="Specific operation ID to analyze")
-    parser.add_argument('--limit', type=int, default=50,
-                        help="Maximum number of results to analyze (default: 50)")
+    parser.add_argument("--operation-id", help="Specific operation ID to analyze")
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=50,
+        help="Maximum number of results to analyze (default: 50)",
+    )
 
     args = parser.parse_args()
 
-    generate_field_quality_report(
-        operation_id=args.operation_id,
-        limit=args.limit
-    )
+    generate_field_quality_report(operation_id=args.operation_id, limit=args.limit)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,100 @@
+# Template for creating new dataset pipelines
+# 
+# To create a new dataset pipeline:
+# 1. Copy this file and rename it (e.g., my-dataset-pipeline-cronworkflow.yaml)
+# 2. Update metadata.name with your dataset name
+# 3. Update metadata.labels.dataset
+# 4. Adjust schedule if needed (offset from other datasets to avoid conflicts)
+# 5. Update all parameter values for your dataset
+# 6. Adjust rate limiting based on target site's bot detection sensitivity
+# 7. Apply: kubectl apply -f k8s/argo/my-dataset-pipeline-cronworkflow.yaml
+
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: DATASET-NAME-pipeline  # CHANGE THIS
+  namespace: production
+  labels:
+    dataset: DATASET-NAME  # CHANGE THIS
+    type: pipeline
+spec:
+  schedule: "0 */6 * * *"  # ADJUST IF NEEDED: offset from other pipelines to avoid conflicts
+  timezone: "UTC"
+  concurrencyPolicy: "Forbid"  # Don't run concurrent pipelines
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 5
+  workflowSpec:
+    entrypoint: dataset-pipeline-wrapper
+    serviceAccountName: argo-workflow
+    
+    templates:
+    # Wrapper that calls the reusable template
+    - name: dataset-pipeline-wrapper
+      steps:
+      - - name: run-pipeline
+          templateRef:
+            name: news-pipeline-template
+            template: pipeline
+          arguments:
+            parameters:
+            # Dataset configuration - CHANGE THIS to match your dataset name
+            - name: dataset
+              value: "DATASET-NAME"
+            
+            # Discovery parameters - ADJUST based on your dataset size
+            - name: source-limit
+              value: ""          # Empty = process ALL sources in dataset (recommended)
+            - name: max-articles
+              value: "50"        # Max articles to discover per source
+            - name: days-back
+              value: "7"         # How far back to look for articles
+            
+            # Verification parameters - ADJUST based on expected volume
+            - name: verify-batch-size
+              value: "10"        # URLs to verify per batch
+            - name: verify-max-batches
+              value: "100"       # Maximum batches to process
+            
+            # Extraction parameters - ADJUST based on expected volume
+            # Total capacity = extract-limit × extract-batches
+            # Examples:
+            #   - Daily low volume (5-10 articles/day):  limit=20, batches=30 = 600 total
+            #   - Daily high volume (20-50 articles/day): limit=50, batches=40 = 2,000 total
+            #   - Weekly publications (50-200 articles):  limit=50, batches=60 = 3,000 total
+            - name: extract-limit
+              value: "50"        # Articles to extract per batch (balance: larger=faster, smaller=safer)
+            - name: extract-batches
+              value: "40"        # Maximum batches to process (total capacity: limit × batches)
+            
+            # Rate limiting - CRITICAL: ADJUST based on target site's bot protection
+            # Conservative (low bot detection):
+            #   inter-request-min: "2.0"
+            #   inter-request-max: "5.0"
+            #   batch-sleep: "10.0"
+            #   captcha-backoff-base: "900"    # 15 minutes
+            #   captcha-backoff-max: "3600"    # 1 hour
+            #
+            # Moderate (typical):
+            #   inter-request-min: "5.0"
+            #   inter-request-max: "15.0"
+            #   batch-sleep: "30.0"
+            #   captcha-backoff-base: "1800"   # 30 minutes
+            #   captcha-backoff-max: "7200"    # 2 hours
+            #
+            # Aggressive (strong bot protection):
+            #   inter-request-min: "90.0"
+            #   inter-request-max: "180.0"
+            #   batch-sleep: "420.0"
+            #   captcha-backoff-base: "7200"   # 2 hours
+            #   captcha-backoff-max: "21600"   # 6 hours
+            
+            - name: inter-request-min
+              value: "5.0"       # Minimum seconds between requests
+            - name: inter-request-max
+              value: "15.0"      # Maximum seconds between requests
+            - name: batch-sleep
+              value: "30.0"      # Seconds to sleep between batches
+            - name: captcha-backoff-base
+              value: "1800"      # Base backoff in seconds after CAPTCHA
+            - name: captcha-backoff-max
+              value: "7200"      # Maximum backoff in seconds

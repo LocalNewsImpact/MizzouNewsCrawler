@@ -155,7 +155,7 @@ def _show_method_effectiveness(
         print("No method effectiveness data available.")
         return 0
 
-    print(f"{'Method':<15} {'Count':<8} {'Success Rate':<12} " f"{'Avg Duration':<12}")
+    print(f"{'Method':<15} {'Count':<8} {'Success Rate':<12} {'Avg Duration':<12}")
     print("-" * 60)
 
     for method in methods:

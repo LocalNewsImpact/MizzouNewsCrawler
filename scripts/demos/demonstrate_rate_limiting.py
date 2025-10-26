@@ -27,20 +27,20 @@ def demonstrate_rate_limiting_protection():
             "name": "High-volume extraction from single domain",
             "domain": "busy-news-site.com",
             "requests": 15,
-            "trigger_after": 8  # Trigger rate limiting after 8 requests
+            "trigger_after": 8,  # Trigger rate limiting after 8 requests
         },
         {
             "name": "Multi-domain extraction with mixed success",
             "domain": "variable-response-site.com",
             "requests": 6,
-            "trigger_after": 4
+            "trigger_after": 4,
         },
         {
             "name": "Retry behavior after rate limiting",
             "domain": "retry-test-site.com",
             "requests": 3,
-            "trigger_after": 1
-        }
+            "trigger_after": 1,
+        },
     ]
 
     total_protected_requests = 0
@@ -52,17 +52,19 @@ def demonstrate_rate_limiting_protection():
         print(f"   Planned requests: {scenario['requests']}")
         print()
 
-        domain = scenario['domain']
+        domain = scenario["domain"]
         successful_requests = 0
 
-        for i in range(scenario['requests']):
+        for i in range(scenario["requests"]):
             request_num = i + 1
 
             # Check if domain is rate limited before making request
             if extractor._check_rate_limit(domain):
                 backoff_time = extractor.domain_backoff_until[domain] - time.time()
-                print(f"   Request {request_num}: ⛔ Domain rate limited "
-                      f"({backoff_time:.0f}s remaining)")
+                print(
+                    f"   Request {request_num}: ⛔ Domain rate limited "
+                    f"({backoff_time:.0f}s remaining)"
+                )
                 total_protected_requests += 1
                 continue
 
@@ -70,7 +72,7 @@ def demonstrate_rate_limiting_protection():
             extractor._apply_rate_limit(domain)
 
             # Simulate request success/failure
-            if request_num <= scenario['trigger_after']:
+            if request_num <= scenario["trigger_after"]:
                 # Successful request
                 print(f"   Request {request_num}: ✅ Success")
                 extractor._reset_error_count(domain)
@@ -82,11 +84,11 @@ def demonstrate_rate_limiting_protection():
                 # Create mock response for realistic behavior
                 class MockResponse:
                     def __init__(self):
-                        self.headers = {'retry-after': str(random.randint(30, 120))}
+                        self.headers = {"retry-after": str(random.randint(30, 120))}
 
                 extractor._handle_rate_limit_error(domain, MockResponse())
                 domains_protected += 1
-                total_protected_requests += (scenario['requests'] - request_num)
+                total_protected_requests += scenario["requests"] - request_num
                 break
 
             # Small delay between requests
@@ -96,8 +98,10 @@ def demonstrate_rate_limiting_protection():
         error_count = extractor.domain_error_counts.get(domain, 0)
         is_rate_limited = domain in extractor.domain_backoff_until
 
-        print(f"   📊 Results: {successful_requests} successful, "
-              f"{error_count} errors, rate limited: {is_rate_limited}")
+        print(
+            f"   📊 Results: {successful_requests} successful, "
+            f"{error_count} errors, rate limited: {is_rate_limited}"
+        )
         print()
 
     # Final statistics
@@ -174,7 +178,9 @@ def test_key_rate_limiting_behaviors():
             print("✅ Test 2: Error count progression works correctly")
             tests_passed += 1
         else:
-            print(f"❌ Test 2: Error count is {extractor.domain_error_counts[domain]}, expected 3")
+            print(
+                f"❌ Test 2: Error count is {extractor.domain_error_counts[domain]}, expected 3"
+            )
     except Exception as e:
         print(f"❌ Test 2 failed: {e}")
 
@@ -210,7 +216,9 @@ def test_key_rate_limiting_behaviors():
             print("✅ Test 4: Error count reset works correctly")
             tests_passed += 1
         else:
-            print(f"❌ Test 4: Error count is {extractor.domain_error_counts[domain]}, expected 0")
+            print(
+                f"❌ Test 4: Error count is {extractor.domain_error_counts[domain]}, expected 0"
+            )
     except Exception as e:
         print(f"❌ Test 4 failed: {e}")
 

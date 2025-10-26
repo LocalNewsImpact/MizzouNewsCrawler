@@ -5,8 +5,10 @@
 import hashlib
 import json
 import logging
+import os
 import random
 import re
+import threading
 import time
 from copy import deepcopy
 from datetime import datetime
@@ -14,13 +16,24 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.parse import urljoin, urlparse
 
 import requests
-from bs4 import BeautifulSoup
-from bs4.element import Tag
+from bs4 import BeautifulSoup, Tag
 from dateutil import parser as dateparser
+
+from src.utils.bot_sensitivity_manager import BotSensitivityManager
+from src.utils.comprehensive_telemetry import ExtractionMetrics
+
+from .origin_proxy import enable_origin_proxy
+from .proxy_config import get_proxy_manager
 
 
 class RateLimitError(Exception):
     """Exception raised when a domain is rate limited."""
+
+    pass
+
+
+class NotFoundError(Exception):
+    """Exception raised when a URL returns 404/410 (permanent missing)."""
 
     pass
 
@@ -48,6 +61,7 @@ except ImportError:
 try:
     from selenium import webdriver
     from selenium.webdriver.chrome.options import Options as ChromeOptions
+    from selenium.webdriver.chrome.service import Service as ChromeService
     from selenium.webdriver.common.by import By
     from selenium.webdriver.support import expected_conditions as EC
     from selenium.webdriver.support.ui import WebDriverWait
@@ -75,6 +89,26 @@ except ImportError:
     logging.warning("selenium-stealth not available, using basic stealth mode")
 
 logger = logging.getLogger(__name__)
+
+
+def _ensure_attrs_dict(attrs: object) -> dict:
+    """Coerce BeautifulSoup `attrs` argument into a dict suitable for
+    `soup.find(selector, attrs=...)`.
+
+    BeautifulSoup allows attribute values to be a dict, a list, or other
+    types. This helper returns a dict when possible and falls back to an
+    empty dict otherwise.
+    """
+    if isinstance(attrs, dict):
+        return attrs
+    # Handle typical BeautifulSoup shapes: list/tuple of (k,v) pairs
+    if isinstance(attrs, (list, tuple)):
+        try:
+            return {k: v for k, v in attrs}  # type: ignore[misc]
+        except Exception:
+            return {}
+    # Unknown shape -> empty dict
+    return {}
 
 
 URL_DATE_FALLBACK_HOSTS = {
@@ -137,7 +171,12 @@ class NewsCrawler:
     """Main crawler class for discovering and fetching news articles."""
 
     def __init__(self, user_agent: str = None, timeout: int = 20, delay: float = 1.0):
-        self.user_agent = user_agent or "Mozilla/5.0 (compatible; MizzouCrawler/1.0)"
+        # Use a realistic default User-Agent instead of identifying as a crawler
+        self.user_agent = user_agent or (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/129.0.0.0 Safari/537.36"
+        )
         self.timeout = timeout
         self.delay = delay
         self.session = requests.Session()
@@ -176,6 +215,11 @@ class NewsCrawler:
                 if not href:
                     continue
 
+                # BeautifulSoup `attrs` may be a list/tuple; normalize to a string
+                if isinstance(href, (list, tuple)):
+                    href = href[0] if href else ""
+                href = str(href)
+
                 # Resolve relative URLs
                 href = urljoin(seed_url, href)
                 parsed_href = urlparse(href)
@@ -183,7 +227,7 @@ class NewsCrawler:
                 # Normalize URL (remove fragment, query params
                 # for deduplication)
                 normalized_url = (
-                    f"{parsed_href.scheme}://" f"{parsed_href.netloc}{parsed_href.path}"
+                    f"{parsed_href.scheme}://{parsed_href.netloc}{parsed_href.path}"
                 )
 
                 if not self.is_valid_url(normalized_url):
@@ -228,7 +272,7 @@ class NewsCrawler:
             return None
 
     def filter_article_urls(
-        self, urls: Set[str], site_rules: Dict[str, any] = None
+        self, urls: Set[str], site_rules: Dict[str, Any] = None
     ) -> List[str]:
         """Filter URLs to identify likely article pages.
 
@@ -246,11 +290,11 @@ class NewsCrawler:
                 article_urls.append(url)
 
         logger.info(
-            f"Filtered {len(urls)} URLs to " f"{len(article_urls)} article candidates"
+            f"Filtered {len(urls)} URLs to {len(article_urls)} article candidates"
         )
         return sorted(article_urls)
 
-    def _is_likely_article(self, url: str, site_rules: Dict[str, any] = None) -> bool:
+    def _is_likely_article(self, url: str, site_rules: Dict[str, Any] = None) -> bool:
         """Determine if a URL is likely an article page."""
         # Default filters - skip known non-article paths
         skip_patterns = [
@@ -268,6 +312,13 @@ class NewsCrawler:
             "/privacy",
             "/terms",
             "/sitemap",
+            "/posterboard-ads/",
+            "/classifieds/",
+            "/marketplace/",
+            "/deals/",
+            "/coupons/",
+            "/promotions/",
+            "/sponsored/",
         ]
 
         url_lower = url.lower()
@@ -306,84 +357,174 @@ class ContentExtractor:
         self._driver_creation_count = 0
         self._driver_reuse_count = 0
 
-        # User agent pool for rotation
+        # User agent pool for rotation - updated with latest browser versions
+        # for better anti-detection (October 2025)
         self.user_agent_pool = [
-            # Chrome on Windows
+            # Chrome on Windows (most common desktop browser)
             (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
+                "Chrome/129.0.0.0 Safari/537.36"
             ),
             (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/119.0.0.0 Safari/537.36"
+                "Chrome/128.0.0.0 Safari/537.36"
+            ),
+            (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/127.0.0.0 Safari/537.36"
             ),
             # Chrome on macOS
             (
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
+                "Chrome/129.0.0.0 Safari/537.36"
             ),
             (
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/119.0.0.0 Safari/537.36"
+                "Chrome/128.0.0.0 Safari/537.36"
+            ),
+            # Chrome on Linux
+            (
+                "Mozilla/5.0 (X11; Linux x86_64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/129.0.0.0 Safari/537.36"
             ),
             # Firefox on Windows
             (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) "
-                "Gecko/20100101 Firefox/121.0"
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:130.0) "
+                "Gecko/20100101 Firefox/130.0"
             ),
             (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) "
-                "Gecko/20100101 Firefox/120.0"
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:131.0) "
+                "Gecko/20100101 Firefox/131.0"
             ),
             # Firefox on macOS
             (
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) "
-                "Gecko/20100101 Firefox/121.0"
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:130.0) "
+                "Gecko/20100101 Firefox/130.0"
             ),
-            # Safari on macOS
+            # Firefox on Linux
+            (
+                "Mozilla/5.0 (X11; Linux x86_64; rv:130.0) "
+                "Gecko/20100101 Firefox/130.0"
+            ),
+            # Safari on macOS (latest versions)
             (
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                 "AppleWebKit/605.1.15 (KHTML, like Gecko) "
-                "Version/17.1 Safari/605.1.15"
+                "Version/18.0 Safari/605.1.15"
             ),
             (
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                 "AppleWebKit/605.1.15 (KHTML, like Gecko) "
-                "Version/17.0 Safari/605.1.15"
+                "Version/17.6 Safari/605.1.15"
+            ),
+            # Edge on Windows
+            (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/129.0.0.0 Safari/537.36 Edg/129.0.0.0"
             ),
         ]
 
-        # Header variation pools
+        # Header variation pools for more realistic browser behavior
         self.accept_language_pool = [
             "en-US,en;q=0.9",
             "en-GB,en;q=0.9",
+            "en-US,en;q=0.9,es;q=0.8",
+            "en-US,en;q=0.9,fr;q=0.8,de;q=0.7",
             "en;q=0.9",
-            "en-US,en;q=0.8,fr;q=0.6",
-            "en-US,en;q=0.5",
+            "en-US,en;q=0.8",
+            "en-US,en;q=0.7",
         ]
 
         self.accept_encoding_pool = [
+            "gzip, deflate, br, zstd",
             "gzip, deflate, br",
             "gzip, deflate",
-            "gzip, deflate, br, zstd",
+        ]
+
+        # More realistic Accept header variations
+        self.accept_header_pool = [
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         ]
 
         # Track domain-specific sessions and user agents
-        self.domain_sessions = {}
-        self.domain_user_agents = {}
-        self.request_counts = {}
-        self.last_request_times = {}
+        self.domain_sessions: dict[str, Any] = {}
+        self.domain_user_agents: dict[str, str] = {}
+        self.request_counts: dict[str, int] = {}
+        self.last_request_times: dict[str, float] = {}
+
+        # Per-domain concurrency lock (ensure single in-flight per domain)
+        self.domain_locks: dict[str, Any] = {}
 
         # Rate limiting and backoff management
-        self.domain_request_times = {}  # Track request timestamps per domain
-        self.domain_backoff_until = {}  # Track when domain is available again
-        self.domain_error_counts = {}  # Track consecutive errors per domain
-        self.base_delay = 1.0  # Base delay between requests (seconds)
+        self.domain_request_times: dict[str, float] = (
+            {}
+        )  # Track last request time per domain
+        self.domain_backoff_until: dict[str, float] = (
+            {}
+        )  # Track when domain is available again
+        self.domain_error_counts: dict[str, int] = (
+            {}
+        )  # Track consecutive errors per domain
+
+        # Selenium-specific failure tracking (separate from requests failures)
+        # This prevents disabling Selenium for CAPTCHA-protected domains
+        self._selenium_failure_counts: dict[str, int] = (
+            {}
+        )  # Track Selenium failures per domain
+
+        # Base inter-request delay (env tunable)
+        try:
+            self.inter_request_min = float(os.getenv("INTER_REQUEST_MIN", "1.5"))
+            self.inter_request_max = float(os.getenv("INTER_REQUEST_MAX", "3.5"))
+        except Exception:
+            self.inter_request_min, self.inter_request_max = 1.5, 3.5
+        self.base_delay = max(self.inter_request_min, 0.5)
         self.max_backoff = 300  # Maximum backoff time (5 minutes)
+
+        # CAPTCHA-aware backoff configuration
+        try:
+            self.captcha_backoff_base = int(os.getenv("CAPTCHA_BACKOFF_BASE", "600"))
+            self.captcha_backoff_max = int(os.getenv("CAPTCHA_BACKOFF_MAX", "5400"))
+        except Exception:
+            self.captcha_backoff_base, self.captcha_backoff_max = 600, 5400
+
+        # UA rotation policy (less frequent rotation)
+        try:
+            self.ua_rotation_base = int(os.getenv("UA_ROTATE_BASE", "9"))
+            self.ua_rotation_jitter = float(os.getenv("UA_ROTATE_JITTER", "0.25"))
+        except Exception:
+            self.ua_rotation_base, self.ua_rotation_jitter = 9, 0.25
+
+        # Negative cache for dead URLs (404/410)
+        self.dead_urls: dict[str, float] = {}
+        try:
+            self.dead_url_ttl = int(os.getenv("DEAD_URL_TTL_SECONDS", "604800"))
+        except Exception:
+            self.dead_url_ttl = 604800
+
+        # Optional proxy pool routing for requests
+        pool_env = (os.getenv("PROXY_POOL", "") or "").strip()
+        self.proxy_pool = (
+            [p.strip() for p in pool_env.split(",") if p.strip()] if pool_env else []
+        )
+        self.domain_proxies: dict[str, str] = {}
+
+        # Initialize multi-proxy manager
+        self.proxy_manager = get_proxy_manager()
+        logger.info(
+            f"🔀 Proxy manager initialized with provider: "
+            f"{self.proxy_manager.active_provider.value}"
+        )
 
         # Set initial user agent
         self.current_user_agent = user_agent or random.choice(self.user_agent_pool)
@@ -392,7 +533,10 @@ class ContentExtractor:
         self._create_new_session()
 
         # Track metadata about publish date extraction source
-        self._publish_date_details: Optional[Dict[str, any]] = None
+        self._publish_date_details: Optional[Dict[str, Any]] = None
+
+        # Initialize bot sensitivity manager for adaptive crawling
+        self.bot_sensitivity_manager = BotSensitivityManager()
 
         logger.info("ContentExtractor initialized with user agent rotation enabled")
 
@@ -401,10 +545,10 @@ class ContentExtractor:
         # Initialize cloudscraper session for better Cloudflare handling
         if CLOUDSCRAPER_AVAILABLE and cloudscraper is not None:
             self.session = cloudscraper.create_scraper()
-            logger.debug("Created new cloudscraper session")
+            logger.info("🔧 Created new cloudscraper session (anti-Cloudflare enabled)")
         else:
             self.session = requests.Session()
-            logger.debug("Created new requests session")
+            logger.info("🔧 Created new requests session (cloudscraper NOT available)")
 
         # Set headers with some randomization
         self._set_session_headers()
@@ -413,10 +557,7 @@ class ContentExtractor:
         """Set randomized headers for the current session."""
         headers = {
             "User-Agent": self.current_user_agent,
-            "Accept": (
-                "text/html,application/xhtml+xml,application/xml;"
-                "q=0.9,image/webp,*/*;q=0.8"
-            ),
+            "Accept": random.choice(self.accept_header_pool),
             "Accept-Language": random.choice(self.accept_language_pool),
             "Accept-Encoding": random.choice(self.accept_encoding_pool),
             "Connection": "keep-alive",
@@ -424,13 +565,54 @@ class ContentExtractor:
             "Sec-Fetch-Dest": "document",
             "Sec-Fetch-Mode": "navigate",
             "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
             "Cache-Control": "max-age=0",
-            "DNT": "1",
         }
 
+        # Randomly include DNT header (not all browsers send it)
+        if random.random() > 0.3:  # 70% chance
+            headers["DNT"] = "1"
+
         self.session.headers.update(headers)
+
+        # Configure proxy based on active provider
+        active_provider = self.proxy_manager.active_provider
+
+        # Check if we should use origin proxy (backward compatibility)
+        use_origin = os.getenv("USE_ORIGIN_PROXY", "").lower() in ("1", "true", "yes")
+
+        if active_provider.value == "origin" or use_origin:
+            # Use origin-style proxy adapter (URL rewriting)
+            try:
+                enable_origin_proxy(self.session)
+                proxy_url = (
+                    os.getenv("ORIGIN_PROXY_URL")
+                    or os.getenv("PROXY_HOST")
+                    or os.getenv("PROXY_URL")
+                )
+                logger.info(
+                    f"🔀 Origin proxy adapter enabled "
+                    f"(proxy: {proxy_url or 'default'})"
+                )
+            except Exception as e:
+                logger.warning(f"Failed to install origin proxy adapter: {e}")
+
+        elif active_provider.value != "direct":
+            # Use standard proxies from ProxyManager (HTTP/HTTPS/SOCKS5)
+            proxies = self.proxy_manager.get_requests_proxies()
+            if proxies:
+                self.session.proxies.update(proxies)
+                logger.info(
+                    f"🔀 Standard proxy enabled: {active_provider.value} "
+                    f"({list(proxies.keys())})"
+                )
+
+        else:
+            # Direct connection (no proxy)
+            logger.info("🔀 Direct connection (no proxy)")
+
         logger.debug(
-            f"Updated session headers with UA: " f"{self.current_user_agent[:50]}..."
+            f"Updated session headers with UA: {self.current_user_agent[:50]}..."
         )
 
     def _get_domain_session(self, url: str):
@@ -457,9 +639,9 @@ class ContentExtractor:
             # Check rotation conditions
             self.request_counts[domain] += 1
 
-            # Rotate every 5 article calls with 20% jitter (4-6 requests)
-            base_threshold = 5
-            jitter = int(base_threshold * 0.2)  # 20% jitter = 1 request
+            # Rotate every ~UA_ROTATE_BASE calls with jitter
+            base_threshold = max(int(self.ua_rotation_base), 2)
+            jitter = max(1, int(base_threshold * float(self.ua_rotation_jitter)))
             rotation_threshold = random.randint(
                 base_threshold - jitter, base_threshold + jitter
             )
@@ -468,7 +650,7 @@ class ContentExtractor:
                 self.request_counts[domain] = 0
                 logger.info(
                     f"Rotating user agent for {domain} after "
-                    f"{rotation_threshold} article calls (5±20% jitter)"
+                    f"{rotation_threshold} article calls"
                 )
 
         if should_rotate:
@@ -481,15 +663,18 @@ class ContentExtractor:
             new_user_agent = random.choice(available_agents)
 
             # Create new session with clean cookies
+            session_type = None
             if CLOUDSCRAPER_AVAILABLE and cloudscraper is not None:
                 new_session = cloudscraper.create_scraper()
+                session_type = "cloudscraper"
             else:
                 new_session = requests.Session()
+                session_type = "requests"
 
-            # Set randomized headers
+            # Set randomized headers with more variation
             headers = {
                 "User-Agent": new_user_agent,
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                "Accept": random.choice(self.accept_header_pool),
                 "Accept-Language": random.choice(self.accept_language_pool),
                 "Accept-Encoding": random.choice(self.accept_encoding_pool),
                 "Connection": "keep-alive",
@@ -497,18 +682,60 @@ class ContentExtractor:
                 "Sec-Fetch-Dest": "document",
                 "Sec-Fetch-Mode": "navigate",
                 "Sec-Fetch-Site": "none",
+                "Sec-Fetch-User": "?1",
                 "Cache-Control": "max-age=0",
-                "DNT": "1",
             }
+
+            # Randomly include DNT header (not all browsers send it)
+            if random.random() > 0.3:  # 70% chance
+                headers["DNT"] = "1"
+
             new_session.headers.update(headers)
+
+            # Configure proxy based on active provider
+            # IMPORTANT: Rotate proxy when rotating UA to avoid (same IP + different UA)
+            active_provider = self.proxy_manager.active_provider
+            use_origin = os.getenv("USE_ORIGIN_PROXY", "").lower() in (
+                "1",
+                "true",
+                "yes",
+            )
+
+            if active_provider.value == "origin" or use_origin:
+                # Use origin-style proxy adapter
+                try:
+                    enable_origin_proxy(new_session)
+                except Exception as e:
+                    logger.debug(
+                        f"Failed to install origin proxy on domain "
+                        f"session for {domain}: {e}"
+                    )
+
+            elif active_provider.value != "direct":
+                # Get fresh proxies (forces IP rotation for providers like Decodo)
+                # This is crucial: rotating UA without rotating IP looks suspicious
+                proxies = self.proxy_manager.get_requests_proxies()
+                if proxies:
+                    new_session.proxies.update(proxies)
+
+            # Assign sticky proxy per domain when pool provided (legacy)
+            proxy = self._choose_proxy_for_domain(domain)
+            if proxy:
+                new_session.proxies.update(
+                    {
+                        "http": proxy,
+                        "https": proxy,
+                    }
+                )
 
             # Store new session and user agent for this domain
             self.domain_sessions[domain] = new_session
             self.domain_user_agents[domain] = new_user_agent
 
             logger.info(
-                f"Created new session for {domain} with UA: "
-                f"{new_user_agent[:50]}..."
+                f"🔧 Created {session_type} session for {domain} "
+                f"(proxy: {active_provider.value}, "
+                f"UA: {new_user_agent[:50]}...)"
             )
             logger.debug(f"Cleared cookies for domain {domain}")
 
@@ -517,7 +744,68 @@ class ContentExtractor:
 
         return self.domain_sessions[domain]
 
-    def get_rotation_stats(self) -> Dict[str, any]:
+    def _choose_proxy_for_domain(self, domain: str) -> Optional[str]:
+        """Pick or return a sticky proxy for a domain if a pool is configured."""
+        if not self.proxy_pool:
+            return None
+        proxy = self.domain_proxies.get(domain)
+        if not proxy:
+            proxy = random.choice(self.proxy_pool)
+            self.domain_proxies[domain] = proxy
+            logger.info(f"Assigned proxy for {domain}")
+        return proxy
+
+    def _generate_referer(self, url: str) -> Optional[str]:
+        """Generate a realistic Referer header for the target URL.
+
+        This makes requests look more natural, as if the user navigated
+        from the site's homepage or another page on the same domain.
+        """
+        try:
+            parsed = urlparse(url)
+            scheme = parsed.scheme or "https"
+            domain = parsed.netloc
+
+            if not domain:
+                return None
+
+            # Randomly choose between different referer strategies
+            strategy = random.choice(
+                [
+                    "homepage",  # 40% - from homepage
+                    "homepage",
+                    "same_domain",  # 30% - from another page on same domain
+                    "same_domain",
+                    "google",  # 20% - from Google search
+                    "none",  # 10% - no referer
+                ]
+            )
+
+            if strategy == "homepage":
+                return f"{scheme}://{domain}/"
+            elif strategy == "same_domain":
+                # Reference another path on the same domain
+                paths = ["/news", "/articles", "/local", "/sports", ""]
+                return f"{scheme}://{domain}{random.choice(paths)}"
+            elif strategy == "google":
+                # Simulate coming from Google search
+                return "https://www.google.com/"
+            else:
+                # No referer
+                return None
+
+        except Exception:
+            return None
+
+    def _get_domain_lock(self, domain: str) -> threading.Lock:
+        """Return a lock object for the domain to cap concurrency to 1."""
+        lock = self.domain_locks.get(domain)
+        if lock is None:
+            lock = threading.Lock()
+            self.domain_locks[domain] = lock
+        return lock
+
+    def get_rotation_stats(self) -> Dict[str, Any]:
         """Get statistics about user agent rotation and session management."""
         return {
             "total_domains_accessed": len(self.domain_sessions),
@@ -545,12 +833,15 @@ class ContentExtractor:
         return False
 
     def _apply_rate_limit(self, domain: str, delay: float = None) -> None:
-        """Apply rate limiting delay for a domain."""
+        """Apply rate limiting delay for a domain using bot sensitivity."""
         current_time = time.time()
 
         if delay is None:
-            # Standard inter-request delay
-            delay = random.uniform(1.0, 2.5)
+            # Get sensitivity-based configuration
+            config = self.bot_sensitivity_manager.get_sensitivity_config(domain)
+            low = config.get("inter_request_min", 1.0)
+            high = config.get("inter_request_max", 2.5)
+            delay = random.uniform(low, high)
 
         # Apply delay if needed
         if domain in self.domain_request_times:
@@ -615,10 +906,82 @@ class ContentExtractor:
         if domain in self.domain_error_counts:
             self.domain_error_counts[domain] = 0
 
+    def _detect_bot_protection_in_response(
+        self, response: requests.Response
+    ) -> Optional[str]:
+        """Detect bot protection mechanisms in HTTP response.
+
+        Returns a string identifying the protection type, or None if not detected.
+        """
+        if not response or not response.text:
+            return None
+
+        text_lower = response.text.lower()
+
+        # Cloudflare protection indicators
+        cloudflare_indicators = [
+            "checking your browser",
+            "cloudflare ray id",
+            "ddos protection by cloudflare",
+            "under attack mode",
+            "attention required! | cloudflare",
+            "just a moment...",
+            "cf-ray",
+        ]
+
+        # Generic bot protection indicators (only check for active challenges)
+        # Note: Exclude passive "grecaptcha" CSS/JS references
+        bot_protection_indicators = [
+            "access denied",
+            "blocked by",
+            "bot protection",
+            "security check",
+            "please wait while we verify",
+            "browser check",
+            "are you a robot",
+            "please verify you are human",
+            "please complete the captcha",
+            "solve the captcha",
+            "captcha challenge",
+        ]
+
+        # Check for Cloudflare first (most common)
+        if any(indicator in text_lower for indicator in cloudflare_indicators):
+            return "cloudflare"
+
+        # Check for general bot protection
+        if any(indicator in text_lower for indicator in bot_protection_indicators):
+            return "bot_protection"
+
+        # Check for suspiciously short responses (often challenge pages)
+        if len(response.text) < 500 and response.status_code in [403, 503]:
+            return "suspicious_short_response"
+
+        return None
+
+    def _handle_captcha_backoff(self, domain: str) -> None:
+        """Apply extended backoff for CAPTCHA/challenge detections."""
+        now = time.time()
+        count = self.domain_error_counts.get(domain, 0) + 1
+        self.domain_error_counts[domain] = count
+        base = int(getattr(self, "captcha_backoff_base", 600))
+        cap = int(getattr(self, "captcha_backoff_max", 5400))
+        delay = min(base * (2 ** (count - 1)), cap)
+        delay *= random.uniform(0.9, 1.3)
+        self.domain_backoff_until[domain] = now + delay
+        logger.warning(f"CAPTCHA backoff for {domain}: {int(delay)}s (attempt {count})")
+
     def _create_error_result(
         self, url: str, error_msg: str, metadata: Dict = None
-    ) -> Dict[str, any]:
+    ) -> Dict[str, Any]:
         """Create a standardized error result."""
+        # Record proxy failure for network/bot blocking errors
+        if any(
+            err in error_msg.lower()
+            for err in ["bot protection", "cloudflare", "captcha", "403", "429"]
+        ):
+            self.proxy_manager.record_failure()
+
         return {
             "url": url,
             "title": "",
@@ -647,8 +1010,19 @@ class ContentExtractor:
             try:
                 # Try undetected-chromedriver first (most advanced)
                 if UNDETECTED_CHROME_AVAILABLE:
-                    self._persistent_driver = self._create_undetected_driver()
-                    self._driver_method = "undetected-chromedriver"
+                    try:
+                        self._persistent_driver = self._create_undetected_driver()
+                        self._driver_method = "undetected-chromedriver"
+                    except Exception as uc_err:
+                        logger.warning(
+                            f"undetected-chromedriver failed to initialize: {uc_err}; "
+                            "falling back to selenium-stealth"
+                        )
+                        if SELENIUM_AVAILABLE:
+                            self._persistent_driver = self._create_stealth_driver()
+                            self._driver_method = "selenium-stealth"
+                        else:
+                            raise
                 elif SELENIUM_AVAILABLE:
                     self._persistent_driver = self._create_stealth_driver()
                     self._driver_method = "selenium-stealth"
@@ -656,9 +1030,7 @@ class ContentExtractor:
                     raise Exception("No Selenium implementation available")
 
                 self._driver_creation_count += 1
-                logger.info(
-                    f"Created persistent driver using " f"{self._driver_method}"
-                )
+                logger.info(f"Created persistent driver using {self._driver_method}")
 
             except Exception as e:
                 logger.error(f"Failed to create persistent driver: {e}")
@@ -667,8 +1039,7 @@ class ContentExtractor:
         else:
             self._driver_reuse_count += 1
             logger.debug(
-                f"Reusing persistent driver "
-                f"(reuse count: {self._driver_reuse_count})"
+                f"Reusing persistent driver (reuse count: {self._driver_reuse_count})"
             )
 
         return self._persistent_driver
@@ -689,7 +1060,7 @@ class ContentExtractor:
                 self._persistent_driver = None
                 self._driver_reuse_count = 0
 
-    def get_driver_stats(self) -> Dict[str, any]:
+    def get_driver_stats(self) -> Dict[str, Any]:
         """Get statistics about driver usage."""
         return {
             "has_persistent_driver": self._persistent_driver is not None,
@@ -698,7 +1069,7 @@ class ContentExtractor:
             "driver_method": getattr(self, "_driver_method", None),
         }
 
-    def extract_article_data(self, html: str, url: str) -> Dict[str, any]:
+    def extract_article_data(self, html: str, url: str) -> Dict[str, Any]:
         """Extract article metadata and content from HTML.
 
         Returns:
@@ -735,8 +1106,8 @@ class ContentExtractor:
         return data
 
     def extract_content(
-        self, url: str, html: str = None, metrics: Optional[object] = None
-    ) -> Dict[str, any]:
+        self, url: str, html: str = None, metrics: Optional[ExtractionMetrics] = None
+    ) -> Dict[str, Any]:
         """Fetch page if needed, extract article data using multiple methods.
 
         Uses intelligent field-level fallback:
@@ -758,7 +1129,7 @@ class ContentExtractor:
         self._publish_date_details = None
 
         # Initialize result structure
-        result = {
+        result: Dict[str, Any] = {
             "url": url,
             "title": None,
             "author": None,
@@ -795,6 +1166,18 @@ class ContentExtractor:
                             newspaper_result or {},
                         )
 
+            except NotFoundError as e:
+                # 404/410 - URL permanently missing, stop all fallback attempts
+                logger.warning(f"URL not found (404/410), stopping extraction: {url}")
+                if metrics:
+                    metrics.end_method("newspaper4k", False, str(e), {})
+                raise  # Re-raise to prevent BeautifulSoup/Selenium fallback
+            except RateLimitError as e:
+                # Rate limiting/bot protection, stop all fallback attempts
+                logger.warning(f"Rate limit/bot protection, stopping extraction: {url}")
+                if metrics:
+                    metrics.end_method("newspaper4k", False, str(e), {})
+                raise  # Re-raise to prevent BeautifulSoup/Selenium fallback
             except Exception as e:
                 logger.info(f"newspaper4k extraction failed for {url}: {e}")
                 # Try to get any partial result with metadata (including HTTP
@@ -873,17 +1256,49 @@ class ContentExtractor:
                 if metrics:
                     metrics.start_method("selenium")
 
+                # Check if domain is in CAPTCHA backoff period
+                # Selenium should respect CAPTCHA backoffs since it will just hit the same CAPTCHA
+                dom = urlparse(url).netloc
+                if self._check_rate_limit(dom):
+                    logger.info(
+                        f"Skipping Selenium for {dom} - domain is in CAPTCHA backoff period"
+                    )
+                    raise RateLimitError(f"Domain {dom} is in backoff period")
+
+                # Only check if Selenium itself has failed repeatedly on this domain
+                selenium_failures = getattr(self, "_selenium_failure_counts", {})
+                if selenium_failures.get(dom, 0) >= 3:
+                    logger.warning(
+                        f"Skipping Selenium for {dom} - already failed {selenium_failures[dom]} times"
+                    )
+                    raise RateLimitError(
+                        f"Selenium repeatedly failed for {dom}; skipping"
+                    )
+
                 selenium_result = self._extract_with_selenium(url)
 
-                if selenium_result:
+                if selenium_result and selenium_result.get("content"):
                     # Only copy still-missing fields
                     self._merge_extraction_results(
                         result, selenium_result, "selenium", missing_fields, metrics
                     )
-                    logger.info(f"Selenium extraction completed for {url}")
+                    logger.info(f"✅ Selenium extraction succeeded for {url}")
+
+                    # Reset failure count on success
+                    if dom in self._selenium_failure_counts:
+                        del self._selenium_failure_counts[dom]
+
                     if metrics:
                         metrics.end_method("selenium", True, None, selenium_result)
                 else:
+                    # Selenium returned empty result - track as failure
+                    self._selenium_failure_counts[dom] = (
+                        self._selenium_failure_counts.get(dom, 0) + 1
+                    )
+                    logger.warning(
+                        f"❌ Selenium returned empty result for {url} "
+                        f"(failure #{self._selenium_failure_counts[dom]})"
+                    )
                     if metrics:
                         metrics.end_method(
                             "selenium",
@@ -893,7 +1308,14 @@ class ContentExtractor:
                         )
 
             except Exception as e:
-                logger.info(f"Selenium extraction failed for {url}: {e}")
+                # Track Selenium exception as failure
+                self._selenium_failure_counts[dom] = (
+                    self._selenium_failure_counts.get(dom, 0) + 1
+                )
+                logger.info(
+                    f"❌ Selenium extraction failed for {url}: {e} "
+                    f"(failure #{self._selenium_failure_counts[dom]})"
+                )
                 if metrics:
                     metrics.end_method("selenium", False, str(e), {})
 
@@ -924,8 +1346,7 @@ class ContentExtractor:
         final_missing = self._get_missing_fields(result)
         if final_missing:
             logger.warning(
-                f"Could not extract fields {final_missing} "
-                f"for {url} with any method"
+                f"Could not extract fields {final_missing} for {url} with any method"
             )
         else:
             logger.info(f"Successfully extracted all fields for {url}")
@@ -945,7 +1366,7 @@ class ContentExtractor:
 
         return result_copy
 
-    def _get_missing_fields(self, result: Dict[str, any]) -> List[str]:
+    def _get_missing_fields(self, result: Dict[str, Any]) -> List[str]:
         """Identify which fields are missing or empty in extraction result."""
         missing = []
 
@@ -1015,8 +1436,8 @@ class ContentExtractor:
 
     def _merge_extraction_results(
         self,
-        target: Dict[str, any],
-        source: Dict[str, any],
+        target: Dict[str, Any],
+        source: Dict[str, Any],
         method: str,
         fields_to_copy: Optional[List[str]] = None,
         metrics: Optional[object] = None,
@@ -1062,7 +1483,7 @@ class ContentExtractor:
                         f"but not used (current from previous method)"
                     )
 
-    def _is_field_value_meaningful(self, field: str, value: any) -> bool:
+    def _is_field_value_meaningful(self, field: str, value: Any) -> bool:
         """Check if a field value is meaningful (not empty/null/trivial)."""
         if value is None:
             return False
@@ -1090,7 +1511,7 @@ class ContentExtractor:
 
         return bool(value)
 
-    def _complete_extraction_methods_tracking(self, result: Dict[str, any]):
+    def _complete_extraction_methods_tracking(self, result: Dict[str, Any]):
         """Complete extraction methods tracking, mark missing as 'none'."""
         all_fields = ["title", "author", "content", "publish_date", "metadata"]
         extraction_methods = result.get("extraction_methods", {})
@@ -1104,7 +1525,7 @@ class ContentExtractor:
 
         result["extraction_methods"] = extraction_methods
 
-    def _determine_primary_extraction_method(self, result: Dict[str, any]) -> str:
+    def _determine_primary_extraction_method(self, result: Dict[str, Any]) -> str:
         """Determine primary extraction method based on core content.
 
         Priority: content > title > author > publish_date > metadata
@@ -1124,7 +1545,7 @@ class ContentExtractor:
         logger.warning("No extraction methods tracked, defaulting to newspaper4k")
         return "newspaper4k"
 
-    def _is_extraction_successful(self, result: Dict[str, any]) -> bool:
+    def _is_extraction_successful(self, result: Dict[str, Any]) -> bool:
         """Check if extraction result contains meaningful content."""
         if not result:
             return False
@@ -1135,10 +1556,26 @@ class ContentExtractor:
 
         return bool(title) or (bool(content) and len(content) > 100)
 
-    def _extract_with_newspaper(self, url: str, html: str = None) -> Dict[str, any]:
+    def _extract_with_newspaper(self, url: str, html: str = None) -> Dict[str, Any]:
         """Extract content using newspaper4k library with cloudscraper support."""
-        article = NewspaperArticle(url)
+        # Skip if known-dead URL
+        ttl = getattr(self, "dead_url_ttl", 0)
+        if ttl and url in getattr(self, "dead_urls", {}):
+            if time.time() < self.dead_urls[url]:
+                logger.info(f"Skipping dead URL (cached): {url}")
+                meta = {"status": 404}
+                return self._create_error_result(url, "dead_url_cached", meta)
+
+        article = NewspaperArticle(url, fetch_images=False)
         http_status = None
+        # Initialize proxy metadata (will be populated if proxy is used)
+        proxy_metadata = {
+            "proxy_used": False,
+            "proxy_url": None,
+            "proxy_authenticated": False,
+            "proxy_status": None,
+            "proxy_error": None,
+        }
 
         if html:
             # Use provided HTML
@@ -1147,70 +1584,230 @@ class ContentExtractor:
             # Use domain-specific session to fetch HTML
             try:
                 session = self._get_domain_session(url)
-                response = session.get(url, timeout=self.timeout)
-                http_status = response.status_code
                 domain = urlparse(url).netloc
+                # Respect domain backoff
+                if self._check_rate_limit(domain):
+                    raise RateLimitError(f"Domain {domain} is rate limited")
+                # Single in-flight per domain
+                with self._get_domain_lock(domain):
+                    logger.info(f"📡 Fetching {url[:80]}... via session for {domain}")
+
+                    # Add Referer header for this specific request to look more natural
+                    request_headers = {}
+                    referer = self._generate_referer(url)
+                    if referer:
+                        request_headers["Referer"] = referer
+                        logger.debug(f"Using Referer: {referer}")
+
+                    response = session.get(
+                        url, timeout=self.timeout, headers=request_headers
+                    )
+                http_status = response.status_code
+
+                # Capture proxy metadata from response if available
+                proxy_metadata = {
+                    "proxy_used": getattr(response, "_proxy_used", False),
+                    "proxy_url": getattr(response, "_proxy_url", None),
+                    "proxy_authenticated": getattr(
+                        response, "_proxy_authenticated", False
+                    ),
+                    "proxy_status": getattr(response, "_proxy_status", None),
+                    "proxy_error": getattr(response, "_proxy_error", None),
+                }
+
+                # Log response details
+                logger.info(
+                    f"📥 Received {http_status} for {domain} "
+                    f"(content: {len(response.text) if response.text else 0} bytes)"
+                )
 
                 # Check for rate limiting
                 if response.status_code == 429:
                     logger.warning(f"Rate limited (429) by {domain}")
                     self._handle_rate_limit_error(domain, response)
-                    # Reset successful request count on rate limit
-                    # and return error to skip this domain for now
-                    return self._create_error_result(
-                        url, "Rate limited", {"status": 429}
+                    # Record bot detection event
+                    self.bot_sensitivity_manager.record_bot_detection(
+                        host=domain,
+                        url=url,
+                        event_type="rate_limit_429",
+                        http_status_code=429,
                     )
-                elif response.status_code in [403, 503, 502, 504]:
-                    # Possible rate limiting or bot detection
+                    # Raise exception to stop all fallback attempts
+                    raise RateLimitError(f"Rate limited (429) by {domain}")
+                elif response.status_code in [401, 403, 502, 503, 504]:
+                    # Detect specific bot protection type
+                    protection_type = self._detect_bot_protection_in_response(response)
+
+                    if protection_type:
+                        logger.warning(
+                            f"🚫 Bot protection detected ({response.status_code}, "
+                            f"{protection_type}) by {domain}"
+                        )
+
+                        # Record bot detection event
+                        is_captcha = (
+                            "cloudflare" in protection_type
+                            or "bot_protection" in protection_type
+                        )
+                        event_type = (
+                            "captcha_detected" if is_captcha else "403_forbidden"
+                        )
+                        self.bot_sensitivity_manager.record_bot_detection(
+                            host=domain,
+                            url=url,
+                            event_type=event_type,
+                            http_status_code=response.status_code,
+                            response_indicators={"protection_type": protection_type},
+                        )
+
+                        # Use CAPTCHA backoff for confirmed bot protection
+                        if protection_type in ["cloudflare", "bot_protection"]:
+                            self._handle_captcha_backoff(domain)
+                        else:
+                            self._handle_rate_limit_error(domain, response)
+
+                        # Raise exception to stop all fallback attempts
+                        raise RateLimitError(
+                            f"Bot protection on {domain}: "
+                            f"{protection_type} ({response.status_code})"
+                        )
+                    else:
+                        # Generic server error without bot protection indicators
+                        logger.warning(
+                            f"Server error ({response.status_code}) by {domain} "
+                            f"- response preview: {response.text[:200] if response.text else 'empty'}"
+                        )
+                        self._handle_rate_limit_error(domain, response)
+                        # Raise exception to stop all fallback attempts
+                        raise RateLimitError(
+                            f"Server error ({response.status_code}) on {domain}"
+                        )
+
+                # Permanent missing -> cache as dead URL
+                if response.status_code in (404, 410):
+                    if ttl:
+                        self.dead_urls[url] = time.time() + ttl
                     logger.warning(
-                        f"Possible bot detection "
-                        f"({response.status_code}) by {domain}"
+                        f"Permanent missing ({response.status_code}) for {url}; caching"
                     )
-                    self._handle_rate_limit_error(domain, response)
-                    return self._create_error_result(
-                        url,
-                        f"Bot detection ({response.status_code})",
-                        {"status": response.status_code},
-                    )
+                    metadata: Dict[str, Any] = {
+                        "extraction_method": "newspaper4k",
+                        "http_status": response.status_code,
+                        "error": "http_not_found",
+                    }
+                    # Include proxy metadata when available for downstream diagnostics.
+                    for key, value in proxy_metadata.items():
+                        if value is not None:
+                            metadata[key] = value
+
+                    if ttl:
+                        try:
+                            expires_at = datetime.utcfromtimestamp(self.dead_urls[url])
+                            metadata["cache_ttl_expires_at"] = expires_at.isoformat()
+                        except Exception:
+                            metadata["cache_ttl_expires_at"] = (
+                                datetime.utcnow().isoformat()
+                            )
+
+                    return {
+                        "url": url,
+                        "title": None,
+                        "author": None,
+                        "publish_date": None,
+                        "content": None,
+                        "metadata": metadata,
+                        "extracted_at": datetime.utcnow().isoformat(),
+                    }
 
                 # Check if request was successful
                 if response.status_code == 200:
+                    # Check for bot protection even in 200 responses
+                    protection_type = self._detect_bot_protection_in_response(response)
+                    if protection_type:
+                        logger.warning(
+                            f"🚫 Bot protection in 200 response "
+                            f"({protection_type}) by {domain}"
+                        )
+                        # Record bot detection event
+                        self.bot_sensitivity_manager.record_bot_detection(
+                            host=domain,
+                            url=url,
+                            event_type="captcha_detected",
+                            http_status_code=200,
+                            response_indicators={"protection_type": protection_type},
+                        )
+                        # Use CAPTCHA backoff for confirmed bot protection
+                        self._handle_captcha_backoff(domain)
+
+                        # Raise exception to stop batch processing for this domain
+                        raise RateLimitError(
+                            f"Bot protection in 200 response on {domain}: {protection_type}"
+                        )
+
                     # Reset error count on successful request
                     self._reset_error_count(domain)
+
+                    # Record proxy success
+                    response_time = response.elapsed.total_seconds()
+                    self.proxy_manager.record_success(response_time=response_time)
 
                     # Use the downloaded HTML content to parse the article
                     article.html = response.text
                     ua = self.domain_user_agents.get(domain, "Unknown")
-                    logger.debug(
-                        f"Successfully fetched content for {url} with "
-                        f"UA: {ua[:30]}..."
+                    logger.info(
+                        f"✅ Successfully fetched {len(response.text)} bytes from {domain} "
+                        f"(UA: {ua[:30]}...)"
+                    )
+                elif 400 <= response.status_code < 500:
+                    # All other 4xx client errors (besides those explicitly
+                    # handled above). Examples: 400 Bad Request, 405 Method
+                    # Not Allowed, 406 Not Acceptable, 408 Request Timeout,
+                    # 451 Unavailable For Legal Reasons, etc.
+                    logger.warning(
+                        f"Client error ({response.status_code}) for {url}: "
+                        f"{response.text[:200] if response.text else 'empty'}"
+                    )
+                    # Determine appropriate exception type
+                    if response.status_code in (400, 405, 406, 451):
+                        # Permanent client errors - treat like 404
+                        if ttl:
+                            self.dead_urls[url] = time.time() + ttl
+                        raise NotFoundError(
+                            f"Client error ({response.status_code}): {url}"
+                        )
+                    else:
+                        # Other 4xx errors might be temporary (408, etc.)
+                        raise RateLimitError(
+                            f"Client error ({response.status_code}) on {domain}"
+                        )
+                elif 500 <= response.status_code < 600:
+                    # All other 5xx server errors (besides 502, 503, 504
+                    # handled above). Examples: 500 Internal Server Error,
+                    # 501 Not Implemented, 505 HTTP Version Not Supported
+                    logger.warning(
+                        f"Server error ({response.status_code}) on {domain}: "
+                        f"{response.text[:200] if response.text else 'empty'}"
+                    )
+                    self._handle_rate_limit_error(domain, response)
+                    raise RateLimitError(
+                        f"Server error ({response.status_code}) on {domain}"
                     )
                 else:
+                    # Unexpected status code (1xx, 3xx, or something else)
+                    # 3xx should be handled automatically by requests, but just in case
                     logger.warning(
-                        f"Session returned status " f"{response.status_code} for {url}"
+                        f"Unexpected status {response.status_code} for {url}"
                     )
-                    # Fallback to newspaper4k's built-in download
-                    try:
-                        article.download()
-                    except Exception as download_e:
-                        # Try to extract HTTP status from newspaper4k error
-                        # message
-                        error_str = str(download_e)
-                        if "Status code" in error_str:
-                            import re
+                    raise RateLimitError(
+                        f"Unexpected status ({response.status_code}) on {domain}"
+                    )
 
-                            status_match = re.search(r"Status code (\d+)", error_str)
-                            if status_match:
-                                http_status = int(status_match.group(1))
-                                logger.warning(
-                                    f"Newspaper4k download failed with "
-                                    f"status {http_status}: {error_str}"
-                                )
-                        raise download_e
-
-            except RateLimitError as e:
-                logger.warning(f"Domain rate limited, skipping: {e}")
-                return self._create_error_result(url, str(e), {"rate_limited": True})
+            except RateLimitError:
+                # Re-raise to stop all fallback attempts
+                raise
+            except NotFoundError:
+                # Re-raise to stop all fallback attempts
+                raise
             except Exception as e:
                 logger.warning(
                     f"Session fetch failed for {url}: {e}, "
@@ -1229,7 +1826,9 @@ class ContentExtractor:
                         if status_match:
                             http_status = int(status_match.group(1))
                             logger.warning(
-                                f"Newspaper4k download failed with status {http_status}: {error_str}"
+                                "Newspaper4k download failed with status %s: %s",
+                                http_status,
+                                error_str,
                             )
                     raise download_e
 
@@ -1253,11 +1852,12 @@ class ContentExtractor:
                 "cloudscraper_used": CLOUDSCRAPER_AVAILABLE
                 and cloudscraper is not None,
                 "http_status": http_status,
+                **proxy_metadata,  # Include proxy metrics
             },
             "extracted_at": datetime.utcnow().isoformat(),
         }
 
-    def _extract_with_beautifulsoup(self, url: str, html: str = None) -> Dict[str, any]:
+    def _extract_with_beautifulsoup(self, url: str, html: str = None) -> Dict[str, Any]:
         """Extract content using BeautifulSoup with bot-avoidance."""
         # Lazily fetch HTML if not provided
         page_html = html
@@ -1287,11 +1887,36 @@ class ContentExtractor:
                 session.headers.update(headers)
 
                 try:
-                    resp = session.get(url, timeout=self.timeout)
+                    domain = urlparse(url).netloc
+                    if self._check_rate_limit(domain):
+                        raise RateLimitError(f"Domain {domain} is rate limited")
+                    with self._get_domain_lock(domain):
+                        resp = session.get(url, timeout=self.timeout)
+
+                    if resp.status_code in (404, 410):
+                        if getattr(self, "dead_url_ttl", 0):
+                            self.dead_urls[url] = time.time() + self.dead_url_ttl
+                        logger.warning(
+                            f"Permanent missing ({resp.status_code}) for {url}; caching"
+                        )
+                        # Raise exception to stop all fallback attempts
+                        raise NotFoundError(
+                            f"URL not found ({resp.status_code}): {url}"
+                        )
+
+                    # Check for rate limiting and server errors
+                    if resp.status_code == 429:
+                        logger.warning(f"Rate limited (429) by {domain}")
+                        raise RateLimitError(f"Rate limited (429) by {domain}")
+                    elif resp.status_code in [401, 403, 502, 503, 504]:
+                        logger.warning(f"Server error ({resp.status_code}) by {domain}")
+                        raise RateLimitError(
+                            f"Server error ({resp.status_code}) on {domain}"
+                        )
+
                     resp.raise_for_status()
                     page_html = resp.text
 
-                    domain = urlparse(url).netloc
                     ua = self.domain_user_agents.get(domain, "Unknown")
                     is_cloudscraper = (
                         CLOUDSCRAPER_AVAILABLE and cloudscraper is not None
@@ -1336,7 +1961,7 @@ class ContentExtractor:
 
         return result
 
-    def _extract_with_selenium(self, url: str) -> Dict[str, any]:
+    def _extract_with_selenium(self, url: str) -> Dict[str, Any]:
         """Extract content using persistent Selenium driver."""
         try:
             # Get the persistent driver (creates one if needed)
@@ -1398,6 +2023,12 @@ class ContentExtractor:
         options.add_argument("--disable-features=VizDisplayCompositor")
         options.add_argument("--disable-extensions")
         options.add_argument("--disable-plugins")
+        # Add headless argument explicitly for better container compatibility
+        options.add_argument("--headless=new")
+        # Additional flags for containerized environments
+        options.add_argument("--disable-software-rasterizer")
+        options.add_argument("--disable-setuid-sandbox")
+        options.add_argument("--remote-debugging-port=9222")
         # Note: JavaScript and images enabled for modern news sites
 
         # Random viewport size (within realistic range)
@@ -1407,15 +2038,37 @@ class ContentExtractor:
 
         # Realistic user agent (automatically handled by undetected-chrome)
 
+        # Optional proxy for Selenium
+        selenium_proxy = os.getenv("SELENIUM_PROXY")
+        if selenium_proxy:
+            options.add_argument(f"--proxy-server={selenium_proxy}")
+
+        # Read optional binary paths from environment
+        # Common envs: CHROME_BIN, GOOGLE_CHROME_BIN, CHROMEDRIVER_PATH
+        chrome_bin = os.getenv("CHROME_BIN") or os.getenv("GOOGLE_CHROME_BIN") or None
+        driver_path = os.getenv("CHROMEDRIVER_PATH") or None
+
+        if chrome_bin:
+            # Ensure it's a string (avoid Selenium "Binary Location Must be a String")
+            options.binary_location = str(chrome_bin)
+
         # Create driver with version management
         try:
-            driver = uc.Chrome(
-                options=options,
-                version_main=None,  # Auto-detect
-                headless=True,
-                use_subprocess=True,
-                log_level=3,  # Suppress logs
-            )
+            uc_kwargs = {
+                "options": options,
+                "version_main": None,  # Auto-detect
+                # Use --headless=new arg instead for better compatibility
+                "headless": False,
+                # Changed to False for container stability
+                "use_subprocess": False,
+                "log_level": 3,  # Suppress logs
+            }
+            if driver_path:
+                uc_kwargs["driver_executable_path"] = str(driver_path)
+            if chrome_bin:
+                uc_kwargs["browser_executable_path"] = str(chrome_bin)
+
+            driver = uc.Chrome(**uc_kwargs)
         except Exception as e:
             logger.warning(f"Failed to create undetected driver: {e}")
             raise
@@ -1457,6 +2110,11 @@ class ContentExtractor:
         )
         chrome_options.add_argument(f"--user-agent={realistic_ua}")
 
+        # Optional proxy for Selenium
+        selenium_proxy = os.getenv("SELENIUM_PROXY")
+        if selenium_proxy:
+            chrome_options.add_argument(f"--proxy-server={selenium_proxy}")
+
         # Exclude automation switches
         chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
         chrome_options.add_experimental_option("useAutomationExtension", False)
@@ -1474,7 +2132,17 @@ class ContentExtractor:
         chrome_options.add_experimental_option("prefs", prefs)
 
         # Create driver
-        driver = webdriver.Chrome(options=chrome_options)
+        chrome_bin = os.getenv("CHROME_BIN") or os.getenv("GOOGLE_CHROME_BIN") or None
+        driver_path = os.getenv("CHROMEDRIVER_PATH") or None
+
+        if chrome_bin:
+            chrome_options.binary_location = str(chrome_bin)
+
+        if driver_path:
+            service = ChromeService(executable_path=str(driver_path))
+            driver = webdriver.Chrome(service=service, options=chrome_options)
+        else:
+            driver = webdriver.Chrome(options=chrome_options)
 
         # Apply selenium-stealth if available
         if SELENIUM_STEALTH_AVAILABLE:
@@ -1490,7 +2158,7 @@ class ContentExtractor:
 
         # Manual stealth enhancements
         driver.execute_script(
-            "Object.defineProperty(navigator, 'webdriver', " "{get: () => undefined})"
+            "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
         )
 
         driver.execute_script(
@@ -1527,7 +2195,11 @@ class ContentExtractor:
         """Navigate to URL with minimal delays for faster content extraction."""
         try:
             # Navigate directly to target URL (no need for about:blank delay)
-            driver.get(url)
+            domain = urlparse(url).netloc
+            # Ensure single Selenium navigation per domain
+            lock = self._get_domain_lock(domain)
+            with lock:
+                driver.get(url)
 
             # Wait for basic page load with shorter timeout
             WebDriverWait(driver, 5).until(  # Reduced from 10
@@ -1537,9 +2209,54 @@ class ContentExtractor:
             # Quick wait for page to stabilize
             time.sleep(0.5)  # Reduced from 1.0-2.0 seconds
 
-            # Check for CAPTCHA or other challenges
+            # Try to close subscription modals/popups FIRST
+            # Prevents false positives from subscription walls
+            modal_closed = self._try_close_modals(driver, url)
+
+            # Check for subscription wall (separate from CAPTCHA)
+            if self._detect_subscription_wall(driver):
+                logger.warning(
+                    f"Subscription wall detected on {url} "
+                    f"(modal_closed={modal_closed})"
+                )
+                if modal_closed:
+                    logger.info(
+                        "Subscription modal already closed; continuing extraction"
+                    )
+                    return True
+
+                # Try closing again if not already attempted
+                if self._try_close_modals(driver, url):
+                    logger.info("Successfully closed subscription modal on retry")
+                    if not self._detect_subscription_wall(driver):
+                        return True
+
+                # Still paywalled: track but DON'T apply aggressive backoff
+                # Subscription walls can be persistent (days/months)
+                # Note: Unlike CAPTCHA, we don't backoff the domain
+                logger.info(
+                    f"Subscription wall blocking content on {url} - "
+                    "this may persist for days/months"
+                )
+                return False
+
+            # Now check for actual CAPTCHA or bot challenges
             if self._detect_captcha_or_challenge(driver):
-                logger.warning(f"CAPTCHA or challenge detected on {url}")
+                logger.warning(f"CAPTCHA or bot challenge detected on {url}")
+
+                # Try closing modals in case CAPTCHA is in a modal
+                if self._try_close_modals(driver, url):
+                    logger.info("Successfully closed CAPTCHA modal")
+                    return True
+
+                # Still challenged: set CAPTCHA backoff for domain
+                try:
+                    domain = urlparse(url).netloc
+                    # Backoff longer to avoid repeated blocks
+                    if hasattr(self, "_handle_captcha_backoff"):
+                        self._handle_captcha_backoff(domain)
+                except Exception:
+                    pass
                 return False
 
             return True
@@ -1602,51 +2319,174 @@ class ContentExtractor:
         except Exception as e:
             logger.debug(f"Human behavior simulation failed: {e}")
 
-    def _detect_captcha_or_challenge(self, driver) -> bool:
-        """Detect if page contains CAPTCHA or other bot challenges."""
+    def _try_close_modals(self, driver, url: str) -> bool:
+        """Try to close subscription modals and popups.
+
+        Args:
+            driver: Selenium WebDriver instance
+            url: URL being processed (for logging)
+
+        Returns:
+            True if a modal was successfully closed, False otherwise
+        """
         try:
-            # Common CAPTCHA indicators
-            captcha_indicators = [
-                "captcha",
-                "recaptcha",
-                "hcaptcha",
-                "challenge",
-                "verify",
-                "robot",
-                "cloudflare",
-                "access denied",
-                "blocked",
+            close_selectors = [
+                "button[aria-label*='close' i]",  # Case-insensitive close button
+                "button[title*='close' i]",
+                "button[aria-label*='dismiss' i]",
+                "[data-dismiss='modal']",  # Bootstrap modals
+                ".modal-close",
+                ".close-button",
+                ".c-close",
+                "button.close",
+                "[class*='close'][role='button']",
+                # Subscription-specific selectors
+                "button[aria-label*='no thanks' i]",
+                "button[aria-label*='maybe later' i]",
+                "a[href='#'][class*='close']",  # Link-based close buttons
+                ".tp-close",  # Piano paywall
+                "#close-modal",
             ]
 
-            page_text = driver.page_source.lower()
-            page_title = driver.title.lower()
-
-            # Check page content for CAPTCHA keywords
-            for indicator in captcha_indicators:
-                if indicator in page_text or indicator in page_title:
-                    return True
-
-            # Check for common CAPTCHA elements
-            captcha_selectors = [
-                "[class*='captcha']",
-                "[id*='captcha']",
-                "[class*='recaptcha']",
-                "[id*='recaptcha']",
-                "iframe[src*='recaptcha']",
-                ".cf-challenge-form",  # Cloudflare
-                "#challenge-form",
-            ]
-
-            for selector in captcha_selectors:
+            for selector in close_selectors:
                 try:
-                    if driver.find_elements(By.CSS_SELECTOR, selector):
+                    elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                    for element in elements[:2]:  # Try first 2 matches
+                        if element.is_displayed() and element.is_enabled():
+                            element.click()
+                            time.sleep(0.5)
+                            logger.info(
+                                f"Closed modal on {url} using selector: {selector}"
+                            )
+                            return True
+                except Exception as e:
+                    logger.debug(f"Failed to close with {selector}: {e}")
+                    continue
+
+            return False
+
+        except Exception as e:
+            logger.debug(f"Error closing modals on {url}: {e}")
+            return False
+
+    def _detect_subscription_wall(self, driver) -> bool:
+        """Detect if page contains a subscription/paywall modal.
+
+        Returns True if subscription wall detected (NOT a bot challenge).
+        These should be tracked separately as they may block for days/months.
+        """
+        try:
+            page_source = driver.page_source.lower()
+
+            # Common subscription wall indicators
+            subscription_keywords = [
+                "subscribe",
+                "subscription",
+                "subscriber",
+                "register to read",
+                "sign up to continue",
+                "create an account",
+                "enter your email",
+                "get unlimited access",
+                "paywall",
+                "premium content",
+                "exclusive content",
+                "members only",
+                "login to continue",
+                "register now",
+            ]
+
+            # Count keyword matches (need multiple for confidence)
+            matches = sum(
+                1 for keyword in subscription_keywords if keyword in page_source
+            )
+
+            if matches >= 2:  # At least 2 subscription indicators
+                logger.info(f"Detected subscription wall ({matches} indicators found)")
+                return True
+
+            # Check for common paywall provider elements
+            paywall_selectors = [
+                "[class*='paywall']",
+                "[id*='paywall']",
+                "[class*='piano']",  # Piano paywall
+                "[id*='piano']",
+                "[class*='subscribe-modal']",
+                "[id*='subscription']",
+                ".registration-wall",
+                ".subscriber-wall",
+            ]
+
+            for selector in paywall_selectors:
+                try:
+                    elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                    if elements and any(el.is_displayed() for el in elements[:3]):
+                        logger.info(f"Detected paywall element: {selector}")
                         return True
                 except Exception:
                     continue
 
             return False
 
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Error in subscription wall detection: {e}")
+            return False
+
+    def _detect_captcha_or_challenge(self, driver) -> bool:
+        """Detect if page contains CAPTCHA or other bot challenges.
+
+        Returns True only for actual CAPTCHAs/bot challenges,
+        NOT subscription modals.
+        """
+        try:
+            page_source = driver.page_source.lower()
+
+            # 1. Check for actual CAPTCHA elements (high confidence)
+            captcha_selectors = [
+                "iframe[src*='recaptcha']",  # reCAPTCHA
+                "iframe[src*='hcaptcha']",  # hCaptcha
+                "[class*='g-recaptcha']",  # reCAPTCHA div
+                "[class*='h-captcha']",  # hCaptcha div
+                ".cf-challenge-form",  # Cloudflare challenge
+                "#challenge-form",  # Generic challenge form
+                "form[id*='captcha']",  # CAPTCHA forms
+            ]
+
+            for selector in captcha_selectors:
+                try:
+                    if driver.find_elements(By.CSS_SELECTOR, selector):
+                        logger.info(f"Detected CAPTCHA element: {selector}")
+                        return True
+                except Exception:
+                    continue
+
+            # 2. Check for bot blocking pages (specific paired patterns)
+            # Note: 'verify' and 'challenge' removed - those appear in
+            # subscription walls
+            bot_block_indicators = [
+                ("access denied", "cloudflare"),  # Cloudflare block
+                ("checking your browser", "cloudflare"),  # CF checking
+                ("just a moment", "cloudflare"),  # CF checking
+                ("ray id:", "cloudflare"),  # Cloudflare error page
+                ("403 forbidden", "bot"),
+                ("403 forbidden", "blocked"),
+            ]
+
+            for primary, secondary in bot_block_indicators:
+                if primary in page_source and secondary in page_source:
+                    logger.info(f"Detected bot blocking: {primary} + {secondary}")
+                    return True
+
+            # 3. Check for specific CAPTCHA keywords
+            # Note: Only CAPTCHA-specific terms, not generic 'challenge'/'verify'
+            if "recaptcha" in page_source or "hcaptcha" in page_source:
+                logger.info("Detected CAPTCHA keyword in page")
+                return True
+
+            return False
+
+        except Exception as e:
+            logger.debug(f"Error in CAPTCHA detection: {e}")
             return False
 
     def _is_title_suspicious(self, title: str) -> bool:
@@ -1686,8 +2526,10 @@ class ContentExtractor:
         """Extract article title."""
         # Try Open Graph title first
         og_title = soup.find("meta", property="og:title")
-        if og_title and og_title.get("content"):
-            return og_title["content"].strip()
+        if isinstance(og_title, Tag):
+            content = og_title.get("content")
+            if content:
+                return str(content).strip()
 
         # Try standard title tag
         title_tag = soup.find("title")
@@ -1713,16 +2555,21 @@ class ContentExtractor:
             (".byline", {}),
         ]
 
+        # local imports kept minimal to avoid heavy startup costs
+
         for selector, attrs in author_selectors:
-            element = soup.find(selector, attrs)
-            if element:
+            element = soup.find(selector, _ensure_attrs_dict(attrs))
+            if isinstance(element, Tag):
                 if element.name == "meta":
                     author = element.get("content")
+                    if author is not None:
+                        author_str = str(author).strip()
+                        if author_str:
+                            return author_str
                 else:
-                    author = element.get_text().strip()
-
-                if author:
-                    return author
+                    author_txt = element.get_text().strip()
+                    if author_txt:
+                        return author_txt
 
         return None
 

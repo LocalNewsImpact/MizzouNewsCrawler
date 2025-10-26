@@ -11,6 +11,8 @@ Designed for SQLite with future Postgres migration in mind.
 
 import json
 import logging
+import os
+import random
 import time
 from datetime import datetime, timedelta
 from typing import Any
@@ -19,8 +21,12 @@ from urllib.parse import urljoin, urlparse
 import feedparser  # type: ignore[import]
 import pandas as pd
 import requests
+import urllib3
 from newspaper import Config, build  # type: ignore[import]
 from sqlalchemy import text
+
+# Suppress InsecureRequestWarning for proxies without SSL certs
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 from .scheduling import parse_frequency_to_days
 
@@ -39,7 +45,7 @@ except ImportError:
 try:
     from dateutil.parser import parse as _parse_date
 except Exception:
-    _parse_date = None
+    _parse_date = None  # type: ignore[assignment]
 
 from src.utils.discovery_outcomes import DiscoveryResult
 from src.utils.telemetry import (
@@ -51,7 +57,9 @@ from src.utils.telemetry import (
 )
 from src.utils.url_utils import normalize_url
 
-from ..models.database import DatabaseManager
+from ..models.database import DatabaseManager, safe_execute, safe_session_execute
+from .origin_proxy import enable_origin_proxy
+from .proxy_config import get_proxy_manager
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +68,7 @@ def _newspaper_build_worker(
     target_url: str,
     out_path: str,
     fetch_images_flag: bool,
+    proxy: str | None = None,
 ):
     """Worker function executed in a separate process to perform
     `newspaper.build` and write discovered article URLs to `out_path`.
@@ -68,6 +77,13 @@ def _newspaper_build_worker(
     'spawn' start method (macOS).
     """
     try:
+        # Set proxy environment variables if provided
+        if proxy:
+            os.environ["HTTP_PROXY"] = proxy
+            os.environ["HTTPS_PROXY"] = proxy
+            os.environ["http_proxy"] = proxy
+            os.environ["https_proxy"] = proxy
+
         # Construct a minimal Config instance inside child process
         cfg = Config()
         try:
@@ -149,6 +165,9 @@ class NewsDiscovery:
             self.session.headers.update({"User-Agent": self.user_agent})
             logger.info("Using standard requests session")
 
+        # Configure proxy behavior (origin adapter or standard proxies)
+        self._configure_proxy_routing()
+
         # Initialize storysniffer client (if available)
         self.storysniffer = None
         if StorySniffer is not None:
@@ -171,8 +190,93 @@ class NewsDiscovery:
             "Articles published before "
             f"{self.cutoff_date.strftime('%Y-%m-%d')} will be filtered out"
         )
-
         self._known_hosts_cache: set[str] | None = None
+
+    def _configure_proxy_routing(self) -> None:
+        """Configure proxy adapter and proxy pool for the discovery session."""
+
+        # Legacy environment-driven proxy pool support
+        proxy_pool_env = (os.getenv("PROXY_POOL", "") or "").strip()
+        env_proxy_pool = (
+            [p.strip() for p in proxy_pool_env.split(",") if p.strip()]
+            if proxy_pool_env
+            else []
+        )
+
+        self.proxy_pool = list(env_proxy_pool)
+
+        # Initialize proxy manager for modern provider handling
+        self.proxy_manager = get_proxy_manager()
+        active_provider = self.proxy_manager.active_provider
+        logger.info(
+            "🔀 Proxy manager initialized with provider: %s",
+            active_provider.value,
+        )
+
+        use_origin_proxy = os.getenv("USE_ORIGIN_PROXY", "").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
+
+        if active_provider.value == "origin" or use_origin_proxy:
+            try:
+                enable_origin_proxy(self.session)
+                proxy_base = (
+                    self.proxy_manager.get_origin_proxy_url()
+                    or os.getenv("ORIGIN_PROXY_URL")
+                    or os.getenv("PROXY_URL")
+                    or "default"
+                )
+                logger.info(
+                    "🔐 Discovery using origin proxy adapter (%s)",
+                    proxy_base,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to install origin proxy adapter for discovery: %s",
+                    exc,
+                )
+            return
+
+        proxies = self.proxy_manager.get_requests_proxies()
+        if proxies:
+            self.session.proxies.update(proxies)
+            proxy_values = [p for p in proxies.values() if p]
+            if proxy_values:
+                merged_pool = env_proxy_pool + proxy_values
+                deduped_pool: list[str] = []
+                seen: set[str] = set()
+                for value in merged_pool:
+                    if value and value not in seen:
+                        deduped_pool.append(value)
+                        seen.add(value)
+                self.proxy_pool = deduped_pool
+            logger.info(
+                "🔐 Discovery using %s proxy provider (%s)",
+                active_provider.value,
+                ", ".join(sorted(proxies.keys())),
+            )
+            return
+
+        if self.proxy_pool:
+            proxy = random.choice(self.proxy_pool)
+            self.session.proxies.update(
+                {
+                    "http": proxy,
+                    "https": proxy,
+                }
+            )
+            logger.info(
+                "🔐 Discovery using legacy proxy pool with %d entries (selected %s)",
+                len(self.proxy_pool),
+                proxy,
+            )
+        else:
+            logger.info(
+                "🔐 Proxy provider %s did not supply proxies; using direct connections",
+                active_provider.value,
+            )
 
     def _create_db_manager(self) -> DatabaseManager:
         """Factory method for database manager instances."""
@@ -414,8 +518,9 @@ class NewsDiscovery:
         try:
             dbm = DatabaseManager(self.database_url)
             with dbm.engine.begin() as conn:
-                res = conn.execute(
-                    text("SELECT metadata FROM sources WHERE id = :id"),
+                res = safe_execute(
+                    conn,
+                    "SELECT metadata FROM sources WHERE id = :id",
                     {"id": source_id},
                 ).fetchone()
                 current = res[0] if res else None
@@ -432,9 +537,16 @@ class NewsDiscovery:
                 merged = dict(cur_meta or {})
                 merged.update(updates or {})
 
-                conn.execute(
-                    text("UPDATE sources SET metadata = :meta WHERE id = :id"),
+                # Update sources metadata (handles RSS metadata persistence)
+                safe_execute(
+                    conn,
+                    "UPDATE sources SET metadata = :meta WHERE id = :id",
                     {"meta": json.dumps(merged), "id": source_id},
+                )
+                logger.debug(
+                    "Updated metadata for source %s: %s",
+                    source_id,
+                    updates,
                 )
         except Exception:
             logger.debug(
@@ -465,11 +577,8 @@ class NewsDiscovery:
         try:
             dbm = DatabaseManager(self.database_url)
             with dbm.engine.connect() as conn:
-                query = text("SELECT metadata FROM sources WHERE id = :id")
-                result = conn.execute(
-                    query,
-                    {"id": source_id},
-                ).fetchone()
+                query = "SELECT metadata FROM sources WHERE id = :id"
+                result = safe_execute(conn, query, {"id": source_id}).fetchone()
 
             cur_meta: dict[str, Any] = {}
             if result and result[0]:
@@ -507,7 +616,7 @@ class NewsDiscovery:
             db_manager = DatabaseManager(self.database_url)
 
             with db_manager.engine.connect() as conn:
-                result = conn.execute(text("SELECT url FROM candidate_links"))
+                result = safe_execute(conn, "SELECT url FROM candidate_links")
                 urls: set[str] = set()
                 for row in result.fetchall():
                     raw = row[0]
@@ -549,11 +658,9 @@ class NewsDiscovery:
         try:
             db_manager = DatabaseManager(self.database_url)
             with db_manager.engine.connect() as conn:
-                result = conn.execute(
-                    text(
-                        "SELECT url FROM candidate_links "
-                        "WHERE source_host_id = :source_id"
-                    ),
+                result = safe_execute(
+                    conn,
+                    "SELECT url FROM candidate_links WHERE source_host_id = :source_id",
                     {"source_id": source_id},
                 )
                 urls: set[str] = set()
@@ -572,15 +679,14 @@ class NewsDiscovery:
         try:
             db_manager = DatabaseManager(self.database_url)
             with db_manager.engine.connect() as conn:
-                result = conn.execute(
-                    text(
-                        """
+                result = safe_execute(
+                    conn,
+                    """
                         SELECT COUNT(a.id)
                         FROM articles a
                         JOIN candidate_links cl ON a.candidate_link_id = cl.id
                         WHERE cl.source_id = :source_id
-                        """
-                    ),
+                    """,
                     {"source_id": source_id},
                 )
                 row = result.fetchone()
@@ -593,6 +699,72 @@ class NewsDiscovery:
                 source_id,
             )
             return 0
+
+    def _validate_dataset(
+        self,
+        dataset_label: str,
+        db_manager: DatabaseManager,
+    ) -> bool:
+        """Validate that a dataset exists and has linked sources.
+
+        Args:
+            dataset_label: Dataset label to validate
+            db_manager: Database manager instance
+
+        Returns:
+            True if dataset exists and has sources, False otherwise
+        """
+        try:
+            with db_manager.engine.connect() as conn:
+                # Check if dataset exists
+                result = safe_execute(
+                    conn,
+                    "SELECT id, slug FROM datasets WHERE label = :label",
+                    {"label": dataset_label},
+                ).fetchone()
+
+                if not result:
+                    logger.error(f"❌ Dataset '{dataset_label}' not found in database")
+                    # List available datasets to help user
+                    available = safe_execute(
+                        conn, "SELECT label FROM datasets ORDER BY label"
+                    ).fetchall()
+                    if available:
+                        labels = [row[0] for row in available]
+                        logger.info(f"Available datasets: {', '.join(labels)}")
+                    else:
+                        logger.info("No datasets found in database")
+                    return False
+
+                dataset_id = result[0]
+
+                # Check if dataset has linked sources
+                count_result = safe_execute(
+                    conn,
+                    """
+                        SELECT COUNT(*)
+                        FROM dataset_sources
+                        WHERE dataset_id = :dataset_id
+                    """,
+                    {"dataset_id": dataset_id},
+                ).fetchone()
+
+                source_count = count_result[0] if count_result else 0
+
+                if source_count == 0:
+                    logger.warning(
+                        f"⚠️  Dataset '{dataset_label}' has no linked sources"
+                    )
+                    return False
+
+                logger.info(
+                    f"✓ Dataset '{dataset_label}' validated: {source_count} sources"
+                )
+                return True
+
+        except Exception as e:
+            logger.error(f"Failed to validate dataset '{dataset_label}': {e}")
+            return False
 
     def get_sources_to_process(
         self,
@@ -619,6 +791,41 @@ class NewsDiscovery:
             Tuple of (DataFrame with source information, stats dict)
         """
         with DatabaseManager(self.database_url) as db:
+            # Validate dataset_label when provided so callers get a clear
+            # error when the label doesn't exist. Tests expect an error
+            # to be logged and an empty result returned for invalid labels.
+            if dataset_label:
+                try:
+                    from src.utils.dataset_utils import resolve_dataset_id
+
+                    # resolve_dataset_id returns a UUID if found, otherwise
+                    # raises ValueError which we surface as an ERROR log.
+                    dataset_label = resolve_dataset_id(db.engine, dataset_label)
+                except ValueError:
+                    logger.error("Dataset '%s' not found", dataset_label)
+                    # Also log available dataset labels to help the user find a
+                    # valid value (tests expect this suggestion).
+                    try:
+                        # Use a fresh connection to list available datasets so we
+                        # observe any recently committed rows.
+                        with db.engine.begin() as conn:
+                            stmt = text("SELECT label FROM datasets")
+                            rows = safe_execute(conn, stmt).fetchall()
+                        labels = [r[0] for r in rows if r and r[0]]
+                        if labels:
+                            logger.error("Available datasets: %s", ", ".join(labels))
+                    except Exception:
+                        # Best-effort only; don't fail if listing datasets fails.
+                        logger.debug("Failed to list available datasets for suggestion")
+
+                    return pd.DataFrame(), {
+                        "sources_available": 0,
+                        "sources_due": 0,
+                        "sources_skipped": 0,
+                    }
+            # Dataset validation may raise ValueError; handled above
+            # TODO: Re-implement dataset validation using UUIDs
+
             # Use actual schema: id, host, host_norm, canonical_name,
             # city, county, owner, type, metadata
             # Prioritize sources that have never been attempted for discovery
@@ -631,8 +838,9 @@ class NewsDiscovery:
                     "\nJOIN dataset_sources ds ON s.id = ds.source_id"
                     "\nJOIN datasets d ON ds.dataset_id = d.id"
                 )
-                where_clauses.append("d.label = :dataset_label")
-                params["dataset_label"] = dataset_label
+                where_clauses.append("d.id = :dataset_id OR d.label = :dataset_label")
+                params["dataset_id"] = dataset_label  # UUID resolved above
+                params["dataset_label"] = dataset_label  # Keep label as fallback
 
             if host_filter:
                 where_clauses.append("LOWER(s.host) = :host_filter")
@@ -648,26 +856,54 @@ class NewsDiscovery:
 
             where_sql = " AND ".join(where_clauses)
 
-            query = f"""
-            SELECT DISTINCT
-                s.id,
-                s.canonical_name as name,
-                'https://' || s.host as url,
-                s.metadata,
-                s.city,
-                s.county,
-                s.type as type_classification,
-                s.host,
-                CASE
-                    WHEN cl.source_host_id IS NULL THEN 0
-                    ELSE 1
-                END as discovery_attempted
-            FROM sources s
-            LEFT JOIN candidate_links cl ON s.id = cl.source_host_id
-            {join_clause}
-            WHERE {where_sql}
-            ORDER BY discovery_attempted ASC, s.canonical_name ASC
-            """
+            # Detect database dialect and build appropriate query
+            dialect = db.engine.dialect.name
+
+            if dialect == "postgresql":
+                # PostgreSQL: Use DISTINCT ON for efficient deduplication
+                query = f"""
+                SELECT DISTINCT ON (s.id)
+                    s.id,
+                    s.canonical_name as name,
+                    'https://' || s.host as url,
+                    s.metadata,
+                    s.city,
+                    s.county,
+                    s.type as type_classification,
+                    s.host,
+                    CASE
+                        WHEN cl.source_host_id IS NULL THEN 0
+                        ELSE 1
+                    END as discovery_attempted
+                FROM sources s
+                LEFT JOIN candidate_links cl ON s.id = cl.source_host_id
+                {join_clause}
+                WHERE {where_sql}
+                ORDER BY s.id, discovery_attempted ASC, s.canonical_name ASC
+                """
+            else:
+                # SQLite: Use GROUP BY with aggregation
+                query = f"""
+                SELECT
+                    s.id,
+                    s.canonical_name as name,
+                    'https://' || s.host as url,
+                    s.metadata,
+                    s.city,
+                    s.county,
+                    s.type as type_classification,
+                    s.host,
+                    MIN(CASE
+                        WHEN cl.source_host_id IS NULL THEN 0
+                        ELSE 1
+                    END) as discovery_attempted
+                FROM sources s
+                LEFT JOIN candidate_links cl ON s.id = cl.source_host_id
+                {join_clause}
+                WHERE {where_sql}
+                GROUP BY s.id, s.canonical_name, s.host, s.metadata, s.city, s.county, s.type
+                ORDER BY discovery_attempted ASC, s.canonical_name ASC
+                """
 
             if limit:
                 try:
@@ -677,7 +913,17 @@ class NewsDiscovery:
                 except Exception:
                     pass
 
-            df = pd.read_sql_query(query, db.engine, params=params or None)
+            # Use SQLAlchemy text() to ensure proper parameter binding for pg8000
+            # SQLAlchemy converts :param to %s format required by pg8000
+
+            logger.debug(f"Using {dialect} query syntax for get_sources_to_process")
+            # Pandas prefers either a SQL string with a DB-API connection or a
+            # SQLAlchemy connectable. Our tests wrap the Engine in a proxy to
+            # support legacy positional params; pandas sometimes fails to
+            # recognize the proxy as a SQLAlchemy engine. Prefer passing the
+            # raw query string or the underlying real engine when available.
+            engine_for_pandas = getattr(db.engine, "_engine", db.engine)
+            df = pd.read_sql_query(query, engine_for_pandas, params=params or None)
 
             # If requested, filter to only sources that are due for
             # discovery according to their declared frequency and the
@@ -708,7 +954,21 @@ class NewsDiscovery:
                         is_due = should_schedule_discovery(
                             dbm, str(row["id"]), source_meta=meta
                         )
-                    except Exception:
+
+                        # Log skip reasons for better debugging
+                        if not is_due:
+                            last_disc = meta.get("last_discovery_at") if meta else None
+                            freq = meta.get("frequency") if meta else None
+                            logger.debug(
+                                f"⏭️  Skipping {row.get('name', 'unknown')}: not due for discovery "
+                                f"(frequency={freq}, last_discovery={last_disc})"
+                            )
+                    except Exception as e:
+                        # On error, default to scheduling the source to avoid silent failures
+                        logger.warning(
+                            f"Error checking schedule for {row.get('name', 'unknown')}: {e}. "
+                            "Defaulting to schedule source."
+                        )
                         is_due = True
                     due_mask.append(is_due)
 
@@ -760,7 +1020,7 @@ class NewsDiscovery:
             Returns:
                 List of discovered article metadata
         """
-        discovered_articles = []
+        discovered_articles: list[dict[str, Any]] = []
         method_start_time = time.time()
         homepage_status_code: int | None = None
 
@@ -850,7 +1110,7 @@ class NewsDiscovery:
 
                 if feeds:
                     logger.info(
-                        ("Found %d feed(s) on homepage; " "trying those first")
+                        ("Found %d feed(s) on homepage; trying those first")
                         % (len(feeds),)
                     )
                     _rss_ret = self.discover_with_rss_feeds(
@@ -992,9 +1252,14 @@ class NewsDiscovery:
                     except Exception:
                         fetch_images_flag = False
 
+                    # Choose proxy for this source
+                    proxy = None
+                    if self.proxy_pool:
+                        proxy = random.choice(self.proxy_pool)
+
                     proc = Process(
                         target=_newspaper_build_worker,
-                        args=(source_url, tmp_path, fetch_images_flag),
+                        args=(source_url, tmp_path, fetch_images_flag, proxy),
                     )
                     proc.start()
                     proc.join(timeout=build_timeout)
@@ -1040,7 +1305,7 @@ class NewsDiscovery:
                     logger.warning(f"newspaper4k build raised for {source_url}: {e}")
 
             # Don't download all articles - just get the URLs
-            articles_attr = []
+            articles_attr: list[Any] = []
             if paper is not None:
                 articles_attr = getattr(paper, "articles", []) or []
             article_count = len(articles_attr)
@@ -1190,7 +1455,7 @@ class NewsDiscovery:
         Returns:
             List of discovered article metadata
         """
-        discovered_articles = []
+        discovered_articles: list[dict[str, Any]] = []
         method_start_time = time.time()
 
         def record_storysniffer_effectiveness(
@@ -1232,20 +1497,47 @@ class NewsDiscovery:
         try:
             logger.info(f"Using storysniffer for: {source_url}")
 
+            # Set proxy environment variables if a proxy pool is configured.
+            # Some tests create lightweight discovery stubs that may not have
+            # the `proxy_pool` attribute, so use getattr with a safe default.
+            original_env = {}
+            proxy_pool = getattr(self, "proxy_pool", []) or []
+            if proxy_pool:
+                proxy = random.choice(proxy_pool)
+                env_vars = ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"]
+                for env_var in env_vars:
+                    original_env[env_var] = os.environ.get(env_var)
+                    os.environ[env_var] = proxy
+                logger.debug(f"Set proxy for storysniffer: {proxy}")
+
             # Use storysniffer to detect article URLs
             results = self.storysniffer.guess(source_url)
+
+            # Restore original environment
+            for env_var, value in original_env.items():
+                if value is None:
+                    os.environ.pop(env_var, None)
+                else:
+                    os.environ[env_var] = value
 
             # StorySniffer.guess() returns a list of URLs
             for item in results if isinstance(results, list) else []:
                 # item may be a URL string or a dict with metadata
+                url: str | None
+                meta: dict
                 if isinstance(item, str):
                     url = item
                     meta = {}
                 elif isinstance(item, dict):
                     url = item.get("url")
+                    if not url:
+                        continue
                     meta = item
                 else:
                     continue
+
+                # Type guard: at this point url is definitely a str
+                assert isinstance(url, str)
 
                 article_data = {
                     "url": url,
@@ -1311,7 +1603,7 @@ class NewsDiscovery:
         Returns:
             List of discovered article metadata from RSS feeds
         """
-        discovered_articles = []
+        discovered_articles: list[dict[str, Any]] = []
         start_time = time.time()
         feeds_tried = 0
         feeds_successful = 0
@@ -1532,7 +1824,7 @@ class NewsDiscovery:
                                 )
                             if freq:
                                 parsed = parse_frequency_to_days(freq)
-                                recent_activity_days = max(1, parsed * 3)
+                                recent_activity_days = max(1, int(parsed * 3))
                         except Exception:
                             recent_activity_days = 90
 
@@ -1542,10 +1834,10 @@ class NewsDiscovery:
                                 "updated_parsed"
                             ):
                                 most_recent = datetime(*feed.feed.updated_parsed[:6])
-                            for e in feed.entries:
-                                if e.get("published_parsed"):
+                            for entry in feed.entries:
+                                if entry.get("published_parsed"):
                                     try:
-                                        d = datetime(*e.published_parsed[:6])
+                                        d = datetime(*entry.published_parsed[:6])
                                         if not most_recent or d > most_recent:
                                             most_recent = d
                                     except Exception:
@@ -1738,7 +2030,6 @@ class NewsDiscovery:
             source_filter=source_filter,
             days_back=self.days_back,
         ) as tracker:
-
             # Get sources to process (respect `due_only` scheduling)
             sources_df, source_stats = self.get_sources_to_process(
                 dataset_label=dataset_label,
@@ -1774,6 +2065,17 @@ class NewsDiscovery:
                     na=False,
                 )
                 sources_df = sources_df[mask]
+
+            # Print source stats immediately to stdout
+            print("📊 Source Discovery Status:")
+            print(f"   Sources available: {source_stats.get('sources_available', 0)}")
+            print(f"   Sources due for discovery: {source_stats.get('sources_due', 0)}")
+            if source_stats.get("sources_skipped", 0) > 0:
+                print(
+                    f"   Sources skipped (not due): {source_stats.get('sources_skipped', 0)}"
+                )
+            print(f"   Sources to process: {len(sources_df)}")
+            print()
 
             logger.info(f"Processing {len(sources_df)} sources")
 
@@ -1859,6 +2161,13 @@ class NewsDiscovery:
                         message=(f"Processed {source_row['name']}"),
                     )
 
+                    # Print progress to stdout for real-time visibility
+                    print(
+                        f"✓ [{stats['sources_processed']}/{len(sources_df)}] "
+                        f"{source_row['name']}: "
+                        f"{discovery_result.articles_new} new URLs"
+                    )
+
                     logger.info(
                         f"Progress: {stats['sources_processed']}/"
                         f"{len(sources_df)} sources"
@@ -1867,25 +2176,36 @@ class NewsDiscovery:
                     # Respectful delay between sources
                     time.sleep(self.delay)
 
-                    # Persist a last discovery timestamp into source
-                    # metadata. Scheduling logic can use this when
-                    # candidate_links haven't yet been updated or when
-                    # processed_at is not present.
-                    try:
-                        self._update_source_meta(
-                            source_row.get("id"),
-                            {
-                                "last_discovery_at": datetime.utcnow().isoformat(),
-                            },
-                        )
-                    except Exception:
-                        # Don't let metadata write failures interrupt discovery
-                        logger.debug(
-                            "Failed to persist last_discovery_at for %s",
-                            source_row.get("id"),
-                        )
+                    # Only persist last_discovery_at if we actually found and
+                    # successfully stored new URLs. This prevents sources from
+                    # being marked as "discovered" when the process fails before
+                    # saving to candidate_links table.
+                    should_mark_discovered = (
+                        discovery_result.articles_new > 0
+                        and not discovery_result.is_technical_failure
+                    )
+                    if should_mark_discovered:
+                        try:
+                            self._update_source_meta(
+                                source_row.get("id"),
+                                {
+                                    "last_discovery_at": datetime.utcnow().isoformat(),
+                                },
+                            )
+                        except Exception:
+                            # Don't let metadata write failures interrupt discovery
+                            logger.debug(
+                                "Failed to persist last_discovery_at for %s",
+                                source_row.get("id"),
+                            )
 
                 except Exception as e:
+                    # Print error to stdout for visibility
+                    print(
+                        f"✗ [{stats['sources_processed'] + 1}/{len(sources_df)}] "
+                        f"{source_row.get('name')}: ERROR - {str(e)[:100]}"
+                    )
+
                     logger.error(
                         "Failed to process source %s: %s",
                         source_row.get("name"),
@@ -1907,11 +2227,11 @@ class NewsDiscovery:
                     tracker.update_progress(
                         processed=metrics.processed_items,
                         total=metrics.total_items,
-                        message=("Failed: " f"{source_row.get('name', 'Unknown')}"),
+                        message=(f"Failed: {source_row.get('name', 'Unknown')}"),
                     )
 
             logger.info(
-                "Discovery complete. Processed %s sources, found %s " "candidate URLs",
+                "Discovery complete. Processed %s sources, found %s candidate URLs",
                 stats["sources_processed"],
                 stats["total_candidates_discovered"],
             )
@@ -1974,7 +2294,7 @@ def get_sources_from_db(db_manager, dataset_id=None, limit=None):
         if limit:
             query = query.limit(limit)
 
-        result = db_manager.session.execute(query).fetchall()
+        result = safe_session_execute(db_manager.session, query).fetchall()
         return [
             {
                 "id": row[0],
@@ -2053,6 +2373,4 @@ if __name__ == "__main__":
     print("\nDiscovery completed:")
     print(f"  Sources processed: {stats['sources_processed']}")
     print(f"  Candidates found: {stats['total_candidates_discovered']}")
-    print(
-        "  Success rate: " f"{stats['sources_succeeded']}/{stats['sources_processed']}"
-    )
+    print(f"  Success rate: {stats['sources_succeeded']}/{stats['sources_processed']}")

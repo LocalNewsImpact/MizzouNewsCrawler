@@ -5,7 +5,7 @@
 import os
 import sys
 
-sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
 
 from utils.byline_cleaner import BylineCleaner
 
@@ -74,8 +74,11 @@ def trace_clean_byline():
         print(f"After author extraction: {authors}")
 
         # Step 8: Smart processing check
-        if (isinstance(authors, list) and len(authors) >= 1 and
-            authors[0] == "__SMART_PROCESSED__"):
+        if (
+            isinstance(authors, list)
+            and len(authors) >= 1
+            and authors[0] == "__SMART_PROCESSED__"
+        ):
             print("Smart processing detected")
             smart_names = authors[1:]
             cleaned_names = []
@@ -102,6 +105,7 @@ def trace_clean_byline():
         print(f"After validation: {valid_authors}")
 
         print("\n" + "=" * 50 + "\n")
+
 
 if __name__ == "__main__":
     trace_clean_byline()
