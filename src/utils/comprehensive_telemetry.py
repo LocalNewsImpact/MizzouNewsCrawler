@@ -460,7 +460,8 @@ class ComprehensiveExtractionTelemetry:
                         metrics.publisher,
                         metrics.host,
                         detection.get("status"),
-                        detection.get("confidence"),
+                        # confidence column expects float, not text label
+                        detection.get("confidence_score"),
                         detection.get("confidence_score"),
                         detection.get("reason"),
                         (
