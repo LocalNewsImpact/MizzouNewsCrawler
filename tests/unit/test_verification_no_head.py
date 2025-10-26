@@ -20,7 +20,7 @@ class DummySniffer:
 
 def test_verification_uses_storysniffer_and_no_head(monkeypatch):
     session = NoHeadSession()
-    svc = URLVerificationService(http_session=session)
+    svc = URLVerificationService(http_session=session, run_http_precheck=False)
 
     dummy = DummySniffer()
     svc.sniffer = dummy

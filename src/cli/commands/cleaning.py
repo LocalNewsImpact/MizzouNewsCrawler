@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 from sqlalchemy import text
 
-from src.models.database import DatabaseManager, calculate_content_hash
+from src.models.database import DatabaseManager, calculate_content_hash, safe_session_execute
 from src.utils.content_cleaner_balanced import BalancedBoundaryContentCleaner
 
 logger = logging.getLogger(__name__)
@@ -94,7 +94,7 @@ def handle_cleaning_command(args) -> int:
             for i, status in enumerate(statuses):
                 params[f"status{i}"] = status
 
-            result = session.execute(query, params)
+            result = safe_session_execute(session, query, params)
             articles = result.fetchall()
 
             if not articles:
@@ -156,7 +156,8 @@ def handle_cleaning_command(args) -> int:
                             )
                             excerpt = cleaned_content[:500] if cleaned_content else None
 
-                            session.execute(
+                            safe_session_execute(
+                                session,
                                 ARTICLE_UPDATE_SQL,
                                 {
                                     "content": cleaned_content,

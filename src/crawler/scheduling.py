@@ -22,7 +22,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import text
 
-from ..models.database import DatabaseManager
+from ..models.database import DatabaseManager, safe_execute
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +76,7 @@ def _get_last_processed_date(
                 "SELECT MAX(processed_at) as last FROM candidate_links "
                 "WHERE source_id = :sid"
             )
-            res = conn.execute(text(sql), {"sid": source_id}).fetchone()
+            res = safe_execute(conn, text(sql), {"sid": source_id}).fetchone()
             if not res:
                 return None
             last = res[0]

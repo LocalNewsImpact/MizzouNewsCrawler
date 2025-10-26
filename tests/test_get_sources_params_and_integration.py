@@ -31,7 +31,14 @@ def test_get_sources_passes_dict_to_read_sql(monkeypatch):
         ]
         return pd.DataFrame([], columns=cols)
 
+    # Mock dataset resolution to return a valid UUID
+    def fake_resolve_dataset_id(engine, label):
+        return "00000000-0000-0000-0000-000000000001"
+
     monkeypatch.setattr(pd, "read_sql_query", fake_read_sql_query)
+    monkeypatch.setattr(
+        "src.utils.dataset_utils.resolve_dataset_id", fake_resolve_dataset_id
+    )
 
     # Call with a dataset_label so the code assembles params dictionary
     nd.get_sources_to_process(dataset_label="my-label", limit=1, due_only=False)

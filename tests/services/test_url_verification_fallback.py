@@ -86,6 +86,7 @@ def service_factory(monkeypatch: pytest.MonkeyPatch):
             http_session=session,  # type: ignore[arg-type]
             http_retry_attempts=1,
             http_backoff_seconds=0,
+            run_http_precheck=False,
         )
         service.sniffer = _DummySniffer(
             result=sniffer_result,

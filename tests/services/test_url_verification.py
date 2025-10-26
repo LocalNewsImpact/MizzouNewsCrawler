@@ -47,10 +47,13 @@ def _patch_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(url_verification.requests, "Session", _Session)
 
 
-def _service(batch_size: int = 100) -> url_verification.URLVerificationService:
+def _service(
+    batch_size: int = 100, run_http_precheck: bool = False
+) -> url_verification.URLVerificationService:
     service = url_verification.URLVerificationService(
         batch_size=batch_size,
         http_backoff_seconds=0,
+        run_http_precheck=run_http_precheck,
     )
     return service
 

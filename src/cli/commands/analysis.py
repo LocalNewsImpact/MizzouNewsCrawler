@@ -11,7 +11,7 @@ from sqlalchemy import select
 
 from src.ml.article_classifier import ArticleClassifier
 from src.models import Article, ArticleLabel
-from src.models.database import DatabaseManager
+from src.models.database import DatabaseManager, safe_session_execute
 from src.services.classification_service import ArticleClassificationService
 
 logger = logging.getLogger(__name__)
@@ -78,7 +78,7 @@ def _snapshot_labels(
     else:
         stmt = stmt.where(Article.status.in_(list(statuses)))
 
-    rows = session.execute(stmt).all()
+    rows = safe_session_execute(session, stmt).all()
     snapshot: dict[str, dict[str, str | None]] = {}
     for article_id, url, primary, alternate in rows:
         snapshot[str(article_id)] = {

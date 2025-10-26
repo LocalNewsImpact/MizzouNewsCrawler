@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import storysniffer  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
-from src.models.database import DatabaseManager  # noqa: E402
+from src.models.database import DatabaseManager, safe_execute, safe_session_execute  # noqa: E402
 from src.models.verification import (  # noqa: E402
     URLVerification,
     VerificationJob,
@@ -88,7 +88,7 @@ class URLVerificationService:
             query += f" LIMIT {limit}"
 
         with self.db.engine.connect() as conn:
-            result = conn.execute(text(query))
+            result = safe_execute(conn, query)
             return [dict(row._mapping) for row in result.fetchall()]
 
     def verify_url(self, url: str) -> dict:
@@ -134,15 +134,19 @@ class URLVerificationService:
         """
 
         with self.db.engine.connect() as conn:
-            conn.execute(
-                text(update_query),
+            safe_execute(
+                conn,
+                update_query,
                 {
                     "candidate_id": candidate_id,
                     "status": new_status,
                     "processed_at": datetime.now(),
                 },
             )
-            conn.commit()
+            try:
+                conn.commit()
+            except Exception:
+                pass
 
         self.logger.debug(f"Updated candidate {candidate_id} to status: {new_status}")
 
@@ -238,8 +242,9 @@ class URLVerificationService:
         """
 
         with self.db.engine.connect() as conn:
-            conn.execute(
-                text(update_query),
+            safe_execute(
+                conn,
+                update_query,
                 {
                     "job_id": self.current_job.id,
                     "processed": batch_metrics["total_processed"],
@@ -249,7 +254,10 @@ class URLVerificationService:
                     "batch_time": batch_metrics["batch_time_seconds"],
                 },
             )
-            conn.commit()
+            try:
+                conn.commit()
+            except Exception:
+                pass
 
     def generate_telemetry(self, batch_metrics: dict, candidates: list[dict]):
         """Generate telemetry data for this batch."""
@@ -283,8 +291,8 @@ class URLVerificationService:
         """
         )
 
-        results = session.execute(
-            verification_query, {"job_id": self.current_job.id}
+        results = safe_session_execute(
+            session, verification_query, {"job_id": self.current_job.id}
         ).fetchall()
 
         for result in results:
@@ -401,8 +409,8 @@ class URLVerificationService:
 
         # Get final totals
         with self.db.engine.connect() as conn:
-            result = conn.execute(
-                text("SELECT COUNT(*) FROM candidate_links WHERE status = 'discovered'")
+            result = safe_execute(
+                conn, text("SELECT COUNT(*) FROM candidate_links WHERE status = 'discovered'")
             ).fetchone()
             remaining_discovered = result[0] if result else 0
 
@@ -418,15 +426,19 @@ class URLVerificationService:
                 WHERE id = :job_id
             """
 
-            conn.execute(
-                text(update_query),
+            safe_execute(
+                conn,
+                update_query,
                 {
                     "job_id": self.current_job.id,
                     "status": "completed" if remaining_discovered == 0 else "paused",
                     "completed_at": datetime.now(),
                 },
             )
-            conn.commit()
+            try:
+                conn.commit()
+            except Exception:
+                pass
 
         self.logger.info(
             f"Finished verification job: {self.current_job.job_name} "

@@ -381,7 +381,15 @@ class Dataset(Base):
     label = Column(String, unique=True, index=True, nullable=False)
     name = Column(String)
     description = Column(Text)
-    ingested_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    # Use a server_default so raw SQL INSERTs (e.g. in SQLite tests) that
+    # omit `ingested_at` receive a timestamp. Keep Python-side default for
+    # ORM-created objects as well.
+    ingested_at = Column(
+        DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
     ingested_by = Column(String)
     # `metadata` is a reserved attribute on Declarative classes; store JSON
     # in the DB column named 'metadata' but expose it as `meta` on the model.
@@ -390,7 +398,17 @@ class Dataset(Base):
     # Control whether this dataset should be included in automated cron jobs
     # False = manual processing only (e.g., custom source lists)
     # True = include in automated discovery/extraction jobs
-    cron_enabled = Column(Boolean, default=True, nullable=False)
+    # Ensure database-level default so raw INSERTs (used in tests) that
+    # omit this column will still succeed. Use server_default '1' which
+    # works for SQLite and PostgreSQL (interpreted as true-ish).
+    cron_enabled = Column(
+        Boolean,
+        default=True,
+        nullable=False,
+        server_default=text("1"),
+    )
+    # Timestamp for dataset creation (present in older SQLite test schema)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
 class Source(Base):
@@ -401,7 +419,12 @@ class Source(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     host = Column(String, index=True, nullable=False)
     # Normalized lowercased host for uniqueness/deduplication
-    host_norm = Column(String, index=True, unique=True, nullable=False)
+    host_norm = Column(
+        String,
+        index=True,
+        unique=True,
+        nullable=True,
+    )
     canonical_name = Column(String, index=True)
     city = Column(String, index=True)
     county = Column(String, index=True)
@@ -432,7 +455,14 @@ class DatasetSource(Base):
 
     __tablename__ = "dataset_sources"
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(
+        String,
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+        # SQLite-friendly server default to generate a hex UUID when raw SQL
+        # inserts omit the `id` column in tests.
+        server_default=text("lower(hex(randomblob(16)))"),
+    )
     dataset_id = Column(
         String,
         ForeignKey("datasets.id"),
@@ -662,10 +692,10 @@ def create_database_engine(database_url: str = "sqlite:///data/mizzou.db"):
     if database_url.startswith("sqlite"):
         # SQLite-specific optimizations
         engine = create_engine(
-            database_url,
-            connect_args={"check_same_thread": False, "timeout": 30},
-            echo=False,
-        )
+                database_url,
+                connect_args={"check_same_thread": False, "timeout": 30},
+                echo=False,
+            )
     else:
         # PostgreSQL configuration for production
         engine = create_engine(

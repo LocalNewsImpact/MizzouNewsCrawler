@@ -28,6 +28,7 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.orm import sessionmaker, Mapped, mapped_column
+from src.models.database import safe_execute
 
 from . import Base, create_database_engine
 
@@ -354,9 +355,7 @@ def export_snapshot_for_version(
         lock_id = _compute_advisory_lock_id(dv.dataset_name or "", dv.id)
         try:
             with engine.connect() as conn:
-                res = conn.execute(
-                    text("SELECT pg_try_advisory_lock(:id)"), {"id": lock_id}
-                )
+                res = safe_execute(conn, "SELECT pg_try_advisory_lock(:id)", {"id": lock_id})
                 pg_lock_acquired = bool(res.scalar())
         except Exception:
             pg_lock_acquired = False
@@ -390,12 +389,12 @@ def export_snapshot_for_version(
                 # snapshot
                 with engine.connect() as conn:
                     with conn.begin():
-                        conn.execute(
-                            text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+                        safe_execute(
+                            conn,
+                            text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ"),
                         )
-                        result = conn.execution_options(stream_results=True).execute(
-                            select_sql
-                        )
+                        exec_conn = conn.execution_options(stream_results=True)
+                        result = safe_execute(exec_conn, select_sql)
                         cols = result.keys()
 
                         while True:
@@ -427,9 +426,8 @@ def export_snapshot_for_version(
                                 writer.write_table(table)
             else:
                 with engine.connect() as conn:
-                    result = conn.execution_options(stream_results=True).execute(
-                        select_sql
-                    )
+                    exec_conn = conn.execution_options(stream_results=True)
+                    result = safe_execute(exec_conn, select_sql)
                     cols = result.keys()
 
                     while True:
@@ -483,13 +481,24 @@ def export_snapshot_for_version(
             _fsync_path(output_path)
 
         # compute checksum and finalize
+        checksum = _compute_file_checksum(output_path)
+        finalize_dataset_version(
+            dv.id,
+            succeeded=True,
+            row_count=total_rows,
+            snapshot_path=output_path,
+            checksum=checksum,
+            database_url=database_url,
+        )
 
         # release advisory lock if we held it
         if pg_lock_acquired and lock_id is not None and _is_postgres_engine(engine):
             try:
                 with engine.connect() as conn:
-                    conn.execute(
-                        text("SELECT pg_advisory_unlock(:id)"), {"id": lock_id}
+                    safe_execute(
+                        conn,
+                        "SELECT pg_advisory_unlock(:id)",
+                        {"id": lock_id},
                     )
             except Exception:
                 # ignore unlock errors
@@ -507,8 +516,10 @@ def export_snapshot_for_version(
         if pg_lock_acquired and lock_id is not None and _is_postgres_engine(engine):
             try:
                 with engine.connect() as conn:
-                    conn.execute(
-                        text("SELECT pg_advisory_unlock(:id)"), {"id": lock_id}
+                    safe_execute(
+                        conn,
+                        "SELECT pg_advisory_unlock(:id)",
+                        {"id": lock_id},
                     )
             except Exception:
                 # ignore unlock errors

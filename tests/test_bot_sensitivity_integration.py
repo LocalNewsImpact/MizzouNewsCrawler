@@ -253,7 +253,7 @@ class TestBotDetectionResponseHandling:
 
         mock_response = Mock()
         mock_response.text = (
-            "<html><body><div class='g-recaptcha'>CAPTCHA</div></body></html>"
+            "<html><body><p>Please complete the captcha to continue</p></body></html>"
         )
 
         protection_type = extractor._detect_bot_protection_in_response(mock_response)

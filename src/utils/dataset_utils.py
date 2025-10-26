@@ -7,6 +7,8 @@ from typing import Optional
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
+from src.models.database import safe_execute
+
 logger = logging.getLogger(__name__)
 
 
@@ -72,7 +74,8 @@ def resolve_dataset_id(
     # Use parameterized query to prevent SQL injection
     with engine.connect() as conn:
         # Try exact match on slug first (most common case)
-        result = conn.execute(
+        result = safe_execute(
+            conn,
             text("SELECT id FROM datasets WHERE slug = :identifier LIMIT 1"),
             {"identifier": dataset_identifier},
         )
@@ -88,7 +91,8 @@ def resolve_dataset_id(
             return dataset_uuid
 
         # Try exact match on name (case-sensitive)
-        result = conn.execute(
+        result = safe_execute(
+            conn,
             text("SELECT id FROM datasets WHERE name = :identifier LIMIT 1"),
             {"identifier": dataset_identifier},
         )
@@ -104,7 +108,8 @@ def resolve_dataset_id(
             return dataset_uuid
 
         # Try label column (case-sensitive)
-        result = conn.execute(
+        result = safe_execute(
+            conn,
             text("SELECT id FROM datasets WHERE label = :identifier LIMIT 1"),
             {"identifier": dataset_identifier},
         )

@@ -2205,8 +2205,7 @@ class BylineCleaner:
         import time
 
         from sqlalchemy import text
-
-        from src.models.database import DatabaseManager
+        from src.models.database import DatabaseManager, safe_session_execute
 
         # Check if cache is still valid (refresh every 1 hour)
         current_time = time.time()
@@ -2228,7 +2227,8 @@ class BylineCleaner:
             session = db.session
 
             # Get all canonical names from sources
-            result = session.execute(
+            result = safe_session_execute(
+                session,
                 text(
                     """
                 SELECT DISTINCT canonical_name
@@ -2300,8 +2300,7 @@ class BylineCleaner:
             Set of normalized organization names for filtering
         """
         import time
-
-        from src.models.database import DatabaseManager
+        from src.models.database import DatabaseManager, safe_session_execute
 
         current_time = time.time()
         cache_duration = 3600  # 1 hour
@@ -2336,7 +2335,7 @@ class BylineCleaner:
                 """
             )
 
-            result = db_manager.session.execute(query)
+            result = safe_session_execute(db_manager.session, query)
             for row in result:
                 name = row[0]
                 if name and len(name.strip()) >= 3:

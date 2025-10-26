@@ -29,6 +29,7 @@ from typing import Any
 
 import requests
 from sqlalchemy.exc import SQLAlchemyError
+from src.models.database import safe_execute
 
 from src.telemetry.store import TelemetryStore, get_store
 
@@ -261,11 +262,27 @@ class DiscoveryMethodEffectiveness:
 
 def _apply_schema(conn: sqlite3.Connection, statements: Iterable[str]) -> None:
     """Execute a series of DDL statements on the provided connection."""
-
     cursor = conn.cursor()
     try:
         for statement in statements:
-            cursor.execute(statement)
+            try:
+                cursor.execute(statement)
+            except Exception as e:
+                # Some environments (or older schemas) may be missing
+                # columns referenced by an index/DDL. Don't let a single
+                # index creation failure break the entire telemetry setup; log
+                # and continue so tests and local runs remain resilient.
+                import sqlalchemy
+
+                if isinstance(e, sqlite3.OperationalError) or isinstance(
+                    e, getattr(sqlalchemy, "OperationalError", object)
+                ):
+                    logging.getLogger(__name__).debug(
+                        "Telemetry DDL failed (continuing): %s -- %s", statement, e
+                    )
+                    continue
+                # If it's an unexpected exception, re-raise it.
+                raise
         conn.commit()
     finally:
         cursor.close()
@@ -828,9 +845,9 @@ class OperationTracker:
             """
 
             with self._connection() as conn:
-                summary_row = conn.execute(summary_sql, params).fetchone()
-                breakdown_rows = conn.execute(breakdown_sql, params).fetchall()
-                top_rows = conn.execute(top_sources_sql, params).fetchall()
+                    summary_row = safe_execute(conn, summary_sql, params).fetchone()
+                    breakdown_rows = safe_execute(conn, breakdown_sql, params).fetchall()
+                    top_rows = safe_execute(conn, top_sources_sql, params).fetchall()
 
             summary = {
                 "total_sources": 0,

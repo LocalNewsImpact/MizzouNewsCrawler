@@ -8,7 +8,7 @@ import logging
 
 from sqlalchemy import text
 
-from src.models.database import DatabaseManager
+from src.models.database import DatabaseManager, safe_execute
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +105,7 @@ def handle_http_status_command(args) -> int:
             )
 
             with db.engine.connect() as conn:
-                results = conn.execute(sql, params)
+                results = safe_execute(conn, sql, params)
                 rows = [dict(row) for row in results.fetchall()]
 
         if out_format == "json":
@@ -126,7 +126,8 @@ def _resolve_host_to_source_ids(db: DatabaseManager, host: str) -> list[str]:
 
     try:
         with db.engine.connect() as conn:
-            result = conn.execute(
+            result = safe_execute(
+                conn,
                 query,
                 {"h": f"%{host}%", "h_norm": f"%{host.lower()}%"},
             )

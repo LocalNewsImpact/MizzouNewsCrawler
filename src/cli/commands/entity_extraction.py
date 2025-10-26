@@ -12,7 +12,7 @@ import time
 
 from sqlalchemy import text as sql_text
 
-from src.models.database import DatabaseManager, save_article_entities
+from src.models.database import DatabaseManager, save_article_entities, safe_session_execute
 from src.pipeline.entity_extraction import (
     ArticleEntityExtractor,
     attach_gazetteer_matches,
@@ -102,7 +102,7 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
             if source:
                 params["source"] = source
 
-            result = session.execute(query, params)
+            result = safe_session_execute(session, query, params)
             rows = result.fetchall()
 
             if not rows:

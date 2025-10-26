@@ -27,6 +27,7 @@ from src.models.database import (
     calculate_content_hash,
     save_article_entities,
 )
+from src.models.database import safe_session_execute
 
 # Lazy import: entity_extraction only needed for entity-extraction command
 # Importing at top level causes ModuleNotFoundError in crawler image (no rapidfuzz)
@@ -95,7 +96,13 @@ ARTICLE_INSERT_SQL = text(
     "created_at, text_hash) VALUES (:id, :candidate_link_id, :url, :title, "
     ":author, :publish_date, :content, :text, :status, :metadata, :wire, "
     ":extracted_at, :created_at, :text_hash) "
-    "ON CONFLICT (url) DO NOTHING"
+    # Avoid specifying a conflict target here (ON CONFLICT (url) ...) if the
+    # corresponding unique constraint may not exist in some deployments. Using
+    # a plain DO NOTHING will avoid raising InvalidColumnReference while still
+    # allowing PostgreSQL to skip inserts when a relevant unique constraint is
+    # present. To enforce deduplication permanently, add a UNIQUE constraint on
+    # `articles.url` in the DB (see migration instructions in the logs).
+    "ON CONFLICT DO NOTHING"
 )
 
 CANDIDATE_STATUS_UPDATE_SQL = text(
@@ -161,7 +168,7 @@ def _get_status_counts(args, session):
     query += " GROUP BY cl.status ORDER BY count DESC"
 
     try:
-        result = session.execute(text(query), params)
+        result = safe_session_execute(session, query, params)
         return {row[0]: row[1] for row in result.fetchall()}
     except Exception as e:
         logger.warning("Failed to get status counts: %s", e)
@@ -210,7 +217,7 @@ def _analyze_dataset_domains(args, session):
     query += " LIMIT 1000"  # Sample up to 1000 URLs for analysis
 
     try:
-        result = session.execute(text(query), params)
+        result = safe_session_execute(session, text(query), params)
         urls = [row[0] for row in result.fetchall()]
 
         if not urls:
@@ -277,6 +284,23 @@ def add_extraction_parser(subparsers):
         action="store_false",
         default=True,
         help="Stop after --batches instead of processing all available articles",
+    )
+    extract_parser.add_argument(
+        "--dump-sql",
+        dest="dump_sql",
+        action="store_true",
+        default=False,
+        help="Dump SQL statements and parameters before executing (diagnostic)",
+    )
+    extract_parser.add_argument(
+        "--verify-insert",
+        dest="verify_insert",
+        action="store_true",
+        default=False,
+        help=(
+            "After committing an inserted article, run a SELECT to verify the "
+            "row exists and log a mismatch (diagnostic)."
+        ),
     )
 
     extract_parser.set_defaults(func=handle_extraction_command)
@@ -445,7 +469,7 @@ def handle_extraction_command(args) -> int:
                         "WHERE candidate_link_id IS NOT NULL)"
                     )
                     remaining_count = (
-                        db.session.execute(query, {"dataset": dataset_uuid}).scalar()
+                        safe_session_execute(db.session, query, {"dataset": dataset_uuid}).scalar()
                         or 0
                     )
                 else:
@@ -457,7 +481,7 @@ def handle_extraction_command(args) -> int:
                         "(SELECT candidate_link_id FROM articles "
                         "WHERE candidate_link_id IS NOT NULL)"
                     )
-                    remaining_count = db.session.execute(query).scalar() or 0
+                    remaining_count = safe_session_execute(db.session, query).scalar() or 0
 
                 print(
                     f"✓ Batch {batch_num} complete: {articles_processed} "
@@ -686,7 +710,7 @@ def _process_batch(
                 )
             params["source"] = args.source
 
-        result = session.execute(text(q), params)
+        result = safe_session_execute(session, q, params)
         rows = result.fetchall()
         logger.info(
             "🔍 Extraction query returned %d candidate articles (requested: %d)",
@@ -860,7 +884,35 @@ def _process_batch(
                     metrics.set_content_type_detection(detection_payload)
                     metrics.finalize(content or {})
 
-                    session.execute(
+                    # Diagnostic: optionally dump SQL and parameters before execution
+                    try:
+                        dump_sql_flag = getattr(args, "dump_sql", False)
+                    except Exception:
+                        dump_sql_flag = False
+
+                    if dump_sql_flag:
+                        try:
+                            logger.info(
+                                "[DIAGNOSTIC] About to execute ARTICLE_INSERT_SQL: %s",
+                                str(ARTICLE_INSERT_SQL),
+                            )
+                            # Log a compact params snapshot to avoid huge logs
+                            logger.info(
+                                "[DIAGNOSTIC] Article params: %s",
+                                json.dumps(
+                                    {
+                                        "id": article_id,
+                                        "candidate_link_id": str(url_id),
+                                        "url": url,
+                                        "title": content.get("title"),
+                                    }
+                                ),
+                            )
+                        except Exception:
+                            logger.exception("Failed to log diagnostic SQL/params")
+
+                    safe_session_execute(
+                        session,
                         ARTICLE_INSERT_SQL,
                         {
                             "id": article_id,
@@ -879,7 +931,8 @@ def _process_batch(
                             "text_hash": text_hash,
                         },
                     )
-                    session.execute(
+                    safe_session_execute(
+                        session,
                         CANDIDATE_STATUS_UPDATE_SQL,
                         {"status": article_status, "id": str(url_id)},
                     )
@@ -900,6 +953,55 @@ def _process_batch(
                             exc_info=True
                         )
                         raise
+                    # Post-commit verification (diagnostic): optionally verify row exists
+                    try:
+                        verify_flag = getattr(args, "verify_insert", False)
+                    except Exception:
+                        verify_flag = False
+
+                    if verify_flag:
+                        try:
+                            # Prefer to verify by id; fallback to url if id-based check fails
+                            verify_row = safe_session_execute(
+                                session,
+                                text("SELECT id, url FROM articles WHERE id = :id"),
+                                {"id": article_id},
+                            ).fetchone()
+                            if not verify_row:
+                                # Try verify by URL as a second check
+                                verify_row = safe_session_execute(
+                                    session,
+                                    text("SELECT id, url FROM articles WHERE url = :url"),
+                                    {"url": url},
+                                ).fetchone()
+
+                            if verify_row:
+                                logger.info(
+                                    "[DIAGNOSTIC] Verified inserted article in DB: %s",
+                                    dict(verify_row),
+                                )
+                            else:
+                                logger.error(
+                                    "[DIAGNOSTIC] Post-commit verification FAILED for article %s (url=%s)",
+                                    article_id,
+                                    url,
+                                )
+                                # As extra diagnostic, count matching rows by url
+                                try:
+                                    cnt = safe_session_execute(
+                                        session,
+                                        text("SELECT COUNT(*) FROM articles WHERE url = :url"),
+                                        {"url": url},
+                                    ).scalar()
+                                except Exception:
+                                    cnt = None
+                                logger.error(
+                                    "[DIAGNOSTIC] Matching rows by url: %s", cnt
+                                )
+                        except Exception:
+                            logger.exception(
+                                "[DIAGNOSTIC] Exception while verifying inserted article"
+                            )
                     
                     telemetry.record_extraction(metrics)
                     domains_for_cleaning[domain].append(article_id)
@@ -944,7 +1046,8 @@ def _process_batch(
                 # 404/410 - permanently mark as not found and continue to next URL
                 logger.info("URL not found (404/410): %s", url)
                 try:
-                    session.execute(
+                    safe_session_execute(
+                        session,
                         CANDIDATE_STATUS_UPDATE_SQL,
                         {"status": "404", "id": str(url_id)},
                     )
@@ -975,6 +1078,29 @@ def _process_batch(
                     skipped_domains.add(domain)
                     domain_failures[domain] = max_failures_per_domain
                     # Cap at max failures once rate limited/blocked
+                    # If this looks like bot protection (HTTP 403), attempt to
+                    # proactively pause candidate links for this host so we
+                    # don't keep retrying and triggering more blocks.
+                    try:
+                        host_val = getattr(metrics, "host", domain)
+                        if host_val:
+                            reason = "Auto-paused: multiple HTTP 403 responses"
+                            host_like = f"%{host_val}%"
+                            safe_session_execute(
+                                session,
+                                PAUSE_CANDIDATE_LINKS_SQL,
+                                {
+                                    "status": "paused",
+                                    "error": reason,
+                                    "host_like": host_like,
+                                    "host": host_val,
+                                },
+                            )
+                            session.commit()
+                            logger.warning("Auto-paused host %s after exception", host_val)
+                    except Exception:
+                        # Don't raise from the pause attempt; just log and continue
+                        logger.exception("Failed to auto-pause host during exception handling")
                 else:
                     # Track other failures for domain awareness
                     domain_failures[domain] = domain_failures.get(domain, 0) + 1
@@ -999,7 +1125,8 @@ def _process_batch(
                 if status_code in (404, 410):
                     # Permanently mark as 404 - page doesn't exist
                     try:
-                        session.execute(
+                        safe_session_execute(
+                            session,
                             CANDIDATE_STATUS_UPDATE_SQL,
                             {"status": "404", "id": str(url_id)},
                         )
@@ -1027,7 +1154,8 @@ def _process_batch(
                         reason = "Auto-paused: multiple HTTP 403 responses"
                         host_like = f"%{host}%"
                         try:
-                            session.execute(
+                            safe_session_execute(
+                                session,
                                 PAUSE_CANDIDATE_LINKS_SQL,
                                 {
                                     "status": "paused",
@@ -1135,7 +1263,8 @@ def _run_post_extraction_cleaning(domains_to_articles, db=None):
 
             for article_id in article_ids:
                 try:
-                    row = session.execute(
+                    row = safe_session_execute(
+                        session,
                         text("SELECT content, status FROM articles WHERE id = :id"),
                         {"id": article_id},
                     ).fetchone()
@@ -1185,7 +1314,8 @@ def _run_post_extraction_cleaning(domains_to_articles, db=None):
                         )
                         excerpt = cleaned_content[:500] if cleaned_content else None
 
-                        session.execute(
+                        safe_session_execute(
+                            session,
                             ARTICLE_UPDATE_SQL,
                             {
                                 "content": cleaned_content,
@@ -1215,7 +1345,8 @@ def _run_post_extraction_cleaning(domains_to_articles, db=None):
 
                         article_updated = True
                     elif status_changed:
-                        session.execute(
+                        safe_session_execute(
+                            session,
                             ARTICLE_STATUS_UPDATE_SQL,
                             {"status": new_status, "id": article_id},
                         )

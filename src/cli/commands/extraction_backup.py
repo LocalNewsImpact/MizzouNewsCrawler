@@ -10,7 +10,7 @@ from datetime import datetime
 from sqlalchemy import text
 
 from src.crawler import ContentExtractor
-from src.models.database import DatabaseManager
+from src.models.database import DatabaseManager, safe_session_execute
 from src.utils.byline_cleaner import BylineCleaner
 
 logger = logging.getLogger(__name__)
@@ -102,7 +102,7 @@ def handle_extraction_command(args) -> int:
 
             query = text(f"{query.text} ORDER BY created_at DESC LIMIT {per_batch}")
 
-            result = session.execute(query)
+            result = safe_session_execute(session, query)
             articles = result.fetchall()
 
             if not articles:
@@ -289,7 +289,8 @@ def _process_batch(articles, extractor, byline_cleaner, session, batch_num):
                     article_id = str(uuid.uuid4())
                     now = datetime.utcnow()
 
-                    session.execute(
+                    safe_session_execute(
+                        session,
                         text(
                             """
                             INSERT INTO articles (
@@ -340,11 +341,10 @@ def _process_batch(articles, extractor, byline_cleaner, session, batch_num):
                         },
                     )
 
-                    session.execute(
-                        text(
-                            "UPDATE candidate_links SET status = 'extracted' "
-                            "WHERE id = :url_id"
-                        ),
+                    safe_session_execute(
+                        session,
+                        text("UPDATE candidate_links SET status = 'extracted' "
+                             "WHERE id = :url_id"),
                         {"url_id": url_id},
                     )
 

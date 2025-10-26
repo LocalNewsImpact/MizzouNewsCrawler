@@ -12,7 +12,7 @@ from typing import Any, Optional
 
 from sqlalchemy import text
 
-from src.models.database import DatabaseManager
+from src.models.database import DatabaseManager, safe_session_execute
 
 logger = logging.getLogger(__name__)
 
@@ -171,15 +171,15 @@ class BotSensitivityManager:
                     query = text(
                         "SELECT bot_sensitivity FROM sources WHERE id = :source_id"
                     )
-                    result = session.execute(query, {"source_id": source_id})
+                    result = safe_session_execute(session, query, {"source_id": source_id})
                 else:
                     query = text(
                         "SELECT bot_sensitivity FROM sources "
                         "WHERE host = :host OR host_norm = :host_norm "
                         "LIMIT 1"
                     )
-                    result = session.execute(
-                        query, {"host": host, "host_norm": host.lower()}
+                    result = safe_session_execute(
+                        session, query, {"host": host, "host_norm": host.lower()}
                     )
 
                 row = result.fetchone()
@@ -252,7 +252,8 @@ class BotSensitivityManager:
                     )
                     """
                 )
-                session.execute(
+                safe_session_execute(
+                    session,
                     insert_event,
                     {
                         "id": event_id,
@@ -284,7 +285,8 @@ class BotSensitivityManager:
                         WHERE id = :source_id
                         """
                     )
-                    session.execute(
+                    safe_session_execute(
+                        session,
                         update_source,
                         {
                             "new_sensitivity": new_sensitivity,
@@ -307,7 +309,7 @@ class BotSensitivityManager:
                         WHERE id = :source_id
                         """
                     )
-                    session.execute(update_encounters, {"source_id": source_id})
+                    safe_session_execute(session, update_encounters, {"source_id": source_id})
 
                     logger.info(
                         f"Bot detection on {host}: {event_type} - "
@@ -388,9 +390,7 @@ class BotSensitivityManager:
                     LIMIT 1
                     """
                 )
-                result = session.execute(
-                    query, {"host": host, "host_norm": host.lower()}
-                )
+                result = safe_session_execute(session, query, {"host": host, "host_norm": host.lower()})
                 row = result.fetchone()
 
                 if row and row[0]:
@@ -422,9 +422,7 @@ class BotSensitivityManager:
                     LIMIT 1
                     """
                 )
-                result = session.execute(
-                    query, {"host": host, "host_norm": host.lower()}
-                )
+                result = safe_session_execute(session, query, {"host": host, "host_norm": host.lower()})
                 row = result.fetchone()
 
                 if row:
@@ -438,7 +436,8 @@ class BotSensitivityManager:
                     VALUES (:id, :host, :host_norm, 5)
                     """
                 )
-                session.execute(
+                safe_session_execute(
+                    session,
                     insert,
                     {
                         "id": source_id,
@@ -446,6 +445,7 @@ class BotSensitivityManager:
                         "host_norm": host.lower(),
                     },
                 )
+                session.commit()
                 session.commit()
 
                 logger.info(f"Created new source record for {host}: {source_id}")
@@ -479,7 +479,7 @@ class BotSensitivityManager:
                         WHERE host = :host
                         """
                     )
-                    result = session.execute(query, {"host": host})
+                    result = safe_session_execute(session, query, {"host": host})
                 else:
                     query = text(
                         """
@@ -491,7 +491,7 @@ class BotSensitivityManager:
                         FROM bot_detection_events
                         """
                     )
-                    result = session.execute(query)
+                    result = safe_session_execute(session, query)
 
                 row = result.fetchone()
                 if row:

@@ -57,7 +57,7 @@ from src.utils.telemetry import (
 )
 from src.utils.url_utils import normalize_url
 
-from ..models.database import DatabaseManager
+from ..models.database import DatabaseManager, safe_execute, safe_session_execute
 from .origin_proxy import enable_origin_proxy
 from .proxy_config import get_proxy_manager
 
@@ -518,10 +518,7 @@ class NewsDiscovery:
         try:
             dbm = DatabaseManager(self.database_url)
             with dbm.engine.begin() as conn:
-                res = conn.execute(
-                    text("SELECT metadata FROM sources WHERE id = :id"),
-                    {"id": source_id},
-                ).fetchone()
+                res = safe_execute(conn, "SELECT metadata FROM sources WHERE id = :id", {"id": source_id}).fetchone()
                 current = res[0] if res else None
                 if isinstance(current, str):
                     try:
@@ -537,10 +534,7 @@ class NewsDiscovery:
                 merged.update(updates or {})
 
                 # Update sources metadata (handles RSS metadata persistence)
-                conn.execute(
-                    text("UPDATE sources SET metadata = :meta WHERE id = :id"),
-                    {"meta": json.dumps(merged), "id": source_id},
-                )
+                safe_execute(conn, "UPDATE sources SET metadata = :meta WHERE id = :id", {"meta": json.dumps(merged), "id": source_id})
                 logger.debug(
                     "Updated metadata for source %s: %s",
                     source_id,
@@ -575,11 +569,8 @@ class NewsDiscovery:
         try:
             dbm = DatabaseManager(self.database_url)
             with dbm.engine.connect() as conn:
-                query = text("SELECT metadata FROM sources WHERE id = :id")
-                result = conn.execute(
-                    query,
-                    {"id": source_id},
-                ).fetchone()
+                query = "SELECT metadata FROM sources WHERE id = :id"
+                result = safe_execute(conn, query, {"id": source_id}).fetchone()
 
             cur_meta: dict[str, Any] = {}
             if result and result[0]:
@@ -617,7 +608,7 @@ class NewsDiscovery:
             db_manager = DatabaseManager(self.database_url)
 
             with db_manager.engine.connect() as conn:
-                result = conn.execute(text("SELECT url FROM candidate_links"))
+                result = safe_execute(conn, "SELECT url FROM candidate_links")
                 urls: set[str] = set()
                 for row in result.fetchall():
                     raw = row[0]
@@ -659,11 +650,9 @@ class NewsDiscovery:
         try:
             db_manager = DatabaseManager(self.database_url)
             with db_manager.engine.connect() as conn:
-                result = conn.execute(
-                    text(
-                        "SELECT url FROM candidate_links "
-                        "WHERE source_host_id = :source_id"
-                    ),
+                result = safe_execute(
+                    conn,
+                    "SELECT url FROM candidate_links WHERE source_host_id = :source_id",
                     {"source_id": source_id},
                 )
                 urls: set[str] = set()
@@ -682,15 +671,14 @@ class NewsDiscovery:
         try:
             db_manager = DatabaseManager(self.database_url)
             with db_manager.engine.connect() as conn:
-                result = conn.execute(
-                    text(
-                        """
+                result = safe_execute(
+                    conn,
+                    """
                         SELECT COUNT(a.id)
                         FROM articles a
                         JOIN candidate_links cl ON a.candidate_link_id = cl.id
                         WHERE cl.source_id = :source_id
-                        """
-                    ),
+                    """,
                     {"source_id": source_id},
                 )
                 row = result.fetchone()
@@ -721,17 +709,12 @@ class NewsDiscovery:
         try:
             with db_manager.engine.connect() as conn:
                 # Check if dataset exists
-                result = conn.execute(
-                    text("SELECT id, slug FROM datasets WHERE label = :label"),
-                    {"label": dataset_label},
-                ).fetchone()
+                result = safe_execute(conn, "SELECT id, slug FROM datasets WHERE label = :label", {"label": dataset_label}).fetchone()
 
                 if not result:
                     logger.error(f"❌ Dataset '{dataset_label}' not found in database")
                     # List available datasets to help user
-                    available = conn.execute(
-                        text("SELECT label FROM datasets ORDER BY label")
-                    ).fetchall()
+                    available = safe_execute(conn, "SELECT label FROM datasets ORDER BY label").fetchall()
                     if available:
                         labels = [row[0] for row in available]
                         logger.info(f"Available datasets: {', '.join(labels)}")
@@ -742,14 +725,13 @@ class NewsDiscovery:
                 dataset_id = result[0]
 
                 # Check if dataset has linked sources
-                count_result = conn.execute(
-                    text(
-                        """
+                count_result = safe_execute(
+                    conn,
+                    """
                         SELECT COUNT(*)
                         FROM dataset_sources
                         WHERE dataset_id = :dataset_id
-                        """
-                    ),
+                    """,
                     {"dataset_id": dataset_id},
                 ).fetchone()
 
@@ -795,7 +777,39 @@ class NewsDiscovery:
             Tuple of (DataFrame with source information, stats dict)
         """
         with DatabaseManager(self.database_url) as db:
-            # Dataset validation removed - trust caller provides valid names
+            # Validate dataset_label when provided so callers get a clear
+            # error when the label doesn't exist. Tests expect an error
+            # to be logged and an empty result returned for invalid labels.
+            if dataset_label:
+                try:
+                    from src.utils.dataset_utils import resolve_dataset_id
+
+                    # resolve_dataset_id returns a UUID if found, otherwise
+                    # raises ValueError which we surface as an ERROR log.
+                    dataset_label = resolve_dataset_id(db.engine, dataset_label)
+                except ValueError:
+                    logger.error("Dataset '%s' not found", dataset_label)
+                    # Also log available dataset labels to help the user find a
+                    # valid value (tests expect this suggestion).
+                    try:
+                        # Use a fresh connection to list available datasets so we
+                        # observe any recently committed rows.
+                        with db.engine.begin() as conn:
+                            stmt = text("SELECT label FROM datasets")
+                            rows = safe_execute(conn, stmt).fetchall()
+                        labels = [r[0] for r in rows if r and r[0]]
+                        if labels:
+                            logger.error("Available datasets: %s", ", ".join(labels))
+                    except Exception:
+                        # Best-effort only; don't fail if listing datasets fails.
+                        logger.debug("Failed to list available datasets for suggestion")
+
+                    return pd.DataFrame(), {
+                        "sources_available": 0,
+                        "sources_due": 0,
+                        "sources_skipped": 0,
+                    }
+            # Dataset validation may raise ValueError; handled above
             # TODO: Re-implement dataset validation using UUIDs
 
             # Use actual schema: id, host, host_norm, canonical_name,
@@ -811,8 +825,8 @@ class NewsDiscovery:
                     "\nJOIN datasets d ON ds.dataset_id = d.id"
                 )
                 where_clauses.append("d.id = :dataset_id OR d.label = :dataset_label")
-                params["dataset_id"] = dataset_label  # Try as UUID first
-                params["dataset_label"] = dataset_label  # Fallback to label
+                params["dataset_id"] = dataset_label  # UUID resolved above
+                params["dataset_label"] = dataset_label  # Keep label as fallback
 
             if host_filter:
                 where_clauses.append("LOWER(s.host) = :host_filter")
@@ -890,7 +904,13 @@ class NewsDiscovery:
             from sqlalchemy import text as sql_text
 
             logger.debug(f"Using {dialect} query syntax for get_sources_to_process")
-            df = pd.read_sql_query(sql_text(query), db.engine, params=params or None)
+            # Pandas prefers either a SQL string with a DB-API connection or a
+            # SQLAlchemy connectable. Our tests wrap the Engine in a proxy to
+            # support legacy positional params; pandas sometimes fails to
+            # recognize the proxy as a SQLAlchemy engine. Prefer passing the
+            # raw query string or the underlying real engine when available.
+            engine_for_pandas = getattr(db.engine, "_engine", db.engine)
+            df = pd.read_sql_query(query, engine_for_pandas, params=params or None)
 
             # If requested, filter to only sources that are due for
             # discovery according to their declared frequency and the
@@ -2261,7 +2281,7 @@ def get_sources_from_db(db_manager, dataset_id=None, limit=None):
         if limit:
             query = query.limit(limit)
 
-        result = db_manager.session.execute(query).fetchall()
+        result = safe_session_execute(db_manager.session, query).fetchall()
         return [
             {
                 "id": row[0],

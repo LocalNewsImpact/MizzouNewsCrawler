@@ -8,7 +8,7 @@ from collections.abc import Iterable
 
 from sqlalchemy import text
 
-from src.models.database import DatabaseManager
+from src.models.database import DatabaseManager, safe_execute
 
 logger = logging.getLogger(__name__)
 
@@ -179,7 +179,8 @@ def _print_database_status() -> int:
 
 
 def _print_candidate_link_status(conn) -> None:
-    result = conn.execute(
+    result = safe_execute(
+        conn,
         text(
             """
             SELECT status, COUNT(*) as count
@@ -187,7 +188,7 @@ def _print_candidate_link_status(conn) -> None:
             GROUP BY status
             ORDER BY count DESC
         """
-        )
+        ),
     )
     print("\n=== Candidate Links Status ===")
     for row in result:
@@ -195,7 +196,8 @@ def _print_candidate_link_status(conn) -> None:
 
 
 def _print_article_status(conn) -> None:
-    result = conn.execute(
+    result = safe_execute(
+        conn,
         text(
             """
             SELECT status, COUNT(*) as count
@@ -203,7 +205,7 @@ def _print_article_status(conn) -> None:
             GROUP BY status
             ORDER BY count DESC
         """
-        )
+        ),
     )
     print("\n=== Articles Status ===")
     for row in result:
@@ -211,7 +213,8 @@ def _print_article_status(conn) -> None:
 
 
 def _print_top_sources(conn) -> None:
-    result = conn.execute(
+    result = safe_execute(
+        conn,
         text(
             """
             SELECT
@@ -225,7 +228,7 @@ def _print_top_sources(conn) -> None:
             ORDER BY article_count DESC
             LIMIT 10
         """
-        )
+        ),
     )
     print("\n=== Top Sources by Article Count ===")
     for row in result:
@@ -233,7 +236,8 @@ def _print_top_sources(conn) -> None:
 
 
 def _print_geographic_distribution(conn) -> None:
-    result = conn.execute(
+    result = safe_execute(
+        conn,
         text(
             """
             SELECT
@@ -246,7 +250,7 @@ def _print_geographic_distribution(conn) -> None:
             ORDER BY sources DESC
             LIMIT 10
         """
-        )
+        ),
     )
     print("\n=== Geographic Distribution (Top Counties) ===")
     for row in result:

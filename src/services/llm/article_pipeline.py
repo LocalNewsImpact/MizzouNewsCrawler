@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.models import Article
+from src.models.database import safe_session_execute
 
 from .orchestrator import LLMOrchestrator, LLMTaskConfig, OrchestrationResult
 
@@ -101,7 +102,7 @@ class ArticleLLMPipeline:
             stmt = stmt.where(Article.status.in_(list(statuses)))
         if limit:
             stmt = stmt.limit(limit)
-        for article in self._session.execute(stmt).scalars():
+        for article in safe_session_execute(self._session, stmt).scalars():
             yield article
 
     def _render_prompt(self, article: Article) -> str:

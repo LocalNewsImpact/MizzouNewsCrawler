@@ -5,7 +5,7 @@ import logging
 
 from sqlalchemy import text
 
-from src.models.database import DatabaseManager
+from src.models.database import DatabaseManager, safe_execute
 
 
 def add_discovery_status_parser(subparsers) -> argparse.ArgumentParser:
@@ -48,8 +48,8 @@ def handle_discovery_status_command(args) -> int:
 
         # Show datasets
         with db.engine.connect() as conn:
-            datasets = conn.execute(
-                text("SELECT label, slug, created_at FROM datasets ORDER BY label")
+            datasets = safe_execute(
+                conn, text("SELECT label, slug, created_at FROM datasets ORDER BY label")
             ).fetchall()
 
             print(f"\n📁 Datasets ({len(datasets)}):")
@@ -66,7 +66,8 @@ def handle_discovery_status_command(args) -> int:
         dataset_label = getattr(args, "dataset", None)
         with db.engine.connect() as conn:
             if dataset_label:
-                result = conn.execute(
+                result = safe_execute(
+                    conn,
                     text(
                         """
                         SELECT COUNT(DISTINCT s.id)
@@ -80,7 +81,7 @@ def handle_discovery_status_command(args) -> int:
                 ).fetchone()
                 scope = f" (dataset: {dataset_label})"
             else:
-                result = conn.execute(text("SELECT COUNT(*) FROM sources")).fetchone()
+                result = safe_execute(conn, text("SELECT COUNT(*) FROM sources")).fetchone()
                 scope = " (all datasets)"
 
             total_sources = result[0] if result else 0
@@ -143,7 +144,8 @@ def handle_discovery_status_command(args) -> int:
 
         # Show recent discovery activity
         with db.engine.connect() as conn:
-            recent = conn.execute(
+            recent = safe_execute(
+                conn,
                 text(
                     """
                     SELECT 
@@ -155,7 +157,7 @@ def handle_discovery_status_command(args) -> int:
                     ORDER BY discovery_date DESC
                     LIMIT 7
                     """
-                )
+                ),
             ).fetchall()
 
             if recent:

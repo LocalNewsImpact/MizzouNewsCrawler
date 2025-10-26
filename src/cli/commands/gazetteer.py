@@ -120,11 +120,12 @@ def handle_gazetteer_command(args: argparse.Namespace) -> int:
             from sqlalchemy.orm import sessionmaker
 
             from src.models import Dataset
+            from src.models.database import safe_session_execute
 
             Session = sessionmaker(bind=db.engine)
             with Session() as session:
-                dataset = session.execute(
-                    select(Dataset).where(Dataset.slug == dataset_slug)
+                dataset = safe_session_execute(
+                    session, select(Dataset).where(Dataset.slug == dataset_slug)
                 ).scalar_one_or_none()
                 if dataset:
                     metadata["dataset_id"] = str(dataset.id)

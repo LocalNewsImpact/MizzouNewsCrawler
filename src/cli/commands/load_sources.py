@@ -13,7 +13,7 @@ from sqlalchemy.orm import sessionmaker
 
 from src.cli.context import trigger_gazetteer_population_background
 from src.models import Dataset, DatasetSource, Source
-from src.models.database import DatabaseManager
+from src.models.database import DatabaseManager, safe_session_execute
 from src.utils.telemetry import OperationTracker, OperationType
 
 logger = logging.getLogger(__name__)
@@ -210,8 +210,8 @@ def handle_load_sources_command(args) -> int:
             dataset_slug = csv_path.split("/")[-1].replace(".", "_")
             dataset_slug = f"publinks-{dataset_slug}"
 
-            dataset = session.execute(
-                select(Dataset).where(Dataset.slug == dataset_slug)
+            dataset = safe_session_execute(
+                session, select(Dataset).where(Dataset.slug == dataset_slug)
             ).scalar_one_or_none()
 
             if dataset:
@@ -243,8 +243,8 @@ def handle_load_sources_command(args) -> int:
                 host = row["_parsed_host"]
                 host_norm = row["_parsed_host_norm"]
 
-                existing_source = session.execute(
-                    select(Source).where(Source.host_norm == host_norm)
+                existing_source = safe_session_execute(
+                    session, select(Source).where(Source.host_norm == host_norm)
                 ).scalar_one_or_none()
 
                 if existing_source:
@@ -304,11 +304,12 @@ def handle_load_sources_command(args) -> int:
                         source.id,
                     )
 
-                mapping = session.execute(
+                mapping = safe_session_execute(
+                    session,
                     select(DatasetSource).where(
                         DatasetSource.dataset_id == dataset.id,
                         DatasetSource.source_id == source.id,
-                    )
+                    ),
                 ).scalar_one_or_none()
 
                 if not mapping:

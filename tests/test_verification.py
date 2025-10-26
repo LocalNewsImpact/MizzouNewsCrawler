@@ -24,7 +24,7 @@ def test_verify_url_uses_storysniffer_and_no_head(monkeypatch):
     from src.services.url_verification import URLVerificationService
 
     dummy_session = DummySession()
-    svc = URLVerificationService(http_session=dummy_session)
+    svc = URLVerificationService(http_session=dummy_session, run_http_precheck=False)
 
     # Patch the internal sniffer to a dummy that records calls
     dummy_sniffer = DummySniffer()

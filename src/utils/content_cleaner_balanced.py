@@ -9,7 +9,7 @@ from typing import Any
 
 from sqlalchemy import text as sql_text
 
-from src.models.database import DatabaseManager
+from src.models.database import DatabaseManager, safe_session_execute
 
 from .byline_cleaner import BylineCleaner
 from .content_cleaning_telemetry import ContentCleaningTelemetry
@@ -273,7 +273,7 @@ class BalancedBoundaryContentCleaner:
             FROM persistent_boilerplate_patterns
             WHERE domain = :domain
             """
-            result = session.execute(sql_text(query), {"domain": domain})
+            result = safe_session_execute(session, sql_text(query), {"domain": domain})
 
             patterns = []
             for row in result.fetchall():
@@ -314,7 +314,7 @@ class BalancedBoundaryContentCleaner:
                 query += " LIMIT :limit"
                 params["limit"] = sample_size
 
-            result = session.execute(sql_text(query), params)
+            result = safe_session_execute(session, sql_text(query), params)
             articles = [
                 {
                     "id": row[0],
@@ -1329,7 +1329,8 @@ class BalancedBoundaryContentCleaner:
         try:
             db = self._connect_to_db()
             with db.get_session() as session:
-                session.execute(
+                safe_session_execute(
+                    session,
                     sql_text("UPDATE articles SET wire = NULL WHERE id = :article_id"),
                     {"article_id": article_id},
                 )
@@ -1349,7 +1350,8 @@ class BalancedBoundaryContentCleaner:
         try:
             db = self._connect_to_db()
             with db.get_session() as session:
-                result = session.execute(
+                result = safe_session_execute(
+                    session,
                     sql_text("SELECT author FROM articles WHERE id = :article_id"),
                     {"article_id": article_id},
                 )
@@ -1655,7 +1657,8 @@ class BalancedBoundaryContentCleaner:
         try:
             db = self._connect_to_db()
             with db.get_session() as session:
-                result = session.execute(
+                result = safe_session_execute(
+                    session,
                     sql_text(
                         """
                     SELECT a.candidate_link_id,
@@ -1900,7 +1903,8 @@ class BalancedBoundaryContentCleaner:
         try:
             db = self._connect_to_db()
             with db.get_session() as session:
-                result = session.execute(
+                result = safe_session_execute(
+                    session,
                     sql_text("SELECT wire FROM articles WHERE id = :article_id"),
                     {"article_id": article_id},
                 )
@@ -1959,7 +1963,8 @@ class BalancedBoundaryContentCleaner:
 
                 wire_data = json.dumps(wire_payload)
 
-                session.execute(
+                safe_session_execute(
+                    session,
                     sql_text("UPDATE articles SET wire = :wire WHERE id = :article_id"),
                     {"wire": wire_data, "article_id": article_id},
                 )

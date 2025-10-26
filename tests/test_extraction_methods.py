@@ -891,6 +891,7 @@ class TestSeleniumMethod:
 class TestFallbackMechanism:
     """Tests for the intelligent field-level fallback system."""
 
+    @pytest.mark.integration
     def test_complete_extraction_no_fallback(self, extractor, mock_html_complete):
         """Test that no fallback is needed when first method succeeds."""
         with (
@@ -932,6 +933,7 @@ class TestFallbackMechanism:
             assert methods["author"] == "newspaper4k"
             assert methods["content"] == "newspaper4k"
 
+    @pytest.mark.integration
     def test_partial_extraction_with_beautifulsoup_fallback(self, extractor):
         """Test fallback to BeautifulSoup for missing fields."""
         with (
@@ -976,6 +978,7 @@ class TestFallbackMechanism:
             assert methods["content"] == "beautifulsoup"
             assert methods["publish_date"] == "newspaper4k"
 
+    @pytest.mark.integration
     def test_full_cascade_to_selenium(self, extractor):
         """Test full cascade from newspaper → BeautifulSoup → Selenium."""
         with (
@@ -1026,6 +1029,7 @@ class TestFallbackMechanism:
 class TestMethodTracking:
     """Tests for extraction method tracking and telemetry."""
 
+    @pytest.mark.integration
     def test_extraction_methods_metadata(self, extractor):
         """Test that extraction methods are tracked in metadata."""
         with patch.object(extractor, "_extract_with_newspaper") as mock_np:
@@ -1054,6 +1058,7 @@ class TestMethodTracking:
 class TestEdgeCases:
     """Tests for edge cases and error handling."""
 
+    @pytest.mark.integration
     def test_all_methods_fail(self, extractor):
         """Test behavior when all extraction methods fail."""
         with (

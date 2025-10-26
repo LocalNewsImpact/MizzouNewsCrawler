@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import text
 
-from src.models.database import DatabaseManager
+from src.models.database import DatabaseManager, safe_session_execute
 
 logger = logging.getLogger(__name__)
 
@@ -98,13 +98,12 @@ def _check_discovery_status(session, hours, detailed):
     cutoff = datetime.utcnow() - timedelta(hours=hours)
 
     # Total sources
-    result = session.execute(
-        text("SELECT COUNT(*) FROM sources WHERE host IS NOT NULL")
-    )
+    result = safe_session_execute(session, text("SELECT COUNT(*) FROM sources WHERE host IS NOT NULL"))
     total_sources = result.scalar() or 0
 
     # Sources discovered from recently
-    result = session.execute(
+    result = safe_session_execute(
+        session,
         text(
             """
             SELECT COUNT(DISTINCT source_host_id)
@@ -117,7 +116,8 @@ def _check_discovery_status(session, hours, detailed):
     sources_discovered = result.scalar() or 0
 
     # Total URLs discovered
-    result = session.execute(
+    result = safe_session_execute(
+        session,
         text(
             """
             SELECT COUNT(*)
@@ -130,7 +130,8 @@ def _check_discovery_status(session, hours, detailed):
     urls_discovered = result.scalar() or 0
 
     # Sources due for discovery (last processed > 7 days ago)
-    result = session.execute(
+    result = safe_session_execute(
+        session,
         text(
             """
             SELECT COUNT(DISTINCT s.id)
@@ -147,7 +148,7 @@ def _check_discovery_status(session, hours, detailed):
                 )
             )
         """
-        )
+        ),
     )
     sources_due = result.scalar() or 0
 
@@ -163,7 +164,8 @@ def _check_discovery_status(session, hours, detailed):
         print(f"  ✓ Average URLs per source: {avg_urls:.1f}")
 
     if detailed and sources_discovered > 0:
-        result = session.execute(
+        result = safe_session_execute(
+            session,
             text(
                 """
                 SELECT s.canonical_name, COUNT(*) as url_count
@@ -185,20 +187,17 @@ def _check_discovery_status(session, hours, detailed):
 def _check_verification_status(session, hours, detailed):
     """Check verification pipeline status."""
     # Pending verification
-    result = session.execute(
-        text("SELECT COUNT(*) FROM candidate_links WHERE status = 'pending'")
-    )
+    result = safe_session_execute(session, text("SELECT COUNT(*) FROM candidate_links WHERE status = 'pending'"))
     pending = result.scalar() or 0
 
     # Verified as articles
-    result = session.execute(
-        text("SELECT COUNT(*) FROM candidate_links WHERE status = 'article'")
-    )
+    result = safe_session_execute(session, text("SELECT COUNT(*) FROM candidate_links WHERE status = 'article'"))
     articles = result.scalar() or 0
 
     # Verified recently
     cutoff = datetime.utcnow() - timedelta(hours=hours)
-    result = session.execute(
+    result = safe_session_execute(
+        session,
         text(
             """
             SELECT COUNT(*)
@@ -229,36 +228,37 @@ def _check_verification_status(session, hours, detailed):
 def _check_extraction_status(session, hours, detailed):
     """Check extraction pipeline status."""
     # Articles ready for extraction (verified but not extracted)
-    result = session.execute(
+    result = safe_session_execute(
+        session,
         text(
             """
             SELECT COUNT(*)
             FROM candidate_links
             WHERE status = 'article'
             AND id NOT IN (
-                SELECT candidate_link_id
-                FROM articles
-                WHERE candidate_link_id IS NOT NULL
+                SELECT candidate_link_id FROM articles WHERE candidate_link_id IS NOT NULL
             )
         """
-        )
+        ),
     )
     ready_for_extraction = result.scalar() or 0
 
     # Total extracted articles
-    result = session.execute(text("SELECT COUNT(*) FROM articles"))
+    result = safe_session_execute(session, text("SELECT COUNT(*) FROM articles"))
     total_extracted = result.scalar() or 0
 
     # Extracted recently
     cutoff = datetime.utcnow() - timedelta(hours=hours)
-    result = session.execute(
+    result = safe_session_execute(
+        session,
         text("SELECT COUNT(*) FROM articles WHERE extracted_at >= :cutoff"),
         {"cutoff": cutoff},
     )
     extracted_recent = result.scalar() or 0
 
     # Status breakdown
-    result = session.execute(
+    result = safe_session_execute(
+        session,
         text(
             """
             SELECT status, COUNT(*) as count
@@ -266,7 +266,7 @@ def _check_extraction_status(session, hours, detailed):
             GROUP BY status
             ORDER BY count DESC
         """
-        )
+        ),
     )
     status_breakdown = list(result)
 
@@ -291,7 +291,8 @@ def _check_extraction_status(session, hours, detailed):
 def _check_entity_extraction_status(session, hours, detailed):
     """Check entity extraction pipeline status."""
     # Articles ready for entity extraction (have content but no entities)
-    result = session.execute(
+    result = safe_session_execute(
+        session,
         text(
             """
             SELECT COUNT(*)
@@ -303,19 +304,20 @@ def _check_entity_extraction_status(session, hours, detailed):
                 SELECT 1 FROM article_entities ae WHERE ae.article_id = a.id
             )
         """
-        )
+        ),
     )
     ready_for_entities = result.scalar() or 0
 
     # Total articles with entities
-    result = session.execute(
-        text("SELECT COUNT(DISTINCT article_id) FROM article_entities")
+    result = safe_session_execute(
+        session, text("SELECT COUNT(DISTINCT article_id) FROM article_entities")
     )
     total_with_entities = result.scalar() or 0
 
     # Entities extracted recently
     cutoff = datetime.utcnow() - timedelta(hours=hours)
-    result = session.execute(
+    result = safe_session_execute(
+        session,
         text(
             """
             SELECT COUNT(DISTINCT article_id)
@@ -345,7 +347,8 @@ def _check_analysis_status(session, hours, detailed):
     # Query the article_labels table (the actual classification results table)
     try:
         # Count articles eligible for classification
-        result = session.execute(
+        result = safe_session_execute(
+            session,
             text(
                 """
                 SELECT COUNT(*)
@@ -356,19 +359,20 @@ def _check_analysis_status(session, hours, detailed):
                     WHERE al.article_id = a.id
                 )
             """
-            )
+            ),
         )
         ready_for_analysis = result.scalar() or 0
 
         # Count total articles with classification labels
-        result = session.execute(
-            text("SELECT COUNT(DISTINCT article_id) FROM article_labels")
+        result = safe_session_execute(
+            session, text("SELECT COUNT(DISTINCT article_id) FROM article_labels")
         )
         total_analyzed = result.scalar() or 0
 
         # Count recent classifications
         cutoff = datetime.utcnow() - timedelta(hours=hours)
-        result = session.execute(
+        result = safe_session_execute(
+            session,
             text(
                 """
                 SELECT COUNT(DISTINCT article_id)
@@ -394,7 +398,11 @@ def _check_analysis_status(session, hours, detailed):
 
     except Exception as e:
         session.rollback()
-        print(f"  ℹ️  Error checking classification status: {type(e).__name__}")
+        msg = str(e).lower()
+        if "does not exist" in msg or "no such table" in msg:
+            print("  ℹ️  Classification status not available (table missing)")
+        else:
+            print(f"  ℹ️  Error checking classification status: {type(e).__name__}")
 
 
 def _check_overall_health(session, hours):
@@ -406,7 +414,8 @@ def _check_overall_health(session, hours):
     stages_total = 5
 
     # Discovery
-    result = session.execute(
+    result = safe_session_execute(
+        session,
         text("SELECT COUNT(*) FROM candidate_links WHERE discovered_at >= :cutoff"),
         {"cutoff": cutoff},
     )
@@ -414,7 +423,8 @@ def _check_overall_health(session, hours):
         stages_active += 1
 
     # Verification
-    result = session.execute(
+    result = safe_session_execute(
+        session,
         text(
             """
             SELECT COUNT(*) FROM candidate_links
@@ -427,7 +437,8 @@ def _check_overall_health(session, hours):
         stages_active += 1
 
     # Extraction
-    result = session.execute(
+    result = safe_session_execute(
+        session,
         text("SELECT COUNT(*) FROM articles WHERE extracted_at >= :cutoff"),
         {"cutoff": cutoff},
     )
@@ -435,7 +446,8 @@ def _check_overall_health(session, hours):
         stages_active += 1
 
     # Entity extraction
-    result = session.execute(
+    result = safe_session_execute(
+        session,
         text(
             """
             SELECT COUNT(DISTINCT article_id) FROM article_entities
@@ -449,7 +461,8 @@ def _check_overall_health(session, hours):
 
     # Analysis
     try:
-        result = session.execute(
+        result = safe_session_execute(
+            session,
             text(
                 """
                 SELECT COUNT(DISTINCT article_id) FROM article_classifications
