@@ -142,8 +142,35 @@ except Exception:
 # via get_db_manager() from backend.app.lifecycle
 from src import config as app_config
 
-db_manager = DatabaseManager(app_config.DATABASE_URL)
-logger.info(f"Database initialized: {app_config.DATABASE_URL[:50]}...")
+# IMPORTANT: Lazy initialization to avoid creating database connection at import time
+# This allows tests to set DATABASE_URL environment variable before connection is made
+_db_manager = None
+
+
+def _get_module_db_manager():
+    """Lazy initialization of module-level db_manager for backward compatibility."""
+    global _db_manager
+    if _db_manager is None:
+        _db_manager = DatabaseManager(app_config.DATABASE_URL)
+        logger.info(f"Database initialized: {app_config.DATABASE_URL[:50]}...")
+    return _db_manager
+
+
+# Expose as db_manager for backward compatibility, but it's now lazy
+class _LazyDatabaseManager:
+    """Proxy object that creates DatabaseManager on first access."""
+
+    def __getattr__(self, name):
+        return getattr(_get_module_db_manager(), name)
+
+    def __enter__(self):
+        return _get_module_db_manager().__enter__()
+
+    def __exit__(self, *args):
+        return _get_module_db_manager().__exit__(*args)
+
+
+db_manager = _LazyDatabaseManager()
 
 # CORS configuration - allow origins can be configured via
 # ALLOWED_ORIGINS env var (comma-separated)
