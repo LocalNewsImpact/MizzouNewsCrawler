@@ -5,15 +5,12 @@ steps:
       - 'build'
       - '-t'
       - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/ci-base:latest'
-      - '-t'
-      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/ci-base:${SHORT_SHA}'
       - '-f'
       - 'Dockerfile.ci-base'
       - '.'
 
 images:
   - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/ci-base:latest'
-  - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/ci-base:${SHORT_SHA}'
 
 timeout: 1200s
 options:
