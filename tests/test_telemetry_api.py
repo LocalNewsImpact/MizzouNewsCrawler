@@ -413,16 +413,20 @@ class TestSiteManagementAPI:
     @pytest.fixture
     def api_client(self, temp_db, monkeypatch):
         """Create a test client with mocked database."""
-        from sqlalchemy import create_engine
-
-        from backend.app.main import app, db_manager
-
-        # Create engine for the test database
+        # CRITICAL: Patch DATABASE_URL BEFORE importing app
+        # so db_manager initializes with the test database
         db_url = f"sqlite:///{temp_db}"
-        test_engine = create_engine(db_url, connect_args={"check_same_thread": False})
-
-        # Mock the DatabaseManager's engine with our test engine
-        monkeypatch.setattr(db_manager, "engine", test_engine)
+        
+        # Reset singleton to None to force fresh initialization
+        import backend.app.main
+        backend.app.main._db_manager = None
+        
+        # Patch DATABASE_URL so db_manager uses test database
+        from src import config as app_config
+        monkeypatch.setattr(app_config, "DATABASE_URL", db_url)
+        
+        # Now import app - db_manager will use test DATABASE_URL
+        from backend.app.main import app
 
         client = TestClient(app)
         yield client
