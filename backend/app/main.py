@@ -53,7 +53,7 @@ from src.models.telemetry import (  # noqa: E402
     HttpErrorSummary,
 )
 from src.models import Source  # noqa: E402
-from sqlalchemy import func, case, desc, and_, or_  # noqa: E402
+from sqlalchemy import func, case, desc, and_, or_, literal  # noqa: E402
 from backend.app.telemetry import (  # noqa: E402
     verification,
     byline,
@@ -2193,9 +2193,9 @@ def get_method_performance(
                 method_col.label("method"),
                 ExtractionTelemetryV2.host,
                 func.count().label("total_attempts"),
-                func.sum(case((ExtractionTelemetryV2.is_success, 1), else_=0)).label(
-                    "successful_attempts"
-                ),
+                func.sum(
+                    case((ExtractionTelemetryV2.is_success, literal(1)), else_=literal(0))
+                ).label("successful_attempts"),
                 func.avg(ExtractionTelemetryV2.total_duration_ms).label("avg_duration"),
                 func.min(ExtractionTelemetryV2.total_duration_ms).label("min_duration"),
                 func.max(ExtractionTelemetryV2.total_duration_ms).label("max_duration"),
@@ -2266,9 +2266,9 @@ def get_publisher_stats(days: int = 7, host: str | None = None, min_attempts: in
             query = session.query(
                 ExtractionTelemetryV2.host,
                 func.count().label("total_extractions"),
-                func.sum(case((ExtractionTelemetryV2.is_success, 1), else_=0)).label(
-                    "successful_extractions"
-                ),
+                func.sum(
+                    case((ExtractionTelemetryV2.is_success, literal(1)), else_=literal(0))
+                ).label("successful_extractions"),
                 func.avg(ExtractionTelemetryV2.total_duration_ms).label("avg_duration"),
                 func.count(func.distinct(method_col)).label("methods_used"),
                 func.max(ExtractionTelemetryV2.created_at).label("last_attempt"),
@@ -2444,7 +2444,9 @@ def get_poor_performing_sites(
 
             # Calculate success rate in the query
             success_rate_calc = (
-                func.sum(case((ExtractionTelemetryV2.is_success, 1), else_=0))
+                func.sum(
+                    case((ExtractionTelemetryV2.is_success, literal(1)), else_=literal(0))
+                )
                 * 100.0
                 / func.count()
             )
@@ -2452,9 +2454,9 @@ def get_poor_performing_sites(
             query = session.query(
                 ExtractionTelemetryV2.host,
                 func.count().label("total_attempts"),
-                func.sum(case((ExtractionTelemetryV2.is_success, 1), else_=0)).label(
-                    "successful_attempts"
-                ),
+                func.sum(
+                    case((ExtractionTelemetryV2.is_success, literal(1)), else_=literal(0))
+                ).label("successful_attempts"),
                 success_rate_calc.label("success_rate"),
                 func.avg(ExtractionTelemetryV2.total_duration_ms).label("avg_duration"),
                 func.max(ExtractionTelemetryV2.created_at).label("last_attempt"),
@@ -2529,7 +2531,7 @@ def get_telemetry_summary(days: int = 7):
 
             overall_query = session.query(
                 func.count().label("total_extractions"),
-                func.sum(case((ExtractionTelemetryV2.is_success, 1), else_=0)).label(
+                func.sum(case((ExtractionTelemetryV2.is_success, literal(1)), else_=literal(0))).label(
                     "successful_extractions"
                 ),
                 func.count(func.distinct(ExtractionTelemetryV2.host)).label(
@@ -2550,7 +2552,7 @@ def get_telemetry_summary(days: int = 7):
                     method_col.label("method"),
                     func.count().label("count"),
                     func.sum(
-                        case((ExtractionTelemetryV2.is_success, 1), else_=0)
+                        case((ExtractionTelemetryV2.is_success, literal(1)), else_=literal(0))
                     ).label("successful"),
                 )
                 .filter(ExtractionTelemetryV2.created_at >= cutoff_date)
