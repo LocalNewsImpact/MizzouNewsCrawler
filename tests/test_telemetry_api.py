@@ -177,8 +177,8 @@ class TestTelemetryAPIEndpoints:
         module-level db_manager to use the same engine guarantees endpoints
         create sessions against the test DB.
         """
-        # CRITICAL: Patch app_config.DATABASE_URL AND reset singleton BEFORE importing app
-        # so the lazy db_manager singleton initializes with the test database URL
+        # CRITICAL: We need to make the app use the SAME engine that has test data
+        # Not just the same database URL (which would create a new engine/session)
         test_engine = test_db_session.bind
         test_db_url = str(test_engine.url)
         
@@ -186,12 +186,20 @@ class TestTelemetryAPIEndpoints:
         import backend.app.main
         backend.app.main._db_manager = None
         
-        # Patch app_config.DATABASE_URL so when db_manager initializes, it uses test URL
+        # Patch DATABASE_URL so db_manager initializes with test URL
         from src import config as app_config
         monkeypatch.setattr(app_config, "DATABASE_URL", test_db_url)
         
-        # Now import app - when db_manager is accessed, it will use test DATABASE_URL
+        # Now import app and patch its db_manager to use the test engine directly
         from backend.app.main import app
+        from src.models.database import DatabaseManager
+        
+        # Create a new DatabaseManager and force it to use the test engine
+        test_db_manager = DatabaseManager()
+        test_db_manager.engine = test_engine
+        
+        # Replace the app's db_manager with our test one
+        backend.app.main._db_manager = test_db_manager
 
         client = TestClient(app)
         yield client
