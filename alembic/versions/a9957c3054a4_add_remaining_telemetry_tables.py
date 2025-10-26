@@ -1,7 +1,7 @@
 """add_remaining_telemetry_tables
 
 Revision ID: a9957c3054a4
-Revises: zzzz_resync_extraction_telemetry_sequence
+Revises: zzzz_resync_seq
 Create Date: 2025-10-05 15:22:57.549520
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'a9957c3054a4'
-down_revision: Union[str, Sequence[str], None] = 'zzzz_resync_extraction_telemetry_sequence'
+down_revision: Union[str, Sequence[str], None] = 'zzzz_resync_seq'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
