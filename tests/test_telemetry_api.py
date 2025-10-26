@@ -199,8 +199,6 @@ class TestTelemetryAPIEndpoints:
     def test_telemetry_summary_endpoint(self, api_client):
         """Test the telemetry summary endpoint."""
         response = api_client.get("/api/telemetry/summary?days=7")
-        if response.status_code != 200:
-            print(f"Error response: {response.text}")
         assert response.status_code == 200
 
         data = response.json()

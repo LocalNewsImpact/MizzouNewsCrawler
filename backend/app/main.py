@@ -2626,7 +2626,7 @@ def pause_site(request: SiteManagementRequest):
     try:
         with db_manager.get_session() as session:
             # Try to find existing source
-            source = session.query(Source).filter(Source.host == request.host).first()
+            source = session.query(Source).filter_by(host=request.host).first()
 
             now = datetime.datetime.utcnow()
             reason = request.reason or "Poor performance detected"
@@ -2667,7 +2667,7 @@ def resume_site(request: SiteManagementRequest):
     try:
         with db_manager.get_session() as session:
             # Find the source
-            source = session.query(Source).filter(Source.host == request.host).first()
+            source = session.query(Source).filter_by(host=request.host).first()
 
             if not source:
                 raise HTTPException(
@@ -2702,7 +2702,7 @@ def get_paused_sites():
         with db_manager.get_session() as session:
             paused_sources = (
                 session.query(Source)
-                .filter(Source.status == "paused")
+                .filter_by(status="paused")
                 .order_by(desc(Source.paused_at))
                 .all()
             )
@@ -2732,7 +2732,7 @@ def get_site_status(host: str):
     """Get the current status of a specific site."""
     try:
         with db_manager.get_session() as session:
-            source = session.query(Source).filter(Source.host == host).first()
+            source = session.query(Source).filter_by(host=host).first()
 
             if source:
                 return {
