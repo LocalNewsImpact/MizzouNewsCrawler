@@ -14,23 +14,20 @@ jobs:
     name: Pre-Deployment Validation
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    container:
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/base:latest
+      credentials:
+        username: _json_key
+        password: ${{ secrets.GCP_SA_KEY }}
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
+      # Dependencies already installed in base image - skip pip install!
       
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
-          pip install pyyaml
+      - name: Install additional validation dependencies
+        run: pip install --no-cache-dir pyyaml
       
       - name: Run origin proxy unit tests
         run: |
