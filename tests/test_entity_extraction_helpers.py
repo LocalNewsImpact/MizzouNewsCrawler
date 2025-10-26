@@ -9,7 +9,6 @@ from src.pipeline import entity_extraction as extraction
 # Session typing not required in this test file after refactors
 
 
-
 def test_normalize_text_lowers_and_strips_noise():
     value = " St. Louis—County! "
     assert extraction._normalize_text(value) == "st louis-county"

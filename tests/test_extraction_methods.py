@@ -475,14 +475,18 @@ class TestRealWorldExtraction:
     """Integration tests for real URLs with missing fields."""
 
     @pytest.mark.integration
-    def test_extraction_on_real_urls_with_missing_fields(self, extractor, requests_mock):
+    def test_extraction_on_real_urls_with_missing_fields(
+        self, extractor, requests_mock
+    ):
         """Test extraction on realistic HTML with missing fields (mocked)."""
         # Use mocked responses with realistic HTML that has missing fields
         # Based on actual HTML patterns from sites that had extraction issues
-        
+
         # Mock 1: Missing only author (warrencountyrecord.com pattern)
         url1 = "https://example.com/article1"
-        requests_mock.get(url1, text="""
+        requests_mock.get(
+            url1,
+            text="""
             <html>
             <head>
                 <title>Warrior Ridge Elementary WOW winners</title>
@@ -496,11 +500,14 @@ class TestRealWorldExtraction:
                 </div>
             </body>
             </html>
-        """)
-        
+        """,
+        )
+
         # Mock 2: Missing author and has minimal content
         url2 = "https://example.com/article2"
-        requests_mock.get(url2, text="""
+        requests_mock.get(
+            url2,
+            text="""
             <html>
             <head>
                 <title>Community Event</title>
@@ -513,11 +520,14 @@ class TestRealWorldExtraction:
                 </div>
             </body>
             </html>
-        """)
-        
+        """,
+        )
+
         # Mock 3: Missing content (only title and metadata)
         url3 = "https://example.com/article3"
-        requests_mock.get(url3, text="""
+        requests_mock.get(
+            url3,
+            text="""
             <html>
             <head>
                 <title>Breaking News Alert</title>
@@ -530,11 +540,15 @@ class TestRealWorldExtraction:
                 <div class="content"></div>
             </body>
             </html>
-        """)
+        """,
+        )
 
         test_cases = [
             (url1, "warrencountyrecord.com pattern - missing author"),
-            (url2, "webstercountycitizen.com pattern - missing author, minimal content"),
+            (
+                url2,
+                "webstercountycitizen.com pattern - missing author, minimal content",
+            ),
             (url3, "news alert pattern - missing content"),
         ]
 

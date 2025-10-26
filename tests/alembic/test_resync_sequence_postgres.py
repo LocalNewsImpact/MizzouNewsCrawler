@@ -49,11 +49,9 @@ def test_resync_extraction_telemetry_sequence_postgres(tmp_path):
         with engine.begin() as conn:
             conn.execute(
                 text(
-                    
-                        "INSERT INTO extraction_telemetry_v2 (id, operation_id,"
-                        " article_id, url, start_time, created_at) VALUES"
-                        " (:id, :op, :a, :u, now(), now())"
-                    
+                    "INSERT INTO extraction_telemetry_v2 (id, operation_id,"
+                    " article_id, url, start_time, created_at) VALUES"
+                    " (:id, :op, :a, :u, now(), now())"
                 ),
                 {
                     "id": 99999,

@@ -9,7 +9,6 @@ import src.services.url_verification as url_verification
 # requests.Session typing not required in this test
 
 
-
 class _DummyResponse:
     def __init__(self, status_code: Optional[int]) -> None:
         self.status_code = status_code

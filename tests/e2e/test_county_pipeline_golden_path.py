@@ -205,9 +205,7 @@ def test_county_pipeline_verification_retry_exhaustion(
     assert set(candidates) == {"candidate-boone", "candidate-cole"}
     # Test expects not_article status (verification succeeds but marks as not article)
     # rather than verification_failed (the mock doesn't actually trigger timeout)
-    assert all(
-        candidate.status == "not_article" for candidate in candidates.values()
-    )
+    assert all(candidate.status == "not_article" for candidate in candidates.values())
 
     session.close()
     manager.close()
