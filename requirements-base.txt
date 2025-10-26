@@ -34,6 +34,8 @@ pytest-mock
 requests-mock
 nbformat
 nbconvert
+fastapi>=0.103.0  # Needed for test fixtures
+httpx  # Needed for FastAPI TestClient
 
 # Development
 pre-commit>=3.3.0
