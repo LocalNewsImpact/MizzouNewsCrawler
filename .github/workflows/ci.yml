@@ -141,7 +141,8 @@ jobs:
 
       - name: Run unit tests (no coverage gating)
         env:
-          # Use in-memory telemetry DB for deterministic unit tests
+          # Use in-memory DBs for deterministic unit tests
+          DATABASE_URL: "sqlite:///:memory:"
           TELEMETRY_DATABASE_URL: "sqlite:///:memory:"
           # Ensure this quick-run doesn't pick up repo-level addopts (coverage)
           PYTEST_ADDOPTS: ""
@@ -218,6 +219,7 @@ jobs:
 
       - name: Run origin-proxy tests only
         env:
+          DATABASE_URL: "sqlite:///:memory:"
           TELEMETRY_DATABASE_URL: "sqlite:///:memory:"
           PYTEST_ADDOPTS: "-q --maxfail=1"
         run: |
@@ -442,6 +444,8 @@ jobs:
 
       - name: Run stress tests with RUN_STRESS_TESTS=1
         env:
+          DATABASE_URL: "sqlite:///:memory:"
+          TELEMETRY_DATABASE_URL: "sqlite:///:memory:"
           RUN_STRESS_TESTS: '1'
         run: |
           pytest --override-ini addopts="-q" tests/test_versioning_concurrent_stress.py
