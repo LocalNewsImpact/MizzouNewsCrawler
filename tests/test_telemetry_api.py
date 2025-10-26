@@ -177,25 +177,27 @@ class TestTelemetryAPIEndpoints:
         module-level db_manager to use the same engine guarantees endpoints
         create sessions against the test DB.
         """
-        from backend.app.main import app, db_manager
-
+        # CRITICAL: Patch app_config.DATABASE_URL AND reset singleton BEFORE importing app
+        # so the lazy db_manager singleton initializes with the test database URL
         test_engine = test_db_session.bind
-        # Replace the module-level db_manager's engine so sessions created by
-        # DatabaseManager use the test sqlite file.
-        monkeypatch.setattr(db_manager, "engine", test_engine)
+        test_db_url = str(test_engine.url)
+        
+        # Reset singleton to None to force fresh initialization
+        import backend.app.main
+        backend.app.main._db_manager = None
+        
+        # Patch app_config.DATABASE_URL so when db_manager initializes, it uses test URL
+        from src import config as app_config
+        monkeypatch.setattr(app_config, "DATABASE_URL", test_db_url)
+        
+        # Now import app - when db_manager is accessed, it will use test DATABASE_URL
+        from backend.app.main import app
 
         client = TestClient(app)
         yield client
 
     def test_telemetry_summary_endpoint(self, api_client):
         """Test the telemetry summary endpoint."""
-        # Debug: Check if data exists before API call
-        from backend.app.main import db_manager
-        with db_manager.get_session() as debug_session:
-            from src.models.telemetry import ExtractionTelemetryV2
-            count = debug_session.query(ExtractionTelemetryV2).count()
-            print(f"\n[DEBUG] Records in DB before API call: {count}")
-        
         response = api_client.get("/api/telemetry/summary?days=7")
         if response.status_code != 200:
             print(f"Error response: {response.text}")
