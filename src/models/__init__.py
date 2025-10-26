@@ -35,7 +35,7 @@ import src.models.telemetry  # noqa: E402,F401  # type: ignore
 import src.models.verification  # noqa: E402,F401  # type: ignore
 
 # Backwards-compatibility: expose commonly-imported model names at package level
-from .verification import (  # noqa: F401
+from .verification import (  # noqa: E402,F401
     URLVerification,
     VerificationJob,
     VerificationPattern,
