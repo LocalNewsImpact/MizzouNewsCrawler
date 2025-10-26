@@ -526,13 +526,20 @@ class TestAPIErrorHandling:
 
     def test_telemetry_endpoints_with_invalid_database(self, monkeypatch):
         """Test API endpoints with invalid database path."""
-        from sqlalchemy import create_engine
-
-        from backend.app.main import app, db_manager
-
-        # Create an invalid engine that will fail
-        invalid_engine = create_engine("sqlite:////nonexistent/path/db.sqlite")
-        monkeypatch.setattr(db_manager, "engine", invalid_engine)
+        # CRITICAL: Patch DATABASE_URL BEFORE importing app to test error handling
+        # Use an invalid database path that will cause connection errors
+        
+        # Reset singleton to None to force fresh initialization
+        import backend.app.main
+        backend.app.main._db_manager = None
+        
+        # Patch DATABASE_URL with invalid path
+        from src import config as app_config
+        invalid_db = "sqlite:////nonexistent/path/db.sqlite"
+        monkeypatch.setattr(app_config, "DATABASE_URL", invalid_db)
+        
+        # Now import app - db_manager will use invalid DATABASE_URL
+        from backend.app.main import app
 
         client = TestClient(app)
 
