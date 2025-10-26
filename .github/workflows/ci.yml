@@ -36,21 +36,11 @@ jobs:
           cache: 'pip'
           cache-dependency-path: 'requirements*.txt'
 
-      - name: Cache pip downloads
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
       - name: Install dependencies
-        env:
-          PIP_CACHE_DIR: ~/.cache/pip
         run: |
           python -m pip install --upgrade pip
-          pip install --cache-dir "$PIP_CACHE_DIR" -r requirements.txt
-          pip install --cache-dir "$PIP_CACHE_DIR" -r requirements-dev.txt
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
       - name: Run ruff
         run: python -m ruff check .
@@ -82,21 +72,11 @@ jobs:
           cache: 'pip'
           cache-dependency-path: 'requirements*.txt'
 
-      - name: Cache pip downloads
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
       - name: Install dependencies
-        env:
-          PIP_CACHE_DIR: ~/.cache/pip
         run: |
           python -m pip install --upgrade pip
-          pip install --cache-dir "$PIP_CACHE_DIR" -r requirements.txt
-          pip install --cache-dir "$PIP_CACHE_DIR" -r requirements-dev.txt
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
       - name: Run mypy (fail on errors)
         run: python -m mypy src/ --ignore-missing-imports
@@ -118,21 +98,11 @@ jobs:
           cache: 'pip'
           cache-dependency-path: 'requirements*.txt'
 
-      - name: Cache pip downloads
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
       - name: Install dependencies
-        env:
-          PIP_CACHE_DIR: ~/.cache/pip
         run: |
           python -m pip install --upgrade pip
-          pip install --cache-dir "$PIP_CACHE_DIR" -r requirements.txt
-          pip install --cache-dir "$PIP_CACHE_DIR" -r requirements-dev.txt
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
       - name: Run bandit security scan
         run: |
@@ -160,21 +130,11 @@ jobs:
           cache: 'pip'
           cache-dependency-path: 'requirements*.txt'
 
-      - name: Cache pip downloads
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
       - name: Install dependencies
-        env:
-          PIP_CACHE_DIR: ~/.cache/pip
         run: |
           python -m pip install --upgrade pip
-          pip install --cache-dir "$PIP_CACHE_DIR" -r requirements.txt
-          pip install --cache-dir "$PIP_CACHE_DIR" -r requirements-dev.txt
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
       - name: Create data directory for tests
         run: mkdir -p data
@@ -209,21 +169,11 @@ jobs:
           cache: 'pip'
           cache-dependency-path: 'requirements*.txt'
 
-      - name: Cache pip downloads
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
       - name: Install dependencies
-        env:
-          PIP_CACHE_DIR: ~/.cache/pip
         run: |
           python -m pip install --upgrade pip
-          pip install --cache-dir "$PIP_CACHE_DIR" -r requirements.txt
-          pip install --cache-dir "$PIP_CACHE_DIR" -r requirements-dev.txt
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
       - name: Create data directory for tests
         run: mkdir -p data
@@ -257,21 +207,11 @@ jobs:
           cache: 'pip'
           cache-dependency-path: 'requirements*.txt'
 
-      - name: Cache pip downloads
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
       - name: Install dependencies
-        env:
-          PIP_CACHE_DIR: ~/.cache/pip
         run: |
           python -m pip install --upgrade pip
-          pip install --cache-dir "$PIP_CACHE_DIR" -r requirements.txt
-          pip install --cache-dir "$PIP_CACHE_DIR" -r requirements-dev.txt
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
       - name: Create data directory for tests
         run: mkdir -p data
@@ -317,21 +257,11 @@ jobs:
           cache: 'pip'
           cache-dependency-path: 'requirements*.txt'
 
-      - name: Cache pip downloads
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
       - name: Install dependencies
-        env:
-          PIP_CACHE_DIR: ~/.cache/pip
         run: |
           python -m pip install --upgrade pip
-          pip install --cache-dir "$PIP_CACHE_DIR" -r requirements.txt
-          pip install --cache-dir "$PIP_CACHE_DIR" -r requirements-dev.txt
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
       - name: Create data directory for tests
         run: mkdir -p data
@@ -381,21 +311,11 @@ jobs:
           cache: 'pip'
           cache-dependency-path: 'requirements*.txt'
 
-      - name: Cache pip downloads
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
       - name: Install dependencies
-        env:
-          PIP_CACHE_DIR: ~/.cache/pip
         run: |
           python -m pip install --upgrade pip
-          pip install --cache-dir "$PIP_CACHE_DIR" -r requirements.txt
-          pip install --cache-dir "$PIP_CACHE_DIR" -r requirements-dev.txt
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
       - name: Create data directory for tests
         run: mkdir -p data
@@ -515,20 +435,10 @@ jobs:
           cache: 'pip'
           cache-dependency-path: 'requirements*.txt'
 
-      - name: Cache pip downloads
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
       - name: Install dependencies (includes extras for stress)
-        env:
-          PIP_CACHE_DIR: ~/.cache/pip
         run: |
           python -m pip install --upgrade pip
-          pip install --cache-dir "$PIP_CACHE_DIR" -r requirements.txt
+          pip install -r requirements.txt
 
       - name: Run stress tests with RUN_STRESS_TESTS=1
         env:
