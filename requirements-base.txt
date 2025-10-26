@@ -19,6 +19,7 @@ urllib3>=1.26.0
 beautifulsoup4>=4.11.0
 lxml>=4.9.0
 lxml_html_clean>=0.4.0  # Required for newspaper3k HTML cleaning
+storysniffer>=1.0.0  # URL verification service
 
 # NLP and text processing
 spacy>=3.8.0  # Python 3.11+ supports latest spacy with numpy 2.x
