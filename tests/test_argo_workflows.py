@@ -113,17 +113,14 @@ class TestPipelineSteps:
             assert "tasks" in pipeline["dag"]
             # Check we have discovery, verification, and extraction tasks
             task_names = [t["name"] for t in pipeline["dag"]["tasks"]]
-            has_discover = (
-                "discover-urls" in task_names
-                or any("discover" in name for name in task_names)
+            has_discover = "discover-urls" in task_names or any(
+                "discover" in name for name in task_names
             )
-            has_verify = (
-                "verify-urls" in task_names
-                or any("verify" in name for name in task_names)
+            has_verify = "verify-urls" in task_names or any(
+                "verify" in name for name in task_names
             )
-            has_extract = (
-                "extract-content" in task_names
-                or any("extract" in name for name in task_names)
+            has_extract = "extract-content" in task_names or any(
+                "extract" in name for name in task_names
             )
             assert has_discover
             assert has_verify
@@ -150,12 +147,8 @@ class TestPipelineSteps:
         if "dag" in pipeline:
             # DAG structure uses 'depends' field for task dependencies
             tasks = pipeline["dag"]["tasks"]
-            verify_task = next(
-                (t for t in tasks if "verify" in t["name"]), None
-            )
-            extract_task = next(
-                (t for t in tasks if "extract" in t["name"]), None
-            )
+            verify_task = next((t for t in tasks if "verify" in t["name"]), None)
+            extract_task = next((t for t in tasks if "extract" in t["name"]), None)
 
             # In DAG, dependencies are expressed via 'depends' field
             if verify_task:

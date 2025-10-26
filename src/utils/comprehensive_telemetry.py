@@ -294,6 +294,7 @@ class ComprehensiveExtractionTelemetry:
         """Record detailed extraction metrics."""
 
         from sqlalchemy.exc import IntegrityError
+
         def _do_insert(conn) -> None:
             """Perform the core INSERT for extraction telemetry."""
             is_success = bool(metrics.is_success)
@@ -372,7 +373,10 @@ class ComprehensiveExtractionTelemetry:
                 logger.warning("Telemetry insert IntegrityError: %s", ie)
                 try:
                     # Only attempt resync if backing store is Postgres
-                    if hasattr(self._store, "_is_postgres") and self._store._is_postgres:
+                    if (
+                        hasattr(self._store, "_is_postgres")
+                        and self._store._is_postgres
+                    ):
                         # Try to set sequence to max(id) so nextval yields new id
                         conn.execute(
                             """

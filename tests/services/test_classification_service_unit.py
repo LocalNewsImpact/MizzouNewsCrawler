@@ -9,6 +9,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from src.ml.article_classifier import Prediction
+
 # Article imported previously for casting; not required after test refactor
 from src.services.classification_service import (
     ArticleClassificationService,
@@ -67,9 +68,8 @@ def test_prepare_text_prefers_first_non_empty_field():
         text="  candidate text  ",
         title="Headline",
     )
-    assert (
-        service._prepare_text(article)  # type: ignore[arg-type]
-        == ("  candidate text  ")
+    assert service._prepare_text(article) == (  # type: ignore[arg-type]
+        "  candidate text  "
     )
 
     empty_article = _make_article(content="", text="   ", title="  ")

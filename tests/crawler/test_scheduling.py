@@ -7,6 +7,7 @@ from typing import Optional
 import pytest
 
 import src.crawler.scheduling as scheduling
+
 # Import kept for historical reference; tests use duck-typed _Database fixtures
 # Tests use duck-typed _Database and dummy objects; keep type-ignores on call sites.
 
@@ -64,9 +65,9 @@ def test_get_last_processed_date_returns_datetime():
     connection = _Connection((last,))
     db = _Database(connection)  # type: ignore[assignment]
 
-    result = (
-        scheduling._get_last_processed_date(db, "source-1")  # type: ignore[arg-type]
-    )
+    result = scheduling._get_last_processed_date(
+        db, "source-1"
+    )  # type: ignore[arg-type]
 
     assert result == last
     assert connection.executed_params == {"sid": "source-1"}
@@ -113,7 +114,8 @@ def test_should_schedule_discovery_returns_true_without_history(monkeypatch):
     assert (
         scheduling.should_schedule_discovery(  # type: ignore[arg-type]
             dummy_db, "123", {}
-        ) is True
+        )
+        is True
     )
 
 

@@ -49,7 +49,8 @@ def handle_discovery_status_command(args) -> int:
         # Show datasets
         with db.engine.connect() as conn:
             datasets = safe_execute(
-                conn, text("SELECT label, slug, created_at FROM datasets ORDER BY label")
+                conn,
+                text("SELECT label, slug, created_at FROM datasets ORDER BY label"),
             ).fetchall()
 
             print(f"\n📁 Datasets ({len(datasets)}):")
@@ -81,7 +82,9 @@ def handle_discovery_status_command(args) -> int:
                 ).fetchone()
                 scope = f" (dataset: {dataset_label})"
             else:
-                result = safe_execute(conn, text("SELECT COUNT(*) FROM sources")).fetchone()
+                result = safe_execute(
+                    conn, text("SELECT COUNT(*) FROM sources")
+                ).fetchone()
                 scope = " (all datasets)"
 
             total_sources = result[0] if result else 0

@@ -9,7 +9,11 @@ from urllib.parse import urlparse
 
 from sqlalchemy import text
 
-from src.models.database import DatabaseManager, calculate_content_hash, safe_session_execute
+from src.models.database import (
+    DatabaseManager,
+    calculate_content_hash,
+    safe_session_execute,
+)
 from src.utils.content_cleaner_balanced import BalancedBoundaryContentCleaner
 
 logger = logging.getLogger(__name__)

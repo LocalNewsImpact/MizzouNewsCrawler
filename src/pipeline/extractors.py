@@ -56,6 +56,7 @@ class HostSelector:
                 return str(v)
             except Exception:
                 return None
+
         # title
         tit = self.selectors.get("title")
         if tit:

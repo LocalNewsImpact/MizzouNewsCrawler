@@ -8,7 +8,6 @@ from collections import OrderedDict
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
- 
 
 import torch
 from transformers import (
@@ -178,9 +177,9 @@ class ArticleClassifier:
         # The transformers pipeline returns a sequence of dicts; keep a
         # lightweight runtime assignment and add a narrow type comment
         # for clarity rather than using `cast`.
-        raw_outputs: Sequence[Sequence[dict]] = (
-            self._pipeline(normalized, truncation=True)  # type: ignore[assignment]
-        )
+        raw_outputs: Sequence[Sequence[dict]] = self._pipeline(
+            normalized, truncation=True
+        )  # type: ignore[assignment]
 
         predictions: list[list[Prediction]] = []
         for output in raw_outputs:

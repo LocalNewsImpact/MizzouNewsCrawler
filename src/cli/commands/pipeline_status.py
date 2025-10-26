@@ -98,7 +98,9 @@ def _check_discovery_status(session, hours, detailed):
     cutoff = datetime.utcnow() - timedelta(hours=hours)
 
     # Total sources
-    result = safe_session_execute(session, text("SELECT COUNT(*) FROM sources WHERE host IS NOT NULL"))
+    result = safe_session_execute(
+        session, text("SELECT COUNT(*) FROM sources WHERE host IS NOT NULL")
+    )
     total_sources = result.scalar() or 0
 
     # Sources discovered from recently
@@ -187,11 +189,15 @@ def _check_discovery_status(session, hours, detailed):
 def _check_verification_status(session, hours, detailed):
     """Check verification pipeline status."""
     # Pending verification
-    result = safe_session_execute(session, text("SELECT COUNT(*) FROM candidate_links WHERE status = 'pending'"))
+    result = safe_session_execute(
+        session, text("SELECT COUNT(*) FROM candidate_links WHERE status = 'pending'")
+    )
     pending = result.scalar() or 0
 
     # Verified as articles
-    result = safe_session_execute(session, text("SELECT COUNT(*) FROM candidate_links WHERE status = 'article'"))
+    result = safe_session_execute(
+        session, text("SELECT COUNT(*) FROM candidate_links WHERE status = 'article'")
+    )
     articles = result.scalar() or 0
 
     # Verified recently

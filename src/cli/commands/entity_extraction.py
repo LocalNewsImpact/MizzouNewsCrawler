@@ -8,11 +8,14 @@ extracting location entities and storing them in the article_entities table.
 import logging
 import threading
 import time
- 
 
 from sqlalchemy import text as sql_text
 
-from src.models.database import DatabaseManager, save_article_entities, safe_session_execute
+from src.models.database import (
+    DatabaseManager,
+    safe_session_execute,
+    save_article_entities,
+)
 from src.pipeline.entity_extraction import (
     ArticleEntityExtractor,
     attach_gazetteer_matches,

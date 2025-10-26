@@ -6,7 +6,6 @@ import sqlite3
 import tempfile
 import types
 from pathlib import Path
- 
 
 import pandas as pd
 import pytest

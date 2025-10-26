@@ -343,8 +343,10 @@ def _process_batch(articles, extractor, byline_cleaner, session, batch_num):
 
                     safe_session_execute(
                         session,
-                        text("UPDATE candidate_links SET status = 'extracted' "
-                             "WHERE id = :url_id"),
+                        text(
+                            "UPDATE candidate_links SET status = 'extracted' "
+                            "WHERE id = :url_id"
+                        ),
                         {"url_id": url_id},
                     )
 

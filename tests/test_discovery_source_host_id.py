@@ -107,7 +107,7 @@ class TelemetryStub:
 
     def record_site_failure(self, **kwargs):
         self.failure_calls.append(kwargs)
-    
+
     def track_http_status(self, *args, **kwargs):
         return None
 

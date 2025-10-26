@@ -3,12 +3,12 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from sqlalchemy.exc import IntegrityError
+
 from src.utils.comprehensive_telemetry import (
     ComprehensiveExtractionTelemetry,
     ExtractionMetrics,
 )
-
-from sqlalchemy.exc import IntegrityError
 
 
 class _FakeConn:
@@ -79,9 +79,8 @@ def test_record_extraction_resync_and_retry(tmp_path, caplog):
 
     # Verify that after retry we executed at least one INSERT
     assert any(
-        "INSERT INTO extraction_telemetry_v2" in (
-            sql if isinstance(sql, str) else str(sql)
-        )
+        "INSERT INTO extraction_telemetry_v2"
+        in (sql if isinstance(sql, str) else str(sql))
         for sql, _ in conn.executed
     )
 

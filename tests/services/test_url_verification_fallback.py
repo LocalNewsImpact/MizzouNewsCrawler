@@ -3,9 +3,11 @@ from __future__ import annotations
 from typing import Any, Optional
 
 import pytest
-# requests.Session typing not required in this test
 
 import src.services.url_verification as url_verification
+
+# requests.Session typing not required in this test
+
 
 
 class _DummyResponse:

@@ -7,9 +7,9 @@ exposes simple constants and a small helper to access configuration values.
 from __future__ import annotations
 
 import os
-from pathlib import Path
-from typing import Any, IO
 from os import PathLike
+from pathlib import Path
+from typing import IO, Any
 from urllib.parse import quote_plus, urlencode
 
 try:

@@ -22,7 +22,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import storysniffer  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
-from src.models.database import DatabaseManager, safe_execute, safe_session_execute  # noqa: E402
+from src.models.database import (  # noqa: E402
+    DatabaseManager,
+    safe_execute,
+    safe_session_execute,
+)
 from src.models.verification import (  # noqa: E402
     URLVerification,
     VerificationJob,
@@ -410,7 +414,10 @@ class URLVerificationService:
         # Get final totals
         with self.db.engine.connect() as conn:
             result = safe_execute(
-                conn, text("SELECT COUNT(*) FROM candidate_links WHERE status = 'discovered'")
+                conn,
+                text(
+                    "SELECT COUNT(*) FROM candidate_links WHERE status = 'discovered'"
+                ),
             ).fetchone()
             remaining_discovered = result[0] if result else 0
 

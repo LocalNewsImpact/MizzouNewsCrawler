@@ -577,9 +577,9 @@ class TestWireDetection:
         cleaner = BalancedBoundaryContentCleaner(
             db_path=":memory:", enable_telemetry=False
         )
-        cleaner.wire_detector = (
-            DummyWireDetector(is_wire_service=True)  # type: ignore[assignment]
-        )
+        cleaner.wire_detector = DummyWireDetector(
+            is_wire_service=True
+        )  # type: ignore[assignment]
 
         result = cleaner._detect_wire_service_in_pattern(
             "Story courtesy of the Associated Press", "example.com"
@@ -623,9 +623,9 @@ class TestWireDetection:
         cleaner = BalancedBoundaryContentCleaner(
             db_path=":memory:", enable_telemetry=False
         )
-        cleaner.wire_detector = (
-            DummyWireDetector(is_wire_service=False)  # type: ignore[assignment]
-        )
+        cleaner.wire_detector = DummyWireDetector(
+            is_wire_service=False
+        )  # type: ignore[assignment]
 
         result = cleaner._detect_wire_service_in_pattern(
             "Photos via AP News", "associatedpress.com"

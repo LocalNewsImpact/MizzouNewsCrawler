@@ -29,8 +29,8 @@ from typing import Any
 
 import requests
 from sqlalchemy.exc import SQLAlchemyError
-from src.models.database import safe_execute
 
+from src.models.database import safe_execute
 from src.telemetry.store import TelemetryStore, get_store
 
 DB_ERRORS = (sqlite3.OperationalError, SQLAlchemyError)
@@ -845,9 +845,9 @@ class OperationTracker:
             """
 
             with self._connection() as conn:
-                    summary_row = safe_execute(conn, summary_sql, params).fetchone()
-                    breakdown_rows = safe_execute(conn, breakdown_sql, params).fetchall()
-                    top_rows = safe_execute(conn, top_sources_sql, params).fetchall()
+                summary_row = safe_execute(conn, summary_sql, params).fetchone()
+                breakdown_rows = safe_execute(conn, breakdown_sql, params).fetchall()
+                top_rows = safe_execute(conn, top_sources_sql, params).fetchall()
 
             summary = {
                 "total_sources": 0,

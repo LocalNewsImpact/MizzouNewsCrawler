@@ -3,9 +3,11 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-# Session typing not required in this test file after refactors
 
 from src.pipeline import entity_extraction as extraction
+
+# Session typing not required in this test file after refactors
+
 
 
 def test_normalize_text_lowers_and_strips_noise():

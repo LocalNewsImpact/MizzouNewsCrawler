@@ -518,7 +518,11 @@ class NewsDiscovery:
         try:
             dbm = DatabaseManager(self.database_url)
             with dbm.engine.begin() as conn:
-                res = safe_execute(conn, "SELECT metadata FROM sources WHERE id = :id", {"id": source_id}).fetchone()
+                res = safe_execute(
+                    conn,
+                    "SELECT metadata FROM sources WHERE id = :id",
+                    {"id": source_id},
+                ).fetchone()
                 current = res[0] if res else None
                 if isinstance(current, str):
                     try:
@@ -534,7 +538,11 @@ class NewsDiscovery:
                 merged.update(updates or {})
 
                 # Update sources metadata (handles RSS metadata persistence)
-                safe_execute(conn, "UPDATE sources SET metadata = :meta WHERE id = :id", {"meta": json.dumps(merged), "id": source_id})
+                safe_execute(
+                    conn,
+                    "UPDATE sources SET metadata = :meta WHERE id = :id",
+                    {"meta": json.dumps(merged), "id": source_id},
+                )
                 logger.debug(
                     "Updated metadata for source %s: %s",
                     source_id,
@@ -709,12 +717,18 @@ class NewsDiscovery:
         try:
             with db_manager.engine.connect() as conn:
                 # Check if dataset exists
-                result = safe_execute(conn, "SELECT id, slug FROM datasets WHERE label = :label", {"label": dataset_label}).fetchone()
+                result = safe_execute(
+                    conn,
+                    "SELECT id, slug FROM datasets WHERE label = :label",
+                    {"label": dataset_label},
+                ).fetchone()
 
                 if not result:
                     logger.error(f"❌ Dataset '{dataset_label}' not found in database")
                     # List available datasets to help user
-                    available = safe_execute(conn, "SELECT label FROM datasets ORDER BY label").fetchall()
+                    available = safe_execute(
+                        conn, "SELECT label FROM datasets ORDER BY label"
+                    ).fetchall()
                     if available:
                         labels = [row[0] for row in available]
                         logger.info(f"Available datasets: {', '.join(labels)}")
@@ -901,7 +915,6 @@ class NewsDiscovery:
 
             # Use SQLAlchemy text() to ensure proper parameter binding for pg8000
             # SQLAlchemy converts :param to %s format required by pg8000
-            from sqlalchemy import text as sql_text
 
             logger.debug(f"Using {dialect} query syntax for get_sources_to_process")
             # Pandas prefers either a SQL string with a DB-API connection or a

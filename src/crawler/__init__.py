@@ -2555,7 +2555,7 @@ class ContentExtractor:
             (".byline", {}),
         ]
 
-    # local imports kept minimal to avoid heavy startup costs
+        # local imports kept minimal to avoid heavy startup costs
 
         for selector, attrs in author_selectors:
             element = soup.find(selector, _ensure_attrs_dict(attrs))
@@ -2570,8 +2570,6 @@ class ContentExtractor:
                     author_txt = element.get_text().strip()
                     if author_txt:
                         return author_txt
-
-                
 
         return None
 

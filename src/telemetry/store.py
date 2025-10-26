@@ -163,7 +163,6 @@ class _CursorWrapper:
 
     def __init__(self, sqlalchemy_conn: Connection):
         self._conn = sqlalchemy_conn
-        from typing import Any
 
         self._last_result: Any = None
         self._result_wrapper: _ResultWrapper | None = None

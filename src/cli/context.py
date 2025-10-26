@@ -70,11 +70,13 @@ def trigger_gazetteer_population_background(
         from sqlalchemy.orm import sessionmaker
 
         from src.models import Dataset
+
         # `safe_session_execute` is a compatibility helper defined in
         # `src.models.database`. Tests sometimes monkeypatch `src.models.database`
         # with a minimal fake that only provides `DatabaseManager`. Make the
         # safe helper optional so tests that patch the module don't fail here.
         from src.models.database import DatabaseManager
+
         try:
             # optional; falls back to using session.execute below
             from src.models.database import safe_session_execute  # type: ignore

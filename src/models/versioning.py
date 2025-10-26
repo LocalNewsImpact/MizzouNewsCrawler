@@ -27,7 +27,8 @@ from sqlalchemy import (
     inspect,
     text,
 )
-from sqlalchemy.orm import sessionmaker, Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, sessionmaker
+
 from src.models.database import safe_execute
 
 from . import Base, create_database_engine
@@ -51,7 +52,7 @@ except Exception:
 
 class DatasetVersion(Base):
     __tablename__ = "dataset_versions"
-    
+
     # NOTE: migrate fields incrementally to reduce mypy noise. Convert a
     # small subset first (id, dataset_name, version_tag, created_at,
     # status, row_count).
@@ -355,7 +356,9 @@ def export_snapshot_for_version(
         lock_id = _compute_advisory_lock_id(dv.dataset_name or "", dv.id)
         try:
             with engine.connect() as conn:
-                res = safe_execute(conn, "SELECT pg_try_advisory_lock(:id)", {"id": lock_id})
+                res = safe_execute(
+                    conn, "SELECT pg_try_advisory_lock(:id)", {"id": lock_id}
+                )
                 pg_lock_acquired = bool(res.scalar())
         except Exception:
             pg_lock_acquired = False

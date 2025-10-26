@@ -16,7 +16,6 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import List, Tuple
 
 from sqlalchemy import text
 
@@ -34,7 +33,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def get_candidates_for_backfill(session, limit: int = None) -> List[Tuple]:
+def get_candidates_for_backfill(session, limit: int = None) -> list[tuple]:
     """
     Get articles currently labeled as 'labeled' that might be wire content.
 
@@ -63,7 +62,7 @@ def get_candidates_for_backfill(session, limit: int = None) -> List[Tuple]:
 
 
 def detect_wire_for_article(article_id: int, url: str, title: str,
-                            content: str, author: str) -> Tuple[bool, dict]:
+                            content: str, author: str) -> tuple[bool, dict]:
     """
     Run wire detection on an article.
 

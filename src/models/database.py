@@ -63,12 +63,12 @@ def safe_execute(conn, sql, params=None):
       to a dict before executing (works with executemany semantics).
     - Otherwise delegate to conn.execute(text(sql), params).
     """
-    from sqlalchemy.sql import text as _text
     from sqlalchemy.exc import ArgumentError
+    from sqlalchemy.sql import text as _text
 
     # Use the original execute method if available (to avoid recursion when
     # called from a patched connection)
-    original_execute = getattr(conn, '_orig_execute', None) or conn.execute
+    original_execute = getattr(conn, "_orig_execute", None) or conn.execute
 
     # If caller passed a SQLAlchemy Core object (Insert/Select), just execute
     if not isinstance(sql, (str,)):
@@ -184,7 +184,11 @@ def safe_session_execute(session, sql, params=None):
             return session.execute(_text(sql_str), params)
         return session.execute(_text(sql_str))
     except ArgumentError:
-        if isinstance(params, (list, tuple)) and params and not isinstance(params[0], dict):
+        if (
+            isinstance(params, (list, tuple))
+            and params
+            and not isinstance(params[0], dict)
+        ):
             row = params
             if "?" in sql_str or "%s" in sql_str:
                 if "?" in sql_str:
@@ -196,7 +200,7 @@ def safe_session_execute(session, sql, params=None):
                 named = {f"p{i}": v for i, v in enumerate(row)}
                 return session.execute(_text(sql_str), named)
         raise
- 
+
 
 def _configure_sqlite_engine(engine, timeout: float | None) -> None:
     """Enable WAL/unified writer settings for SQLite connections."""

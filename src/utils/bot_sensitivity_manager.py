@@ -171,7 +171,9 @@ class BotSensitivityManager:
                     query = text(
                         "SELECT bot_sensitivity FROM sources WHERE id = :source_id"
                     )
-                    result = safe_session_execute(session, query, {"source_id": source_id})
+                    result = safe_session_execute(
+                        session, query, {"source_id": source_id}
+                    )
                 else:
                     query = text(
                         "SELECT bot_sensitivity FROM sources "
@@ -309,7 +311,9 @@ class BotSensitivityManager:
                         WHERE id = :source_id
                         """
                     )
-                    safe_session_execute(session, update_encounters, {"source_id": source_id})
+                    safe_session_execute(
+                        session, update_encounters, {"source_id": source_id}
+                    )
 
                     logger.info(
                         f"Bot detection on {host}: {event_type} - "
@@ -390,7 +394,9 @@ class BotSensitivityManager:
                     LIMIT 1
                     """
                 )
-                result = safe_session_execute(session, query, {"host": host, "host_norm": host.lower()})
+                result = safe_session_execute(
+                    session, query, {"host": host, "host_norm": host.lower()}
+                )
                 row = result.fetchone()
 
                 if row and row[0]:
@@ -422,7 +428,9 @@ class BotSensitivityManager:
                     LIMIT 1
                     """
                 )
-                result = safe_session_execute(session, query, {"host": host, "host_norm": host.lower()})
+                result = safe_session_execute(
+                    session, query, {"host": host, "host_norm": host.lower()}
+                )
                 row = result.fetchone()
 
                 if row:

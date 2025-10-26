@@ -49,11 +49,11 @@ def test_resync_extraction_telemetry_sequence_postgres(tmp_path):
         with engine.begin() as conn:
             conn.execute(
                 text(
-                    (
+                    
                         "INSERT INTO extraction_telemetry_v2 (id, operation_id,"
                         " article_id, url, start_time, created_at) VALUES"
                         " (:id, :op, :a, :u, now(), now())"
-                    )
+                    
                 ),
                 {
                     "id": 99999,
@@ -63,8 +63,8 @@ def test_resync_extraction_telemetry_sequence_postgres(tmp_path):
                 },
             )
 
-    # Run the resync migration specifically. upgrade head already ran; calling
-    # it again is idempotent and safe for tests.
+        # Run the resync migration specifically. upgrade head already ran; calling
+        # it again is idempotent and safe for tests.
         result = subprocess.run(
             ["alembic", "upgrade", "head"],
             capture_output=True,
@@ -84,9 +84,9 @@ def test_resync_extraction_telemetry_sequence_postgres(tmp_path):
 
             nextval_res = conn.execute(text(f"SELECT nextval('{seq_name}')"))
             nextval = nextval_res.scalar()
-            assert nextval is not None and nextval >= 100000, (
-                f"Expected nextval >= 100000, got {nextval}"
-            )
+            assert (
+                nextval is not None and nextval >= 100000
+            ), f"Expected nextval >= 100000, got {nextval}"
 
     finally:
         engine.dispose()

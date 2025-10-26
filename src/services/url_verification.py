@@ -105,7 +105,7 @@ class URLVerificationService:
             self.run_http_precheck = env_val in ("1", "true", "yes")
         else:
             self.run_http_precheck = bool(run_http_precheck)
-    # (debug logging removed)
+        # (debug logging removed)
         self.db = DatabaseManager()
         self.sniffer = storysniffer.StorySniffer()
         self.logger = logging.getLogger(__name__)
@@ -377,17 +377,13 @@ class URLVerificationService:
         if self.run_http_precheck:
             # Perform HTTP pre-checks before invoking the heavier ML model.
             try:
-                ok, status_code, error_msg, attempts = self._check_http_health(
-                    url
-                )
+                ok, status_code, error_msg, attempts = self._check_http_health(url)
                 result["http_status"] = status_code
                 result["http_attempts"] = attempts
 
                 if not ok:
                     result["error"] = error_msg
-                    result["verification_time_ms"] = (
-                        time.time() - start_time
-                    ) * 1000
+                    result["verification_time_ms"] = (time.time() - start_time) * 1000
                     self.logger.warning(f"HTTP check failed for {url}: {error_msg}")
                     return result
             except Exception as e:
@@ -402,9 +398,7 @@ class URLVerificationService:
                 result["storysniffer_result"] = (
                     bool(is_article) if is_article is not None else None
                 )
-                result["verification_time_ms"] = (
-                    time.time() - start_time
-                ) * 1000
+                result["verification_time_ms"] = (time.time() - start_time) * 1000
 
                 self.logger.debug(
                     f"Verified {url}: "
@@ -413,9 +407,7 @@ class URLVerificationService:
                 )
             except Exception as e:
                 result["error"] = str(e)
-                result["verification_time_ms"] = (
-                    time.time() - start_time
-                ) * 1000
+                result["verification_time_ms"] = (time.time() - start_time) * 1000
                 self.logger.warning(f"Verification failed for {url}: {e}")
             return result
 

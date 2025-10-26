@@ -2205,6 +2205,7 @@ class BylineCleaner:
         import time
 
         from sqlalchemy import text
+
         from src.models.database import DatabaseManager, safe_session_execute
 
         # Check if cache is still valid (refresh every 1 hour)
@@ -2236,7 +2237,7 @@ class BylineCleaner:
                 WHERE canonical_name IS NOT NULL
                 AND canonical_name != ''
             """
-                )
+                ),
             )
 
             for row in result:
@@ -2300,6 +2301,7 @@ class BylineCleaner:
             Set of normalized organization names for filtering
         """
         import time
+
         from src.models.database import DatabaseManager, safe_session_execute
 
         current_time = time.time()

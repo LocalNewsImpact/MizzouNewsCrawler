@@ -7,7 +7,6 @@ import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
- 
 
 import spacy
 from rapidfuzz import fuzz
@@ -16,9 +15,8 @@ from spacy.pipeline import EntityRuler
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from src.models.database import safe_session_execute
-
 from src.models import Gazetteer
+from src.models.database import safe_session_execute
 from src.pipeline.text_cleaning import decode_rot47_segments
 
 logger = logging.getLogger(__name__)

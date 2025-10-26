@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import types
 from pathlib import Path
-# typing imports intentionally minimal for test
 
 import pytest
 
 import src.ml.article_classifier as article_classifier
+
+# typing imports intentionally minimal for test
+
+
 
 
 def _make_prediction_dict(label: str, score: float) -> dict:

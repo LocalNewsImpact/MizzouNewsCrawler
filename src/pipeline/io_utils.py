@@ -23,7 +23,7 @@ try:
     import pandas as pd  # optional dependency used when available
 except Exception:
     pd = None
- 
+
 
 try:
     import sqlalchemy

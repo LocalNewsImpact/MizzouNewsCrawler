@@ -18,8 +18,13 @@ from sqlalchemy import (
     create_engine,
     text,
 )
-from sqlalchemy.orm import declarative_base, relationship, sessionmaker
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import (
+    Mapped,
+    declarative_base,
+    mapped_column,
+    relationship,
+    sessionmaker,
+)
 
 Base: Any = declarative_base()
 
@@ -30,12 +35,12 @@ import src.models.telemetry  # noqa: E402,F401  # type: ignore
 import src.models.verification  # noqa: E402,F401  # type: ignore
 
 # Backwards-compatibility: expose commonly-imported model names at package level
-from .verification import (
+from .verification import (  # noqa: F401
     URLVerification,
     VerificationJob,
-    VerificationTelemetry,
     VerificationPattern,
-)  # noqa: F401
+    VerificationTelemetry,
+)
 
 
 class SourceMetadata(Base):
@@ -692,10 +697,10 @@ def create_database_engine(database_url: str = "sqlite:///data/mizzou.db"):
     if database_url.startswith("sqlite"):
         # SQLite-specific optimizations
         engine = create_engine(
-                database_url,
-                connect_args={"check_same_thread": False, "timeout": 30},
-                echo=False,
-            )
+            database_url,
+            connect_args={"check_same_thread": False, "timeout": 30},
+            echo=False,
+        )
     else:
         # PostgreSQL configuration for production
         engine = create_engine(

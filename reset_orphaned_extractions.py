@@ -9,7 +9,6 @@ It resets their status back to 'verified' so they can be re-extracted.
 """
 
 import sys
-from datetime import datetime
 from src.models.database import DatabaseManager
 from sqlalchemy import text
 
@@ -30,7 +29,7 @@ def main():
     orphaned_count = result.scalar()
     
     print(f"Found {orphaned_count} candidate_links marked as extracted but not in articles table")
-    print(f"(since 2025-10-22 19:54:00 when extraction started failing)")
+    print("(since 2025-10-22 19:54:00 when extraction started failing)")
     
     if orphaned_count == 0:
         print("Nothing to reset!")

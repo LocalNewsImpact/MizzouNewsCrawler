@@ -7,6 +7,7 @@ import logging
 import sys
 from collections.abc import Callable
 from pathlib import Path
+
 # typing imports intentionally omitted; use inline type-ignore where necessary
 
 # ALL command modules are now lazy-loaded - nothing imported at module level

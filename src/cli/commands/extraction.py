@@ -25,9 +25,9 @@ from src.models.database import (
     DatabaseManager,
     _commit_with_retry,
     calculate_content_hash,
+    safe_session_execute,
     save_article_entities,
 )
-from src.models.database import safe_session_execute
 
 # Lazy import: entity_extraction only needed for entity-extraction command
 # Importing at top level causes ModuleNotFoundError in crawler image (no rapidfuzz)
@@ -469,7 +469,9 @@ def handle_extraction_command(args) -> int:
                         "WHERE candidate_link_id IS NOT NULL)"
                     )
                     remaining_count = (
-                        safe_session_execute(db.session, query, {"dataset": dataset_uuid}).scalar()
+                        safe_session_execute(
+                            db.session, query, {"dataset": dataset_uuid}
+                        ).scalar()
                         or 0
                     )
                 else:
@@ -481,7 +483,9 @@ def handle_extraction_command(args) -> int:
                         "(SELECT candidate_link_id FROM articles "
                         "WHERE candidate_link_id IS NOT NULL)"
                     )
-                    remaining_count = safe_session_execute(db.session, query).scalar() or 0
+                    remaining_count = (
+                        safe_session_execute(db.session, query).scalar() or 0
+                    )
 
                 print(
                     f"✓ Batch {batch_num} complete: {articles_processed} "
@@ -936,21 +940,21 @@ def _process_batch(
                         CANDIDATE_STATUS_UPDATE_SQL,
                         {"status": article_status, "id": str(url_id)},
                     )
-                    
+
                     # Explicit commit with logging to catch silent failures
                     try:
                         session.commit()
                         logger.debug(
                             "Successfully committed article %s (%s) to database",
                             article_id,
-                            url[:80]
+                            url[:80],
                         )
                     except Exception as commit_error:
                         logger.error(
                             "Database commit failed for article %s: %s",
                             article_id,
                             commit_error,
-                            exc_info=True
+                            exc_info=True,
                         )
                         raise
                     # Post-commit verification (diagnostic): optionally verify row exists
@@ -971,7 +975,9 @@ def _process_batch(
                                 # Try verify by URL as a second check
                                 verify_row = safe_session_execute(
                                     session,
-                                    text("SELECT id, url FROM articles WHERE url = :url"),
+                                    text(
+                                        "SELECT id, url FROM articles WHERE url = :url"
+                                    ),
                                     {"url": url},
                                 ).fetchone()
 
@@ -990,7 +996,9 @@ def _process_batch(
                                 try:
                                     cnt = safe_session_execute(
                                         session,
-                                        text("SELECT COUNT(*) FROM articles WHERE url = :url"),
+                                        text(
+                                            "SELECT COUNT(*) FROM articles WHERE url = :url"
+                                        ),
                                         {"url": url},
                                     ).scalar()
                                 except Exception:
@@ -1002,7 +1010,7 @@ def _process_batch(
                             logger.exception(
                                 "[DIAGNOSTIC] Exception while verifying inserted article"
                             )
-                    
+
                     telemetry.record_extraction(metrics)
                     domains_for_cleaning[domain].append(article_id)
                     processed += 1
@@ -1097,10 +1105,14 @@ def _process_batch(
                                 },
                             )
                             session.commit()
-                            logger.warning("Auto-paused host %s after exception", host_val)
+                            logger.warning(
+                                "Auto-paused host %s after exception", host_val
+                            )
                     except Exception:
                         # Don't raise from the pause attempt; just log and continue
-                        logger.exception("Failed to auto-pause host during exception handling")
+                        logger.exception(
+                            "Failed to auto-pause host during exception handling"
+                        )
                 else:
                     # Track other failures for domain awareness
                     domain_failures[domain] = domain_failures.get(domain, 0) + 1
