@@ -162,7 +162,7 @@ jobs:
           TELEMETRY_DATABASE_URL: "sqlite:///:memory:"
         run: |
           python3 scripts/validate_workflow_templates.py
-          pytest -q tests/unit/test_argo_workflow_template.py tests/unit/test_verification_no_head.py
+          pytest -q --override-ini="addopts=" -p no:pytest-cov tests/unit/test_argo_workflow_template.py tests/unit/test_verification_no_head.py
 
   quick-checks:
     name: Quick Workflow Template Checks (merge-to-main)
