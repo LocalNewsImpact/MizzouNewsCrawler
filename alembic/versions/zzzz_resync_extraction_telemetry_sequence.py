@@ -44,9 +44,10 @@ def upgrade():
             IF max_id IS NULL THEN
                 max_id := 0;
             END IF;
-            -- Set sequence value to max_id, so nextval will return max_id+1
-            EXECUTE format('SELECT setval(%L, %s)', seq_name, max_id);
-            RAISE NOTICE 'Resynced sequence % to %', seq_name, max_id;
+            -- Set sequence value to max_id (minimum 1), so nextval will return max_id+1
+            -- PostgreSQL sequences must have a value >= 1
+            EXECUTE format('SELECT setval(%L, GREATEST(%s, 1))', seq_name, max_id);
+            RAISE NOTICE 'Resynced sequence % to %', seq_name, GREATEST(max_id, 1);
         END
         $$;
         """
