@@ -19,7 +19,6 @@ from src.models.telemetry_orm import Base as TelemetryBase
 from src.models.telemetry import ExtractionTelemetryV2, HttpErrorSummary
 
 
-@pytest.mark.integration  # Requires proper database setup
 class TestTelemetryAPIEndpoints:
     """Test the telemetry API endpoints."""
 
@@ -190,6 +189,13 @@ class TestTelemetryAPIEndpoints:
 
     def test_telemetry_summary_endpoint(self, api_client):
         """Test the telemetry summary endpoint."""
+        # Debug: Check if data exists before API call
+        from backend.app.main import db_manager
+        with db_manager.get_session() as debug_session:
+            from src.models.telemetry import ExtractionTelemetryV2
+            count = debug_session.query(ExtractionTelemetryV2).count()
+            print(f"\n[DEBUG] Records in DB before API call: {count}")
+        
         response = api_client.get("/api/telemetry/summary?days=7")
         if response.status_code != 200:
             print(f"Error response: {response.text}")
@@ -337,7 +343,6 @@ class TestTelemetryAPIEndpoints:
         assert len(field_stats) >= 0  # Might be empty if no field data
 
 
-@pytest.mark.integration  # Requires proper database setup
 class TestSiteManagementAPI:
     """Test the site management API endpoints for pausing/resuming sources."""
 

@@ -734,8 +734,11 @@ def create_engine_from_env():
 
 
 def create_tables(engine):
-    """Create all tables in the database."""
+    """Create all tables in the database from both main and telemetry bases."""
     Base.metadata.create_all(engine)
+    # Also create telemetry tables (separate Base)
+    from src.models.telemetry_orm import Base as TelemetryBase
+    TelemetryBase.metadata.create_all(engine)
 
 
 def get_session(engine):
