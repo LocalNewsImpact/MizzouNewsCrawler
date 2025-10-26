@@ -927,7 +927,7 @@ class TestSeleniumMethod:
         """Test that selenium-stealth is applied when available."""
         # Test stealth driver creation directly
         with (
-            patch("src.crawler.stealth") as mock_stealth,
+            patch("src.crawler.stealth", create=True) as mock_stealth,
             patch("src.crawler.SELENIUM_STEALTH_AVAILABLE", True),
             patch("src.crawler.webdriver.Chrome", return_value=mock_webdriver),
         ):
@@ -1133,8 +1133,8 @@ class TestEdgeCases:
 
     def test_invalid_html_handling(self, extractor):
         """Test handling of malformed HTML."""
-        malformed_html = """<html><head><title>Test</head>
-                           <body><p>Unclosed tag<body></html>"""
+        malformed_html = """<html><head><title>Test</title></head>
+                           <body><p>Unclosed tag</body></html>"""
 
         # BeautifulSoup should handle malformed HTML gracefully
         result = extractor._extract_with_beautifulsoup(
