@@ -339,7 +339,7 @@ jobs:
           # Override database URL to use in-memory for faster tests
           DATABASE_URL: "sqlite:///:memory:"
           TELEMETRY_DATABASE_URL: "sqlite:///:memory:"
-        run: pytest -m "" --cov=src --cov-report=xml --cov-report=html --cov-report=term-missing --cov-fail-under=78
+        run: pytest --cov=src --cov-report=xml --cov-report=html --cov-report=term-missing --cov-fail-under=78
 
       - name: Generate coverage summary
         if: success()
