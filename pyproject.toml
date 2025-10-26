@@ -71,7 +71,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"__init__.py" = ["F401"]  # Allow unused imports in __init__.py
+"__init__.py" = ["F401", "E402"]  # Allow unused imports and non-top imports in __init__.py
 "tests/**/*.py" = [
     "E402",  # Allow imports not at top in tests (for sys.path manipulation)
     "F401",  # Allow unused imports in test files (test fixtures, examples)
