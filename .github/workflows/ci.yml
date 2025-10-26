@@ -28,6 +28,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Clean Python bytecode cache
+        run: find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+
+
+      - name: Clean Python bytecode cache
+        run: find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -81,6 +87,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Clean Python bytecode cache
+        run: find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -109,6 +118,9 @@ jobs:
     
     steps:
       - uses: actions/checkout@v4
+      - name: Clean Python bytecode cache
+        run: find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -147,6 +159,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Clean Python bytecode cache
+        run: find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -189,6 +204,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Clean Python bytecode cache
+        run: find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -229,6 +247,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Clean Python bytecode cache
+        run: find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -283,6 +304,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Clean Python bytecode cache
+        run: find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -360,6 +384,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Clean Python bytecode cache
+        run: find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -424,6 +451,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Clean Python bytecode cache
+        run: find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -496,6 +526,9 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
+      - name: Clean Python bytecode cache
+        run: find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
