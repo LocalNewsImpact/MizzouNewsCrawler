@@ -1,10 +1,20 @@
 steps:
+  # First, pull the production base image that we'll extend
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'pull-base'
+    args:
+      - 'pull'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/base:latest'
+
+  # Then build CI base image extending production base
   - name: 'gcr.io/cloud-builders/docker'
     id: 'build-ci-base'
     args:
       - 'build'
       - '-t'
       - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/ci-base:latest'
+      - '--build-arg'
+      - 'BASE_IMAGE=us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/base:latest'
       - '-f'
       - 'Dockerfile.ci-base'
       - '.'
