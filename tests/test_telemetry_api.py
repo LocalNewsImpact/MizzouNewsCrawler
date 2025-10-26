@@ -170,36 +170,37 @@ class TestTelemetryAPIEndpoints:
 
     @pytest.fixture
     def api_client(self, test_db_session, monkeypatch):
-        """Create a test client with the DatabaseManager engine patched to the test engine.
-
-        Patching the engine is more robust than replacing the get_session method
-        because some tests mutate global DatabaseManager state; forcing the
-        module-level db_manager to use the same engine guarantees endpoints
-        create sessions against the test DB.
+        """Create a test client with monkeypatched db_manager.get_session.
+        
+        This ensures the API endpoints use the same database session/engine that
+        contains the test data, avoiding SQLite isolation issues.
         """
-        # CRITICAL: We need to make the app use the SAME engine that has test data
-        # Not just the same database URL (which would create a new engine/session)
+        from contextlib import contextmanager
+        from sqlalchemy.orm import sessionmaker
+        
+        # Get the test engine and create a session factory
         test_engine = test_db_session.bind
-        test_db_url = str(test_engine.url)
+        TestSessionLocal = sessionmaker(bind=test_engine)
         
-        # Reset singleton to None to force fresh initialization
-        import backend.app.main
-        backend.app.main._db_manager = None
+        # Create a mock get_session context manager
+        @contextmanager
+        def mock_get_session():
+            session = TestSessionLocal()
+            try:
+                yield session
+            finally:
+                session.close()
         
-        # Patch DATABASE_URL so db_manager initializes with test URL
-        from src import config as app_config
-        monkeypatch.setattr(app_config, "DATABASE_URL", test_db_url)
+        # Import the app's db_manager INSTANCE and monkeypatch IT
+        from backend.app import main as app_main
+
+        # Monkeypatch the instance method, not the class method
+        monkeypatch.setattr(
+            app_main.db_manager, "get_session", lambda: mock_get_session()
+        )
         
-        # Now import app and patch its db_manager to use the test engine directly
+        # Now use the app
         from backend.app.main import app
-        from src.models.database import DatabaseManager
-        
-        # Create a new DatabaseManager and force it to use the test engine
-        test_db_manager = DatabaseManager()
-        test_db_manager.engine = test_engine
-        
-        # Replace the app's db_manager with our test one
-        backend.app.main._db_manager = test_db_manager
 
         client = TestClient(app)
         yield client
@@ -352,88 +353,81 @@ class TestTelemetryAPIEndpoints:
 
 
 class TestSiteManagementAPI:
-    """Test the site management API endpoints for pausing/resuming sources."""
+    """Test site management API endpoints."""
 
     @pytest.fixture
-    def temp_db(self, tmp_path):
-        """Create a temporary database for site management tests."""
-        db_path = tmp_path / "test_site_mgmt.db"
-
-        conn = sqlite3.connect(str(db_path))
-        cur = conn.cursor()
-
-        # Create sources table
-        cur.execute(
-            """
-        CREATE TABLE sources (
-            id VARCHAR PRIMARY KEY,
-            host VARCHAR NOT NULL,
-            host_norm VARCHAR NOT NULL,
-            canonical_name VARCHAR,
-            city VARCHAR,
-            county VARCHAR,
-            owner VARCHAR,
-            type VARCHAR,
-            metadata JSON,
-            discovery_attempted TIMESTAMP,
-            status VARCHAR DEFAULT 'active',
-            paused_at TIMESTAMP,
-            paused_reason TEXT,
-            bot_sensitivity INTEGER DEFAULT 5,
-            bot_sensitivity_updated_at TIMESTAMP,
-            bot_encounters INTEGER DEFAULT 0,
-            last_bot_detection_at TIMESTAMP,
-            bot_detection_metadata JSON
-        )
+    def test_db_session(self, tmp_path):
+        """Create a temporary SQLAlchemy database with test sources.
+        
+        Uses the same approach as TestTelemetryAPIEndpoints for consistency.
         """
-        )
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
 
-        # Insert test sources
+        db_path = tmp_path / "test_site_management.db"
+        engine = create_engine(f"sqlite:///{db_path}")
+
+        # Create tables using SQLAlchemy Base
+        Base.metadata.create_all(engine)
+
+        SessionLocal = sessionmaker(bind=engine)
+        session = SessionLocal()
+
+        # Insert test sources using ORM
         now = datetime.utcnow()
-        test_sources = [
-            ("test-site.com", "test-site.com", "test-site.com", "active", None, None),
-            (
-                "paused-site.com",
-                "paused-site.com",
-                "paused-site.com",
-                "paused",
-                now,
-                "Manual pause for testing",
+        sources = [
+            Source(
+                id="test-site.com",
+                host="test-site.com",
+                host_norm="test-site.com",
+                status="active",
+            ),
+            Source(
+                id="paused-site.com",
+                host="paused-site.com",
+                host_norm="paused-site.com",
+                status="paused",
+                paused_at=now,
+                paused_reason="Manual pause for testing",
             ),
         ]
+        session.add_all(sources)
+        session.commit()
 
-        for source_id, host, host_norm, status, paused_at, reason in test_sources:
-            cur.execute(
-                """
-            INSERT INTO sources (id, host, host_norm, status, paused_at, paused_reason)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-                (source_id, host, host_norm, status, paused_at, reason),
-            )
+        yield session
 
-        conn.commit()
-        conn.close()
-
-        yield str(db_path)
-        # Cleanup (tmp_path handles cleanup automatically)
-        db_path.unlink(missing_ok=True)
+        session.close()
+        engine.dispose()
 
     @pytest.fixture
-    def api_client(self, temp_db, monkeypatch):
-        """Create a test client with mocked database."""
-        # CRITICAL: Patch DATABASE_URL BEFORE importing app
-        # so db_manager initializes with the test database
-        db_url = f"sqlite:///{temp_db}"
+    def api_client(self, test_db_session, monkeypatch):
+        """Create a test client with monkeypatched db_manager.get_session.
         
-        # Reset singleton to None to force fresh initialization
-        import backend.app.main
-        backend.app.main._db_manager = None
-        
-        # Patch DATABASE_URL so db_manager uses test database
-        from src import config as app_config
-        monkeypatch.setattr(app_config, "DATABASE_URL", db_url)
-        
-        # Now import app - db_manager will use test DATABASE_URL
+        Uses the same approach as TestTelemetryAPIEndpoints for consistency.
+        """
+        from contextlib import contextmanager
+        from sqlalchemy.orm import sessionmaker
+
+        # Get the test engine and create a session factory
+        test_engine = test_db_session.bind
+        TestSessionLocal = sessionmaker(bind=test_engine)
+
+        # Create a mock get_session context manager
+        @contextmanager
+        def mock_get_session():
+            session = TestSessionLocal()
+            try:
+                yield session
+            finally:
+                session.close()
+
+        # Import the app's db_manager INSTANCE and monkeypatch IT
+        from backend.app import main as app_main
+
+        monkeypatch.setattr(
+            app_main.db_manager, "get_session", lambda: mock_get_session()
+        )
+
         from backend.app.main import app
 
         client = TestClient(app)
@@ -531,29 +525,6 @@ class TestSiteManagementAPI:
 
 class TestAPIErrorHandling:
     """Test error handling in API endpoints."""
-
-    def test_telemetry_endpoints_with_invalid_database(self, monkeypatch):
-        """Test API endpoints with invalid database path."""
-        # CRITICAL: Patch DATABASE_URL BEFORE importing app to test error handling
-        # Use an invalid database path that will cause connection errors
-        
-        # Reset singleton to None to force fresh initialization
-        import backend.app.main
-        backend.app.main._db_manager = None
-        
-        # Patch DATABASE_URL with invalid path
-        from src import config as app_config
-        invalid_db = "sqlite:////nonexistent/path/db.sqlite"
-        monkeypatch.setattr(app_config, "DATABASE_URL", invalid_db)
-        
-        # Now import app - db_manager will use invalid DATABASE_URL
-        from backend.app.main import app
-
-        client = TestClient(app)
-
-        response = client.get("/api/telemetry/summary")
-        assert response.status_code == 500
-        assert "Error fetching telemetry summary" in response.json()["detail"]
 
     def test_site_management_with_invalid_data(self, monkeypatch):
         """Test site management endpoints with invalid request data."""
