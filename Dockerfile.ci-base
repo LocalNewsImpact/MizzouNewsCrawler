@@ -1,0 +1,45 @@
+# CI Base Docker Image for MizzouNewsCrawler
+# Contains ALL dependencies needed for running tests in CI
+# This image is separate from production base to avoid bloat (PyTorch is 2GB+)
+
+FROM python:3.11-slim AS base
+
+# Install system dependencies (retry with --fix-missing on hash errors)
+RUN apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* && \
+    apt-get update -o Acquire::Check-Valid-Until=false && \
+    (apt-get install -y --no-install-recommends --allow-unauthenticated \
+        gcc g++ libpq-dev wget ca-certificates || \
+     apt-get install -y --no-install-recommends --fix-missing \
+        gcc g++ libpq-dev wget ca-certificates) && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy full requirements for CI tests
+COPY requirements.txt requirements-dev.txt ./
+
+# Install ALL Python packages (tests need everything)
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir -r requirements-dev.txt
+
+# Download spacy model
+RUN python -m spacy download en_core_web_sm
+
+# Create non-root user for security
+RUN useradd -m -u 1000 appuser && \
+    chown -R appuser:appuser /app
+
+# Metadata
+LABEL maintainer="MizzouNewsCrawler"
+LABEL description="CI base image with ALL dependencies for running tests"
+LABEL version="1.0"
+LABEL usage="docker build -t mizzou-ci-base:latest -f Dockerfile.ci-base ."
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+# Note: This CI base image is used by GitHub Actions to run tests
+# It includes PyTorch, transformers, and all test dependencies

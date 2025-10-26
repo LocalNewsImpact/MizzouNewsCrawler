@@ -39,14 +39,14 @@ jobs:
           gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
       - name: Pull base image
-        run: docker pull us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/base:latest
+        run: docker pull us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest
 
       - name: Run linting in container
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
-            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/base:latest \
+            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
             /bin/bash -c "
               python -m ruff check . &&
               python -m black --check src/ tests/ web/ &&
@@ -91,14 +91,14 @@ jobs:
         run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
       - name: Pull base image
-        run: docker pull us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/base:latest
+        run: docker pull us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest
 
       - name: Run mypy (fail on errors) in container
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
-            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/base:latest \
+            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
             python -m mypy src/ --ignore-missing-imports
 
   security:
@@ -119,14 +119,14 @@ jobs:
         run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
       - name: Pull base image
-        run: docker pull us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/base:latest
+        run: docker pull us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest
 
       - name: Run bandit security scan in container
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
-            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/base:latest \
+            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
             /bin/bash -c "python -m bandit -r src/ -ll -f txt || true" && \
           echo "Bandit found issues but not failing build (review recommended)"
 
@@ -135,7 +135,7 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
-            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/base:latest \
+            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
             /bin/bash -c "python -m safety check --json || true" && \
           echo "Safety check completed (review recommended)"
         continue-on-error: true
@@ -157,7 +157,7 @@ jobs:
         run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
       - name: Pull base image
-        run: docker pull us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/base:latest
+        run: docker pull us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest
 
       - name: Create data directory for tests
         run: mkdir -p data
@@ -172,7 +172,7 @@ jobs:
             -w /workspace \
             -e DATABASE_URL="$DATABASE_URL" \
             -e TELEMETRY_DATABASE_URL="$TELEMETRY_DATABASE_URL" \
-            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/base:latest \
+            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
             /bin/bash -c "
               python3 scripts/validate_workflow_templates.py &&
               pytest -q --override-ini='addopts=' -p no:pytest-cov tests/unit/test_argo_workflow_template.py tests/unit/test_verification_no_head.py
@@ -199,7 +199,7 @@ jobs:
         run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
       - name: Pull base image
-        run: docker pull us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/base:latest
+        run: docker pull us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest
 
       - name: Create data directory for tests
         run: mkdir -p data
@@ -214,7 +214,7 @@ jobs:
             -w /workspace \
             -e TELEMETRY_DATABASE_URL="$TELEMETRY_DATABASE_URL" \
             -e PYTEST_ADDOPTS="$PYTEST_ADDOPTS" \
-            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/base:latest \
+            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
             /bin/bash -c "
               python3 scripts/validate_workflow_templates.py &&
               pytest -q -c /dev/null -p no:pytest_cov -p no:pytest_postgresql tests/unit/test_argo_workflow_template.py tests/unit/test_verification_no_head.py
@@ -239,7 +239,7 @@ jobs:
         run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
       - name: Pull base image
-        run: docker pull us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/base:latest
+        run: docker pull us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest
 
       - name: Create data directory for tests
         run: mkdir -p data
@@ -256,7 +256,7 @@ jobs:
             -e DATABASE_URL="$DATABASE_URL" \
             -e TELEMETRY_DATABASE_URL="$TELEMETRY_DATABASE_URL" \
             -e PYTEST_ADDOPTS="$PYTEST_ADDOPTS" \
-            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/base:latest \
+            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
             /bin/bash -c "pytest --override-ini addopts='' \$PYTEST_ADDOPTS tests/test_origin_proxy.py tests/test_integration_proxy.py"
 
   postgres-integration:
@@ -293,7 +293,7 @@ jobs:
         run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
       - name: Pull base image
-        run: docker pull us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/base:latest
+        run: docker pull us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest
 
       - name: Create data directory for tests
         run: mkdir -p data
@@ -319,7 +319,7 @@ jobs:
             -e DATABASE_NAME="$DATABASE_NAME" \
             -e DATABASE_USER="$DATABASE_USER" \
             -e DATABASE_PASSWORD="$DATABASE_PASSWORD" \
-            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/base:latest \
+            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
             alembic upgrade head
 
       - name: Run integration tests with PostgreSQL in container
@@ -347,7 +347,7 @@ jobs:
             -e DATABASE_NAME="$DATABASE_NAME" \
             -e DATABASE_USER="$DATABASE_USER" \
             -e DATABASE_PASSWORD="$DATABASE_PASSWORD" \
-            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/base:latest \
+            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
             /bin/bash -c "pytest -v -m postgres tests/test_telemetry_store_postgres.py tests/utils/test_byline_telemetry.py tests/utils/test_content_cleaning_telemetry.py || echo 'Some PostgreSQL tests may not have postgres marker yet'"
 
   integration:
@@ -370,7 +370,7 @@ jobs:
         run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
       - name: Pull base image
-        run: docker pull us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/base:latest
+        run: docker pull us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest
 
       - name: Create data directory for tests
         run: mkdir -p data
@@ -385,7 +385,7 @@ jobs:
             -w /workspace \
             -e DATABASE_URL="$DATABASE_URL" \
             -e TELEMETRY_DATABASE_URL="$TELEMETRY_DATABASE_URL" \
-            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/base:latest \
+            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
             /bin/bash -c "pytest --cov=src --cov-report=xml --cov-report=html --cov-report=term-missing --cov-fail-under=78"
 
       - name: Generate coverage summary
@@ -394,7 +394,7 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
-            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/base:latest \
+            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
             python tools/generate_coverage_summary.py coverage.xml coverage-summary.md
 
   quick-checks-integration:
@@ -434,7 +434,7 @@ jobs:
         run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
       - name: Pull base image
-        run: docker pull us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/base:latest
+        run: docker pull us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest
 
       - name: Wait for Postgres
         run: |
@@ -467,7 +467,7 @@ jobs:
             -e DATABASE_NAME="$DATABASE_NAME" \
             -e DATABASE_USER="$DATABASE_USER" \
             -e DATABASE_PASSWORD="$DATABASE_PASSWORD" \
-            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/base:latest \
+            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
             pytest -vv tests/alembic/test_resync_sequence_postgres.py -c /dev/null 2>&1 | tee ci-logs/resync-test.log
 
       - name: Upload logs on failure
@@ -506,7 +506,7 @@ jobs:
         run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
       - name: Pull base image
-        run: docker pull us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/base:latest
+        run: docker pull us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest
 
       - name: Run stress tests with RUN_STRESS_TESTS=1 in container
         env:
@@ -520,5 +520,5 @@ jobs:
             -e DATABASE_URL="$DATABASE_URL" \
             -e TELEMETRY_DATABASE_URL="$TELEMETRY_DATABASE_URL" \
             -e RUN_STRESS_TESTS="$RUN_STRESS_TESTS" \
-            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/base:latest \
+            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
             pytest --override-ini addopts="-q" tests/test_versioning_concurrent_stress.py

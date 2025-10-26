@@ -33,8 +33,6 @@ textblob>=0.17.0
 ftfy>=6.1.0
 python-dateutil>=2.8.0
 scikit-learn==1.5.1  # Needed by storysniffer and tests
-torch>=2.1.0  # Needed by ML tests
-transformers>=4.30.0  # Needed by ML tests
 
 # Testing
 pytest>=7.4.0

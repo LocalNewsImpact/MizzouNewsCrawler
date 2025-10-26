@@ -1,0 +1,21 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-ci-base'
+    args:
+      - 'build'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/ci-base:latest'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/ci-base:${SHORT_SHA}'
+      - '-f'
+      - 'Dockerfile.ci-base'
+      - '.'
+
+images:
+  - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/ci-base:latest'
+  - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/ci-base:${SHORT_SHA}'
+
+timeout: 1200s
+options:
+  machineType: 'N1_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
