@@ -310,6 +310,7 @@ jobs:
   integration:
     name: Integration & Coverage
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     needs: [unit]
     # Only run full integration tests on main branch or PRs to main
     if: github.event_name == 'push' || github.base_ref == 'main' || github.ref == 'refs/heads/main'

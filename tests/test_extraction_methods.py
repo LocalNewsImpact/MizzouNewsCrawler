@@ -929,6 +929,7 @@ class TestSeleniumMethod:
         with (
             patch("src.crawler.stealth") as mock_stealth,
             patch("src.crawler.SELENIUM_STEALTH_AVAILABLE", True),
+            patch("src.crawler.webdriver.Chrome", return_value=mock_webdriver),
         ):
             extractor._create_stealth_driver()
 
