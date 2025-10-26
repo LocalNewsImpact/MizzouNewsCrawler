@@ -13,6 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.models import Base, Source
+from src.models.telemetry_orm import Base as TelemetryBase
 
 # Import models needed for testing
 from src.models.telemetry import ExtractionTelemetryV2, HttpErrorSummary
@@ -30,8 +31,9 @@ class TestTelemetryAPIEndpoints:
         db_path = tmp_path / "test_telemetry.db"
         engine = create_engine(f"sqlite:///{db_path}")
 
-        # Create all tables using SQLAlchemy models
-        Base.metadata.create_all(engine)
+        # Create all tables using both SQLAlchemy bases (main + telemetry)
+        Base.metadata.create_all(engine)  # Source table
+        TelemetryBase.metadata.create_all(engine)  # Telemetry tables
 
         SessionLocal = sessionmaker(bind=engine)
         session = SessionLocal()
