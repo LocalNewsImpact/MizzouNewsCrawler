@@ -134,6 +134,9 @@ jobs:
           echo "✅ Cloud Build configuration valid"
       
       - name: Run full test suite with coverage
+        env:
+          DATABASE_URL: "sqlite:///:memory:"
+          TELEMETRY_DATABASE_URL: "sqlite:///:memory:"
         run: |
           echo "=========================================="
           echo "Running Full Test Suite with Coverage"
