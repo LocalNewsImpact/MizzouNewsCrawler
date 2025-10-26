@@ -37,14 +37,14 @@ jobs:
           echo "=========================================="
           echo "Running Origin Proxy Unit Tests"
           echo "=========================================="
-          pytest tests/test_origin_proxy.py -v --tb=short -p no:pytest_cov
+          pytest tests/test_origin_proxy.py -v --tb=short --override-ini="addopts="
       
       - name: Run sitecustomize integration tests
         run: |
           echo "=========================================="
           echo "Running Sitecustomize Integration Tests"
           echo "=========================================="
-          pytest tests/test_sitecustomize_integration.py -v --tb=short -p no:pytest_cov
+          pytest tests/test_sitecustomize_integration.py -v --tb=short --override-ini="addopts="
       
       - name: Validate deployment configurations
         run: |
@@ -141,7 +141,7 @@ jobs:
           pytest tests/ -v --tb=short \
             --ignore=tests/test_integration_proxy.py \
             --ignore=tests/e2e/ \
-            -p no:pytest_cov \
+            --override-ini="addopts=" \
             -x
       
       - name: Generate test coverage report
