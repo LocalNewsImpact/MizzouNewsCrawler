@@ -475,33 +475,76 @@ class TestRealWorldExtraction:
     """Integration tests for real URLs with missing fields."""
 
     @pytest.mark.integration
-    def test_extraction_on_real_urls_with_missing_fields(self, extractor):
-        """Test extraction on real URLs that failed with missing fields."""
-        # Real URLs from database that have missing fields
-        test_urls = [
-            # Missing only author
-            (
-                "https://www.warrencountyrecord.com/stories/"
-                "warrior-ridge-elementary-wow-winners,160763"
-            ),
-            # Missing author and content
-            (
-                "https://www.webstercountycitizen.com/upcoming_events/"
-                "article_6ca9c607-4677-473e-99b3-fb58292d2876.html"
-            ),
-            # Missing only content
-            (
-                "https://www.webstercountycitizen.com/community/"
-                "article_8130b150-ee3f-11ef-8297-27cfd0562367.html"
-            ),
+    def test_extraction_on_real_urls_with_missing_fields(self, extractor, requests_mock):
+        """Test extraction on realistic HTML with missing fields (mocked)."""
+        # Use mocked responses with realistic HTML that has missing fields
+        # Based on actual HTML patterns from sites that had extraction issues
+        
+        # Mock 1: Missing only author (warrencountyrecord.com pattern)
+        url1 = "https://example.com/article1"
+        requests_mock.get(url1, text="""
+            <html>
+            <head>
+                <title>Warrior Ridge Elementary WOW winners</title>
+                <meta property="article:published_time" content="2025-09-20T00:00:00Z">
+            </head>
+            <body>
+                <h1>Warrior Ridge Elementary WOW winners</h1>
+                <div class="content">
+                    <p>This is the main article content about WOW winners.</p>
+                    <p>Multiple paragraphs of content here to simulate real article.</p>
+                </div>
+            </body>
+            </html>
+        """)
+        
+        # Mock 2: Missing author and has minimal content
+        url2 = "https://example.com/article2"
+        requests_mock.get(url2, text="""
+            <html>
+            <head>
+                <title>Community Event</title>
+                <meta property="article:published_time" content="2025-01-15T10:00:00Z">
+            </head>
+            <body>
+                <h1>Community Event</h1>
+                <div class="event-info">
+                    <p>Short event description without author attribution.</p>
+                </div>
+            </body>
+            </html>
+        """)
+        
+        # Mock 3: Missing content (only title and metadata)
+        url3 = "https://example.com/article3"
+        requests_mock.get(url3, text="""
+            <html>
+            <head>
+                <title>Breaking News Alert</title>
+                <meta name="author" content="News Staff">
+                <meta property="article:published_time" content="2025-02-01T14:30:00Z">
+            </head>
+            <body>
+                <h1>Breaking News Alert</h1>
+                <!-- Content div exists but is empty or has minimal text -->
+                <div class="content"></div>
+            </body>
+            </html>
+        """)
+
+        test_cases = [
+            (url1, "warrencountyrecord.com pattern - missing author"),
+            (url2, "webstercountycitizen.com pattern - missing author, minimal content"),
+            (url3, "news alert pattern - missing content"),
         ]
 
         print("\n" + "=" * 60)
-        print("REAL-WORLD EXTRACTION TEST RESULTS")
+        print("EXTRACTION TEST WITH MISSING FIELDS (MOCKED)")
         print("=" * 60)
 
-        for i, url in enumerate(test_urls, 1):
-            print(f"\n{i}. Testing URL: {url}")
+        for i, (url, description) in enumerate(test_cases, 1):
+            print(f"\n{i}. Testing: {description}")
+            print(f"   URL: {url}")
             print("-" * 50)
 
             try:
@@ -512,23 +555,14 @@ class TestRealWorldExtraction:
                 self._analyze_extraction_result(result, url)
 
                 # Test passes if we get some result (even with missing fields)
-                # NOTE: Missing fields may indicate data not present in source
                 assert result is not None, f"Complete extraction failure for {url}"
 
-                # For real-world URLs, 50%+ completion is often best possible
-                # when source HTML lacks structured metadata
+                # Verify we got at least title (minimum requirement)
+                assert result.get("title"), f"No title extracted from {url}"
 
             except Exception as e:
                 print(f"   ERROR: {str(e)}")
-                # Check for network issues
-                is_network_error = (
-                    "timeout" in str(e).lower() or "connection" in str(e).lower()
-                )
-                if is_network_error:
-                    print(f"   SKIPPED: Network issue with {url}")
-                    continue
-                else:
-                    raise
+                raise
 
     def _analyze_extraction_result(self, result, url):
         """Analyze and report on extraction results."""
