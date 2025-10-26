@@ -19,6 +19,7 @@ from src.models.telemetry_orm import Base as TelemetryBase
 from src.models.telemetry import ExtractionTelemetryV2, HttpErrorSummary
 
 
+@pytest.mark.integration  # Requires proper database setup
 class TestTelemetryAPIEndpoints:
     """Test the telemetry API endpoints."""
 
@@ -336,8 +337,9 @@ class TestTelemetryAPIEndpoints:
         assert len(field_stats) >= 0  # Might be empty if no field data
 
 
+@pytest.mark.integration  # Requires proper database setup
 class TestSiteManagementAPI:
-    """Test the site management API endpoints."""
+    """Test the site management API endpoints for pausing/resuming sources."""
 
     @pytest.fixture
     def temp_db(self, tmp_path):
