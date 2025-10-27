@@ -76,6 +76,14 @@ def trigger_gazetteer_population_background(
         # with a minimal fake that only provides `DatabaseManager`. Make the
         # safe helper optional so tests that patch the module don't fail here.
         from src.models.database import DatabaseManager
+        from typing import Optional, Callable, Any
+
+        safe_session_execute: Optional[Callable[[Any, Any], Any]]
+        try:
+            # optional; falls back to using session.execute below
+            from src.models.database import safe_session_execute  # type: ignore
+        except Exception:
+            safe_session_execute = None
 
         try:
             # optional; falls back to using session.execute below
