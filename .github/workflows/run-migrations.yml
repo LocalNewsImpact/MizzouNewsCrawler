@@ -73,7 +73,7 @@ jobs:
           gcloud artifacts docker images describe "$IMAGE" || {
             echo "ERROR: Migrator image not found: $IMAGE"
             echo "Please build the migrator image first with:"
-            echo "  gcloud builds submit --config=cloudbuild-migrator.yaml"
+            echo "  gcloud builds submit --config=gcp/cloudbuild/cloudbuild-migrator.yaml"
             exit 1
           }
           
