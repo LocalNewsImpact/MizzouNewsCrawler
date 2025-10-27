@@ -9,6 +9,7 @@ PostgreSQL databases with schemas created by Alembic migrations, ensuring:
 """
 
 import json
+import logging
 import os
 import uuid
 from datetime import datetime, timedelta
@@ -25,6 +26,20 @@ HAS_POSTGRES = POSTGRES_TEST_URL and "postgres" in POSTGRES_TEST_URL
 
 # Mark all tests in this module
 pytestmark = [pytest.mark.postgres, pytest.mark.integration]
+
+
+def _cleanup_test_data(db_engine):
+    """Helper to clean up test data from the database."""
+    with db_engine.begin() as conn:
+        try:
+            # Clean up in reverse dependency order
+            conn.execute(text("DELETE FROM candidate_links WHERE source_id LIKE 'test-disc-%'"))
+            conn.execute(text("DELETE FROM dataset_sources WHERE source_id LIKE 'test-disc-%'"))
+            conn.execute(text("DELETE FROM sources WHERE id LIKE 'test-disc-%'"))
+            conn.execute(text("DELETE FROM datasets WHERE id LIKE 'test-disc-%'"))
+        except Exception:
+            # Tables might not exist yet or cleanup failed, that's ok
+            pass
 
 
 @pytest.fixture
@@ -48,28 +63,12 @@ def postgres_discovery_db(postgres_db_uri):
     db = DatabaseManager(postgres_db_uri)
     
     # Clean up any existing test data
-    with db.engine.begin() as conn:
-        try:
-            # Clean up in reverse dependency order
-            conn.execute(text("DELETE FROM candidate_links WHERE source_id LIKE 'test-disc-%'"))
-            conn.execute(text("DELETE FROM dataset_sources WHERE source_id LIKE 'test-disc-%'"))
-            conn.execute(text("DELETE FROM sources WHERE id LIKE 'test-disc-%'"))
-            conn.execute(text("DELETE FROM datasets WHERE id LIKE 'test-disc-%'"))
-        except Exception:
-            # Tables might not exist yet or cleanup failed, that's ok
-            pass
+    _cleanup_test_data(db.engine)
     
     yield postgres_db_uri
     
     # Cleanup after test
-    with db.engine.begin() as conn:
-        try:
-            conn.execute(text("DELETE FROM candidate_links WHERE source_id LIKE 'test-disc-%'"))
-            conn.execute(text("DELETE FROM dataset_sources WHERE source_id LIKE 'test-disc-%'"))
-            conn.execute(text("DELETE FROM sources WHERE id LIKE 'test-disc-%'"))
-            conn.execute(text("DELETE FROM datasets WHERE id LIKE 'test-disc-%'"))
-        except Exception:
-            pass
+    _cleanup_test_data(db.engine)
 
 
 @pytest.mark.skipif(not HAS_POSTGRES, reason="PostgreSQL not configured")
@@ -458,8 +457,6 @@ class TestDiscoveryPostgreSQL:
         
         # Test: Query with invalid dataset
         discovery = NewsDiscovery(database_url=postgres_discovery_db)
-        
-        import logging
         
         with caplog.at_level(logging.ERROR):
             sources_df, stats = discovery.get_sources_to_process(
