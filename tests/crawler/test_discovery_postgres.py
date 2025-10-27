@@ -6,6 +6,7 @@ catching issues like operator precedence bugs that SQLite may not detect.
 
 from __future__ import annotations
 
+import os
 import uuid
 
 import pytest
@@ -13,6 +14,19 @@ from sqlalchemy import text
 
 from src.crawler.discovery import NewsDiscovery
 from src.models.database import DatabaseManager
+
+# Get PostgreSQL test database URL from environment
+POSTGRES_TEST_URL = os.getenv("TEST_DATABASE_URL")
+HAS_POSTGRES = POSTGRES_TEST_URL and "postgres" in POSTGRES_TEST_URL
+
+
+@pytest.fixture
+def database_url() -> str:
+    """Get PostgreSQL test database URI."""
+    if not HAS_POSTGRES:
+        pytest.skip("PostgreSQL test database not configured (set TEST_DATABASE_URL)")
+    assert POSTGRES_TEST_URL is not None  # For type checker
+    return POSTGRES_TEST_URL
 
 
 @pytest.mark.postgres
