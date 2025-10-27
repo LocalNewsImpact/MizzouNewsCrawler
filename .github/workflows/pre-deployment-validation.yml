@@ -31,9 +31,10 @@ jobs:
           echo "=========================================="
           
           # Check all YAML files for syntax errors
+          # Use safe_load_all for multi-document YAML files (like clouddeploy.yaml)
           find . -name "*.yaml" -o -name "*.yml" | while read -r file; do
             echo "Checking $file..."
-            python -c "import yaml; yaml.safe_load(open('$file'))" || exit 1
+            python -c "import yaml; list(yaml.safe_load_all(open('$file')))" || exit 1
           done
           
           echo "✅ All YAML files have valid syntax"
