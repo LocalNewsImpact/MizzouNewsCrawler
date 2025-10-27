@@ -349,10 +349,9 @@ spec:
       # Explicit DATABASE_URL to prevent SQLite fallback (Kubernetes will expand $(VAR) references)
       - name: DATABASE_URL
         value: "$(DATABASE_ENGINE)://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)"
-      # Cloud SQL Connector - DISABLED for extraction (use cloud-sql-proxy sidecar instead)
-      # Python Connector has async/await issues in batch workflows causing silent commit failures
+      # Cloud SQL Connector
       - name: USE_CLOUD_SQL_CONNECTOR
-        value: "false"
+        value: "true"
       - name: CLOUD_SQL_INSTANCE
         value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
       # Proxy configuration
