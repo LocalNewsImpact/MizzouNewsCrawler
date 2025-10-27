@@ -8,7 +8,7 @@ This guide shows how to build and deploy individual services from feature branch
 
 ```bash
 # Build only processor
-gcloud builds submit --config=cloudbuild-processor-only.yaml
+gcloud builds submit --config=gcp/cloudbuild/cloudbuild-processor-only.yaml
 
 # Deploy only processor
 gcloud deploy releases create processor-$(git rev-parse --short HEAD) \
@@ -21,7 +21,7 @@ gcloud deploy releases create processor-$(git rev-parse --short HEAD) \
 
 ```bash
 # Build only API
-gcloud builds submit --config=cloudbuild-api-only.yaml
+gcloud builds submit --config=gcp/cloudbuild/cloudbuild-api-only.yaml
 
 # Deploy only API
 gcloud deploy releases create api-$(git rev-parse --short HEAD) \
@@ -34,7 +34,7 @@ gcloud deploy releases create api-$(git rev-parse --short HEAD) \
 
 ```bash
 # Build only crawler
-gcloud builds submit --config=cloudbuild-crawler-only.yaml
+gcloud builds submit --config=gcp/cloudbuild/cloudbuild-crawler-only.yaml
 
 # Deploy only crawler
 gcloud deploy releases create crawler-$(git rev-parse --short HEAD) \
@@ -55,7 +55,7 @@ git checkout feature/processor-fix
 git push origin feature/processor-fix
 
 # Build ONLY processor (saves time and money)
-gcloud builds submit --config=cloudbuild-processor-only.yaml
+gcloud builds submit --config=gcp/cloudbuild/cloudbuild-processor-only.yaml
 
 # Deploy ONLY processor
 gcloud deploy releases create processor-hotfix \
@@ -70,7 +70,7 @@ gcloud deploy releases create processor-hotfix \
 
 ```bash
 # Build all three services
-gcloud builds submit --config=cloudbuild.yaml
+gcloud builds submit --config=gcp/cloudbuild/cloudbuild.yaml
 
 # Deploy ONLY the one you want to test
 gcloud deploy releases create api-test \
@@ -85,7 +85,7 @@ gcloud deploy releases create api-test \
 
 ```bash
 # Build all services
-gcloud builds submit --config=cloudbuild.yaml
+gcloud builds submit --config=gcp/cloudbuild/cloudbuild.yaml
 
 # Deploy all services together
 COMMIT_SHA=$(git rev-parse --short HEAD)
@@ -104,7 +104,7 @@ gcloud deploy releases create release-$COMMIT_SHA \
 git push origin feature/fix-extraction-bug
 
 # Build only processor (fast, cheap)
-gcloud builds submit --config=cloudbuild-processor-only.yaml
+gcloud builds submit --config=gcp/cloudbuild/cloudbuild-processor-only.yaml
 
 # Deploy only processor
 gcloud deploy releases create processor-extraction-fix \
@@ -123,7 +123,7 @@ kubectl get pods -n production -l app=mizzou-processor -w
 git push origin feature/new-api-endpoint
 
 # Build only API (no need to rebuild processor/crawler)
-gcloud builds submit --config=cloudbuild-api-only.yaml
+gcloud builds submit --config=gcp/cloudbuild/cloudbuild-api-only.yaml
 
 # Deploy only API
 gcloud deploy releases create api-new-endpoint \
@@ -143,7 +143,7 @@ curl http://localhost:8000/api/articles
 git push origin feature/crawler-schedule
 
 # Build only crawler
-gcloud builds submit --config=cloudbuild-crawler-only.yaml
+gcloud builds submit --config=gcp/cloudbuild/cloudbuild-crawler-only.yaml
 
 # Deploy only crawler
 gcloud deploy releases create crawler-schedule-update \
@@ -159,10 +159,10 @@ kubectl get cronjob -n production mizzou-crawler
 
 | File | Purpose | Build Time | Use When |
 |------|---------|------------|----------|
-| `cloudbuild.yaml` | All 3 services | ~10-15 min | Changed multiple services |
-| `cloudbuild-processor-only.yaml` | Processor only | ~3-5 min | Changed processor code |
-| `cloudbuild-api-only.yaml` | API only | ~3-5 min | Changed API code |
-| `cloudbuild-crawler-only.yaml` | Crawler only | ~3-5 min | Changed crawler code |
+| `gcp/cloudbuild/cloudbuild.yaml` | All 3 services | ~10-15 min | Changed multiple services |
+| `gcp/cloudbuild/cloudbuild-processor-only.yaml` | Processor only | ~3-5 min | Changed processor code |
+| `gcp/cloudbuild/cloudbuild-api-only.yaml` | API only | ~3-5 min | Changed API code |
+| `gcp/cloudbuild/cloudbuild-crawler-only.yaml` | Crawler only | ~3-5 min | Changed crawler code |
 
 ## Cost Savings
 

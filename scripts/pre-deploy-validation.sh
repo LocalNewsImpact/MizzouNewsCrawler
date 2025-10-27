@@ -163,13 +163,13 @@ echo "5. Validating Cloud Build Configuration"
 echo "=========================================="
 
 if [ "$SERVICE" = "processor" ] || [ "$SERVICE" = "all" ]; then
-    if [ ! -f "cloudbuild-processor.yaml" ]; then
-        echo "❌ cloudbuild-processor.yaml not found!"
+    if [ ! -f "gcp/cloudbuild/cloudbuild-processor.yaml" ]; then
+        echo "❌ gcp/cloudbuild/cloudbuild-processor.yaml not found!"
         exit 1
     fi
     
     # Check that it uses Skaffold rendering
-    if ! grep -q '\-\-skaffold\-file' cloudbuild-processor.yaml; then
+    if ! grep -q '\-\-skaffold\-file' gcp/cloudbuild/cloudbuild-processor.yaml; then
         echo "❌ Cloud Build config doesn't use Skaffold rendering!"
         echo "   Add --skaffold-file=skaffold.yaml to release creation"
         exit 1

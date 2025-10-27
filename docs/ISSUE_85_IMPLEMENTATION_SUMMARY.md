@@ -24,7 +24,7 @@ This document summarizes the implementation of [Issue #85: Make DB migrations re
 
 **Building:**
 ```bash
-gcloud builds submit --config=cloudbuild-migrator.yaml
+gcloud builds submit --config=gcp/cloudbuild/cloudbuild-migrator.yaml
 ```
 
 **Testing:**
@@ -41,8 +41,8 @@ docker run --rm \
 ### 2. Cloud Build Configuration ✅
 
 **Files Created:**
-- `cloudbuild-migrator.yaml` - Build configuration for migrator image
-- `trigger-migrator.yaml` - Cloud Build trigger configuration
+- `gcp/cloudbuild/cloudbuild-migrator.yaml` - Build configuration for migrator image
+- `gcp/triggers/trigger-migrator.yaml` - Cloud Build trigger configuration
 
 **Features:**
 - Automatic build on push to main when migration files change
@@ -143,7 +143,7 @@ docker run --rm \
 ### 7. Image Validation ✅
 
 **Implemented In:**
-- `cloudbuild-migrator.yaml` - Build-time validation step
+- `gcp/cloudbuild/cloudbuild-migrator.yaml` - Build-time validation step
 
 **Checks:**
 - `/app/alembic.ini` exists
@@ -272,8 +272,8 @@ From Issue #85:
 **New Files (17):**
 - Dockerfile.migrator
 - requirements-migrator.txt
-- cloudbuild-migrator.yaml
-- trigger-migrator.yaml
+- gcp/cloudbuild/cloudbuild-migrator.yaml
+- gcp/triggers/trigger-migrator.yaml
 - scripts/migrations/entrypoint.sh
 - scripts/migrations/README.md
 - scripts/setup-namespace-secrets.sh
@@ -323,7 +323,7 @@ From Issue #85:
 
 2. **Build migrator image** in production:
    ```bash
-   gcloud builds submit --config=cloudbuild-migrator.yaml
+   gcloud builds submit --config=gcp/cloudbuild/cloudbuild-migrator.yaml
    ```
 
 3. **Set up staging secrets** (if not already done):

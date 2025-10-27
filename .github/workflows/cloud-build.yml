@@ -35,22 +35,22 @@ jobs:
 
       - name: Build processor image via Cloud Build
         run: |
-          gcloud builds submit --config cloudbuild-processor-v1.2.2.yaml --project=${{ secrets.GCP_PROJECT }} 
+          gcloud builds submit --config gcp/cloudbuild/cloudbuild-processor-v1.2.2.yaml --project=${{ secrets.GCP_PROJECT }} 
 
       - name: Build crawler image via Cloud Build (if present)
         run: |
-          if [ -f cloudbuild-crawler.yaml ]; then
-            gcloud builds submit --config cloudbuild-crawler.yaml --project=${{ secrets.GCP_PROJECT }} || true
+          if [ -f gcp/cloudbuild/cloudbuild-crawler.yaml ]; then
+            gcloud builds submit --config gcp/cloudbuild/cloudbuild-crawler.yaml --project=${{ secrets.GCP_PROJECT }} || true
           else
-            echo "No cloudbuild-crawler.yaml found, skipping."
+            echo "No gcp/cloudbuild/cloudbuild-crawler.yaml found, skipping."
           fi
 
       - name: Build API image via Cloud Build (if present)
         run: |
-          if [ -f cloudbuild-api.yaml ]; then
-            gcloud builds submit --config cloudbuild-api.yaml --project=${{ secrets.GCP_PROJECT }} || true
+          if [ -f gcp/cloudbuild/cloudbuild-api.yaml ]; then
+            gcloud builds submit --config gcp/cloudbuild/cloudbuild-api.yaml --project=${{ secrets.GCP_PROJECT }} || true
           else
-            echo "No cloudbuild-api.yaml found, skipping."
+            echo "No gcp/cloudbuild/cloudbuild-api.yaml found, skipping."
           fi
 
       - name: Output image locations

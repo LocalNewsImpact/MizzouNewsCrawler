@@ -5,5 +5,5 @@ github:
   name: MizzouNewsCrawler
   push:
     branch: ^main$
-filename: cloudbuild-api.yaml
+filename: gcp/cloudbuild/cloudbuild-api.yaml
 serviceAccount: projects/mizzou-news-crawler/serviceAccounts/145096615031-compute@developer.gserviceaccount.com

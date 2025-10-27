@@ -4,7 +4,7 @@
 
 name: build-ml-base-manual
 description: Build ML base image with PyTorch, Transformers, and extraction tools
-filename: cloudbuild-ml-base.yaml
+filename: gcp/cloudbuild/cloudbuild-ml-base.yaml
 
 # Manual trigger - only run when ML dependencies change
 github:
@@ -17,7 +17,7 @@ github:
 includedFiles:
   - requirements-ml.txt
   - Dockerfile.ml-base
-  - cloudbuild-ml-base.yaml
+  - gcp/cloudbuild/cloudbuild-ml-base.yaml
 
 substitutions:
   _BASE_IMAGE: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/base:latest

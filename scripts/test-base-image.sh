@@ -27,8 +27,8 @@ REQUIRED_FILES=(
     "requirements-api.txt"
     "requirements-processor.txt"
     "requirements-crawler.txt"
-    "cloudbuild-base.yaml"
-    "trigger-base.yaml"
+    "gcp/cloudbuild/cloudbuild-base.yaml"
+    "gcp/triggers/trigger-base.yaml"
     "scripts/build-base.sh"
     "docs/BASE_IMAGE_MAINTENANCE.md"
     "docs/issues/shared-base-image-optimization.md"
@@ -166,15 +166,15 @@ echo ""
 echo -e "${YELLOW}Test 5: Validating Cloud Build configurations...${NC}"
 
 # Check base Cloud Build config
-if grep -q "Dockerfile.base" cloudbuild-base.yaml; then
-    echo -e "  ${GREEN}✓${NC} cloudbuild-base.yaml references Dockerfile.base"
+if grep -q "Dockerfile.base" gcp/cloudbuild/cloudbuild-base.yaml; then
+    echo -e "  ${GREEN}✓${NC} gcp/cloudbuild/cloudbuild-base.yaml references Dockerfile.base"
 else
-    echo -e "  ${RED}✗${NC} cloudbuild-base.yaml doesn't reference Dockerfile.base"
+    echo -e "  ${RED}✗${NC} gcp/cloudbuild/cloudbuild-base.yaml doesn't reference Dockerfile.base"
     ((ERRORS++))
 fi
 
 # Check service Cloud Build configs
-for config in cloudbuild-api-only.yaml cloudbuild-processor-only.yaml cloudbuild-crawler-only.yaml; do
+for config in gcp/cloudbuild/cloudbuild-api-only.yaml gcp/cloudbuild/cloudbuild-processor-only.yaml gcp/cloudbuild/cloudbuild-crawler-only.yaml; do
     echo "  Checking $config:"
     
     if grep -q "_BASE_IMAGE" "$config"; then

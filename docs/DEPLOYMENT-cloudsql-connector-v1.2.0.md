@@ -111,10 +111,10 @@ containers:
 ## 📋 Files Created/Modified
 
 ### New Files
-- `cloudbuild-crawler.yaml` - Cloud Build config for crawler image
-- `cloudbuild-processor.yaml` - Cloud Build config for processor image
-- `cloudbuild-api.yaml` - Cloud Build config for API image
-- `deploy-cloudsql-connector.sh` - Automated deployment script
+- `gcp/cloudbuild/cloudbuild-crawler.yaml` - Cloud Build config for crawler image
+- `gcp/cloudbuild/cloudbuild-processor.yaml` - Cloud Build config for processor image
+- `gcp/cloudbuild/cloudbuild-api.yaml` - Cloud Build config for API image
+- `scripts/deployment/deploy-cloudsql-connector.sh` - Automated deployment script
 - `docs/CLOUD_SQL_CONNECTOR_MIGRATION.md` - Complete migration guide
 - `docs/QUICK_START_CLOUD_SQL_CONNECTOR.md` - Developer quick reference
 - `docs/CLOUD_SQL_MIGRATION_SUMMARY.md` - Executive summary

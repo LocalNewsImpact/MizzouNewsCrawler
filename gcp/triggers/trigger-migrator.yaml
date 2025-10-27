@@ -1,6 +1,6 @@
 name: build-migrator
 description: Build and push the database migrator image
-filename: cloudbuild-migrator.yaml
+filename: gcp/cloudbuild/cloudbuild-migrator.yaml
 github:
   name: MizzouNewsCrawler
   owner: LocalNewsImpact
@@ -14,7 +14,7 @@ includedFiles:
   - src/models/**
   - src/config.py
   - scripts/migrations/**
-  - cloudbuild-migrator.yaml
+  - gcp/cloudbuild/cloudbuild-migrator.yaml
 tags:
   - migrator
   - database

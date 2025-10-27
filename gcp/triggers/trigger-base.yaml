@@ -3,4 +3,4 @@
 
 name: build-base-manual
 description: Manually build shared base image with common dependencies
-filename: cloudbuild-base.yaml
+filename: gcp/cloudbuild/cloudbuild-base.yaml
