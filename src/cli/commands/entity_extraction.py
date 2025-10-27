@@ -81,11 +81,11 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
 
     try:
         with db.get_session() as session:
-            # Query for articles with content but no entities
-            # Join with candidate_links to get source_id and dataset_id
+            # Query for articles grouped by source
+            # Ordered to process sources together for efficient gazetteer caching
             query = sql_text(
                 """
-                SELECT a.id, a.text, a.text_hash, cl.source_id, cl.dataset_id
+                SELECT a.id, a.text, a.text_hash, cl.source_id, cl.dataset_id, cl.source
                 FROM articles a
                 JOIN candidate_links cl ON a.candidate_link_id = cl.id
                 WHERE a.content IS NOT NULL
@@ -97,6 +97,7 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
                 """
                 + ("AND cl.source = :source" if source else "")
                 + """
+                ORDER BY cl.source_id, cl.dataset_id
                 LIMIT :limit
             """
             )
@@ -113,6 +114,18 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
                 return 0
 
             log_and_print(f"📊 Found {len(rows)} articles needing entity extraction")
+            
+            # Group articles by source for efficient processing
+            from collections import defaultdict
+            articles_by_source = defaultdict(list)
+            for row in rows:
+                article_id, text, text_hash, source_id, dataset_id, source_name = row
+                articles_by_source[(source_id, dataset_id)].append(
+                    (article_id, text, text_hash, source_name)
+                )
+            
+            num_sources = len(articles_by_source)
+            log_and_print(f"   Grouped into {num_sources} source/dataset combos")
             log_and_print("")
 
             processed = 0
@@ -137,75 +150,73 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
 
             log_and_print("🚀 Starting background progress logger (reports every 30s)")
 
-            # Cache gazetteer rows by (source_id, dataset_id)
-            # to avoid repeated DB queries
-            # Each source has ~8,500 gazetteer entries,
-            # so fetching once per batch is much faster
-            gazetteer_cache: dict[tuple[str | None, str | None], list] = {}
+            # Process articles source-by-source for efficient gazetteer reuse
+            for (source_id, dataset_id), articles in articles_by_source.items():
+                source_name = articles[0][3] if articles else "unknown"
+                msg = f"📰 Processing {len(articles)} articles from {source_name}"
+                log_and_print(msg)
+                
+                # Load gazetteer once per source
+                gazetteer_rows = get_gazetteer_rows(
+                    session,
+                    source_id,
+                    dataset_id,
+                )
+                log_and_print(f"   Loaded {len(gazetteer_rows)} gazetteer entries")
 
-            for row in rows:
-                article_id, text, text_hash, source_id, dataset_id = row
+                for article_id, text, text_hash, _ in articles:
+                    try:
+                        # Extract entities from article text
+                        entities = extractor.extract(
+                            text,
+                            gazetteer_rows=gazetteer_rows,
+                        )
 
-                try:
-                    # Get gazetteer rows for this source (with caching)
-                    cache_key = (source_id, dataset_id)
-                    if cache_key not in gazetteer_cache:
-                        gazetteer_cache[cache_key] = get_gazetteer_rows(
+                        # Attach gazetteer matches
+                        entities = attach_gazetteer_matches(
                             session,
                             source_id,
                             dataset_id,
+                            entities,
+                            gazetteer_rows=gazetteer_rows,
                         )
-                    gazetteer_rows = gazetteer_cache[cache_key]
 
-                    # Extract entities from article text
-                    entities = extractor.extract(
-                        text,
-                        gazetteer_rows=gazetteer_rows,
-                    )
-
-                    # Attach gazetteer matches
-                    entities = attach_gazetteer_matches(
-                        session,
-                        source_id,
-                        dataset_id,
-                        entities,
-                        gazetteer_rows=gazetteer_rows,
-                    )
-
-                    # Save entities to database
-                    save_article_entities(
-                        session,
-                        str(article_id),
-                        entities,
-                        extractor.extractor_version,
-                        text_hash,
-                    )
-
-                    processed += 1
-
-                    # Log progress every 10 articles
-                    if processed % 10 == 0:
-                        progress_msg = (
-                            f"✓ Progress: {processed}/{len(rows)} articles processed"
+                        # Save entities to database
+                        save_article_entities(
+                            session,
+                            str(article_id),
+                            entities,
+                            extractor.extractor_version,
+                            text_hash,
                         )
-                        log_and_print(progress_msg)
+
+                        processed += 1
+
+                        # Commit after each article to keep transactions short
+                        # Entity extraction can take 30-60s per article
                         session.commit()
 
-                except Exception as exc:
-                    error_msg = (
-                        f"Failed to extract entities for article "
-                        f"{article_id}: {exc}"
-                    )
-                    log_and_print(error_msg, level="error")
-                    logger.exception(
-                        "Failed to extract entities for article %s: %s",
-                        article_id,
-                        exc,
-                    )
-                    errors += 1
-                    session.rollback()
+                    except Exception as exc:
+                        error_msg = (
+                            f"Failed to extract entities for article "
+                            f"{article_id}: {exc}"
+                        )
+                        log_and_print(error_msg, level="error")
+                        logger.exception(
+                            "Failed to extract entities for article %s: %s",
+                            article_id,
+                            exc,
+                        )
+                        errors += 1
+                        session.rollback()
 
-            # Final commit
+                # Log progress after each source
+                progress_msg = (
+                    f"✓ Completed {source_name}: {processed}/{len(rows)} total"
+                )
+                log_and_print(progress_msg)
+
+            # Final commit (in case anything is pending)
             session.commit()
 
             log_and_print("")
