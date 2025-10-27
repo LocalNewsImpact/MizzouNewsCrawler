@@ -69,13 +69,25 @@ class TestMigratorImage:
         assert "upgrade head" in content
 
     def test_cloudbuild_migrator_exists(self):
-        """Test that Cloud Build config for migrator exists."""
-        cloudbuild = Path(__file__).parent.parent / "cloudbuild-migrator.yaml"
-        assert cloudbuild.exists(), "cloudbuild-migrator.yaml not found"
+        """Test that cloudbuild-migrator.yaml exists."""
+        cloudbuild = (
+            Path(__file__).parent.parent
+            / "gcp"
+            / "cloudbuild"
+            / "cloudbuild-migrator.yaml"
+        )
+        assert cloudbuild.exists(), (
+            "cloudbuild-migrator.yaml not found in gcp/cloudbuild/"
+        )
 
     def test_cloudbuild_migrator_has_validation(self):
-        """Test that Cloud Build config includes image validation."""
-        cloudbuild_path = Path(__file__).parent.parent / "cloudbuild-migrator.yaml"
+        """Test that cloudbuild-migrator.yaml has validation."""
+        cloudbuild_path = (
+            Path(__file__).parent.parent
+            / "gcp"
+            / "cloudbuild"
+            / "cloudbuild-migrator.yaml"
+        )
         content = yaml.safe_load(cloudbuild_path.read_text())
 
         # Check that there are multiple steps
@@ -85,9 +97,9 @@ class TestMigratorImage:
 
         # Check for validation step
         step_ids = [step.get("id", "") for step in steps]
-        assert any(
-            "validate" in step_id.lower() for step_id in step_ids
-        ), "Should have validation step"
+        assert any("validate" in step_id.lower() for step_id in step_ids), (
+            "Should have validation step"
+        )
 
         # Check that validation runs docker to check files
         validation_steps = [
@@ -126,9 +138,9 @@ class TestMigratorImage:
         ]
         for line in lines:
             if "migrator" in line:
-                assert (
-                    ":latest" not in line
-                ), "Should not use :latest tag in image reference"
+                assert ":latest" not in line, (
+                    "Should not use :latest tag in image reference"
+                )
 
     def test_migration_job_with_smoke_test_exists(self):
         """Test that migration job with smoke test exists."""
@@ -194,9 +206,9 @@ class TestMigratorImage:
             Path(__file__).parent.parent / "scripts" / "setup-namespace-secrets.sh"
         )
         assert script_path.exists(), "setup-namespace-secrets.sh not found"
-        assert os.access(
-            script_path, os.X_OK
-        ), "setup-namespace-secrets.sh is not executable"
+        assert os.access(script_path, os.X_OK), (
+            "setup-namespace-secrets.sh is not executable"
+        )
 
     def test_setup_secrets_script_validates_inputs(self):
         """Test that setup secrets script validates required inputs."""
