@@ -1,4 +1,4 @@
-name: Pre-Deployment Validation
+name: Config Validation (Fast-Fail)
 
 on:
   pull_request:
@@ -11,9 +11,9 @@ on:
 
 jobs:
   validation:
-    name: Pre-Deployment Validation
+    name: Config & Syntax Validation
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5  # Should be very fast
     
     steps:
       - name: Checkout code
@@ -23,29 +23,59 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
-          cache-dependency-path: 'requirements*.txt'
       
-      - name: Install dependencies
+      - name: Install validation tools
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
-          pip install pyyaml
+          pip install pyyaml yamllint
       
-      - name: Run origin proxy unit tests
+      - name: Validate YAML syntax
         run: |
           echo "=========================================="
-          echo "Running Origin Proxy Unit Tests"
+          echo "Validating YAML Syntax"
           echo "=========================================="
-          pytest tests/test_origin_proxy.py -v --tb=short --override-ini="addopts="
+          
+          # Check all YAML files for syntax errors
+          find . -name "*.yaml" -o -name "*.yml" | while read -r file; do
+            echo "Checking $file..."
+            python -c "import yaml; yaml.safe_load(open('$file'))" || exit 1
+          done
+          
+          echo "✅ All YAML files have valid syntax"
       
-      - name: Run sitecustomize integration tests
+      - name: Validate Python syntax
         run: |
           echo "=========================================="
-          echo "Running Sitecustomize Integration Tests"
+          echo "Validating Python Syntax"
           echo "=========================================="
-          pytest tests/test_sitecustomize_integration.py -v --tb=short --override-ini="addopts="
+          
+          # Quick syntax check on all Python files
+          python -m py_compile src/**/*.py tests/**/*.py || exit 1
+          
+          echo "✅ All Python files have valid syntax"
+      
+          echo "✅ All Python files have valid syntax"
+      
+      - name: Validate Dockerfiles
+        run: |
+          echo "=========================================="
+          echo "Validating Dockerfiles"
+          echo "=========================================="
+          
+          # Check all Dockerfiles exist and have FROM statements
+          for dockerfile in Dockerfile.base Dockerfile.ml-base Dockerfile.api Dockerfile.crawler Dockerfile.processor Dockerfile.migrator; do
+            if [ ! -f "$dockerfile" ]; then
+              echo "❌ $dockerfile not found!"
+              exit 1
+            fi
+            if ! grep -q "^FROM" "$dockerfile"; then
+              echo "❌ $dockerfile missing FROM statement!"
+              exit 1
+            fi
+            echo "✓ $dockerfile exists and valid"
+          done
+          
+          echo "✅ All Dockerfiles valid"
       
       - name: Validate deployment configurations
         run: |
@@ -134,38 +164,63 @@ jobs:
           echo ""
           echo "✅ Cloud Build configuration valid"
       
-      - name: Run full test suite with coverage
-        env:
-          DATABASE_URL: "sqlite:///:memory:"
-          TELEMETRY_DATABASE_URL: "sqlite:///:memory:"
+      - name: Validate requirements files
         run: |
           echo "=========================================="
-          echo "Running Full Test Suite with Coverage"
+          echo "Validating Requirements Files"
           echo "=========================================="
-          pytest tests/ -v --tb=short \
-            --ignore=tests/test_integration_proxy.py \
-            --ignore=tests/e2e/ \
-            --cov=src \
-            --cov-report=term \
-            --cov-report=html \
-            --cov-report=xml \
-            -x
+          
+          # Check all requirements files exist and are not empty
+          for req_file in requirements.txt requirements-base.txt requirements-api.txt requirements-crawler.txt requirements-processor.txt requirements-ml.txt requirements-migrator.txt requirements-dev.txt; do
+            if [ ! -f "$req_file" ]; then
+              echo "❌ $req_file not found!"
+              exit 1
+            fi
+            if [ ! -s "$req_file" ]; then
+              echo "❌ $req_file is empty!"
+              exit 1
+            fi
+            echo "✓ $req_file exists and not empty"
+          done
+          
+          echo "✅ All requirements files valid"
       
-      - name: Upload coverage reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: |
-            htmlcov/
-            coverage.xml
+      - name: Validate Alembic migrations
+        run: |
+          echo "=========================================="
+          echo "Validating Alembic Configuration"
+          echo "=========================================="
+          
+          # Check alembic.ini exists
+          if [ ! -f "alembic.ini" ]; then
+            echo "❌ alembic.ini not found!"
+            exit 1
+          fi
+          echo "✓ alembic.ini exists"
+          
+          # Check alembic directory structure
+          if [ ! -d "alembic/versions" ]; then
+            echo "❌ alembic/versions directory not found!"
+            exit 1
+          fi
+          echo "✓ alembic/versions directory exists"
+          
+          # Check for migration files
+          migration_count=$(find alembic/versions -name "*.py" -type f | wc -l)
+          if [ "$migration_count" -eq 0 ]; then
+            echo "❌ No migration files found in alembic/versions!"
+            exit 1
+          fi
+          echo "✓ Found $migration_count migration file(s)"
+          
+          echo "✅ Alembic configuration valid"
       
       - name: Summary
         if: success()
         run: |
           echo ""
           echo "=========================================="
-          echo "✅ ALL PRE-DEPLOYMENT VALIDATIONS PASSED"
+          echo "✅ ALL CONFIG VALIDATIONS PASSED"
           echo "=========================================="
           echo ""
-          echo "This code is safe to deploy!"
+          echo "Ready for full test suite!"
