@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import uuid
 from contextlib import contextmanager
@@ -13,6 +14,7 @@ from typing import Any
 
 import pytest
 import requests
+from sqlalchemy import text
 
 from src.crawler.discovery import NewsDiscovery
 from src.models import CandidateLink, Source
@@ -21,9 +23,13 @@ from src.telemetry.store import TelemetryStore
 from src.utils.discovery_outcomes import DiscoveryOutcome
 from src.utils.telemetry import DiscoveryMethod, OperationTracker
 
-# Mark as E2E integration tests
-# Note: Issue #71 resolved - discovery module now supports both PostgreSQL and SQLite
-pytestmark = pytest.mark.e2e
+# Check if PostgreSQL is available for testing
+POSTGRES_TEST_URL = os.getenv("TEST_DATABASE_URL")
+HAS_POSTGRES = POSTGRES_TEST_URL and "postgres" in POSTGRES_TEST_URL
+
+# Mark as E2E integration tests requiring PostgreSQL
+# Note: Issue #71 resolved - discovery uses PostgreSQL DISTINCT ON syntax
+pytestmark = [pytest.mark.e2e, pytest.mark.postgres]
 
 
 @dataclass
@@ -87,13 +93,44 @@ class StubTelemetry:
 
 
 @pytest.fixture
-def database_url(tmp_path) -> str:
-    db_path = tmp_path / "discovery.db"
-    return f"sqlite:///{db_path}"
+def database_url() -> str:
+    """Get PostgreSQL test database URI for e2e discovery tests."""
+    if not HAS_POSTGRES:
+        pytest.skip("PostgreSQL test database not configured (set TEST_DATABASE_URL)")
+    return POSTGRES_TEST_URL
 
 
 @pytest.fixture
-def source_id(database_url: str) -> str:
+def cleanup_test_data(database_url: str):
+    """Clean up test data before and after tests."""
+    db = DatabaseManager(database_url)
+
+    def _cleanup():
+        with db.engine.begin() as conn:
+            try:
+                # Clean up test data (use prefixes to identify test records)
+                conn.execute(
+                    text(
+                        "DELETE FROM candidate_links WHERE url LIKE '%test-discovery-%'"
+                    )
+                )
+                conn.execute(
+                    text(
+                        "DELETE FROM dataset_sources WHERE source_id LIKE 'test-e2e-%'"
+                    )
+                )
+                conn.execute(text("DELETE FROM sources WHERE id LIKE 'test-e2e-%'"))
+                conn.execute(text("DELETE FROM datasets WHERE id LIKE 'test-e2e-%'"))
+            except Exception:
+                pass  # Tables might not exist yet
+
+    _cleanup()  # Clean before test
+    yield
+    _cleanup()  # Clean after test
+
+
+@pytest.fixture
+def source_id(database_url: str, cleanup_test_data) -> str:
     identifier = str(uuid.uuid4())
     with DatabaseManager(database_url) as db:
         db.session.add(

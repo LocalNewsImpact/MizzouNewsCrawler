@@ -365,7 +365,7 @@ jobs:
             -e DATABASE_USER="$DATABASE_USER" \
             -e DATABASE_PASSWORD="$DATABASE_PASSWORD" \
             us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-            /bin/bash -c "pytest -v -m postgres tests/test_telemetry_store_postgres.py tests/integration/test_discovery_postgres.py tests/utils/test_byline_telemetry.py tests/utils/test_content_cleaning_telemetry.py || echo 'Some PostgreSQL tests may not have postgres marker yet'"
+            /bin/bash -c "pytest -v -m postgres tests/test_telemetry_store_postgres.py tests/integration/test_discovery_postgres.py tests/e2e/test_discovery_pipeline.py tests/test_get_sources_params_and_integration.py tests/utils/test_byline_telemetry.py tests/utils/test_content_cleaning_telemetry.py || echo 'Some PostgreSQL tests may not have postgres marker yet'"
 
   integration:
     name: Integration & Coverage

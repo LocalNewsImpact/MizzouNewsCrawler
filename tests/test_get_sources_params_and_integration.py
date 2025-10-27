@@ -1,3 +1,4 @@
+import os
 import pathlib
 import sys
 
@@ -7,6 +8,10 @@ import pytest
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from src.crawler.discovery import NewsDiscovery
+
+# Check if PostgreSQL is available for testing
+POSTGRES_TEST_URL = os.getenv("TEST_DATABASE_URL")
+HAS_POSTGRES = POSTGRES_TEST_URL and "postgres" in POSTGRES_TEST_URL
 
 
 def test_get_sources_passes_dict_to_read_sql(monkeypatch):
@@ -44,94 +49,106 @@ def test_get_sources_passes_dict_to_read_sql(monkeypatch):
     nd.get_sources_to_process(dataset_label="my-label", limit=1, due_only=False)
 
     assert "params" in captured
-    assert isinstance(
-        captured["params"], dict
-    ), f"expected dict but got {type(captured['params'])}"
+    assert isinstance(captured["params"], dict), (
+        f"expected dict but got {type(captured['params'])}"
+    )
 
 
-def test_get_sources_integration_sqlite(tmp_path):
-    """Integration test: create a minimal SQLite DB with the columns
-    expected by `get_sources_to_process` and call the function.
-    
-    Note: Issue #71 resolved - discovery module now supports both PostgreSQL and SQLite.
+@pytest.mark.postgres
+def test_get_sources_integration_postgres():
+    """Integration test with PostgreSQL: full round-trip through get_sources_to_process.
+
+    This test verifies dataset filtering works end-to-end with PostgreSQL,
+    using the actual database schema created by Alembic migrations.
     """
-    # Build an on-disk temporary SQLite DB so SQLAlchemy can open it
-    db_path = tmp_path / "test.db"
-    db_url = f"sqlite:///{db_path}"
+    if not HAS_POSTGRES:
+        pytest.skip("PostgreSQL test database not configured (set TEST_DATABASE_URL)")
 
-    # Use SQLAlchemy to create the minimal schema
-    from sqlalchemy import (
-        Column,
-        MetaData,
-        String,
-        Table,
-        Text,
-        create_engine,
-    )
+    from sqlalchemy import create_engine, text
 
-    engine = create_engine(db_url)
-    metadata = MetaData()
+    engine = create_engine(POSTGRES_TEST_URL)
 
-    # Add the columns referenced by the discovery query
-    sources = Table(
-        "sources",
-        metadata,
-        Column("id", String, primary_key=True),
-        Column("canonical_name", String),
-        Column("host", String),
-        Column("metadata", Text),
-        Column("city", String),
-        Column("county", String),
-        Column("type", String),
-    )
+    # Use test prefixes to avoid conflicts and enable cleanup
+    test_dataset_id = "test-params-d1"
+    test_source_id = "test-params-s1"
 
-    datasets = Table(
-        "datasets",
-        metadata,
-        Column("id", String, primary_key=True),
-        Column("label", String),
-    )
+    try:
+        # Insert test data using the actual PostgreSQL schema
+        with engine.begin() as conn:
+            # Clean up any existing test data first
+            conn.execute(
+                text("DELETE FROM dataset_sources WHERE dataset_id = :dataset_id"),
+                {"dataset_id": test_dataset_id},
+            )
+            conn.execute(
+                text("DELETE FROM sources WHERE id = :source_id"),
+                {"source_id": test_source_id},
+            )
+            conn.execute(
+                text("DELETE FROM datasets WHERE id = :dataset_id"),
+                {"dataset_id": test_dataset_id},
+            )
 
-    dataset_sources = Table(
-        "dataset_sources",
-        metadata,
-        Column("dataset_id", String),
-        Column("source_id", String),
-    )
-
-    metadata.create_all(engine)
-
-    # Insert a dataset, source and join row inside a transaction so the
-    # data is committed and visible to a new engine instance.
-    with engine.begin() as conn:
-        conn.execute(datasets.insert(), [{"id": "d1", "label": "my-label"}])
-        conn.execute(
-            sources.insert(),
-            [
+            # Insert dataset
+            conn.execute(
+                text(
+                    "INSERT INTO datasets (id, label, slug, created_at) "
+                    "VALUES (:id, :label, :slug, NOW())"
+                ),
                 {
-                    "id": "s1",
-                    "canonical_name": "Example",
-                    "host": "example.com",
-                    "metadata": None,
-                    "city": None,
-                    "county": None,
-                    "type": None,
-                }
-            ],
-        )
-        conn.execute(
-            dataset_sources.insert(),
-            [{"dataset_id": "d1", "source_id": "s1"}],
+                    "id": test_dataset_id,
+                    "label": "test-params-label",
+                    "slug": "test-params-label",
+                },
+            )
+
+            # Insert source
+            conn.execute(
+                text(
+                    "INSERT INTO sources (id, canonical_name, host, created_at) "
+                    "VALUES (:id, :name, :host, NOW())"
+                ),
+                {
+                    "id": test_source_id,
+                    "name": "Test Params Source",
+                    "host": "test-params.example.com",
+                },
+            )
+
+            # Link dataset and source
+            conn.execute(
+                text(
+                    "INSERT INTO dataset_sources (dataset_id, source_id) "
+                    "VALUES (:dataset_id, :source_id)"
+                ),
+                {"dataset_id": test_dataset_id, "source_id": test_source_id},
+            )
+
+        nd = NewsDiscovery(database_url=POSTGRES_TEST_URL)
+
+        # This should not raise and should return the source we inserted
+        df, stats = nd.get_sources_to_process(
+            dataset_label="test-params-label", limit=10, due_only=False
         )
 
-    nd = NewsDiscovery(database_url=db_url)
+        # explicit checks avoid ambiguous truth-value of Series error
+        assert len(df) > 0, "Expected at least one source"
+        # use .at with integer position 0 to get scalar value for 'host'
+        assert df.at[0, "host"] == "test-params.example.com"
+        assert isinstance(stats, dict)
 
-    # This should not raise and should return the source we inserted
-    df, stats = nd.get_sources_to_process(
-        dataset_label="my-label", limit=10, due_only=False
-    )
-    # explicit checks avoid ambiguous truth-value of Series error
-    assert len(df) > 0
-    # use .at with integer position 0 to get scalar value for 'host'
-    assert df.at[0, "host"] == "example.com"
-    assert isinstance(stats, dict)
+    finally:
+        # Clean up test data
+        with engine.begin() as conn:
+            conn.execute(
+                text("DELETE FROM dataset_sources WHERE dataset_id = :dataset_id"),
+                {"dataset_id": test_dataset_id},
+            )
+            conn.execute(
+                text("DELETE FROM sources WHERE id = :source_id"),
+                {"source_id": test_source_id},
+            )
+            conn.execute(
+                text("DELETE FROM datasets WHERE id = :dataset_id"),
+                {"dataset_id": test_dataset_id},
+            )
