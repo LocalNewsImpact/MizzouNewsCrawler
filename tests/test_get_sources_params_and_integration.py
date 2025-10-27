@@ -49,15 +49,11 @@ def test_get_sources_passes_dict_to_read_sql(monkeypatch):
     ), f"expected dict but got {type(captured['params'])}"
 
 
-@pytest.mark.skip(
-    reason=(
-        "Uses PostgreSQL DISTINCT ON syntax incompatible with SQLite. "
-        "Part of Issue #71"
-    )
-)
 def test_get_sources_integration_sqlite(tmp_path):
     """Integration test: create a minimal SQLite DB with the columns
     expected by `get_sources_to_process` and call the function.
+    
+    Note: Issue #71 resolved - discovery module now supports both PostgreSQL and SQLite.
     """
     # Build an on-disk temporary SQLite DB so SQLAlchemy can open it
     db_path = tmp_path / "test.db"
