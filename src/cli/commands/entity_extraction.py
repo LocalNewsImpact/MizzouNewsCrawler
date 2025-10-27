@@ -146,12 +146,6 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
             for row in rows:
                 article_id, text, text_hash, source_id, dataset_id = row
 
-                # DEBUG: Log that we're processing an article
-                log_and_print(
-                    f"🔄 Processing article {article_id} "
-                    f"(#{processed + 1}/{len(rows)})"
-                )
-
                 try:
                     # Get gazetteer rows for this source (with caching)
                     cache_key = (source_id, dataset_id)
@@ -164,19 +158,12 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
                     gazetteer_rows = gazetteer_cache[cache_key]
 
                     # Extract entities from article text
-                    log_and_print(f"🤖 Extracting entities from article {article_id}")
                     entities = extractor.extract(
                         text,
                         gazetteer_rows=gazetteer_rows,
                     )
-                    log_and_print(
-                        f"📍 Found {len(entities)} entities in " f"article {article_id}"
-                    )
 
                     # Attach gazetteer matches
-                    log_and_print(
-                        f"🗺️  Attaching gazetteer matches for " f"article {article_id}"
-                    )
                     entities = attach_gazetteer_matches(
                         session,
                         source_id,
@@ -184,15 +171,8 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
                         entities,
                         gazetteer_rows=gazetteer_rows,
                     )
-                    log_and_print(
-                        f"✅ Gazetteer matches attached for " f"article {article_id}"
-                    )
 
                     # Save entities to database
-                    log_and_print(
-                        f"💾 Saving {len(entities)} entities to DB for "
-                        f"article {article_id}"
-                    )
                     save_article_entities(
                         session,
                         str(article_id),
@@ -200,14 +180,10 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
                         extractor.extractor_version,
                         text_hash,
                     )
-                    log_and_print(f"✅ Saved entities to DB for article {article_id}")
 
                     processed += 1
-                    log_and_print(
-                        f"🎉 Article {article_id} completed successfully "
-                        f"({processed}/{len(rows)})"
-                    )
 
+                    # Log progress every 10 articles
                     if processed % 10 == 0:
                         progress_msg = (
                             f"✓ Progress: {processed}/{len(rows)} articles processed"
