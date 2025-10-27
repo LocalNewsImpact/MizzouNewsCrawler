@@ -838,7 +838,7 @@ class NewsDiscovery:
                     "\nJOIN dataset_sources ds ON s.id = ds.source_id"
                     "\nJOIN datasets d ON ds.dataset_id = d.id"
                 )
-                where_clauses.append("d.id = :dataset_id OR d.label = :dataset_label")
+                where_clauses.append("(d.id = :dataset_id OR d.label = :dataset_label)")
                 params["dataset_id"] = dataset_label  # UUID resolved above
                 params["dataset_label"] = dataset_label  # Keep label as fallback
 
