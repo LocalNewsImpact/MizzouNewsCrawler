@@ -814,9 +814,12 @@ class NewsDiscovery:
                         labels = [r[0] for r in rows if r and r[0]]
                         if labels:
                             logger.error("Available datasets: %s", ", ".join(labels))
-                    except Exception:
+                    except Exception as e:
                         # Best-effort only; don't fail if listing datasets fails.
-                        logger.debug("Failed to list available datasets for suggestion")
+                        logger.error(
+                            "Failed to list available datasets for suggestion: %s",
+                            str(e)
+                        )
 
                     return pd.DataFrame(), {
                         "sources_available": 0,
@@ -919,8 +922,7 @@ class NewsDiscovery:
             logger.debug(f"Using {dialect} query syntax for get_sources_to_process")
             # Use SQLAlchemy text() for proper parameter binding with pg8000
             # pandas read_sql_query needs text() for named params with pg8000
-            from sqlalchemy import text
-            
+            # (text is imported at module level)
             engine_for_pandas = getattr(db.engine, "_engine", db.engine)
             sql_text = text(query)
             df = pd.read_sql_query(sql_text, engine_for_pandas, params=params or None)

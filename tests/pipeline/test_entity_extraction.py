@@ -172,6 +172,12 @@ def test_score_match_returns_none_when_no_candidates():
 def test_get_gazetteer_rows_filters_by_source_or_dataset(
     in_memory_session: Session,
 ) -> None:
+    """Test that get_gazetteer_rows uses AND logic for filters.
+    
+    When both source_id and dataset_id are provided, only entries matching
+    BOTH should be returned (not OR). This was fixed in commit ba814da to
+    prevent loading 326K entries instead of ~8.5K.
+    """
     rows = [
         Gazetteer(
             id="1",
@@ -187,21 +193,29 @@ def test_get_gazetteer_rows_filters_by_source_or_dataset(
         ),
         Gazetteer(
             id="3",
+            source_id="source-1",
+            dataset_id="dataset-1",
+            name="C",  # Matches BOTH source AND dataset
+        ),
+        Gazetteer(
+            id="4",
             source_id="source-other",
             dataset_id="dataset-other",
-            name="C",
+            name="D",
         ),
     ]
     in_memory_session.add_all(rows)
     in_memory_session.commit()
 
+    # When both filters provided, should use AND logic (not OR)
     fetched = extraction.get_gazetteer_rows(
         in_memory_session,
         "source-1",
         "dataset-1",
     )
     fetched_ids = {row.id for row in fetched}
-    assert fetched_ids == {"1", "2"}
+    # Should only return entry 3 which matches BOTH filters
+    assert fetched_ids == {"3"}
 
 
 def test_get_gazetteer_rows_returns_empty_when_no_filters(
