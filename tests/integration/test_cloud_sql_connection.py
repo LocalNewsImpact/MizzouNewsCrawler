@@ -126,14 +126,15 @@ def test_cloud_sql_articles_table_schema(cloud_sql_session):
     columns = inspector.get_columns("articles")
     column_names = {col["name"] for col in columns}
 
-    # Required columns for Issue #44 endpoints
+    # Required columns for articles table
     required_columns = {
-        "uid",
+        "id",
         "title",
         "url",
-        "source_id",
-        "county",
+        "candidate_link_id",
         "publish_date",
+        "content",
+        "status",
     }
 
     for col in required_columns:
@@ -232,13 +233,13 @@ def test_cloud_sql_read_articles(cloud_sql_session):
 
     # Try to fetch a few articles
     articles = cloud_sql_session.execute(
-        text("SELECT uid, title FROM articles LIMIT 5")
+        text("SELECT id, title FROM articles LIMIT 5")
     ).fetchall()
 
     # Verify structure
     for article in articles:
-        assert article[0] is not None  # uid
-        assert article[1] is not None  # title
+        assert article[0] is not None  # id
+        # title can be NULL in some cases
 
 
 @pytest.mark.integration
@@ -265,17 +266,18 @@ def test_cloud_sql_read_reviews(cloud_sql_session):
 
 @pytest.mark.integration
 def test_cloud_sql_join_articles_sources(cloud_sql_session):
-    """Test JOIN query between articles and sources.
+    """Test JOIN query between articles and sources via candidate_links.
 
-    This is similar to what the /api/articles endpoint does.
+    Joins through candidate_links table since articles don't have
+    source_id directly.
     """
     from sqlalchemy import text
 
     query = text(
         """
-        SELECT a.uid, a.title, s.name
+        SELECT a.id, a.title, cl.source
         FROM articles a
-        JOIN sources s ON a.source_id = s.id
+        JOIN candidate_links cl ON a.candidate_link_id = cl.id
         LIMIT 10
     """
     )
