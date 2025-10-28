@@ -1,12 +1,11 @@
 name: Config Validation (Fast-Fail)
 
+# Removed push to main - redundant since branch protection requires PR + passing validation
+# No need to run validation again after merge when it already passed on the PR
 on:
   pull_request:
     branches:
       - main  # Only validate PRs to main
-  push:
-    branches:
-      - main  # Only validate pushes to main
   workflow_dispatch:
 
 jobs:
