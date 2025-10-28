@@ -112,6 +112,7 @@ class TestEntityExtractionCommand:
                 "hash123",
                 source_id,
                 dataset_id,
+                "test-source",  # source_name
             )
         ]
         mock_db_manager.return_value.get_session.return_value.__enter__.return_value = (
@@ -148,14 +149,15 @@ class TestEntityExtractionCommand:
         self, mock_db_manager, mock_entity_extractor, mock_gazetteer, mock_save_entities
     ):
         """Test entity extraction for multiple articles."""
-        # Setup mock session with multiple articles
+        # Setup mock session with articles
         articles = [
             (
                 str(uuid.uuid4()),
-                f"Article {i} text",
+                f"Article {i}",
                 f"hash{i}",
                 str(uuid.uuid4()),
                 str(uuid.uuid4()),
+                f"test-source-{i}",  # source_name
             )
             for i in range(3)
         ]
@@ -238,7 +240,14 @@ class TestEntityExtractionCommand:
 
         mock_session = MagicMock()
         mock_session.execute.return_value.fetchall.return_value = [
-            (article_id, "Test article", "hash123", source_id, dataset_id)
+            (
+                article_id,
+                "Test article",
+                "hash123",
+                source_id,
+                dataset_id,
+                "test-source",
+            )
         ]
         mock_db_manager.return_value.get_session.return_value.__enter__.return_value = (
             mock_session
@@ -264,9 +273,11 @@ class TestEntityExtractionCommand:
     def test_entity_extraction_commits_in_batches(
         self, mock_db_manager, mock_entity_extractor, mock_gazetteer, mock_save_entities
     ):
-        """Test entity extraction commits after every 10 articles."""
+        """Test entity extraction commits after each article.
+        
+        Commits happen via save_article_entities which is called once per article.
+        """
         # Setup mock session with 25 articles
-        # Should commit 3 times: at 10, 20, and final
         articles = [
             (
                 str(uuid.uuid4()),
@@ -274,6 +285,7 @@ class TestEntityExtractionCommand:
                 f"hash{i}",
                 str(uuid.uuid4()),
                 str(uuid.uuid4()),
+                f"test-source-{i}",  # source_name
             )
             for i in range(25)
         ]
@@ -294,14 +306,15 @@ class TestEntityExtractionCommand:
 
         # Verify
         assert result == 0
-        # Should commit 3 times: after 10, after 20, and final commit
-        assert mock_session.commit.call_count == 3
+        # save_article_entities commits internally after each article
+        # With 25 articles, we should have 25 calls to save_article_entities
+        assert mock_save_entities.call_count == 25
 
     def test_entity_extraction_partial_failure(
         self, mock_db_manager, mock_entity_extractor, mock_gazetteer, mock_save_entities
     ):
         """Test entity extraction continues after individual article failure."""
-        # Setup mock session with 3 articles
+        # Setup mock session with 25 articles (> batch size of 10)
         articles = [
             (
                 str(uuid.uuid4()),
@@ -309,8 +322,9 @@ class TestEntityExtractionCommand:
                 f"hash{i}",
                 str(uuid.uuid4()),
                 str(uuid.uuid4()),
+                f"test-source-{i}",  # source_name
             )
-            for i in range(3)
+            for i in range(25)
         ]
 
         mock_session = MagicMock()
