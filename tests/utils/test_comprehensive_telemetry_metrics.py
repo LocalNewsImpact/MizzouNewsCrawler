@@ -87,8 +87,8 @@ def test_record_extraction_emits_content_type_detection(
     assert len(detections) == 1
     detection = detections[0]
     assert detection["status"] == "opinion"
-    # confidence column stores the float but SQLite returns it as string
-    assert float(detection["confidence"]) == 0.83
+    # confidence column stores the string label ("high", "medium", "low")
+    assert detection["confidence"] == "high"
     assert detection["confidence_score"] == 0.83
     assert detection["evidence"]["title"] == ["opinion"]
 
