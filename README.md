@@ -1,6 +1,7 @@
 # MizzouNewsCrawler
 
 [![CI](https://github.com/LocalNewsImpact/MizzouNewsCrawler-Scripts/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/LocalNewsImpact/MizzouNewsCrawler-Scripts/actions/workflows/ci.yml)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 
 A production news crawler system deployed on Google Cloud Platform (GCP) with Kubernetes orchestration.
 
@@ -79,6 +80,11 @@ RSS/Sitemaps → Discovery (Argo) → candidate_links table
 ```
 
 ## Getting Started
+
+License
+
+This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0-or-later). See the `LICENSE` file for full text and `DEP_LICENSES.md` for a dependency license report.
+
 
 ### Prerequisites
 
