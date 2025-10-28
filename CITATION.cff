@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use this software in a publication, please cite it."
+title: "Mizzou News Crawler - Scripts"
+version: "1.3.1"
+authors:
+  - family-names: "Mizzou News Crawler contributors"
+    given-names: ""
+    affiliation: "University of Missouri"
+    email: "maintainers@localnewsimpact.org"
+url: "https://github.com/your-org/MizzouNewsCrawler-Scripts"
+license: "AGPL-3.0-or-later"
+repository-code: "https://github.com/your-org/MizzouNewsCrawler-Scripts"
