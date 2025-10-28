@@ -943,11 +943,7 @@ def save_article_classification(
 
     article = session.query(Article).filter_by(id=article_id).one_or_none()
     if article:
-        # Update label snapshot fields but do not override article status
-        # here. The classification step should not change the processing
-        # lifecycle status (e.g., 'local', 'cleaned'). Tests expect the
-        # status to reflect cleaning/locality decisions rather than being
-        # overwritten with a generic 'labeled' value.
+        # Update label snapshot fields and set status to 'labeled' for BigQuery export
         article.primary_label = primary_label
         article.primary_label_confidence = primary_score
         article.alternate_label = alt_label
@@ -955,6 +951,11 @@ def save_article_classification(
         article.label_version = label_version
         article.label_model_version = model_version
         article.labels_updated_at = now
+        
+        # Set status to 'labeled' so article is included in BigQuery export
+        # Only update if current status is 'cleaned' or 'local' (classification-eligible statuses)
+        if article.status in ('cleaned', 'local'):
+            article.status = 'labeled'
 
     _commit_with_retry(session)
     return record
