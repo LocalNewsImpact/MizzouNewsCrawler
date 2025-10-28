@@ -6,8 +6,6 @@ from typing import Any, Sequence
 
 import pytest
 from requests import Session
-from sqlalchemy import text as sa_text
-from sqlalchemy.exc import OperationalError
 
 from orchestration import county_pipeline
 from src.cli.commands import extraction
@@ -430,15 +428,7 @@ def test_county_pipeline_golden_path(
     steps_run: list[tuple[str, list[str]]] = []
 
     setup_manager = manager_factory()
-    setup_session = setup_manager.session
-    try:
-        setup_session.execute(sa_text("ALTER TABLE articles ADD COLUMN wire TEXT"))
-        setup_session.commit()
-    except OperationalError as exc:
-        if "duplicate column name" not in str(exc.orig).lower():
-            raise
-        setup_session.rollback()
-
+    # Note: wire column already exists in Article model as JSON type
     session = setup_manager.session
     source_id = "source-1"
     source = Source(
