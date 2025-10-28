@@ -694,7 +694,8 @@ class TestCompleteAPIWorkflow:
 
             from sqlalchemy import create_engine
 
-            from backend.app.main import app, db_manager
+            from backend.app import main as app_main
+            from backend.app.main import app
 
             # Create engine for the test database
             db_url = f"sqlite:///{db_path}"
@@ -702,8 +703,11 @@ class TestCompleteAPIWorkflow:
                 db_url, connect_args={"check_same_thread": False}
             )
 
-            # Mock the DatabaseManager's engine with our test engine
-            with patch.object(db_manager, "engine", test_engine):
+            # Force initialization of the lazy db_manager and patch its engine
+            # The module-level db_manager is a lazy proxy, so we need to
+            # get the actual DatabaseManager instance and patch that
+            actual_db_manager = app_main._get_module_db_manager()
+            with patch.object(actual_db_manager, "engine", test_engine):
                 client = TestClient(app)
 
                 # 1. Check poor performers
