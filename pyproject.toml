@@ -1,4 +1,3 @@
-[tool.pytest.ini_options]
 [project]
 name = "mizzou-news-crawler-scripts"
 version = "1.3.1"

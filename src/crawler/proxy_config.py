@@ -175,45 +175,109 @@ class ProxyManager:
             )
 
         # Decodo ISP proxy with port-based IP rotation
-        # Ports 10001-10010 provide different IPs for rotation
-        decodo_username = os.getenv("DECODO_USERNAME", "user-sp8z2fzi1e-country-us")
-        decodo_password = os.getenv("DECODO_PASSWORD", "qg_hJ7reok8e5F7BHg")
-        decodo_host = os.getenv("DECODO_HOST", "isp.decodo.com")
-        decodo_country = os.getenv("DECODO_COUNTRY", "us")
+        # Prefer to read Decodo credentials from GCP Secret Manager
+        # If a secret is not provided, fall back to explicit environment
+        # variables. IMPORTANT: do NOT embed credentials in source code.
+        decodo_secret_name = os.getenv("DECODO_SECRET_NAME")
+        decodo_creds = None
 
-        # Use rotating ports (10001-10010) for IP rotation, or default port for sticky
-        use_port_rotation = os.getenv("DECODO_ROTATE_IP", "true").lower() == "true"
+        if decodo_secret_name:
+            # Try to fetch secret from GCP Secret Manager. This import is
+            # optional to avoid a hard dependency for environments that do
+            # not need GCP integration.
+            try:
+                from google.cloud import secretmanager  # type: ignore
 
-        if use_port_rotation:
-            # Randomly select from rotation port range for this session
-            import random
+                client = secretmanager.SecretManagerServiceClient()
+                # Secret resource name should be either the secret id or the
+                # full resource path projects/*/secrets/*/versions/latest
+                name = decodo_secret_name
+                # If only a short id provided, try to build full path from
+                # GOOGLE_CLOUD_PROJECT env var
+                if not name.startswith("projects/"):
+                    project = os.getenv("GOOGLE_CLOUD_PROJECT")
+                    if project:
+                        name = f"projects/{project}/secrets/{decodo_secret_name}/versions/latest"
 
-            decodo_port = str(random.randint(10001, 10010))
+                response = client.access_secret_version(request={"name": name})
+                payload = response.payload.data.decode("UTF-8")
+                # Expect the secret payload to be either a JSON object with
+                # keys username/password/host/country or a plain FULL_PROXY_URL
+                import json
+
+                try:
+                    decodo_creds = json.loads(payload)
+                except Exception:
+                    # Not JSON — treat the payload as the full proxy URL
+                    decodo_creds = {"full_proxy_url": payload}
+            except Exception as e:  # pragma: no cover - best-effort runtime
+                logger.warning("Could not read Decodo secret from Secret Manager: %s", e)
+
+        # If secret manager not used or failed, fall back to environment vars.
+        if not decodo_creds:
+            env_username = os.getenv("DECODO_USERNAME")
+            env_password = os.getenv("DECODO_PASSWORD")
+            env_host = os.getenv("DECODO_HOST", "isp.decodo.com")
+            env_country = os.getenv("DECODO_COUNTRY", "us")
+            if env_username and env_password:
+                decodo_creds = {
+                    "username": env_username,
+                    "password": env_password,
+                    "host": env_host,
+                    "country": env_country,
+                }
+
+        # If we still don't have credentials, mark Decodo disabled to avoid
+        # falling back to insecure defaults embedded in source.
+        if not decodo_creds:
+            self.configs[ProxyProvider.DECODO] = ProxyConfig(
+                provider=ProxyProvider.DECODO,
+                enabled=False,
+            )
         else:
-            decodo_port = os.getenv("DECODO_PORT", "10000")
+            # Determine whether the secret provided a full proxy URL or parts
+            full_url = decodo_creds.get("full_proxy_url") if isinstance(decodo_creds, dict) else None
+            use_port_rotation = os.getenv("DECODO_ROTATE_IP", "true").lower() == "true"
 
-        # Decodo URL with credentials - using HTTP (not HTTPS)
-        # HTTP proxies handle HTTPS via CONNECT tunneling
-        decodo_url = (
-            f"http://{decodo_username}:{decodo_password}@"
-            f"{decodo_host}:{decodo_port}"
-        )
+            if use_port_rotation:
+                # We will provide a template URL; actual rotating port is chosen
+                # per-request by get_rotating_decodo_url(). Store host/creds.
+                decodo_port = None
+            else:
+                decodo_port = os.getenv("DECODO_PORT", "10000")
 
-        self.configs[ProxyProvider.DECODO] = ProxyConfig(
-            provider=ProxyProvider.DECODO,
-            enabled=True,  # Always available with default credentials
-            url=decodo_url,
-            # Don't set username/password here - already in URL
-            username=None,
-            password=None,
-            options={
-                "country": decodo_country,
-                "host": decodo_host,
-                "port": decodo_port,
-                "rotate_ip": use_port_rotation,
-                "port_range": "10001-10010" if use_port_rotation else None,
-            },
-        )
+            if full_url:
+                decodo_url = full_url
+                decodo_host = decodo_creds.get("host") or os.getenv("DECODO_HOST", "isp.decodo.com")
+                decodo_country = decodo_creds.get("country") or os.getenv("DECODO_COUNTRY", "us")
+                username = None
+                password = None
+            else:
+                username = decodo_creds.get("username")
+                password = decodo_creds.get("password")
+                decodo_host = decodo_creds.get("host") or os.getenv("DECODO_HOST", "isp.decodo.com")
+                decodo_country = decodo_creds.get("country") or os.getenv("DECODO_COUNTRY", "us")
+
+                if decodo_port:
+                    decodo_url = f"http://{username}:{password}@{decodo_host}:{decodo_port}"
+                else:
+                    # For rotating mode we keep a representative URL (port TBD)
+                    decodo_url = f"http://{username}:{password}@{decodo_host}"
+
+            self.configs[ProxyProvider.DECODO] = ProxyConfig(
+                provider=ProxyProvider.DECODO,
+                enabled=True,
+                url=decodo_url,
+                username=username,
+                password=password,
+                options={
+                    "country": decodo_country,
+                    "host": decodo_host,
+                    "port": decodo_port,
+                    "rotate_ip": use_port_rotation,
+                    "port_range": "10001-10010" if use_port_rotation else None,
+                },
+            )
 
     def _get_active_provider(self) -> ProxyProvider:
         """Determine active provider from PROXY_PROVIDER env var."""
@@ -386,15 +450,42 @@ class ProxyManager:
 
         # Get rotation parameters
         import random
+        from urllib.parse import urlparse
 
         port = random.randint(10001, 10010)
-        username = os.getenv("DECODO_USERNAME", "user-sp8z2fzi1e-country-us")
-        password = os.getenv("DECODO_PASSWORD", "qg_hJ7reok8e5F7BHg")
-        host = (
-            config.options.get("host", "isp.decodo.com")
-            if config.options
-            else "isp.decodo.com"
-        )
+
+        # Prefer credentials stored on the config instance (from secret manager
+        # or env fallback). If not present, try to parse them from config.url.
+        username = config.username
+        password = config.password
+        host = config.options.get("host") if config.options else None
+
+        if not host:
+            # Try to glean host from the configured URL
+            if config.url:
+                try:
+                    parsed = urlparse(config.url)
+                    host = parsed.hostname
+                except Exception:
+                    host = None
+
+        if not username or not password:
+            # Try to parse username/password from the URL if available
+            if config.url:
+                try:
+                    parsed = urlparse(config.url)
+                    username = username or (parsed.username or None)
+                    password = password or (parsed.password or None)
+                except Exception:
+                    pass
+
+        if not host:
+            host = "isp.decodo.com"
+
+        if not username or not password:
+            # Credentials missing — cannot build rotating URL
+            logger.warning("Decodo rotation requested but credentials are missing; returning None")
+            return None
 
         return f"https://{username}:{password}@{host}:{port}"
 

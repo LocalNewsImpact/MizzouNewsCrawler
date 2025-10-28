@@ -128,7 +128,12 @@ pytest -q
 1. Security & sensitive data
 
 1. Never commit secrets (API keys, credentials). Use environment variables
-   and secrets management for CI.
+   and secrets management for CI/production.
+1. For proxy credentials (Decodo, etc.), use one of these methods:
+   - **Local development**: Set `DECODO_USERNAME` and `DECODO_PASSWORD` environment variables.
+   - **Production**: Use GCP Secret Manager by setting `DECODO_SECRET_NAME` to the secret ID.
+     Create the secret with JSON payload: `{"username":"...","password":"...","host":"isp.decodo.com","country":"us"}`
+     or plain full proxy URL.
 1. If you find a security vulnerability, follow SECURITY.md to report it.
 
 1. Thank you

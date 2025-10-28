@@ -42,7 +42,7 @@ python3 -c "from src.crawler.proxy_config import ProxyManager; \
 
 **Problem:**
 ```
-http://user-sp8z2fzi1e-country-us:qg_hJ7reok8e5F7BHg@user-sp8z2fzi1e-country-us:qg_hJ7reok8e5F7BHg@isp.decodo.com:10000
+http://your-username:your-password@your-username:your-password@isp.decodo.com:10000
                                                        ^^^ DUPLICATED ^^^
 ```
 
@@ -94,7 +94,7 @@ decodo_url = f"https://{username}:{password}@{host}:{port}"
 ```bash
 python3 -c "import requests; \
   requests.get('https://ip.decodo.com/json', \
-    proxies={'https': 'https://user-sp8z2fzi1e-country-us:qg_hJ7reok8e5F7BHg@isp.decodo.com:10000'}, \
+    proxies={'https': 'https://your-username:your-password@isp.decodo.com:10000'}, \
     timeout=10)"
 # Output: 200 OK
 ```
@@ -121,7 +121,7 @@ All tests passed locally:
 ✅ HTTPS proxy connection successful
 
 # Test 5: Proxy URLs correct
-✅ https://user-sp8z2fzi1e-country-us:qg_hJ7reok8e5F7BHg@isp.decodo.com:10000
+✅ https://your-username:your-password@isp.decodo.com:10000
 ```
 
 ---

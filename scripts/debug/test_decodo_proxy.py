@@ -9,8 +9,8 @@ def test_decodo_proxy():
     """Test the Decodo proxy configuration."""
     
     # Decodo configuration
-    username = os.getenv('DECODO_USERNAME', 'user-sp8z2fzi1e-country-us')
-    password = os.getenv('DECODO_PASSWORD', 'qg_hJ7reok8e5F7BHg')
+    username = os.getenv('DECODO_USERNAME', 'your-decodo-username')
+    password = os.getenv('DECODO_PASSWORD', 'your-decodo-password')
     host = os.getenv('DECODO_HOST', 'isp.decodo.com')
     port = os.getenv('DECODO_PORT', '10000')
     
