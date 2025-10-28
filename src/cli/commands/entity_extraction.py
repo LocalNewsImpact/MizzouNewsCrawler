@@ -133,16 +133,21 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
 
             processed = 0
             errors = 0
+            stop_logging = threading.Event()
 
             # Start timer-based progress logging
             start_time = time.time()
 
             def log_progress_periodically():
                 """Log progress every 30 seconds regardless of article count."""
-                while True:
-                    time.sleep(30)
+                while not stop_logging.is_set():
+                    if stop_logging.wait(30):  # Wait 30s or until stop signal
+                        break
                     elapsed = time.time() - start_time
-                    msg = f"⏱️ {processed}/{len(rows)} done ({elapsed:.1f}s)"
+                    msg = (
+                        f"⏱️ Entity extraction: {processed}/{len(rows)} "
+                        f"done ({elapsed:.1f}s)"
+                    )
                     log_and_print(msg)
 
             # Start background progress logger
@@ -215,6 +220,10 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
                     f"✓ Completed {source_name}: {processed}/{len(rows)} total"
                 )
                 log_and_print(progress_msg)
+
+            # Stop background progress logger
+            stop_logging.set()
+            progress_thread.join(timeout=1)  # Wait up to 1s for thread to stop
 
             log_and_print("")
             log_and_print("✅ Entity extraction completed!")
