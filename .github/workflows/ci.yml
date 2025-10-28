@@ -367,7 +367,7 @@ jobs:
             -e DATABASE_USER="$DATABASE_USER" \
             -e DATABASE_PASSWORD="$DATABASE_PASSWORD" \
             us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-            /bin/bash -c "pytest -v -m integration --tb=short"
+            /bin/bash -c "pytest -v -m integration --tb=short --no-cov"
 
   integration:
     name: Integration & Coverage
