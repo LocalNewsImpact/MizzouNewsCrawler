@@ -917,13 +917,13 @@ class NewsDiscovery:
             # SQLAlchemy converts :param to %s format required by pg8000
 
             logger.debug(f"Using {dialect} query syntax for get_sources_to_process")
-            # Pandas prefers either a SQL string with a DB-API connection or a
-            # SQLAlchemy connectable. Our tests wrap the Engine in a proxy to
-            # support legacy positional params; pandas sometimes fails to
-            # recognize the proxy as a SQLAlchemy engine. Prefer passing the
-            # raw query string or the underlying real engine when available.
+            # Use SQLAlchemy text() for proper parameter binding with pg8000
+            # pandas read_sql_query needs text() for named params with pg8000
+            from sqlalchemy import text
+            
             engine_for_pandas = getattr(db.engine, "_engine", db.engine)
-            df = pd.read_sql_query(query, engine_for_pandas, params=params or None)
+            sql_text = text(query)
+            df = pd.read_sql_query(sql_text, engine_for_pandas, params=params or None)
 
             # If requested, filter to only sources that are due for
             # discovery according to their declared frequency and the
