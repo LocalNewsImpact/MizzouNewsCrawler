@@ -139,7 +139,7 @@ class TestDiscoveryPostgreSQL:
             conn.execute(
                 text(
                     """
-                    INSERT INTO datasets (id, label, slug, created_at)
+                    INSERT INTO datasets (id, label, slug, ingested_at)
                     VALUES 
                         (:id1, :label1, :slug1, NOW()),
                         (:id2, :label2, :slug2, NOW())
@@ -181,11 +181,15 @@ class TestDiscoveryPostgreSQL:
             conn.execute(
                 text(
                     """
-                    INSERT INTO dataset_sources (dataset_id, source_id)
-                    VALUES (:dataset_id, :source_id)
+                    INSERT INTO dataset_sources (id, dataset_id, source_id)
+                    VALUES (:id, :dataset_id, :source_id)
                     """
                 ),
-                {"dataset_id": dataset1_id, "source_id": source1_id},
+                {
+                    "id": str(uuid.uuid4()),
+                    "dataset_id": dataset1_id,
+                    "source_id": source1_id,
+                },
             )
             
             # Source 2 in Dataset 2
@@ -209,11 +213,15 @@ class TestDiscoveryPostgreSQL:
             conn.execute(
                 text(
                     """
-                    INSERT INTO dataset_sources (dataset_id, source_id)
-                    VALUES (:dataset_id, :source_id)
+                    INSERT INTO dataset_sources (id, dataset_id, source_id)
+                    VALUES (:id, :dataset_id, :source_id)
                     """
                 ),
-                {"dataset_id": dataset2_id, "source_id": source2_id},
+                {
+                    "id": str(uuid.uuid4()),
+                    "dataset_id": dataset2_id,
+                    "source_id": source2_id,
+                },
             )
         
         # Test: Filter by Dataset 1
@@ -444,7 +452,7 @@ class TestDiscoveryPostgreSQL:
             conn.execute(
                 text(
                     """
-                    INSERT INTO datasets (id, label, slug, created_at)
+                    INSERT INTO datasets (id, label, slug, ingested_at)
                     VALUES (:id, :label, :slug, NOW())
                     """
                 ),

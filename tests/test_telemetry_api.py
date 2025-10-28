@@ -600,12 +600,20 @@ class TestCompleteAPIWorkflow:
                 """
             CREATE TABLE extraction_telemetry_v2 (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                operation_id TEXT, article_id TEXT, url TEXT, publisher TEXT, host TEXT,
-                start_time TIMESTAMP, end_time TIMESTAMP, total_duration_ms REAL,
-                http_status_code INTEGER, http_error_type TEXT, response_size_bytes INTEGER,
-                response_time_ms REAL, methods_attempted TEXT, successful_method TEXT,
+                operation_id TEXT, article_id TEXT, url TEXT, publisher TEXT,
+                host TEXT,
+                start_time TIMESTAMP, end_time TIMESTAMP,
+                total_duration_ms REAL,
+                http_status_code INTEGER, http_error_type TEXT,
+                response_size_bytes INTEGER,
+                response_time_ms REAL,
+                proxy_used INTEGER, proxy_url TEXT, proxy_authenticated INTEGER,
+                proxy_status TEXT, proxy_error TEXT,
+                methods_attempted TEXT, successful_method TEXT,
                 method_timings TEXT, method_success TEXT, method_errors TEXT,
-                field_extraction TEXT, extracted_fields TEXT, content_length INTEGER,
+                field_extraction TEXT, extracted_fields TEXT,
+                final_field_attribution TEXT, alternative_extractions TEXT,
+                content_length INTEGER,
                 is_success BOOLEAN, error_message TEXT, error_type TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -616,8 +624,10 @@ class TestCompleteAPIWorkflow:
                 """
             CREATE TABLE http_error_summary (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                host TEXT NOT NULL, status_code INTEGER NOT NULL, error_type TEXT NOT NULL,
-                count INTEGER DEFAULT 1, first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                host TEXT NOT NULL, status_code INTEGER NOT NULL,
+                error_type TEXT NOT NULL,
+                count INTEGER DEFAULT 1,
+                first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """
@@ -626,10 +636,13 @@ class TestCompleteAPIWorkflow:
             cur.execute(
                 """
             CREATE TABLE sources (
-                id VARCHAR PRIMARY KEY, host VARCHAR NOT NULL, host_norm VARCHAR NOT NULL,
-                canonical_name VARCHAR, city VARCHAR, county VARCHAR, owner VARCHAR,
+                id VARCHAR PRIMARY KEY, host VARCHAR NOT NULL,
+                host_norm VARCHAR NOT NULL,
+                canonical_name VARCHAR, city VARCHAR, county VARCHAR,
+                owner VARCHAR,
                 type VARCHAR, metadata JSON, discovery_attempted TIMESTAMP,
-                status VARCHAR DEFAULT 'active', paused_at TIMESTAMP, paused_reason TEXT,
+                status VARCHAR DEFAULT 'active', paused_at TIMESTAMP,
+                paused_reason TEXT,
                 bot_sensitivity INTEGER DEFAULT 5,
                 bot_sensitivity_updated_at TIMESTAMP,
                 bot_encounters INTEGER DEFAULT 0,
@@ -642,12 +655,14 @@ class TestCompleteAPIWorkflow:
             # Insert a problematic site with many failures
             now = datetime.utcnow()
             for i in range(10):
+                created_at = now - timedelta(hours=i)
                 cur.execute(
                     """
                 INSERT INTO extraction_telemetry_v2
-                (operation_id, article_id, url, publisher, host, http_status_code,
-                 http_error_type, is_success, total_duration_ms, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (operation_id, article_id, url, publisher, host, start_time,
+                 end_time, http_status_code, http_error_type, is_success,
+                 total_duration_ms, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                     (
                         f"op{i}",
@@ -655,11 +670,13 @@ class TestCompleteAPIWorkflow:
                         f"https://problem-site.com/article{i}",
                         "problem-site.com",
                         "problem-site.com",
+                        created_at,
+                        created_at + timedelta(seconds=5),
                         403,
                         "4xx_client_error",
                         0,
                         5000,
-                        now - timedelta(hours=i),
+                        created_at,
                     ),
                 )
 
@@ -677,7 +694,8 @@ class TestCompleteAPIWorkflow:
 
             from sqlalchemy import create_engine
 
-            from backend.app.main import app, db_manager
+            from backend.app import main as app_main
+            from backend.app.main import app
 
             # Create engine for the test database
             db_url = f"sqlite:///{db_path}"
@@ -685,8 +703,11 @@ class TestCompleteAPIWorkflow:
                 db_url, connect_args={"check_same_thread": False}
             )
 
-            # Mock the DatabaseManager's engine with our test engine
-            with patch.object(db_manager, "engine", test_engine):
+            # Force initialization of the lazy db_manager and patch its engine
+            # The module-level db_manager is a lazy proxy, so we need to
+            # get the actual DatabaseManager instance and patch that
+            actual_db_manager = app_main._get_module_db_manager()
+            with patch.object(actual_db_manager, "engine", test_engine):
                 client = TestClient(app)
 
                 # 1. Check poor performers
@@ -707,7 +728,10 @@ class TestCompleteAPIWorkflow:
                     "/api/site-management/pause",
                     json={
                         "host": "problem-site.com",
-                        "reason": "Automatic pause due to poor performance: 0% success rate with 10 attempts",
+                        "reason": (
+                            "Automatic pause due to poor performance: "
+                            "0% success rate with 10 attempts"
+                        ),
                     },
                 )
                 assert pause_response.status_code == 200

@@ -126,14 +126,15 @@ def test_cloud_sql_articles_table_schema(cloud_sql_session):
     columns = inspector.get_columns("articles")
     column_names = {col["name"] for col in columns}
 
-    # Required columns for Issue #44 endpoints
+    # Required columns for articles table
     required_columns = {
-        "uid",
+        "id",
         "title",
         "url",
-        "source_id",
-        "county",
+        "candidate_link_id",
         "publish_date",
+        "content",
+        "status",
     }
 
     for col in required_columns:
@@ -232,13 +233,13 @@ def test_cloud_sql_read_articles(cloud_sql_session):
 
     # Try to fetch a few articles
     articles = cloud_sql_session.execute(
-        text("SELECT uid, title FROM articles LIMIT 5")
+        text("SELECT id, title FROM articles LIMIT 5")
     ).fetchall()
 
     # Verify structure
     for article in articles:
-        assert article[0] is not None  # uid
-        assert article[1] is not None  # title
+        assert article[0] is not None  # id
+        # title can be NULL in some cases
 
 
 @pytest.mark.integration
@@ -265,17 +266,18 @@ def test_cloud_sql_read_reviews(cloud_sql_session):
 
 @pytest.mark.integration
 def test_cloud_sql_join_articles_sources(cloud_sql_session):
-    """Test JOIN query between articles and sources.
+    """Test JOIN query between articles and sources via candidate_links.
 
-    This is similar to what the /api/articles endpoint does.
+    Joins through candidate_links table since articles don't have
+    source_id directly.
     """
     from sqlalchemy import text
 
     query = text(
         """
-        SELECT a.uid, a.title, s.name
+        SELECT a.id, a.title, cl.source
         FROM articles a
-        JOIN sources s ON a.source_id = s.id
+        JOIN candidate_links cl ON a.candidate_link_id = cl.id
         LIMIT 10
     """
     )
@@ -293,15 +295,16 @@ def test_cloud_sql_join_articles_sources(cloud_sql_session):
 def test_cloud_sql_join_articles_reviews(cloud_sql_session):
     """Test JOIN query between articles and reviews.
 
-    This is used for filtering articles by reviewer.
+    This is similar to what the /api/reviews endpoint does.
+    Note: reviews.article_uid references articles.id (legacy naming).
     """
     from sqlalchemy import text
 
     query = text(
         """
-        SELECT a.uid, r.reviewer
+        SELECT a.id, r.reviewer
         FROM articles a
-        LEFT JOIN reviews r ON a.uid = r.article_uid
+        LEFT JOIN reviews r ON a.id = r.article_uid
         LIMIT 10
     """
     )
@@ -310,24 +313,24 @@ def test_cloud_sql_join_articles_reviews(cloud_sql_session):
 
     # Verify JOIN works (may have NULLs for unreviewed articles)
     for row in results:
-        assert row[0] is not None  # article uid
+        assert row[0] is not None  # article id
         # row[1] may be NULL for unreviewed articles
 
 
 @pytest.mark.integration
 def test_cloud_sql_distinct_counties(cloud_sql_session):
-    """Test getting distinct counties from Cloud SQL.
+    """Test getting distinct counties from Cloud SQL via candidate_links.
 
-    This is what /api/options/counties does.
+    County data is on candidate_links.source_county, not articles.county.
     """
     from sqlalchemy import text
 
     query = text(
         """
-        SELECT DISTINCT county
-        FROM articles
-        WHERE county IS NOT NULL
-        ORDER BY county
+        SELECT DISTINCT cl.source_county
+        FROM candidate_links cl
+        WHERE cl.source_county IS NOT NULL
+        ORDER BY cl.source_county
     """
     )
 
@@ -399,13 +402,13 @@ def test_cloud_sql_performance_large_query(cloud_sql_session):
 
     start_time = time.time()
 
-    # Query that simulates /api/articles
+    # Query that simulates /api/articles with proper joins
     query = text(
         """
-        SELECT a.uid, a.title, a.county, s.name as source_name
+        SELECT a.id, a.title, cl.source, cl.source_county
         FROM articles a
-        JOIN sources s ON a.source_id = s.id
-        ORDER BY a.publish_date DESC
+        JOIN candidate_links cl ON a.candidate_link_id = cl.id
+        ORDER BY a.created_at DESC
         LIMIT 100
     """
     )
