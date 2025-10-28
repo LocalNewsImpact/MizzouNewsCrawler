@@ -295,7 +295,8 @@ def test_cloud_sql_join_articles_sources(cloud_sql_session):
 def test_cloud_sql_join_articles_reviews(cloud_sql_session):
     """Test JOIN query between articles and reviews.
 
-    This is used for filtering articles by reviewer.
+    This is similar to what the /api/reviews endpoint does.
+    Note: reviews.article_uid references articles.id (legacy naming).
     """
     from sqlalchemy import text
 
@@ -303,7 +304,7 @@ def test_cloud_sql_join_articles_reviews(cloud_sql_session):
         """
         SELECT a.id, r.reviewer
         FROM articles a
-        LEFT JOIN reviews r ON a.id = r.article_id
+        LEFT JOIN reviews r ON a.id = r.article_uid
         LIMIT 10
     """
     )
