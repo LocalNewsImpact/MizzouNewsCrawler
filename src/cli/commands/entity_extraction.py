@@ -26,8 +26,11 @@ logger = logging.getLogger(__name__)
 
 
 def log_and_print(message: str, level: str = "info") -> None:
-    """Log message and print to stdout with immediate flush for visibility."""
-    print(message, flush=True)
+    """Log message (logging already outputs to stdout in container environments).
+    
+    Note: The 'print' was removed to avoid duplicate log lines when run via
+    continuous_processor.py which streams subprocess output to logs.
+    """
     getattr(logger, level)(message)
 
 
