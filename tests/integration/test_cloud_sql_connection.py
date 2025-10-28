@@ -401,13 +401,13 @@ def test_cloud_sql_performance_large_query(cloud_sql_session):
 
     start_time = time.time()
 
-    # Query that simulates /api/articles
+    # Query that simulates /api/articles with proper joins
     query = text(
         """
-        SELECT a.uid, a.title, a.county, s.name as source_name
+        SELECT a.id, a.title, cl.source, cl.source_county
         FROM articles a
-        JOIN sources s ON a.source_id = s.id
-        ORDER BY a.publish_date DESC
+        JOIN candidate_links cl ON a.candidate_link_id = cl.id
+        ORDER BY a.created_at DESC
         LIMIT 100
     """
     )
