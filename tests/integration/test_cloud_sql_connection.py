@@ -301,9 +301,9 @@ def test_cloud_sql_join_articles_reviews(cloud_sql_session):
 
     query = text(
         """
-        SELECT a.uid, r.reviewer
+        SELECT a.id, r.reviewer
         FROM articles a
-        LEFT JOIN reviews r ON a.uid = r.article_uid
+        LEFT JOIN reviews r ON a.id = r.article_id
         LIMIT 10
     """
     )
@@ -312,24 +312,24 @@ def test_cloud_sql_join_articles_reviews(cloud_sql_session):
 
     # Verify JOIN works (may have NULLs for unreviewed articles)
     for row in results:
-        assert row[0] is not None  # article uid
+        assert row[0] is not None  # article id
         # row[1] may be NULL for unreviewed articles
 
 
 @pytest.mark.integration
 def test_cloud_sql_distinct_counties(cloud_sql_session):
-    """Test getting distinct counties from Cloud SQL.
+    """Test getting distinct counties from Cloud SQL via candidate_links.
 
-    This is what /api/options/counties does.
+    County data is on candidate_links.source_county, not articles.county.
     """
     from sqlalchemy import text
 
     query = text(
         """
-        SELECT DISTINCT county
-        FROM articles
-        WHERE county IS NOT NULL
-        ORDER BY county
+        SELECT DISTINCT cl.source_county
+        FROM candidate_links cl
+        WHERE cl.source_county IS NOT NULL
+        ORDER BY cl.source_county
     """
     )
 
