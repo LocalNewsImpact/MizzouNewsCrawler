@@ -182,6 +182,7 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
                         )
 
                         # Save entities to database
+                        # Note: save_article_entities commits internally
                         save_article_entities(
                             session,
                             str(article_id),
@@ -191,10 +192,6 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
                         )
 
                         processed += 1
-
-                        # Commit after each article to keep transactions short
-                        # Entity extraction can take 30-60s per article
-                        session.commit()
 
                     except Exception as exc:
                         error_msg = (
@@ -215,9 +212,6 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
                     f"✓ Completed {source_name}: {processed}/{len(rows)} total"
                 )
                 log_and_print(progress_msg)
-
-            # Final commit (in case anything is pending)
-            session.commit()
 
             log_and_print("")
             log_and_print("✅ Entity extraction completed!")
