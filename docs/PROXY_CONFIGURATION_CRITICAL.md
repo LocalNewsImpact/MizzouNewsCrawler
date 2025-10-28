@@ -57,8 +57,8 @@ From `src/crawler/proxy_config.py`:
 
 ```python
 # Decodo ISP proxy - ALWAYS AVAILABLE
-decodo_username = os.getenv("DECODO_USERNAME", "user-sp8z2fzi1e-country-us")
-decodo_password = os.getenv("DECODO_PASSWORD", "qg_hJ7reok8e5F7BHg")
+decodo_username = os.getenv("DECODO_USERNAME", "your-decodo-username")
+decodo_password = os.getenv("DECODO_PASSWORD", "your-decodo-password")
 decodo_host = os.getenv("DECODO_HOST", "isp.decodo.com")
 decodo_port = os.getenv("DECODO_PORT", "10000")
 decodo_url = f"https://{decodo_username}:{decodo_password}@{decodo_host}:{decodo_port}"

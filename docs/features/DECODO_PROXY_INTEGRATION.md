@@ -95,11 +95,11 @@ PROXY_PROVIDER=decodo
 If you need to customize:
 
 ```bash
-DECODO_USERNAME=user-sp8z2fzi1e-country-us  # Default provided
-DECODO_PASSWORD=qg_hJ7reok8e5F7BHg          # Default provided
-DECODO_HOST=isp.decodo.com                   # Default provided
-DECODO_PORT=10000                            # Default provided
-DECODO_COUNTRY=us                            # Target country
+DECODO_USERNAME=your-decodo-username  # Set via env var or GCP Secret Manager
+DECODO_PASSWORD=your-decodo-password  # Set via env var or GCP Secret Manager
+DECODO_HOST=isp.decodo.com            # Default provided
+DECODO_PORT=10000                     # Default provided
+DECODO_COUNTRY=us                     # Target country
 ```
 
 ---
@@ -213,7 +213,7 @@ kubectl exec -n production deployment/mizzou-processor -- \
 # Expected output:
 # Active Provider: decodo
 # Status: enabled
-# URL: http://user-sp8z2fzi1e-country-us:***@isp.decodo.com:10000
+# URL: http://your-username:***@isp.decodo.com:10000
 # Health: (will build over time)
 ```
 

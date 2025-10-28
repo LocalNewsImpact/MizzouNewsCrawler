@@ -96,14 +96,14 @@ SMARTPROXY_PASSWORD=password
 
 ```bash
 PROXY_PROVIDER=decodo
-DECODO_USERNAME=user-sp8z2fzi1e-country-us  # Default provided
-DECODO_PASSWORD=qg_hJ7reok8e5F7BHg          # Default provided
-DECODO_HOST=isp.decodo.com                   # Default provided
-DECODO_PORT=10000                            # Default provided
-DECODO_COUNTRY=us                            # Target country
+DECODO_USERNAME=your-decodo-username  # Set via env var or GCP Secret Manager
+DECODO_PASSWORD=your-decodo-password  # Set via env var or GCP Secret Manager
+DECODO_HOST=isp.decodo.com            # Default provided
+DECODO_PORT=10000                     # Default provided
+DECODO_COUNTRY=us                     # Target country
 ```
 
-**Note:** Decodo has default credentials built-in, so it's ready to test immediately with just `PROXY_PROVIDER=decodo`.
+**Note:** Set credentials via environment variables or GCP Secret Manager. Decodo provider is disabled if no credentials are provided.
 
 ---
 
