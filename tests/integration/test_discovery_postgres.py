@@ -139,7 +139,7 @@ class TestDiscoveryPostgreSQL:
             conn.execute(
                 text(
                     """
-                    INSERT INTO datasets (id, label, slug, created_at)
+                    INSERT INTO datasets (id, label, slug, ingested_at)
                     VALUES 
                         (:id1, :label1, :slug1, NOW()),
                         (:id2, :label2, :slug2, NOW())
@@ -444,7 +444,7 @@ class TestDiscoveryPostgreSQL:
             conn.execute(
                 text(
                     """
-                    INSERT INTO datasets (id, label, slug, created_at)
+                    INSERT INTO datasets (id, label, slug, ingested_at)
                     VALUES (:id, :label, :slug, NOW())
                     """
                 ),
