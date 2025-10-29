@@ -132,7 +132,7 @@ spec:
         factor: 2
         maxDuration: "20m"
     container:
-      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:latest
       imagePullPolicy: Always
       command:
         - python
@@ -221,7 +221,7 @@ spec:
         factor: 2
         maxDuration: "20m"
     container:
-      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:latest
       imagePullPolicy: Always
       command:
         - python
@@ -315,7 +315,7 @@ spec:
         factor: 2
         maxDuration: "20m"
     container:
-      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:latest
       imagePullPolicy: Always
       command:
         - python
