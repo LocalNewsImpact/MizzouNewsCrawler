@@ -18,3 +18,6 @@ selenium-stealth>=1.0.6
 # Data export and analytics
 google-cloud-bigquery[pandas]>=3.13.0  # BigQuery export for analytics pipeline
 cloud-sql-python-connector[pg8000]>=1.11.0  # Cloud SQL connector for database access
+
+# Secret management for secure credential retrieval
+google-cloud-secret-manager>=2.16.0

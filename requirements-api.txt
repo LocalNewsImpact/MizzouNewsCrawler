@@ -8,3 +8,6 @@ uvicorn[standard]>=0.23.0
 # Notebook support (for report generation)
 papermill>=2.4.0
 jupyterlab>=4.0.0
+
+# Secret management for secure credential retrieval
+google-cloud-secret-manager>=2.16.0

@@ -17,3 +17,6 @@ storysniffer>=1.0.0  # News article classification
 
 # Anti-bot bypass
 cloudscraper>=1.2.71  # Bypass Cloudflare protection
+
+# Secret management for secure credential retrieval
+google-cloud-secret-manager>=2.16.0

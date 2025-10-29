@@ -186,6 +186,10 @@ spec:
         value: "decodo"
       - name: USE_ORIGIN_PROXY
         value: "false"
+      - name: DECODO_SECRET_NAME
+        value: "decodo-proxy-creds"
+      - name: GOOGLE_CLOUD_PROJECT
+        value: "mizzou-news-crawler"
       - name: NO_PROXY
         value: "localhost,127.0.0.1,metadata.google.internal,huggingface.co,*.huggingface.co"
       resources:
@@ -267,6 +271,10 @@ spec:
         value: "decodo"
       - name: USE_ORIGIN_PROXY
         value: "false"
+      - name: DECODO_SECRET_NAME
+        value: "decodo-proxy-creds"
+      - name: GOOGLE_CLOUD_PROJECT
+        value: "mizzou-news-crawler"
       - name: NO_PROXY
         value: "localhost,127.0.0.1,metadata.google.internal,huggingface.co,*.huggingface.co"
       # Rate limiting for verification
@@ -359,6 +367,10 @@ spec:
         value: "decodo"
       - name: USE_ORIGIN_PROXY
         value: "false"
+      - name: DECODO_SECRET_NAME
+        value: "decodo-proxy-creds"
+      - name: GOOGLE_CLOUD_PROJECT
+        value: "mizzou-news-crawler"
       - name: SELENIUM_PROXY
         valueFrom:
           secretKeyRef:
