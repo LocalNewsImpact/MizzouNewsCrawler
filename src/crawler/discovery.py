@@ -864,8 +864,9 @@ class NewsDiscovery:
 
             if dialect == "postgresql":
                 # PostgreSQL: Use DISTINCT ON for efficient deduplication
+                # Subquery to get discovery_attempted flag per source
                 query = f"""
-                SELECT DISTINCT ON (s.id)
+                SELECT
                     s.id,
                     s.canonical_name as name,
                     'https://' || s.host as url,
@@ -875,14 +876,16 @@ class NewsDiscovery:
                     s.type as type_classification,
                     s.host,
                     CASE
-                        WHEN cl.source_host_id IS NULL THEN 0
-                        ELSE 1
+                        WHEN EXISTS (
+                            SELECT 1 FROM candidate_links cl2
+                            WHERE cl2.source_host_id = s.id
+                        ) THEN 1
+                        ELSE 0
                     END as discovery_attempted
                 FROM sources s
-                LEFT JOIN candidate_links cl ON s.id = cl.source_host_id
                 {join_clause}
                 WHERE {where_sql}
-                ORDER BY s.id, discovery_attempted ASC, s.canonical_name ASC
+                ORDER BY discovery_attempted ASC, s.canonical_name ASC
                 """
             else:
                 # SQLite: Use GROUP BY with aggregation
