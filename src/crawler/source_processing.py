@@ -140,8 +140,11 @@ class SourceProcessor:
     def _determine_effective_methods(self) -> list[DiscoveryMethod]:
         telemetry = getattr(self.discovery, "telemetry", None)
         methods: list[DiscoveryMethod] = []
+        has_historical_data = False
+
         if telemetry:
             try:
+                has_historical_data = telemetry.has_historical_data(self.source_id)
                 methods = (
                     telemetry.get_effective_discovery_methods(self.source_id) or []
                 )
@@ -158,8 +161,14 @@ class SourceProcessor:
         methods = self._prioritize_last_success(methods)
 
         if not methods:
-            logger.info("No historical data for %s", self.source_name)
-            logger.info("Trying all methods")
+            if has_historical_data:
+                logger.info(
+                    "No effective methods found for %s, trying all methods",
+                    self.source_name,
+                )
+            else:
+                logger.info("No historical data for %s", self.source_name)
+                logger.info("Trying all methods")
             return [
                 DiscoveryMethod.RSS_FEED,
                 DiscoveryMethod.NEWSPAPER4K,
@@ -614,7 +623,8 @@ class SourceProcessor:
                         "source": self.source_name,
                         "source_id": self.source_id,
                         "source_host_id": self.source_id,
-                        "dataset_id": self.dataset_id,  # Use resolved UUID instead of label
+                        # Use resolved UUID instead of label
+                        "dataset_id": self.dataset_id,
                         "discovered_by": discovered_by_label,
                         "publish_date": typed_publish_date,
                         "meta": {

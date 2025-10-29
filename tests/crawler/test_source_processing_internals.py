@@ -16,6 +16,10 @@ class _TelemetryStub:
     def get_effective_discovery_methods(self, source_id: str) -> list[DiscoveryMethod]:
         return list(self._methods)
 
+    def has_historical_data(self, source_id: str) -> bool:
+        # Return True if there are any methods (simulating that data exists)
+        return len(self._methods) > 0
+
 
 class _BaseDiscoveryStub:
     def __init__(self, telemetry: Any = None, retry_days: int = 90):
@@ -222,3 +226,75 @@ def test_store_candidates_classification(monkeypatch):
     assert stored["url"] == "https://example.com/new-story"
     assert stored["meta"]["section"] == "local"
     assert stored["discovered_by"].startswith("formatted_")
+
+
+def test_accurate_logging_when_historical_data_exists_but_no_effective_methods(
+    caplog,
+):
+    """Test that log messages accurately distinguish between:
+    1. No historical data at all
+    2. Historical data exists but no methods are effective
+    """
+    import logging
+
+    caplog.set_level(logging.INFO)
+
+    # Case 1: Historical data exists but no effective methods
+    class _TelemetryWithHistory:
+        def has_historical_data(self, source_id: str) -> bool:
+            return True
+
+        def get_effective_discovery_methods(
+            self, source_id: str
+        ) -> list[DiscoveryMethod]:
+            # Historical data exists but doesn't meet effectiveness criteria
+            return []
+
+    class _DiscoveryWithHistory(_BaseDiscoveryStub):
+        def __init__(self):
+            super().__init__(telemetry=_TelemetryWithHistory())
+
+    discovery = _DiscoveryWithHistory()
+    source_row = _make_series()
+    processor = SourceProcessor(discovery=discovery, source_row=source_row)
+    processor._initialize_context()
+
+    # Should NOT log "No historical data" but instead
+    # "No effective methods found"
+    assert processor.effective_methods == [
+        DiscoveryMethod.RSS_FEED,
+        DiscoveryMethod.NEWSPAPER4K,
+        DiscoveryMethod.STORYSNIFFER,
+    ]
+    log_messages = [rec.message for rec in caplog.records]
+    assert any("No effective methods found" in msg for msg in log_messages)
+    assert not any(
+        "No historical data" in msg and "No effective" not in msg
+        for msg in log_messages
+    )
+
+    caplog.clear()
+
+    # Case 2: No historical data at all
+    class _TelemetryNoHistory:
+        def has_historical_data(self, source_id: str) -> bool:
+            return False
+
+        def get_effective_discovery_methods(
+            self, source_id: str
+        ) -> list[DiscoveryMethod]:
+            return []
+
+    class _DiscoveryNoHistory(_BaseDiscoveryStub):
+        def __init__(self):
+            super().__init__(telemetry=_TelemetryNoHistory())
+
+    discovery_no_hist = _DiscoveryNoHistory()
+    processor_no_hist = SourceProcessor(
+        discovery=discovery_no_hist, source_row=source_row
+    )
+    processor_no_hist._initialize_context()
+
+    # Should log "No historical data"
+    log_messages = [rec.message for rec in caplog.records]
+    assert any("No historical data" in msg for msg in log_messages)
