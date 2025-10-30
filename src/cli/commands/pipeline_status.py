@@ -188,9 +188,10 @@ def _check_discovery_status(session, hours, detailed):
 
 def _check_verification_status(session, hours, detailed):
     """Check verification pipeline status."""
-    # Pending verification
+    # Pending verification (URLs with status='discovered')
     result = safe_session_execute(
-        session, text("SELECT COUNT(*) FROM candidate_links WHERE status = 'pending'")
+        session,
+        text("SELECT COUNT(*) FROM candidate_links WHERE status = 'discovered'"),
     )
     pending = result.scalar() or 0
 
