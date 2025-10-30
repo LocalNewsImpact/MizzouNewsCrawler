@@ -201,7 +201,7 @@ def _check_verification_status(session, hours, detailed):
     )
     articles = result.scalar() or 0
 
-    # Verified recently
+    # Verified recently (any URL with processed_at timestamp)
     cutoff = datetime.utcnow() - timedelta(hours=hours)
     result = safe_session_execute(
         session,
@@ -209,8 +209,7 @@ def _check_verification_status(session, hours, detailed):
             """
             SELECT COUNT(*)
             FROM candidate_links
-            WHERE status IN ('article', 'not_article', 'error')
-            AND processed_at >= :cutoff
+            WHERE processed_at >= :cutoff
         """
         ),
         {"cutoff": cutoff},
