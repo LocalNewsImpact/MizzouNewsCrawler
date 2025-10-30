@@ -230,8 +230,8 @@ spec:
         - verify-urls
         - --batch-size
         - "{{inputs.parameters.batch-size}}"
-        - --max-batches
-        - "{{inputs.parameters.max-batches}}"
+        # No --max-batches: process entire backlog every run
+        # Exit when no more URLs with status='discovered' remain
       envFrom:
       - secretRef:
           name: origin-proxy-credentials

@@ -44,10 +44,12 @@ spec:
             - name: days-back
               value: "7"
             # Verification parameters
+            # Larger batch size for efficiency - verification is fast (~100ms per URL)
+            # No max-batches limit - process entire backlog every run
             - name: verify-batch-size
-              value: "10"
+              value: "50"
             - name: verify-max-batches
-              value: "100"
+              value: "0"  # Ignored - unlimited batches
             # Extraction parameters
             # extract-limit: articles per batch (balance: larger = faster, smaller = safer rate limiting)
             # extract-batches: max batches (extract-limit × batches = total capacity per run)
