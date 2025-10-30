@@ -259,14 +259,15 @@ class ContentTypeDetector:
         matches: dict[str, list[str]] = {}
         detected_services: set[str] = set()
         wire_byline_found = False
-        strong_url_match = False
 
         # Check URL for STRONG wire service patterns (actual wire service domains)
         url_lower = url.lower()
         url_wire_matches = []
 
         # Strong URL patterns (actual wire service domains)
-        strong_url_patterns = {
+        # NOTE: Content ON these domains is original, not syndicated
+        # We track these to EXCLUDE them from wire detection
+        own_source_domains = {
             "cnn.com": "CNN",
             "apnews.com": "Associated Press",
             "reuters.com": "Reuters",
@@ -280,11 +281,18 @@ class ContentTypeDetector:
             "latimes.com": "Los Angeles Times",
         }
 
-        for domain, service_name in strong_url_patterns.items():
+        # Check if this content is from the wire service's own domain
+        is_own_source = False
+        source_service_name = None
+        for domain, service_name in own_source_domains.items():
             if domain in url_lower:
-                url_wire_matches.append(domain)
-                detected_services.add(service_name)
-                strong_url_match = True
+                is_own_source = True
+                source_service_name = service_name
+                break
+
+        # If this is from the service's own domain, it's NOT wire/syndicated
+        if is_own_source:
+            return None
 
         # Weak URL patterns (syndication markers on local sites)
         # Only count these if we also have strong content evidence
@@ -314,6 +322,7 @@ class ContentTypeDetector:
 
             # Look for explicit wire service bylines (STRONG evidence)
             # Format: "By [Service]", "[Service] —", "([Service])"
+            # Also catch: "Person Name USA TODAY" (syndicated when not from USA TODAY)
             wire_byline_patterns = [
                 (r"^By (AP|Associated Press|A\.P\.)", "Associated Press"),
                 (r"^(AP|Associated Press|A\.P\.)\s*[—–-]", "Associated Press"),
@@ -325,6 +334,15 @@ class ContentTypeDetector:
                 (r"^(Bloomberg)\s*[—–-]", "Bloomberg"),
                 (r"^By (NPR|National Public Radio)", "NPR"),
                 (r"^(NPR)\s*[—–-]", "NPR"),
+                # Syndicated bylines: "Person Name USA TODAY" etc.
+                (r"\b(USA TODAY|USA Today)\s*$", "USA TODAY"),
+                (r"\b(Wall Street Journal)\s*$", "Wall Street Journal"),
+                (r"\b(New York Times|The New York Times)\s*$", "The New York Times"),
+                (r"\b(Washington Post|The Washington Post)\s*$", "The Washington Post"),
+                (r"\b(Los Angeles Times)\s*$", "Los Angeles Times"),
+                (r"\b(Associated Press)\s*$", "Associated Press"),
+                (r"\b(Reuters)\s*$", "Reuters"),
+                (r"\b(Bloomberg)\s*$", "Bloomberg"),
             ]
 
             for pattern, service_name in wire_byline_patterns:
@@ -353,16 +371,17 @@ class ContentTypeDetector:
             closing = content[-150:] if len(content) > 150 else content
             copyright_patterns = [
                 (
-                    r"©\s*\d{4}\s+(Associated Press|AP|Reuters|CNN|Bloomberg)",
+                    r"©\s*\d{4}\s+(Associated Press|AP|Reuters|CNN|Bloomberg|NPR)",
                     "copyright",
                 ),
                 (
                     r"Copyright\s+\d{4}\s+"
-                    r"(Associated Press|AP|Reuters|CNN|Bloomberg)",
+                    r"(Associated Press|AP|Reuters|CNN|Bloomberg|NPR)",
                     "copyright",
                 ),
                 (
-                    r"All rights reserved\.?\s+" r"(Associated Press|AP|Reuters|CNN)",
+                    r"All rights reserved\.?\s+"
+                    r"(Associated Press|AP|Reuters|CNN|NPR)",
                     "copyright",
                 ),
             ]
@@ -380,29 +399,51 @@ class ContentTypeDetector:
                         service_name = "CNN"
                     elif service.upper() == "BLOOMBERG":
                         service_name = "Bloomberg"
+                    elif service.upper() == "NPR":
+                        service_name = "NPR"
                     else:
                         service_name = service
 
-                    content_matches.append(f"{service_name} ({marker_type})")
-                    detected_services.add(service_name)
+                    # Check if this is from the service's own source
+                    # (e.g., "Copyright NPR" on npr.org is NOT syndicated)
+                    url_lower = url.lower()
+                    is_own_source = False
+                    if service_name == "NPR" and "npr.org" in url_lower:
+                        is_own_source = True
+                    elif (
+                        service_name == "Associated Press"
+                        and "apnews.com" in url_lower
+                    ):
+                        is_own_source = True
+                    elif service_name == "Reuters" and "reuters.com" in url_lower:
+                        is_own_source = True
+                    elif service_name == "CNN" and "cnn.com" in url_lower:
+                        is_own_source = True
+                    elif (
+                        service_name == "Bloomberg" and "bloomberg.com" in url_lower
+                    ):
+                        is_own_source = True
+
+                    # Only mark as wire if it's NOT from the service's own source
+                    if not is_own_source:
+                        content_matches.append(f"{service_name} ({marker_type})")
+                        detected_services.add(service_name)
 
             if content_matches:
                 matches["content"] = content_matches
 
         # CONSERVATIVE DECISION LOGIC:
         # Only mark as wire if we have STRONG evidence:
-        # 1. Strong URL match (actual wire domain), OR
-        # 2. Wire byline in opening, OR
-        # 3. Copyright/attribution in closing, OR
-        # 4. Weak URL match + strong content evidence
+        # 1. Wire byline in opening, OR
+        # 2. Copyright/attribution in closing, OR
+        # 3. Weak URL match + strong content evidence
 
         if not matches:
             return None
 
         # Require strong evidence
         has_strong_evidence = (
-            strong_url_match
-            or wire_byline_found
+            wire_byline_found
             or any(
                 "copyright" in m or "byline" in m for m in matches.get("content", [])
             )

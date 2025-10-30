@@ -563,27 +563,58 @@ class BylineCleaner:
                     self._detected_wire_services = []
 
                 else:
-                    # This is syndicated content - preserve wire service
-                    # name as-is
-                    self.telemetry.log_transformation_step(
-                        step_name="wire_service_detection",
-                        input_text=byline,
-                        output_text=byline,
-                        transformation_type="classification",
-                        confidence_delta=0.8,
-                        notes=(
-                            f"Detected syndicated wire service "
-                            f"'{detected_wire_service}' - preserving as-is"
-                        ),
-                    )
+                    # This is syndicated content
+                    # Check if there's an author name before the wire service
+                    # (e.g., "Trisha Easto USA TODAY")
+                    author_extracted = None
+                    if detected_wire_service:
+                        author_extracted = self._extract_author_from_wire_byline(
+                            byline, detected_wire_service
+                        )
 
-                    self.telemetry.finalize_cleaning_session(
-                        final_authors=[byline.strip()],
-                        cleaning_method="wire_service_passthrough",
-                        likely_valid_authors=True,
-                        likely_noise=False,
-                    )
-                    return self._format_result([byline.strip()], return_json)
+                    if author_extracted:
+                        # We found an author name - extract it
+                        self.telemetry.log_transformation_step(
+                            step_name="wire_service_detection",
+                            input_text=byline,
+                            output_text=author_extracted,
+                            transformation_type="syndicated_author_extraction",
+                            confidence_delta=0.8,
+                            notes=(
+                                f"Detected syndicated wire service "
+                                f"'{detected_wire_service}' - extracted "
+                                f"author '{author_extracted}'"
+                            ),
+                        )
+
+                        self.telemetry.finalize_cleaning_session(
+                            final_authors=[author_extracted],
+                            cleaning_method="wire_service_author_extraction",
+                            likely_valid_authors=True,
+                            likely_noise=False,
+                        )
+                        return self._format_result([author_extracted], return_json)
+                    else:
+                        # No author name found - preserve wire service as-is
+                        self.telemetry.log_transformation_step(
+                            step_name="wire_service_detection",
+                            input_text=byline,
+                            output_text=byline,
+                            transformation_type="classification",
+                            confidence_delta=0.8,
+                            notes=(
+                                f"Detected syndicated wire service "
+                                f"'{detected_wire_service}' - preserving as-is"
+                            ),
+                        )
+
+                        self.telemetry.finalize_cleaning_session(
+                            final_authors=[byline.strip()],
+                            cleaning_method="wire_service_passthrough",
+                            likely_valid_authors=True,
+                            likely_noise=False,
+                        )
+                        return self._format_result([byline.strip()], return_json)
 
             # Step 2: Check for "Special to" patterns BEFORE source
             # removal (because source removal might break the pattern
@@ -915,6 +946,41 @@ class BylineCleaner:
         service_lower = service_name.lower().strip()
         return self.WIRE_SERVICE_NORMALIZATION.get(service_lower, service_name)
 
+    def _extract_author_from_wire_byline(
+        self, byline: str, wire_service: str
+    ) -> str | None:
+        """
+        Extract author name from syndicated byline like "Trisha Easto USA TODAY".
+
+        Args:
+            byline: Full byline text
+            wire_service: Detected wire service name
+
+        Returns:
+            Extracted author name, or None if not found
+        """
+        # Remove the wire service from the end of the byline
+        byline_lower = byline.lower().strip()
+        wire_lower = wire_service.lower().strip()
+
+        # Try to find and remove the wire service from the end
+        if byline_lower.endswith(wire_lower):
+            author_part = byline[: -len(wire_service)].strip()
+            # Also check for common patterns like "usa today" in original case
+            if author_part:
+                # Clean up the author part
+                author_part = re.sub(r"\s+", " ", author_part)
+                # Remove trailing punctuation
+                author_part = re.sub(r"[,;:\-–—]+$", "", author_part).strip()
+
+                # Verify it looks like a person name (basic check)
+                # Should have at least 2 words and start with capital letter
+                words = author_part.split()
+                if len(words) >= 2 and author_part[0].isupper():
+                    return author_part
+
+        return None
+
     def _is_wire_service(self, byline: str) -> bool:
         """Check if byline is from wire service/syndicated source."""
         byline_lower = byline.lower().strip()
@@ -961,6 +1027,29 @@ class BylineCleaner:
                     self._detected_wire_services.append(normalized_service)
                 else:
                     self._detected_wire_services.append(service_category)
+                return True
+
+        # Check for syndicated byline patterns: "Person Name USA TODAY" etc.
+        # These indicate the story is syndicated when the publication is NOT
+        # that service
+        syndicated_suffix_patterns = [
+            (r"\busa\s+today\s*$", "USA TODAY"),
+            (r"\bwall\s+street\s+journal\s*$", "Wall Street Journal"),
+            (r"\b(the\s+)?new\s+york\s+times\s*$", "The New York Times"),
+            (r"\b(the\s+)?washington\s+post\s*$", "The Washington Post"),
+            (r"\blos\s+angeles\s+times\s*$", "Los Angeles Times"),
+            (r"\bassociated\s+press\s*$", "The Associated Press"),
+            (r"\breuters\s*$", "Reuters"),
+            (r"\bbloomberg\s*$", "Bloomberg"),
+            (r"\bcnn\s*$", "CNN NewsSource"),
+            (r"\bnpr\s*$", "NPR"),
+        ]
+
+        for pattern, service_name in syndicated_suffix_patterns:
+            if re.search(pattern, byline_lower):
+                # Track the detected wire service
+                normalized_service = self._normalize_wire_service(service_name)
+                self._detected_wire_services.append(normalized_service)
                 return True
 
         return False

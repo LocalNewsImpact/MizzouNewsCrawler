@@ -40,6 +40,7 @@ NON_ARTICLE_PATTERNS = [
     r"/coupons/",
     r"/promotions/",
     r"/sponsored/",
+    r"/shopping",
     # Technical pages
     r"\.pdf$",
     r"\.xml$",
