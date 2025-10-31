@@ -7,8 +7,8 @@ torch>=2.1.0  # PyTorch for deep learning models
 transformers>=4.30.0  # HuggingFace transformers for NLP
 
 # ML utilities
-scikit-learn==1.5.1  # Fixed version for StorySniffer compatibility
-storysniffer>=1.0.0  # News article classification
+scikit-learn>=1.5.1,<1.7  # Compatible with StorySniffer 1.0.9+ skops models
+storysniffer>=1.0.9  # News article classification (skops-based models)
 
 # Crawler dependencies for article extraction (processor CLI imports crawler)
 feedparser>=6.0.10  # RSS/Atom feed parsing
