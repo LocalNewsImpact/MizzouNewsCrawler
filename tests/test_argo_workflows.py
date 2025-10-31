@@ -204,12 +204,12 @@ class TestContainerConfiguration:
     """Test container configuration."""
 
     def test_discovery_step_uses_correct_image(self, base_workflow):
-        """Ensure discovery step uses correct processor image."""
+        """Ensure discovery step uses correct crawler image."""
         templates = base_workflow["spec"]["templates"]
         discovery = next(t for t in templates if t["name"] == "discovery-step")
 
         image = discovery["container"]["image"]
-        assert "mizzou-crawler/processor" in image
+        assert "mizzou-crawler/crawler" in image
 
     def test_discovery_step_has_correct_command(self, base_workflow):
         """Ensure discovery step has correct CLI command."""
