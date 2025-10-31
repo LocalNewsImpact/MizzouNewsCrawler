@@ -1,8 +1,8 @@
-# Migration d1e2f3g4h5i6: Fix proxy_status Column Type
+# Migration d1e2f3a4b5c6: Fix proxy_status Column Type
 
 ## Overview
 
-**Migration ID**: `d1e2f3g4h5i6_fix_proxy_status_column_type`  
+**Migration ID**: `d1e2f3a4b5c6_fix_proxy_status_column_type`  
 **Date**: 2025-10-31  
 **Severity**: CRITICAL  
 **Issue**: #123 - Telemetry PostgreSQL schema missing → SQLite fallback → data loss
@@ -109,7 +109,7 @@ alembic upgrade head
 # 3. Verify migration applied
 alembic current
 
-# Expected output includes: d1e2f3g4h5i6
+# Expected output includes: d1e2f3a4b5c6
 ```
 
 ### Production
@@ -192,10 +192,10 @@ After deployment, monitor application logs for:
 
 ## Files Changed
 
-- `alembic/versions/d1e2f3g4h5i6_fix_proxy_status_column_type.py` - Migration file
+- `alembic/versions/d1e2f3a4b5c6_fix_proxy_status_column_type.py` - Migration file
 - `tests/models/test_extraction_telemetry_proxy_status.py` - ORM tests
 - `tests/alembic/test_proxy_status_migration.py` - Migration tests
-- `docs/migrations/MIGRATION_d1e2f3g4h5i6_proxy_status_fix.md` - This document
+- `docs/migrations/MIGRATION_d1e2f3a4b5c6_proxy_status_fix.md` - This document
 
 ## Contact
 

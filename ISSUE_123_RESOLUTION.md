@@ -34,7 +34,7 @@ The telemetry system was experiencing critical data loss due to a schema mismatc
 
 ## Solution Implemented
 
-### Migration d1e2f3g4h5i6_fix_proxy_status_column_type
+### Migration d1e2f3a4b5c6_fix_proxy_status_column_type
 Created Alembic migration to change column type from Integer to String:
 
 **PostgreSQL**:
@@ -48,10 +48,10 @@ USING proxy_status::VARCHAR
 Uses batch mode ALTER COLUMN for consistency (SQLite is flexible with types)
 
 ### Files Created/Modified
-1. **Migration**: `alembic/versions/d1e2f3g4h5i6_fix_proxy_status_column_type.py`
+1. **Migration**: `alembic/versions/d1e2f3a4b5c6_fix_proxy_status_column_type.py`
 2. **ORM Tests**: `tests/models/test_extraction_telemetry_proxy_status.py`
 3. **Migration Tests**: `tests/alembic/test_proxy_status_migration.py`
-4. **Documentation**: `docs/migrations/MIGRATION_d1e2f3g4h5i6_proxy_status_fix.md`
+4. **Documentation**: `docs/migrations/MIGRATION_d1e2f3a4b5c6_proxy_status_fix.md`
 5. **Resolution Summary**: This file
 
 ## Validation
@@ -101,7 +101,7 @@ pg_dump -h localhost -U postgres -d mizzou_crawler > backup_before_proxy_fix.sql
 alembic upgrade head
 
 # 3. Verify
-alembic current  # Should show d1e2f3g4h5i6
+alembic current  # Should show d1e2f3a4b5c6
 ```
 
 #### Production
@@ -111,7 +111,7 @@ Use the standard migration workflow:
 3. Approve manual gate
 4. Monitor logs
 
-See detailed instructions in `docs/migrations/MIGRATION_d1e2f3g4h5i6_proxy_status_fix.md`
+See detailed instructions in `docs/migrations/MIGRATION_d1e2f3a4b5c6_proxy_status_fix.md`
 
 ## Post-Deployment Verification
 
@@ -197,8 +197,8 @@ alembic downgrade -1
 ## References
 - **Issue**: #123
 - **Original Migration**: `c22022d6d3ec_add_proxy_and_alternative_columns_to_`
-- **Fix Migration**: `d1e2f3g4h5i6_fix_proxy_status_column_type`
-- **Documentation**: `docs/migrations/MIGRATION_d1e2f3g4h5i6_proxy_status_fix.md`
+- **Fix Migration**: `d1e2f3a4b5c6_fix_proxy_status_column_type`
+- **Documentation**: `docs/migrations/MIGRATION_d1e2f3a4b5c6_proxy_status_fix.md`
 - **ORM Model**: `src/models/telemetry_orm.py` (ExtractionTelemetryV2, line 143)
 
 ## Contacts

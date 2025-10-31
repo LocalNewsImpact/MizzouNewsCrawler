@@ -1,6 +1,6 @@
 """Test the proxy_status column type migration.
 
-This test validates that the migration d1e2f3g4h5i6 correctly changes
+This test validates that the migration d1e2f3a4b5c6 correctly changes
 the proxy_status column type from Integer to String.
 """
 
@@ -186,5 +186,5 @@ def test_migration_documentation():
     assert "downgrade" in content
     
     # Check for proper revision identifier
-    assert "revision: str = 'd1e2f3g4h5i6'" in content
+    assert "revision: str = 'd1e2f3a4b5c6'" in content
     assert "down_revision:" in content
