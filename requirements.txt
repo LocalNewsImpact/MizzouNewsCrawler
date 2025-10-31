@@ -19,7 +19,7 @@ papermill>=2.4.0
 jupyterlab>=4.0.0
 
 # ML/NLP
-scikit-learn>=1.5.1,<1.7  # Compatible with StorySniffer 1.0.9+ skops models
+scikit-learn>=1.7.2,<1.8  # Compatible with StorySniffer 1.0.9+ skops models (model trained with 1.7.2)
 spacy>=3.8.0  # Python 3.11+ supports latest spacy with numpy 2.x
 transformers>=4.30.0
 nltk>=3.8

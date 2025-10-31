@@ -32,7 +32,7 @@ nltk>=3.8
 textblob>=0.17.0
 ftfy>=6.1.0
 python-dateutil>=2.8.0
-scikit-learn>=1.5.1,<1.7  # Compatible with StorySniffer 1.0.9+ skops models
+scikit-learn>=1.7.2,<1.8  # Compatible with StorySniffer 1.0.9+ skops models (model trained with 1.7.2)
 
 # Testing
 pytest>=7.4.0
