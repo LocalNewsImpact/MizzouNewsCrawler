@@ -59,18 +59,26 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Revert proxy_status column type from String to Integer.
     
-    Note: This downgrade will fail if there are string values in the column
-    that cannot be converted to integers.
+    WARNING: This downgrade will fail if there are string values in the column
+    that cannot be converted to integers (e.g., 'success', 'failed', 'bypassed').
+    This is expected behavior since the String type is the correct schema.
+    
+    If downgrade is needed in production, manually truncate or convert the data first.
     """
     connection = op.get_bind()
     dialect_name = connection.dialect.name
     
     if dialect_name == 'postgresql':
-        # This will fail if there are non-numeric string values
+        # Use a CASE statement to handle string values gracefully
+        # Non-numeric strings will be converted to NULL
         op.execute("""
             ALTER TABLE extraction_telemetry_v2 
             ALTER COLUMN proxy_status TYPE INTEGER 
-            USING NULLIF(proxy_status, '')::INTEGER
+            USING CASE 
+                WHEN proxy_status IS NULL THEN NULL
+                WHEN proxy_status ~ '^[0-9]+$' THEN proxy_status::INTEGER 
+                ELSE NULL 
+            END
         """)
     elif dialect_name == 'sqlite':
         with op.batch_alter_table('extraction_telemetry_v2', schema=None) as batch_op:

@@ -165,7 +165,7 @@ class TestProxyStatusColumnType:
         
         # Accept VARCHAR, TEXT, or similar string types
         # SQLite is flexible, so we're mainly ensuring it's not INTEGER or NUMERIC
-        assert 'INT' not in col_type_str or 'INTEGER' != col_type_str, \
+        assert 'INT' not in col_type_str and 'INTEGER' != col_type_str, \
             f"proxy_status column has numeric type: {col_type_str}"
 
     def test_bulk_insert_with_mixed_proxy_statuses(self, db_session):
