@@ -12,7 +12,7 @@ newspaper4k>=0.9.2  # Use newspaper4k (modern fork)
 feedparser>=6.0.10
 
 # Article classification
-scikit-learn>=1.5.1,<1.7  # Compatible with StorySniffer 1.0.9+ skops models
+scikit-learn>=1.7.2,<1.8  # Compatible with StorySniffer 1.0.9+ skops models (model trained with 1.7.2)
 storysniffer>=1.0.9  # News article classification (skops-based models)
 
 # Anti-bot bypass
