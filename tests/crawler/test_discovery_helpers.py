@@ -1186,6 +1186,9 @@ def test_source_processor_records_network_rss_failure(
             del source_id
             return list(self.methods)
 
+        def has_historical_data(self, source_id: str) -> bool:
+            return len(self.methods) > 0
+
         def record_site_failure(self, **kwargs: Any) -> None:
             self.failures.append(dict(kwargs))
 
@@ -1298,6 +1301,9 @@ def test_source_processor_marks_rss_missing_after_non_network_failure(
         def get_effective_discovery_methods(self, source_id: str):
             del source_id
             return list(self.methods)
+
+        def has_historical_data(self, source_id: str) -> bool:
+            return len(self.methods) > 0
 
         def record_site_failure(self, **kwargs: Any) -> None:
             self.failures.append(dict(kwargs))
