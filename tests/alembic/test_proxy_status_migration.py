@@ -173,7 +173,7 @@ class TestProxyStatusMigration:
 
 def test_migration_documentation():
     """Verify the migration file has proper documentation."""
-    migration_file = Path("alembic/versions/d1e2f3g4h5i6_fix_proxy_status_column_type.py")
+    migration_file = Path("alembic/versions/d1e2f3a4b5c6_fix_proxy_status_column_type.py")
     
     assert migration_file.exists(), f"Migration file not found: {migration_file}"
     
