@@ -834,6 +834,9 @@ def test_process_source_stores_and_classifies_articles(
             self.last_source = source_id
             return list(self.methods)
 
+        def has_historical_data(self, source_id: str) -> bool:
+            return len(self.methods) > 0
+
         def record_site_failure(self, **kwargs: Any) -> None:
             self.failures.append(kwargs)
 
@@ -1018,6 +1021,9 @@ def test_source_processor_skips_rss_when_recently_missing(
         def get_effective_discovery_methods(self, source_id: str):
             del source_id
             return list(self.methods)
+
+        def has_historical_data(self, source_id: str) -> bool:
+            return len(self.methods) > 0
 
         def record_site_failure(self, **kwargs: Any) -> None:
             self.failures.append(kwargs)
@@ -1407,6 +1413,9 @@ def test_source_processor_records_failures_for_downstream_methods(
             del source_id
             return list(self.methods)
 
+        def has_historical_data(self, source_id: str) -> bool:
+            return len(self.methods) > 0
+
         def record_site_failure(self, **kwargs: Any) -> None:
             self.failures.append(dict(kwargs))
 
@@ -1520,6 +1529,9 @@ def test_source_processor_skips_out_of_scope_urls(
         def get_effective_discovery_methods(self, source_id: str):
             del source_id
             return list(self.methods)
+
+        def has_historical_data(self, source_id: str) -> bool:
+            return len(self.methods) > 0
 
         def record_site_failure(self, **kwargs: Any) -> None:
             self.failures.append(dict(kwargs))
@@ -1662,6 +1674,9 @@ def test_source_processor_stores_when_publish_date_parse_fails(
             del source_id
             return list(self.methods)
 
+        def has_historical_data(self, source_id: str) -> bool:
+            return len(self.methods) > 0
+
         def record_site_failure(self, **kwargs: Any) -> None:
             self.failures.append(dict(kwargs))
 
@@ -1800,6 +1815,9 @@ def test_source_processor_continues_when_upsert_raises(
         def get_effective_discovery_methods(self, source_id: str):
             del source_id
             return list(self.methods)
+
+        def has_historical_data(self, source_id: str) -> bool:
+            return len(self.methods) > 0
 
         def record_site_failure(self, **kwargs: Any) -> None:
             self.failures.append(dict(kwargs))

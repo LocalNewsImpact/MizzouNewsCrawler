@@ -102,6 +102,9 @@ class TelemetryStub:
     def get_effective_discovery_methods(self, _source_id):
         return self.effective_methods
 
+    def has_historical_data(self, source_id: str) -> bool:
+        return len(self.effective_methods) > 0
+
     def update_discovery_method_effectiveness(self, **kwargs):
         self.method_updates.append(kwargs)
 
