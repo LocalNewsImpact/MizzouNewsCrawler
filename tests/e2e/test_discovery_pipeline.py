@@ -67,6 +67,9 @@ class StubTelemetry:
     def get_effective_discovery_methods(self, source_id: str):
         return [DiscoveryMethod.RSS_FEED]
 
+    def has_historical_data(self, source_id: str) -> bool:
+        return True
+
     def update_discovery_method_effectiveness(self, *args, **kwargs):
         self.method_updates.append({"args": args, "kwargs": kwargs})
 
