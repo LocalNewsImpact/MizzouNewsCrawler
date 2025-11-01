@@ -58,7 +58,10 @@ def _make_article(**overrides):
 
 
 def _make_service() -> ArticleClassificationService:
-    return ArticleClassificationService(session=MagicMock(spec=Session))
+    session = MagicMock(spec=Session)
+    session.bind = None  # avoid hitting dialect detection in tests
+    session.scalars = MagicMock(return_value=iter(()))
+    return ArticleClassificationService(session=session)
 
 
 def test_prepare_text_prefers_first_non_empty_field():
@@ -101,6 +104,7 @@ def test_apply_classification_dry_run_collects_proposed_labels(monkeypatch):
     ]
 
     captured = {}
+    call_count = 0
 
     def fake_select(
         statuses,
@@ -108,12 +112,17 @@ def test_apply_classification_dry_run_collects_proposed_labels(monkeypatch):
         limit,
         include_existing,
         excluded,
+        excluded_ids=None,
     ):
+        nonlocal call_count
+        if call_count:
+            return []
+        call_count += 1
         captured["statuses"] = statuses
         captured["label_version"] = label_version
         assert include_existing is False
         assert isinstance(excluded, list)
-        return articles
+        return list(articles)
 
     monkeypatch.setattr(service, "_select_articles", fake_select)
     monkeypatch.setattr(
@@ -158,11 +167,16 @@ def test_apply_classification_dry_run_collects_proposed_labels(monkeypatch):
 def test_apply_classification_persists_predictions(monkeypatch):
     service = _make_service()
     articles = [_make_article(id=999, content="Body", url="https://example.com/real")]
-    monkeypatch.setattr(
-        service,
-        "_select_articles",
-        lambda *args, **kwargs: articles,
-    )
+    call_count = 0
+
+    def fake_select(*_args, **_kwargs):
+        nonlocal call_count
+        if call_count:
+            return []
+        call_count += 1
+        return list(articles)
+
+    monkeypatch.setattr(service, "_select_articles", fake_select)
 
     saved_calls = []
 
@@ -221,11 +235,16 @@ def test_apply_classification_records_error_when_missing_id(monkeypatch):
             url="https://example.com/missing",
         )
     ]
-    monkeypatch.setattr(
-        service,
-        "_select_articles",
-        lambda *args, **kwargs: articles,
-    )
+    call_count = 0
+
+    def fake_select(*_args, **_kwargs):
+        nonlocal call_count
+        if call_count:
+            return []
+        call_count += 1
+        return list(articles)
+
+    monkeypatch.setattr(service, "_select_articles", fake_select)
 
     saved_calls = []
     monkeypatch.setattr(
@@ -250,11 +269,16 @@ def test_apply_classification_records_error_when_missing_id(monkeypatch):
 def test_apply_classification_skips_articles_with_no_text(monkeypatch):
     service = _make_service()
     article = _make_article(content="", text="  ", title=" ")
-    monkeypatch.setattr(
-        service,
-        "_select_articles",
-        lambda *args, **kwargs: [article],
-    )
+    call_count = 0
+
+    def fake_select(*_args, **_kwargs):
+        nonlocal call_count
+        if call_count:
+            return []
+        call_count += 1
+        return [article]
+
+    monkeypatch.setattr(service, "_select_articles", fake_select)
 
     classifier = DummyClassifier(
         [],
@@ -279,11 +303,16 @@ def test_apply_classification_handles_classifier_exception(monkeypatch):
         _make_article(id="1", content="First", url="https://example.com/1"),
         _make_article(id="2", content="Second", url="https://example.com/2"),
     ]
-    monkeypatch.setattr(
-        service,
-        "_select_articles",
-        lambda *args, **kwargs: articles,
-    )
+    call_count = 0
+
+    def fake_select(*_args, **_kwargs):
+        nonlocal call_count
+        if call_count:
+            return []
+        call_count += 1
+        return list(articles)
+
+    monkeypatch.setattr(service, "_select_articles", fake_select)
 
     classifier = DummyClassifier([], error=RuntimeError("boom"))
 
@@ -300,11 +329,16 @@ def test_apply_classification_handles_classifier_exception(monkeypatch):
 def test_apply_classification_skips_empty_predictions(monkeypatch):
     service = _make_service()
     articles = [_make_article(id="1", content="Text")]
-    monkeypatch.setattr(
-        service,
-        "_select_articles",
-        lambda *args, **kwargs: articles,
-    )
+    call_count = 0
+
+    def fake_select(*_args, **_kwargs):
+        nonlocal call_count
+        if call_count:
+            return []
+        call_count += 1
+        return list(articles)
+
+    monkeypatch.setattr(service, "_select_articles", fake_select)
 
     classifier = DummyClassifier([[]])
 
@@ -330,6 +364,7 @@ def test_apply_classification_handles_none_statuses(monkeypatch):
         limit,
         include_existing,
         excluded,
+        excluded_ids=None,
     ):
         captured.update(
             {
@@ -338,6 +373,7 @@ def test_apply_classification_handles_none_statuses(monkeypatch):
                 "limit": limit,
                 "include_existing": include_existing,
                 "excluded": tuple(sorted(excluded)),
+                "excluded_ids": tuple(sorted(excluded_ids or [])),
             }
         )
         return []
@@ -387,6 +423,8 @@ def test_batch_iter_yields_even_chunks():
     assert chunks == [items[0:2], items[2:4], items[4:5]]
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_select_articles_applies_limit_clause():
     service = _make_service()
     session_mock = service.session  # type: ignore[assignment]

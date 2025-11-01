@@ -84,8 +84,16 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
 
     try:
         with db.get_session() as session:
-            # Query for articles grouped by source
-            # Ordered to process sources together for efficient gazetteer caching
+            # Query for articles with row-level locking for parallel processing
+            #
+            # Parallel Processing Strategy:
+            # -----------------------------
+            # - FOR UPDATE SKIP LOCKED locks all selected articles
+            # - Articles processed source-by-source (for gazetteer efficiency)
+            # - save_article_entities(autocommit=False) used per article
+            # - Batch commit after each source releases locks together
+            # - Other workers skip locked articles, grab different ones
+            # - EXISTS check prevents re-processing on subsequent runs
             query = sql_text(
                 """
                 SELECT a.id, a.text, a.text_hash, cl.source_id, cl.dataset_id, cl.source
@@ -102,6 +110,7 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
                 + """
                 ORDER BY cl.source_id, cl.dataset_id
                 LIMIT :limit
+                FOR UPDATE OF a SKIP LOCKED
             """
             )
 
@@ -189,14 +198,14 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
                             gazetteer_rows=gazetteer_rows,
                         )
 
-                        # Save entities to database
-                        # Note: save_article_entities commits internally
+                        # Save entities without committing (batch commit below)
                         save_article_entities(
                             session,
                             str(article_id),
                             entities,
                             extractor.extractor_version,
                             text_hash,
+                            autocommit=False,
                         )
 
                         processed += 1
@@ -215,6 +224,9 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
                         errors += 1
                         session.rollback()
 
+                # Commit all entities for this source batch
+                session.commit()
+                
                 # Log progress after each source
                 progress_msg = (
                     f"✓ Completed {source_name}: {processed}/{len(rows)} total"

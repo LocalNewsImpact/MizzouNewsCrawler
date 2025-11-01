@@ -1,4 +1,4 @@
-.PHONY: coverage lint format security type-check test-full test-migrations test-alembic ci-check
+.PHONY: coverage lint format security type-check test-full test-migrations test-alembic ci-check test-parallel test-quick
 
 coverage:
 	python -m pytest --cov=src --cov-report=term-missing --cov-fail-under=45
@@ -61,3 +61,23 @@ ci-check:
 	@echo "3. Tests with coverage..."
 	python -m pytest --cov=src --cov-report=term-missing --cov-fail-under=78
 	@echo "=== All CI checks passed! ==="
+
+test-parallel:
+	@echo "=== Running parallel processing tests only ==="
+	python -m pytest -m parallel -v --tb=short
+
+test-quick:
+	@echo "=== Running quick test subset (no slow/postgres) ==="
+	python -m pytest -m "not slow and not postgres" -v --maxfail=5 --tb=short --no-cov
+
+# Run specific test file or pattern quickly
+# Usage: make test-file FILE=tests/services/test_classification_service_unit.py
+# Usage: make test-file FILE="tests/test_*.py" ARGS="-k batch"
+test-file:
+	@if [ -z "$(FILE)" ]; then \
+		echo "Usage: make test-file FILE=<path> [ARGS='-k filter']"; \
+		echo "Example: make test-file FILE=tests/services/test_classification_service_unit.py"; \
+		echo "Example: make test-file FILE='tests/test_*.py' ARGS='-k batch -v'"; \
+		exit 1; \
+	fi
+	python -m pytest $(FILE) $(ARGS) -v --tb=short --no-cov --maxfail=3
