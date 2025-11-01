@@ -1452,13 +1452,25 @@ class NewsDiscovery:
         source_id: str | None = None,
         operation_id: str | None = None,
     ) -> list[dict]:
-        """Use storysniffer to intelligently detect article URLs.
+        """Attempt to use StorySniffer for article URL discovery.
+
+        NOTE: StorySniffer 1.0.9+ is a URL classifier, not a web crawler.
+        Its guess() method returns a boolean indicating if a single URL is
+        likely an article, rather than discovering article URLs from a homepage.
+
+        This method currently cannot discover articles from homepage URLs using
+        StorySniffer alone. It would need to:
+        1. Fetch and parse the homepage HTML
+        2. Extract all links from the page
+        3. Classify each link using StorySniffer.guess()
+
+        For now, this method is effectively disabled and returns no articles.
 
         Args:
             source_url: The base URL of the news source
 
         Returns:
-            List of discovered article metadata
+            Empty list (StorySniffer cannot discover URLs from homepages)
         """
         discovered_articles: list[dict[str, Any]] = []
         method_start_time = time.time()
@@ -1499,95 +1511,24 @@ class NewsDiscovery:
             )
             return discovered_articles
 
-        try:
-            logger.info(f"Using storysniffer for: {source_url}")
-
-            # Set proxy environment variables if a proxy pool is configured.
-            # Some tests create lightweight discovery stubs that may not have
-            # the `proxy_pool` attribute, so use getattr with a safe default.
-            original_env = {}
-            proxy_pool = getattr(self, "proxy_pool", []) or []
-            if proxy_pool:
-                proxy = random.choice(proxy_pool)
-                env_vars = ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"]
-                for env_var in env_vars:
-                    original_env[env_var] = os.environ.get(env_var)
-                    os.environ[env_var] = proxy
-                logger.debug(f"Set proxy for storysniffer: {proxy}")
-
-            # Use storysniffer to detect article URLs
-            results = self.storysniffer.guess(source_url)
-
-            # Restore original environment
-            for env_var, value in original_env.items():
-                if value is None:
-                    os.environ.pop(env_var, None)
-                else:
-                    os.environ[env_var] = value
-
-            # StorySniffer.guess() returns a list of URLs
-            for item in results if isinstance(results, list) else []:
-                # item may be a URL string or a dict with metadata
-                url: str | None
-                meta: dict
-                if isinstance(item, str):
-                    url = item
-                    meta = {}
-                elif isinstance(item, dict):
-                    url = item.get("url")
-                    if not url:
-                        continue
-                    meta = item
-                else:
-                    continue
-
-                # Type guard: at this point url is definitely a str
-                assert isinstance(url, str)
-
-                article_data = {
-                    "url": url,
-                    "source_url": source_url,
-                    "discovery_method": "storysniffer",
-                    "discovered_at": datetime.utcnow().isoformat(),
-                    "confidence_score": 1.0,
-                    "metadata": {
-                        "storysniffer_data": meta,
-                        "detection_method": "ml_prediction",
-                    },
-                }
-
-                if isinstance(meta, dict) and meta.get("title"):
-                    article_data["title"] = meta.get("title")
-                if isinstance(meta, dict) and meta.get("publish_date"):
-                    article_data["publish_date"] = meta.get("publish_date")
-
-                discovered_articles.append(article_data)
-
-            article_count = len(discovered_articles)
-            logger.info(f"StorySniffer found {article_count} articles")
-            status = (
-                DiscoveryMethodStatus.SUCCESS
-                if article_count > 0
-                else DiscoveryMethodStatus.NO_FEED
-            )
-            notes = None
-            if article_count == 0:
-                notes = "storysniffer returned 0 candidates"
-            record_storysniffer_effectiveness(
-                status,
-                article_count,
-                notes=notes,
-            )
-
-        except Exception as e:
-            msg = "Failed to discover articles with storysniffer"
-            logger.error(f"{msg} for {source_url}: {e}")
-            record_storysniffer_effectiveness(
-                DiscoveryMethodStatus.SERVER_ERROR,
-                len(discovered_articles),
-                notes=str(e)[:200],
-            )
-
+        # StorySniffer.guess() is a classifier (returns bool), not a crawler
+        # It cannot discover article URLs from a homepage without:
+        # 1. Fetching the homepage HTML
+        # 2. Extracting all links
+        # 3. Classifying each link individually
+        #
+        # This would duplicate work done by newspaper4k and RSS methods.
+        # For now, skip StorySniffer for discovery and return empty results.
+        logger.debug(
+            "StorySniffer is a URL classifier, not a discovery crawler. "
+            "Skipping discovery for: %s",
+            source_url,
+        )
+        record_storysniffer_effectiveness(
+            DiscoveryMethodStatus.SKIPPED,
+            0,
+            notes="storysniffer.guess() is a classifier (returns bool), not a crawler",
+        )
         return discovered_articles
 
     def discover_with_rss_feeds(

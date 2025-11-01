@@ -1206,7 +1206,7 @@ python -m src.cli load-sources --csv sources/publinks.csv --dataset "publinks-20
 
 #### URL Discovery
 
-Discover article URLs using newspaper4k and storysniffer with intelligent scheduling:
+Discover article URLs using newspaper4k and RSS feeds with intelligent scheduling:
 
 ```bash
 # Discover URLs for sources due for collection (default behavior)
