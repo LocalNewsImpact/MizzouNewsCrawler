@@ -111,7 +111,8 @@ class WorkQueue:
                 result = db.session.execute(
                     text(
                         "SELECT COUNT(*) FROM articles "
-                        "WHERE status = 'cleaned' AND primary_label IS NULL"
+                        "WHERE status IN ('cleaned', 'local') "
+                        "AND primary_label IS NULL"
                     )
                 )
                 counts["analysis_pending"] = result.scalar() or 0
@@ -253,8 +254,9 @@ def process_analysis(count: int) -> bool:
         str(ANALYSIS_BATCH_SIZE),
         "--top-k",
         "2",
-        "--status",
+        "--statuses",
         "cleaned",
+        "local",
     ]
 
     return run_cli_command(command, f"ML analysis ({count} pending, limit {limit})")
@@ -335,7 +337,11 @@ def process_entity_extraction(count: int) -> bool:
             logger.info("✅ Entity extraction completed successfully (%.1fs)", elapsed)
             return True
         else:
-            logger.error("❌ Entity extraction failed with exit code %d (%.1fs)", result, elapsed)
+            logger.error(
+                "❌ Entity extraction failed with exit code %d (%.1fs)",
+                result,
+                elapsed,
+            )
             return False
             
     except Exception as e:
