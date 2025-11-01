@@ -120,39 +120,46 @@ def test_save_article_classification_with_autocommit_false(cloud_sql_session):
 @pytest.mark.integration
 def test_parallel_entity_extraction_with_skip_locked(cloud_sql_session):
     """Test that multiple workers can extract entities in parallel without blocking.
-    
-    Simulates production: Worker 1 locks and processes articles, Worker 2 gets different articles.
+
+    Simulates production: Worker 1 locks and processes articles,
+    while Worker 2 receives a different batch.
     """
     import time
     timestamp = int(time.time() * 1000)
     
     # Create candidate link and 10 articles
-    candidate_link = CandidateLink(
-        url=f"http://test.com/parallel-{timestamp}",
-        source="test_source",
-    )
-    cloud_sql_session.add(candidate_link)
-    cloud_sql_session.commit()
-    
-    for i in range(10):
-        article = Article(
-            candidate_link_id=candidate_link.id,
-            url=f"http://test.com/parallel-{timestamp}-{i}",
-            title=f"Article {i}",
-            text="Test content for entity extraction",
-            content="Test content for entity extraction",
-            status="cleaned",
+    # Use dedicated setup session so committed rows are visible to parallel connections
+    engine = cloud_sql_session.bind.engine
+    SessionFactory = sessionmaker(bind=engine)
+
+    setup_session = SessionFactory()
+    try:
+        candidate_link = CandidateLink(
+            url=f"http://test.com/parallel-{timestamp}",
+            source="test_source",
         )
-        cloud_sql_session.add(article)
-    cloud_sql_session.commit()
-    
+        setup_session.add(candidate_link)
+        setup_session.commit()
+
+        for i in range(10):
+            article = Article(
+                candidate_link_id=candidate_link.id,
+                url=f"http://test.com/parallel-{timestamp}-{i}",
+                title=f"Article {i}",
+                text="Test content for entity extraction",
+                content="Test content for entity extraction",
+                status="cleaned",
+            )
+            setup_session.add(article)
+        setup_session.commit()
+    finally:
+        setup_session.close()
+
+    pattern = f"http://test.com/parallel-{timestamp}%"
+
     # Worker 1: Lock and process first 5 articles (simulating entity extraction batch)
-    # get_bind() returns engine or connection depending on context
-    bind = cloud_sql_session.get_bind()
-    engine = bind.engine if hasattr(bind, 'engine') else bind
     conn1 = engine.connect()
     trans1 = conn1.begin()
-    
     try:
         # Worker 1 selects with FOR UPDATE SKIP LOCKED (like production)
         query_worker1 = sql_text("""
@@ -166,24 +173,25 @@ def test_parallel_entity_extraction_with_skip_locked(cloud_sql_session):
             LIMIT 5
             FOR UPDATE OF a SKIP LOCKED
         """)
-        result1 = conn1.execute(query_worker1, {"pattern": f"http://test.com/parallel-{timestamp}%"})
+        result1 = conn1.execute(query_worker1, {"pattern": pattern})
         worker1_ids = [row[0] for row in result1.fetchall()]
         assert len(worker1_ids) == 5, "Worker 1 should lock 5 articles"
         
         # Worker 2: Tries to select with SKIP LOCKED (should get different articles)
         conn2 = engine.connect()
         trans2 = conn2.begin()
-        
         try:
-            result2 = conn2.execute(query_worker1, {"pattern": f"http://test.com/parallel-{timestamp}%"})
+            result2 = conn2.execute(query_worker1, {"pattern": pattern})
             worker2_ids = [row[0] for row in result2.fetchall()]
-            
+
             # Worker 2 should get the remaining 5 articles (not blocked!)
             assert len(worker2_ids) == 5, "Worker 2 should get 5 unlocked articles"
-            
+
             # No overlap - parallel processing working!
-            assert set(worker1_ids).isdisjoint(set(worker2_ids)), "Workers got same articles!"
-            
+            assert set(worker1_ids).isdisjoint(set(worker2_ids)), (
+                "Workers got same articles!"
+            )
+
             trans2.commit()
         finally:
             conn2.close()
@@ -191,6 +199,17 @@ def test_parallel_entity_extraction_with_skip_locked(cloud_sql_session):
         trans1.commit()
     finally:
         conn1.close()
+
+    # Cleanup inserted rows
+    cleanup_session = SessionFactory()
+    try:
+        cleanup_session.query(Article).filter(Article.url.like(pattern)).delete(
+            synchronize_session=False
+        )
+        cleanup_session.query(CandidateLink).filter_by(id=candidate_link.id).delete()
+        cleanup_session.commit()
+    finally:
+        cleanup_session.close()
 
 
 @pytest.mark.postgres
@@ -203,28 +222,33 @@ def test_parallel_classification_batch_processing(cloud_sql_session):
     timestamp = int(time.time() * 1000)
     
     # Create test data
-    candidate_link = CandidateLink(
-        url=f"http://test.com/classify-{timestamp}",
-        source="test_source",
-    )
-    cloud_sql_session.add(candidate_link)
-    cloud_sql_session.commit()
-    
-    for i in range(10):
-        article = Article(
-            candidate_link_id=candidate_link.id,
-            url=f"http://test.com/classify-{timestamp}-{i}",
-            title=f"Article {i}",
-            text="Test",
-            status="cleaned",
+    engine = cloud_sql_session.bind.engine
+    SessionFactory = sessionmaker(bind=engine)
+    setup_session = SessionFactory()
+    try:
+        candidate_link = CandidateLink(
+            url=f"http://test.com/classify-{timestamp}",
+            source="test_source",
         )
-        cloud_sql_session.add(article)
-    cloud_sql_session.commit()
-    
+        setup_session.add(candidate_link)
+        setup_session.commit()
+
+        pattern = f"http://test.com/classify-{timestamp}%"
+
+        for i in range(10):
+            article = Article(
+                candidate_link_id=candidate_link.id,
+                url=f"http://test.com/classify-{timestamp}-{i}",
+                title=f"Article {i}",
+                text="Test",
+                status="cleaned",
+            )
+            setup_session.add(article)
+        setup_session.commit()
+    finally:
+        setup_session.close()
+
     # Worker 1: Process batch
-    # get_bind() returns engine or connection depending on context
-    bind = cloud_sql_session.get_bind()
-    engine = bind.engine if hasattr(bind, 'engine') else bind
     conn1 = engine.connect()
     trans1 = conn1.begin()
     Session1 = sessionmaker(bind=conn1)
@@ -234,7 +258,7 @@ def test_parallel_classification_batch_processing(cloud_sql_session):
         from sqlalchemy import select
         stmt = (
             select(Article)
-            .where(Article.url.like(f"http://test.com/classify-{timestamp}%"))
+            .where(Article.url.like(pattern))
             .limit(5)
             .with_for_update(skip_locked=True)
         )
@@ -254,16 +278,16 @@ def test_parallel_classification_batch_processing(cloud_sql_session):
         trans2 = conn2.begin()
         Session2 = sessionmaker(bind=conn2)
         session2 = Session2()
-        
+
         try:
             worker2_articles = list(session2.scalars(stmt))
             assert len(worker2_articles) == 5
-            
+
             # No overlap - parallel processing works
             w1_ids = {str(a.id) for a in worker1_articles}
             w2_ids = {str(a.id) for a in worker2_articles}
             assert w1_ids.isdisjoint(w2_ids)
-            
+
             trans2.commit()
         finally:
             session2.close()
@@ -273,3 +297,13 @@ def test_parallel_classification_batch_processing(cloud_sql_session):
     finally:
         session1.close()
         conn1.close()
+
+    cleanup_session = SessionFactory()
+    try:
+        cleanup_session.query(Article).filter(Article.url.like(pattern)).delete(
+            synchronize_session=False
+        )
+        cleanup_session.query(CandidateLink).filter_by(id=candidate_link.id).delete()
+        cleanup_session.commit()
+    finally:
+        cleanup_session.close()

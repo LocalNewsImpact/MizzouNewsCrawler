@@ -155,36 +155,42 @@ class ArticleClassificationService:
                 return ClassificationStats()
 
         stats = ClassificationStats()
-        remaining = limit if limit else float('inf')
+        remaining = limit if limit else float("inf")
         attempted_article_ids: set[str] = set()
-        
-        effective_model_version = model_version or classifier.model_version or "unknown"
+
+        effective_model_version = (
+            model_version or classifier.model_version or "unknown"
+        )
         effective_model_path = model_path or getattr(
             classifier, "model_identifier", None
         )
         if effective_model_path is not None:
             effective_model_path = str(effective_model_path)
-        
+
         # Process in batches with row-level locking and batch commits
         while remaining > 0:
             batch_limit = min(batch_size, int(remaining)) if limit else batch_size
-            
+
+            excluded_ids = (
+                list(attempted_article_ids) if attempted_article_ids else None
+            )
+
             articles = self._select_articles(
                 effective_statuses,
                 label_version,
                 batch_limit,
                 include_existing,
                 list(excluded_statuses),
-                attempted_article_ids,
+                excluded_ids,
             )
-            
+
             if not articles:
                 break  # No more articles to process
-            
+
             stats.processed += len(articles)
             if limit:
                 remaining -= len(articles)
-            
+
             # Process this batch of articles
             texts: list[str] = []
             article_refs: list[Article] = []
