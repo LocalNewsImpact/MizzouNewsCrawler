@@ -83,7 +83,12 @@ class ArticleClassificationService:
         # Add row-level locking for parallel processing (PostgreSQL only)
         # SKIP LOCKED allows multiple workers to process different rows simultaneously
         # SQLite doesn't support FOR UPDATE, so skip it for e2e/unit tests
-        dialect_name = self.session.bind.dialect.name if self.session.bind else None
+        try:
+            dialect_name = self.session.bind.dialect.name if self.session.bind else None
+        except AttributeError:
+            # Mock session in tests
+            dialect_name = None
+        
         if dialect_name == "postgresql":
             stmt = stmt.with_for_update(skip_locked=True)
 

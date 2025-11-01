@@ -147,7 +147,9 @@ def test_parallel_entity_extraction_with_skip_locked(cloud_sql_session):
     cloud_sql_session.commit()
     
     # Worker 1: Lock and process first 5 articles (simulating entity extraction batch)
-    engine = cloud_sql_session.get_bind()
+    # get_bind() returns engine or connection depending on context
+    bind = cloud_sql_session.get_bind()
+    engine = bind.engine if hasattr(bind, 'engine') else bind
     conn1 = engine.connect()
     trans1 = conn1.begin()
     
@@ -220,7 +222,9 @@ def test_parallel_classification_batch_processing(cloud_sql_session):
     cloud_sql_session.commit()
     
     # Worker 1: Process batch
-    engine = cloud_sql_session.get_bind()
+    # get_bind() returns engine or connection depending on context
+    bind = cloud_sql_session.get_bind()
+    engine = bind.engine if hasattr(bind, 'engine') else bind
     conn1 = engine.connect()
     trans1 = conn1.begin()
     Session1 = sessionmaker(bind=conn1)

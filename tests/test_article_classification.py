@@ -14,9 +14,12 @@ from src.services.classification_service import ArticleClassificationService
 
 def _create_article(session, **kwargs):
     # Create candidate link first (required FK)
+    # Use unique IDs to avoid collisions across tests
+    import uuid
+    link_id = kwargs.get("candidate_link_id", f"link-{uuid.uuid4()}")
     candidate_link = CandidateLink(
-        id=kwargs.get("candidate_link_id", "link-1"),
-        url=kwargs.get("url", "https://example.com/1"),
+        id=link_id,
+        url=kwargs.get("url", f"https://example.com/{uuid.uuid4()}"),
         source="test_source",
     )
     session.add(candidate_link)
