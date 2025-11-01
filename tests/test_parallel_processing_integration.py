@@ -132,6 +132,7 @@ def test_parallel_entity_extraction_with_skip_locked(cloud_sql_session):
     engine = cloud_sql_session.bind.engine
     SessionFactory = sessionmaker(bind=engine)
 
+    candidate_link_id: str | None = None
     setup_session = SessionFactory()
     try:
         candidate_link = CandidateLink(
@@ -140,6 +141,7 @@ def test_parallel_entity_extraction_with_skip_locked(cloud_sql_session):
         )
         setup_session.add(candidate_link)
         setup_session.commit()
+        candidate_link_id = str(candidate_link.id)
 
         for i in range(10):
             article = Article(
@@ -206,7 +208,8 @@ def test_parallel_entity_extraction_with_skip_locked(cloud_sql_session):
         cleanup_session.query(Article).filter(Article.url.like(pattern)).delete(
             synchronize_session=False
         )
-        cleanup_session.query(CandidateLink).filter_by(id=candidate_link.id).delete()
+        if candidate_link_id is not None:
+            cleanup_session.query(CandidateLink).filter_by(id=candidate_link_id).delete()
         cleanup_session.commit()
     finally:
         cleanup_session.close()
@@ -224,6 +227,8 @@ def test_parallel_classification_batch_processing(cloud_sql_session):
     # Create test data
     engine = cloud_sql_session.bind.engine
     SessionFactory = sessionmaker(bind=engine)
+    candidate_link_id: str | None = None
+    article_ids: list[str] = []
     setup_session = SessionFactory()
     try:
         candidate_link = CandidateLink(
@@ -232,6 +237,7 @@ def test_parallel_classification_batch_processing(cloud_sql_session):
         )
         setup_session.add(candidate_link)
         setup_session.commit()
+        candidate_link_id = str(candidate_link.id)
 
         pattern = f"http://test.com/classify-{timestamp}%"
 
@@ -245,6 +251,12 @@ def test_parallel_classification_batch_processing(cloud_sql_session):
             )
             setup_session.add(article)
         setup_session.commit()
+        article_ids = [
+            str(row[0])
+            for row in setup_session.query(Article.id)
+            .filter(Article.url.like(pattern))
+            .all()
+        ]
     finally:
         setup_session.close()
 
@@ -300,10 +312,15 @@ def test_parallel_classification_batch_processing(cloud_sql_session):
 
     cleanup_session = SessionFactory()
     try:
+        if article_ids:
+            cleanup_session.query(ArticleLabel).filter(
+                ArticleLabel.article_id.in_(article_ids)
+            ).delete(synchronize_session=False)
         cleanup_session.query(Article).filter(Article.url.like(pattern)).delete(
             synchronize_session=False
         )
-        cleanup_session.query(CandidateLink).filter_by(id=candidate_link.id).delete()
+        if candidate_link_id is not None:
+            cleanup_session.query(CandidateLink).filter_by(id=candidate_link_id).delete()
         cleanup_session.commit()
     finally:
         cleanup_session.close()
