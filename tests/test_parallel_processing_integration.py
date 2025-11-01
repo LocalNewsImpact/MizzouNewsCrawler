@@ -12,6 +12,7 @@ from src.models.database import save_article_classification, save_article_entiti
 
 
 @pytest.mark.postgres
+@pytest.mark.parallel
 def test_save_article_entities_autocommit_false_holds_lock(cloud_sql_session):
     """Test that autocommit=False doesn't commit immediately."""
     # Create a test article
