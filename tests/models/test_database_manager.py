@@ -1002,6 +1002,171 @@ def test_save_article_entities_replaces_existing():
         manager.close()
 
 
+def test_save_article_entities_deduplicates_norm_label():
+    """Test that duplicate entities (same norm+label) are deduplicated."""
+    with temporary_database() as (db_url, _):
+        manager = DatabaseManager(database_url=db_url)
+
+        article = Article(
+            id="article-dedupe",
+            candidate_link_id="cand-dedupe",
+            url="https://example.com/dedupe",
+        )
+        manager.session.add(article)
+        manager.session.commit()
+
+        # Provide duplicates: "CNN" and "cnn" normalize to the same value
+        entities = [
+            {"entity_text": "CNN", "entity_label": "ORG"},
+            {"entity_text": "cnn", "entity_label": "ORG"},
+            {"entity_text": "New York", "entity_label": "GPE"},
+        ]
+
+        results = save_article_entities(
+            manager.session,
+            article_id="article-dedupe",
+            entities=entities,
+            extractor_version="v1",
+        )
+
+        # Should only return 2 records (CNN deduplicated, New York kept)
+        assert len(results) == 2
+        stored = (
+            manager.session.query(ArticleEntity)
+            .filter_by(article_id="article-dedupe", extractor_version="v1")
+            .all()
+        )
+        assert len(stored) == 2
+        norms = {entity.entity_norm for entity in stored}
+        assert _normalize_entity_text("CNN") in norms
+        assert _normalize_entity_text("New York") in norms
+
+        manager.close()
+
+
+def test_save_article_entities_retains_distinct_labels():
+    """Test that same text with different labels persists both rows."""
+    with temporary_database() as (db_url, _):
+        manager = DatabaseManager(database_url=db_url)
+
+        article = Article(
+            id="article-distinct",
+            candidate_link_id="cand-distinct",
+            url="https://example.com/distinct",
+        )
+        manager.session.add(article)
+        manager.session.commit()
+
+        # Same entity text but different labels should both persist
+        entities = [
+            {"entity_text": "Washington", "entity_label": "GPE"},
+            {"entity_text": "Washington", "entity_label": "PERSON"},
+        ]
+
+        results = save_article_entities(
+            manager.session,
+            article_id="article-distinct",
+            entities=entities,
+            extractor_version="v1",
+        )
+
+        # Should return 2 records (different labels = distinct entities)
+        assert len(results) == 2
+        stored = (
+            manager.session.query(ArticleEntity)
+            .filter_by(article_id="article-distinct", extractor_version="v1")
+            .all()
+        )
+        assert len(stored) == 2
+        labels = {entity.entity_label for entity in stored}
+        assert "GPE" in labels
+        assert "PERSON" in labels
+
+        manager.close()
+
+
+def test_save_article_entities_handles_legacy_text_key():
+    """Test that mixed entity_text/text keys dedupe correctly."""
+    with temporary_database() as (db_url, _):
+        manager = DatabaseManager(database_url=db_url)
+
+        article = Article(
+            id="article-legacy",
+            candidate_link_id="cand-legacy",
+            url="https://example.com/legacy",
+        )
+        manager.session.add(article)
+        manager.session.commit()
+
+        # Mix of entity_text and text keys with duplicates
+        entities = [
+            {"entity_text": "Boston", "entity_label": "GPE"},
+            {"text": "boston", "entity_label": "GPE", "label": None},
+            {"text": "Chicago", "label": "GPE"},
+        ]
+
+        results = save_article_entities(
+            manager.session,
+            article_id="article-legacy",
+            entities=entities,
+            extractor_version="v1",
+        )
+
+        # Should return 2 records (Boston deduplicated, Chicago kept)
+        assert len(results) == 2
+        stored = (
+            manager.session.query(ArticleEntity)
+            .filter_by(article_id="article-legacy", extractor_version="v1")
+            .all()
+        )
+        assert len(stored) == 2
+        norms = {entity.entity_norm for entity in stored}
+        assert _normalize_entity_text("Boston") in norms
+        assert _normalize_entity_text("Chicago") in norms
+
+        manager.close()
+
+
+def test_save_article_entities_sentinel_when_all_duplicates():
+    """Test that sentinel is created when all entities collapse to duplicates."""
+    with temporary_database() as (db_url, _):
+        manager = DatabaseManager(database_url=db_url)
+
+        article = Article(
+            id="article-all-dupes",
+            candidate_link_id="cand-all-dupes",
+            url="https://example.com/all-dupes",
+        )
+        manager.session.add(article)
+        manager.session.commit()
+
+        # All entities are duplicates of the same normalized form
+        entities = [
+            {"entity_text": "TEST", "entity_label": "ORG"},
+            {"entity_text": "test", "entity_label": "ORG"},
+            {"entity_text": "TeSt", "entity_label": "ORG"},
+        ]
+
+        results = save_article_entities(
+            manager.session,
+            article_id="article-all-dupes",
+            entities=entities,
+            extractor_version="v1",
+        )
+
+        # Should return 1 record (first one kept)
+        assert len(results) == 1
+        stored = (
+            manager.session.query(ArticleEntity)
+            .filter_by(article_id="article-all-dupes", extractor_version="v1")
+            .all()
+        )
+        assert len(stored) == 1
+        assert stored[0].entity_norm == "test"
+
+        manager.close()
+
+
 def test_create_and_finish_job_record_updates_metrics():
     with temporary_database() as (db_url, _):
         manager = DatabaseManager(database_url=db_url)

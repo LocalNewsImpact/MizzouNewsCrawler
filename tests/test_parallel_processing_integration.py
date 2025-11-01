@@ -116,6 +116,75 @@ def test_save_article_classification_with_autocommit_false(cloud_sql_session):
 
 
 @pytest.mark.postgres
+@pytest.mark.integration
+def test_save_article_entities_deduplicates_with_autocommit_false(cloud_sql_session):
+    """Test that duplicate entities are deduplicated when using autocommit=False.
+    
+    This test validates the fix for issue #129 where spaCy returns duplicate
+    entities (e.g., 'CNN' and 'cnn') that violate the uq_article_entity constraint.
+    """
+    # Create candidate link first (required FK)
+    candidate_link = CandidateLink(
+        url="http://test.com/parallel-entity-dedupe",
+        source="test_source",
+    )
+    cloud_sql_session.add(candidate_link)
+    cloud_sql_session.commit()
+    
+    # Create a test article
+    article = Article(
+        candidate_link_id=candidate_link.id,
+        url="http://test.com/parallel-entity-dedupe",
+        title="Test Article",
+        text="Test content about CNN and other organizations",
+        text_hash="testhash456",
+        status="cleaned",
+    )
+    cloud_sql_session.add(article)
+    cloud_sql_session.commit()
+    article_id = str(article.id)
+    
+    # Save entities with duplicates (simulating spaCy output) without autocommit
+    entities = [
+        {"entity_text": "CNN", "entity_label": "ORG"},
+        {"entity_text": "cnn", "entity_label": "ORG"},  # Duplicate after normalization
+        {"entity_text": "New York", "entity_label": "GPE"},
+    ]
+    records = save_article_entities(
+        cloud_sql_session,
+        article_id,
+        entities,
+        "spacy-en_core_web_sm-3.8.7",
+        "testhash456",
+        autocommit=False,
+    )
+    
+    # Should return 2 records (CNN deduplicated, New York kept)
+    assert len(records) == 2
+    entity_texts = {r.entity_text for r in records}
+    # First occurrence should be kept
+    assert "CNN" in entity_texts
+    assert "New York" in entity_texts
+    
+    # Manually commit (simulating batch commit in processor)
+    cloud_sql_session.commit()
+    
+    # Verify only 2 entities persisted (no duplicate key violation)
+    count = cloud_sql_session.query(ArticleEntity).filter_by(
+        article_id=article_id
+    ).count()
+    assert count == 2
+    
+    # Verify the normalized forms
+    stored = cloud_sql_session.query(ArticleEntity).filter_by(
+        article_id=article_id
+    ).all()
+    norms = {entity.entity_norm for entity in stored}
+    assert "cnn" in norms  # Both "CNN" and "cnn" normalize to "cnn"
+    assert "new york" in norms
+
+
+@pytest.mark.postgres
 @pytest.mark.parallel
 @pytest.mark.integration
 def test_parallel_entity_extraction_with_skip_locked(cloud_sql_session):
