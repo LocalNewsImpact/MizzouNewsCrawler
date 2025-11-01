@@ -1032,7 +1032,9 @@ def save_article_entities(
 
     records: list[ArticleEntity] = []
     # Track seen entities to prevent duplicate key violations on unique
-    # constraint (article_id, entity_norm, entity_label, extractor_version)
+    # constraint (article_id, entity_norm, entity_label, extractor_version).
+    # Since we're processing a single article_id, we only track the tuple
+    # (entity_norm, entity_label, extractor_version) within this function.
     seen: set[tuple[str, str, str]] = set()
 
     for entity in entities:
@@ -1049,7 +1051,7 @@ def save_article_entities(
             extractor_version,
         )
 
-        # Deduplicate based on unique constraint tuple
+        # Deduplicate within this article based on the unique constraint
         dedupe_key = (entity_norm, entity_label, entity_extractor_version)
         if dedupe_key in seen:
             logger.debug(
