@@ -57,6 +57,7 @@ class ArticleClassificationService:
         limit: int | None,
         include_existing: bool,
         excluded_statuses: Sequence[str] | None = None,
+        excluded_article_ids: Sequence[str] | None = None,
     ) -> list[Article]:
         stmt = select(Article)
 
@@ -89,6 +90,9 @@ class ArticleClassificationService:
             # Mock session in tests
             dialect_name = None
         
+        if excluded_article_ids:
+            stmt = stmt.where(Article.id.notin_(list(excluded_article_ids)))
+
         if dialect_name == "postgresql":
             stmt = stmt.with_for_update(skip_locked=True)
 
@@ -152,6 +156,7 @@ class ArticleClassificationService:
 
         stats = ClassificationStats()
         remaining = limit if limit else float('inf')
+        attempted_article_ids: set[str] = set()
         
         effective_model_version = model_version or classifier.model_version or "unknown"
         effective_model_path = model_path or getattr(
@@ -170,6 +175,7 @@ class ArticleClassificationService:
                 batch_limit,
                 include_existing,
                 list(excluded_statuses),
+                attempted_article_ids,
             )
             
             if not articles:
@@ -182,8 +188,13 @@ class ArticleClassificationService:
             # Process this batch of articles
             texts: list[str] = []
             article_refs: list[Article] = []
+            batch_article_ids: set[str] = set()
 
             for article in articles:
+                article_id_value = getattr(article, "id", None)
+                if article_id_value is not None:
+                    batch_article_ids.add(str(article_id_value))
+
                 text = self._prepare_text(article)
                 if not text:
                     stats.skipped += 1
@@ -195,7 +206,12 @@ class ArticleClassificationService:
                 texts.append(text)
                 article_refs.append(article)
 
+            if batch_article_ids:
+                attempted_article_ids.update(batch_article_ids)
+
             if not texts:
+                # Release any row locks before continuing
+                self.session.rollback()
                 continue
 
             try:
@@ -206,6 +222,7 @@ class ArticleClassificationService:
             except Exception as exc:  # pylint: disable=broad-except
                 stats.errors += len(texts)
                 self.logger.exception("Classifier failed on batch: %s", exc)
+                self.session.rollback()
                 continue
 
             for article, predictions in zip(

@@ -112,6 +112,7 @@ def test_apply_classification_dry_run_collects_proposed_labels(monkeypatch):
         limit,
         include_existing,
         excluded,
+        excluded_ids=None,
     ):
         nonlocal call_count
         if call_count:
@@ -363,6 +364,7 @@ def test_apply_classification_handles_none_statuses(monkeypatch):
         limit,
         include_existing,
         excluded,
+        excluded_ids=None,
     ):
         captured.update(
             {
@@ -371,6 +373,7 @@ def test_apply_classification_handles_none_statuses(monkeypatch):
                 "limit": limit,
                 "include_existing": include_existing,
                 "excluded": tuple(sorted(excluded)),
+                "excluded_ids": tuple(sorted(excluded_ids or [])),
             }
         )
         return []
