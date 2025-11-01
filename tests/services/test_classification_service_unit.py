@@ -387,6 +387,8 @@ def test_batch_iter_yields_even_chunks():
     assert chunks == [items[0:2], items[2:4], items[4:5]]
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_select_articles_applies_limit_clause():
     service = _make_service()
     session_mock = service.session  # type: ignore[assignment]
