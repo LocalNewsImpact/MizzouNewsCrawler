@@ -117,11 +117,14 @@ def test_save_article_classification_with_autocommit_false(cloud_sql_session):
 
 @pytest.mark.postgres
 @pytest.mark.integration
-def test_save_article_entities_deduplicates_with_autocommit_false(cloud_sql_session):
-    """Test that duplicate entities are deduplicated when using autocommit=False.
-    
+def test_save_article_entities_deduplicates_with_autocommit_false(
+    cloud_sql_session
+):
+    """Test duplicate entities are deduplicated when using autocommit=False.
+
     This test validates the fix for issue #129 where spaCy returns duplicate
-    entities (e.g., 'CNN' and 'cnn') that violate the uq_article_entity constraint.
+    entities (e.g., 'CNN' and 'cnn') that violate the uq_article_entity
+    constraint.
     """
     # Create candidate link first (required FK)
     candidate_link = CandidateLink(
@@ -130,7 +133,7 @@ def test_save_article_entities_deduplicates_with_autocommit_false(cloud_sql_sess
     )
     cloud_sql_session.add(candidate_link)
     cloud_sql_session.commit()
-    
+
     # Create a test article
     article = Article(
         candidate_link_id=candidate_link.id,
@@ -143,11 +146,13 @@ def test_save_article_entities_deduplicates_with_autocommit_false(cloud_sql_sess
     cloud_sql_session.add(article)
     cloud_sql_session.commit()
     article_id = str(article.id)
-    
-    # Save entities with duplicates (simulating spaCy output) without autocommit
+
+    # Save entities with duplicates (simulating spaCy output) without
+    # autocommit
     entities = [
         {"entity_text": "CNN", "entity_label": "ORG"},
-        {"entity_text": "cnn", "entity_label": "ORG"},  # Duplicate after normalization
+        # Duplicate after normalization
+        {"entity_text": "cnn", "entity_label": "ORG"},
         {"entity_text": "New York", "entity_label": "GPE"},
     ]
     records = save_article_entities(
@@ -158,23 +163,23 @@ def test_save_article_entities_deduplicates_with_autocommit_false(cloud_sql_sess
         "testhash456",
         autocommit=False,
     )
-    
+
     # Should return 2 records (CNN deduplicated, New York kept)
     assert len(records) == 2
     entity_texts = {r.entity_text for r in records}
     # First occurrence should be kept
     assert "CNN" in entity_texts
     assert "New York" in entity_texts
-    
+
     # Manually commit (simulating batch commit in processor)
     cloud_sql_session.commit()
-    
+
     # Verify only 2 entities persisted (no duplicate key violation)
     count = cloud_sql_session.query(ArticleEntity).filter_by(
         article_id=article_id
     ).count()
     assert count == 2
-    
+
     # Verify the normalized forms
     stored = cloud_sql_session.query(ArticleEntity).filter_by(
         article_id=article_id
@@ -278,7 +283,9 @@ def test_parallel_entity_extraction_with_skip_locked(cloud_sql_session):
             synchronize_session=False
         )
         if candidate_link_id is not None:
-            cleanup_session.query(CandidateLink).filter_by(id=candidate_link_id).delete()
+            cleanup_session.query(CandidateLink).filter_by(
+                id=candidate_link_id
+            ).delete()
         cleanup_session.commit()
     finally:
         cleanup_session.close()
@@ -389,7 +396,9 @@ def test_parallel_classification_batch_processing(cloud_sql_session):
             synchronize_session=False
         )
         if candidate_link_id is not None:
-            cleanup_session.query(CandidateLink).filter_by(id=candidate_link_id).delete()
+            cleanup_session.query(CandidateLink).filter_by(
+                id=candidate_link_id
+            ).delete()
         cleanup_session.commit()
     finally:
         cleanup_session.close()

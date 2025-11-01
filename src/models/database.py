@@ -1031,24 +1031,30 @@ def save_article_entities(
     ).delete()
 
     records: list[ArticleEntity] = []
-    # Track seen entities to prevent duplicate key violations on unique constraint
-    # (article_id, entity_norm, entity_label, extractor_version)
+    # Track seen entities to prevent duplicate key violations on unique
+    # constraint (article_id, entity_norm, entity_label, extractor_version)
     seen: set[tuple[str, str, str]] = set()
-    
+
     for entity in entities:
         entity_text = entity.get("entity_text") or entity.get("text")
         if not entity_text:
             continue
 
-        entity_norm = entity.get("entity_norm") or _normalize_entity_text(entity_text)
+        entity_norm = entity.get("entity_norm") or _normalize_entity_text(
+            entity_text
+        )
         entity_label = entity.get("entity_label") or entity.get("label")
-        entity_extractor_version = entity.get("extractor_version", extractor_version)
-        
+        entity_extractor_version = entity.get(
+            "extractor_version",
+            extractor_version,
+        )
+
         # Deduplicate based on unique constraint tuple
         dedupe_key = (entity_norm, entity_label, entity_extractor_version)
         if dedupe_key in seen:
             logger.debug(
-                "Skipping duplicate entity for article %s: norm=%s, label=%s, version=%s",
+                "Skipping duplicate entity for article %s: "
+                "norm=%s, label=%s, version=%s",
                 article_id,
                 entity_norm,
                 entity_label,
@@ -1056,7 +1062,7 @@ def save_article_entities(
             )
             continue
         seen.add(dedupe_key)
-        
+
         record = ArticleEntity(
             article_id=article_id,
             article_text_hash=article_text_hash,
