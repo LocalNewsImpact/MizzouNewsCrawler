@@ -128,8 +128,11 @@ def test_parallel_entity_extraction_no_duplicate_work(cloud_sql_session):
     
     def worker(worker_id):
         """Simulate a worker processing articles."""
-        from src.models.database import DatabaseManager
-        db = DatabaseManager()
+        # Create new session from same engine as test
+        from sqlalchemy.orm import sessionmaker
+        Session = sessionmaker(bind=cloud_sql_session.get_bind())
+        session = Session()
+        
         try:
             # Select articles with FOR UPDATE SKIP LOCKED
             query = sql_text("""
@@ -146,7 +149,7 @@ def test_parallel_entity_extraction_no_duplicate_work(cloud_sql_session):
                 FOR UPDATE OF a SKIP LOCKED
             """)
             
-            result = db.session.execute(query)
+            result = session.execute(query)
             rows = result.fetchall()
             
             # Process each article
@@ -173,7 +176,7 @@ def test_parallel_entity_extraction_no_duplicate_work(cloud_sql_session):
                     }
                 ]
                 save_article_entities(
-                    db.session,
+                    session,
                     str(article_id),
                     entities,
                     "test-parallel-v1",
@@ -181,10 +184,13 @@ def test_parallel_entity_extraction_no_duplicate_work(cloud_sql_session):
                 )
             
             # Batch commit
-            db.session.commit()
+            session.commit()
             
+        except Exception:
+            session.rollback()
+            raise
         finally:
-            db.close()
+            session.close()
     
     # Run 3 workers in parallel (reduced for memory efficiency)
     with ThreadPoolExecutor(max_workers=3) as executor:
@@ -220,11 +226,14 @@ def test_parallel_classification_no_duplicate_work(cloud_sql_session):
     
     def worker(worker_id):
         """Simulate a classification worker."""
-        from src.models.database import DatabaseManager
         from src.ml.article_classifier import Prediction
         from sqlalchemy import select
+        from sqlalchemy.orm import sessionmaker
         
-        db = DatabaseManager()
+        # Create new session from same engine as test
+        Session = sessionmaker(bind=cloud_sql_session.get_bind())
+        session = Session()
+        
         try:
             # Select articles with row-level locking
             label_version = "test-parallel-v1"
@@ -249,7 +258,7 @@ def test_parallel_classification_no_duplicate_work(cloud_sql_session):
                 .with_for_update(skip_locked=True)
             )
             
-            articles_batch = list(db.session.scalars(stmt))
+            articles_batch = list(session.scalars(stmt))
             
             # Process each article
             for article in articles_batch:
@@ -267,7 +276,7 @@ def test_parallel_classification_no_duplicate_work(cloud_sql_session):
                 # Save classification without committing
                 pred = Prediction(label=f"label_worker_{worker_id}", score=0.85)
                 save_article_classification(
-                    db.session,
+                    session,
                     str(article.id),
                     label_version,
                     "model-test-v1",
@@ -276,10 +285,13 @@ def test_parallel_classification_no_duplicate_work(cloud_sql_session):
                 )
             
             # Batch commit
-            db.session.commit()
+            session.commit()
             
+        except Exception:
+            session.rollback()
+            raise
         finally:
-            db.close()
+            session.close()
     
     # Run 3 workers in parallel (reduced for memory efficiency)
     with ThreadPoolExecutor(max_workers=3) as executor:
