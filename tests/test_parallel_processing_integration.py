@@ -8,7 +8,7 @@ import pytest
 from sqlalchemy import text as sql_text
 from sqlalchemy.orm import sessionmaker
 
-from src.models import Article, ArticleEntity, ArticleLabel
+from src.models import Article, ArticleEntity, ArticleLabel, CandidateLink
 from src.models.database import save_article_classification, save_article_entities
 
 
@@ -17,8 +17,17 @@ from src.models.database import save_article_classification, save_article_entiti
 @pytest.mark.integration
 def test_save_article_entities_autocommit_false_holds_lock(cloud_sql_session):
     """Test that autocommit=False doesn't commit immediately."""
+    # Create candidate link first (required FK)
+    candidate_link = CandidateLink(
+        url="http://test.com/parallel-entity-test",
+        source="test_source",
+    )
+    cloud_sql_session.add(candidate_link)
+    cloud_sql_session.commit()
+    
     # Create a test article
     article = Article(
+        candidate_link_id=candidate_link.id,
         url="http://test.com/parallel-entity-test",
         title="Test Article",
         text="Test content",
@@ -67,8 +76,17 @@ def test_save_article_classification_autocommit_false_holds_lock(cloud_sql_sessi
     """Test that autocommit=False doesn't commit immediately."""
     from src.ml.article_classifier import Prediction
     
+    # Create candidate link first (required FK)
+    candidate_link = CandidateLink(
+        url="http://test.com/parallel-class-test",
+        source="test_source",
+    )
+    cloud_sql_session.add(candidate_link)
+    cloud_sql_session.commit()
+    
     # Create a test article
     article = Article(
+        candidate_link_id=candidate_link.id,
         url="http://test.com/parallel-class-test",
         title="Test Article",
         text="Test content",
@@ -119,8 +137,18 @@ def test_skip_locked_prevents_row_blocking(cloud_sql_session):
     # Create test articles with unique URLs to avoid conflicts
     import time
     timestamp = int(time.time() * 1000)  # millisecond precision
+    
+    # Create candidate link first
+    candidate_link = CandidateLink(
+        url=f"http://test.com/skip-locked-{timestamp}",
+        source="test_source",
+    )
+    cloud_sql_session.add(candidate_link)
+    cloud_sql_session.commit()
+    
     for i in range(3):
         article = Article(
+            candidate_link_id=candidate_link.id,
             url=f"http://test.com/skip-locked-{timestamp}-{i}",
             title=f"Article {i}",
             text="Test",
@@ -180,10 +208,19 @@ def test_skip_locked_prevents_row_blocking(cloud_sql_session):
 @pytest.mark.integration
 def test_batch_commit_holds_locks_until_commit(cloud_sql_session):
     """Test that batch processing with autocommit=False holds locks."""
+    # Create candidate link first
+    candidate_link = CandidateLink(
+        url="http://test.com/batch",
+        source="test_source",
+    )
+    cloud_sql_session.add(candidate_link)
+    cloud_sql_session.commit()
+    
     # Create test articles
     articles = []
     for i in range(5):
         article = Article(
+            candidate_link_id=candidate_link.id,
             url=f"http://test.com/batch-{i}",
             title=f"Article {i}",
             text="Test content",
