@@ -582,18 +582,18 @@ class _FakeTelemetry:
 
 
 def test_discover_with_storysniffer_records_success() -> None:
+    """Test that discover_with_storysniffer now correctly skips discovery.
+    
+    StorySniffer.guess() is a classifier (returns bool), not a crawler.
+    The method now correctly returns empty list and records SKIPPED status.
+    """
     telemetry = _FakeTelemetry()
     instance = _make_discovery_stub()
 
     instance.telemetry = telemetry  # type: ignore[attr-defined]
+    # StorySniffer.guess() actually returns bool, not list
     storysniffer_stub = types.SimpleNamespace(
-        guess=lambda _url: [
-            {
-                "url": "https://example.com/story-sniffed",
-                "title": "StorySniffer Headline",
-                "publish_date": datetime.utcnow().isoformat(),
-            }
-        ]
+        guess=lambda _url: True  # Returns bool indicating URL is an article
     )
     instance.storysniffer = storysniffer_stub  # type: ignore[attr-defined]
 
@@ -604,23 +604,30 @@ def test_discover_with_storysniffer_records_success() -> None:
         operation_id="op-1",
     )
 
-    assert [a["url"] for a in articles] == ["https://example.com/story-sniffed"]
+    # Method now returns empty list since StorySniffer can't discover URLs
+    assert articles == []
     assert telemetry.method_updates, "Telemetry update not captured"
 
     update = telemetry.method_updates[-1]
     assert update["discovery_method"] == DiscoveryMethod.STORYSNIFFER
-    assert update["status"] == DiscoveryMethodStatus.SUCCESS
-    assert update["articles_found"] == 1
+    # Status is now SKIPPED since StorySniffer is a classifier, not a crawler
+    assert update["status"] == DiscoveryMethodStatus.SKIPPED
+    assert update["articles_found"] == 0
 
 
 def test_discover_with_storysniffer_records_server_error() -> None:
+    """Test that discover_with_storysniffer skips even when sniffer exists.
+    
+    StorySniffer is no longer used for discovery, so errors won't occur.
+    Method returns empty list and records SKIPPED status.
+    """
     telemetry = _FakeTelemetry()
     instance = _make_discovery_stub()
 
     instance.telemetry = telemetry  # type: ignore[attr-defined]
 
     class BoomSniffer:
-        def guess(self, _url: str) -> list[str]:
+        def guess(self, _url: str) -> bool:
             raise RuntimeError("story sniffer blew up")
 
     instance.storysniffer = BoomSniffer()  # type: ignore[attr-defined]
@@ -637,9 +644,9 @@ def test_discover_with_storysniffer_records_server_error() -> None:
 
     update = telemetry.method_updates[-1]
     assert update["discovery_method"] == DiscoveryMethod.STORYSNIFFER
-    assert update["status"] == DiscoveryMethodStatus.SERVER_ERROR
+    # Status is now SKIPPED since method exits early without calling guess()
+    assert update["status"] == DiscoveryMethodStatus.SKIPPED
     assert update["articles_found"] == 0
-    assert "story sniffer blew up" in (update.get("notes") or "")
 
 
 def test_discover_with_newspaper4k_records_no_feed(monkeypatch):
