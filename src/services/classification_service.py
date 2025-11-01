@@ -111,17 +111,15 @@ class ArticleClassificationService:
         
         Parallel Processing with Row-Level Locking:
         ------------------------------------------
-        This method uses PostgreSQL row-level locking (FOR UPDATE SKIP LOCKED)
-        to enable safe parallel processing:
+        Uses PostgreSQL FOR UPDATE SKIP LOCKED for safe parallel processing:
         
-        1. Each worker selects up to batch_size articles with locks
-        2. save_article_classification() commits each article immediately
-        3. Locks are released as soon as each article is classified
-        4. Next iteration skips articles locked/processed by other workers
+        1. Select batch_size articles with row locks
+        2. Process each article with save(autocommit=False)
+        3. Commit entire batch together, releasing all locks
+        4. Other workers skip locked articles, process different ones
+        5. Loop continues until no more articles
         
-        This ensures no duplicate processing across parallel workers while
-        maximizing concurrency - other workers can process articles from the
-        same original batch once they're committed.
+        This ensures no duplicate work across parallel workers.
         """
 
         excluded_statuses = {
@@ -154,9 +152,7 @@ class ArticleClassificationService:
         if effective_model_path is not None:
             effective_model_path = str(effective_model_path)
         
-        # Process in batches with row-level locking. Each batch is selected,
-        # processed, committed, then locks are released before next batch.
-        # This allows parallel workers to safely process different articles.
+        # Process in batches with row-level locking and batch commits
         while remaining > 0:
             batch_limit = min(batch_size, int(remaining)) if limit else batch_size
             
@@ -264,8 +260,12 @@ class ArticleClassificationService:
                     alternate_prediction=alternate,
                     model_path=effective_model_path,
                     metadata=metadata,
+                    autocommit=False,
                 )
                 stats.labeled += 1
+            
+            # Commit batch to release locks for parallel workers
+            self.session.commit()
 
         return stats
 
