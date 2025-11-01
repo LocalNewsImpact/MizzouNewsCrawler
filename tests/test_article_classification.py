@@ -38,6 +38,8 @@ def _create_article(session, **kwargs):
     return article
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_save_article_classification_persists_labels(db_session):
     article = _create_article(db_session)
 
@@ -70,6 +72,8 @@ def test_save_article_classification_persists_labels(db_session):
     assert refreshed_article.label_version == "v1"
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_article_classification_service_applies_model(db_session):
     class StubClassifier:
         model_version: str | None = "stub-model"
@@ -118,6 +122,8 @@ def test_article_classification_service_applies_model(db_session):
     assert saved_label.alternate_label == "Wire"
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_classification_skips_opinion_and_obituary_statuses(db_session):
     class StubClassifier:
         model_version: str | None = "stub-model"
