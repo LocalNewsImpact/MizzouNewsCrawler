@@ -7,24 +7,27 @@ from datetime import datetime
 import pytest
 
 from src.ml.article_classifier import Prediction
-from src.models import Article, ArticleLabel
-from src.models.database import DatabaseManager, save_article_classification
+from src.models import Article, ArticleLabel, CandidateLink
+from src.models.database import save_article_classification
 from src.services.classification_service import ArticleClassificationService
 
 
-@pytest.fixture
-def db_session():
-    db = DatabaseManager("sqlite:///:memory:")
-    try:
-        yield db.session
-    finally:
-        db.close()
-
-
 def _create_article(session, **kwargs):
+    # Create candidate link first (required FK)
+    # Use unique IDs to avoid collisions across tests
+    import uuid
+    link_id = kwargs.get("candidate_link_id", f"link-{uuid.uuid4()}")
+    candidate_link = CandidateLink(
+        id=link_id,
+        url=kwargs.get("url", f"https://example.com/{uuid.uuid4()}"),
+        source="test_source",
+    )
+    session.add(candidate_link)
+    session.commit()
+    
     defaults = {
         "id": kwargs.get("id", "article-1"),
-        "candidate_link_id": kwargs.get("candidate_link_id", "link-1"),
+        "candidate_link_id": candidate_link.id,
         "url": kwargs.get("url", "https://example.com/1"),
         "status": kwargs.get("status", "cleaned"),
         "content": kwargs.get("content", "Local news story"),
@@ -38,14 +41,16 @@ def _create_article(session, **kwargs):
     return article
 
 
-def test_save_article_classification_persists_labels(db_session):
-    article = _create_article(db_session)
+@pytest.mark.postgres
+@pytest.mark.integration
+def test_save_article_classification_persists_labels(cloud_sql_session):
+    article = _create_article(cloud_sql_session)
 
     primary = Prediction(label="local", score=0.9)
     alternate = {"label": "wire", "score": 0.1}
 
     save_article_classification(
-        db_session,
+        cloud_sql_session,
         article_id=str(article.id),
         label_version="v1",
         model_version="model-1",
@@ -55,9 +60,9 @@ def test_save_article_classification_persists_labels(db_session):
         metadata={"source": "test"},
     )
 
-    refreshed_article = db_session.query(Article).filter_by(id=article.id).one()
+    refreshed_article = cloud_sql_session.query(Article).filter_by(id=article.id).one()
     saved_label = (
-        db_session.query(ArticleLabel)
+        cloud_sql_session.query(ArticleLabel)
         .filter_by(article_id=article.id, label_version="v1")
         .one()
     )
@@ -70,7 +75,9 @@ def test_save_article_classification_persists_labels(db_session):
     assert refreshed_article.label_version == "v1"
 
 
-def test_article_classification_service_applies_model(db_session):
+@pytest.mark.postgres
+@pytest.mark.integration
+def test_article_classification_service_applies_model(cloud_sql_session):
     class StubClassifier:
         model_version: str | None = "stub-model"
         model_identifier: str | None = "stub-path"
@@ -84,10 +91,10 @@ def test_article_classification_service_applies_model(db_session):
                 for _ in texts
             ]
 
-    article_with_text = _create_article(db_session, id="article-a")
-    _create_article(db_session, id="article-b", content="", text="", title="")
+    article_with_text = _create_article(cloud_sql_session, id="article-a")
+    _create_article(cloud_sql_session, id="article-b", content="", text="", title="")
 
-    service = ArticleClassificationService(db_session)
+    service = ArticleClassificationService(cloud_sql_session)
     classifier = StubClassifier()
 
     stats = service.apply_classification(
@@ -107,7 +114,7 @@ def test_article_classification_service_applies_model(db_session):
     assert stats.skipped >= 1
 
     saved_label = (
-        db_session.query(ArticleLabel)
+        cloud_sql_session.query(ArticleLabel)
         .filter_by(
             article_id=article_with_text.id,
             label_version="test-version",
@@ -118,7 +125,9 @@ def test_article_classification_service_applies_model(db_session):
     assert saved_label.alternate_label == "Wire"
 
 
-def test_classification_skips_opinion_and_obituary_statuses(db_session):
+@pytest.mark.postgres
+@pytest.mark.integration
+def test_classification_skips_opinion_and_obituary_statuses(cloud_sql_session):
     class StubClassifier:
         model_version: str | None = "stub-model"
         model_identifier: str | None = "stub-path"
@@ -128,26 +137,26 @@ def test_classification_skips_opinion_and_obituary_statuses(db_session):
 
     # Eligible cleaned article
     eligible = _create_article(
-        db_session,
+        cloud_sql_session,
         id="cleaned-article",
         status="cleaned",
         content="Content",
     )
     # Should be skipped due to status
     _create_article(
-        db_session,
+        cloud_sql_session,
         id="opinion-article",
         status="opinion",
         content="Opinion piece",
     )
     _create_article(
-        db_session,
+        cloud_sql_session,
         id="obituary-article",
         status="obituary",
         content="Obituary piece",
     )
 
-    service = ArticleClassificationService(db_session)
+    service = ArticleClassificationService(cloud_sql_session)
     classifier = StubClassifier()
 
     stats = service.apply_classification(
@@ -160,7 +169,7 @@ def test_classification_skips_opinion_and_obituary_statuses(db_session):
     assert stats.labeled == 1
 
     saved_label = (
-        db_session.query(ArticleLabel)
+        cloud_sql_session.query(ArticleLabel)
         .filter_by(article_id=eligible.id, label_version="skip-test")
         .one()
     )

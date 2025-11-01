@@ -543,12 +543,12 @@ def test_detect_wire_service_in_pattern_uses_regex_and_domain_guard():
     assert detection is not None
     assert detection["provider"] == "The Associated Press"
 
-    # Comparison ignores domains without matching provider tokens.
+    # Domain guard filters out when provider matches domain (own source).
     no_guard_trigger = cleaner._detect_wire_service_in_pattern(
         "Story from The Associated Press",
         domain="associatedpress.com",
     )
-    assert no_guard_trigger is not None
+    assert no_guard_trigger is None
 
 
 def test_detect_local_byline_override_filters_wire_authors(monkeypatch):

@@ -897,8 +897,13 @@ def save_article_classification(
     alternate_prediction: Any | None = None,
     model_path: str | None = None,
     metadata: dict[str, Any] | None = None,
+    autocommit: bool = True,
 ) -> ArticleLabel:
-    """Persist primary/alternate labels and update article snapshot."""
+    """Persist primary/alternate labels and update article snapshot.
+    
+    Args:
+        autocommit: If False, caller must commit. Use for batch processing.
+    """
 
     primary_label, primary_score = _prediction_to_tuple(primary_prediction)
     alt_label, alt_score = _prediction_to_tuple(alternate_prediction)
@@ -952,12 +957,13 @@ def save_article_classification(
         article.label_model_version = model_version
         article.labels_updated_at = now
         
-        # Set status to 'labeled' so article is included in BigQuery export
-        # Only update if current status is 'cleaned' or 'local' (classification-eligible statuses)
+        # Set status to 'labeled' for BigQuery export
+        # Only update if status is 'cleaned' or 'local'
         if article.status in ('cleaned', 'local'):
             article.status = 'labeled'
 
-    _commit_with_retry(session)
+    if autocommit:
+        _commit_with_retry(session)
     return record
 
 
@@ -1011,8 +1017,13 @@ def save_article_entities(
     entities: list[dict[str, Any]],
     extractor_version: str,
     article_text_hash: str | None = None,
+    autocommit: bool = True,
 ) -> list[ArticleEntity]:
-    """Replace article entities for the given extractor version."""
+    """Replace article entities for the given extractor version.
+    
+    Args:
+        autocommit: If False, caller must commit. Use for batch processing.
+    """
 
     session.query(ArticleEntity).filter_by(
         article_id=article_id,
@@ -1066,7 +1077,8 @@ def save_article_entities(
         session.add(sentinel)
         records.append(sentinel)
 
-    _commit_with_retry(session)
+    if autocommit:
+        _commit_with_retry(session)
     return records
 
 
