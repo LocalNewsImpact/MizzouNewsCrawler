@@ -481,14 +481,14 @@ def test_discovery_marks_rss_missing_after_repeated_failures(monkeypatch):
             )
 
 
-def test_discovery_storysniffer_fallback_records_article(monkeypatch):
-    """StorySniffer articles should be stored when telemetry prefers it."""
+def test_discovery_newspaper4k_fallback_records_article(monkeypatch):
+    """Newspaper4k articles should be stored when telemetry prefers it."""
 
     with temporary_database() as (db_url, path):
         seed_source_records(db_url)
 
         discovery = NewsDiscovery(database_url=db_url)
-        telemetry = TelemetryStub([DiscoveryMethod.STORYSNIFFER])
+        telemetry = TelemetryStub([DiscoveryMethod.NEWSPAPER4K])
         discovery.telemetry = telemetry  # type: ignore[assignment]
 
         monkeypatch.setattr(
@@ -496,13 +496,8 @@ def test_discovery_storysniffer_fallback_records_article(monkeypatch):
             "discover_with_rss_feeds",
             lambda *a, **k: ([], {}),
         )
-        monkeypatch.setattr(
-            discovery,
-            "discover_with_newspaper4k",
-            lambda *a, **k: [],
-        )
 
-        story_articles = [
+        newspaper_articles = [
             {
                 "url": "https://example.com/story",
                 "title": "Fallback story",
@@ -512,8 +507,14 @@ def test_discovery_storysniffer_fallback_records_article(monkeypatch):
 
         monkeypatch.setattr(
             discovery,
+            "discover_with_newspaper4k",
+            lambda *a, **k: newspaper_articles,
+        )
+
+        monkeypatch.setattr(
+            discovery,
             "discover_with_storysniffer",
-            lambda *a, **k: story_articles,
+            lambda *a, **k: [],
         )
 
         source_row = pd.Series(
@@ -538,7 +539,7 @@ def test_discovery_storysniffer_fallback_records_article(monkeypatch):
         assert any(
             method
             for method in result.metadata.get("methods_attempted", [])
-            if "storysniffer" in method
+            if "newspaper4k" in method
         )
 
         conn = sqlite3.connect(path)

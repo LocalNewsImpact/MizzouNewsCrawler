@@ -991,7 +991,7 @@ def test_process_source_stores_and_classifies_articles(
     assert result.articles_new == 1
     assert result.articles_duplicate == 1
     assert result.articles_expired == 1
-    assert "storysniffer" in result.metadata["methods_attempted"]
+    assert result.metadata["methods_attempted"] == ["rss_feed", "newspaper4k"]
     assert "rss_feed" in result.metadata["methods_attempted"]
 
     assert len(store_calls) == 1
@@ -1419,7 +1419,6 @@ def test_source_processor_records_failures_for_downstream_methods(
             self.methods = [
                 DiscoveryMethod.RSS_FEED,
                 DiscoveryMethod.NEWSPAPER4K,
-                DiscoveryMethod.STORYSNIFFER,
             ]
 
         def get_effective_discovery_methods(self, source_id: str):
@@ -1511,13 +1510,12 @@ def test_source_processor_records_failures_for_downstream_methods(
     assert result.metadata["methods_attempted"] == [
         "rss_feed",
         "newspaper4k",
-        "storysniffer",
     ]
 
     discovery_methods = {
         failure.get("discovery_method") for failure in telemetry.failures
     }
-    assert {"newspaper4k", "storysniffer", "all_methods"}.issubset(discovery_methods)
+    assert {"newspaper4k", "all_methods"}.issubset(discovery_methods)
 
 
 def test_source_processor_skips_out_of_scope_urls(
@@ -2002,27 +2000,27 @@ def test_process_source_dedupes_query_urls(
         "discover_with_rss_feeds",
         _bind_method(instance, lambda *_a, **_k: ([], rss_summary)),
     )
-    monkeypatch.setattr(
-        instance,
-        "discover_with_newspaper4k",
-        _bind_method(instance, lambda *_a, **_k: []),
-    )
-
     dedupe_candidate = "https://example.com/news-item?utm=ref&utm_campaign=test#section"
 
     monkeypatch.setattr(
         instance,
-        "discover_with_storysniffer",
+        "discover_with_newspaper4k",
         _bind_method(
             instance,
             lambda *_a, **_k: [
                 {
                     "url": dedupe_candidate,
-                    "discovery_method": "storysniffer",
+                    "discovery_method": "newspaper4k",
                     "metadata": {},
                 }
             ],
         ),
+    )
+
+    monkeypatch.setattr(
+        instance,
+        "discover_with_storysniffer",
+        _bind_method(instance, lambda *_a, **_k: []),
     )
 
     metadata_json = json.dumps({"frequency": "daily"})
