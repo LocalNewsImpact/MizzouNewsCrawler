@@ -5,6 +5,7 @@ import inspect
 import pytest
 
 
+@pytest.mark.integration
 def test_classification_service_uses_with_for_update():
     """Test that classification service uses with_for_update."""
     from src.services.classification_service import (
@@ -25,6 +26,7 @@ def test_classification_service_uses_with_for_update():
 
 
 @pytest.mark.postgres
+@pytest.mark.integration
 def test_sqlalchemy_skip_locked_syntax(cloud_sql_session):
     """Test SQLAlchemy with_for_update(skip_locked=True) works."""
     from sqlalchemy import select

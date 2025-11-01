@@ -5,6 +5,7 @@ import inspect
 import pytest
 
 
+@pytest.mark.integration
 def test_entity_extraction_query_has_skip_locked():
     """Test entity extraction query includes FOR UPDATE SKIP LOCKED."""
     from src.cli.commands.entity_extraction import (
@@ -22,6 +23,7 @@ def test_entity_extraction_query_has_skip_locked():
 
 
 @pytest.mark.postgres
+@pytest.mark.integration
 def test_skip_locked_syntax_is_valid_postgres(cloud_sql_session):
     """Test the SKIP LOCKED query syntax works with PostgreSQL."""
     from sqlalchemy import text as sql_text

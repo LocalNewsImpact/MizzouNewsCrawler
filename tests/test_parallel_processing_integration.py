@@ -14,6 +14,7 @@ from src.models.database import save_article_classification, save_article_entiti
 
 @pytest.mark.postgres
 @pytest.mark.parallel
+@pytest.mark.integration
 def test_save_article_entities_autocommit_false_holds_lock(cloud_sql_session):
     """Test that autocommit=False doesn't commit immediately."""
     # Create a test article
@@ -61,6 +62,7 @@ def test_save_article_entities_autocommit_false_holds_lock(cloud_sql_session):
 
 @pytest.mark.postgres
 @pytest.mark.parallel
+@pytest.mark.integration
 def test_save_article_classification_autocommit_false_holds_lock(cloud_sql_session):
     """Test that autocommit=False doesn't commit immediately."""
     from src.ml.article_classifier import Prediction
@@ -111,12 +113,15 @@ def test_save_article_classification_autocommit_false_holds_lock(cloud_sql_sessi
 
 @pytest.mark.postgres
 @pytest.mark.parallel
+@pytest.mark.integration
 def test_skip_locked_prevents_row_blocking(cloud_sql_session):
     """Test that SKIP LOCKED skips locked rows instead of waiting."""
-    # Create test articles
+    # Create test articles with unique URLs to avoid conflicts
+    import time
+    timestamp = int(time.time() * 1000)  # millisecond precision
     for i in range(3):
         article = Article(
-            url=f"http://test.com/skip-locked-{i}",
+            url=f"http://test.com/skip-locked-{timestamp}-{i}",
             title=f"Article {i}",
             text="Test",
             content="Test",
@@ -172,6 +177,7 @@ def test_skip_locked_prevents_row_blocking(cloud_sql_session):
 
 @pytest.mark.postgres
 @pytest.mark.parallel
+@pytest.mark.integration
 def test_batch_commit_holds_locks_until_commit(cloud_sql_session):
     """Test that batch processing with autocommit=False holds locks."""
     # Create test articles
