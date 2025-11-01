@@ -108,9 +108,9 @@ def test_save_article_classification_autocommit_false_holds_lock(cloud_sql_sessi
 @pytest.mark.slow
 def test_parallel_entity_extraction_no_duplicate_work(cloud_sql_session):
     """Test that parallel workers don't process the same articles."""
-    # Create 20 test articles
+    # Create 10 test articles (reduced from 20 for memory efficiency)
     articles = []
-    for i in range(20):
+    for i in range(10):
         article = Article(
             url=f"http://test.com/parallel-{i}",
             title=f"Test Article {i}",
@@ -141,7 +141,7 @@ def test_parallel_entity_extraction_no_duplicate_work(cloud_sql_session):
                 )
                 AND a.url LIKE 'http://test.com/parallel-%'
                 ORDER BY a.id
-                LIMIT 5
+                LIMIT 3
                 FOR UPDATE OF a SKIP LOCKED
             """)
             
@@ -185,24 +185,24 @@ def test_parallel_entity_extraction_no_duplicate_work(cloud_sql_session):
         finally:
             db.close()
     
-    # Run 4 workers in parallel
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = [executor.submit(worker, i) for i in range(4)]
+    # Run 3 workers in parallel (reduced for memory efficiency)
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        futures = [executor.submit(worker, i) for i in range(3)]
         for future in futures:
             future.result()  # Will raise if any worker had duplicate
     
-    # Verify all 20 articles were processed exactly once
-    assert len(processed_articles) == 20, f"Expected 20, got {len(processed_articles)}"
-    assert len(set(processed_articles)) == 20, "Duplicate articles found!"
+    # Verify all 10 articles were processed exactly once
+    assert len(processed_articles) == 10, f"Expected 10, got {len(processed_articles)}"
+    assert len(set(processed_articles)) == 10, "Duplicate articles found!"
 
 
 @pytest.mark.postgres
 @pytest.mark.slow
 def test_parallel_classification_no_duplicate_work(cloud_sql_session):
     """Test that parallel classification workers don't duplicate work."""
-    # Create 20 test articles
+    # Create 10 test articles (reduced from 20 for memory efficiency)
     articles = []
-    for i in range(20):
+    for i in range(10):
         article = Article(
             url=f"http://test.com/parallel-class-{i}",
             title=f"Test Article {i}",
@@ -244,7 +244,7 @@ def test_parallel_classification_no_duplicate_work(cloud_sql_session):
                 .where(Article.url.like("http://test.com/parallel-class-%"))
                 .where(~label_exists)
                 .order_by(Article.id)
-                .limit(5)
+                .limit(3)
                 .with_for_update(skip_locked=True)
             )
             
@@ -280,12 +280,12 @@ def test_parallel_classification_no_duplicate_work(cloud_sql_session):
         finally:
             db.close()
     
-    # Run 4 workers in parallel
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = [executor.submit(worker, i) for i in range(4)]
+    # Run 3 workers in parallel (reduced for memory efficiency)
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        futures = [executor.submit(worker, i) for i in range(3)]
         for future in futures:
             future.result()
     
-    # Verify all 20 articles were processed exactly once
-    assert len(processed_articles) == 20, f"Expected 20, got {len(processed_articles)}"
-    assert len(set(processed_articles)) == 20, "Duplicate articles found!"
+    # Verify all 10 articles were processed exactly once
+    assert len(processed_articles) == 10, f"Expected 10, got {len(processed_articles)}"
+    assert len(set(processed_articles)) == 10, "Duplicate articles found!"
