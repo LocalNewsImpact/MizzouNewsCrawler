@@ -21,6 +21,9 @@ class _TelemetryStub:
     def get_effective_discovery_methods(self, source_id: str):
         return list(self._methods)
 
+    def has_historical_data(self, source_id: str) -> bool:
+        return len(self._methods) > 0
+
     def update_discovery_method_effectiveness(self, **payload):
         self.updated_methods.append(payload)
 

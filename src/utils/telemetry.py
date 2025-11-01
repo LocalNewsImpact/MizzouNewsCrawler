@@ -1708,6 +1708,31 @@ class OperationTracker:
             DiscoveryMethod.STORYSNIFFER,
         ]
 
+    def has_historical_data(self, source_id: str) -> bool:
+        """Check if any historical discovery data exists for a source.
+
+        Args:
+            source_id: The source identifier to check
+
+        Returns:
+            True if any discovery method data exists in the database for this source
+        """
+        try:
+            with self._connection() as conn:
+                cursor = conn.execute(
+                    """
+                    SELECT COUNT(*) as count
+                    FROM discovery_method_effectiveness
+                    WHERE source_id = :source_id
+                    """,
+                    {"source_id": source_id},
+                )
+                row = cursor.fetchone()
+                return row and row["count"] > 0
+        except Exception as exc:
+            self.logger.debug("Failed to check historical data: %s", exc)
+            return False
+
     def _store_http_status_tracking(self, tracking: HTTPStatusTracking):
         """Store HTTP status tracking in database."""
         payload = {
