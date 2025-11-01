@@ -44,6 +44,7 @@ def test_save_article_entities_autocommit_false_holds_lock(cloud_sql_session):
         article_id,
         entities,
         "test-v1",
+        article.text_hash,
         autocommit=False,
     )
     
@@ -256,6 +257,7 @@ def test_batch_commit_holds_locks_until_commit(cloud_sql_session):
                 str(article_id),
                 entities,
                 "test-batch-v1",
+                None,  # text_hash
                 autocommit=False,  # Don't commit yet
             )
         
