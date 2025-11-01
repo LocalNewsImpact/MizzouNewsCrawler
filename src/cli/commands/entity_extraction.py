@@ -84,9 +84,18 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
 
     try:
         with db.get_session() as session:
-            # Query for articles grouped by source
-            # Use FOR UPDATE SKIP LOCKED for parallel processing without race conditions
-            # Each worker will lock different rows, allowing true parallelization
+            # Query for articles with row-level locking for parallel processing
+            #
+            # Parallel Processing Behavior:
+            # -----------------------------
+            # - FOR UPDATE SKIP LOCKED allows multiple workers to process
+            #   different articles concurrently without blocking
+            # - Articles are locked when selected, then processed
+            # - save_article_entities() commits each article immediately
+            # - Locks are released as soon as each article's entities are saved
+            # - Subsequent calls skip already-processed articles via EXISTS check
+            #
+            # This ensures safe parallel processing without duplicate work.
             query = sql_text(
                 """
                 SELECT a.id, a.text, a.text_hash, cl.source_id, cl.dataset_id, cl.source

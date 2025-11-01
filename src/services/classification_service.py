@@ -107,7 +107,22 @@ class ArticleClassificationService:
         dry_run: bool = False,
         include_existing: bool = False,
     ) -> ClassificationStats:
-        """Classify eligible articles and persist results."""
+        """Classify eligible articles and persist results.
+        
+        Parallel Processing with Row-Level Locking:
+        ------------------------------------------
+        This method uses PostgreSQL row-level locking (FOR UPDATE SKIP LOCKED)
+        to enable safe parallel processing:
+        
+        1. Each worker selects up to batch_size articles with locks
+        2. save_article_classification() commits each article immediately
+        3. Locks are released as soon as each article is classified
+        4. Next iteration skips articles locked/processed by other workers
+        
+        This ensures no duplicate processing across parallel workers while
+        maximizing concurrency - other workers can process articles from the
+        same original batch once they're committed.
+        """
 
         excluded_statuses = {
             "opinion",
@@ -129,30 +144,42 @@ class ArticleClassificationService:
                 )
                 return ClassificationStats()
 
-        articles = self._select_articles(
-            effective_statuses,
-            label_version,
-            limit,
-            include_existing,
-            list(excluded_statuses),
-        )
-        stats = ClassificationStats(processed=len(articles))
-
-        if not articles:
-            return stats
-
+        stats = ClassificationStats()
+        remaining = limit if limit else float('inf')
+        
         effective_model_version = model_version or classifier.model_version or "unknown"
         effective_model_path = model_path or getattr(
             classifier, "model_identifier", None
         )
         if effective_model_path is not None:
             effective_model_path = str(effective_model_path)
-
-        for batch in _batch_iter(articles, batch_size):
+        
+        # Process in batches with row-level locking. Each batch is selected,
+        # processed, committed, then locks are released before next batch.
+        # This allows parallel workers to safely process different articles.
+        while remaining > 0:
+            batch_limit = min(batch_size, int(remaining)) if limit else batch_size
+            
+            articles = self._select_articles(
+                effective_statuses,
+                label_version,
+                batch_limit,
+                include_existing,
+                list(excluded_statuses),
+            )
+            
+            if not articles:
+                break  # No more articles to process
+            
+            stats.processed += len(articles)
+            if limit:
+                remaining -= len(articles)
+            
+            # Process this batch of articles
             texts: list[str] = []
             article_refs: list[Article] = []
 
-            for article in batch:
+            for article in articles:
                 text = self._prepare_text(article)
                 if not text:
                     stats.skipped += 1
