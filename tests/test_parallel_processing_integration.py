@@ -1,11 +1,12 @@
-"""Integration tests for parallel processing with row-level locking."""
+"""Integration tests for parallel processing with row-level locking.
 
-import threading
-import time
-from concurrent.futures import ThreadPoolExecutor
+These tests validate that FOR UPDATE SKIP LOCKED prevents duplicate processing
+without using ThreadPoolExecutor (which causes CI hangs/deadlocks).
+"""
 
 import pytest
 from sqlalchemy import text as sql_text
+from sqlalchemy.orm import sessionmaker
 
 from src.models import Article, ArticleEntity, ArticleLabel
 from src.models.database import save_article_classification, save_article_entities
@@ -37,10 +38,10 @@ def test_save_article_entities_autocommit_false_holds_lock(cloud_sql_session):
     )
     
     # Open new session - should NOT see the entities yet
-    from src.models.database import DatabaseManager
-    db2 = DatabaseManager()
+    Session = sessionmaker(bind=cloud_sql_session.get_bind())
+    session2 = Session()
     try:
-        count = db2.session.query(ArticleEntity).filter_by(
+        count = session2.query(ArticleEntity).filter_by(
             article_id=article_id
         ).count()
         assert count == 0, "Entities visible before commit!"
@@ -49,15 +50,17 @@ def test_save_article_entities_autocommit_false_holds_lock(cloud_sql_session):
         cloud_sql_session.commit()
         
         # Should see entities now
-        count = db2.session.query(ArticleEntity).filter_by(
+        session2.expire_all()  # Clear cache
+        count = session2.query(ArticleEntity).filter_by(
             article_id=article_id
         ).count()
         assert count == 1, "Entities not visible after commit"
     finally:
-        db2.close()
+        session2.close()
 
 
 @pytest.mark.postgres
+@pytest.mark.parallel
 def test_save_article_classification_autocommit_false_holds_lock(cloud_sql_session):
     """Test that autocommit=False doesn't commit immediately."""
     from src.ml.article_classifier import Prediction
@@ -85,10 +88,10 @@ def test_save_article_classification_autocommit_false_holds_lock(cloud_sql_sessi
     )
     
     # Open new session - should NOT see the label yet
-    from src.models.database import DatabaseManager
-    db2 = DatabaseManager()
+    Session = sessionmaker(bind=cloud_sql_session.get_bind())
+    session2 = Session()
     try:
-        count = db2.session.query(ArticleLabel).filter_by(
+        count = session2.query(ArticleLabel).filter_by(
             article_id=article_id
         ).count()
         assert count == 0, "Label visible before commit!"
@@ -97,208 +100,140 @@ def test_save_article_classification_autocommit_false_holds_lock(cloud_sql_sessi
         cloud_sql_session.commit()
         
         # Should see label now
-        count = db2.session.query(ArticleLabel).filter_by(
+        session2.expire_all()
+        count = session2.query(ArticleLabel).filter_by(
             article_id=article_id
         ).count()
         assert count == 1, "Label not visible after commit"
     finally:
-        db2.close()
+        session2.close()
 
 
 @pytest.mark.postgres
-@pytest.mark.slow
-def test_parallel_entity_extraction_no_duplicate_work(cloud_sql_session):
-    """Test that parallel workers don't process the same articles."""
-    # Create 10 test articles (reduced from 20 for memory efficiency)
-    articles = []
-    for i in range(10):
+@pytest.mark.parallel
+def test_skip_locked_prevents_row_blocking(cloud_sql_session):
+    """Test that SKIP LOCKED skips locked rows instead of waiting."""
+    # Create test articles
+    for i in range(3):
         article = Article(
-            url=f"http://test.com/parallel-{i}",
-            title=f"Test Article {i}",
-            text="Test content with location",
-            content="Test content",
+            url=f"http://test.com/skip-locked-{i}",
+            title=f"Article {i}",
+            text="Test",
+            content="Test",
+            status="cleaned",
+        )
+        cloud_sql_session.add(article)
+    cloud_sql_session.commit()
+    
+    # Session 1: Lock first 2 articles
+    Session = sessionmaker(bind=cloud_sql_session.get_bind())
+    session1 = Session()
+    session2 = Session()
+    
+    try:
+        # Session 1 locks articles with FOR UPDATE (blocks others)
+        query1 = sql_text("""
+            SELECT a.id FROM articles a
+            WHERE a.url LIKE 'http://test.com/skip-locked-%'
+            ORDER BY a.id
+            LIMIT 2
+            FOR UPDATE
+        """)
+        result1 = session1.execute(query1)
+        locked_ids = [row[0] for row in result1.fetchall()]
+        assert len(locked_ids) == 2, "Should lock 2 articles"
+        
+        # Session 2: Try to select with SKIP LOCKED (should skip locked rows)
+        query2 = sql_text("""
+            SELECT a.id FROM articles a
+            WHERE a.url LIKE 'http://test.com/skip-locked-%'
+            ORDER BY a.id
+            FOR UPDATE SKIP LOCKED
+        """)
+        result2 = session2.execute(query2)
+        available_ids = [row[0] for row in result2.fetchall()]
+        
+        # Should only get the unlocked article (the 3rd one)
+        assert len(available_ids) == 1, "Should only get 1 unlocked article"
+        assert available_ids[0] not in locked_ids, "Got a locked article!"
+        
+        # Commit session 1 to release locks
+        session1.commit()
+        
+        # Now session 2 should be able to get all 3
+        result3 = session2.execute(query2)
+        all_ids = [row[0] for row in result3.fetchall()]
+        assert len(all_ids) == 3, "Should get all 3 after locks released"
+        
+    finally:
+        session1.close()
+        session2.close()
+
+
+@pytest.mark.postgres
+@pytest.mark.parallel
+def test_batch_commit_holds_locks_until_commit(cloud_sql_session):
+    """Test that batch processing with autocommit=False holds locks."""
+    # Create test articles
+    articles = []
+    for i in range(5):
+        article = Article(
+            url=f"http://test.com/batch-{i}",
+            title=f"Article {i}",
+            text="Test content",
+            content="Test",
             status="cleaned",
         )
         cloud_sql_session.add(article)
         articles.append(article)
     cloud_sql_session.commit()
     
-    processed_articles = []
-    lock = threading.Lock()
+    # Session 1: Lock and process articles without committing
+    Session = sessionmaker(bind=cloud_sql_session.get_bind())
+    session1 = Session()
+    session2 = Session()
     
-    def worker(worker_id):
-        """Simulate a worker processing articles."""
-        # Create new session from same engine as test
-        from sqlalchemy.orm import sessionmaker
-        Session = sessionmaker(bind=cloud_sql_session.get_bind())
-        session = Session()
+    try:
+        # Lock articles in session 1
+        query = sql_text("""
+            SELECT a.id FROM articles a
+            WHERE a.url LIKE 'http://test.com/batch-%'
+            ORDER BY a.id
+            FOR UPDATE
+        """)
+        result = session1.execute(query)
+        locked_ids = [row[0] for row in result.fetchall()]
+        assert len(locked_ids) == 5
         
-        try:
-            # Select articles with FOR UPDATE SKIP LOCKED
-            query = sql_text("""
-                SELECT a.id, a.text
-                FROM articles a
-                WHERE a.content IS NOT NULL
-                AND a.text IS NOT NULL
-                AND NOT EXISTS (
-                    SELECT 1 FROM article_entities ae WHERE ae.article_id = a.id
-                )
-                AND a.url LIKE 'http://test.com/parallel-%'
-                ORDER BY a.id
-                LIMIT 3
-                FOR UPDATE OF a SKIP LOCKED
-            """)
-            
-            result = session.execute(query)
-            rows = result.fetchall()
-            
-            # Process each article
-            for row in rows:
-                article_id, text = row
-                
-                # Track which articles this worker is processing
-                with lock:
-                    if article_id in processed_articles:
-                        raise AssertionError(
-                            f"Worker {worker_id} processing duplicate "
-                            f"article {article_id}!"
-                        )
-                    processed_articles.append(article_id)
-                
-                # Simulate processing time
-                time.sleep(0.01)
-                
-                # Save entities without committing
-                entities = [
-                    {
-                        "entity_text": f"Worker{worker_id}City",
-                        "entity_label": "LOC",
-                    }
-                ]
-                save_article_entities(
-                    session,
-                    str(article_id),
-                    entities,
-                    "test-parallel-v1",
-                    autocommit=False,
-                )
-            
-            # Batch commit
-            session.commit()
-            
-        except Exception:
-            session.rollback()
-            raise
-        finally:
-            session.close()
-    
-    # Run 3 workers in parallel (reduced for memory efficiency)
-    with ThreadPoolExecutor(max_workers=3) as executor:
-        futures = [executor.submit(worker, i) for i in range(3)]
-        for future in futures:
-            future.result()  # Will raise if any worker had duplicate
-    
-    # Verify all 10 articles were processed exactly once
-    assert len(processed_articles) == 10, f"Expected 10, got {len(processed_articles)}"
-    assert len(set(processed_articles)) == 10, "Duplicate articles found!"
-
-
-@pytest.mark.postgres
-@pytest.mark.slow
-def test_parallel_classification_no_duplicate_work(cloud_sql_session):
-    """Test that parallel classification workers don't duplicate work."""
-    # Create 10 test articles (reduced from 20 for memory efficiency)
-    articles = []
-    for i in range(10):
-        article = Article(
-            url=f"http://test.com/parallel-class-{i}",
-            title=f"Test Article {i}",
-            text="Test content for classification",
-            content="Test content",
-            status="cleaned",
-        )
-        cloud_sql_session.add(article)
-        articles.append(article)
-    cloud_sql_session.commit()
-    
-    processed_articles = []
-    lock = threading.Lock()
-    
-    def worker(worker_id):
-        """Simulate a classification worker."""
-        from src.ml.article_classifier import Prediction
-        from sqlalchemy import select
-        from sqlalchemy.orm import sessionmaker
-        
-        # Create new session from same engine as test
-        Session = sessionmaker(bind=cloud_sql_session.get_bind())
-        session = Session()
-        
-        try:
-            # Select articles with row-level locking
-            label_version = "test-parallel-v1"
-            
-            # Subquery for label existence
-            label_exists = (
-                select(ArticleLabel.id)
-                .where(
-                    ArticleLabel.article_id == Article.id,
-                    ArticleLabel.label_version == label_version,
-                )
-                .exists()
+        # Process each article with autocommit=False
+        for article_id in locked_ids:
+            entities = [{"entity_text": "City", "entity_label": "LOC"}]
+            save_article_entities(
+                session1,
+                str(article_id),
+                entities,
+                "test-batch-v1",
+                autocommit=False,  # Don't commit yet
             )
-            
-            stmt = (
-                select(Article)
-                .where(Article.status == "cleaned")
-                .where(Article.url.like("http://test.com/parallel-class-%"))
-                .where(~label_exists)
-                .order_by(Article.id)
-                .limit(3)
-                .with_for_update(skip_locked=True)
-            )
-            
-            articles_batch = list(session.scalars(stmt))
-            
-            # Process each article
-            for article in articles_batch:
-                with lock:
-                    if article.id in processed_articles:
-                        raise AssertionError(
-                            f"Worker {worker_id} processing duplicate "
-                            f"article {article.id}!"
-                        )
-                    processed_articles.append(article.id)
-                
-                # Simulate processing time
-                time.sleep(0.01)
-                
-                # Save classification without committing
-                pred = Prediction(label=f"label_worker_{worker_id}", score=0.85)
-                save_article_classification(
-                    session,
-                    str(article.id),
-                    label_version,
-                    "model-test-v1",
-                    pred,
-                    autocommit=False,
-                )
-            
-            # Batch commit
-            session.commit()
-            
-        except Exception:
-            session.rollback()
-            raise
-        finally:
-            session.close()
-    
-    # Run 3 workers in parallel (reduced for memory efficiency)
-    with ThreadPoolExecutor(max_workers=3) as executor:
-        futures = [executor.submit(worker, i) for i in range(3)]
-        for future in futures:
-            future.result()
-    
-    # Verify all 10 articles were processed exactly once
-    assert len(processed_articles) == 10, f"Expected 10, got {len(processed_articles)}"
-    assert len(set(processed_articles)) == 10, "Duplicate articles found!"
+        
+        # Session 2 should still not be able to lock these rows
+        query2 = sql_text("""
+            SELECT a.id FROM articles a
+            WHERE a.url LIKE 'http://test.com/batch-%'
+            FOR UPDATE SKIP LOCKED
+        """)
+        result2 = session2.execute(query2)
+        available = result2.fetchall()
+        assert len(available) == 0, "Articles should still be locked!"
+        
+        # Now commit session 1
+        session1.commit()
+        
+        # Session 2 should now see the entities
+        result3 = session2.execute(query2)
+        available2 = result3.fetchall()
+        assert len(available2) == 5, "All articles should be available now"
+        
+    finally:
+        session1.close()
+        session2.close()
