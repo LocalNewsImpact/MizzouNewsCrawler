@@ -279,7 +279,7 @@ ignore = [
 
 ## Notes
 
-- Removed unused `requirements-310-backup.txt` to eliminate vulnerable dependency snapshot
+- Keep `requirements-310-backup.txt` for rollback capability
 - Update target-version in pyproject.toml from py310 → py311
 - Consider adding pre-commit hooks to catch issues locally
 - Current CI uses `python -m` invocation (fixed in commit f671df4)
