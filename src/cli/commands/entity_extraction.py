@@ -85,7 +85,8 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
     try:
         with db.get_session() as session:
             # Query for articles grouped by source
-            # Ordered to process sources together for efficient gazetteer caching
+            # Use FOR UPDATE SKIP LOCKED for parallel processing without race conditions
+            # Each worker will lock different rows, allowing true parallelization
             query = sql_text(
                 """
                 SELECT a.id, a.text, a.text_hash, cl.source_id, cl.dataset_id, cl.source
@@ -102,6 +103,7 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
                 + """
                 ORDER BY cl.source_id, cl.dataset_id
                 LIMIT :limit
+                FOR UPDATE OF a SKIP LOCKED
             """
             )
 

@@ -79,6 +79,10 @@ class ArticleClassificationService:
         stmt = stmt.order_by(Article.created_at.desc())
         if limit:
             stmt = stmt.limit(limit)
+        
+        # Add row-level locking for parallel processing without race conditions
+        # SKIP LOCKED allows multiple workers to process different rows simultaneously
+        stmt = stmt.with_for_update(skip_locked=True)
 
         return list(self.session.scalars(stmt))
 
