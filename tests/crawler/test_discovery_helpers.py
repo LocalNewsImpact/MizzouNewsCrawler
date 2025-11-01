@@ -582,18 +582,18 @@ class _FakeTelemetry:
 
 
 def test_discover_with_storysniffer_records_success() -> None:
+    """Test that discover_with_storysniffer now correctly skips discovery.
+    
+    StorySniffer.guess() is a classifier (returns bool), not a crawler.
+    The method now correctly returns empty list and records SKIPPED status.
+    """
     telemetry = _FakeTelemetry()
     instance = _make_discovery_stub()
 
     instance.telemetry = telemetry  # type: ignore[attr-defined]
+    # StorySniffer.guess() actually returns bool, not list
     storysniffer_stub = types.SimpleNamespace(
-        guess=lambda _url: [
-            {
-                "url": "https://example.com/story-sniffed",
-                "title": "StorySniffer Headline",
-                "publish_date": datetime.utcnow().isoformat(),
-            }
-        ]
+        guess=lambda _url: True  # Returns bool indicating URL is an article
     )
     instance.storysniffer = storysniffer_stub  # type: ignore[attr-defined]
 
@@ -604,23 +604,30 @@ def test_discover_with_storysniffer_records_success() -> None:
         operation_id="op-1",
     )
 
-    assert [a["url"] for a in articles] == ["https://example.com/story-sniffed"]
+    # Method now returns empty list since StorySniffer can't discover URLs
+    assert articles == []
     assert telemetry.method_updates, "Telemetry update not captured"
 
     update = telemetry.method_updates[-1]
     assert update["discovery_method"] == DiscoveryMethod.STORYSNIFFER
-    assert update["status"] == DiscoveryMethodStatus.SUCCESS
-    assert update["articles_found"] == 1
+    # Status is now SKIPPED since StorySniffer is a classifier, not a crawler
+    assert update["status"] == DiscoveryMethodStatus.SKIPPED
+    assert update["articles_found"] == 0
 
 
 def test_discover_with_storysniffer_records_server_error() -> None:
+    """Test that discover_with_storysniffer skips even when sniffer exists.
+    
+    StorySniffer is no longer used for discovery, so errors won't occur.
+    Method returns empty list and records SKIPPED status.
+    """
     telemetry = _FakeTelemetry()
     instance = _make_discovery_stub()
 
     instance.telemetry = telemetry  # type: ignore[attr-defined]
 
     class BoomSniffer:
-        def guess(self, _url: str) -> list[str]:
+        def guess(self, _url: str) -> bool:
             raise RuntimeError("story sniffer blew up")
 
     instance.storysniffer = BoomSniffer()  # type: ignore[attr-defined]
@@ -637,9 +644,9 @@ def test_discover_with_storysniffer_records_server_error() -> None:
 
     update = telemetry.method_updates[-1]
     assert update["discovery_method"] == DiscoveryMethod.STORYSNIFFER
-    assert update["status"] == DiscoveryMethodStatus.SERVER_ERROR
+    # Status is now SKIPPED since method exits early without calling guess()
+    assert update["status"] == DiscoveryMethodStatus.SKIPPED
     assert update["articles_found"] == 0
-    assert "story sniffer blew up" in (update.get("notes") or "")
 
 
 def test_discover_with_newspaper4k_records_no_feed(monkeypatch):
@@ -984,7 +991,7 @@ def test_process_source_stores_and_classifies_articles(
     assert result.articles_new == 1
     assert result.articles_duplicate == 1
     assert result.articles_expired == 1
-    assert "storysniffer" in result.metadata["methods_attempted"]
+    assert result.metadata["methods_attempted"] == ["rss_feed", "newspaper4k"]
     assert "rss_feed" in result.metadata["methods_attempted"]
 
     assert len(store_calls) == 1
@@ -1412,7 +1419,6 @@ def test_source_processor_records_failures_for_downstream_methods(
             self.methods = [
                 DiscoveryMethod.RSS_FEED,
                 DiscoveryMethod.NEWSPAPER4K,
-                DiscoveryMethod.STORYSNIFFER,
             ]
 
         def get_effective_discovery_methods(self, source_id: str):
@@ -1504,13 +1510,12 @@ def test_source_processor_records_failures_for_downstream_methods(
     assert result.metadata["methods_attempted"] == [
         "rss_feed",
         "newspaper4k",
-        "storysniffer",
     ]
 
     discovery_methods = {
         failure.get("discovery_method") for failure in telemetry.failures
     }
-    assert {"newspaper4k", "storysniffer", "all_methods"}.issubset(discovery_methods)
+    assert {"newspaper4k", "all_methods"}.issubset(discovery_methods)
 
 
 def test_source_processor_skips_out_of_scope_urls(
@@ -1995,27 +2000,27 @@ def test_process_source_dedupes_query_urls(
         "discover_with_rss_feeds",
         _bind_method(instance, lambda *_a, **_k: ([], rss_summary)),
     )
-    monkeypatch.setattr(
-        instance,
-        "discover_with_newspaper4k",
-        _bind_method(instance, lambda *_a, **_k: []),
-    )
-
     dedupe_candidate = "https://example.com/news-item?utm=ref&utm_campaign=test#section"
 
     monkeypatch.setattr(
         instance,
-        "discover_with_storysniffer",
+        "discover_with_newspaper4k",
         _bind_method(
             instance,
             lambda *_a, **_k: [
                 {
                     "url": dedupe_candidate,
-                    "discovery_method": "storysniffer",
+                    "discovery_method": "newspaper4k",
                     "metadata": {},
                 }
             ],
         ),
+    )
+
+    monkeypatch.setattr(
+        instance,
+        "discover_with_storysniffer",
+        _bind_method(instance, lambda *_a, **_k: []),
     )
 
     metadata_json = json.dumps({"frequency": "daily"})

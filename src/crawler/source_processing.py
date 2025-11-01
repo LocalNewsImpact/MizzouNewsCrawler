@@ -169,10 +169,12 @@ class SourceProcessor:
             else:
                 logger.info("No historical data for %s", self.source_name)
                 logger.info("Trying all methods")
+            # Note: STORYSNIFFER removed from default methods as it's a URL
+            # classifier (not a discovery crawler) and cannot discover articles
+            # from homepages without additional HTML parsing logic.
             return [
                 DiscoveryMethod.RSS_FEED,
                 DiscoveryMethod.NEWSPAPER4K,
-                DiscoveryMethod.STORYSNIFFER,
             ]
         return methods
 
@@ -251,16 +253,16 @@ class SourceProcessor:
             )
 
         # Method 3: storysniffer
-        if (
-            getattr(self.discovery, "storysniffer", None)
-            and len(all_discovered) < self.discovery.max_articles_per_source
-        ):
-            story_articles = self._try_storysniffer()
-            all_discovered.extend(story_articles)
-        elif getattr(self.discovery, "storysniffer", None) is None:
-            logger.info(
-                "StorySniffer not available, skipping",
+        # Note: StorySniffer is a URL classifier (returns boolean), not a
+        # discovery crawler. It cannot discover article URLs from homepages.
+        # Skip it for discovery entirely.
+        if DiscoveryMethod.STORYSNIFFER in self.effective_methods:
+            logger.debug(
+                "StorySniffer in effective methods but cannot discover URLs "
+                "from homepages (it's a classifier, not a crawler). Skipping."
             )
+        # Legacy code path kept for reference but effectively disabled
+        # as discover_with_storysniffer now returns empty list immediately
 
         return all_discovered
 

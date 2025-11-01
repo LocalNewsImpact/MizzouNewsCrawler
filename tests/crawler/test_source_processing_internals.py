@@ -61,12 +61,13 @@ def test_source_processor_prioritizes_last_successful_method():
 
     discovery = _DiscoveryStub(telemetry=telemetry)
 
-    source_row = _make_series({"last_successful_method": "storysniffer"})
+    # Use newspaper4k as last successful method (storysniffer can't discover)
+    source_row = _make_series({"last_successful_method": "newspaper4k"})
     processor = SourceProcessor(discovery=discovery, source_row=source_row)
     processor._initialize_context()
 
-    assert processor.effective_methods[0] == DiscoveryMethod.STORYSNIFFER
-    assert DiscoveryMethod.STORYSNIFFER in processor.effective_methods
+    assert processor.effective_methods[0] == DiscoveryMethod.NEWSPAPER4K
+    assert DiscoveryMethod.NEWSPAPER4K in processor.effective_methods
 
 
 def test_source_processor_should_skip_rss_when_recent_missing(monkeypatch):
@@ -261,10 +262,10 @@ def test_accurate_logging_when_historical_data_exists_but_no_effective_methods(
 
     # Should NOT log "No historical data" but instead
     # "No effective methods found"
+    # STORYSNIFFER removed from defaults as it's a classifier, not a crawler
     assert processor.effective_methods == [
         DiscoveryMethod.RSS_FEED,
         DiscoveryMethod.NEWSPAPER4K,
-        DiscoveryMethod.STORYSNIFFER,
     ]
     log_messages = [rec.message for rec in caplog.records]
     assert any("No effective methods found" in msg for msg in log_messages)
