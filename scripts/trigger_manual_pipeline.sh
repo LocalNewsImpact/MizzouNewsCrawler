@@ -77,6 +77,7 @@ if [ -n "$SOURCE_LIMIT" ]; then
     --parameter days-back="$DAYS_BACK" \
     --parameter verify-batch-size="10" \
     --parameter verify-max-batches="100" \
+    --parameter verify-idle-grace-seconds="600" \
     --parameter extract-limit="50" \
     --parameter extract-batches="40" \
     --parameter inter-request-min="5.0" \
@@ -93,6 +94,7 @@ else
     --parameter days-back="$DAYS_BACK" \
     --parameter verify-batch-size="10" \
     --parameter verify-max-batches="100" \
+    --parameter verify-idle-grace-seconds="600" \
     --parameter extract-limit="50" \
     --parameter extract-batches="40" \
     --parameter inter-request-min="5.0" \

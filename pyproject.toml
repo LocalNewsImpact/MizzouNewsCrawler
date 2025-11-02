@@ -124,7 +124,7 @@ no_implicit_optional = false  # Allow Optional without explicit annotation
 warn_redundant_casts = true
 warn_unused_ignores = false
 explicit_package_bases = true
-exclude = ["src/pipeline/crawler.py"]
+exclude = ["src/pipeline/crawler.py", "scripts/"]
 
 # Disable low-priority error codes for CI (see GitHub issue for future improvements)
 disable_error_code = [

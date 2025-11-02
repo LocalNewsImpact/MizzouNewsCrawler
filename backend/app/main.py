@@ -9,18 +9,20 @@ import sys
 import threading
 import time as _time
 import uuid
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Any, Optional, SupportsInt, TYPE_CHECKING, cast
 
 import numpy as np
 import pandas as _pd
 import pandas as pd
+import requests
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from src.telemetry.store import get_store as get_telemetry_store
-import requests
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +63,21 @@ from backend.app.telemetry import (  # noqa: E402
     operations,
     proxy,
 )
+from backend.app.telemetry.verification import VerificationFeedback  # noqa: E402
+from backend.app.telemetry.byline import BylineFeedback  # noqa: E402
+from backend.app.telemetry.code_review import (  # noqa: E402
+    CodeReviewFeedback,
+    CodeReviewItem,
+)
+
+if not TYPE_CHECKING:
+    Review = cast(Any, Review)
+    DomainFeedback = cast(Any, DomainFeedback)
+    Snapshot = cast(Any, Snapshot)
+    Candidate = cast(Any, Candidate)
+    ReextractionJob = cast(Any, ReextractionJob)
+    DedupeAudit = cast(Any, DedupeAudit)
+    Source = cast(Any, Source)
 
 # pydantic.Field not used here
 
@@ -271,6 +288,26 @@ class ReviewIn(BaseModel):
     missing_tags: list[str] | None = None
     incorrect_tags: list[str] | None = None
     inferred_tags: list[str] | None = None
+
+
+def _join_csv(values: Sequence[str] | None) -> str | None:
+    """Join a sequence of strings with commas, returning None for empty input."""
+
+    if values is None or len(values) == 0:
+        return None
+    return ",".join(values)
+
+
+def _coerce_optional_int(value: Any) -> int | None:
+    """Convert a loosely-typed value to an optional int for telemetry payloads."""
+
+    if value is None:
+        return None
+    if isinstance(value, (bool, int, float, str)):
+        return int(value)
+    if isinstance(value, np.generic):  # numpy scalar types
+        return int(value)
+    return int(cast(SupportsInt, value))
 
 
 # Snapshot ingestion models
@@ -900,12 +937,16 @@ def post_review(idx: int, payload: ReviewIn):
     include `article_uid` to bind the review to the article's stable unique id.
     """
     now = datetime.datetime.utcnow()
-    tags_str = ",".join(payload.tags) if payload.tags else None
-    body_str = ",".join(payload.body_errors) if payload.body_errors else None
-    headline_str = (
-        ",".join(payload.headline_errors) if payload.headline_errors else None
-    )
-    author_str = ",".join(payload.author_errors) if payload.author_errors else None
+    tags_str = _join_csv(payload.tags)
+    body_str = _join_csv(payload.body_errors)
+    headline_str = _join_csv(payload.headline_errors)
+    author_str = _join_csv(payload.author_errors)
+    mentioned_locations_str = _join_csv(payload.mentioned_locations)
+    missing_locations_str = _join_csv(payload.missing_locations)
+    incorrect_locations_str = _join_csv(payload.incorrect_locations)
+    inferred_tags_str = _join_csv(payload.inferred_tags)
+    missing_tags_str = _join_csv(payload.missing_tags)
+    incorrect_tags_str = _join_csv(payload.incorrect_tags)
 
     # Prefer an explicit article_uid if supplied in the payload
     article_uid = getattr(payload, "article_uid", None) or None
@@ -939,45 +980,22 @@ def post_review(idx: int, payload: ReviewIn):
 
         if existing_review:
             # Update existing review
-            existing_review.rating = payload.rating
-            existing_review.secondary_rating = payload.secondary_rating
-            existing_review.tags = tags_str
-            existing_review.notes = payload.notes
-            existing_review.mentioned_locations = (
-                ",".join(payload.mentioned_locations)
-                if payload.mentioned_locations
-                else None
-            )
-            existing_review.missing_locations = (
-                ",".join(payload.missing_locations)
-                if getattr(payload, "missing_locations", None)
-                else None
-            )
-            existing_review.incorrect_locations = (
-                ",".join(payload.incorrect_locations)
-                if getattr(payload, "incorrect_locations", None)
-                else None
-            )
-            existing_review.inferred_tags = (
-                ",".join(payload.inferred_tags)
-                if getattr(payload, "inferred_tags", None)
-                else None
-            )
-            existing_review.missing_tags = (
-                ",".join(payload.missing_tags)
-                if getattr(payload, "missing_tags", None)
-                else None
-            )
-            existing_review.incorrect_tags = (
-                ",".join(payload.incorrect_tags)
-                if getattr(payload, "incorrect_tags", None)
-                else None
-            )
-            existing_review.body_errors = body_str
-            existing_review.headline_errors = headline_str
-            existing_review.author_errors = author_str
-            existing_review.reviewed_at = now
-            review_obj = existing_review
+            review_record = cast(Any, existing_review)
+            review_record.rating = payload.rating
+            review_record.secondary_rating = payload.secondary_rating
+            review_record.tags = tags_str
+            review_record.notes = payload.notes
+            review_record.mentioned_locations = mentioned_locations_str
+            review_record.missing_locations = missing_locations_str
+            review_record.incorrect_locations = incorrect_locations_str
+            review_record.inferred_tags = inferred_tags_str
+            review_record.missing_tags = missing_tags_str
+            review_record.incorrect_tags = incorrect_tags_str
+            review_record.body_errors = body_str
+            review_record.headline_errors = headline_str
+            review_record.author_errors = author_str
+            review_record.reviewed_at = now
+            review_obj = review_record
         else:
             # Create new review
             review_obj = Review(
@@ -988,36 +1006,12 @@ def post_review(idx: int, payload: ReviewIn):
                 secondary_rating=payload.secondary_rating,
                 tags=tags_str,
                 notes=payload.notes,
-                mentioned_locations=(
-                    ",".join(payload.mentioned_locations)
-                    if payload.mentioned_locations
-                    else None
-                ),
-                missing_locations=(
-                    ",".join(payload.missing_locations)
-                    if getattr(payload, "missing_locations", None)
-                    else None
-                ),
-                incorrect_locations=(
-                    ",".join(payload.incorrect_locations)
-                    if getattr(payload, "incorrect_locations", None)
-                    else None
-                ),
-                inferred_tags=(
-                    ",".join(payload.inferred_tags)
-                    if getattr(payload, "inferred_tags", None)
-                    else None
-                ),
-                missing_tags=(
-                    ",".join(payload.missing_tags)
-                    if getattr(payload, "missing_tags", None)
-                    else None
-                ),
-                incorrect_tags=(
-                    ",".join(payload.incorrect_tags)
-                    if getattr(payload, "incorrect_tags", None)
-                    else None
-                ),
+                mentioned_locations=mentioned_locations_str,
+                missing_locations=missing_locations_str,
+                incorrect_locations=incorrect_locations_str,
+                inferred_tags=inferred_tags_str,
+                missing_tags=missing_tags_str,
+                incorrect_tags=incorrect_tags_str,
                 body_errors=body_str,
                 headline_errors=headline_str,
                 author_errors=author_str,
@@ -1145,52 +1139,34 @@ def update_review(rid: str, payload: ReviewIn):
         if not review:
             raise HTTPException(status_code=404, detail="Review not found")
 
+        tags_str = _join_csv(payload.tags)
+        body_str = _join_csv(payload.body_errors)
+        headline_str = _join_csv(payload.headline_errors)
+        author_str = _join_csv(payload.author_errors)
+        mentioned_locations_str = _join_csv(payload.mentioned_locations)
+        missing_locations_str = _join_csv(payload.missing_locations)
+        incorrect_locations_str = _join_csv(payload.incorrect_locations)
+        inferred_tags_str = _join_csv(payload.inferred_tags)
+        missing_tags_str = _join_csv(payload.missing_tags)
+        incorrect_tags_str = _join_csv(payload.incorrect_tags)
+
         # Update fields
-        review.reviewer = payload.reviewer
-        review.rating = payload.rating
-        review.secondary_rating = payload.secondary_rating
-        review.tags = ",".join(payload.tags) if payload.tags else None
-        review.notes = payload.notes
-        review.mentioned_locations = (
-            ",".join(payload.mentioned_locations)
-            if payload.mentioned_locations
-            else None
-        )
-        review.missing_locations = (
-            ",".join(payload.missing_locations)
-            if getattr(payload, "missing_locations", None)
-            else None
-        )
-        review.incorrect_locations = (
-            ",".join(payload.incorrect_locations)
-            if getattr(payload, "incorrect_locations", None)
-            else None
-        )
-        review.inferred_tags = (
-            ",".join(payload.inferred_tags)
-            if getattr(payload, "inferred_tags", None)
-            else None
-        )
-        review.missing_tags = (
-            ",".join(payload.missing_tags)
-            if getattr(payload, "missing_tags", None)
-            else None
-        )
-        review.incorrect_tags = (
-            ",".join(payload.incorrect_tags)
-            if getattr(payload, "incorrect_tags", None)
-            else None
-        )
-        review.body_errors = (
-            ",".join(payload.body_errors) if payload.body_errors else None
-        )
-        review.headline_errors = (
-            ",".join(payload.headline_errors) if payload.headline_errors else None
-        )
-        review.author_errors = (
-            ",".join(payload.author_errors) if payload.author_errors else None
-        )
-        review.reviewed_at = datetime.datetime.utcnow()
+        review_record = cast(Any, review)
+        review_record.reviewer = payload.reviewer
+        review_record.rating = payload.rating
+        review_record.secondary_rating = payload.secondary_rating
+        review_record.tags = tags_str
+        review_record.notes = payload.notes
+        review_record.mentioned_locations = mentioned_locations_str
+        review_record.missing_locations = missing_locations_str
+        review_record.incorrect_locations = incorrect_locations_str
+        review_record.inferred_tags = inferred_tags_str
+        review_record.missing_tags = missing_tags_str
+        review_record.incorrect_tags = incorrect_tags_str
+        review_record.body_errors = body_str
+        review_record.headline_errors = headline_str
+        review_record.author_errors = author_str
+        review_record.reviewed_at = datetime.datetime.utcnow()
 
         session.commit()
         return {"status": "ok", "id": rid}
@@ -1735,9 +1711,9 @@ def post_dedupe_records(payload: list[dict]):
     Returns inserted count and sample ids.
     """
     if not isinstance(payload, list):
-        records = [payload]
+        records = [cast(dict[str, Any], payload)]
     else:
-        records = payload
+        records = [cast(dict[str, Any], item) for item in payload]
 
     with db_manager.get_session() as session:
         now = datetime.datetime.utcnow()
@@ -1750,16 +1726,8 @@ def post_dedupe_records(payload: list[dict]):
                     neighbor_uid=r.get("neighbor_uid"),
                     host=r.get("host"),
                     similarity=r.get("similarity"),
-                    dedupe_flag=(
-                        int(r.get("dedupe_flag"))
-                        if r.get("dedupe_flag") is not None
-                        else None
-                    ),
-                    category=(
-                        int(r.get("category"))
-                        if r.get("category") is not None
-                        else None
-                    ),
+                    dedupe_flag=_coerce_optional_int(r.get("dedupe_flag")),
+                    category=_coerce_optional_int(r.get("category")),
                     stage=r.get("stage"),
                     details=(
                         json.dumps(r.get("details"))
@@ -1888,15 +1856,16 @@ def accept_candidate(cid: str, payload: dict | None = None):
     """Mark a candidate as accepted (accepted=1) or rejected (accepted=0).
     Payload optional: {"accepted": true|false}
     """
-    val = True
+    val: bool = True
     if payload is not None:
-        val = payload.get("accepted", True)
+        val = bool(payload.get("accepted", True))
 
     with db_manager.get_session() as session:
         candidate = session.query(Candidate).filter(Candidate.id == cid).first()
         if not candidate:
             raise HTTPException(status_code=404, detail="candidate not found")
-        candidate.accepted = val
+        candidate_record = cast(Any, candidate)
+        candidate_record.accepted = val
         session.commit()
         return {"status": "ok", "id": cid, "accepted": bool(val)}
 
@@ -1932,19 +1901,25 @@ def get_reextract_job(job_id: str):
             raise HTTPException(status_code=404, detail="job not found")
 
         result_data = None
-        if job.result_json:
+        job_record = cast(Any, job)
+        result_json = getattr(job_record, "result_json", None)
+        if result_json:
             try:
-                result_data = json.loads(job.result_json)
+                result_data = json.loads(result_json)
             except Exception:
-                result_data = job.result_json
+                result_data = result_json
 
         return {
-            "id": job.id,
-            "host": job.host,
-            "status": job.status,
+            "id": job_record.id,
+            "host": job_record.host,
+            "status": job_record.status,
             "result": result_data,
-            "created_at": job.created_at.isoformat() if job.created_at else None,
-            "updated_at": job.updated_at.isoformat() if job.updated_at else None,
+            "created_at": job_record.created_at.isoformat()
+            if job_record.created_at
+            else None,
+            "updated_at": job_record.updated_at.isoformat()
+            if job_record.updated_at
+            else None,
         }
 
 
@@ -1957,9 +1932,9 @@ def commit_site_rule(payload: dict):
     If the host row doesn't exist, append a new row with minimal columns filled.
     Returns the row written.
     """
-    host = payload.get("host")
-    field = payload.get("field")
-    selector = payload.get("selector")
+    host = cast(Optional[str], payload.get("host"))
+    field = cast(Optional[str], payload.get("field"))
+    selector = cast(Optional[str], payload.get("selector"))
     if not host or not selector:
         raise HTTPException(status_code=400, detail="host and selector required")
     # map field names to CSV columns
@@ -1971,18 +1946,33 @@ def commit_site_rule(payload: dict):
         "date": "date_selector",
         "article": "article_selector",
     }
-    col = col_map.get(field, "content_selector")
+    col = col_map.get(field or "", "content_selector")
     csv_path = BASE_DIR / "lookups" / "site_rules.csv"
     # read existing CSV
     import csv
 
     rows = []
     found = False
-    header = None
+    default_header = [
+        "hostname",
+        "skip_patterns",
+        "content_selector",
+        "article_selector",
+        "date_selector",
+        "extract_method",
+        "preferred_method",
+        "tags_selector",
+        "author_selector",
+        "snapshot_example",
+        "notes",
+    ]
+    header: list[str] | None = None
     if csv_path.exists():
         with csv_path.open(newline="", encoding="utf-8") as fh:
             reader = csv.DictReader(fh)
-            header = reader.fieldnames
+            header_from_file = reader.fieldnames
+            if header_from_file is not None:
+                header = list(header_from_file)
             for r in reader:
                 if r.get("hostname") == host:
                     # update column, append selector if non-empty
@@ -1996,23 +1986,13 @@ def commit_site_rule(payload: dict):
     # if not found, append new minimal row
     if not found:
         if header is None:
-            header = [
-                "hostname",
-                "skip_patterns",
-                "content_selector",
-                "article_selector",
-                "date_selector",
-                "extract_method",
-                "preferred_method",
-                "tags_selector",
-                "author_selector",
-                "snapshot_example",
-                "notes",
-            ]
+            header = default_header.copy()
         new = dict.fromkeys(header, "")
         new["hostname"] = host
         new[col] = selector
         rows.append(new)
+    if header is None:
+        header = default_header.copy()
     # write back CSV atomically
     tmp_path = csv_path.with_suffix(".tmp")
     with tmp_path.open("w", newline="", encoding="utf-8") as fh:
@@ -2030,14 +2010,17 @@ def commit_site_rule(payload: dict):
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
     cur.execute(
-        "INSERT INTO reextract_jobs (id, host, status, created_at, updated_at) VALUES (?,?,?,?,?)",
+        (
+            "INSERT INTO reextract_jobs (id, host, status, created_at, updated_at) "
+            "VALUES (?,?,?,?,?)"
+        ),
         (job_id, host, "pending", now, now),
     )
     # mark snapshots as reviewed: prefer explicit snapshot_id, otherwise
     # mark ALL snapshots for the host as reviewed so the host is removed
     # from the domain issues list immediately (frontend has committed a
     # canonical selector and re-extract is enqueued).
-    snapshot_id = payload.get("snapshot_id")
+    snapshot_id = cast(Optional[str], payload.get("snapshot_id"))
     try:
         if snapshot_id:
             cur.execute(
@@ -2194,7 +2177,10 @@ def get_method_performance(
                 ExtractionTelemetryV2.host,
                 func.count().label("total_attempts"),
                 func.sum(
-                    case((ExtractionTelemetryV2.is_success, literal(1)), else_=literal(0))
+                    case(
+                        (ExtractionTelemetryV2.is_success, literal(1)),
+                        else_=literal(0),
+                    )
                 ).label("successful_attempts"),
                 func.avg(ExtractionTelemetryV2.total_duration_ms).label("avg_duration"),
                 func.min(ExtractionTelemetryV2.total_duration_ms).label("min_duration"),
@@ -2267,7 +2253,10 @@ def get_publisher_stats(days: int = 7, host: str | None = None, min_attempts: in
                 ExtractionTelemetryV2.host,
                 func.count().label("total_extractions"),
                 func.sum(
-                    case((ExtractionTelemetryV2.is_success, literal(1)), else_=literal(0))
+                    case(
+                        (ExtractionTelemetryV2.is_success, literal(1)),
+                        else_=literal(0),
+                    )
                 ).label("successful_extractions"),
                 func.avg(ExtractionTelemetryV2.total_duration_ms).label("avg_duration"),
                 func.count(func.distinct(method_col)).label("methods_used"),
@@ -2445,7 +2434,10 @@ def get_poor_performing_sites(
             # Calculate success rate in the query
             success_rate_calc = (
                 func.sum(
-                    case((ExtractionTelemetryV2.is_success, literal(1)), else_=literal(0))
+                    case(
+                        (ExtractionTelemetryV2.is_success, literal(1)),
+                        else_=literal(0),
+                    )
                 )
                 * 100.0
                 / func.count()
@@ -2455,7 +2447,10 @@ def get_poor_performing_sites(
                 ExtractionTelemetryV2.host,
                 func.count().label("total_attempts"),
                 func.sum(
-                    case((ExtractionTelemetryV2.is_success, literal(1)), else_=literal(0))
+                    case(
+                        (ExtractionTelemetryV2.is_success, literal(1)),
+                        else_=literal(0),
+                    )
                 ).label("successful_attempts"),
                 success_rate_calc.label("success_rate"),
                 func.avg(ExtractionTelemetryV2.total_duration_ms).label("avg_duration"),
@@ -2531,9 +2526,12 @@ def get_telemetry_summary(days: int = 7):
 
             overall_query = session.query(
                 func.count().label("total_extractions"),
-                func.sum(case((ExtractionTelemetryV2.is_success, literal(1)), else_=literal(0))).label(
-                    "successful_extractions"
-                ),
+                func.sum(
+                    case(
+                        (ExtractionTelemetryV2.is_success, literal(1)),
+                        else_=literal(0),
+                    )
+                ).label("successful_extractions"),
                 func.count(func.distinct(ExtractionTelemetryV2.host)).label(
                     "unique_hosts"
                 ),
@@ -2542,8 +2540,23 @@ def get_telemetry_summary(days: int = 7):
             ).filter(ExtractionTelemetryV2.created_at >= cutoff_date)
 
             overall = overall_query.first()
-            total = overall.total_extractions or 0
-            successful = overall.successful_extractions or 0
+            if overall is None:
+                total = 0
+                successful = 0
+                unique_hosts = 0
+                methods_used = 0
+                avg_duration = 0.0
+            else:
+                overall_row = cast(Any, overall)
+                total = int(overall_row.total_extractions or 0)
+                successful = int(overall_row.successful_extractions or 0)
+                unique_hosts = int(overall_row.unique_hosts or 0)
+                methods_used = int(overall_row.methods_used or 0)
+                avg_duration = (
+                    float(overall_row.avg_duration)
+                    if overall_row.avg_duration is not None
+                    else 0.0
+                )
             success_rate = (successful / total * 100) if total > 0 else 0
 
             # Method breakdown
@@ -2552,7 +2565,10 @@ def get_telemetry_summary(days: int = 7):
                     method_col.label("method"),
                     func.count().label("count"),
                     func.sum(
-                        case((ExtractionTelemetryV2.is_success, literal(1)), else_=literal(0))
+                        case(
+                            (ExtractionTelemetryV2.is_success, literal(1)),
+                            else_=literal(0),
+                        )
                     ).label("successful"),
                 )
                 .filter(ExtractionTelemetryV2.created_at >= cutoff_date)
@@ -2561,9 +2577,10 @@ def get_telemetry_summary(days: int = 7):
             )
 
             method_stats = []
-            for row in method_query.all():
-                count = row.count or 0
-                successful_count = row.successful or 0
+            for raw_row in method_query.all():
+                row = cast(Any, raw_row)
+                count = int(row.count or 0)
+                successful_count = int(row.successful or 0)
                 method_success_rate = (
                     (successful_count / count * 100) if count > 0 else 0
                 )
@@ -2588,21 +2605,24 @@ def get_telemetry_summary(days: int = 7):
                 .limit(10)
             )
 
-            http_errors = [
-                {"status_code": row.status_code, "count": row.count}
-                for row in error_query.all()
-            ]
+            http_errors = []
+            for raw_row in error_query.all():
+                row = cast(Any, raw_row)
+                http_errors.append(
+                    {
+                        "status_code": row.status_code,
+                        "count": int(row.count or 0),
+                    }
+                )
 
             return {
                 "summary": {
                     "total_extractions": total,
                     "successful_extractions": successful,
                     "success_rate": round(success_rate, 2),
-                    "unique_hosts": overall.unique_hosts or 0,
-                    "methods_used": overall.methods_used or 0,
-                    "avg_duration": (
-                        round(overall.avg_duration, 2) if overall.avg_duration else 0
-                    ),
+                    "unique_hosts": unique_hosts,
+                    "methods_used": methods_used,
+                    "avg_duration": round(avg_duration, 2),
                     "method_breakdown": method_stats,
                     "top_http_errors": http_errors,
                 }
@@ -2774,7 +2794,7 @@ async def get_pending_verification_reviews(limit: int = 50):
 
 
 @app.post("/api/telemetry/verification/feedback")
-async def submit_verification_feedback(feedback: dict):
+async def submit_verification_feedback(feedback: VerificationFeedback):
     """Submit human feedback for a URL verification result."""
     try:
         verification.submit_verification_feedback(feedback)
@@ -2789,7 +2809,8 @@ async def submit_verification_feedback(feedback: dict):
 async def get_verification_stats(days: int = 30):
     """Get verification telemetry statistics."""
     try:
-        return verification.get_verification_telemetry_stats(days)
+        del days  # Reserved for future filtering support
+        return verification.get_verification_telemetry_stats()
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Error fetching verification stats: {str(e)}"
@@ -2834,7 +2855,7 @@ async def get_pending_byline_reviews(limit: int = 50):
 
 
 @app.post("/api/telemetry/byline/feedback")
-async def submit_byline_feedback(feedback: dict):
+async def submit_byline_feedback(feedback: BylineFeedback):
     """Submit human feedback for a byline cleaning result."""
     try:
         byline.submit_byline_feedback(feedback)
@@ -2849,7 +2870,8 @@ async def submit_byline_feedback(feedback: dict):
 async def get_byline_stats(days: int = 30):
     """Get byline telemetry statistics."""
     try:
-        return byline.get_byline_telemetry_stats(days)
+        del days  # Reserved for future filtering support
+        return byline.get_byline_telemetry_stats()
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Error fetching byline stats: {str(e)}"
@@ -2882,7 +2904,7 @@ async def get_pending_code_reviews(limit: int = 50):
 
 
 @app.post("/api/telemetry/code_review/feedback")
-async def submit_code_review_feedback(feedback: dict):
+async def submit_code_review_feedback(feedback: CodeReviewFeedback):
     """Submit feedback for a code review item."""
     try:
         code_review.submit_code_review_feedback(feedback)
@@ -2905,7 +2927,7 @@ async def get_code_review_stats():
 
 
 @app.post("/api/telemetry/code_review/add")
-async def add_code_review_item(item: dict):
+async def add_code_review_item(item: CodeReviewItem):
     """Add a new code review item."""
     try:
         code_review.add_code_review_item(item)

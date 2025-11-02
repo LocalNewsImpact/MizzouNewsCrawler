@@ -263,7 +263,15 @@ def test_check_db_health_returns_true_on_successful_query():
 
     assert healthy is True
     assert "ok" in message.lower()
-    mock_session.execute.assert_called_once_with("SELECT 1")
+    mock_session.execute.assert_called_once()
+    args, _ = mock_session.execute.call_args
+    assert args
+    # SQLAlchemy wraps raw SQL strings in TextClause; ensure the query string matches.
+    executed = args[0]
+    if hasattr(executed, "text"):
+        assert executed.text.strip().upper() == "SELECT 1"
+    else:
+        assert executed == "SELECT 1"
 
 
 def test_check_db_health_returns_false_on_operational_error():

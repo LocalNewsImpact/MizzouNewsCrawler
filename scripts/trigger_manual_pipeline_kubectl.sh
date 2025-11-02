@@ -77,6 +77,8 @@ spec:
       value: "10"
     - name: verify-max-batches
       value: "100"
+    - name: verify-idle-grace-seconds
+      value: "600"
     - name: extract-limit
       value: "50"
     - name: extract-batches

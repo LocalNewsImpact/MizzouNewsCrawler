@@ -559,6 +559,7 @@ class URLVerificationService:
         *,
         max_batches: int | None = None,
         exit_on_idle: bool = False,
+        idle_grace_seconds: int | float | None = None,
     ) -> None:
         """Run the main verification loop.
 
@@ -566,10 +567,14 @@ class URLVerificationService:
             max_batches: Optional hard cap on the number of batches to process.
             exit_on_idle: When True, stop the loop once no work is available
                 instead of sleeping and polling again.
+            idle_grace_seconds: Optional grace period to continue polling when
+                no work is available before exiting due to idleness.
         """
         self.running = True
         batch_count = 0
         job_name = f"verification_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        idle_start_monotonic: float | None = None
+        idle_wait_logged = False
 
         self.logger.info(
             f"Starting verification loop: {job_name} "
@@ -591,6 +596,10 @@ class URLVerificationService:
                 candidates = self.get_unverified_urls(self.batch_size)
 
                 if not candidates:
+                    if idle_start_monotonic is None:
+                        idle_start_monotonic = time.monotonic()
+                        idle_wait_logged = False
+
                     if max_batches and batch_count >= max_batches:
                         self.logger.info(
                             "No URLs remaining and max_batches reached; "
@@ -599,6 +608,22 @@ class URLVerificationService:
                         break
 
                     if exit_on_idle:
+                        grace = idle_grace_seconds or 0
+                        if grace > 0:
+                            elapsed = time.monotonic() - idle_start_monotonic
+                            remaining = grace - elapsed
+                            if remaining > 0:
+                                if not idle_wait_logged:
+                                    self.logger.info(
+                                        "No URLs to verify; waiting up to %.0fs "
+                                        "before exiting.",
+                                        grace,
+                                    )
+                                    idle_wait_logged = True
+                                sleep_for = min(self.sleep_interval, remaining)
+                                time.sleep(max(sleep_for, 0))
+                                continue
+
                         self.logger.info(
                             "No URLs to verify; exiting verification loop."
                         )
@@ -610,6 +635,9 @@ class URLVerificationService:
                     )
                     time.sleep(self.sleep_interval)
                     continue
+
+                idle_start_monotonic = None
+                idle_wait_logged = False
 
                 print(
                     f"📄 Processing batch {batch_count + 1}: "

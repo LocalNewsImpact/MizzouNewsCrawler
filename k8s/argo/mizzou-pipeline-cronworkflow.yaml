@@ -50,6 +50,8 @@ spec:
               value: "50"
             - name: verify-max-batches
               value: "0"  # Ignored - unlimited batches
+            - name: verify-idle-grace-seconds
+              value: "600"
             # Extraction parameters
             # extract-limit: articles per batch (balance: larger = faster, smaller = safer rate limiting)
             # extract-batches: max batches (extract-limit × batches = total capacity per run)
