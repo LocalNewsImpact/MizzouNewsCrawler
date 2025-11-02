@@ -702,9 +702,9 @@ class OperationTracker:
             "discovery_time_ms": discovery_result.metadata.get(
                 "discovery_time_ms", 0.0
             ),
-            "is_success": 1 if discovery_result.is_success else 0,
-            "is_content_success": (1 if discovery_result.is_content_success else 0),
-            "is_technical_failure": (1 if discovery_result.is_technical_failure else 0),
+            "is_success": discovery_result.is_success,
+            "is_content_success": discovery_result.is_content_success,
+            "is_technical_failure": discovery_result.is_technical_failure,
             "metadata": json.dumps(discovery_result.metadata),
         }
 
