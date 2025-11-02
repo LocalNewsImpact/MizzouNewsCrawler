@@ -29,7 +29,7 @@ HAS_POSTGRES = POSTGRES_TEST_URL and "postgres" in POSTGRES_TEST_URL
 
 # Mark as E2E integration tests requiring PostgreSQL
 # Note: Issue #71 resolved - discovery uses PostgreSQL DISTINCT ON syntax
-pytestmark = [pytest.mark.e2e, pytest.mark.postgres]
+pytestmark = [pytest.mark.e2e, pytest.mark.postgres, pytest.mark.integration]
 
 
 @dataclass
@@ -100,6 +100,7 @@ def database_url() -> str:
     """Get PostgreSQL test database URI for e2e discovery tests."""
     if not HAS_POSTGRES:
         pytest.skip("PostgreSQL test database not configured (set TEST_DATABASE_URL)")
+    assert POSTGRES_TEST_URL is not None
     return POSTGRES_TEST_URL
 
 

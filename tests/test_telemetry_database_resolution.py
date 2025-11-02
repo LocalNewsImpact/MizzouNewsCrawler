@@ -11,10 +11,7 @@ from __future__ import annotations
 
 import os
 import sys
-from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
-
-import pytest
 
 from src.crawler.discovery import NewsDiscovery
 
@@ -35,18 +32,33 @@ class TestResolveDatabaseUrl:
         assert result == explicit_url
 
     def test_none_with_configured_database_url(self):
-        """When None is provided and DATABASE_URL is configured, use configured value."""
+        """Return configured DATABASE_URL when it is available."""
         # Mock the config import to provide a configured DATABASE_URL
         mock_database_url = "postgresql://prod:secret@cloudsql/proddb"
         
-        with patch.dict(sys.modules):
-            # Create a mock config module
-            mock_config = Mock()
-            mock_config.DATABASE_URL = mock_database_url
-            sys.modules['src.config'] = mock_config
-            
-            result = NewsDiscovery._resolve_database_url(None)
-            assert result == mock_database_url
+        with patch.dict(os.environ, {"PYTEST_KEEP_DB_ENV": "true"}, clear=False):
+            with patch.dict(sys.modules):
+                # Create a mock config module
+                mock_config = Mock()
+                mock_config.DATABASE_URL = mock_database_url
+                sys.modules['src.config'] = mock_config
+
+                result = NewsDiscovery._resolve_database_url(None)
+                assert result == mock_database_url
+
+    def test_pytest_falls_back_to_sqlite_without_keep_env(self):
+        """During pytest, skip Postgres when PYTEST_KEEP_DB_ENV is unset."""
+        mock_database_url = "postgresql://prod:secret@cloudsql/proddb"
+
+        with patch.dict(os.environ, {"PYTEST_KEEP_DB_ENV": ""}, clear=False):
+            with patch.dict(sys.modules):
+                mock_config = Mock()
+                mock_config.DATABASE_URL = mock_database_url
+                sys.modules['src.config'] = mock_config
+
+                result = NewsDiscovery._resolve_database_url(None)
+
+        assert result == "sqlite:///data/mizzou.db"
 
     def test_none_with_configured_database_url_as_none(self):
         """When None is provided and DATABASE_URL is None, use SQLite default."""
@@ -60,7 +72,7 @@ class TestResolveDatabaseUrl:
             assert result == "sqlite:///data/mizzou.db"
 
     def test_none_with_configured_database_url_as_empty_string(self):
-        """When None is provided and DATABASE_URL is empty string, use SQLite default."""
+        """Treat empty config values the same as the SQLite fallback."""
         with patch.dict(sys.modules):
             # Create a mock config module with DATABASE_URL = ""
             mock_config = Mock()
@@ -102,14 +114,15 @@ class TestResolveDatabaseUrl:
         This is the actual behavior: `if candidate:` treats "" as False.
         This is reasonable behavior - empty string is not a valid database URL.
         """
-        with patch.dict(sys.modules):
-            mock_config = Mock()
-            mock_config.DATABASE_URL = "postgresql://config:config@host:5432/db"
-            sys.modules['src.config'] = mock_config
-            
-            # Empty string is treated as falsy, falls back to config
-            result = NewsDiscovery._resolve_database_url("")
-            assert result == "postgresql://config:config@host:5432/db"
+        with patch.dict(os.environ, {"PYTEST_KEEP_DB_ENV": "true"}, clear=False):
+            with patch.dict(sys.modules):
+                mock_config = Mock()
+                mock_config.DATABASE_URL = "postgresql://config:config@host:5432/db"
+                sys.modules['src.config'] = mock_config
+
+                # Empty string is treated as falsy, falls back to config
+                result = NewsDiscovery._resolve_database_url("")
+                assert result == "postgresql://config:config@host:5432/db"
 
 
 class TestNewsDiscoveryInitialization:
@@ -143,23 +156,23 @@ class TestNewsDiscoveryInitialization:
         
         configured_url = "postgresql://config:config@confighost:5432/configdb"
         
-        with patch.dict(sys.modules):
-            mock_config = Mock()
-            mock_config.DATABASE_URL = configured_url
-            sys.modules['src.config'] = mock_config
+        with patch.dict(os.environ, {"PYTEST_KEEP_DB_ENV": "true"}, clear=False):
+            with patch.dict(sys.modules):
+                mock_config = Mock()
+                mock_config.DATABASE_URL = configured_url
+                sys.modules['src.config'] = mock_config
+
+                # Initialize NewsDiscovery without database_url
+                discovery = NewsDiscovery()
             
-            # Initialize NewsDiscovery without database_url
-            discovery = NewsDiscovery()
-            
-            # Verify database_url is resolved from config
-            assert discovery.database_url == configured_url
-            
-            # Verify telemetry was created with None to allow it to use DatabaseManager
-            # This is the KEY behavior: when no explicit database_url provided,
-            # telemetry gets None so it can use Cloud SQL engine
-            mock_create_telemetry.assert_called_once()
-            call_kwargs = mock_create_telemetry.call_args[1]
-            assert call_kwargs['database_url'] is None
+                # Verify database_url is resolved from config
+                assert discovery.database_url == configured_url
+
+                # Verify telemetry uses None so DatabaseManager can manage the
+                # Cloud SQL connection when no explicit database_url is provided.
+                mock_create_telemetry.assert_called_once()
+                call_kwargs = mock_create_telemetry.call_args[1]
+                assert call_kwargs['database_url'] is None
 
     @patch('src.crawler.discovery.create_telemetry_system')
     def test_no_database_url_falls_back_to_sqlite(self, mock_create_telemetry):
@@ -194,8 +207,8 @@ class TestTelemetryDatabaseUrlPassing:
         mock_create_telemetry.return_value = mock_telemetry
         
         explicit_url = "postgresql://explicit:pass@host:5432/db"
-        
-        discovery = NewsDiscovery(database_url=explicit_url)
+
+        NewsDiscovery(database_url=explicit_url)
         
         # Verify telemetry was called with the explicit URL
         mock_create_telemetry.assert_called_once()
@@ -214,22 +227,23 @@ class TestTelemetryDatabaseUrlPassing:
         
         configured_url = "postgresql://cloud:sql@instance/db"
         
-        with patch.dict(sys.modules):
-            mock_config = Mock()
-            mock_config.DATABASE_URL = configured_url
-            sys.modules['src.config'] = mock_config
-            
-            # Initialize without explicit database_url
-            discovery = NewsDiscovery()
-            
-            # This is the KEY assertion: telemetry gets None, not the resolved URL
-            # This allows create_telemetry_system to use DatabaseManager
-            mock_create_telemetry.assert_called_once()
-            call_kwargs = mock_create_telemetry.call_args[1]
-            assert call_kwargs['database_url'] is None
-            
-            # But the discovery instance itself has the resolved URL
-            assert discovery.database_url == configured_url
+        with patch.dict(os.environ, {"PYTEST_KEEP_DB_ENV": "true"}, clear=False):
+            with patch.dict(sys.modules):
+                mock_config = Mock()
+                mock_config.DATABASE_URL = configured_url
+                sys.modules['src.config'] = mock_config
+
+                # Initialize without explicit database_url
+                discovery = NewsDiscovery()
+
+                # This is the KEY assertion: telemetry gets None, not the resolved URL
+                # This allows create_telemetry_system to use DatabaseManager
+                mock_create_telemetry.assert_called_once()
+                call_kwargs = mock_create_telemetry.call_args[1]
+                assert call_kwargs['database_url'] is None
+
+                # But the discovery instance itself has the resolved URL
+                assert discovery.database_url == configured_url
 
 
 class TestRunDiscoveryPipelineSignature:
@@ -285,7 +299,10 @@ class TestDatabaseUrlBehaviorIntegration:
     """Integration tests for database URL resolution behavior."""
 
     @patch('src.crawler.discovery.create_telemetry_system')
-    def test_production_scenario_cloud_sql_without_explicit_url(self, mock_create_telemetry):
+    def test_production_scenario_cloud_sql_without_explicit_url(
+        self,
+        mock_create_telemetry,
+    ):
         """Simulate production: Cloud SQL configured, no explicit database_url.
         
         This tests the fix from PR #136: in production, when DATABASE_URL points
@@ -298,21 +315,22 @@ class TestDatabaseUrlBehaviorIntegration:
         # Simulate production DATABASE_URL
         cloud_sql_url = "postgresql+psycopg2://user:pass@/dbname?host=/cloudsql/project:region:instance"
         
-        with patch.dict(sys.modules):
-            mock_config = Mock()
-            mock_config.DATABASE_URL = cloud_sql_url
-            sys.modules['src.config'] = mock_config
-            
-            # Initialize as would happen in production (no explicit database_url)
-            discovery = NewsDiscovery()
-            
-            # Verify discovery has the Cloud SQL URL
-            assert discovery.database_url == cloud_sql_url
-            
-            # Verify telemetry received None (can use DatabaseManager's Cloud SQL engine)
-            mock_create_telemetry.assert_called_once()
-            call_kwargs = mock_create_telemetry.call_args[1]
-            assert call_kwargs['database_url'] is None
+        with patch.dict(os.environ, {"PYTEST_KEEP_DB_ENV": "true"}, clear=False):
+            with patch.dict(sys.modules):
+                mock_config = Mock()
+                mock_config.DATABASE_URL = cloud_sql_url
+                sys.modules['src.config'] = mock_config
+
+                # Initialize as would happen in production (no explicit database_url)
+                discovery = NewsDiscovery()
+
+                # Verify discovery has the Cloud SQL URL
+                assert discovery.database_url == cloud_sql_url
+
+                # Verify telemetry received None (can use DatabaseManager's Cloud SQL engine)
+                mock_create_telemetry.assert_called_once()
+                call_kwargs = mock_create_telemetry.call_args[1]
+                assert call_kwargs['database_url'] is None
 
     @patch('src.crawler.discovery.create_telemetry_system')
     def test_development_scenario_sqlite_fallback(self, mock_create_telemetry):

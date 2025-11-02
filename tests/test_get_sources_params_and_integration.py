@@ -55,6 +55,7 @@ def test_get_sources_passes_dict_to_read_sql(monkeypatch):
 
 
 @pytest.mark.postgres
+@pytest.mark.integration
 def test_get_sources_integration_postgres():
     """Integration test with PostgreSQL: full round-trip through get_sources_to_process.
 
@@ -65,6 +66,8 @@ def test_get_sources_integration_postgres():
         pytest.skip("PostgreSQL test database not configured (set TEST_DATABASE_URL)")
 
     from sqlalchemy import create_engine, text
+
+    assert POSTGRES_TEST_URL is not None
 
     engine = create_engine(POSTGRES_TEST_URL)
 

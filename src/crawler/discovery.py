@@ -202,6 +202,9 @@ class NewsDiscovery:
             return candidate
 
         env_db = os.getenv("DATABASE_URL")
+        running_pytest = bool(os.getenv("PYTEST_CURRENT_TEST"))
+        keep_env = os.getenv("PYTEST_KEEP_DB_ENV", "").lower() == "true"
+
         if env_db and not env_db.startswith("sqlite:///:memory"):
             return env_db
 
@@ -213,10 +216,21 @@ class NewsDiscovery:
         except Exception:
             configured_url = None
 
+        if running_pytest and not keep_env:
+            forced_test_url = os.getenv("PYTEST_DATABASE_URL")
+            if forced_test_url:
+                return forced_test_url
+
+            if configured_url and configured_url.startswith("sqlite"):
+                return configured_url
+
+            return "sqlite:///data/mizzou.db"
+
         if configured_url:
             return configured_url
 
         return "sqlite:///data/mizzou.db"
+
     def _configure_proxy_routing(self) -> None:
         """Configure proxy adapter and proxy pool for the discovery session."""
 
@@ -932,7 +946,14 @@ class NewsDiscovery:
                 LEFT JOIN candidate_links cl ON s.id = cl.source_host_id
                 {join_clause}
                 WHERE {where_sql}
-                GROUP BY s.id, s.canonical_name, s.host, s.metadata, s.city, s.county, s.type
+                GROUP BY
+                    s.id,
+                    s.canonical_name,
+                    s.host,
+                    s.metadata,
+                    s.city,
+                    s.county,
+                    s.type
                 ORDER BY discovery_attempted ASC, s.canonical_name ASC
                 """
 
@@ -990,14 +1011,19 @@ class NewsDiscovery:
                             last_disc = meta.get("last_discovery_at") if meta else None
                             freq = meta.get("frequency") if meta else None
                             logger.debug(
-                                f"⏭️  Skipping {row.get('name', 'unknown')}: not due for discovery "
-                                f"(frequency={freq}, last_discovery={last_disc})"
+                                "⏭️  Skipping %s: not due for discovery "
+                                "(frequency=%s, last_discovery=%s)",
+                                row.get("name", "unknown"),
+                                freq,
+                                last_disc,
                             )
                     except Exception as e:
-                        # On error, default to scheduling the source to avoid silent failures
+                        # On error, default to scheduling the source.
+                        # This avoids silent failures when metadata is malformed.
                         logger.warning(
-                            f"Error checking schedule for {row.get('name', 'unknown')}: {e}. "
-                            "Defaulting to schedule source."
+                            "Error checking schedule for %s: %s. Scheduling anyway.",
+                            row.get("name", "unknown"),
+                            e,
                         )
                         is_due = True
                     due_mask.append(is_due)
@@ -2050,9 +2076,8 @@ class NewsDiscovery:
             print(f"   Sources available: {source_stats.get('sources_available', 0)}")
             print(f"   Sources due for discovery: {source_stats.get('sources_due', 0)}")
             if source_stats.get("sources_skipped", 0) > 0:
-                print(
-                    f"   Sources skipped (not due): {source_stats.get('sources_skipped', 0)}"
-                )
+                skipped = source_stats.get("sources_skipped", 0)
+                print("   Sources skipped (not due): {}".format(skipped))
             print(f"   Sources to process: {len(sources_df)}")
             print()
 
