@@ -1128,24 +1128,29 @@ class OperationTracker:
             for attempt in range(retries):
                 cursor = conn.cursor()
                 try:
+                    # Use named parameters for PostgreSQL compatibility
+                    from datetime import datetime, timezone
+
                     cursor.execute(
                         """
                         INSERT INTO jobs (
                             id,
                             job_type,
                             job_name,
+                            started_at,
                             params,
                             commit_sha,
                             environment,
                             artifact_paths,
                             logs_path
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT (id) DO NOTHING
                         """,
                         (
                             operation_id,
                             operation_type or "",
                             job_defaults["job_name"],
+                            datetime.now(timezone.utc),
                             _safe_json_dumps(job_defaults["params"]),
                             job_defaults["commit_sha"],
                             _safe_json_dumps(job_defaults["environment"]),
