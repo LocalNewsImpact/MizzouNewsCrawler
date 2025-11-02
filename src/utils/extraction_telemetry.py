@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
 
 from src.config import DATABASE_URL
 from src.telemetry.store import TelemetryStore, get_store
@@ -14,7 +14,7 @@ from .extraction_outcomes import ExtractionResult
 
 _EXTRACTION_OUTCOMES_DDL = """
 CREATE TABLE IF NOT EXISTS extraction_outcomes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     operation_id TEXT NOT NULL,
     article_id INTEGER NOT NULL,
     url TEXT NOT NULL,
@@ -188,12 +188,12 @@ class ExtractionTelemetry:
 
         status = "extracted" if extraction_result.is_success else "error"
 
-        def writer(conn: sqlite3.Connection) -> None:
+        def writer(conn: Any) -> None:
             conn.execute(insert_query, outcome_data)
             conn.execute(
                 """
                 UPDATE articles
-                SET status = ?, processed_at = datetime('now')
+                SET status = ?, processed_at = CURRENT_TIMESTAMP
                 WHERE id = ?
                 """,
                 (status, article_id),
@@ -237,7 +237,7 @@ class ExtractionTelemetry:
 
         try:
             with self._store.connection() as conn:
-                conn.row_factory = sqlite3.Row
+                # Connection wrapper handles result formatting
                 cursor = conn.execute(query, params)
                 return [dict(row) for row in cursor.fetchall()]
         except Exception as exc:
