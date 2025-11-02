@@ -280,6 +280,11 @@ class ComprehensiveExtractionTelemetry:
                 # Pass the engine so telemetry uses existing Cloud SQL connection
                 self._store = get_store(database_url, engine=db.engine)
 
+        # Track destination schema so telemetry stays compatible across deployments
+        self._content_type_strategy: str | None = None
+        self._content_type_columns: set[str] | None = None
+        self._content_type_warning_logged = False
+
         # NOTE: Telemetry tables should already exist via Alembic migrations
         # Do NOT create tables at runtime from application code
 
@@ -433,7 +438,7 @@ class ComprehensiveExtractionTelemetry:
                     (host, status_code, error_type, count, first_seen, last_seen)
                     VALUES (?, ?, ?, 1, ?, ?)
                     ON CONFLICT(host, status_code) DO UPDATE SET
-                        count = count + 1,
+                        count = http_error_summary.count + 1,
                         last_seen = ?
                     """,
                     (
@@ -448,6 +453,94 @@ class ComprehensiveExtractionTelemetry:
 
             detection = metrics.content_type_detection
             if detection:
+                self._insert_content_type_detection(conn, metrics, detection)
+
+        try:
+            self._store.submit(writer)
+        except (RuntimeError, RecursionError):
+            # Telemetry disabled or Cloud SQL incompatibility
+            pass
+        except Exception as exc:
+            # Log but don't fail extraction
+            exc_msg = str(exc).split("\n")[0][:80]
+            print(f"Warning: Telemetry failed: {type(exc).__name__}: {exc_msg}")
+
+    def _fetch_table_columns(self, conn, table_name: str) -> set[str]:
+        """Return lower-case column names for a table."""
+        columns: set[str] = set()
+        try:
+            if getattr(self._store, "_is_sqlite", False):
+                cursor = conn.execute(f"PRAGMA table_info({table_name})")
+                rows = cursor.fetchall()
+                for row in rows:
+                    # SQLite pragma returns tuples like (cid, name, type, ...)
+                    if isinstance(row, (list, tuple)) and len(row) > 1:
+                        col_name = row[1]
+                    else:
+                        col_name = getattr(row, "name", None)
+                    if col_name:
+                        columns.add(str(col_name).lower())
+            else:
+                cursor = conn.execute(
+                    """
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_schema = current_schema()
+                      AND table_name = ?
+                    """,
+                    (table_name,),
+                )
+                rows = cursor.fetchall()
+                for row in rows:
+                    col_name = row[0] if row else None
+                    if col_name:
+                        columns.add(str(col_name).lower())
+        except Exception:
+            # Introspection failures should not break extraction telemetry
+            columns = set()
+
+        return columns
+
+    def _ensure_content_type_strategy(self, conn) -> str | None:
+        """Detect which schema version the content type telemetry table uses."""
+        if self._content_type_strategy:
+            return self._content_type_strategy
+
+        columns = self._fetch_table_columns(conn, "content_type_detection_telemetry")
+        self._content_type_columns = columns
+
+        modern_cols = {"status", "confidence", "confidence_score"}
+        legacy_cols = {"detected_type", "detection_method"}
+
+        if not columns:
+            self._content_type_strategy = "missing"
+        elif modern_cols.issubset(columns):
+            self._content_type_strategy = "modern"
+        elif legacy_cols.issubset(columns):
+            self._content_type_strategy = "legacy"
+        else:
+            self._content_type_strategy = "unsupported"
+
+        if self._content_type_strategy in {"missing", "unsupported"}:
+            if not self._content_type_warning_logged:
+                logger.warning(
+                    "Content type telemetry table unavailable or has unsupported schema; "
+                    "telemetry rows will be skipped (strategy=%s)",
+                    self._content_type_strategy,
+                )
+                self._content_type_warning_logged = True
+            return None
+
+        return self._content_type_strategy
+
+    def _insert_content_type_detection(self, conn, metrics: ExtractionMetrics, detection: dict[str, Any]) -> None:
+        """Insert content type telemetry, adapting to legacy schemas when needed."""
+        strategy = self._ensure_content_type_strategy(conn)
+        if not strategy:
+            return
+
+        try:
+            if strategy == "modern":
                 evidence_payload = detection.get("evidence")
                 conn.execute(
                     """
@@ -464,7 +557,6 @@ class ComprehensiveExtractionTelemetry:
                         metrics.publisher,
                         metrics.host,
                         detection.get("status"),
-                        # confidence column expects string ("high", "medium", "low")
                         detection.get("confidence"),
                         detection.get("confidence_score"),
                         detection.get("reason"),
@@ -474,19 +566,79 @@ class ComprehensiveExtractionTelemetry:
                             else None
                         ),
                         detection.get("version"),
-                        detection.get("detected_at"),
+                        self._coerce_detected_at(detection.get("detected_at")),
                     ),
                 )
+            elif strategy == "legacy":
+                evidence_json = (
+                    json.dumps(detection.get("evidence"))
+                    if detection.get("evidence") is not None
+                    else None
+                )
 
-        try:
-            self._store.submit(writer)
-        except (RuntimeError, RecursionError):
-            # Telemetry disabled or Cloud SQL incompatibility
-            pass
-        except Exception as exc:
-            # Log but don't fail extraction
-            exc_msg = str(exc).split("\n")[0][:80]
-            print(f"Warning: Telemetry failed: {type(exc).__name__}: {exc_msg}")
+                conn.execute(
+                    """
+                    INSERT INTO content_type_detection_telemetry (
+                        operation_id, article_id, url, host,
+                        http_content_type, detected_type, detection_method,
+                        confidence, file_extension, mime_type, byte_signature,
+                        content_sample, error_message
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        metrics.operation_id,
+                        metrics.article_id,
+                        metrics.url,
+                        metrics.host,
+                        None,
+                        detection.get("status"),
+                        detection.get("reason") or detection.get("version"),
+                        self._resolve_numeric_confidence(detection),
+                        None,
+                        None,
+                        None,
+                        evidence_json,
+                        None,
+                    ),
+                )
+        except Exception:  # pragma: no cover - defensive telemetry handling
+            if not self._content_type_warning_logged:
+                logger.exception("Failed to insert content type telemetry (strategy=%s)", strategy)
+                self._content_type_warning_logged = True
+
+    @staticmethod
+    def _resolve_numeric_confidence(detection: dict[str, Any]) -> float | None:
+        score = detection.get("confidence_score")
+        if isinstance(score, (int, float)):
+            try:
+                return float(score)
+            except (TypeError, ValueError):
+                return None
+
+        label = detection.get("confidence")
+        if isinstance(label, str):
+            mapping = {
+                "very_high": 0.95,
+                "high": 0.85,
+                "medium": 0.5,
+                "low": 0.25,
+            }
+            return mapping.get(label.lower())
+        return None
+
+    @staticmethod
+    def _coerce_detected_at(value: Any) -> datetime | None:
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str) and value:
+            candidate = value.strip()
+            if candidate.endswith("Z"):
+                candidate = candidate[:-1] + "+00:00"
+            try:
+                return datetime.fromisoformat(candidate)
+            except ValueError:
+                return None
+        return None
 
     def get_error_summary(self, days: int = 7) -> list:
         """Get HTTP error summary for the last N days."""

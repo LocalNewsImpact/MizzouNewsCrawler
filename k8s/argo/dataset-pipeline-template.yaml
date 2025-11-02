@@ -54,6 +54,8 @@ spec:
               value: "10"        # URLs to verify per batch
             - name: verify-max-batches
               value: "100"       # Maximum batches to process
+            - name: verify-idle-grace-seconds
+              value: "600"       # Keep verification alive this long when idle
             
             # Extraction parameters - ADJUST based on expected volume
             # Total capacity = extract-limit × extract-batches

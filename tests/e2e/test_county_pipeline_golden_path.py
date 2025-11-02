@@ -734,7 +734,7 @@ def test_county_pipeline_golden_path(
     manager = manager_factory()
     verify_session = manager.session
     article = verify_session.query(Article).one()
-    assert getattr(article, "status") == "labeled"
+    assert getattr(article, "status") == "labeled"  # noqa: B009
     assert article.author == "Jane Tester"
 
     candidate = verify_session.get(CandidateLink, "candidate-1")

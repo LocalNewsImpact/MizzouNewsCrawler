@@ -14,6 +14,7 @@ def _default_args(**overrides) -> Namespace:
         log_level="INFO",
         status=False,
         continuous=False,
+        idle_grace_seconds=0,
     )
     defaults.update(overrides)
     return Namespace(**defaults)
@@ -81,6 +82,34 @@ def test_handle_verification_runs_service(monkeypatch):
 
     assert exit_code == 0
     assert run_calls == [3]
+
+
+def test_handle_verification_passes_idle_grace(monkeypatch):
+    monkeypatch.setattr(verification.logging, "basicConfig", lambda **_: None)
+
+    recorded: list[tuple[int | None, int]] = []
+
+    class GracefulService:
+        def __init__(self, *, batch_size: int, sleep_interval: int) -> None:
+            self.batch_size = batch_size
+            self.sleep_interval = sleep_interval
+
+        def run_verification_loop(
+            self,
+            *,
+            max_batches: int | None,
+            idle_grace_seconds: int,
+        ) -> None:
+            recorded.append((max_batches, idle_grace_seconds))
+
+    monkeypatch.setattr(verification, "URLVerificationService", GracefulService)
+
+    args = _default_args(max_batches=None, idle_grace_seconds=180)
+
+    exit_code = verification.handle_verification_command(args)
+
+    assert exit_code == 0
+    assert recorded == [(None, 180)]
 
 
 def test_handle_verification_returns_error_on_failure(monkeypatch):

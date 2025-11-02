@@ -21,6 +21,8 @@ spec:
       - name: days-back
       - name: verify-batch-size
       - name: verify-max-batches
+      - name: verify-idle-grace-seconds
+        value: "600"
       - name: extract-limit
       - name: extract-batches
       - name: inter-request-min
@@ -73,6 +75,8 @@ spec:
             value: "{{inputs.parameters.verify-batch-size}}"
           - name: max-batches
             value: "{{inputs.parameters.verify-max-batches}}"
+          - name: idle-grace-seconds
+            value: "{{inputs.parameters.verify-idle-grace-seconds}}"
           - name: inter-request-min
             value: "{{inputs.parameters.inter-request-min}}"
           - name: inter-request-max
@@ -206,6 +210,7 @@ spec:
       parameters:
       - name: batch-size
       - name: max-batches
+      - name: idle-grace-seconds
       - name: inter-request-min
       - name: inter-request-max
     metadata:
@@ -230,6 +235,8 @@ spec:
         - verify-urls
         - --batch-size
         - "{{inputs.parameters.batch-size}}"
+        - --idle-grace-seconds
+        - "{{inputs.parameters.idle-grace-seconds}}"
         # No --max-batches: process entire backlog every run
         # Exit when no more URLs with status='discovered' remain
       envFrom:

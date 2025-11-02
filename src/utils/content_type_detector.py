@@ -283,11 +283,9 @@ class ContentTypeDetector:
 
         # Check if this content is from the wire service's own domain
         is_own_source = False
-        source_service_name = None
         for domain, service_name in own_source_domains.items():
             if domain in url_lower:
                 is_own_source = True
-                source_service_name = service_name
                 break
 
         # If this is from the service's own domain, it's NOT wire/syndicated

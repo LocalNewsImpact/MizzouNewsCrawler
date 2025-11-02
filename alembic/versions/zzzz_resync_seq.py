@@ -5,18 +5,17 @@ Revises: a1b2c3d4e5f6
 Create Date: 2024-10-14 10:00:00.000000
 
 """
-from typing import Sequence, Union
 
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = 'zzzz_resync_seq'
-down_revision = 'a1b2c3d4e5f6'
+revision = "zzzz_resync_seq"
+down_revision = "a1b2c3d4e5f6"
 branch_labels = None
 depends_on = None
 
 
-def upgrade():
+def upgrade() -> None:
     # Check if we're using PostgreSQL
     bind = op.get_bind()
     is_postgresql = bind.dialect.name == 'postgresql'
@@ -56,6 +55,6 @@ def upgrade():
     )
 
 
-def downgrade():
+def downgrade() -> None:
     # No-op: sequence resync is a one-time operational fix
     pass

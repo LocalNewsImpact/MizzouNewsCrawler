@@ -15,7 +15,7 @@ try:
     from tests.backend import conftest as backend_conftest
     cloud_sql_engine = backend_conftest.cloud_sql_engine
     cloud_sql_session = backend_conftest.cloud_sql_session
-except (ImportError, ModuleNotFoundError) as e:
+except (ImportError, ModuleNotFoundError):
     # If import fails (e.g., missing fastapi), leave names undefined — tests
     # that require the fixtures will skip themselves based on pytest.skip() logic inside.
     pass

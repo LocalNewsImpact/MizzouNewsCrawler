@@ -14,22 +14,40 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol, cast
 
 import requests
+from sqlalchemy import text
 from fastapi import FastAPI, Request
 from sqlalchemy.exc import OperationalError
 
 if TYPE_CHECKING:
-    from src.models.database import DatabaseManager
-    from src.telemetry.store import TelemetryStore
+    from src.models.database import DatabaseManager as _DatabaseManagerProtocol
+    from src.telemetry.store import TelemetryStore as _TelemetryStoreProtocol
+
+    TelemetryStoreProtocol = _TelemetryStoreProtocol
+    DatabaseManagerProtocol = _DatabaseManagerProtocol
+else:  # pragma: no cover - runtime fallback for optional imports
+    class TelemetryStoreProtocol(Protocol):  # pragma: no cover - type shunt
+        def shutdown(self, wait: bool = True) -> None: ...
+
+    class DatabaseManagerProtocol(Protocol):  # pragma: no cover - type shunt
+        engine: Any
+
+        def get_session(self) -> Any: ...
 
 logger = logging.getLogger(__name__)
 
 
 # Expose enable_origin_proxy at module level so tests can patch it.
+EnableOriginProxyCallable = Callable[[requests.Session], None]
+
 try:  # pragma: no cover - best-effort import
-    from src.crawler.origin_proxy import enable_origin_proxy  # type: ignore
+    from src.crawler.origin_proxy import enable_origin_proxy as _enable_origin_proxy
+
+    enable_origin_proxy: Optional[EnableOriginProxyCallable] = cast(
+        EnableOriginProxyCallable, _enable_origin_proxy
+    )
 except Exception:
     enable_origin_proxy = None
 
@@ -37,15 +55,21 @@ except Exception:
 # Expose TelemetryStore and DatabaseManager module symbols so tests can
 # patch them. If the imports fail, set to None (startup will attempt
 # to import locally as well).
+TelemetryStore: Optional[type[TelemetryStoreProtocol]]
 try:  # pragma: no cover - best-effort import
-    from src.telemetry.store import TelemetryStore  # type: ignore
+    from src.telemetry.store import TelemetryStore as _TelemetryStore
 except Exception:
     TelemetryStore = None
+else:
+    TelemetryStore = _TelemetryStore
 
+DatabaseManager: Optional[type[DatabaseManagerProtocol]]
 try:  # pragma: no cover - best-effort import
-    from src.models.database import DatabaseManager  # type: ignore
+    from src.models.database import DatabaseManager as _DatabaseManager
 except Exception:
     DatabaseManager = None
+else:
+    DatabaseManager = _DatabaseManager
 
 
 def setup_lifecycle_handlers(app: FastAPI) -> None:
@@ -82,7 +106,7 @@ def setup_lifecycle_handlers(app: FastAPI) -> None:
                     "yes",
                 )
 
-                telemetry_store = TelemetryStore(
+                telemetry_store: TelemetryStoreProtocol = TelemetryStore(
                     database=app_config.DATABASE_URL,
                     async_writes=async_writes,
                     timeout=30.0,
@@ -211,22 +235,27 @@ def setup_lifecycle_handlers(app: FastAPI) -> None:
 # Dependency injection functions for route handlers
 
 
-def get_telemetry_store(request: Request) -> TelemetryStore | None:
+def get_telemetry_store(request: Request) -> TelemetryStoreProtocol | None:
     """Dependency that provides the shared TelemetryStore.
 
     Usage in route handlers:
         @app.get("/some-route")
-        def handler(store: TelemetryStore | None = Depends(get_telemetry_store)):
+        def handler(
+            store: TelemetryStoreProtocol | None = Depends(get_telemetry_store),
+        ):
             if store:
                 store.submit(...)
 
     Returns None if telemetry is unavailable (startup failed or not initialized).
     Tests can override this dependency to inject a test store.
     """
-    return getattr(request.app.state, "telemetry_store", None)
+    return cast(
+        Optional[TelemetryStoreProtocol],
+        getattr(request.app.state, "telemetry_store", None),
+    )
 
 
-def get_db_manager(request: Request) -> DatabaseManager | None:
+def get_db_manager(request: Request) -> DatabaseManagerProtocol | None:
     """Dependency that provides the shared DatabaseManager.
 
     Usage in route handlers:
@@ -240,7 +269,10 @@ def get_db_manager(request: Request) -> DatabaseManager | None:
     Returns None if database is unavailable.
     Tests can override this dependency to inject a test DB manager.
     """
-    return getattr(request.app.state, "db_manager", None)
+    return cast(
+        Optional[DatabaseManagerProtocol],
+        getattr(request.app.state, "db_manager", None),
+    )
 
 
 def get_http_session(request: Request) -> requests.Session | None:
@@ -270,7 +302,7 @@ def is_ready(request: Request) -> bool:
     return getattr(request.app.state, "ready", False)
 
 
-def check_db_health(db_manager: DatabaseManager | None) -> tuple[bool, str]:
+def check_db_health(db_manager: DatabaseManagerProtocol | None) -> tuple[bool, str]:
     """Perform a lightweight database health check.
 
     Args:
@@ -285,7 +317,7 @@ def check_db_health(db_manager: DatabaseManager | None) -> tuple[bool, str]:
     try:
         # Perform a simple query to verify connection
         with db_manager.get_session() as session:
-            session.execute("SELECT 1")
+            session.execute(text("SELECT 1"))
         return True, "Database connection OK"
     except OperationalError as exc:
         return False, f"Database connection failed: {exc}"

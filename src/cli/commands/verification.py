@@ -42,6 +42,16 @@ def add_verification_parser(subparsers) -> argparse.ArgumentParser:
     )
 
     verify_parser.add_argument(
+        "--idle-grace-seconds",
+        type=int,
+        default=0,
+        help=(
+            "When exiting on idle, continue polling for this many seconds "
+            "before stopping (default: 0)"
+        ),
+    )
+
+    verify_parser.add_argument(
         "--status",
         action="store_true",
         help="Show current verification status and exit",
@@ -80,6 +90,7 @@ def handle_verification_command(args) -> int:
                 service,
                 max_batches=args.max_batches,
                 continuous=args.continuous,
+                idle_grace_seconds=args.idle_grace_seconds,
             )
 
     except Exception as e:
@@ -116,6 +127,7 @@ def run_verification_service(
     *,
     max_batches: int | None = None,
     continuous: bool = False,
+    idle_grace_seconds: int = 0,
 ) -> int:
     """Run the verification service."""
     try:
@@ -162,6 +174,12 @@ def run_verification_service(
         # rather than polling forever
         if exit_on_idle_supported and not continuous:
             loop_kwargs["exit_on_idle"] = True
+
+        idle_grace_supported = (
+            signature is None or "idle_grace_seconds" in params or has_var_kw
+        )
+        if idle_grace_supported and idle_grace_seconds:
+            loop_kwargs["idle_grace_seconds"] = idle_grace_seconds
 
         if loop_kwargs:
             loop_callable(**loop_kwargs)
