@@ -16,7 +16,6 @@ Features:
 
 import json
 import logging
-import sqlite3
 import threading
 import time
 import uuid
@@ -33,7 +32,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from src.models.database import safe_execute
 from src.telemetry.store import TelemetryStore, get_store
 
-DB_ERRORS = (sqlite3.OperationalError, SQLAlchemyError)
+DB_ERRORS = (SQLAlchemyError,)
 
 
 def _is_missing_table_error(exc: Exception) -> bool:
@@ -260,7 +259,7 @@ class DiscoveryMethodEffectiveness:
             self.last_status_codes = []
 
 
-def _apply_schema(conn: sqlite3.Connection, statements: Iterable[str]) -> None:
+def _apply_schema(conn: Any, statements: Iterable[str]) -> None:
     """Execute a series of DDL statements on the provided connection."""
     cursor = conn.cursor()
     try:
@@ -274,9 +273,7 @@ def _apply_schema(conn: sqlite3.Connection, statements: Iterable[str]) -> None:
                 # and continue so tests and local runs remain resilient.
                 import sqlalchemy
 
-                if isinstance(e, sqlite3.OperationalError) or isinstance(
-                    e, getattr(sqlalchemy, "OperationalError", object)
-                ):
+                if isinstance(e, getattr(sqlalchemy, "OperationalError", Exception)):
                     logging.getLogger(__name__).debug(
                         "Telemetry DDL failed (continuing): %s -- %s", statement, e
                     )
@@ -665,7 +662,7 @@ class OperationTracker:
     @contextmanager
     def _connection(self):
         with self._store.connection() as conn:
-            conn.row_factory = sqlite3.Row
+            # Connection wrapper handles result formatting
             yield conn
 
     def record_discovery_outcome(
@@ -753,7 +750,7 @@ class OperationTracker:
         )
         """
 
-        def writer(conn: sqlite3.Connection) -> None:
+        def writer(conn: Any) -> None:
             retries = 4
             backoff = 0.1
             for attempt in range(retries):
@@ -1125,7 +1122,7 @@ class OperationTracker:
             "logs_path": kwargs.get("logs_path"),
         }
 
-        def writer(conn: sqlite3.Connection) -> None:
+        def writer(conn: Any) -> None:
             retries = 4
             backoff = 0.1
             for attempt in range(retries):
@@ -1752,7 +1749,7 @@ class OperationTracker:
             "content_length": tracking.content_length,
         }
 
-        def writer(conn: sqlite3.Connection) -> None:
+        def writer(conn: Any) -> None:
             retries = 3
             backoff = 0.1
             for attempt in range(retries):
@@ -1903,7 +1900,7 @@ class OperationTracker:
             "notes": effectiveness.notes,
         }
 
-        def writer(conn: sqlite3.Connection) -> None:
+        def writer(conn: Any) -> None:
             retries = 3
             backoff = 0.1
             for attempt in range(retries):
