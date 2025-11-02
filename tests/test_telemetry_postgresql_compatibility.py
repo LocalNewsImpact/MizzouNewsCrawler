@@ -114,3 +114,47 @@ def test_no_sqlite_specific_sql_in_telemetry():
             assert pattern not in content, (
                 f"extraction_telemetry.py contains SQLite-specific pattern: {pattern}"
             )
+
+
+def test_no_sqlite_patterns_in_production_code():
+    """Scan ALL production Python files for SQLite-specific patterns."""
+    from pathlib import Path
+
+    # Patterns that indicate SQLite-specific code
+    problematic_patterns = {
+        "datetime('now'": "Use CURRENT_TIMESTAMP or Python datetime",
+        "INSERT OR IGNORE": "Use INSERT ... ON CONFLICT DO NOTHING",
+        "INSERT OR REPLACE": "Use INSERT ... ON CONFLICT DO UPDATE",
+        "PRAGMA ": "PostgreSQL doesn't support PRAGMA (SQLite-only)",
+        "AUTOINCREMENT": "Use SERIAL in PostgreSQL",
+    }
+
+    # Files to scan (production code only)
+    src_dir = Path("src")
+    failures = []
+
+    for py_file in src_dir.rglob("*.py"):
+        # Skip test files, web/ (intentionally SQLite), and __pycache__
+        if any(skip in str(py_file) for skip in ["test_", "web/", "__pycache__"]):
+            continue
+
+        with open(py_file) as f:
+            content = f.read()
+            for pattern, suggestion in problematic_patterns.items():
+                if pattern in content:
+                    # Count occurrences for better reporting
+                    lines = [
+                        i + 1
+                        for i, line in enumerate(content.splitlines())
+                        if pattern in line
+                    ]
+                    failures.append(
+                        f"{py_file}:{lines} has '{pattern}' - {suggestion}"
+                    )
+
+    if failures:
+        error_msg = (
+            "Found SQLite-specific patterns in production code:\n"
+            + "\n".join(f"  - {f}" for f in failures)
+        )
+        pytest.fail(error_msg)
