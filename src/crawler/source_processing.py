@@ -409,8 +409,12 @@ class SourceProcessor:
                     discovery_method="rss",
                     response_time_ms=(time.time() - self.start_time) * 1000,
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(
+                    "Failed to record RSS failure telemetry for %s: %s",
+                    self.source_name,
+                    str(e),
+                )
 
         is_network_error = False
         try:

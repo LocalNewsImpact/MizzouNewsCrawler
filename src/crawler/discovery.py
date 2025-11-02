@@ -1657,8 +1657,12 @@ class NewsDiscovery:
                             response_time_ms=response_time_ms,
                             content_length=len(getattr(response, "content", b"")),
                         )
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(
+                            "Failed to record HTTP status telemetry for %s: %s",
+                            feed_url,
+                            str(e),
+                        )
 
                 # Handle HTTP status codes with special cases so we don't
                 # incorrectly mark feeds as permanently missing when the
@@ -1903,8 +1907,12 @@ class NewsDiscovery:
                         % (feeds_tried, feeds_successful)
                     ),
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    "Failed to update RSS telemetry for source %s: %s",
+                    source_id,
+                    str(e),
+                )
 
         summary = {
             "feeds_tried": feeds_tried,
