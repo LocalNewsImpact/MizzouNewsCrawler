@@ -202,19 +202,21 @@ class NewsDiscovery:
             return candidate
 
         env_db = os.getenv("DATABASE_URL")
-        if env_db:
+        if env_db and not env_db.startswith("sqlite:///:memory"):
             return env_db
 
-        if os.getenv("PYTEST_CURRENT_TEST"):
-            return "sqlite:///data/mizzou.db"
-
+        configured_url: str | None = None
         try:
             from src.config import DATABASE_URL as configured_database_url
 
-            return configured_database_url or "sqlite:///data/mizzou.db"
+            configured_url = configured_database_url
         except Exception:
-            return "sqlite:///data/mizzou.db"
+            configured_url = None
 
+        if configured_url:
+            return configured_url
+
+        return "sqlite:///data/mizzou.db"
     def _configure_proxy_routing(self) -> None:
         """Configure proxy adapter and proxy pool for the discovery session."""
 
