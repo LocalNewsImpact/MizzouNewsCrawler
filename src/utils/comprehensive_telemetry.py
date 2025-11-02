@@ -647,7 +647,7 @@ class ComprehensiveExtractionTelemetry:
                 f"""
                 SELECT host, status_code, error_type, count, last_seen
                 FROM http_error_summary
-                WHERE last_seen >= datetime('now', '-{days} days')
+                WHERE last_seen >= CURRENT_TIMESTAMP - INTERVAL '{days} days'
                 ORDER BY count DESC, last_seen DESC
                 """
             )
@@ -677,8 +677,9 @@ class ComprehensiveExtractionTelemetry:
             params.extend(statuses)
 
         if days is not None:
-            where_clauses.append("created_at >= datetime('now', ?)")
-            params.append(f"-{days} days")
+            where_clauses.append(
+                f"created_at >= CURRENT_TIMESTAMP - INTERVAL '{days} days'"
+            )
 
         where_sql = ""
         if where_clauses:

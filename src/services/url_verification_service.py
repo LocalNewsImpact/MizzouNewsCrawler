@@ -291,7 +291,7 @@ class URLVerificationService:
             FROM url_verifications v
             JOIN candidate_links cl ON v.candidate_link_id = cl.id
             WHERE v.verification_job_id = :job_id
-            AND v.verified_at >= datetime('now', '-1 minute')
+            AND v.verified_at >= CURRENT_TIMESTAMP - INTERVAL '1 minute'
         """
         )
 
