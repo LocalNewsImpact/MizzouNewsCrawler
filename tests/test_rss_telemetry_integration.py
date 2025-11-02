@@ -56,18 +56,18 @@ def test_rss_success_calls_telemetry_update(tmp_path, monkeypatch):
     import feedparser
 
     mock_feed = MagicMock()
-    mock_feed.entries = [
-        MagicMock(
-            link="https://example.com/article1",
-            title="Test Article",
-            published_parsed=None,
-            get=lambda k, default=None: (
-                "https://example.com/article1"
-                if k == "link"
-                else "Test Article" if k == "title" else default
-            ),
-        )
-    ]
+
+    # Create a mock entry with a simple get method
+    mock_entry = MagicMock()
+    mock_entry.link = "https://example.com/article1"
+    mock_entry.title = "Test Article"
+    mock_entry.published_parsed = None
+
+    def entry_get(key, default=None):
+        return {"link": mock_entry.link, "title": mock_entry.title}.get(key, default)
+
+    mock_entry.get = entry_get
+    mock_feed.entries = [mock_entry]
 
     def mock_parse(*args, **kwargs):
         return mock_feed
@@ -438,5 +438,4 @@ def test_telemetry_persistence_integration(tmp_path):
     # and may not see uncommitted data in the same transaction context.
     # The important thing is that the data IS written to the database,
     # which we've verified above.
-
 
