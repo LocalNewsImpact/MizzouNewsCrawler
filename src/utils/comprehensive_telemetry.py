@@ -698,9 +698,8 @@ class ComprehensiveExtractionTelemetry:
             "detected_at, created_at "
             "FROM content_type_detection_telemetry"
             f"{where_sql} "
-            "ORDER BY COALESCE(detected_at, created_at) DESC LIMIT ?"
+            f"ORDER BY COALESCE(detected_at, created_at) DESC LIMIT {limit}"
         )
-        params.append(limit)
 
         with self._store.connection() as conn:
             cursor = conn.execute(query, params)
