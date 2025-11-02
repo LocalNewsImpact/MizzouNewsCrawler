@@ -201,6 +201,13 @@ class NewsDiscovery:
         if candidate:
             return candidate
 
+        env_db = os.getenv("DATABASE_URL")
+        if env_db:
+            return env_db
+
+        if os.getenv("PYTEST_CURRENT_TEST"):
+            return "sqlite:///data/mizzou.db"
+
         try:
             from src.config import DATABASE_URL as configured_database_url
 
