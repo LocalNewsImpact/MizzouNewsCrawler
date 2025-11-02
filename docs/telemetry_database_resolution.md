@@ -262,7 +262,7 @@ If issues arise, rollback is simple:
 ## Authors
 
 - Initial fix: @dkiesow
-- Test coverage and documentation: GitHub Copilot
+- Test coverage and documentation: @github-copilot
 
 ## References
 

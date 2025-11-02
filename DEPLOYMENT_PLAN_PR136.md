@@ -25,8 +25,8 @@ This deployment fixes a critical bug where telemetry data was being written to l
   SELECT table_name 
   FROM information_schema.tables 
   WHERE table_schema = 'public' 
-  AND table_name LIKE '%telemetry%' 
-  OR table_name IN ('operations', 'discovery_http_status_tracking', 'discovery_method_effectiveness');
+  AND (table_name LIKE '%telemetry%' 
+       OR table_name IN ('operations', 'discovery_http_status_tracking', 'discovery_method_effectiveness'));
   ```
 - [ ] If tables missing, run migrations:
   ```bash
