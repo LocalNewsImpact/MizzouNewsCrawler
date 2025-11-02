@@ -136,12 +136,14 @@ def cleanup_test_data(database_url: str):
 @pytest.fixture
 def source_id(database_url: str, cleanup_test_data) -> str:
     identifier = str(uuid.uuid4())
+    # Use unique host to avoid constraint violations across tests
+    unique_host = f"test-{identifier[:8]}.example.com"
     with DatabaseManager(database_url) as db:
         db.session.add(
             Source(
                 id=identifier,
-                host="example.com",
-                host_norm="example.com",
+                host=unique_host,
+                host_norm=unique_host,
                 canonical_name="Example News",
                 city="Columbia",
                 county="Boone",
