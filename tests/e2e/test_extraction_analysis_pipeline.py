@@ -251,10 +251,13 @@ def test_extraction_pipeline_through_analysis(
 
     setup_manager = ctx.manager_factory()
     session = setup_manager.session
+    # Use unique host to avoid constraint violations across parallel tests
+    import time
+    unique_host = f"test-{int(time.time() * 1000000)}.example.com"
     source = Source(
         id="source-1",
-        host="example.com",
-        host_norm="example.com",
+        host=unique_host,
+        host_norm=unique_host,
         canonical_name="Example Source",
         city="Columbia",
         county="Boone",
