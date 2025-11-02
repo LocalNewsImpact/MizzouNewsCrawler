@@ -336,7 +336,7 @@ _OPERATIONS_SCHEMA = (
 _HTTP_STATUS_SCHEMA = (
     """
     CREATE TABLE IF NOT EXISTS http_status_tracking (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         source_id TEXT NOT NULL,
         source_url TEXT NOT NULL,
         discovery_method TEXT NOT NULL,
@@ -367,7 +367,7 @@ _HTTP_STATUS_SCHEMA = (
 _DISCOVERY_METHOD_SCHEMA = (
     """
     CREATE TABLE IF NOT EXISTS discovery_method_effectiveness (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         source_id TEXT NOT NULL,
         source_url TEXT NOT NULL,
         discovery_method TEXT NOT NULL,
@@ -408,7 +408,7 @@ _DISCOVERY_METHOD_SCHEMA = (
 _DISCOVERY_OUTCOMES_SCHEMA = (
     """
     CREATE TABLE IF NOT EXISTS discovery_outcomes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         operation_id TEXT NOT NULL,
         source_id TEXT NOT NULL,
         source_name TEXT NOT NULL,
@@ -796,10 +796,12 @@ class OperationTracker:
                 where_parts.append("operation_id = :operation_id")
                 params["operation_id"] = operation_id
             else:
-                where_parts.append(
-                    "timestamp >= datetime('now', '-' || :hours_back ||  ' hours')"
-                )
-                params["hours_back"] = hours_back
+                # PostgreSQL time arithmetic (production uses Cloud SQL)
+                from datetime import datetime, timedelta, timezone
+
+                cutoff = datetime.now(timezone.utc) - timedelta(hours=hours_back)
+                where_parts.append("timestamp >= :cutoff")
+                params["cutoff"] = cutoff.strftime("%Y-%m-%d %H:%M:%S")
 
             where_clause = f"WHERE {' AND '.join(where_parts)}" if where_parts else ""
 
@@ -1131,7 +1133,7 @@ class OperationTracker:
                 try:
                     cursor.execute(
                         """
-                        INSERT OR IGNORE INTO jobs (
+                        INSERT INTO jobs (
                             id,
                             job_type,
                             job_name,
@@ -1141,6 +1143,7 @@ class OperationTracker:
                             artifact_paths,
                             logs_path
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT (id) DO NOTHING
                         """,
                         (
                             operation_id,
