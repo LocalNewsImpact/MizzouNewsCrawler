@@ -372,9 +372,8 @@ def test_run_discovery_records_mixed_outcome_in_telemetry(
 
     telemetry_store.flush()
 
-    sqlite_path = database_url.replace("sqlite:///", "", 1)
-    with sqlite3.connect(sqlite_path) as conn:
-        conn.row_factory = sqlite3.Row
+    # Query discovery_outcomes from telemetry (now in PostgreSQL)
+    with telemetry_store.connection() as conn:
         rows = conn.execute("SELECT * FROM discovery_outcomes").fetchall()
 
     assert stats["sources_processed"] == 1
@@ -384,6 +383,7 @@ def test_run_discovery_records_mixed_outcome_in_telemetry(
     assert len(rows) == 1
     row = rows[0]
 
+    # Access dict-like rows from connection wrapper
     assert row["outcome"] == DiscoveryOutcome.MIXED_RESULTS.value
     assert row["articles_duplicate"] == 1
     assert row["articles_expired"] == 1
@@ -468,9 +468,8 @@ def test_run_discovery_duplicate_only_records_outcome(
 
     telemetry_store.flush()
 
-    sqlite_path = database_url.replace("sqlite:///", "", 1)
-    with sqlite3.connect(sqlite_path) as conn:
-        conn.row_factory = sqlite3.Row
+    # Query discovery_outcomes from telemetry (now in PostgreSQL)
+    with telemetry_store.connection() as conn:
         rows = conn.execute("SELECT * FROM discovery_outcomes").fetchall()
 
     assert stats["sources_processed"] == 1
