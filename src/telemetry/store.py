@@ -114,7 +114,27 @@ def _determine_default_database_url() -> str:
     )
 
 
-DEFAULT_DATABASE_URL = _determine_default_database_url()
+# Lazy-loaded default database URL to avoid import-time connection attempts
+# This is especially important for tests that need to configure environment first
+_DEFAULT_DATABASE_URL_CACHE: str | None = None
+
+
+def get_default_database_url() -> str:
+    """Get the default database URL, with lazy initialization.
+    
+    This function caches the result after first call to avoid repeated
+    environment variable lookups and config imports.
+    
+    Returns:
+        PostgreSQL database URL for telemetry
+        
+    Raises:
+        RuntimeError: If no valid PostgreSQL URL can be determined
+    """
+    global _DEFAULT_DATABASE_URL_CACHE
+    if _DEFAULT_DATABASE_URL_CACHE is None:
+        _DEFAULT_DATABASE_URL_CACHE = _determine_default_database_url()
+    return _DEFAULT_DATABASE_URL_CACHE
 
 
 def _mask_database_url(url: str | None) -> str:
@@ -394,13 +414,16 @@ class TelemetryStore:
 
     def __init__(
         self,
-        database: str = DEFAULT_DATABASE_URL,
+        database: str | None = None,
         *,
         async_writes: bool = True,
         timeout: float = 30.0,
         thread_name: str = "TelemetryStoreWriter",
         engine: Engine | None = None,
     ) -> None:
+        # Lazy-load default database URL if not provided
+        if database is None:
+            database = get_default_database_url()
         self.database_url = database
         self.async_writes = async_writes
         self.timeout = timeout
@@ -710,14 +733,15 @@ _default_store: TelemetryStore | None = None
 
 
 def get_store(
-    database: str = DEFAULT_DATABASE_URL,
+    database: str | None = None,
     *,
     engine: Engine | None = None,
 ) -> TelemetryStore:
     """Return a process-wide shared telemetry store.
 
     Args:
-        database: Database URL (used if engine not provided)
+        database: Database URL (used if engine not provided).
+                  If None, uses get_default_database_url()
         engine: Optional existing SQLAlchemy engine to reuse
                 (avoids creating new connections, required for Cloud SQL Connector)
 
@@ -727,5 +751,8 @@ def get_store(
     global _default_store
     with _default_store_lock:
         if _default_store is None:
+            # Lazy-load default database URL if not provided
+            if database is None:
+                database = get_default_database_url()
             _default_store = TelemetryStore(database=database, engine=engine)
     return _default_store

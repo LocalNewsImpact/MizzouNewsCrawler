@@ -69,6 +69,20 @@ def _ensure_crawler_dependencies() -> None:
 logger = logging.getLogger(__name__)
 
 
+def _to_int(value, default=0):
+    """Convert PostgreSQL string or SQLite int to int.
+    
+    PostgreSQL returns aggregate results as strings, SQLite returns native types.
+    This helper ensures consistent int conversion across both databases.
+    """
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return default
+
+
 _ENTITY_EXTRACTOR: Any = None  # ArticleEntityExtractor lazy loaded
 _CONTENT_TYPE_DETECTOR: ContentTypeDetector | None = None
 
@@ -468,12 +482,10 @@ def handle_extraction_command(args) -> int:
                         "(SELECT candidate_link_id FROM articles "
                         "WHERE candidate_link_id IS NOT NULL)"
                     )
-                    remaining_count = (
-                        safe_session_execute(
-                            db.session, query, {"dataset": dataset_uuid}
-                        ).scalar()
-                        or 0
+                    result = safe_session_execute(
+                        db.session, query, {"dataset": dataset_uuid}
                     )
+                    remaining_count = _to_int(result.scalar(), 0)
                 else:
                     # Count all remaining articles
                     query = text(
@@ -483,9 +495,8 @@ def handle_extraction_command(args) -> int:
                         "(SELECT candidate_link_id FROM articles "
                         "WHERE candidate_link_id IS NOT NULL)"
                     )
-                    remaining_count = (
-                        safe_session_execute(db.session, query).scalar() or 0
-                    )
+                    result = safe_session_execute(db.session, query)
+                    remaining_count = _to_int(result.scalar(), 0)
 
                 print(
                     f"✓ Batch {batch_num} complete: {articles_processed} "
