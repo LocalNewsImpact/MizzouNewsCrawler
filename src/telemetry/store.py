@@ -231,8 +231,13 @@ class _ResultWrapper:
         self._keys = None
         
         # Cache column names for dict conversion
+        # DDL statements (CREATE TABLE, etc.) don't return rows
         if hasattr(result, "keys"):
-            self._keys = list(result.keys())
+            try:
+                self._keys = list(result.keys())
+            except Exception:
+                # ResourceClosedError for DDL, or result doesn't return rows
+                self._keys = None
 
     @property
     def description(self):
