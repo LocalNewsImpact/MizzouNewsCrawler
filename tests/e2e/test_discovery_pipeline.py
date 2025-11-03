@@ -112,10 +112,11 @@ def cleanup_test_data(database_url: str):
     def _cleanup():
         with db.engine.begin() as conn:
             try:
-                # Clean up test data (use prefixes to identify test records)
+                # Clean up test data - match actual test patterns
+                # E2E discovery tests use hosts like "test-*.example.com"
                 conn.execute(
                     text(
-                        "DELETE FROM candidate_links WHERE url LIKE '%test-discovery-%'"
+                        "DELETE FROM candidate_links WHERE url LIKE '%example.com%'"
                     )
                 )
                 conn.execute(
@@ -123,7 +124,18 @@ def cleanup_test_data(database_url: str):
                         "DELETE FROM dataset_sources WHERE source_id LIKE 'test-e2e-%'"
                     )
                 )
-                conn.execute(text("DELETE FROM sources WHERE id LIKE 'test-e2e-%'"))
+                # Clean sources by host pattern (covers random UUID ids)
+                conn.execute(
+                    text(
+                        "DELETE FROM sources WHERE host LIKE '%example.com'"
+                    )
+                )
+                # Also clean test-disc- pattern used by postgres integration tests
+                conn.execute(
+                    text(
+                        "DELETE FROM sources WHERE id LIKE 'test-disc-%'"
+                    )
+                )
                 conn.execute(text("DELETE FROM datasets WHERE id LIKE 'test-e2e-%'"))
             except Exception:
                 pass  # Tables might not exist yet
