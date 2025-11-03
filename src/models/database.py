@@ -1223,10 +1223,25 @@ def bulk_insert_candidate_links(
 
         def _exec_table_info(tbl_name: str):
             with engine.connect() as conn:
-                # PRAGMA table_info returns rows with columns:
-                # (cid, name, type, notnull, dflt_value, pk)
-                res = conn.execute(text(f"PRAGMA table_info({tbl_name})"))
-                return [r[1] for r in res.fetchall()]
+                if "postgresql" in engine.dialect.name:
+                    # PostgreSQL: Use information_schema
+                    res = conn.execute(
+                        text(
+                            """
+                            SELECT column_name
+                            FROM information_schema.columns
+                            WHERE table_name = :table_name
+                            ORDER BY ordinal_position
+                            """
+                        ),
+                        {"table_name": tbl_name},
+                    )
+                    return [r[0] for r in res.fetchall()]
+                else:
+                    # SQLite: PRAGMA table_info returns rows with columns:
+                    # (cid, name, type, notnull, dflt_value, pk)
+                    res = conn.execute(text(f"PRAGMA table_info({tbl_name})"))
+                    return [r[1] for r in res.fetchall()]
 
         # Retry PRAGMA/table_info in case of transient locks.
         inspector_cols = []
@@ -1550,8 +1565,24 @@ def bulk_insert_articles(
 
         def _exec_table_info(tbl_name: str):
             with engine.connect() as conn:
-                res = conn.execute(text(f"PRAGMA table_info({tbl_name})"))
-                return [r[1] for r in res.fetchall()]
+                if "postgresql" in engine.dialect.name:
+                    # PostgreSQL: Use information_schema
+                    res = conn.execute(
+                        text(
+                            """
+                            SELECT column_name
+                            FROM information_schema.columns
+                            WHERE table_name = :table_name
+                            ORDER BY ordinal_position
+                            """
+                        ),
+                        {"table_name": tbl_name},
+                    )
+                    return [r[0] for r in res.fetchall()]
+                else:
+                    # SQLite: PRAGMA table_info
+                    res = conn.execute(text(f"PRAGMA table_info({tbl_name})"))
+                    return [r[1] for r in res.fetchall()]
 
         # Retry PRAGMA/table_info in case of transient locks.
         attempts = 0
