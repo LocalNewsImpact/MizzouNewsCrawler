@@ -899,8 +899,16 @@ class OperationTracker:
             }
 
             if summary_row:
+                # PostgreSQL returns aggregates as strings, SQLite as native types
+                # Convert all aggregate results to proper types
                 for key in summary:
-                    summary[key] = summary_row[key] or 0
+                    val = summary_row[key]
+                    if val is None:
+                        summary[key] = 0 if key != "avg_discovery_time_ms" else 0.0
+                    elif key == "avg_discovery_time_ms":
+                        summary[key] = float(val)
+                    else:
+                        summary[key] = int(val)
 
             total_sources = summary["total_sources"]
             if total_sources:
@@ -913,7 +921,10 @@ class OperationTracker:
                 content_rate = 0.0
 
             breakdown = [
-                {"outcome": row["outcome"], "count": row["count"]}
+                {
+                    "outcome": row["outcome"],
+                    "count": int(row["count"]) if row["count"] is not None else 0
+                }
                 for row in breakdown_rows
             ]
 
@@ -927,14 +938,32 @@ class OperationTracker:
 
             top_performers = []
             for row in top_rows:
-                attempts = row["attempts"] or 0
-                rate = row["content_success_rate"] or 0.0
+                # Convert aggregates from strings (PostgreSQL) to ints/floats
+                attempts = (
+                    int(row["attempts"]) if row["attempts"] is not None else 0
+                )
+                rate = (
+                    float(row["content_success_rate"])
+                    if row["content_success_rate"] is not None
+                    else 0.0
+                )
+                content_successes = (
+                    int(row["content_successes"])
+                    if row["content_successes"] is not None
+                    else 0
+                )
+                total_new = (
+                    int(row["total_new_articles"])
+                    if row["total_new_articles"] is not None
+                    else 0
+                )
+                
                 top_performers.append(
                     {
                         "source_name": row["source_name"],
                         "attempts": attempts,
-                        "content_successes": row["content_successes"] or 0,
-                        "total_new_articles": row["total_new_articles"] or 0,
+                        "content_successes": content_successes,
+                        "total_new_articles": total_new,
                         "content_success_rate": rate,
                     }
                 )

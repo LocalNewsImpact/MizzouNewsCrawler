@@ -11,6 +11,20 @@ from src.models.database import DatabaseManager, safe_session_execute
 logger = logging.getLogger(__name__)
 
 
+def _to_int(value, default=0):
+    """Convert PostgreSQL string or SQLite int to int.
+    
+    PostgreSQL returns aggregate results as strings, SQLite returns native types.
+    This helper ensures consistent int conversion across both databases.
+    """
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return default
+
+
 def add_pipeline_status_parser(subparsers) -> argparse.ArgumentParser:
     """Add pipeline-status command parser to subparsers."""
     parser = subparsers.add_parser(
@@ -101,7 +115,7 @@ def _check_discovery_status(session, hours, detailed):
     result = safe_session_execute(
         session, text("SELECT COUNT(*) FROM sources WHERE host IS NOT NULL")
     )
-    total_sources = result.scalar() or 0
+    total_sources = _to_int(result.scalar(), 0)
 
     # Sources discovered from recently
     result = safe_session_execute(
@@ -115,7 +129,7 @@ def _check_discovery_status(session, hours, detailed):
         ),
         {"cutoff": cutoff},
     )
-    sources_discovered = result.scalar() or 0
+    sources_discovered = _to_int(result.scalar(), 0)
 
     # Total URLs discovered
     result = safe_session_execute(
@@ -129,7 +143,7 @@ def _check_discovery_status(session, hours, detailed):
         ),
         {"cutoff": cutoff},
     )
-    urls_discovered = result.scalar() or 0
+    urls_discovered = _to_int(result.scalar(), 0)
 
     # Sources due for discovery (last processed > 7 days ago)
     result = safe_session_execute(
@@ -152,7 +166,7 @@ def _check_discovery_status(session, hours, detailed):
         """
         ),
     )
-    sources_due = result.scalar() or 0
+    sources_due = _to_int(result.scalar(), 0)
 
     print(f"  Total sources: {total_sources}")
     print(f"  Sources due for discovery: {sources_due}")
@@ -183,7 +197,8 @@ def _check_discovery_status(session, hours, detailed):
         )
         print("\n  Top 10 sources by URLs discovered:")
         for row in result:
-            print(f"    • {row[0]}: {row[1]} URLs")
+            # row[1] is COUNT(*) aggregate - convert to int
+            print(f"    • {row[0]}: {_to_int(row[1])} URLs")
 
 
 def _check_verification_status(session, hours, detailed):
@@ -193,13 +208,13 @@ def _check_verification_status(session, hours, detailed):
         session,
         text("SELECT COUNT(*) FROM candidate_links WHERE status = 'discovered'"),
     )
-    pending = result.scalar() or 0
+    pending = _to_int(result.scalar(), 0)
 
     # Verified as articles
     result = safe_session_execute(
         session, text("SELECT COUNT(*) FROM candidate_links WHERE status = 'article'")
     )
-    articles = result.scalar() or 0
+    articles = _to_int(result.scalar(), 0)
 
     # Verified recently (any URL with processed_at timestamp)
     cutoff = datetime.utcnow() - timedelta(hours=hours)
@@ -214,7 +229,7 @@ def _check_verification_status(session, hours, detailed):
         ),
         {"cutoff": cutoff},
     )
-    verified_recent = result.scalar() or 0
+    verified_recent = _to_int(result.scalar(), 0)
 
     print(f"  Pending verification: {pending}")
     print(f"  Verified as articles (total): {articles}")
@@ -242,16 +257,17 @@ def _check_extraction_status(session, hours, detailed):
             FROM candidate_links
             WHERE status = 'article'
             AND id NOT IN (
-                SELECT candidate_link_id FROM articles WHERE candidate_link_id IS NOT NULL
+                SELECT candidate_link_id FROM articles
+                WHERE candidate_link_id IS NOT NULL
             )
         """
         ),
     )
-    ready_for_extraction = result.scalar() or 0
+    ready_for_extraction = _to_int(result.scalar(), 0)
 
     # Total extracted articles
     result = safe_session_execute(session, text("SELECT COUNT(*) FROM articles"))
-    total_extracted = result.scalar() or 0
+    total_extracted = _to_int(result.scalar(), 0)
 
     # Extracted recently
     cutoff = datetime.utcnow() - timedelta(hours=hours)
@@ -260,7 +276,7 @@ def _check_extraction_status(session, hours, detailed):
         text("SELECT COUNT(*) FROM articles WHERE extracted_at >= :cutoff"),
         {"cutoff": cutoff},
     )
-    extracted_recent = result.scalar() or 0
+    extracted_recent = _to_int(result.scalar(), 0)
 
     # Status breakdown
     result = safe_session_execute(
@@ -291,7 +307,8 @@ def _check_extraction_status(session, hours, detailed):
     if status_breakdown:
         print("\n  Status breakdown:")
         for status, count in status_breakdown:
-            print(f"    • {status}: {count}")
+            # count is aggregate - convert to int
+            print(f"    • {status}: {_to_int(count)}")
 
 
 def _check_entity_extraction_status(session, hours, detailed):
@@ -312,13 +329,13 @@ def _check_entity_extraction_status(session, hours, detailed):
         """
         ),
     )
-    ready_for_entities = result.scalar() or 0
+    ready_for_entities = _to_int(result.scalar(), 0)
 
     # Total articles with entities
     result = safe_session_execute(
         session, text("SELECT COUNT(DISTINCT article_id) FROM article_entities")
     )
-    total_with_entities = result.scalar() or 0
+    total_with_entities = _to_int(result.scalar(), 0)
 
     # Entities extracted recently
     cutoff = datetime.utcnow() - timedelta(hours=hours)
@@ -333,7 +350,7 @@ def _check_entity_extraction_status(session, hours, detailed):
         ),
         {"cutoff": cutoff},
     )
-    entities_recent = result.scalar() or 0
+    entities_recent = _to_int(result.scalar(), 0)
 
     print(f"  Ready for entity extraction: {ready_for_entities}")
     print(f"  Articles with entities (total): {total_with_entities}")
@@ -367,13 +384,13 @@ def _check_analysis_status(session, hours, detailed):
             """
             ),
         )
-        ready_for_analysis = result.scalar() or 0
+        ready_for_analysis = _to_int(result.scalar(), 0)
 
         # Count total articles with classification labels
         result = safe_session_execute(
             session, text("SELECT COUNT(DISTINCT article_id) FROM article_labels")
         )
-        total_analyzed = result.scalar() or 0
+        total_analyzed = _to_int(result.scalar(), 0)
 
         # Count recent classifications
         cutoff = datetime.utcnow() - timedelta(hours=hours)
@@ -388,7 +405,7 @@ def _check_analysis_status(session, hours, detailed):
             ),
             {"cutoff": cutoff},
         )
-        analyzed_recent = result.scalar() or 0
+        analyzed_recent = _to_int(result.scalar(), 0)
 
         print(f"  Ready for classification: {ready_for_analysis}")
         print(f"  Articles classified (total): {total_analyzed}")
@@ -425,7 +442,7 @@ def _check_overall_health(session, hours):
         text("SELECT COUNT(*) FROM candidate_links WHERE discovered_at >= :cutoff"),
         {"cutoff": cutoff},
     )
-    if (result.scalar() or 0) > 0:
+    if _to_int(result.scalar(), 0) > 0:
         stages_active += 1
 
     # Verification
@@ -439,7 +456,7 @@ def _check_overall_health(session, hours):
         ),
         {"cutoff": cutoff},
     )
-    if (result.scalar() or 0) > 0:
+    if _to_int(result.scalar(), 0) > 0:
         stages_active += 1
 
     # Extraction
@@ -448,7 +465,7 @@ def _check_overall_health(session, hours):
         text("SELECT COUNT(*) FROM articles WHERE extracted_at >= :cutoff"),
         {"cutoff": cutoff},
     )
-    if (result.scalar() or 0) > 0:
+    if _to_int(result.scalar(), 0) > 0:
         stages_active += 1
 
     # Entity extraction
@@ -462,7 +479,7 @@ def _check_overall_health(session, hours):
         ),
         {"cutoff": cutoff},
     )
-    if (result.scalar() or 0) > 0:
+    if _to_int(result.scalar(), 0) > 0:
         stages_active += 1
 
     # Analysis
@@ -477,7 +494,7 @@ def _check_overall_health(session, hours):
             ),
             {"cutoff": cutoff},
         )
-        if (result.scalar() or 0) > 0:
+        if _to_int(result.scalar(), 0) > 0:
             stages_active += 1
     except Exception:
         stages_total = 4  # Analysis stage not available

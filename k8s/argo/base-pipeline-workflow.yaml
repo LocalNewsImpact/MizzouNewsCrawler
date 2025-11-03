@@ -180,6 +180,9 @@ spec:
       # Explicit DATABASE_URL to prevent SQLite fallback (Kubernetes will expand $(VAR) references)
       - name: DATABASE_URL
         value: "$(DATABASE_ENGINE)://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)"
+      # Explicit TELEMETRY_DATABASE_URL to ensure telemetry uses PostgreSQL (not SQLite fallback)
+      - name: TELEMETRY_DATABASE_URL
+        value: "$(DATABASE_ENGINE)://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)"
       # Cloud SQL Connector
       - name: USE_CLOUD_SQL_CONNECTOR
         value: "true"
@@ -267,6 +270,9 @@ spec:
             key: database
       # Explicit DATABASE_URL to prevent SQLite fallback (Kubernetes will expand $(VAR) references)
       - name: DATABASE_URL
+        value: "$(DATABASE_ENGINE)://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)"
+      # Explicit TELEMETRY_DATABASE_URL to ensure telemetry uses PostgreSQL (not SQLite fallback)
+      - name: TELEMETRY_DATABASE_URL
         value: "$(DATABASE_ENGINE)://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)"
       # Cloud SQL Connector
       - name: USE_CLOUD_SQL_CONNECTOR
@@ -363,6 +369,9 @@ spec:
             key: database
       # Explicit DATABASE_URL to prevent SQLite fallback (Kubernetes will expand $(VAR) references)
       - name: DATABASE_URL
+        value: "$(DATABASE_ENGINE)://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)"
+      # Explicit TELEMETRY_DATABASE_URL to ensure telemetry uses PostgreSQL (not SQLite fallback)
+      - name: TELEMETRY_DATABASE_URL
         value: "$(DATABASE_ENGINE)://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)"
       # Cloud SQL Connector
       - name: USE_CLOUD_SQL_CONNECTOR

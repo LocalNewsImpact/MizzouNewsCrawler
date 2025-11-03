@@ -485,14 +485,18 @@ class ComprehensiveExtractionTelemetry:
                     if col_name:
                         columns.add(str(col_name).lower())
             else:
+                # PostgreSQL: Use information_schema with named parameters
+                from sqlalchemy import text
                 cursor = conn.execute(
-                    """
-                    SELECT column_name
-                    FROM information_schema.columns
-                    WHERE table_schema = current_schema()
-                      AND table_name = ?
-                    """,
-                    (table_name,),
+                    text(
+                        """
+                        SELECT column_name
+                        FROM information_schema.columns
+                        WHERE table_schema = current_schema()
+                          AND table_name = :table_name
+                        """
+                    ),
+                    {"table_name": table_name},
                 )
                 rows = cursor.fetchall()
                 for row in rows:
