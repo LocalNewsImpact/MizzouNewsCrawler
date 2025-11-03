@@ -1,10 +1,10 @@
 """Integration tests for Alembic migrations.
 
 These tests verify that Alembic migrations:
-1. Run successfully against SQLite (development)
-2. Run successfully against PostgreSQL (production)
-3. Can be rolled back (downgrade)
-4. Have a valid migration history chain
+1. Run successfully against PostgreSQL (production environment)
+2. Can be rolled back (downgrade)
+3. Have a valid migration history chain
+4. Create all expected tables and indexes
 """
 
 from __future__ import annotations
