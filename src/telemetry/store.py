@@ -72,11 +72,19 @@ def _determine_default_database_url() -> str:
             return db_url
 
     except Exception as e:
-        logging.debug(
+        logging.warning(
             f"Could not determine PostgreSQL URL from config: {e}. "
-            f"Using SQLite fallback"
+            f"Using SQLite fallback. In production, set TELEMETRY_DATABASE_URL "
+            f"to prevent this fallback."
         )
 
+    # Log at WARNING level if falling back to SQLite
+    # without explicit TELEMETRY_DATABASE_URL
+    logging.warning(
+        f"Telemetry falling back to SQLite ({_SQLITE_FALLBACK_URL}). "
+        f"In production, set TELEMETRY_DATABASE_URL environment variable "
+        f"to use PostgreSQL. This fallback should only happen in local development."
+    )
     return _SQLITE_FALLBACK_URL
 
 
