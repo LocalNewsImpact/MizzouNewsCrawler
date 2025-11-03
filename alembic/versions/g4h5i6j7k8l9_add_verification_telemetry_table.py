@@ -68,10 +68,10 @@ def upgrade():
             ON verification_telemetry(job_name)
     """)
 
-    # Add comments
+    # Add comments (PostgreSQL only)
     op.execute("""
         COMMENT ON TABLE verification_telemetry IS
-            'Stores batch metrics for URL verification operations using StorySniffer'
+            'Stores batch metrics for URL verification operations'
     """)
     op.execute("""
         COMMENT ON COLUMN verification_telemetry.timestamp IS

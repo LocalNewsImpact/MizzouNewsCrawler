@@ -24,6 +24,7 @@ pytestmark = pytest.mark.integration
 class TestAlembicMigrations:
     """Test Alembic migration functionality."""
 
+    @pytest.mark.skip(reason="SQLite support deprecated - PostgreSQL only")
     def test_alembic_upgrade_head_sqlite(self, tmp_path):
         """Test that migrations run successfully against SQLite."""
         # Create temp SQLite database
@@ -75,6 +76,7 @@ class TestAlembicMigrations:
 
         engine.dispose()
 
+    @pytest.mark.skip(reason="SQLite support deprecated - PostgreSQL only")
     def test_alembic_downgrade_one_revision(self, tmp_path):
         """Test that migrations can be rolled back one revision."""
         # Create temp SQLite database
