@@ -19,6 +19,7 @@ int()/float() conversions work correctly.
 import uuid
 
 import pytest
+from sqlalchemy import text
 
 from src.models import Source
 from src.utils.telemetry import (
@@ -60,7 +61,7 @@ def test_discovery_method_effectiveness_query_returns_correct_types(
     """
     # Insert test data directly using the cloud_sql_session
     cloud_sql_session.execute(
-        """
+        text("""
         INSERT INTO discovery_method_effectiveness (
             source_id, source_url, discovery_method, status,
             articles_found, success_rate, last_attempt, attempt_count,
@@ -70,7 +71,7 @@ def test_discovery_method_effectiveness_query_returns_correct_types(
             :articles_found, :success_rate, NOW(), :attempt_count,
             :avg_response_time_ms, :last_status_codes, :notes
         )
-        """,
+        """),
         {
             "source_id": test_source.id,
             "source_url": test_source.host,
@@ -88,13 +89,13 @@ def test_discovery_method_effectiveness_query_returns_correct_types(
     
     # Query back and simulate the type conversion code from telemetry.py
     result = cloud_sql_session.execute(
-        """
+        text("""
         SELECT articles_found, attempt_count,
                success_rate, avg_response_time_ms
         FROM discovery_method_effectiveness
         WHERE source_id = :source_id
         AND discovery_method = :discovery_method
-        """,
+        """),
         {
             "source_id": test_source.id,
             "discovery_method": DiscoveryMethod.RSS_FEED.value,
@@ -103,10 +104,12 @@ def test_discovery_method_effectiveness_query_returns_correct_types(
     row = result.fetchone()
     
     # Apply the same type conversions as in telemetry.py lines 1999-2007
-    articles_found = int(row["articles_found"])
-    attempt_count = int(row["attempt_count"])
-    success_rate = float(row["success_rate"])
-    avg_response_time_ms = float(row["avg_response_time_ms"])
+    # Use ._mapping to get dict-like access (same as production code)
+    row_dict = row._mapping
+    articles_found = int(row_dict["articles_found"])
+    attempt_count = int(row_dict["attempt_count"])
+    success_rate = float(row_dict["success_rate"])
+    avg_response_time_ms = float(row_dict["avg_response_time_ms"])
     
     # Validate types are correct (not strings)
     assert isinstance(
@@ -138,7 +141,7 @@ def test_discovery_method_effectiveness_with_zero_values(
     """
     # Insert test data with zero values
     cloud_sql_session.execute(
-        """
+        text("""
         INSERT INTO discovery_method_effectiveness (
             source_id, source_url, discovery_method, status,
             articles_found, success_rate, last_attempt, attempt_count,
@@ -148,7 +151,7 @@ def test_discovery_method_effectiveness_with_zero_values(
             :articles_found, :success_rate, NOW(), :attempt_count,
             :avg_response_time_ms, :last_status_codes, :notes
         )
-        """,
+        """),
         {
             "source_id": test_source.id,
             "source_url": test_source.host,
@@ -166,13 +169,13 @@ def test_discovery_method_effectiveness_with_zero_values(
     
     # Query back with type conversions
     result = cloud_sql_session.execute(
-        """
+        text("""
         SELECT articles_found, attempt_count,
                success_rate, avg_response_time_ms
         FROM discovery_method_effectiveness
         WHERE source_id = :source_id
         AND discovery_method = :discovery_method
-        """,
+        """),
         {
             "source_id": test_source.id,
             "discovery_method": DiscoveryMethod.NEWSPAPER4K.value,
@@ -181,8 +184,9 @@ def test_discovery_method_effectiveness_with_zero_values(
     row = result.fetchone()
     
     # Apply type conversions
-    articles_found = int(row["articles_found"])
-    avg_response_time_ms = float(row["avg_response_time_ms"])
+    row_dict = row._mapping
+    articles_found = int(row_dict["articles_found"])
+    avg_response_time_ms = float(row_dict["avg_response_time_ms"])
     
     # Validate zero values have correct types
     assert isinstance(articles_found, int)
@@ -201,7 +205,7 @@ def test_discovery_method_effectiveness_with_large_numbers(
     """
     # Insert test data with large values
     cloud_sql_session.execute(
-        """
+        text("""
         INSERT INTO discovery_method_effectiveness (
             source_id, source_url, discovery_method, status,
             articles_found, success_rate, last_attempt, attempt_count,
@@ -211,7 +215,7 @@ def test_discovery_method_effectiveness_with_large_numbers(
             :articles_found, :success_rate, NOW(), :attempt_count,
             :avg_response_time_ms, :last_status_codes, :notes
         )
-        """,
+        """),
         {
             "source_id": test_source.id,
             "source_url": test_source.host,
@@ -229,13 +233,13 @@ def test_discovery_method_effectiveness_with_large_numbers(
     
     # Query back with type conversions
     result = cloud_sql_session.execute(
-        """
+        text("""
         SELECT articles_found, attempt_count,
                success_rate, avg_response_time_ms
         FROM discovery_method_effectiveness
         WHERE source_id = :source_id
         AND discovery_method = :discovery_method
-        """,
+        """),
         {
             "source_id": test_source.id,
             "discovery_method": DiscoveryMethod.STORYSNIFFER.value,
@@ -244,8 +248,9 @@ def test_discovery_method_effectiveness_with_large_numbers(
     row = result.fetchone()
     
     # Apply type conversions
-    articles_found = int(row["articles_found"])
-    avg_response_time_ms = float(row["avg_response_time_ms"])
+    row_dict = row._mapping
+    articles_found = int(row_dict["articles_found"])
+    avg_response_time_ms = float(row_dict["avg_response_time_ms"])
     
     # Validate large numbers preserve types and values
     assert isinstance(articles_found, int)
@@ -268,7 +273,7 @@ def test_sqlite_vs_postgres_type_behavior_difference(
     """
     # Insert test data
     cloud_sql_session.execute(
-        """
+        text("""
         INSERT INTO discovery_method_effectiveness (
             source_id, source_url, discovery_method, status,
             articles_found, success_rate, last_attempt, attempt_count,
@@ -278,7 +283,7 @@ def test_sqlite_vs_postgres_type_behavior_difference(
             :articles_found, :success_rate, NOW(), :attempt_count,
             :avg_response_time_ms, :last_status_codes, :notes
         )
-        """,
+        """),
         {
             "source_id": test_source.id,
             "source_url": test_source.host,
@@ -296,13 +301,13 @@ def test_sqlite_vs_postgres_type_behavior_difference(
     
     # Query raw row WITHOUT type conversions to see actual database behavior
     result = cloud_sql_session.execute(
-        """
+        text("""
         SELECT articles_found, attempt_count,
                success_rate, avg_response_time_ms
         FROM discovery_method_effectiveness
         WHERE source_id = :source_id
         AND discovery_method = :discovery_method
-        """,
+        """),
         {
             "source_id": test_source.id,
             "discovery_method": DiscoveryMethod.RSS_FEED.value,
@@ -316,10 +321,12 @@ def test_sqlite_vs_postgres_type_behavior_difference(
     # With SQLite, they would be native Python types
     
     # Get the actual types returned from PostgreSQL
-    articles_type = type(raw_row["articles_found"])
-    attempt_type = type(raw_row["attempt_count"])
-    success_type = type(raw_row["success_rate"])
-    response_type = type(raw_row["avg_response_time_ms"])
+    # Use ._mapping to get dict-like access
+    row_dict = raw_row._mapping
+    articles_type = type(row_dict["articles_found"])
+    attempt_type = type(row_dict["attempt_count"])
+    success_type = type(row_dict["success_rate"])
+    response_type = type(row_dict["avg_response_time_ms"])
     
     # Document what PostgreSQL actually returns
     # (In SQLite these would likely be int/float already)
