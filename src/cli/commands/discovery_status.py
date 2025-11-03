@@ -8,6 +8,20 @@ from sqlalchemy import text
 from src.models.database import DatabaseManager, safe_execute
 
 
+def _to_int(value, default=0):
+    """Convert PostgreSQL string or native int to int.
+    
+    PostgreSQL returns aggregate results as strings, native Python returns ints.
+    This helper ensures consistent int conversion across both databases.
+    """
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return default
+
+
 def add_discovery_status_parser(subparsers) -> argparse.ArgumentParser:
     """Add discovery-status command parser to subparsers."""
     parser = subparsers.add_parser(
@@ -87,7 +101,7 @@ def handle_discovery_status_command(args) -> int:
                 ).fetchone()
                 scope = " (all datasets)"
 
-            total_sources = result[0] if result else 0
+            total_sources = _to_int(result[0]) if result else 0
 
             print(f"\n🗂️  Total Sources{scope}: {total_sources}")
 
@@ -151,7 +165,7 @@ def handle_discovery_status_command(args) -> int:
                 conn,
                 text(
                     """
-                    SELECT 
+                    SELECT
                         DATE(discovered_at) as discovery_date,
                         COUNT(*) as url_count
                     FROM candidate_links
