@@ -11,6 +11,20 @@ from src.models.database import DatabaseManager, safe_session_execute
 logger = logging.getLogger(__name__)
 
 
+def _to_int(value, default=0):
+    """Convert PostgreSQL string or SQLite int to int.
+    
+    PostgreSQL returns aggregate results as strings, SQLite returns native types.
+    This helper ensures consistent int conversion across both databases.
+    """
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return default
+
+
 def add_pipeline_status_parser(subparsers) -> argparse.ArgumentParser:
     """Add pipeline-status command parser to subparsers."""
     parser = subparsers.add_parser(
