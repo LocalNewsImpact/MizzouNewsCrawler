@@ -220,35 +220,48 @@ class _CursorWrapper:
 
 
 class _ResultWrapper:
-    """Wrapper that makes SQLAlchemy CursorResult behave like sqlite3.Cursor."""
+    """Wrapper that makes SQLAlchemy CursorResult behave like sqlite3.Cursor.
+    
+    Ensures rows support dict-like access for both SQLite and PostgreSQL.
+    """
 
     def __init__(self, result):
         self._result = result
         self._cached_description = None
+        self._keys = None
+        
+        # Cache column names for dict conversion
+        if hasattr(result, "keys"):
+            self._keys = list(result.keys())
 
     @property
     def description(self):
         """Provide sqlite3-style description attribute."""
         if self._cached_description is None:
             # Get column names from the result
-            if hasattr(self._result, "keys"):
-                keys = self._result.keys()
+            if self._keys:
                 # Format as [(name, None, None, None, None, None, None), ...]
                 # to match sqlite3.Cursor.description format
                 self._cached_description = [
-                    (key, None, None, None, None, None, None) for key in keys
+                    (key, None, None, None, None, None, None) for key in self._keys
                 ]
             else:
                 self._cached_description = []
         return self._cached_description
 
     def fetchone(self):
-        """Fetch one row."""
-        return self._result.fetchone()
+        """Fetch one row as a dict-like object."""
+        row = self._result.fetchone()
+        if row is None:
+            return None
+        # SQLAlchemy 2.0 Row objects need ._mapping for dict-like access
+        return row._mapping if hasattr(row, "_mapping") else row
 
     def fetchall(self):
-        """Fetch all rows."""
-        return self._result.fetchall()
+        """Fetch all rows as dict-like objects."""
+        rows = self._result.fetchall()
+        # Convert SQLAlchemy Row objects to mappings for dict-like access
+        return [row._mapping if hasattr(row, "_mapping") else row for row in rows]
 
     def close(self):
         """Close the result."""

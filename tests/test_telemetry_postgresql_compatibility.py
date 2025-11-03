@@ -28,7 +28,6 @@ from src.utils.telemetry import (
 def test_telemetry_schemas_postgresql_compatible(cloud_sql_session):
     """Validate all telemetry DDL statements work in PostgreSQL."""
     session = cloud_sql_session
-    engine = session.get_bind()
 
     # Collect all DDL statements from all telemetry modules
     all_ddl_statements = [
@@ -46,9 +45,8 @@ def test_telemetry_schemas_postgresql_compatible(cloud_sql_session):
     for ddl_collection, description in all_ddl_statements:
         for statement in ddl_collection:
             try:
-                with engine.connect() as conn:
-                    conn.execute(text(statement))
-                    conn.commit()
+                session.execute(text(statement))
+                session.commit()
             except SQLAlchemyError as e:
                 error_msg = f"{description}: {statement[:100]}... ERROR: {e}"
                 failed.append(error_msg)

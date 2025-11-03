@@ -92,11 +92,11 @@ def test_get_sources_integration_postgres():
                 {"dataset_id": test_dataset_id},
             )
 
-            # Insert dataset
+            # Insert dataset (no need for ingested_at - has server default)
             conn.execute(
                 text(
-                    "INSERT INTO datasets (id, label, slug, created_at) "
-                    "VALUES (:id, :label, :slug, NOW())"
+                    "INSERT INTO datasets (id, label, slug) "
+                    "VALUES (:id, :label, :slug)"
                 ),
                 {
                     "id": test_dataset_id,
