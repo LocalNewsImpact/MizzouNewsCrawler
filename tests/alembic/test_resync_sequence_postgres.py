@@ -46,12 +46,14 @@ def test_resync_extraction_telemetry_sequence_postgres(tmp_path):
     engine = create_engine(database_url)  # type: ignore[arg-type]
     try:
         # Insert a row with id=99999 to simulate out-of-sync sequence
+        # Use ON CONFLICT to handle case where test was run before
         with engine.begin() as conn:
             conn.execute(
                 text(
                     "INSERT INTO extraction_telemetry_v2 (id, operation_id,"
                     " article_id, url, start_time, created_at) VALUES"
                     " (:id, :op, :a, :u, now(), now())"
+                    " ON CONFLICT (id) DO NOTHING"
                 ),
                 {
                     "id": 99999,
