@@ -49,7 +49,6 @@ def telemetry_test_sources(cloud_sql_session):
             canonical_name=pub,
             city=f"Test City {i}",
             county="Test County",
-            state="MO",
         )
         sources.append(source)
         cloud_sql_session.add(source)

@@ -41,7 +41,6 @@ def test_source(cloud_sql_session):
         canonical_name="Test Verification Source",
         city="Test City",
         county="Test County",
-        state="MO",
     )
     cloud_sql_session.add(source)
     cloud_sql_session.commit()
@@ -314,7 +313,6 @@ class TestVerificationTelemetryPostgres:
             canonical_name="Test Verification Source 2",
             city="Test City 2",
             county="Test County 2",
-            state="MO",
         )
         cloud_sql_session.add(source2)
         
