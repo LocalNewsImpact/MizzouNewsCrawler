@@ -15,15 +15,34 @@ from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.pool import NullPool
 
-_SQLITE_FALLBACK_URL = "sqlite:///data/mizzou.db"
-
 
 def _determine_default_database_url() -> str:
+    """Determine the PostgreSQL database URL for telemetry.
+    
+    IMPORTANT: Telemetry MUST use PostgreSQL, never SQLite.
+    SQLite fallback has been removed because:
+    1. Production uses PostgreSQL (Cloud SQL)
+    2. Local development uses PostgreSQL (localhost:5432)
+    3. CI uses PostgreSQL (postgres-integration job)
+    4. SQLite compatibility issues have caused multiple production failures
+    
+    If this function fails to find a database URL, it will raise an error
+    rather than silently falling back to SQLite.
+    """
+    # First: Check explicit TELEMETRY_DATABASE_URL (set in Kubernetes)
     candidate = os.getenv("TELEMETRY_DATABASE_URL")
     if candidate:
+        if not candidate.startswith("postgresql"):
+            logging.error(
+                f"TELEMETRY_DATABASE_URL must be PostgreSQL, got: {candidate}"
+            )
+            raise ValueError(
+                "TELEMETRY_DATABASE_URL must start with 'postgresql'. "
+                "SQLite is not supported for telemetry."
+            )
         return candidate
 
-    # Try to use the main application DATABASE_URL from config
+    # Second: Try to use the main application DATABASE_URL from config
     try:
         from src.config import (
             CLOUD_SQL_INSTANCE,
@@ -45,19 +64,18 @@ def _determine_default_database_url() -> str:
             and DATABASE_USER
             and DATABASE_NAME
         ):
-            # Cloud SQL Connector handles connection
-            # Telemetry needs a postgres URL for schema compatibility
             from urllib.parse import quote_plus
 
             user = quote_plus(DATABASE_USER)
             password = quote_plus(DATABASE_PASSWORD) if DATABASE_PASSWORD else ""
             auth = f"{user}:{password}" if password else user
-            # Use instance name as host for telemetry (actual connection via connector)
             db_url = f"postgresql://{auth}@/{DATABASE_NAME}"
+            logging.info(f"Telemetry using Cloud SQL: {CLOUD_SQL_INSTANCE}")
             return db_url
 
         # If DATABASE_URL is already PostgreSQL, use it
         if CONFIG_DATABASE_URL and CONFIG_DATABASE_URL.startswith("postgresql"):
+            logging.info("Telemetry using CONFIG_DATABASE_URL")
             return CONFIG_DATABASE_URL
 
         # Try to build from individual components
@@ -68,24 +86,32 @@ def _determine_default_database_url() -> str:
             password = quote_plus(DATABASE_PASSWORD) if DATABASE_PASSWORD else ""
             auth = f"{user}:{password}" if password else user
             engine = DATABASE_ENGINE or "postgresql"
+            if not engine.startswith("postgresql"):
+                raise ValueError(
+                    f"DATABASE_ENGINE must be postgresql, got: {engine}"
+                )
             db_url = f"{engine}://{auth}@{DATABASE_HOST}/{DATABASE_NAME}"
+            logging.info(f"Telemetry using constructed URL: {DATABASE_HOST}")
             return db_url
 
     except Exception as e:
-        logging.warning(
-            f"Could not determine PostgreSQL URL from config: {e}. "
-            f"Using SQLite fallback. In production, set TELEMETRY_DATABASE_URL "
-            f"to prevent this fallback."
+        logging.error(
+            f"Failed to determine PostgreSQL URL from config: {e}. "
+            f"Telemetry requires PostgreSQL. Set TELEMETRY_DATABASE_URL "
+            f"environment variable or configure DATABASE_* variables."
         )
+        raise RuntimeError(
+            "Telemetry requires PostgreSQL connection. "
+            "Set TELEMETRY_DATABASE_URL environment variable. "
+            "SQLite fallback has been removed to prevent compatibility issues."
+        ) from e
 
-    # Log at WARNING level if falling back to SQLite
-    # without explicit TELEMETRY_DATABASE_URL
-    logging.warning(
-        f"Telemetry falling back to SQLite ({_SQLITE_FALLBACK_URL}). "
-        f"In production, set TELEMETRY_DATABASE_URL environment variable "
-        f"to use PostgreSQL. This fallback should only happen in local development."
+    # If we get here, no valid PostgreSQL URL was found
+    raise RuntimeError(
+        "No PostgreSQL database URL found for telemetry. "
+        "Set TELEMETRY_DATABASE_URL environment variable or configure "
+        "DATABASE_* variables in src.config. SQLite is not supported."
     )
-    return _SQLITE_FALLBACK_URL
 
 
 DEFAULT_DATABASE_URL = _determine_default_database_url()

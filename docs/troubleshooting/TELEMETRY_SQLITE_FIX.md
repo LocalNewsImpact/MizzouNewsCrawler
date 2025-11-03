@@ -1,103 +1,100 @@
-# Telemetry SQLite Fallback Issue - Resolution
+# Telemetry PostgreSQL Requirement - FINAL FIX
 
-## Problem
-Production containers were using SQLite for telemetry instead of PostgreSQL, causing errors:
+## Problem History
+Production containers were incorrectly using SQLite for telemetry instead of PostgreSQL, causing errors:
 ```
 Telemetry store missing discovery tables; recorded outcome without source audit: 
 (sqlite3.OperationalError) no such table: sources
 ```
 
+This issue persisted across multiple attempts to fix it because the telemetry system had a **silent SQLite fallback** that would activate whenever PostgreSQL configuration failed.
+
 ## Root Cause
-The telemetry system (`src/telemetry/store.py`) determines its database URL through this fallback chain:
-1. Check `TELEMETRY_DATABASE_URL` environment variable → **Not set**
-2. Import `DATABASE_URL` from `src.config` → **Import succeeds** but exception handling was too broad
-3. Fallback to SQLite (`sqlite:///data/mizzou.db`) → **This was happening in production**
+The telemetry system (`src/telemetry/store.py`) had a dangerous fallback chain:
+1. Check `TELEMETRY_DATABASE_URL` environment variable → **Not set in Kubernetes**
+2. Try to import `DATABASE_URL` from `src.config` → **Could fail due to timing/initialization**
+3. **Silently fallback to SQLite** → **This was the bug**
 
-The `src.config.DATABASE_URL` construction works correctly - it builds a PostgreSQL URL from individual environment variables:
-- `DATABASE_ENGINE` = `postgresql+psycopg2`
-- `DATABASE_HOST` = `127.0.0.1` (Cloud SQL Connector provides local proxy)
-- `DATABASE_PORT` = `5432`
-- `DATABASE_USER`, `DATABASE_PASSWORD`, `DATABASE_NAME` (from secrets)
+The SQLite fallback was logged at DEBUG level, making it invisible in production logs.
 
-## Why SQLite Was Being Used
-The telemetry code had a silent `except Exception: pass` block that caught any import failures without logging. The import of `src.config.DATABASE_URL` might have been failing due to:
-- Timing issues during container startup
-- Missing dependencies during telemetry module initialization
-- Circular import issues
+## Why SQLite Fallback Is Wrong
+1. **Production uses PostgreSQL** (Cloud SQL with pg8000 driver)
+2. **Local development uses PostgreSQL** (localhost:5432)
+3. **CI uses PostgreSQL** (postgres-integration job)
+4. **SQLite compatibility issues** caused multiple production failures:
+   - PRAGMA statements fail on PostgreSQL
+   - INSERT OR IGNORE syntax fails on PostgreSQL
+   - Aggregate functions return different types (strings vs integers)
+   - Row access patterns differ between SQLite and PostgreSQL
 
-## Failed Fix Attempts
-### Attempt 1: Set `TELEMETRY_DATABASE_URL` with Variable Substitution
+## FINAL FIX (Commits c538da0, ee2ca86, and current)
+
+### Three-Part Solution:
+
+#### 1. Set TELEMETRY_DATABASE_URL in Kubernetes (Commit c538da0)
+Added explicit `TELEMETRY_DATABASE_URL` to all Kubernetes deployments:
+
 ```yaml
+# k8s/argo/base-pipeline-workflow.yaml (all 3 steps)
+# k8s/processor-deployment.yaml
 - name: TELEMETRY_DATABASE_URL
-  value: "postgresql+psycopg2://$(DATABASE_USER):$(DATABASE_PASSWORD)@127.0.0.1:5432/$(DATABASE_NAME)"
-```
-**Result**: Kubernetes expanded the variables correctly, but special characters in passwords weren't URL-encoded, causing:
-```
-sqlite3.OperationalError: near "ON": syntax error
+  value: "$(DATABASE_ENGINE)://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)"
 ```
 
-This was reverted in commit `2edb044`.
+This uses the same template as `DATABASE_URL`, ensuring telemetry gets PostgreSQL connection info.
 
-## Implemented Fix (Commit b8e2413)
-Added diagnostic logging and PostgreSQL validation to `src/telemetry/store.py`:
+#### 2. Improve Fallback Warning Visibility (Commit ee2ca86)
+Changed fallback logging from DEBUG to WARNING level to make SQLite fallback visible in production logs.
+
+#### 3. Remove SQLite Fallback Entirely (Current Commit)
+**Completely removed SQLite fallback** from `src/telemetry/store.py`:
+- Removed `_SQLITE_FALLBACK_URL` constant
+- Changed `_determine_default_database_url()` to **FAIL LOUDLY** if PostgreSQL URL not found
+- Added comprehensive validation that rejects non-PostgreSQL URLs
+- Added informative error messages pointing to `TELEMETRY_DATABASE_URL`
 
 ```python
 def _determine_default_database_url() -> str:
+    """Determine the PostgreSQL database URL for telemetry.
+    
+    IMPORTANT: Telemetry MUST use PostgreSQL, never SQLite.
+    If this function fails to find a database URL, it will raise an error
+    rather than silently falling back to SQLite.
+    """
+    # Check TELEMETRY_DATABASE_URL first (set in Kubernetes)
     candidate = os.getenv("TELEMETRY_DATABASE_URL")
     if candidate:
+        if not candidate.startswith("postgresql"):
+            raise ValueError("TELEMETRY_DATABASE_URL must be PostgreSQL")
         return candidate
-
-    # Try to use the main application DATABASE_URL from config
-    try:
-        from src.config import DATABASE_URL as CONFIG_DATABASE_URL
-
-        if CONFIG_DATABASE_URL:
-            # Don't use SQLite in production - only accept postgresql URLs
-            if CONFIG_DATABASE_URL.startswith("postgresql"):
-                return CONFIG_DATABASE_URL
-            logging.warning(
-                f"Config DATABASE_URL is not PostgreSQL: {CONFIG_DATABASE_URL[:20]}... "
-                f"Falling back to SQLite"
-            )
-    except Exception as e:
-        logging.warning(
-            f"Failed to import DATABASE_URL from config: {e}. "
-            f"Falling back to SQLite"
-        )
-
-    return _SQLITE_FALLBACK_URL
+    
+    # Try config import...
+    # If all fails: RAISE ERROR instead of falling back to SQLite
+    raise RuntimeError(
+        "No PostgreSQL database URL found for telemetry. "
+        "Set TELEMETRY_DATABASE_URL environment variable."
+    )
 ```
 
-### What This Fix Does
-1. **Logs import failures**: We'll now see in logs WHY the import might be failing
-2. **Validates PostgreSQL**: Only accepts PostgreSQL URLs from config
-3. **Makes SQLite fallback explicit**: Warns when falling back to SQLite
+### What This Achieves
+1. ✅ **Production**: `TELEMETRY_DATABASE_URL` explicitly set → PostgreSQL always used
+2. ✅ **Local Development**: Uses PostgreSQL from `src.config` or fails loudly
+3. ✅ **CI**: Uses `TEST_DATABASE_URL` (PostgreSQL) or fails
+4. ✅ **No Silent Failures**: Missing config causes startup failure, not runtime SQLite errors
+5. ✅ **No Compatibility Issues**: SQLite code paths can never execute
 
-### Expected Outcome
-With the new logging, we'll either:
-- **See telemetry use PostgreSQL** (no warnings logged) ✅
-- **See specific error messages** explaining why config import failed, allowing us to fix the real issue
+### Deployment
+These changes require:
+1. **Kubernetes configs** already deployed with `TELEMETRY_DATABASE_URL`
+2. **Code deployment** with SQLite fallback removed
+3. **No backward compatibility** - old code with SQLite fallback will continue to cause issues
 
-## Deployment Status
-- **Code Fix**: Committed in `b8e2413`
-- **Image Build**: Triggered `build-processor-manual` for commit `b8e2413`
-- **Image Tag**: `processor:b8e2413` and `processor:v1.3.1`
-- **Auto-Deploy**: Cloud Build will automatically update production deployment
+### Verification
+After deployment, telemetry will either:
+- ✅ **Work correctly** using PostgreSQL
+- ❌ **Fail at startup** with clear error message about missing `TELEMETRY_DATABASE_URL`
 
-## Verification Steps
-Once the new processor image is deployed:
-
-1. **Check processor logs** for telemetry warnings:
-   ```bash
-   kubectl logs -n production -l app=mizzou-processor --tail=100 | grep -i "telemetry\|sqlite"
-   ```
-
-2. **Run discovery job** and check for SQLite errors:
-   ```bash
-   kubectl logs -n production -l stage=discovery --tail=50 | grep -i "telemetry.*missing\|sqlite"
-   ```
-
-3. **Expected result**: No "missing discovery tables" errors, no SQLite warnings
+**No more silent SQLite fallback causing runtime failures.**
 
 ## Alternative Solutions (If Logging Shows Import Still Fails)
 If the logging reveals that `src.config.DATABASE_URL` import consistently fails:
