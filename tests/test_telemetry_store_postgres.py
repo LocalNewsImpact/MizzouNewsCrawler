@@ -136,7 +136,8 @@ class TestPostgreSQLCompatibility:
                 else:
                     rows = list(result)
                 assert len(rows) == 1
-                assert rows[0][0] == "postgres_test"
+                # Access by column name (rows are dict-like after _mapping conversion)
+                assert rows[0]["value"] == "postgres_test"
         finally:
             # Clean up
             try:
@@ -175,7 +176,8 @@ class TestPostgreSQLCompatibility:
                 else:
                     rows = list(result)
                 assert len(rows) == 1
-                assert rows[0][0] == "async_ok"
+                # Access by column name (rows are dict-like after _mapping conversion)
+                assert rows[0]["event"] == "async_ok"
         finally:
             store.shutdown(wait=True)
             # Clean up
