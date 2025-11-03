@@ -114,23 +114,25 @@ class _ConnectionWrapper:
         self._conn = sqlalchemy_conn
         self._in_transaction = False
 
-    def execute(self, sql: str, parameters: tuple | None = None):
-        """Execute SQL with sqlite3-style ? placeholders."""
+    def execute(self, sql: str, parameters: tuple | dict | None = None):
+        """Execute SQL with sqlite3-style ? placeholders or :named placeholders."""
         # Wrap raw SQL in text() for SQLAlchemy
         if parameters:
-            # Convert tuple parameters to dict for SQLAlchemy
-            # Count ? placeholders and create param dict
-            param_count = sql.count("?")
-            if param_count > 0 and parameters:
-                # Replace ? with :param0, :param1, etc.
-                adapted_sql = sql
-                params_dict = {}
-                for i, value in enumerate(parameters):
-                    adapted_sql = adapted_sql.replace("?", f":param{i}", 1)
-                    params_dict[f"param{i}"] = value
-                result = self._conn.execute(text(adapted_sql), params_dict)
-            else:
+            if isinstance(parameters, dict):
+                # Named parameters: already in SQLAlchemy format
                 result = self._conn.execute(text(sql), parameters)
+            else:
+                # Positional parameters: Replace ? with :param0, :param1, etc.
+                param_count = sql.count("?")
+                if param_count > 0:
+                    adapted_sql = sql
+                    params_dict = {}
+                    for i, value in enumerate(parameters):
+                        adapted_sql = adapted_sql.replace("?", f":param{i}", 1)
+                        params_dict[f"param{i}"] = value
+                    result = self._conn.execute(text(adapted_sql), params_dict)
+                else:
+                    result = self._conn.execute(text(sql), parameters)
         else:
             result = self._conn.execute(text(sql))
 
@@ -219,6 +221,39 @@ class _CursorWrapper:
         pass
 
 
+class _RowProxy:
+    """Proxy that provides both tuple and dict-like access to SQLAlchemy Row objects.
+    
+    SQLAlchemy Row objects can lose their key mapping when detached from the result,
+    so we capture both the tuple data and the mapping during construction.
+    """
+
+    def __init__(self, row):
+        self._tuple = tuple(row)
+        self._mapping = dict(row._mapping) if hasattr(row, "_mapping") else {}
+
+    def __getitem__(self, key):
+        """Support both integer (tuple) and string (dict) access."""
+        if isinstance(key, int):
+            return self._tuple[key]
+        elif isinstance(key, str):
+            return self._mapping[key]
+        else:
+            raise TypeError(f"indices must be integers or strings, not {type(key)}")
+
+    def __iter__(self):
+        """Iterate over tuple values."""
+        return iter(self._tuple)
+
+    def __len__(self):
+        """Return length of tuple."""
+        return len(self._tuple)
+
+    def __repr__(self):
+        """Show tuple representation."""
+        return repr(self._tuple)
+
+
 class _ResultWrapper:
     """Wrapper that makes SQLAlchemy CursorResult behave like sqlite3.Cursor.
     
@@ -257,13 +292,20 @@ class _ResultWrapper:
     def fetchone(self):
         """Fetch one row, preserving both integer and dict-like access."""
         row = self._result.fetchone()
-        # Return row as-is - SQLAlchemy Row objects support both access patterns
-        return row
+        if row is not None:
+            # Wrap in proxy to preserve both access patterns
+            return _RowProxy(row)
+        return None
 
     def fetchall(self):
         """Fetch all rows, preserving both integer and dict-like access."""
-        # Return rows as-is - SQLAlchemy Row objects support both access patterns
-        return self._result.fetchall()
+        # SQLAlchemy Row objects lose their key mapping when detached from result
+        # Convert to _RowMapping which supports both access patterns reliably
+        rows = self._result.fetchall()
+        if rows:
+            # Convert each Row to a custom wrapper that supports both access patterns
+            return [_RowProxy(row) for row in rows]
+        return rows
 
     def close(self):
         """Close the result."""
