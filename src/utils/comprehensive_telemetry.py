@@ -474,9 +474,10 @@ class ComprehensiveExtractionTelemetry:
                 rows = cursor.fetchall()
                 for row in rows:
                     # SQLite pragma returns tuples like (cid, name, type, ...)
-                    if isinstance(row, (list, tuple)) and len(row) > 1:
-                        col_name = row[1]
-                    else:
+                    # Row can be tuple, list, or _RowProxy - all support indexing
+                    try:
+                        col_name = row[1] if len(row) > 1 else None
+                    except (TypeError, KeyError):
                         col_name = getattr(row, "name", None)
                     if col_name:
                         columns.add(str(col_name).lower())
@@ -495,8 +496,11 @@ class ComprehensiveExtractionTelemetry:
                     col_name = row[0] if row else None
                     if col_name:
                         columns.add(str(col_name).lower())
-        except Exception:
+        except Exception as e:
             # Introspection failures should not break extraction telemetry
+            logger.warning(
+                f"Failed to fetch table columns for {table_name}: {e!r}"
+            )
             columns = set()
 
         return columns

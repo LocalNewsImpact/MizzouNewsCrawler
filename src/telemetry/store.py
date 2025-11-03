@@ -253,6 +253,33 @@ class _RowProxy:
         """Show tuple representation."""
         return repr(self._tuple)
 
+    def __eq__(self, other):
+        """Support equality comparison with tuples and other _RowProxy objects."""
+        if isinstance(other, _RowProxy):
+            return self._tuple == other._tuple
+        elif isinstance(other, tuple):
+            return self._tuple == other
+        return False
+
+    def __hash__(self):
+        """Make _RowProxy hashable."""
+        return hash(self._tuple)
+
+
+class _ResultWrapper:
+
+    def __eq__(self, other):
+        """Compare with tuple or another _RowProxy."""
+        if isinstance(other, _RowProxy):
+            return self._tuple == other._tuple
+        elif isinstance(other, tuple):
+            return self._tuple == other
+        return False
+
+    def __hash__(self):
+        """Make hashable like tuple."""
+        return hash(self._tuple)
+
 
 class _ResultWrapper:
     """Wrapper that makes SQLAlchemy CursorResult behave like sqlite3.Cursor.
