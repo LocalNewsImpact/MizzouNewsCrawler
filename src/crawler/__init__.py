@@ -2048,9 +2048,9 @@ class ContentExtractor:
         chrome_bin = os.getenv("CHROME_BIN") or os.getenv("GOOGLE_CHROME_BIN") or None
         driver_path = os.getenv("CHROMEDRIVER_PATH") or None
 
-        if chrome_bin:
-            # Ensure it's a string (avoid Selenium "Binary Location Must be a String")
-            options.binary_location = str(chrome_bin)
+        # Note: For undetected-chromedriver, we pass browser_executable_path as a parameter
+        # to the uc.Chrome() constructor (below) instead of setting options.binary_location.
+        # Setting both causes "Binary Location Must be a String" errors.
 
         # Create driver with version management
         try:
