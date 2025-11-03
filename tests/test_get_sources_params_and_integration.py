@@ -92,11 +92,11 @@ def test_get_sources_integration_postgres():
                 {"dataset_id": test_dataset_id},
             )
 
-            # Insert dataset (no need for ingested_at - has server default)
+            # Insert dataset with ingested_at (required, no server default)
             conn.execute(
                 text(
-                    "INSERT INTO datasets (id, label, slug) "
-                    "VALUES (:id, :label, :slug)"
+                    "INSERT INTO datasets (id, label, slug, ingested_at) "
+                    "VALUES (:id, :label, :slug, CURRENT_TIMESTAMP)"
                 ),
                 {
                     "id": test_dataset_id,
@@ -105,26 +105,31 @@ def test_get_sources_integration_postgres():
                 },
             )
 
-            # Insert source
+            # Insert source (host_norm is required NOT NULL, no created_at)
             conn.execute(
                 text(
-                    "INSERT INTO sources (id, canonical_name, host, created_at) "
-                    "VALUES (:id, :name, :host, NOW())"
+                    "INSERT INTO sources (id, canonical_name, host, host_norm) "
+                    "VALUES (:id, :name, :host, :host_norm)"
                 ),
                 {
                     "id": test_source_id,
                     "name": "Test Params Source",
                     "host": "test-params.example.com",
+                    "host_norm": "test-params.example.com",
                 },
             )
 
-            # Link dataset and source
+            # Link dataset and source (id column required)
             conn.execute(
                 text(
-                    "INSERT INTO dataset_sources (dataset_id, source_id) "
-                    "VALUES (:dataset_id, :source_id)"
+                    "INSERT INTO dataset_sources (id, dataset_id, source_id) "
+                    "VALUES (:id, :dataset_id, :source_id)"
                 ),
-                {"dataset_id": test_dataset_id, "source_id": test_source_id},
+                {
+                    "id": f"{test_dataset_id}:{test_source_id}",
+                    "dataset_id": test_dataset_id,
+                    "source_id": test_source_id,
+                },
             )
 
         nd = NewsDiscovery(database_url=POSTGRES_TEST_URL)
