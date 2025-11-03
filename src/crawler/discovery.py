@@ -2301,10 +2301,10 @@ def get_sources_from_db(db_manager, dataset_id=None, limit=None):
         result = safe_session_execute(db_manager.session, query).fetchall()
         return [
             {
-                "id": row[0],
-                "host": row[1],
-                "canonical_name": row[2],
-                "url": f"https://{row[1]}",
+                "id": row["id"],
+                "host": row["host"],
+                "canonical_name": row["canonical_name"],
+                "url": f"https://{row['host']}",
             }
             for row in result
         ]

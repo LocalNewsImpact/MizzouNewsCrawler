@@ -160,7 +160,11 @@ def source_id(database_url: str, cleanup_test_data) -> str:
                 city="Columbia",
                 county="Boone",
                 type="news",
-                meta={"frequency": "daily"},
+                meta={
+                    "frequency": "daily",
+                    # Allow articles from example.com (used in _make_recent_article)
+                    "allowed_hosts": ["example.com"],
+                },
             )
         )
         db.session.commit()
