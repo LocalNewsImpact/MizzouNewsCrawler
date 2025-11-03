@@ -757,9 +757,20 @@ class OperationTracker:
                 cursor = conn.cursor()
                 try:
                     cursor.execute(insert_sql, outcome_data)
+                    conn.commit()  # Explicit commit to clear transaction
+                    cursor.close()
                     return
                 except DB_ERRORS as exc:
-                    conn.rollback()
+                    cursor.close()
+                    if attempt == retries - 1:
+                        # Last attempt - let exception propagate
+                        self.logger.error(
+                            "Failed to record discovery outcome for %s after %d retries: %s",
+                            source_name,
+                            retries,
+                            exc,
+                        )
+                        raise
                     self.logger.warning(
                         "Database error on discovery outcome write (%d/%d): %s",
                         attempt + 1,
@@ -768,13 +779,6 @@ class OperationTracker:
                     )
                     time.sleep(backoff)
                     backoff *= 2
-                finally:
-                    cursor.close()
-
-            self.logger.error(
-                "Failed to record discovery outcome for %s after retries",
-                source_name,
-            )
 
         self._store.submit(writer, ensure=_DISCOVERY_OUTCOMES_SCHEMA)
 
@@ -1257,15 +1261,26 @@ class OperationTracker:
                             job_update_values,
                         )
 
+                    conn.commit()  # Explicit commit to clear transaction
+                    cursor.close()
                     return
                 except DB_ERRORS as exc:
-                    conn.rollback()
+                    cursor.close()
                     if _is_missing_table_error(exc):
                         self.logger.warning(
                             "Telemetry store missing operations table; skipping update",
                         )
                         return
 
+                    if attempt == retries - 1:
+                        # Last attempt - let exception propagate
+                        self.logger.error(
+                            "Failed to update operations record for %s after %d retries: %s",
+                            operation_id,
+                            retries,
+                            exc,
+                        )
+                        raise
                     self.logger.warning(
                         "Database error on operations write (%d/%d): %s",
                         attempt + 1,
@@ -1274,13 +1289,6 @@ class OperationTracker:
                     )
                     time.sleep(backoff)
                     backoff *= 2
-                finally:
-                    cursor.close()
-
-            self.logger.error(
-                "Failed to update operations record for %s after retries",
-                operation_id,
-            )
 
         self._store.submit(writer, ensure=_OPERATIONS_SCHEMA)
 
@@ -1790,9 +1798,11 @@ class OperationTracker:
                         """,
                         payload,
                     )
+                    conn.commit()  # Explicit commit to clear transaction
+                    cursor.close()
                     return
                 except DB_ERRORS as exc:
-                    conn.rollback()
+                    cursor.close()
                     if _is_missing_table_error(exc):
                         self.logger.warning(
                             "Telemetry store missing http_status_tracking table; "
@@ -1800,6 +1810,15 @@ class OperationTracker:
                         )
                         return
 
+                    if attempt == retries - 1:
+                        # Last attempt - let exception propagate
+                        self.logger.error(
+                            "Failed to store HTTP status tracking for %s after %d retries: %s",
+                            tracking.source_id,
+                            retries,
+                            exc,
+                        )
+                        raise
                     self.logger.warning(
                         "Database error on http_status insert (%d/%d): %s",
                         attempt + 1,
@@ -1808,13 +1827,6 @@ class OperationTracker:
                     )
                     time.sleep(backoff)
                     backoff *= 2
-                finally:
-                    cursor.close()
-
-            self.logger.error(
-                "Failed to store HTTP status tracking for %s after retries",
-                tracking.source_id,
-            )
 
         self._store.submit(writer, ensure=_HTTP_STATUS_SCHEMA)
 
@@ -1960,9 +1972,11 @@ class OperationTracker:
                             payload,
                         )
 
+                    conn.commit()  # Explicit commit to clear transaction
+                    cursor.close()
                     return
                 except DB_ERRORS as exc:
-                    conn.rollback()
+                    cursor.close()
                     if _is_missing_table_error(exc):
                         self.logger.warning(
                             "Telemetry store missing method effectiveness table; "
@@ -1970,6 +1984,15 @@ class OperationTracker:
                         )
                         return
 
+                    if attempt == retries - 1:
+                        # Last attempt - let exception propagate
+                        self.logger.error(
+                            "Failed to store method effectiveness for %s after %d retries: %s",
+                            effectiveness.source_id,
+                            retries,
+                            exc,
+                        )
+                        raise
                     self.logger.warning(
                         "Database error on method upsert (%d/%d): %s",
                         attempt + 1,
@@ -1978,13 +2001,6 @@ class OperationTracker:
                     )
                     time.sleep(backoff)
                     backoff *= 2
-                finally:
-                    cursor.close()
-
-            self.logger.error(
-                "Failed to store method effectiveness for %s after retries",
-                effectiveness.source_id,
-            )
 
         self._store.submit(writer, ensure=_DISCOVERY_METHOD_SCHEMA)
 

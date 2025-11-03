@@ -454,6 +454,9 @@ class ComprehensiveExtractionTelemetry:
             detection = metrics.content_type_detection
             if detection:
                 self._insert_content_type_detection(conn, metrics, detection)
+            
+            # Explicit commit to ensure transaction completes
+            conn.commit()
 
         try:
             self._store.submit(writer)
