@@ -16,7 +16,6 @@ Features:
 
 import json
 import logging
-import sqlite3
 import threading
 import time
 import uuid
@@ -33,7 +32,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from src.models.database import safe_execute
 from src.telemetry.store import TelemetryStore, get_store
 
-DB_ERRORS = (sqlite3.OperationalError, SQLAlchemyError)
+DB_ERRORS = (SQLAlchemyError,)
 
 
 def _is_missing_table_error(exc: Exception) -> bool:
@@ -260,7 +259,7 @@ class DiscoveryMethodEffectiveness:
             self.last_status_codes = []
 
 
-def _apply_schema(conn: sqlite3.Connection, statements: Iterable[str]) -> None:
+def _apply_schema(conn: Any, statements: Iterable[str]) -> None:
     """Execute a series of DDL statements on the provided connection."""
     cursor = conn.cursor()
     try:
@@ -274,9 +273,7 @@ def _apply_schema(conn: sqlite3.Connection, statements: Iterable[str]) -> None:
                 # and continue so tests and local runs remain resilient.
                 import sqlalchemy
 
-                if isinstance(e, sqlite3.OperationalError) or isinstance(
-                    e, getattr(sqlalchemy, "OperationalError", object)
-                ):
+                if isinstance(e, getattr(sqlalchemy, "OperationalError", Exception)):
                     logging.getLogger(__name__).debug(
                         "Telemetry DDL failed (continuing): %s -- %s", statement, e
                     )
@@ -336,7 +333,7 @@ _OPERATIONS_SCHEMA = (
 _HTTP_STATUS_SCHEMA = (
     """
     CREATE TABLE IF NOT EXISTS http_status_tracking (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         source_id TEXT NOT NULL,
         source_url TEXT NOT NULL,
         discovery_method TEXT NOT NULL,
@@ -367,7 +364,7 @@ _HTTP_STATUS_SCHEMA = (
 _DISCOVERY_METHOD_SCHEMA = (
     """
     CREATE TABLE IF NOT EXISTS discovery_method_effectiveness (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         source_id TEXT NOT NULL,
         source_url TEXT NOT NULL,
         discovery_method TEXT NOT NULL,
@@ -408,7 +405,7 @@ _DISCOVERY_METHOD_SCHEMA = (
 _DISCOVERY_OUTCOMES_SCHEMA = (
     """
     CREATE TABLE IF NOT EXISTS discovery_outcomes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         operation_id TEXT NOT NULL,
         source_id TEXT NOT NULL,
         source_name TEXT NOT NULL,
@@ -665,7 +662,7 @@ class OperationTracker:
     @contextmanager
     def _connection(self):
         with self._store.connection() as conn:
-            conn.row_factory = sqlite3.Row
+            # Connection wrapper handles result formatting
             yield conn
 
     def record_discovery_outcome(
@@ -705,9 +702,9 @@ class OperationTracker:
             "discovery_time_ms": discovery_result.metadata.get(
                 "discovery_time_ms", 0.0
             ),
-            "is_success": 1 if discovery_result.is_success else 0,
-            "is_content_success": (1 if discovery_result.is_content_success else 0),
-            "is_technical_failure": (1 if discovery_result.is_technical_failure else 0),
+            "is_success": discovery_result.is_success,
+            "is_content_success": discovery_result.is_content_success,
+            "is_technical_failure": discovery_result.is_technical_failure,
             "metadata": json.dumps(discovery_result.metadata),
         }
 
@@ -753,7 +750,7 @@ class OperationTracker:
         )
         """
 
-        def writer(conn: sqlite3.Connection) -> None:
+        def writer(conn: Any) -> None:
             retries = 4
             backoff = 0.1
             for attempt in range(retries):
@@ -796,10 +793,12 @@ class OperationTracker:
                 where_parts.append("operation_id = :operation_id")
                 params["operation_id"] = operation_id
             else:
-                where_parts.append(
-                    "timestamp >= datetime('now', '-' || :hours_back ||  ' hours')"
-                )
-                params["hours_back"] = hours_back
+                # PostgreSQL time arithmetic (production uses Cloud SQL)
+                from datetime import datetime, timedelta, timezone
+
+                cutoff = datetime.now(timezone.utc) - timedelta(hours=hours_back)
+                where_parts.append("timestamp >= :cutoff")
+                params["cutoff"] = cutoff.strftime("%Y-%m-%d %H:%M:%S")
 
             where_clause = f"WHERE {' AND '.join(where_parts)}" if where_parts else ""
 
@@ -1123,29 +1122,35 @@ class OperationTracker:
             "logs_path": kwargs.get("logs_path"),
         }
 
-        def writer(conn: sqlite3.Connection) -> None:
+        def writer(conn: Any) -> None:
             retries = 4
             backoff = 0.1
             for attempt in range(retries):
                 cursor = conn.cursor()
                 try:
+                    # Use named parameters for PostgreSQL compatibility
+                    from datetime import datetime, timezone
+
                     cursor.execute(
                         """
-                        INSERT OR IGNORE INTO jobs (
+                        INSERT INTO jobs (
                             id,
                             job_type,
                             job_name,
+                            started_at,
                             params,
                             commit_sha,
                             environment,
                             artifact_paths,
                             logs_path
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT (id) DO NOTHING
                         """,
                         (
                             operation_id,
                             operation_type or "",
                             job_defaults["job_name"],
+                            datetime.now(timezone.utc),
                             _safe_json_dumps(job_defaults["params"]),
                             job_defaults["commit_sha"],
                             _safe_json_dumps(job_defaults["environment"]),
@@ -1749,7 +1754,7 @@ class OperationTracker:
             "content_length": tracking.content_length,
         }
 
-        def writer(conn: sqlite3.Connection) -> None:
+        def writer(conn: Any) -> None:
             retries = 3
             backoff = 0.1
             for attempt in range(retries):
@@ -1900,7 +1905,7 @@ class OperationTracker:
             "notes": effectiveness.notes,
         }
 
-        def writer(conn: sqlite3.Connection) -> None:
+        def writer(conn: Any) -> None:
             retries = 3
             backoff = 0.1
             for attempt in range(retries):

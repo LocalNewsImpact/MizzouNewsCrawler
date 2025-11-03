@@ -474,9 +474,10 @@ class ComprehensiveExtractionTelemetry:
                 rows = cursor.fetchall()
                 for row in rows:
                     # SQLite pragma returns tuples like (cid, name, type, ...)
-                    if isinstance(row, (list, tuple)) and len(row) > 1:
-                        col_name = row[1]
-                    else:
+                    # Row can be tuple, list, or _RowProxy - all support indexing
+                    try:
+                        col_name = row[1] if len(row) > 1 else None
+                    except (TypeError, KeyError):
                         col_name = getattr(row, "name", None)
                     if col_name:
                         columns.add(str(col_name).lower())
@@ -495,8 +496,11 @@ class ComprehensiveExtractionTelemetry:
                     col_name = row[0] if row else None
                     if col_name:
                         columns.add(str(col_name).lower())
-        except Exception:
+        except Exception as e:
             # Introspection failures should not break extraction telemetry
+            logger.warning(
+                f"Failed to fetch table columns for {table_name}: {e!r}"
+            )
             columns = set()
 
         return columns
@@ -642,14 +646,19 @@ class ComprehensiveExtractionTelemetry:
 
     def get_error_summary(self, days: int = 7) -> list:
         """Get HTTP error summary for the last N days."""
+        # Use Python datetime to avoid SQL dialect issues
+        from datetime import timedelta
+        cutoff_time = datetime.utcnow() - timedelta(days=days)
+        
         with self._store.connection() as conn:
             cursor = conn.execute(
-                f"""
+                """
                 SELECT host, status_code, error_type, count, last_seen
                 FROM http_error_summary
-                WHERE last_seen >= datetime('now', '-{days} days')
+                WHERE last_seen >= ?
                 ORDER BY count DESC, last_seen DESC
-                """
+                """,
+                (cutoff_time,)
             )
             try:
                 columns = [col[0] for col in cursor.description]
@@ -677,8 +686,11 @@ class ComprehensiveExtractionTelemetry:
             params.extend(statuses)
 
         if days is not None:
-            where_clauses.append("created_at >= datetime('now', ?)")
-            params.append(f"-{days} days")
+            # Use Python datetime to avoid SQL dialect issues
+            from datetime import timedelta
+            cutoff_time = datetime.utcnow() - timedelta(days=days)
+            where_clauses.append("created_at >= ?")
+            params.append(cutoff_time)
 
         where_sql = ""
         if where_clauses:
@@ -690,9 +702,8 @@ class ComprehensiveExtractionTelemetry:
             "detected_at, created_at "
             "FROM content_type_detection_telemetry"
             f"{where_sql} "
-            "ORDER BY COALESCE(detected_at, created_at) DESC LIMIT ?"
+            f"ORDER BY COALESCE(detected_at, created_at) DESC LIMIT {limit}"
         )
-        params.append(limit)
 
         with self._store.connection() as conn:
             cursor = conn.execute(query, params)

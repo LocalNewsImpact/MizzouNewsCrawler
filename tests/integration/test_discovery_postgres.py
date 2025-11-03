@@ -33,9 +33,17 @@ def _cleanup_test_data(db_engine):
     with db_engine.begin() as conn:
         try:
             # Clean up in reverse dependency order
-            conn.execute(text("DELETE FROM candidate_links WHERE source_id LIKE 'test-disc-%'"))
-            conn.execute(text("DELETE FROM dataset_sources WHERE source_id LIKE 'test-disc-%'"))
+            conn.execute(
+                text("DELETE FROM candidate_links WHERE source_id LIKE 'test-disc-%'")
+            )
+            conn.execute(
+                text("DELETE FROM candidate_links WHERE url LIKE '%example.com%'")
+            )
+            conn.execute(
+                text("DELETE FROM dataset_sources WHERE source_id LIKE 'test-disc-%'")
+            )
             conn.execute(text("DELETE FROM sources WHERE id LIKE 'test-disc-%'"))
+            conn.execute(text("DELETE FROM sources WHERE host LIKE '%example.com'"))
             conn.execute(text("DELETE FROM datasets WHERE id LIKE 'test-disc-%'"))
         except Exception:
             # Tables might not exist yet or cleanup failed, that's ok

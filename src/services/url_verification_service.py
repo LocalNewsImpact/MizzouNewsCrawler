@@ -285,18 +285,23 @@ class URLVerificationService:
         session = self.db.session
 
         # Get verification results for this batch
+        # Use Python datetime for cross-database compatibility
+        from datetime import timedelta
+        cutoff_time = datetime.now() - timedelta(minutes=1)
+        
         verification_query = text(
             """
             SELECT v.url, v.storysniffer_result, v.verification_error, cl.source_name
             FROM url_verifications v
             JOIN candidate_links cl ON v.candidate_link_id = cl.id
             WHERE v.verification_job_id = :job_id
-            AND v.verified_at >= datetime('now', '-1 minute')
+            AND v.verified_at >= :cutoff_time
         """
         )
 
         results = safe_session_execute(
-            session, verification_query, {"job_id": self.current_job.id}
+            session, verification_query, 
+            {"job_id": self.current_job.id, "cutoff_time": cutoff_time}
         ).fetchall()
 
         for result in results:

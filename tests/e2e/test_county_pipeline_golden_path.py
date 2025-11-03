@@ -431,10 +431,13 @@ def test_county_pipeline_golden_path(
     # Note: wire column already exists in Article model as JSON type
     session = setup_manager.session
     source_id = "source-1"
+    # Use unique host to avoid constraint violations across parallel tests
+    import time
+    unique_host = f"test-{int(time.time() * 1000000)}.example.com"
     source = Source(
         id=source_id,
-        host="example.com",
-        host_norm="example.com",
+        host=unique_host,
+        host_norm=unique_host,
         canonical_name="Example Source",
         city="Columbia",
         county="Boone",

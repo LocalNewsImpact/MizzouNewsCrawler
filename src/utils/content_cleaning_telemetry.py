@@ -753,7 +753,7 @@ class ContentCleaningTelemetry:
                         event.get("provider"),
                         event.get("detection_method"),
                         event.get("article_id"),
-                        1 if event.get("is_local") else 0,
+                        event.get("is_local"),  # Python bool → PostgreSQL BOOLEAN
                         event.get("confidence"),
                         event.get("raw_score"),
                         event.get("threshold"),

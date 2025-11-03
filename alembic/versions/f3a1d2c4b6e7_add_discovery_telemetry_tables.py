@@ -29,7 +29,12 @@ def _table_exists(inspector: reflection.Inspector, table_name: str) -> bool:
 
 def _index_names(inspector: reflection.Inspector, table_name: str) -> set[str]:
     try:
-        return {index["name"] for index in inspector.get_indexes(table_name)}
+        names: set[str] = set()
+        for index in inspector.get_indexes(table_name):
+            name = index.get("name")
+            if name:
+                names.add(name)
+        return names
     except Exception:
         return set()
 
@@ -43,7 +48,12 @@ def _unique_constraint_names(
     except Exception:
         return set()
 
-    return {constraint["name"] for constraint in constraints}
+    names: set[str] = set()
+    for constraint in constraints:
+        name = constraint.get("name")
+        if name:
+            names.add(name)
+    return names
 
 
 def upgrade() -> None:
@@ -323,6 +333,7 @@ def downgrade() -> None:
     """Drop discovery telemetry tables."""
     bind = op.get_bind()
     inspector = sa.inspect(bind)
+    is_sqlite = bind.dialect.name.lower() == "sqlite"
 
     outcomes_table = "discovery_outcomes"
     if _table_exists(inspector, outcomes_table):
@@ -372,7 +383,11 @@ def downgrade() -> None:
         if "idx_effectiveness_source" in current_effectiveness_indexes:
             op.drop_index("idx_effectiveness_source", table_name=effectiveness_table)
         existing_constraints = _unique_constraint_names(inspector, effectiveness_table)
-        if "uq_discovery_method_effectiveness_source_method" in existing_constraints:
+        if (
+            not is_sqlite
+            and "uq_discovery_method_effectiveness_source_method"
+            in existing_constraints
+        ):
             op.drop_constraint(
                 "uq_discovery_method_effectiveness_source_method",
                 effectiveness_table,

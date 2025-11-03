@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
 
 from src.config import DATABASE_URL
 from src.telemetry.store import TelemetryStore, get_store
@@ -14,7 +14,7 @@ from .extraction_outcomes import ExtractionResult
 
 _EXTRACTION_OUTCOMES_DDL = """
 CREATE TABLE IF NOT EXISTS extraction_outcomes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     operation_id TEXT NOT NULL,
     article_id INTEGER NOT NULL,
     url TEXT NOT NULL,
@@ -24,20 +24,20 @@ CREATE TABLE IF NOT EXISTS extraction_outcomes (
     end_time TIMESTAMP NOT NULL,
     http_status_code INTEGER,
     response_size_bytes INTEGER,
-    has_title BOOLEAN NOT NULL DEFAULT 0,
-    has_content BOOLEAN NOT NULL DEFAULT 0,
-    has_author BOOLEAN NOT NULL DEFAULT 0,
-    has_publish_date BOOLEAN NOT NULL DEFAULT 0,
+    has_title BOOLEAN NOT NULL DEFAULT FALSE,
+    has_content BOOLEAN NOT NULL DEFAULT FALSE,
+    has_author BOOLEAN NOT NULL DEFAULT FALSE,
+    has_publish_date BOOLEAN NOT NULL DEFAULT FALSE,
     content_length INTEGER,
     title_length INTEGER,
     author_count INTEGER,
     content_quality_score REAL,
     error_message TEXT,
     error_type TEXT,
-    is_success BOOLEAN NOT NULL DEFAULT 0,
-    is_content_success BOOLEAN NOT NULL DEFAULT 0,
-    is_technical_failure BOOLEAN NOT NULL DEFAULT 0,
-    is_bot_protection BOOLEAN NOT NULL DEFAULT 0,
+    is_success BOOLEAN NOT NULL DEFAULT FALSE,
+    is_content_success BOOLEAN NOT NULL DEFAULT FALSE,
+    is_technical_failure BOOLEAN NOT NULL DEFAULT FALSE,
+    is_bot_protection BOOLEAN NOT NULL DEFAULT FALSE,
     metadata TEXT,
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )
@@ -188,12 +188,12 @@ class ExtractionTelemetry:
 
         status = "extracted" if extraction_result.is_success else "error"
 
-        def writer(conn: sqlite3.Connection) -> None:
+        def writer(conn: Any) -> None:
             conn.execute(insert_query, outcome_data)
             conn.execute(
                 """
                 UPDATE articles
-                SET status = ?, processed_at = datetime('now')
+                SET status = ?, processed_at = CURRENT_TIMESTAMP
                 WHERE id = ?
                 """,
                 (status, article_id),
@@ -237,7 +237,7 @@ class ExtractionTelemetry:
 
         try:
             with self._store.connection() as conn:
-                conn.row_factory = sqlite3.Row
+                # Connection wrapper handles result formatting
                 cursor = conn.execute(query, params)
                 return [dict(row) for row in cursor.fetchall()]
         except Exception as exc:

@@ -114,23 +114,25 @@ class _ConnectionWrapper:
         self._conn = sqlalchemy_conn
         self._in_transaction = False
 
-    def execute(self, sql: str, parameters: tuple | None = None):
-        """Execute SQL with sqlite3-style ? placeholders."""
+    def execute(self, sql: str, parameters: tuple | dict | None = None):
+        """Execute SQL with sqlite3-style ? placeholders or :named placeholders."""
         # Wrap raw SQL in text() for SQLAlchemy
         if parameters:
-            # Convert tuple parameters to dict for SQLAlchemy
-            # Count ? placeholders and create param dict
-            param_count = sql.count("?")
-            if param_count > 0 and parameters:
-                # Replace ? with :param0, :param1, etc.
-                adapted_sql = sql
-                params_dict = {}
-                for i, value in enumerate(parameters):
-                    adapted_sql = adapted_sql.replace("?", f":param{i}", 1)
-                    params_dict[f"param{i}"] = value
-                result = self._conn.execute(text(adapted_sql), params_dict)
-            else:
+            if isinstance(parameters, dict):
+                # Named parameters: already in SQLAlchemy format
                 result = self._conn.execute(text(sql), parameters)
+            else:
+                # Positional parameters: Replace ? with :param0, :param1, etc.
+                param_count = sql.count("?")
+                if param_count > 0:
+                    adapted_sql = sql
+                    params_dict = {}
+                    for i, value in enumerate(parameters):
+                        adapted_sql = adapted_sql.replace("?", f":param{i}", 1)
+                        params_dict[f"param{i}"] = value
+                    result = self._conn.execute(text(adapted_sql), params_dict)
+                else:
+                    result = self._conn.execute(text(sql), parameters)
         else:
             result = self._conn.execute(text(sql))
 
@@ -219,36 +221,103 @@ class _CursorWrapper:
         pass
 
 
+class _RowProxy:
+    """Proxy that provides both tuple and dict-like access to SQLAlchemy Row objects.
+    
+    SQLAlchemy Row objects can lose their key mapping when detached from the result,
+    so we capture both the tuple data and the mapping during construction.
+    """
+
+    def __init__(self, row):
+        self._tuple = tuple(row)
+        self._mapping = dict(row._mapping) if hasattr(row, "_mapping") else {}
+
+    def __getitem__(self, key):
+        """Support both integer (tuple) and string (dict) access."""
+        if isinstance(key, int):
+            return self._tuple[key]
+        elif isinstance(key, str):
+            return self._mapping[key]
+        else:
+            raise TypeError(f"indices must be integers or strings, not {type(key)}")
+
+    def __iter__(self):
+        """Iterate over tuple values."""
+        return iter(self._tuple)
+
+    def __len__(self):
+        """Return length of tuple."""
+        return len(self._tuple)
+
+    def __repr__(self):
+        """Show tuple representation."""
+        return repr(self._tuple)
+
+    def __eq__(self, other):
+        """Support equality comparison with tuples and other _RowProxy objects."""
+        if isinstance(other, _RowProxy):
+            return self._tuple == other._tuple
+        elif isinstance(other, tuple):
+            return self._tuple == other
+        return False
+
+    def __hash__(self):
+        """Make _RowProxy hashable."""
+        return hash(self._tuple)
+
+
 class _ResultWrapper:
-    """Wrapper that makes SQLAlchemy CursorResult behave like sqlite3.Cursor."""
+    """Wrapper that makes SQLAlchemy CursorResult behave like sqlite3.Cursor.
+    
+    Ensures rows support dict-like access for both SQLite and PostgreSQL.
+    """
 
     def __init__(self, result):
         self._result = result
         self._cached_description = None
+        self._keys = None
+        
+        # Cache column names for dict conversion
+        # DDL statements (CREATE TABLE, etc.) don't return rows
+        if hasattr(result, "keys"):
+            try:
+                self._keys = list(result.keys())
+            except Exception:
+                # ResourceClosedError for DDL, or result doesn't return rows
+                self._keys = None
 
     @property
     def description(self):
         """Provide sqlite3-style description attribute."""
         if self._cached_description is None:
             # Get column names from the result
-            if hasattr(self._result, "keys"):
-                keys = self._result.keys()
+            if self._keys:
                 # Format as [(name, None, None, None, None, None, None), ...]
                 # to match sqlite3.Cursor.description format
                 self._cached_description = [
-                    (key, None, None, None, None, None, None) for key in keys
+                    (key, None, None, None, None, None, None) for key in self._keys
                 ]
             else:
                 self._cached_description = []
         return self._cached_description
 
     def fetchone(self):
-        """Fetch one row."""
-        return self._result.fetchone()
+        """Fetch one row, preserving both integer and dict-like access."""
+        row = self._result.fetchone()
+        if row is not None:
+            # Wrap in proxy to preserve both access patterns
+            return _RowProxy(row)
+        return None
 
     def fetchall(self):
-        """Fetch all rows."""
-        return self._result.fetchall()
+        """Fetch all rows, preserving both integer and dict-like access."""
+        # SQLAlchemy Row objects lose their key mapping when detached from result
+        # Convert to _RowMapping which supports both access patterns reliably
+        rows = self._result.fetchall()
+        if rows:
+            # Convert each Row to a custom wrapper that supports both access patterns
+            return [_RowProxy(row) for row in rows]
+        return rows
 
     def close(self):
         """Close the result."""

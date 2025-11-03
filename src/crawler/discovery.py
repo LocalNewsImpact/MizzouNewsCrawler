@@ -120,7 +120,7 @@ class NewsDiscovery:
 
     def __init__(
         self,
-        database_url: str = "sqlite:///data/mizzou.db",
+        database_url: str | None = None,
         user_agent: str | None = None,
         timeout: int = 30,
         delay: float = 2.0,
@@ -130,14 +130,17 @@ class NewsDiscovery:
         """Initialize the discovery system.
 
         Args:
-            database_url: Database connection string
+            database_url: Database connection string. When omitted, fall back
+                to the configured ``DATABASE_URL`` (or the local SQLite
+                default during development/tests).
             user_agent: User agent string for requests
             timeout: Request timeout in seconds
             delay: Delay between requests in seconds
             max_articles_per_source: Maximum candidate URLs per source
             days_back: How many days back to look for articles
         """
-        self.database_url = database_url
+        resolved_database_url = self._resolve_database_url(database_url)
+        self.database_url = resolved_database_url
         self.user_agent = (
             user_agent or "Mozilla/5.0 (compatible; MizzouNewsCrawler/2.0)"
         )
@@ -181,8 +184,9 @@ class NewsDiscovery:
             logger.info("StorySniffer not available, using newspaper4k/RSS")
 
         # Initialize telemetry tracker
+        telemetry_database_url = resolved_database_url if database_url else None
         self.telemetry = create_telemetry_system(
-            database_url=self.database_url,
+            database_url=telemetry_database_url,
         )
 
         logger.info(f"NewsDiscovery initialized with {days_back}-day window")
@@ -191,6 +195,41 @@ class NewsDiscovery:
             f"{self.cutoff_date.strftime('%Y-%m-%d')} will be filtered out"
         )
         self._known_hosts_cache: set[str] | None = None
+
+    @staticmethod
+    def _resolve_database_url(candidate: str | None) -> str:
+        if candidate:
+            return candidate
+
+        env_db = os.getenv("DATABASE_URL")
+        running_pytest = bool(os.getenv("PYTEST_CURRENT_TEST"))
+        keep_env = os.getenv("PYTEST_KEEP_DB_ENV", "").lower() == "true"
+
+        if env_db and not env_db.startswith("sqlite:///:memory"):
+            return env_db
+
+        configured_url: str | None = None
+        try:
+            from src.config import DATABASE_URL as configured_database_url
+
+            configured_url = configured_database_url
+        except Exception:
+            configured_url = None
+
+        if running_pytest and not keep_env:
+            forced_test_url = os.getenv("PYTEST_DATABASE_URL")
+            if forced_test_url:
+                return forced_test_url
+
+            if configured_url and configured_url.startswith("sqlite"):
+                return configured_url
+
+            return "sqlite:///data/mizzou.db"
+
+        if configured_url:
+            return configured_url
+
+        return "sqlite:///data/mizzou.db"
 
     def _configure_proxy_routing(self) -> None:
         """Configure proxy adapter and proxy pool for the discovery session."""
@@ -907,7 +946,14 @@ class NewsDiscovery:
                 LEFT JOIN candidate_links cl ON s.id = cl.source_host_id
                 {join_clause}
                 WHERE {where_sql}
-                GROUP BY s.id, s.canonical_name, s.host, s.metadata, s.city, s.county, s.type
+                GROUP BY
+                    s.id,
+                    s.canonical_name,
+                    s.host,
+                    s.metadata,
+                    s.city,
+                    s.county,
+                    s.type
                 ORDER BY discovery_attempted ASC, s.canonical_name ASC
                 """
 
@@ -965,14 +1011,19 @@ class NewsDiscovery:
                             last_disc = meta.get("last_discovery_at") if meta else None
                             freq = meta.get("frequency") if meta else None
                             logger.debug(
-                                f"⏭️  Skipping {row.get('name', 'unknown')}: not due for discovery "
-                                f"(frequency={freq}, last_discovery={last_disc})"
+                                "⏭️  Skipping %s: not due for discovery "
+                                "(frequency=%s, last_discovery=%s)",
+                                row.get("name", "unknown"),
+                                freq,
+                                last_disc,
                             )
                     except Exception as e:
-                        # On error, default to scheduling the source to avoid silent failures
+                        # On error, default to scheduling the source.
+                        # This avoids silent failures when metadata is malformed.
                         logger.warning(
-                            f"Error checking schedule for {row.get('name', 'unknown')}: {e}. "
-                            "Defaulting to schedule source."
+                            "Error checking schedule for %s: %s. Scheduling anyway.",
+                            row.get("name", "unknown"),
+                            e,
                         )
                         is_due = True
                     due_mask.append(is_due)
@@ -2025,9 +2076,8 @@ class NewsDiscovery:
             print(f"   Sources available: {source_stats.get('sources_available', 0)}")
             print(f"   Sources due for discovery: {source_stats.get('sources_due', 0)}")
             if source_stats.get("sources_skipped", 0) > 0:
-                print(
-                    f"   Sources skipped (not due): {source_stats.get('sources_skipped', 0)}"
-                )
+                skipped = source_stats.get("sources_skipped", 0)
+                print("   Sources skipped (not due): {}".format(skipped))
             print(f"   Sources to process: {len(sources_df)}")
             print()
 
@@ -2251,10 +2301,10 @@ def get_sources_from_db(db_manager, dataset_id=None, limit=None):
         result = safe_session_execute(db_manager.session, query).fetchall()
         return [
             {
-                "id": row[0],
-                "host": row[1],
-                "canonical_name": row[2],
-                "url": f"https://{row[1]}",
+                "id": row["id"],
+                "host": row["host"],
+                "canonical_name": row["canonical_name"],
+                "url": f"https://{row['host']}",
             }
             for row in result
         ]
@@ -2269,7 +2319,7 @@ def run_discovery_pipeline(
     source_limit: int | None = None,
     source_filter: str | None = None,
     source_uuids: list[str] | None = None,
-    database_url: str = "sqlite:///data/mizzou.db",
+    database_url: str | None = None,
     max_articles_per_source: int = 50,
     days_back: int = 7,
     host_filter: str | None = None,

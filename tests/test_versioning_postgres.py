@@ -1,6 +1,9 @@
 import os
+from typing import Any
 
 import pytest
+
+pytestmark = [pytest.mark.postgres, pytest.mark.integration]
 
 POSTGRES_DSN = os.environ.get("POSTGRES_TEST_DSN")
 
@@ -15,6 +18,9 @@ def test_export_snapshot_postgres(tmp_path):
         create_versioning_tables,
         export_snapshot_for_version,
     )
+    from sqlalchemy import text
+
+    assert POSTGRES_DSN is not None
 
     engine = create_database_engine(POSTGRES_DSN)
 
@@ -25,21 +31,25 @@ def test_export_snapshot_postgres(tmp_path):
     table_name = "test_articles"
     with engine.begin() as conn:
         conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS test_articles (
-                id SERIAL PRIMARY KEY,
-                title TEXT
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS test_articles (
+                    id SERIAL PRIMARY KEY,
+                    title TEXT
+                )
+                """
             )
-            """
         )
         # clear and insert sample rows
-        conn.execute("TRUNCATE TABLE test_articles")
-        conn.execute("INSERT INTO test_articles (title) VALUES ('a'), ('b'), ('c')")
+        conn.execute(text("TRUNCATE TABLE test_articles"))
+        conn.execute(
+            text("INSERT INTO test_articles (title) VALUES ('a'), ('b'), ('c')")
+        )
 
     dv = create_dataset_version("test", "v-postgres", database_url=POSTGRES_DSN)
 
     out = tmp_path / "snapshot.parquet"
-    dv2 = export_snapshot_for_version(
+    dv2: Any = export_snapshot_for_version(
         dv.id, table_name, str(out), database_url=POSTGRES_DSN
     )
 

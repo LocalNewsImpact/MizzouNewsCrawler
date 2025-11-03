@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 
 import pytest
+from sqlalchemy.exc import OperationalError as SQLAlchemyOperationalError
 
 from src.telemetry.store import TelemetryStore
 from src.utils.telemetry import (
@@ -78,7 +79,7 @@ def test_operation_lifecycle_handles_retry(tracker_factory, monkeypatch):
             executed_statements.append(sql.strip().split()[0].upper())
             if "INSERT INTO operations" in sql and fail_flag["remaining"]:
                 fail_flag["remaining"] -= 1
-                raise sqlite3.OperationalError("simulated lock")
+                raise SQLAlchemyOperationalError("simulated lock", None, None)
             if params is None:
                 return self._cursor.execute(sql)
             return self._cursor.execute(sql, params)
