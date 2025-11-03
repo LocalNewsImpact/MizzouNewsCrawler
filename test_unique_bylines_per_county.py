@@ -13,9 +13,19 @@ def test_unique_bylines_query():
     
     # Connect to database
     db = DatabaseManager()
+    session = db.session
     
-    # PostgreSQL version of the query
-    postgresql_query = """
+    # Detect database dialect and use appropriate aggregate function
+    dialect = session.bind.dialect.name
+    if dialect == 'sqlite':
+        agg_func = "GROUP_CONCAT(author, ', ')"
+        print("Testing with SQLite...")
+    else:
+        agg_func = "STRING_AGG(author, ', ' ORDER BY author)"
+        print("Testing with PostgreSQL...")
+    
+    # Build query with appropriate aggregate function
+    query = f"""
     WITH author_counties AS (
         SELECT DISTINCT
             a.author,
@@ -39,17 +49,14 @@ def test_unique_bylines_query():
     SELECT 
         only_county as county,
         COUNT(*) as unique_author_count,
-        STRING_AGG(author, ', ' ORDER BY author) as unique_authors
+        {agg_func} as unique_authors
     FROM author_county_counts
     GROUP BY only_county
     ORDER BY unique_author_count DESC, county;
     """
     
-    print("Testing PostgreSQL query...")
     print("=" * 80)
-    
-    session = db.session
-    result = session.execute(text(postgresql_query))
+    result = session.execute(text(query))
     rows = result.fetchall()
     
     if not rows:
@@ -103,7 +110,7 @@ def test_unique_bylines_query():
     SELECT 
         only_county as county,
         COUNT(*) as unique_author_count,
-        STRING_AGG(authors, ', ' ORDER BY authors) as unique_authors
+        STRING_AGG(authors, ', ') as unique_authors
     FROM author_county_counts
     GROUP BY only_county
     ORDER BY unique_author_count DESC, county;

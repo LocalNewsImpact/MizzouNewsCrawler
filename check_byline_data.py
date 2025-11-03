@@ -73,7 +73,15 @@ def check_data():
     
     # Check author distribution
     print("Authors appearing in multiple counties:")
-    result = session.execute(text("""
+    
+    # Use appropriate aggregate function based on database dialect
+    dialect = session.bind.dialect.name
+    if dialect == 'sqlite':
+        agg_func = "GROUP_CONCAT(county, ', ')"
+    else:
+        agg_func = "STRING_AGG(county, ', ')"
+    
+    query = f"""
         WITH author_counties AS (
             SELECT DISTINCT
                 a.author,
@@ -88,13 +96,14 @@ def check_data():
         SELECT 
             author,
             COUNT(DISTINCT county) as county_count,
-            STRING_AGG(DISTINCT county, ', ') as counties
+            {agg_func} as counties
         FROM author_counties
         GROUP BY author
         HAVING COUNT(DISTINCT county) > 1
         ORDER BY county_count DESC
         LIMIT 10
-    """))
+    """
+    result = session.execute(text(query))
     rows = result.fetchall()
     if rows:
         for row in rows:
