@@ -277,6 +277,11 @@ def _apply_schema(conn: Any, statements: Iterable[str]) -> None:
                     logging.getLogger(__name__).debug(
                         "Telemetry DDL failed (continuing): %s -- %s", statement, e
                     )
+                    # Rollback the failed transaction before continuing
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
                     continue
                 # If it's an unexpected exception, re-raise it.
                 raise
@@ -1991,11 +1996,11 @@ class OperationTracker:
                         source_url=row["source_url"],
                         discovery_method=DiscoveryMethod(row["discovery_method"]),
                         status=DiscoveryMethodStatus(row["status"]),
-                        articles_found=row["articles_found"],
-                        success_rate=row["success_rate"],
+                        articles_found=int(row["articles_found"]),
+                        success_rate=float(row["success_rate"]),
                         last_attempt=_parse_timestamp(row["last_attempt"]),
-                        attempt_count=row["attempt_count"],
-                        avg_response_time_ms=row["avg_response_time_ms"],
+                        attempt_count=int(row["attempt_count"]),
+                        avg_response_time_ms=float(row["avg_response_time_ms"]),
                         last_status_codes=json.loads(row["last_status_codes"] or "[]"),
                         notes=row["notes"],
                     )
