@@ -38,6 +38,10 @@ except ImportError:
 from src.crawler.origin_proxy import enable_origin_proxy  # noqa: E402
 from src.crawler.proxy_config import get_proxy_manager  # noqa: E402
 from src.models.database import DatabaseManager, safe_execute  # noqa: E402
+from src.utils.telemetry import (  # noqa: E402
+    OperationTracker,
+    create_telemetry_system,
+)
 
 _DEFAULT_HTTP_HEADERS: dict[str, str] = {
     "User-Agent": (
@@ -88,15 +92,22 @@ class URLVerificationService:
         http_retry_attempts: int = 3,
         http_backoff_seconds: float = 0.5,
         http_headers: Mapping[str, str] | None = None,
+        telemetry_tracker: OperationTracker | None = None,
     ):
         """Initialize the verification service.
 
         Args:
             batch_size: Number of URLs to process in each batch
             sleep_interval: Seconds to wait between batches when no work
+            telemetry_tracker: Optional telemetry tracker for recording metrics
         """
         self.batch_size = batch_size
         self.sleep_interval = sleep_interval
+        
+        # Initialize telemetry
+        if telemetry_tracker is None:
+            telemetry_tracker = create_telemetry_system()
+        self.telemetry = telemetry_tracker
         # Determine whether to run lightweight HTTP checks before StorySniffer.
         # Default is False to preserve existing test behavior. If the caller
         # passes None, consult the environment variable RUN_HTTP_PRECHECK.
@@ -536,23 +547,28 @@ class URLVerificationService:
     def save_telemetry_summary(
         self, batch_metrics: dict, candidates: list[dict], job_name: str
     ):
-        """Save telemetry summary to a simple log file."""
-        summary = {
-            "timestamp": datetime.now().isoformat(),
-            "job_name": job_name,
-            "batch_size": len(candidates),
-            "metrics": batch_metrics,
-            "sources_processed": list(
-                set(c.get("source_name", "Unknown") for c in candidates)
+        """Save telemetry summary to database."""
+        sources = list(set(c.get("source_name", "Unknown") for c in candidates))
+        
+        self.telemetry.record_verification_batch(
+            job_name=job_name,
+            batch_size=len(candidates),
+            verified_articles=batch_metrics.get("verified_articles", 0),
+            verified_non_articles=batch_metrics.get("verified_non_articles", 0),
+            verification_errors=batch_metrics.get("verification_errors", 0),
+            total_processed=batch_metrics.get("total_processed", 0),
+            batch_time_seconds=batch_metrics.get("batch_time_seconds", 0.0),
+            avg_verification_time_ms=batch_metrics.get(
+                "avg_verification_time_ms", 0.0
             ),
-        }
+            total_time_ms=batch_metrics.get("total_time_ms", 0.0),
+            sources_processed=sources,
+        )
 
-        # Write to telemetry log file
-        log_file = Path("verification_telemetry.log")
-        with open(log_file, "a") as f:
-            f.write(f"{summary}\n")
-
-        self.logger.info(f"Telemetry saved to {log_file}")
+        self.logger.info(
+            "Verification telemetry recorded to database: "
+            f"{batch_metrics.get('total_processed', 0)} URLs processed"
+        )
 
     def run_verification_loop(
         self,

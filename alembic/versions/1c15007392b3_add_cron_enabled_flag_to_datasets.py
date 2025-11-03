@@ -26,15 +26,27 @@ def upgrade() -> None:
     New custom source lists should set this to False to prevent accidental
     inclusion in automated processing.
     """
-    # Add column with default True for existing datasets
-    # Note: server_default='1' ensures existing datasets are cron-enabled
-    # New datasets will use Python-level default from the model
-    op.add_column(
-        'datasets',
-        sa.Column('cron_enabled', sa.Boolean(), nullable=False, server_default='1')
-    )
+    # Check if column already exists before adding
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    columns = [col['name'] for col in inspector.get_columns('datasets')]
+    
+    if 'cron_enabled' not in columns:
+        # Add column with default True for existing datasets
+        # Note: server_default='1' ensures existing datasets are cron-enabled
+        # New datasets will use Python-level default from the model
+        op.add_column(
+            'datasets',
+            sa.Column('cron_enabled', sa.Boolean(), nullable=False, server_default='1')
+        )
 
 
 def downgrade() -> None:
     """Remove cron_enabled column from datasets table."""
-    op.drop_column('datasets', 'cron_enabled')
+    # Check if column exists before dropping
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    columns = [col['name'] for col in inspector.get_columns('datasets')]
+    
+    if 'cron_enabled' in columns:
+        op.drop_column('datasets', 'cron_enabled')

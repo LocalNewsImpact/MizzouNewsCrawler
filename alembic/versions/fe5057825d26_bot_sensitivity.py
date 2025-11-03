@@ -22,8 +22,16 @@ depends_on = None
 def upgrade() -> None:
     """Add bot sensitivity columns to sources table."""
     
-    # Check if we're using SQLite (for batch mode)
+    # Check if column already exists
     bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    columns = [col['name'] for col in inspector.get_columns('sources')]
+    
+    if 'bot_sensitivity' in columns:
+        # Column already exists, skip
+        return
+    
+    # Check if we're using SQLite (for batch mode)
     is_sqlite = bind.dialect.name == 'sqlite'
     
     if is_sqlite:

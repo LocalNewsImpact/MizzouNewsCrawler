@@ -479,12 +479,41 @@ _JOBS_SCHEMA = (
     """,
 )
 
+_VERIFICATION_SCHEMA = (
+    """
+    CREATE TABLE IF NOT EXISTS verification_telemetry (
+        id SERIAL PRIMARY KEY,
+        timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        job_name VARCHAR(255),
+        batch_size INTEGER NOT NULL,
+        verified_articles INTEGER NOT NULL DEFAULT 0,
+        verified_non_articles INTEGER NOT NULL DEFAULT 0,
+        verification_errors INTEGER NOT NULL DEFAULT 0,
+        total_processed INTEGER NOT NULL DEFAULT 0,
+        batch_time_seconds REAL NOT NULL,
+        avg_verification_time_ms REAL NOT NULL,
+        total_time_ms REAL NOT NULL,
+        sources_processed TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_verification_telemetry_timestamp 
+        ON verification_telemetry(timestamp DESC)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_verification_telemetry_job_name 
+        ON verification_telemetry(job_name)
+    """,
+)
+
 _BASE_SCHEMA = (
     *_JOBS_SCHEMA,
     *_OPERATIONS_SCHEMA,
     *_HTTP_STATUS_SCHEMA,
     *_DISCOVERY_METHOD_SCHEMA,
     *_DISCOVERY_OUTCOMES_SCHEMA,
+    *_VERIFICATION_SCHEMA,
 )
 
 
@@ -757,9 +786,18 @@ class OperationTracker:
                 cursor = conn.cursor()
                 try:
                     cursor.execute(insert_sql, outcome_data)
+                    conn.commit()  # Explicit commit to clear transaction
                     return
                 except DB_ERRORS as exc:
-                    conn.rollback()
+                    if attempt == retries - 1:
+                        # Last attempt - let exception propagate
+                        self.logger.error(
+                            "Failed to record discovery outcome for %s after %d retries: %s",
+                            source_name,
+                            retries,
+                            exc,
+                        )
+                        raise
                     self.logger.warning(
                         "Database error on discovery outcome write (%d/%d): %s",
                         attempt + 1,
@@ -770,11 +808,6 @@ class OperationTracker:
                     backoff *= 2
                 finally:
                     cursor.close()
-
-            self.logger.error(
-                "Failed to record discovery outcome for %s after retries",
-                source_name,
-            )
 
         self._store.submit(writer, ensure=_DISCOVERY_OUTCOMES_SCHEMA)
 
@@ -1257,15 +1290,24 @@ class OperationTracker:
                             job_update_values,
                         )
 
+                    conn.commit()  # Explicit commit to clear transaction
                     return
                 except DB_ERRORS as exc:
-                    conn.rollback()
                     if _is_missing_table_error(exc):
                         self.logger.warning(
                             "Telemetry store missing operations table; skipping update",
                         )
                         return
 
+                    if attempt == retries - 1:
+                        # Last attempt - let exception propagate
+                        self.logger.error(
+                            "Failed to update operations record for %s after %d retries: %s",
+                            operation_id,
+                            retries,
+                            exc,
+                        )
+                        raise
                     self.logger.warning(
                         "Database error on operations write (%d/%d): %s",
                         attempt + 1,
@@ -1276,11 +1318,6 @@ class OperationTracker:
                     backoff *= 2
                 finally:
                     cursor.close()
-
-            self.logger.error(
-                "Failed to update operations record for %s after retries",
-                operation_id,
-            )
 
         self._store.submit(writer, ensure=_OPERATIONS_SCHEMA)
 
@@ -1554,6 +1591,99 @@ class OperationTracker:
 
         return "\n".join(report)
 
+    def record_verification_batch(
+        self,
+        *,
+        job_name: str,
+        batch_size: int,
+        verified_articles: int,
+        verified_non_articles: int,
+        verification_errors: int,
+        total_processed: int,
+        batch_time_seconds: float,
+        avg_verification_time_ms: float,
+        total_time_ms: float,
+        sources_processed: list[str],
+    ) -> None:
+        """Record verification batch metrics to database.
+
+        Args:
+            job_name: Name of the verification job
+            batch_size: Number of URLs in the batch
+            verified_articles: Count of URLs classified as articles
+            verified_non_articles: Count of URLs classified as non-articles
+            verification_errors: Count of verification failures
+            total_processed: Total URLs processed successfully
+            batch_time_seconds: Time to process entire batch
+            avg_verification_time_ms: Average time per URL
+            total_time_ms: Cumulative verification time
+            sources_processed: List of source names in this batch
+        """
+        if not self._store:
+            return
+
+        payload = {
+            "job_name": job_name,
+            "batch_size": batch_size,
+            "verified_articles": verified_articles,
+            "verified_non_articles": verified_non_articles,
+            "verification_errors": verification_errors,
+            "total_processed": total_processed,
+            "batch_time_seconds": batch_time_seconds,
+            "avg_verification_time_ms": avg_verification_time_ms,
+            "total_time_ms": total_time_ms,
+            "sources_processed": json.dumps(sources_processed),
+            "timestamp": datetime.now(timezone.utc),
+        }
+
+        insert_sql = """
+            INSERT INTO verification_telemetry (
+                timestamp, job_name, batch_size, verified_articles,
+                verified_non_articles, verification_errors, total_processed,
+                batch_time_seconds, avg_verification_time_ms, total_time_ms,
+                sources_processed
+            ) VALUES (
+                :timestamp, :job_name, :batch_size, :verified_articles,
+                :verified_non_articles, :verification_errors, :total_processed,
+                :batch_time_seconds, :avg_verification_time_ms, :total_time_ms,
+                :sources_processed
+            )
+        """
+
+        def writer(conn: Any) -> None:
+            retries = 3
+            backoff = 0.1
+            for attempt in range(retries):
+                cursor = conn.cursor()
+                try:
+                    cursor.execute(insert_sql, payload)
+                    conn.commit()  # Explicit commit to clear transaction
+                    return
+                except DB_ERRORS as exc:
+                    if _is_missing_table_error(exc):
+                        self.logger.warning("verification_telemetry table missing")
+                        return
+                    if attempt < retries - 1:
+                        self.logger.warning(
+                            "Verification telemetry write retry %d/%d: %s",
+                            attempt + 1,
+                            retries,
+                            exc,
+                        )
+                        time.sleep(backoff)
+                        backoff *= 2
+                    else:
+                        self.logger.error(
+                            "Failed to write verification telemetry "
+                            "after %d retries: %s",
+                            retries,
+                            exc,
+                        )
+                finally:
+                    cursor.close()
+
+        self._store.submit(writer, ensure=_VERIFICATION_SCHEMA)
+
     def track_http_status(
         self,
         operation_id: str,
@@ -1790,9 +1920,9 @@ class OperationTracker:
                         """,
                         payload,
                     )
+                    conn.commit()  # Explicit commit to clear transaction
                     return
                 except DB_ERRORS as exc:
-                    conn.rollback()
                     if _is_missing_table_error(exc):
                         self.logger.warning(
                             "Telemetry store missing http_status_tracking table; "
@@ -1800,6 +1930,15 @@ class OperationTracker:
                         )
                         return
 
+                    if attempt == retries - 1:
+                        # Last attempt - let exception propagate
+                        self.logger.error(
+                            "Failed to store HTTP status tracking for %s after %d retries: %s",
+                            tracking.source_id,
+                            retries,
+                            exc,
+                        )
+                        raise
                     self.logger.warning(
                         "Database error on http_status insert (%d/%d): %s",
                         attempt + 1,
@@ -1810,11 +1949,6 @@ class OperationTracker:
                     backoff *= 2
                 finally:
                     cursor.close()
-
-            self.logger.error(
-                "Failed to store HTTP status tracking for %s after retries",
-                tracking.source_id,
-            )
 
         self._store.submit(writer, ensure=_HTTP_STATUS_SCHEMA)
 
@@ -1960,9 +2094,9 @@ class OperationTracker:
                             payload,
                         )
 
+                    conn.commit()  # Explicit commit to clear transaction
                     return
                 except DB_ERRORS as exc:
-                    conn.rollback()
                     if _is_missing_table_error(exc):
                         self.logger.warning(
                             "Telemetry store missing method effectiveness table; "
@@ -1970,6 +2104,15 @@ class OperationTracker:
                         )
                         return
 
+                    if attempt == retries - 1:
+                        # Last attempt - let exception propagate
+                        self.logger.error(
+                            "Failed to store method effectiveness for %s after %d retries: %s",
+                            effectiveness.source_id,
+                            retries,
+                            exc,
+                        )
+                        raise
                     self.logger.warning(
                         "Database error on method upsert (%d/%d): %s",
                         attempt + 1,
@@ -1980,11 +2123,6 @@ class OperationTracker:
                     backoff *= 2
                 finally:
                     cursor.close()
-
-            self.logger.error(
-                "Failed to store method effectiveness for %s after retries",
-                effectiveness.source_id,
-            )
 
         self._store.submit(writer, ensure=_DISCOVERY_METHOD_SCHEMA)
 
