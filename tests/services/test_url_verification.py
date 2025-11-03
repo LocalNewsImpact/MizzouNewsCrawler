@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import sys
-from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Iterator, Optional
 
@@ -199,14 +198,15 @@ def test_update_candidate_status_with_and_without_error(
     assert connection.executed[1]["candidate_id"] == "def"
 
 
-def test_save_telemetry_summary_writes_log(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_save_telemetry_summary_calls_telemetry_tracker(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Test that save_telemetry_summary calls record_verification_batch."""
+    from unittest.mock import Mock
+    
+    mock_tracker = Mock()
     service = _service()
-
-    path = tmp_path / "telemetry"
-    path.mkdir()
-    monkeypatch.chdir(path)
+    service.telemetry = mock_tracker
 
     metrics = {
         "total_processed": 2,
@@ -214,6 +214,8 @@ def test_save_telemetry_summary_writes_log(
         "verified_non_articles": 1,
         "verification_errors": 0,
         "avg_verification_time_ms": 12.3,
+        "batch_time_seconds": 1.5,
+        "total_time_ms": 1500.0,
     }
     candidates = [
         {"source_name": "Example Times"},
@@ -223,11 +225,17 @@ def test_save_telemetry_summary_writes_log(
 
     service.save_telemetry_summary(metrics, candidates, "job-123")
 
-    log_file = path / "verification_telemetry.log"
-    content = log_file.read_text()
-
-    assert "job-123" in content
-    assert "Example Times" in content
+    # Verify record_verification_batch was called
+    mock_tracker.record_verification_batch.assert_called_once()
+    call_kwargs = mock_tracker.record_verification_batch.call_args[1]
+    
+    assert call_kwargs["job_name"] == "job-123"
+    assert call_kwargs["batch_size"] == 3
+    assert call_kwargs["verified_articles"] == 1
+    assert call_kwargs["verified_non_articles"] == 1
+    assert call_kwargs["verification_errors"] == 0
+    assert call_kwargs["total_processed"] == 2
+    assert "Example Times" in call_kwargs["sources_processed"]
 
 
 def test_run_verification_loop_honors_max_batches(
