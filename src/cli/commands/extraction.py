@@ -482,10 +482,10 @@ def handle_extraction_command(args) -> int:
                         "(SELECT candidate_link_id FROM articles "
                         "WHERE candidate_link_id IS NOT NULL)"
                     )
-                    result = safe_session_execute(
+                    count_result = safe_session_execute(
                         db.session, query, {"dataset": dataset_uuid}
                     )
-                    remaining_count = _to_int(result.scalar(), 0)
+                    remaining_count = _to_int(count_result.scalar(), 0)
                 else:
                     # Count all remaining articles
                     query = text(
@@ -495,8 +495,8 @@ def handle_extraction_command(args) -> int:
                         "(SELECT candidate_link_id FROM articles "
                         "WHERE candidate_link_id IS NOT NULL)"
                     )
-                    result = safe_session_execute(db.session, query)
-                    remaining_count = _to_int(result.scalar(), 0)
+                    count_result = safe_session_execute(db.session, query)
+                    remaining_count = _to_int(count_result.scalar(), 0)
 
                 print(
                     f"✓ Batch {batch_num} complete: {articles_processed} "
