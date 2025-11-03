@@ -132,9 +132,11 @@ postgres-integration:
 
 ### 3. Production Code Changes Review
 
-**Telemetry datetime fixes are backward-compatible**:
+**Telemetry datetime fixes make queries cross-compatible**:
 
-**Before** (SQLite-specific):
+**Context**: The code already used PostgreSQL INTERVAL syntax (correct for production) that would fail in SQLite-based tests. These fixes provide cross-compatibility as an interim solution while SQLite is phased out. Long-term goal: eliminate all SQLite from production code and CI testing.
+
+**Before** (PostgreSQL-only, fails in SQLite):
 ```python
 query = f"""
     SELECT * FROM table
@@ -151,10 +153,10 @@ execute(query, (cutoff_time,))
 ```
 
 **Why this is safe**:
-- ✅ Works with both SQLite and PostgreSQL
+- ✅ Works with both SQLite and PostgreSQL (interim solution)
 - ✅ No functional changes to query logic
 - ✅ Parameterized queries prevent SQL injection
-- ✅ Python datetime calculations are more portable
+- ✅ Supports gradual SQLite elimination from codebase
 
 ## Deployment Steps
 

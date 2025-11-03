@@ -8,6 +8,8 @@
 
 This document provides a comprehensive summary of the PostgreSQL integration testing implementation for CLI commands, including coverage analysis, critical findings, and recommendations for ongoing maintenance.
 
+**Important Context**: The repository uses PostgreSQL in production and is actively working to eliminate SQLite from production code and CI testing. The datetime compatibility fixes in this PR provide cross-compatible queries as an interim solution during this transition.
+
 ## Test Coverage Summary
 
 ### New Integration Test Files
@@ -178,13 +180,15 @@ postgres-integration:
 
 ### Fixed Issues (HIGH PRIORITY)
 
+**Context**: The code already used PostgreSQL INTERVAL syntax (correct for production) that would fail in SQLite-based tests. These fixes make queries cross-compatible using Python datetime as an interim solution while SQLite is being phased out of the codebase. Long-term goal: eliminate all SQLite from production code and CI testing.
+
 #### 1. src/utils/comprehensive_telemetry.py:650
-**Before**:
+**Before** (PostgreSQL-only):
 ```python
 WHERE last_seen >= CURRENT_TIMESTAMP - INTERVAL '{days} days'
 ```
 
-**After**:
+**After** (Cross-compatible):
 ```python
 from datetime import timedelta
 cutoff_time = datetime.utcnow() - timedelta(days=days)
@@ -194,20 +198,20 @@ WHERE last_seen >= ?
 ```
 
 **Impact**: 
-- ✅ Works with both SQLite and PostgreSQL
+- ✅ Works with both SQLite and PostgreSQL (interim solution)
 - ✅ No functional change to query logic
 - ✅ Parameterized query prevents SQL injection
-- ✅ More portable across database engines
+- ✅ Allows gradual SQLite elimination from codebase
 
 #### 2. src/utils/comprehensive_telemetry.py:686
-**Before**:
+**Before** (PostgreSQL-only):
 ```python
 where_clauses.append(
     f"created_at >= CURRENT_TIMESTAMP - INTERVAL '{days} days'"
 )
 ```
 
-**After**:
+**After** (Cross-compatible):
 ```python
 from datetime import timedelta
 cutoff_time = datetime.utcnow() - timedelta(days=days)
@@ -215,16 +219,16 @@ where_clauses.append("created_at >= ?")
 params.append(cutoff_time)
 ```
 
-**Impact**: Same as above - cross-database compatibility
+**Impact**: Same as above - cross-compatible interim solution
 
 #### 3. src/services/url_verification_service.py:294
-**Before**:
+**Before** (PostgreSQL-only):
 ```python
 WHERE v.verification_job_id = :job_id
 AND v.verified_at >= CURRENT_TIMESTAMP - INTERVAL '1 minute'
 ```
 
-**After**:
+**After** (Cross-compatible):
 ```python
 from datetime import timedelta
 cutoff_time = datetime.now() - timedelta(minutes=1)
@@ -233,7 +237,7 @@ WHERE v.verification_job_id = :job_id
 AND v.verified_at >= :cutoff_time
 ```
 
-**Impact**: Same as above - cross-database compatibility
+**Impact**: Same as above - cross-compatible interim solution
 
 **Note**: This file (url_verification_service.py) appears to be unused in production, but fixed for completeness.
 
