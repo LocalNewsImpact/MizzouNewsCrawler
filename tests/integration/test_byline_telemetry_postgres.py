@@ -144,26 +144,26 @@ class TestBylineTelemetryPostgreSQL:
 
             assert row is not None, "Telemetry record not found in PostgreSQL"
 
-            # Verify core fields
-            assert row[0] == "By Jane Doe, Example News"  # raw_byline
+            # Verify core fields (use column names for dict-like access)
+            assert row["raw_byline"] == "By Jane Doe, Example News"
 
             # Parse and verify JSON field
-            final_authors = json.loads(row[1])  # final_authors_json
+            final_authors = json.loads(row["final_authors_json"])
             assert final_authors == ["Jane Doe"]
 
             # Verify boolean fields
-            assert row[2] or row[2] == 1  # has_email (handle both formats)
-            assert row[3] or row[3] == 1  # source_name_removed
-            assert row[4] or row[4] == 1  # likely_valid_authors
+            assert row["has_email"] or row["has_email"] == 1  # handle both formats
+            assert row["source_name_removed"] or row["source_name_removed"] == 1
+            assert row["likely_valid_authors"] or row["likely_valid_authors"] == 1
 
             # Verify numeric fields
-            assert abs(row[5] - 0.3) < 0.01  # confidence_score
+            assert abs(row["confidence_score"] - 0.3) < 0.01
 
             # Verify new schema columns exist and are NULL (not inserted)
-            assert row[6] is None  # human_label
-            assert row[7] is None  # human_notes
-            assert row[8] is None  # reviewed_by
-            assert row[9] is None  # reviewed_at
+            assert row["human_label"] is None
+            assert row["human_notes"] is None
+            assert row["reviewed_by"] is None
+            assert row["reviewed_at"] is None
 
             # Query transformation steps
             result = conn.execute(
@@ -175,8 +175,8 @@ class TestBylineTelemetryPostgreSQL:
             steps = result.fetchall()
 
             assert len(steps) == 2
-            assert steps[0][1] == "email_removal"
-            assert steps[1][1] == "source_removal"
+            assert steps[0]["step_name"] == "email_removal"
+            assert steps[1]["step_name"] == "source_removal"
 
     def test_schema_column_count_matches(self, postgres_store_with_alembic):
         """Verify the table has the expected number of columns.
@@ -195,7 +195,7 @@ class TestBylineTelemetryPostgreSQL:
                 ORDER BY ordinal_position
             """
             )
-            columns = [row[0] for row in result.fetchall()]
+            columns = [row["column_name"] for row in result.fetchall()]
 
             # Expected columns from Alembic migration (32 columns)
             expected_columns = [
@@ -309,9 +309,9 @@ class TestBylineTelemetryPostgreSQL:
             row = result.fetchone()
 
             assert row is not None
-            assert row[0] == "valid_author"
-            assert row[1] == "Looks good to me"
-            assert row[2] == "test_reviewer"
+            assert row["human_label"] == "valid_author"
+            assert row["human_notes"] == "Looks good to me"
+            assert row["reviewed_by"] == "test_reviewer"
 
 
 @pytest.mark.skipif(not HAS_POSTGRES, reason="PostgreSQL not configured")
