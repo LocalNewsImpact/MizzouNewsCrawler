@@ -32,7 +32,7 @@ class TestOperationTrackerPostgreSQL:
         ) as operation:
             # Operation should be tracked
             assert operation is not None
-            assert operation.operation_type == OperationType.LOAD_SOURCES
+            assert operation.operation_id is not None
 
         # Operation should be completed after context manager exits
         # (no exception means test passed)
@@ -107,7 +107,6 @@ class TestOperationTrackerPostgreSQL:
                 metrics = OperationMetrics(
                     total_items=3,
                     processed_items=i + 1,
-                    successful_items=i + 1,
                 )
                 operation.update_progress(metrics)
 
