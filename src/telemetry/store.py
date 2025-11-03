@@ -267,21 +267,6 @@ class _RowProxy:
 
 
 class _ResultWrapper:
-
-    def __eq__(self, other):
-        """Compare with tuple or another _RowProxy."""
-        if isinstance(other, _RowProxy):
-            return self._tuple == other._tuple
-        elif isinstance(other, tuple):
-            return self._tuple == other
-        return False
-
-    def __hash__(self):
-        """Make hashable like tuple."""
-        return hash(self._tuple)
-
-
-class _ResultWrapper:
     """Wrapper that makes SQLAlchemy CursorResult behave like sqlite3.Cursor.
     
     Ensures rows support dict-like access for both SQLite and PostgreSQL.
