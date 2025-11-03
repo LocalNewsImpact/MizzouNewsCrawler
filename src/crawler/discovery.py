@@ -2077,7 +2077,7 @@ class NewsDiscovery:
             print(f"   Sources due for discovery: {source_stats.get('sources_due', 0)}")
             if source_stats.get("sources_skipped", 0) > 0:
                 skipped = source_stats.get("sources_skipped", 0)
-                print("   Sources skipped (not due): {}".format(skipped))
+                print(f"   Sources skipped (not due): {skipped}")
             print(f"   Sources to process: {len(sources_df)}")
             print()
 

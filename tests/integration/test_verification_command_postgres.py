@@ -372,7 +372,7 @@ class TestVerificationTelemetryPostgres:
         result = cloud_sql_session.execute(
             update_query, {"candidate_id": candidate.id}
         )
-        processed_at = result.fetchone()[0]
+        result.fetchone()  # Execute the query but don't store result
         cloud_sql_session.commit()
         
         # Query to find recently processed candidates (using INTERVAL)

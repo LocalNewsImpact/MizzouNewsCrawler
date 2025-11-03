@@ -4,7 +4,7 @@ This script finds bylines that appear ONLY in articles from a specific county,
 not in any other county.
 """
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 from src.models.database import DatabaseManager
 
 
