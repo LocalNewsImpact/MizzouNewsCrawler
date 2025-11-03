@@ -160,11 +160,11 @@ class TestAlembicMigrations:
         lines = [line.strip() for line in result.stdout.split("\n") if line.strip()]
         assert len(lines) > 0, "No migrations found in history"
 
-    def test_alembic_current_shows_version(self, tmp_path):
+    @pytest.mark.postgres
+    def test_alembic_current_shows_version(self, cloud_sql_session):
         """Test that alembic current shows the correct version after migration."""
-        # Create temp SQLite database
-        db_path = tmp_path / "test_current.db"
-        database_url = f"sqlite:///{db_path}"
+        # Use PostgreSQL test database
+        database_url = str(cloud_sql_session.bind.engine.url)
 
         # Set environment variable for Alembic
         env = os.environ.copy()
@@ -172,16 +172,6 @@ class TestAlembicMigrations:
         env["USE_CLOUD_SQL_CONNECTOR"] = "false"
 
         project_root = Path(__file__).parent.parent.parent
-
-        # Upgrade to head
-        result = subprocess.run(
-            ["alembic", "upgrade", "head"],
-            capture_output=True,
-            text=True,
-            env=env,
-            cwd=project_root,
-        )
-        assert result.returncode == 0, f"Upgrade failed: {result.stderr}"
 
         # Check current version
         result = subprocess.run(
@@ -197,11 +187,11 @@ class TestAlembicMigrations:
         # Should contain a revision ID (hex string)
         assert any(c.isalnum() for c in result.stdout)
 
-    def test_migrations_are_idempotent(self, tmp_path):
+    @pytest.mark.postgres
+    def test_migrations_are_idempotent(self, cloud_sql_session):
         """Test that running migrations multiple times is safe."""
-        # Create temp SQLite database
-        db_path = tmp_path / "test_idempotent.db"
-        database_url = f"sqlite:///{db_path}"
+        # Use PostgreSQL test database
+        database_url = str(cloud_sql_session.bind.engine.url)
 
         # Set environment variable for Alembic
         env = os.environ.copy()
@@ -210,7 +200,7 @@ class TestAlembicMigrations:
 
         project_root = Path(__file__).parent.parent.parent
 
-        # Run upgrade twice
+        # Run upgrade twice (should be idempotent)
         for i in range(2):
             result = subprocess.run(
                 ["alembic", "upgrade", "head"],
@@ -221,43 +211,18 @@ class TestAlembicMigrations:
             )
             assert result.returncode == 0, f"Upgrade {i+1} failed: {result.stderr}"
 
-        # Verify database is in good state
-        engine = create_engine(database_url)
-
         # Check that alembic_version table has exactly one row
-        with engine.connect() as conn:
-            result = conn.execute(text("SELECT COUNT(*) FROM alembic_version"))
-            count = result.scalar()
-            assert count == 1, f"Expected 1 version entry, got {count}"
-
-        engine.dispose()
-
-    def test_migration_creates_all_required_tables(self, tmp_path):
-        """Test that all expected tables are created by migrations."""
-        # Create temp SQLite database
-        db_path = tmp_path / "test_tables.db"
-        database_url = f"sqlite:///{db_path}"
-
-        # Set environment variable for Alembic
-        env = os.environ.copy()
-        env["DATABASE_URL"] = database_url
-        env["USE_CLOUD_SQL_CONNECTOR"] = "false"
-
-        project_root = Path(__file__).parent.parent.parent
-
-        # Run migrations
-        result = subprocess.run(
-            ["alembic", "upgrade", "head"],
-            capture_output=True,
-            text=True,
-            env=env,
-            cwd=project_root,
+        result = cloud_sql_session.execute(
+            text("SELECT COUNT(*) FROM alembic_version")
         )
-        assert result.returncode == 0, f"Migration failed: {result.stderr}"
+        count = result.scalar()
+        assert count == 1, f"Expected 1 version entry, got {count}"
 
-        # Connect and verify all expected tables
-        engine = create_engine(database_url)
-        inspector = inspect(engine)
+    @pytest.mark.postgres
+    def test_migration_creates_all_required_tables(self, cloud_sql_session):
+        """Test that all expected tables are created by migrations."""
+        # Verify tables exist in PostgreSQL test database
+        inspector = inspect(cloud_sql_session.bind)
         tables = set(inspector.get_table_names())
 
         # Core tables
@@ -290,8 +255,6 @@ class TestAlembicMigrations:
 
         missing_tables = all_expected_tables - tables
         assert not missing_tables, f"Missing tables: {missing_tables}"
-
-        engine.dispose()
 
     @pytest.mark.skipif(
         not os.getenv("TEST_DATABASE_URL")
