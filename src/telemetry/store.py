@@ -255,18 +255,15 @@ class _ResultWrapper:
         return self._cached_description
 
     def fetchone(self):
-        """Fetch one row as a dict-like object."""
+        """Fetch one row, preserving both integer and dict-like access."""
         row = self._result.fetchone()
-        if row is None:
-            return None
-        # SQLAlchemy 2.0 Row objects need ._mapping for dict-like access
-        return row._mapping if hasattr(row, "_mapping") else row
+        # Return row as-is - SQLAlchemy Row objects support both access patterns
+        return row
 
     def fetchall(self):
-        """Fetch all rows as dict-like objects."""
-        rows = self._result.fetchall()
-        # Convert SQLAlchemy Row objects to mappings for dict-like access
-        return [row._mapping if hasattr(row, "_mapping") else row for row in rows]
+        """Fetch all rows, preserving both integer and dict-like access."""
+        # Return rows as-is - SQLAlchemy Row objects support both access patterns
+        return self._result.fetchall()
 
     def close(self):
         """Close the result."""
