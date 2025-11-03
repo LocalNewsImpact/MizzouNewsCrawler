@@ -175,8 +175,11 @@ class TestNewsDiscoveryInitialization:
                 assert call_kwargs['database_url'] is None
 
     @patch('src.crawler.discovery.create_telemetry_system')
-    def test_no_database_url_falls_back_to_sqlite(self, mock_create_telemetry):
-        """NewsDiscovery without database_url and no config should use SQLite."""
+    def test_no_database_url_requires_postgresql(self, mock_create_telemetry):
+        """NewsDiscovery without database_url and no config should raise error.
+        
+        SQLite fallback has been removed - system must have PostgreSQL configured.
+        """
         mock_telemetry = MagicMock()
         mock_create_telemetry.return_value = mock_telemetry
         
@@ -185,11 +188,12 @@ class TestNewsDiscoveryInitialization:
             mock_config.DATABASE_URL = None
             sys.modules['src.config'] = mock_config
             
-            # Initialize NewsDiscovery without database_url
+            # Initialize NewsDiscovery without database_url should use None
+            # (DatabaseManager will handle the connection)
             discovery = NewsDiscovery()
             
-            # Verify database_url falls back to SQLite
-            assert discovery.database_url == "sqlite:///data/mizzou.db"
+            # Verify database_url is None (no SQLite fallback)
+            assert discovery.database_url is None
             
             # Verify telemetry was created with None
             mock_create_telemetry.assert_called_once()
@@ -333,8 +337,11 @@ class TestDatabaseUrlBehaviorIntegration:
                 assert call_kwargs['database_url'] is None
 
     @patch('src.crawler.discovery.create_telemetry_system')
-    def test_development_scenario_sqlite_fallback(self, mock_create_telemetry):
-        """Simulate development: no DATABASE_URL configured, falls back to SQLite."""
+    def test_development_scenario_requires_postgresql(self, mock_create_telemetry):
+        """Simulate development: no DATABASE_URL configured requires PostgreSQL.
+        
+        SQLite fallback removed - even in development, PostgreSQL must be configured.
+        """
         mock_telemetry = MagicMock()
         mock_create_telemetry.return_value = mock_telemetry
         
@@ -346,10 +353,10 @@ class TestDatabaseUrlBehaviorIntegration:
             # Initialize in development (no explicit database_url, no config)
             discovery = NewsDiscovery()
             
-            # Verify discovery falls back to SQLite
-            assert discovery.database_url == "sqlite:///data/mizzou.db"
+            # Verify discovery uses None (no SQLite fallback)
+            assert discovery.database_url is None
             
-            # Telemetry receives None (will also fall back to SQLite in dev)
+            # Telemetry receives None (will use DatabaseManager or fail)
             mock_create_telemetry.assert_called_once()
             call_kwargs = mock_create_telemetry.call_args[1]
             assert call_kwargs['database_url'] is None
