@@ -1654,11 +1654,10 @@ class OperationTracker:
             retries = 3
             backoff = 0.1
             for attempt in range(retries):
+                cursor = conn.cursor()
                 try:
-                    with self._store.connection() as fresh_conn:
-                        cursor = fresh_conn.cursor()
-                        cursor.execute(insert_sql, payload)
-                        cursor.close()
+                    cursor.execute(insert_sql, payload)
+                    conn.commit()  # Explicit commit to clear transaction
                     return
                 except DB_ERRORS as exc:
                     if _is_missing_table_error(exc):
@@ -1680,6 +1679,8 @@ class OperationTracker:
                             retries,
                             exc,
                         )
+                finally:
+                    cursor.close()
 
         self._store.submit(writer, ensure=_VERIFICATION_SCHEMA)
 
