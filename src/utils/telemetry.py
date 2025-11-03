@@ -758,10 +758,8 @@ class OperationTracker:
                 try:
                     cursor.execute(insert_sql, outcome_data)
                     conn.commit()  # Explicit commit to clear transaction
-                    cursor.close()
                     return
                 except DB_ERRORS as exc:
-                    cursor.close()
                     if attempt == retries - 1:
                         # Last attempt - let exception propagate
                         self.logger.error(
@@ -779,6 +777,8 @@ class OperationTracker:
                     )
                     time.sleep(backoff)
                     backoff *= 2
+                finally:
+                    cursor.close()
 
         self._store.submit(writer, ensure=_DISCOVERY_OUTCOMES_SCHEMA)
 
@@ -1262,10 +1262,8 @@ class OperationTracker:
                         )
 
                     conn.commit()  # Explicit commit to clear transaction
-                    cursor.close()
                     return
                 except DB_ERRORS as exc:
-                    cursor.close()
                     if _is_missing_table_error(exc):
                         self.logger.warning(
                             "Telemetry store missing operations table; skipping update",
@@ -1289,6 +1287,8 @@ class OperationTracker:
                     )
                     time.sleep(backoff)
                     backoff *= 2
+                finally:
+                    cursor.close()
 
         self._store.submit(writer, ensure=_OPERATIONS_SCHEMA)
 
@@ -1799,10 +1799,8 @@ class OperationTracker:
                         payload,
                     )
                     conn.commit()  # Explicit commit to clear transaction
-                    cursor.close()
                     return
                 except DB_ERRORS as exc:
-                    cursor.close()
                     if _is_missing_table_error(exc):
                         self.logger.warning(
                             "Telemetry store missing http_status_tracking table; "
@@ -1827,6 +1825,8 @@ class OperationTracker:
                     )
                     time.sleep(backoff)
                     backoff *= 2
+                finally:
+                    cursor.close()
 
         self._store.submit(writer, ensure=_HTTP_STATUS_SCHEMA)
 
@@ -1973,10 +1973,8 @@ class OperationTracker:
                         )
 
                     conn.commit()  # Explicit commit to clear transaction
-                    cursor.close()
                     return
                 except DB_ERRORS as exc:
-                    cursor.close()
                     if _is_missing_table_error(exc):
                         self.logger.warning(
                             "Telemetry store missing method effectiveness table; "
@@ -2001,6 +1999,8 @@ class OperationTracker:
                     )
                     time.sleep(backoff)
                     backoff *= 2
+                finally:
+                    cursor.close()
 
         self._store.submit(writer, ensure=_DISCOVERY_METHOD_SCHEMA)
 
