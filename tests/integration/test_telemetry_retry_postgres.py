@@ -55,11 +55,9 @@ def test_http_status_tracking_handles_transient_errors(cloud_sql_session, test_s
     2. Retries work without 25P02 transaction abort errors
     3. Data is successfully written after retry
     """
-    from src.models.database import DatabaseManager
-    
-    # Create tracker with the cloud_sql_session's engine
-    dbm = DatabaseManager(engine=cloud_sql_session.bind)
-    tracker = OperationTracker(dbm.engine)
+    # Create tracker directly with the test database URL
+    database_url = str(cloud_sql_session.bind.engine.url)
+    tracker = OperationTracker(database_url=database_url)
     
     tracking = HTTPStatusTracking(
         source_id=test_source.id,
@@ -115,16 +113,15 @@ def test_discovery_outcome_survives_retry_without_25P02_error(
     Simulates a scenario where the first attempt fails but the retry succeeds,
     verifying that we don't get the 25P02 transaction abort error.
     """
-    from src.models.database import DatabaseManager
     from src.utils.discovery_outcomes import DiscoveryOutcome, DiscoveryResult
     
-    # Create tracker with the cloud_sql_session's engine
-    dbm = DatabaseManager(engine=cloud_sql_session.bind)
-    tracker = OperationTracker(dbm.engine)
+    # Create tracker directly with the test database URL
+    database_url = str(cloud_sql_session.bind.engine.url)
+    tracker = OperationTracker(database_url=database_url)
     
     # Create a discovery result
     discovery_result = DiscoveryResult(
-        outcome=DiscoveryOutcome.SUCCESS,
+        outcome=DiscoveryOutcome.NEW_ARTICLES_FOUND,
         method_used="rss_feed",
         articles_found=5,
         articles_new=3,
@@ -132,9 +129,6 @@ def test_discovery_outcome_survives_retry_without_25P02_error(
         articles_expired=0,
         http_status=200,
         error_details=None,
-        is_success=True,
-        is_content_success=True,
-        is_technical_failure=False,
         metadata={
             "methods_attempted": ["rss_feed"],
             "discovery_time_ms": 150.5,
@@ -177,11 +171,11 @@ def test_telemetry_writer_commit_clears_transaction(cloud_sql_session, test_sour
     the transaction is properly cleared and subsequent operations
     don't encounter 25P02 errors.
     """
-    from src.models.database import DatabaseManager
     from src.telemetry.store import TelemetryStore
     
-    # Create a telemetry store with the cloud_sql_session's engine
-    store = TelemetryStore(engine=cloud_sql_session.bind, async_writes=False)
+    # Create a telemetry store with the test database URL
+    database_url = str(cloud_sql_session.bind.engine.url)
+    store = TelemetryStore(database=database_url, async_writes=False)
     
     # Track multiple writes in sequence
     write_count = 0
