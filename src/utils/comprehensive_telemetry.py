@@ -642,14 +642,19 @@ class ComprehensiveExtractionTelemetry:
 
     def get_error_summary(self, days: int = 7) -> list:
         """Get HTTP error summary for the last N days."""
+        # Use Python datetime to avoid SQL dialect issues
+        from datetime import timedelta
+        cutoff_time = datetime.utcnow() - timedelta(days=days)
+        
         with self._store.connection() as conn:
             cursor = conn.execute(
-                f"""
+                """
                 SELECT host, status_code, error_type, count, last_seen
                 FROM http_error_summary
-                WHERE last_seen >= CURRENT_TIMESTAMP - INTERVAL '{days} days'
+                WHERE last_seen >= ?
                 ORDER BY count DESC, last_seen DESC
-                """
+                """,
+                (cutoff_time,)
             )
             try:
                 columns = [col[0] for col in cursor.description]
@@ -677,9 +682,11 @@ class ComprehensiveExtractionTelemetry:
             params.extend(statuses)
 
         if days is not None:
-            where_clauses.append(
-                f"created_at >= CURRENT_TIMESTAMP - INTERVAL '{days} days'"
-            )
+            # Use Python datetime to avoid SQL dialect issues
+            from datetime import timedelta
+            cutoff_time = datetime.utcnow() - timedelta(days=days)
+            where_clauses.append("created_at >= ?")
+            params.append(cutoff_time)
 
         where_sql = ""
         if where_clauses:
