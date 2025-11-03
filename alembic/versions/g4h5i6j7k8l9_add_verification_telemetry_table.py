@@ -68,55 +68,56 @@ def upgrade():
             ON verification_telemetry(job_name)
     """)
 
-    # Add comments (PostgreSQL only)
-    op.execute("""
-        COMMENT ON TABLE verification_telemetry IS
-            'Stores batch metrics for URL verification operations'
-    """)
-    op.execute("""
-        COMMENT ON COLUMN verification_telemetry.timestamp IS
-            'When the batch was processed'
-    """)
-    op.execute("""
-        COMMENT ON COLUMN verification_telemetry.job_name IS
-            'Name of the verification job/workflow'
-    """)
-    op.execute("""
-        COMMENT ON COLUMN verification_telemetry.batch_size IS
-            'Number of URLs in the batch'
-    """)
-    op.execute("""
-        COMMENT ON COLUMN verification_telemetry.verified_articles IS
-            'Count of URLs classified as articles by StorySniffer'
-    """)
-    op.execute("""
-        COMMENT ON COLUMN verification_telemetry.verified_non_articles IS
-            'Count of URLs classified as non-articles'
-    """)
-    op.execute("""
-        COMMENT ON COLUMN verification_telemetry.verification_errors IS
-            'Count of verification failures (timeouts, network errors, etc)'
-    """)
-    op.execute("""
-        COMMENT ON COLUMN verification_telemetry.total_processed IS
-            'Total URLs successfully processed (articles + non-articles)'
-    """)
-    op.execute("""
-        COMMENT ON COLUMN verification_telemetry.batch_time_seconds IS
-            'Wall-clock time to process the entire batch'
-    """)
-    op.execute("""
-        COMMENT ON COLUMN verification_telemetry.avg_verification_time_ms IS
-            'Average verification time per URL in milliseconds'
-    """)
-    op.execute("""
-        COMMENT ON COLUMN verification_telemetry.total_time_ms IS
-            'Cumulative verification time for all URLs'
-    """)
-    op.execute("""
-        COMMENT ON COLUMN verification_telemetry.sources_processed IS
-            'JSON array of source names included in this batch'
-    """)
+    # Add comments (PostgreSQL only - SQLite doesn't support COMMENT)
+    if conn.dialect.name == 'postgresql':
+        op.execute("""
+            COMMENT ON TABLE verification_telemetry IS
+                'Stores batch metrics for URL verification operations'
+        """)
+        op.execute("""
+            COMMENT ON COLUMN verification_telemetry.timestamp IS
+                'When the batch was processed'
+        """)
+        op.execute("""
+            COMMENT ON COLUMN verification_telemetry.job_name IS
+                'Name of the verification job/workflow'
+        """)
+        op.execute("""
+            COMMENT ON COLUMN verification_telemetry.batch_size IS
+                'Number of URLs in the batch'
+        """)
+        op.execute("""
+            COMMENT ON COLUMN verification_telemetry.verified_articles IS
+                'Count of URLs classified as articles by StorySniffer'
+        """)
+        op.execute("""
+            COMMENT ON COLUMN verification_telemetry.verified_non_articles IS
+                'Count of URLs classified as non-articles'
+        """)
+        op.execute("""
+            COMMENT ON COLUMN verification_telemetry.verification_errors IS
+                'Count of verification failures (timeouts, errors, etc)'
+        """)
+        op.execute("""
+            COMMENT ON COLUMN verification_telemetry.total_processed IS
+                'Total URLs successfully processed (articles + non-articles)'
+        """)
+        op.execute("""
+            COMMENT ON COLUMN verification_telemetry.batch_time_seconds IS
+                'Wall-clock time to process the entire batch'
+        """)
+        op.execute("""
+            COMMENT ON COLUMN verification_telemetry.avg_verification_time_ms IS
+                'Average verification time per URL in milliseconds'
+        """)
+        op.execute("""
+            COMMENT ON COLUMN verification_telemetry.total_time_ms IS
+                'Cumulative verification time for all URLs'
+        """)
+        op.execute("""
+            COMMENT ON COLUMN verification_telemetry.sources_processed IS
+                'JSON array of source names included in this batch'
+        """)
 
 
 def downgrade():
