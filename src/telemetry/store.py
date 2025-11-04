@@ -6,6 +6,7 @@ import atexit
 import logging
 import os
 import queue
+import sys
 import threading
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
@@ -14,6 +15,28 @@ from typing import Any
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.pool import NullPool
+
+
+def _is_test_environment() -> bool:
+    """Detect if running in a test environment.
+    
+    Returns True if:
+    - Running under pytest
+    - TEST_DATABASE_URL environment variable is set
+    - Any test-related environment variable is set
+    
+    This is used to allow SQLite in tests while warning in production.
+    """
+    # Check for pytest in command line
+    if 'pytest' in sys.argv[0] or '/test' in sys.argv[0]:
+        return True
+    
+    # Check for test-specific environment variables
+    test_env_vars = ['TEST_DATABASE_URL', 'PYTEST_CURRENT_TEST', 'PYTEST_VERSION']
+    if any(os.getenv(var) for var in test_env_vars):
+        return True
+    
+    return False
 
 
 def _determine_default_database_url() -> str:
@@ -424,9 +447,8 @@ class TelemetryStore:
 
         # Warn if not using PostgreSQL (but allow SQLite for tests)
         if "postgresql" not in self.database_url.lower():
-            import sys
             # Only warn in production contexts, not tests
-            if not any(x in sys.argv[0] for x in ['pytest', 'test']):
+            if not _is_test_environment():
                 self._logger.warning(
                     f"TelemetryStore using non-PostgreSQL database: "
                     f"{_mask_database_url(self.database_url)}. "
