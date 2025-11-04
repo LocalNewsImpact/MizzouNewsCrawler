@@ -497,7 +497,6 @@ jobs:
 
       - name: Run full tests with coverage in container
         env:
-          PYTEST_KEEP_DB_ENV: "true"
           DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/test_db"
           TELEMETRY_DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/test_db"
           TEST_DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/test_db"
@@ -512,7 +511,6 @@ jobs:
             --network host \
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
-            -e PYTEST_KEEP_DB_ENV="$PYTEST_KEEP_DB_ENV" \
             -e DATABASE_URL="$DATABASE_URL" \
             -e TELEMETRY_DATABASE_URL="$TELEMETRY_DATABASE_URL" \
             -e TEST_DATABASE_URL="$TEST_DATABASE_URL" \
