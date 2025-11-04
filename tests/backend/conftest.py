@@ -105,7 +105,7 @@ def sample_sources(cloud_sql_session) -> list[Source]:
 
     for source in sources:
         cloud_sql_session.add(source)
-    cloud_sql_session.commit()
+    cloud_sql_session.flush()  # Flush to DB but don't commit transaction
 
     return sources
 
@@ -131,7 +131,7 @@ def sample_candidate_links(cloud_sql_session, sample_sources) -> list:
         links.append(link)
         cloud_sql_session.add(link)
 
-    cloud_sql_session.commit()
+    cloud_sql_session.flush()  # Flush to DB without committing transaction
     return links
 
 
@@ -178,7 +178,7 @@ def sample_articles(
         articles.append(article)
         cloud_sql_session.add(article)
 
-    cloud_sql_session.commit()
+    cloud_sql_session.flush()  # Flush to DB without committing transaction
     return articles
 
 
@@ -212,7 +212,7 @@ def sample_reviews(cloud_sql_session, sample_articles) -> list[Review]:
         reviews.append(review)
         cloud_sql_session.add(review)
 
-    cloud_sql_session.commit()
+    cloud_sql_session.flush()  # Flush to DB without committing transaction
     return reviews
 
 
@@ -246,7 +246,7 @@ def sample_snapshots(cloud_sql_session, sample_sources) -> list[Snapshot]:
         snapshots.append(snapshot)
         cloud_sql_session.add(snapshot)
 
-    cloud_sql_session.commit()
+    cloud_sql_session.flush()  # Flush to DB without committing transaction
     return snapshots
 
 
@@ -274,7 +274,7 @@ def sample_candidates(cloud_sql_session, sample_snapshots) -> list[Candidate]:
         candidates.append(candidate)
         cloud_sql_session.add(candidate)
 
-    cloud_sql_session.commit()
+    cloud_sql_session.flush()  # Flush to DB without committing transaction
     return candidates
 
 
@@ -314,9 +314,9 @@ def large_article_dataset(
 
         # Commit in batches for performance
         if (i + 1) % 100 == 0:
-            cloud_sql_session.commit()
+            cloud_sql_session.flush()  # Flush to DB without committing transaction
 
-    cloud_sql_session.commit()
+    cloud_sql_session.flush()  # Flush to DB without committing transaction
     return articles
 
 
