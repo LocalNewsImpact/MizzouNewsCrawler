@@ -63,6 +63,34 @@ def _is_test_environment() -> bool:
     
     return False
 
+
+def _mask_database_url(url: str | None) -> str:
+    """Mask credentials in database URL to prevent password leakage in logs.
+    
+    Args:
+        url: Database URL that may contain credentials
+        
+    Returns:
+        Masked URL with credentials replaced by ***
+    """
+    if not url:
+        return "<empty>"
+    
+    try:
+        if "://" not in url:
+            return url
+        
+        scheme, remainder = url.split("://", 1)
+        if "@" not in remainder:
+            return f"{scheme}://{remainder}"
+        
+        credentials, host = remainder.split("@", 1)
+        if ":" in credentials:
+            return f"{scheme}://***:***@{host}"
+        return f"{scheme}://***@{host}"
+    except Exception:
+        return "<redacted>"
+
 logger = logging.getLogger(__name__)
 
 
@@ -485,7 +513,7 @@ class DatabaseManager:
                 logger = logging.getLogger(__name__)
                 logger.warning(
                     f"DatabaseManager using non-PostgreSQL database: "
-                    f"{database_url[:50]}... "
+                    f"{_mask_database_url(database_url)}. "
                     f"Production should use PostgreSQL for compatibility."
                 )
 
