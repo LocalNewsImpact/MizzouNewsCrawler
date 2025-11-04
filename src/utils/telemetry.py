@@ -425,9 +425,9 @@ _DISCOVERY_OUTCOMES_SCHEMA = (
         error_details TEXT,
         http_status INTEGER,
         discovery_time_ms REAL NOT NULL DEFAULT 0.0,
-        is_success BOOLEAN NOT NULL DEFAULT 0,
-        is_content_success BOOLEAN NOT NULL DEFAULT 0,
-        is_technical_failure BOOLEAN NOT NULL DEFAULT 0,
+        is_success BOOLEAN NOT NULL DEFAULT FALSE,
+        is_content_success BOOLEAN NOT NULL DEFAULT FALSE,
+        is_technical_failure BOOLEAN NOT NULL DEFAULT FALSE,
         metadata TEXT,
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )

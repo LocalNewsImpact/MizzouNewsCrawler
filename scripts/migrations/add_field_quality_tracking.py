@@ -38,10 +38,10 @@ def run_migration():
     ALTER TABLE extraction_outcomes ADD COLUMN overall_quality_score REAL DEFAULT 1.0;
     
     -- Add field-specific quality flags for quick filtering
-    ALTER TABLE extraction_outcomes ADD COLUMN title_has_issues BOOLEAN DEFAULT 0;
-    ALTER TABLE extraction_outcomes ADD COLUMN content_has_issues BOOLEAN DEFAULT 0;
-    ALTER TABLE extraction_outcomes ADD COLUMN author_has_issues BOOLEAN DEFAULT 0;
-    ALTER TABLE extraction_outcomes ADD COLUMN publish_date_has_issues BOOLEAN DEFAULT 0;
+    ALTER TABLE extraction_outcomes ADD COLUMN title_has_issues BOOLEAN DEFAULT FALSE;
+    ALTER TABLE extraction_outcomes ADD COLUMN content_has_issues BOOLEAN DEFAULT FALSE;
+    ALTER TABLE extraction_outcomes ADD COLUMN author_has_issues BOOLEAN DEFAULT FALSE;
+    ALTER TABLE extraction_outcomes ADD COLUMN publish_date_has_issues BOOLEAN DEFAULT FALSE;
     """
 
     with DatabaseManager() as db:
