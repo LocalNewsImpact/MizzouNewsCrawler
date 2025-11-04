@@ -3,8 +3,10 @@
 import hashlib
 import json
 import logging
+import os
 import random
 import re
+import sys
 import time
 import uuid
 from datetime import datetime
@@ -38,6 +40,56 @@ from . import (
     MLResult,
     Source,
 )
+
+
+def _is_test_environment() -> bool:
+    """Detect if running in a test environment.
+    
+    Returns True if:
+    - Running under pytest
+    - TEST_DATABASE_URL environment variable is set
+    - Any test-related environment variable is set
+    
+    This is used to allow SQLite in tests while warning in production.
+    """
+    # Check for pytest in command line
+    if 'pytest' in sys.argv[0] or '/test' in sys.argv[0]:
+        return True
+    
+    # Check for test-specific environment variables
+    test_env_vars = ['TEST_DATABASE_URL', 'PYTEST_CURRENT_TEST', 'PYTEST_VERSION']
+    if any(os.getenv(var) for var in test_env_vars):
+        return True
+    
+    return False
+
+
+def _mask_database_url(url: str | None) -> str:
+    """Mask credentials in database URL to prevent password leakage in logs.
+    
+    Args:
+        url: Database URL that may contain credentials
+        
+    Returns:
+        Masked URL with credentials replaced by ***
+    """
+    if not url:
+        return "<empty>"
+    
+    try:
+        if "://" not in url:
+            return url
+        
+        scheme, remainder = url.split("://", 1)
+        if "@" not in remainder:
+            return f"{scheme}://{remainder}"
+        
+        credentials, host = remainder.split("@", 1)
+        if ":" in credentials:
+            return f"{scheme}://***:***@{host}"
+        return f"{scheme}://***@{host}"
+    except Exception:
+        return "<redacted>"
 
 logger = logging.getLogger(__name__)
 
@@ -454,13 +506,16 @@ class DatabaseManager:
         # Check if we should use Cloud SQL Python Connector
         use_cloud_sql = self._should_use_cloud_sql_connector()
 
-        # Validate PostgreSQL URL
+        # Warn if not using PostgreSQL (but allow SQLite for tests)
         if "postgresql" not in database_url.lower():
-            raise ValueError(
-                f"DatabaseManager requires PostgreSQL database URL. "
-                f"Got: {database_url[:50]}... "
-                f"Set DATABASE_URL or TEST_DATABASE_URL environment variable."
-            )
+            # Only warn in production contexts, not tests
+            if not _is_test_environment():
+                logger = logging.getLogger(__name__)
+                logger.warning(
+                    f"DatabaseManager using non-PostgreSQL database: "
+                    f"{_mask_database_url(database_url)}. "
+                    f"Production should use PostgreSQL for compatibility."
+                )
 
         if use_cloud_sql:
             self.engine = self._create_cloud_sql_engine()

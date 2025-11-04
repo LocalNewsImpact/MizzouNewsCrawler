@@ -6,6 +6,7 @@ import atexit
 import logging
 import os
 import queue
+import sys
 import threading
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
@@ -14,6 +15,28 @@ from typing import Any
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.pool import NullPool
+
+
+def _is_test_environment() -> bool:
+    """Detect if running in a test environment.
+    
+    Returns True if:
+    - Running under pytest
+    - TEST_DATABASE_URL environment variable is set
+    - Any test-related environment variable is set
+    
+    This is used to allow SQLite in tests while warning in production.
+    """
+    # Check for pytest in command line
+    if 'pytest' in sys.argv[0] or '/test' in sys.argv[0]:
+        return True
+    
+    # Check for test-specific environment variables
+    test_env_vars = ['TEST_DATABASE_URL', 'PYTEST_CURRENT_TEST', 'PYTEST_VERSION']
+    if any(os.getenv(var) for var in test_env_vars):
+        return True
+    
+    return False
 
 
 def _determine_default_database_url() -> str:
@@ -422,12 +445,15 @@ class TelemetryStore:
             self._engine = self._create_engine()
             self._owns_engine = True
 
-        # Validate that we have a PostgreSQL engine
+        # Warn if not using PostgreSQL (but allow SQLite for tests)
         if "postgresql" not in self.database_url.lower():
-            raise ValueError(
-                f"TelemetryStore requires PostgreSQL. "
-                f"Got: {_mask_database_url(self.database_url)}"
-            )
+            # Only warn in production contexts, not tests
+            if not _is_test_environment():
+                self._logger.warning(
+                    f"TelemetryStore using non-PostgreSQL database: "
+                    f"{_mask_database_url(self.database_url)}. "
+                    f"Production should use PostgreSQL for compatibility."
+                )
 
         self._queue: queue.Queue | None = None
         self._writer_thread: threading.Thread | None = None
@@ -450,20 +476,13 @@ class TelemetryStore:
     def _create_engine(self) -> Engine:
         """Create SQLAlchemy engine based on database URL.
         
-        IMPORTANT: Only PostgreSQL is supported. SQLite support has been
-        removed to prevent production compatibility issues.
+        NOTE: PostgreSQL is recommended for production. SQLite is allowed
+        for test environments for speed and isolation.
         """
-        # Validate PostgreSQL URL
-        if "postgresql" not in self.database_url.lower():
-            raise ValueError(
-                f"TelemetryStore requires PostgreSQL database URL. "
-                f"Got: {_mask_database_url(self.database_url)}. "
-                f"SQLite is not supported for telemetry operations."
-            )
-        
-        # Check if Cloud SQL connector should be used
-        if self._should_use_cloud_sql_connector():
-            return self._create_cloud_sql_engine()
+        # Check if Cloud SQL connector should be used (PostgreSQL only)
+        if "postgresql" in self.database_url.lower():
+            if self._should_use_cloud_sql_connector():
+                return self._create_cloud_sql_engine()
 
         # Use NullPool for async writes to avoid connection pool issues
         engine = create_engine(

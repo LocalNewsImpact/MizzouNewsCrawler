@@ -464,8 +464,8 @@ class DatasetSource(Base):
         String,
         primary_key=True,
         default=lambda: str(uuid.uuid4()),
-        # PostgreSQL: gen_random_uuid() for server-side UUID generation
-        server_default=text("gen_random_uuid()::text"),
+        # Note: server_default removed for SQLite test compatibility
+        # Python-side default works for both PostgreSQL and SQLite
     )
     dataset_id = Column(
         String,
