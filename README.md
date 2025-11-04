@@ -2064,8 +2064,23 @@ git push origin feature/your-feature-name
 
 ### Testing
 
+**⚠️ IMPORTANT: Always run tests like CI before pushing:**
+
 ```bash
-# Run all tests
+# Run tests exactly like CI (RECOMMENDED before every push)
+./scripts/test-like-ci.sh
+
+# This script:
+# ✅ Sets PostgreSQL environment variables
+# ✅ Runs migrations
+# ✅ Runs unit tests + integration tests
+# ✅ Catches CI failures locally
+```
+
+**Other test commands:**
+
+```bash
+# Run all tests (may differ from CI)
 python -m pytest tests/
 
 # Run with coverage
@@ -2075,7 +2090,13 @@ python -m pytest tests/ --cov=src --cov-report=term-missing
 python -m pytest tests/test_telemetry_system.py -v
 ```
 
-See [docs/TESTING_OPERATIONS_DASHBOARD.md](docs/TESTING_OPERATIONS_DASHBOARD.md) for testing guidelines.
+**📚 Documentation:**
+
+- [docs/TESTING_STRATEGY.md](docs/TESTING_STRATEGY.md) - **Complete testing guide** (markers, CI matching, debugging)
+- [docs/TESTING_OPERATIONS_DASHBOARD.md](docs/TESTING_OPERATIONS_DASHBOARD.md) - Operations testing guidelines
+
+**Git Pre-Push Hook Installed:**
+A git hook automatically runs tests before every push. Use `git push --no-verify` to skip (not recommended).
 
 ### Code Quality Tools
 
