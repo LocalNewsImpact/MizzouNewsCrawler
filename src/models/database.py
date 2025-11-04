@@ -422,10 +422,11 @@ class DatabaseManager:
         # Resolution order:
         # 1. explicit `database_url` arg
         # 2. environment variable `DATABASE_URL` (allows runtime overrides)
-        # 3. if running under pytest, default to local sqlite to avoid
-        #    requiring a local Postgres instance during unit tests
-        # 4. finally, fall back to the application's configured value
-        #    from `src.config` or local sqlite if that isn't available.
+        # 3. environment variable `TEST_DATABASE_URL` (test environments)
+        # 4. finally, fall back to configured value from `src.config`
+        #
+        # NOTE: SQLite fallback removed. All environments use PostgreSQL.
+        # Tests use TEST_DATABASE_URL or DATABASE_URL.
         import os
 
         if not database_url:
@@ -433,72 +434,45 @@ class DatabaseManager:
             if env_db:
                 database_url = env_db
             else:
-                # Quick test-detection: when running under pytest, prefer sqlite
-                # so tests don't require a running Postgres on localhost.
-                if os.getenv("PYTEST_CURRENT_TEST"):
-                    database_url = "sqlite:///data/mizzou.db"
+                # Check for TEST_DATABASE_URL (used in local dev and CI)
+                test_db = os.getenv("TEST_DATABASE_URL")
+                if test_db:
+                    database_url = test_db
                 else:
                     try:
                         from src.config import DATABASE_URL as _cfg_db_url
 
                         database_url = _cfg_db_url
                     except Exception:
-                        database_url = "sqlite:///data/mizzou.db"
+                        raise RuntimeError(
+                            "No PostgreSQL database URL found. "
+                            "Set DATABASE_URL or TEST_DATABASE_URL."
+                        )
 
         self.database_url = database_url
 
         # Check if we should use Cloud SQL Python Connector
         use_cloud_sql = self._should_use_cloud_sql_connector()
 
+        # Validate PostgreSQL URL
+        if "postgresql" not in database_url.lower():
+            raise ValueError(
+                f"DatabaseManager requires PostgreSQL database URL. "
+                f"Got: {database_url[:50]}... "
+                f"Set DATABASE_URL or TEST_DATABASE_URL environment variable."
+            )
+
         if use_cloud_sql:
             self.engine = self._create_cloud_sql_engine()
         else:
-            # Traditional connection (SQLite or direct PostgreSQL)
-            connect_args = {}
-            if "sqlite" in database_url:
-                connect_args = {"check_same_thread": False, "timeout": 30}
-
+            # Direct PostgreSQL connection
             self.engine = create_engine(
                 database_url,
-                connect_args=connect_args,
+                connect_args={},
                 echo=False,
             )
-            if "sqlite" in database_url:
-                _configure_sqlite_engine(self.engine, connect_args.get("timeout"))
-
-            # For SQLite, wrap the engine so `with engine.begin() as conn:`
-            # yields a connection whose execute() accepts legacy positional
-            # parameter styles used in older tests (qmark / %s).
-            if "sqlite" in database_url:
-                # Preserve the real Engine object for pandas/inspection but
-                # ensure connections returned from it are proxied.
-                _wrap_engine_connections(self.engine)
 
         Base.metadata.create_all(self.engine)
-        # SQLite compatibility: ensure triggers that populate missing UUID
-        # primary keys for tables where tests may perform raw INSERTs that
-        # omit the `id` column. We create AFTER INSERT triggers that set
-        # a hex-encoded randomblob value when id is empty/null.
-        try:
-            if "sqlite" in self.database_url:
-                with self.engine.begin() as conn:
-                    conn.execute(
-                        text(
-                            """
-                    CREATE TRIGGER IF NOT EXISTS trg_dataset_sources_fill_id
-                    AFTER INSERT ON dataset_sources
-                    WHEN NEW.id IS NULL OR NEW.id = ''
-                    BEGIN
-                        UPDATE dataset_sources
-                        SET id = lower(hex(randomblob(16)))
-                        WHERE rowid = NEW.rowid;
-                    END;
-                    """
-                        )
-                    )
-        except Exception:
-            # Non-fatal: if trigger creation fails (e.g., in Postgres), ignore.
-            pass
         Session = sessionmaker(bind=self.engine)
         self.session = Session()
 
