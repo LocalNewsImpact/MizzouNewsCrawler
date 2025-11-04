@@ -11,7 +11,7 @@ from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from typing import Any
 
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.pool import NullPool
 
@@ -379,35 +379,20 @@ class _ResultWrapper:
             self._result.close()
 
 
-def _resolve_sqlite_path(database: str) -> str:
-    if database.startswith("sqlite:///"):
-        return database.replace("sqlite:///", "", 1)
-    if database.startswith("sqlite://"):
-        # support sqlite:///:memory:
-        return database.replace("sqlite://", "", 1)
-    return database
-
-
-def _configure_sqlite_engine(engine: Engine, timeout: float) -> None:
-    """Enable WAL mode and pragmas for SQLite connections."""
-    busy_timeout_ms = int(timeout * 1000)
-
-    @event.listens_for(engine, "connect")
-    def set_sqlite_pragma(dbapi_connection, connection_record):
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA journal_mode=WAL")
-        cursor.execute("PRAGMA synchronous=NORMAL")
-        cursor.execute(f"PRAGMA busy_timeout={busy_timeout_ms}")
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
+# SQLite support removed - these functions are no longer used
+# Kept as stubs for backward compatibility with old imports only
 
 
 class TelemetryStore:
     """Centralized queue + connection manager for telemetry writers.
 
-    Supports both SQLite (local development) and PostgreSQL (Cloud SQL)
-    via SQLAlchemy. Maintains backward compatibility with the original
-    sqlite3-based interface.
+    IMPORTANT: PostgreSQL-only. SQLite support has been removed because:
+    1. Production uses PostgreSQL (Cloud SQL)
+    2. Local development uses PostgreSQL (localhost:5432)
+    3. CI uses PostgreSQL (postgres-integration job)
+    4. SQLite compatibility issues caused multiple production failures
+    
+    Maintains SQLAlchemy-based interface for PostgreSQL connections.
     """
 
     _STOP = object()
@@ -437,8 +422,12 @@ class TelemetryStore:
             self._engine = self._create_engine()
             self._owns_engine = True
 
-        self._is_sqlite = "sqlite" in self.database_url.lower()
-        self._is_postgres = "postgres" in self.database_url.lower()
+        # Validate that we have a PostgreSQL engine
+        if "postgresql" not in self.database_url.lower():
+            raise ValueError(
+                f"TelemetryStore requires PostgreSQL. "
+                f"Got: {_mask_database_url(self.database_url)}"
+            )
 
         self._queue: queue.Queue | None = None
         self._writer_thread: threading.Thread | None = None
@@ -459,30 +448,30 @@ class TelemetryStore:
             atexit.register(self.shutdown)
 
     def _create_engine(self) -> Engine:
-        """Create SQLAlchemy engine based on database URL."""
+        """Create SQLAlchemy engine based on database URL.
+        
+        IMPORTANT: Only PostgreSQL is supported. SQLite support has been
+        removed to prevent production compatibility issues.
+        """
+        # Validate PostgreSQL URL
+        if "postgresql" not in self.database_url.lower():
+            raise ValueError(
+                f"TelemetryStore requires PostgreSQL database URL. "
+                f"Got: {_mask_database_url(self.database_url)}. "
+                f"SQLite is not supported for telemetry operations."
+            )
+        
         # Check if Cloud SQL connector should be used
         if self._should_use_cloud_sql_connector():
             return self._create_cloud_sql_engine()
 
-        connect_args: dict[str, Any] = {}
-
-        if "sqlite" in self.database_url:
-            connect_args = {
-                "check_same_thread": False,
-                "timeout": self.timeout,
-            }
-
         # Use NullPool for async writes to avoid connection pool issues
         engine = create_engine(
             self.database_url,
-            connect_args=connect_args,
+            connect_args={},
             poolclass=NullPool if self.async_writes else None,
             echo=False,
         )
-
-        # Configure SQLite-specific settings
-        if "sqlite" in self.database_url:
-            _configure_sqlite_engine(engine, self.timeout)
 
         return engine
 
@@ -647,33 +636,30 @@ class TelemetryStore:
                     self._ddl_cache.add(ddl)
 
     def _adapt_ddl(self, ddl: str) -> str:
-        """Adapt DDL statement for the target database dialect.
+        """Adapt DDL statement for PostgreSQL.
 
         Args:
             ddl: Original DDL statement (typically SQLite syntax)
 
         Returns:
-            Adapted DDL statement for the target database
+            Adapted DDL statement for PostgreSQL
         """
-        if self._is_postgres:
-            # Convert SQLite-specific syntax to PostgreSQL
-            adapted = ddl
+        # Convert SQLite-specific syntax to PostgreSQL
+        adapted = ddl
 
-            # Replace AUTOINCREMENT with SERIAL
-            adapted = adapted.replace("AUTOINCREMENT", "")
-            adapted = adapted.replace("INTEGER PRIMARY KEY", "SERIAL PRIMARY KEY")
+        # Replace AUTOINCREMENT with SERIAL
+        adapted = adapted.replace("AUTOINCREMENT", "")
+        adapted = adapted.replace("INTEGER PRIMARY KEY", "SERIAL PRIMARY KEY")
 
-            # PostgreSQL uses BOOLEAN not BOOLEAN
-            # (already compatible, but ensure consistency)
+        # PostgreSQL uses BOOLEAN not BOOLEAN
+        # (already compatible, but ensure consistency)
 
-            # Replace TIMESTAMP without timezone to use WITH TIME ZONE
-            # Only if not already specified
-            if "TIMESTAMP" in adapted and "TIME ZONE" not in adapted:
-                adapted = adapted.replace("TIMESTAMP", "TIMESTAMP")
+        # Replace TIMESTAMP without timezone to use WITH TIME ZONE
+        # Only if not already specified
+        if "TIMESTAMP" in adapted and "TIME ZONE" not in adapted:
+            adapted = adapted.replace("TIMESTAMP", "TIMESTAMP")
 
-            return adapted
-
-        return ddl
+        return adapted
 
     def _execute(
         self,
