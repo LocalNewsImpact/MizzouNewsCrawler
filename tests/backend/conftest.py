@@ -24,32 +24,38 @@ from src.models.api_backend import Candidate, Review, Snapshot  # noqa: E402
 
 
 @pytest.fixture
-def test_client(cloud_sql_engine, monkeypatch):
+def test_client(cloud_sql_session, monkeypatch):
     """Create FastAPI test client with mocked database engine.
 
     This client uses the PostgreSQL test database instead of production.
-    Mocks the DatabaseManager to use the cloud_sql_engine for all requests.
+    CRITICAL: Uses the same session as fixtures to ensure data visibility.
     """
     from contextlib import contextmanager
 
+    # Get the engine from the cloud_sql_session
+    cloud_sql_engine = cloud_sql_session.get_bind().engine
+    
+    # Mock DATABASE_URL in app_config BEFORE db_manager is initialized
+    engine_url = str(cloud_sql_engine.url)
     from backend.app import main
+    monkeypatch.setattr(main.app_config, "DATABASE_URL", engine_url)
 
-    # Mock the DatabaseManager's engine with our test engine
+    # Reset _db_manager to force re-initialization with new URL
+    main._db_manager = None
+
+    # Now mock the engine to use our test engine
+    # (db_manager will be created lazily with the mocked URL)
     monkeypatch.setattr(main.db_manager, "engine", cloud_sql_engine)
 
-    # Mock get_session to use the test engine
+    # Mock get_session to use the SAME session as fixtures
+    # This ensures test_client sees data committed by fixtures
     @contextmanager
     def mock_get_session_context():
-        SessionLocal = sessionmaker(bind=cloud_sql_engine)
-        session = SessionLocal()
         try:
-            yield session
-            session.commit()  # Commit so changes are visible
+            yield cloud_sql_session
+            # Don't commit here - let the fixture handle transaction management
         except Exception:
-            session.rollback()
             raise
-        finally:
-            session.close()
 
     def mock_get_session():
         return mock_get_session_context()
@@ -274,7 +280,7 @@ def sample_candidates(cloud_sql_session, sample_snapshots) -> list[Candidate]:
 
 @pytest.fixture
 def large_article_dataset(
-    db_session, sample_sources, sample_candidate_links
+    cloud_sql_session, sample_sources, sample_candidate_links
 ) -> list[Article]:
     """Create large dataset for pagination and load testing.
 

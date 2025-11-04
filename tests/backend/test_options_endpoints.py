@@ -33,7 +33,7 @@ def test_options_counties_empty_database(test_client, cloud_sql_session):
 @pytest.mark.integration
 def test_options_counties_returns_distinct_values(
     test_client,
-    db_session,
+    cloud_sql_session,
     sample_articles,
 ):
     """Test options/counties returns distinct county names."""
@@ -52,7 +52,7 @@ def test_options_counties_returns_distinct_values(
 @pytest.mark.integration
 def test_options_counties_no_duplicates(
     test_client,
-    db_session,
+    cloud_sql_session,
     sample_articles,
 ):
     """Test options/counties returns no duplicate values."""
@@ -82,7 +82,7 @@ def test_options_sources_empty_database(test_client, cloud_sql_session):
 @pytest.mark.integration
 def test_options_sources_returns_distinct_values(
     test_client,
-    db_session,
+    cloud_sql_session,
     sample_sources,
     sample_articles,
 ):
@@ -115,7 +115,7 @@ def test_options_sources_returns_distinct_values(
 @pytest.mark.integration
 def test_options_sources_format(
     test_client,
-    db_session,
+    cloud_sql_session,
     sample_sources,
 ):
     """Test options/sources response format.
@@ -161,7 +161,7 @@ def test_options_reviewers_empty_database(test_client, cloud_sql_session):
 @pytest.mark.integration
 def test_options_reviewers_returns_distinct_values(
     test_client,
-    db_session,
+    cloud_sql_session,
     sample_articles,
     sample_reviews,
 ):
@@ -181,7 +181,7 @@ def test_options_reviewers_returns_distinct_values(
 @pytest.mark.integration
 def test_options_reviewers_no_duplicates(
     test_client,
-    db_session,
+    cloud_sql_session,
     sample_reviews,
 ):
     """Test options/reviewers returns no duplicate values."""
@@ -198,7 +198,7 @@ def test_options_reviewers_no_duplicates(
 @pytest.mark.integration
 def test_options_reviewers_only_active(
     test_client,
-    db_session,
+    cloud_sql_session,
     sample_articles,
     sample_reviews,
 ):
@@ -220,7 +220,7 @@ def test_options_reviewers_only_active(
 @pytest.mark.integration
 def test_options_counties_sorted(
     test_client,
-    db_session,
+    cloud_sql_session,
     sample_articles,
 ):
     """Test options/counties returns sorted list.
@@ -241,7 +241,7 @@ def test_options_counties_sorted(
 @pytest.mark.integration
 def test_options_sources_sorted(
     test_client,
-    db_session,
+    cloud_sql_session,
     sample_sources,
 ):
     """Test options/sources returns sorted list."""
@@ -259,7 +259,7 @@ def test_options_sources_sorted(
 @pytest.mark.integration
 def test_options_reviewers_sorted(
     test_client,
-    db_session,
+    cloud_sql_session,
     sample_reviews,
 ):
     """Test options/reviewers returns sorted list."""
@@ -277,7 +277,7 @@ def test_options_reviewers_sorted(
 @pytest.mark.integration
 def test_options_counties_filters_null(
     test_client,
-    db_session,
+    cloud_sql_session,
     sample_sources,
 ):
     """Test options/counties excludes NULL/empty county values."""
@@ -320,7 +320,7 @@ def test_options_counties_filters_null(
 @pytest.mark.integration
 def test_options_performance(
     test_client,
-    db_session,
+    cloud_sql_session,
     large_article_dataset,
 ):
     """Test options endpoints performance with large dataset.
@@ -404,7 +404,7 @@ def test_options_no_csv_dependency(test_client, cloud_sql_session, tmp_path):
 @pytest.mark.integration
 def test_options_special_characters_in_county(
     test_client,
-    db_session,
+    cloud_sql_session,
     sample_sources,
     sample_candidate_links,
 ):
@@ -447,7 +447,7 @@ def test_options_special_characters_in_county(
 @pytest.mark.integration
 def test_options_case_sensitivity(
     test_client,
-    db_session,
+    cloud_sql_session,
     sample_sources,
     sample_candidate_links,
 ):

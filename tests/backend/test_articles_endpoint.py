@@ -75,7 +75,7 @@ def test_articles_response_format(test_client, cloud_sql_session, sample_article
 @pytest.mark.integration
 def test_articles_filter_by_reviewer(
     test_client,
-    db_session,
+    cloud_sql_session,
     sample_articles,
     sample_reviews,
 ):
@@ -99,7 +99,7 @@ def test_articles_filter_by_reviewer(
 @pytest.mark.integration
 def test_articles_filter_by_different_reviewers(
     test_client,
-    db_session,
+    cloud_sql_session,
     sample_articles,
     sample_reviews,
 ):
@@ -124,7 +124,7 @@ def test_articles_filter_by_different_reviewers(
 @pytest.mark.integration
 def test_articles_nonexistent_reviewer(
     test_client,
-    db_session,
+    cloud_sql_session,
     sample_articles,
     sample_reviews,
 ):
@@ -143,7 +143,7 @@ def test_articles_nonexistent_reviewer(
 @pytest.mark.integration
 def test_articles_pagination(
     test_client,
-    db_session,
+    cloud_sql_session,
     large_article_dataset,
 ):
     """Test articles endpoint supports pagination.
@@ -177,7 +177,7 @@ def test_articles_pagination(
 @pytest.mark.integration
 def test_articles_performance(
     test_client,
-    db_session,
+    cloud_sql_session,
     large_article_dataset,
 ):
     """Test articles endpoint performance with large dataset.
@@ -202,7 +202,7 @@ def test_articles_performance(
 @pytest.mark.integration
 def test_articles_includes_wire_detected(
     test_client,
-    db_session,
+    cloud_sql_session,
     sample_articles,
 ):
     """Test articles response includes wire service detection.
@@ -240,7 +240,7 @@ def test_articles_includes_wire_detected(
 @pytest.mark.integration
 def test_articles_multiple_counties(
     test_client,
-    db_session,
+    cloud_sql_session,
     sample_articles,
 ):
     """Test articles endpoint returns articles from all counties."""
@@ -260,7 +260,7 @@ def test_articles_multiple_counties(
 @pytest.mark.integration
 def test_articles_sorted_by_date(
     test_client,
-    db_session,
+    cloud_sql_session,
     sample_articles,
 ):
     """Test articles are sorted by publish date (most recent first).
@@ -342,7 +342,7 @@ def test_articles_no_csv_dependency(test_client, cloud_sql_session, tmp_path):
 @pytest.mark.integration
 def test_articles_with_special_characters(
     test_client,
-    db_session,
+    cloud_sql_session,
     sample_sources,
     sample_candidate_links,
 ):

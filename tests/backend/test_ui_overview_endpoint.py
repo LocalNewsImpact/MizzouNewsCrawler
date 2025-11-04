@@ -32,7 +32,7 @@ def test_ui_overview_empty_database(test_client, cloud_sql_session):
 @pytest.mark.integration
 def test_ui_overview_with_articles(
     test_client,
-    db_session,
+    cloud_sql_session,
     sample_articles,
     sample_candidates,
 ):
@@ -56,7 +56,7 @@ def test_ui_overview_with_articles(
 @pytest.mark.integration
 def test_ui_overview_response_format(
     test_client,
-    db_session,
+    cloud_sql_session,
     sample_articles,
 ):
     """Test ui_overview response has correct format."""
@@ -82,7 +82,7 @@ def test_ui_overview_response_format(
 @pytest.mark.integration
 def test_ui_overview_performance(
     test_client,
-    db_session,
+    cloud_sql_session,
     large_article_dataset,
 ):
     """Test ui_overview response time with large dataset.
@@ -109,7 +109,7 @@ def test_ui_overview_performance(
 @pytest.mark.integration
 def test_ui_overview_wire_count(
     test_client,
-    db_session,
+    cloud_sql_session,
     sample_sources,
 ):
     """Test wire_count field correctly identifies wire service articles.
@@ -200,7 +200,7 @@ def test_ui_overview_wire_count(
 @pytest.mark.integration
 def test_ui_overview_with_multiple_counties(
     test_client,
-    db_session,
+    cloud_sql_session,
     sample_articles,
     sample_sources,
 ):
