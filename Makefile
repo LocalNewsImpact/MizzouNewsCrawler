@@ -1,4 +1,25 @@
-.PHONY: coverage lint format security type-check test-full test-migrations test-alembic ci-check test-parallel test-quick
+.PHONY: coverage lint format security type-check test-full test-migrations test-alembic ci-check test-parallel test-quick test-ci test-unit test-integration test-postgres
+
+# Local CI test runners (matches GitHub Actions CI)
+test-ci:
+	@echo "Running full CI test suite locally..."
+	./scripts/run-local-ci.sh ci
+
+test-unit:
+	@echo "Running unit tests..."
+	./scripts/run-local-ci.sh unit
+
+test-integration:
+	@echo "Running integration tests (SQLite)..."
+	./scripts/run-local-ci.sh integration
+
+test-postgres:
+	@echo "Running PostgreSQL integration tests..."
+	./scripts/run-local-ci.sh postgres
+
+test-all-ci:
+	@echo "Running all CI test suites..."
+	./scripts/run-local-ci.sh all
 
 coverage:
 	python -m pytest --cov=src --cov-report=term-missing --cov-fail-under=45

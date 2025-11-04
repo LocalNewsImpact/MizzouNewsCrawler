@@ -2064,23 +2064,34 @@ git push origin feature/your-feature-name
 
 ### Testing
 
-**⚠️ IMPORTANT: Always run tests like CI before pushing:**
+**⚠️ IMPORTANT: Run local CI tests before pushing to catch failures early:**
 
 ```bash
-# Run tests exactly like CI (RECOMMENDED before every push)
-./scripts/test-like-ci.sh
+# Quick commands (using Makefile)
+make test-ci          # Full CI suite with coverage (matches GitHub Actions)
+make test-unit        # Unit tests only (no database)
+make test-integration # Integration tests with SQLite
+make test-postgres    # PostgreSQL integration tests
+make test-all-ci      # All suites sequentially
 
-# This script:
-# ✅ Sets PostgreSQL environment variables
-# ✅ Runs migrations
-# ✅ Runs unit tests + integration tests
-# ✅ Catches CI failures locally
+# Or use the script directly
+./scripts/run-local-ci.sh ci          # Full CI suite
+./scripts/run-local-ci.sh unit        # Unit tests
+./scripts/run-local-ci.sh integration # SQLite tests
+./scripts/run-local-ci.sh postgres    # PostgreSQL tests
+./scripts/run-local-ci.sh all         # All suites
+
+# Benefits:
+# ✅ Matches exact CI environment (PostgreSQL, markers, coverage)
+# ✅ Runs migrations automatically
+# ✅ Catches CI failures before pushing
+# ✅ Color-coded output
 ```
 
-**Other test commands:**
+**Manual test commands (may differ from CI):**
 
 ```bash
-# Run all tests (may differ from CI)
+# Run all tests (not recommended - may differ from CI)
 python -m pytest tests/
 
 # Run with coverage
