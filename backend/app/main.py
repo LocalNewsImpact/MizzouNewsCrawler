@@ -10,8 +10,9 @@ import threading
 import time as _time
 import uuid
 from collections.abc import Sequence
+from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Optional, SupportsInt, TYPE_CHECKING, cast
+from typing import Any, AsyncIterator, Optional, SupportsInt, TYPE_CHECKING, cast
 
 import numpy as np
 import pandas as _pd
@@ -86,70 +87,260 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 ARTICLES_CSV = BASE_DIR / "processed" / "articleslabelledgeo_8.csv"
 DB_PATH = BASE_DIR / "backend" / "reviews.db"
 
-app = FastAPI(title="MizzouNewsCrawler Reviewer API")
+# In-process queue and worker to serialize DB writes so HTTP handlers return
+# quickly instead of blocking on SQLite locks. This reduces client timeouts
+# when many writers contend for the DB file.
+snapshots_queue = pyqueue.Queue()
+_worker_stop_event = threading.Event()
+_worker_thread = None
 
-# Set up lifecycle handlers for centralized resource management
-# This initializes telemetry, database, HTTP session, and origin proxy
-try:
-    from backend.app.lifecycle import setup_lifecycle_handlers  # noqa: E402
 
-    setup_lifecycle_handlers(app)
-except Exception:
-    # If lifecycle wiring isn't present (e.g., in minimal test environments),
-    # fall back to the legacy startup/shutdown wiring to keep the app usable.
-    def _install_origin_proxy_if_enabled(session: requests.Session) -> None:
+def _db_writer_worker():
+    """Background thread that serially writes snapshot rows to Cloud SQL.
+    Each queue item is a dict with keys matching the snapshot insert.
+    """
+    # Import here to avoid circular dependency issues
+    from src.models.database import DatabaseManager
+    from src.models.api_backend import Snapshot
+    from src import config as app_config
+    
+    # Create a dedicated DatabaseManager for the worker thread
+    worker_db_manager = DatabaseManager(app_config.DATABASE_URL)
+    
+    while not _worker_stop_event.is_set():
         try:
-            from src.crawler.origin_proxy import enable_origin_proxy
+            item = snapshots_queue.get(timeout=1.0)
+        except Exception:
+            # timeout, check stop flag again
+            continue
+        try:
+            with worker_db_manager.get_session() as session:
+                snapshot = Snapshot(
+                    id=item.get("id"),
+                    host=item.get("host"),
+                    url=item.get("url"),
+                    path=item.get("path"),
+                    pipeline_run_id=item.get("pipeline_run_id"),
+                    failure_reason=item.get("failure_reason"),
+                    parsed_fields=(
+                        json.dumps(item.get("parsed_fields"))
+                        if item.get("parsed_fields") is not None
+                        else None
+                    ),
+                    model_confidence=item.get("model_confidence"),
+                    status=item.get("status") or "pending",
+                    created_at=item.get("created_at"),
+                )
+                session.add(snapshot)
+                session.commit()
+        except Exception as exc:
+            import traceback
 
-            if os.environ.get("USE_ORIGIN_PROXY", "false").lower() in (
-                "1",
-                "true",
-                "yes",
+            logger.exception("Snapshot write failed", exc_info=exc)
+            traceback.print_exc()
+        finally:
+            try:
+                snapshots_queue.task_done()
+            except Exception:
+                pass
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Lifespan context manager for the main FastAPI app.
+    
+    This combines all startup and shutdown logic:
+    - Lifecycle handlers from backend.app.lifecycle module
+    - DB writer thread for snapshot ingestion
+    - Database table initialization
+    - Gazetteer tables initialization
+    """
+    global _worker_thread
+    
+    # === STARTUP ===
+    logger.info("Starting main app initialization...")
+    
+    # 1. Set up centralized lifecycle handlers (telemetry, db, http session)
+    try:
+        from backend.app.lifecycle import lifespan as base_lifespan
+        
+        # The base lifespan handler needs to run its startup logic
+        # We'll need to manually invoke it since we can't nest lifespan contexts
+        # Instead, we'll call setup_lifecycle_handlers which sets up the resources
+        from backend.app.lifecycle import setup_lifecycle_handlers
+        
+        # This will set up the lifespan on the app router
+        setup_lifecycle_handlers(app)
+        
+        # Now we need to manually trigger the startup portion of the base lifespan
+        # by invoking it directly (this is a workaround for combining lifespan handlers)
+        # Actually, setup_lifecycle_handlers already sets the lifespan, so we need
+        # to ensure our startup logic runs after it
+        
+        # The cleanest approach: directly initialize resources here
+        # (duplicating base lifespan logic for now - can be refactored later)
+        try:
+            if (
+                not hasattr(app.state, "telemetry_store")
+                or getattr(app.state, "telemetry_store") is None
             ):
-                enable_origin_proxy(session)
-        except Exception:
-            logger.debug("Origin proxy adapter not installed or failed to enable.")
+                from src.telemetry.store import TelemetryStore
+                from src import config as app_config
 
-    @app.on_event("startup")
-    def app_startup_resources():
-        # Telemetry store: allow tests to override DATABASE_URL via env
-        database_url = os.environ.get("TELEMETRY_DATABASE_URL", None)
-        if database_url:
-            telemetry = get_telemetry_store(database=database_url)
-        else:
-            telemetry = get_telemetry_store()
+                async_writes = os.getenv("TELEMETRY_ASYNC_WRITES", "true").lower() in (
+                    "true",
+                    "1",
+                    "yes",
+                )
 
-        app.state.telemetry_store = telemetry
+                telemetry_store = TelemetryStore(
+                    database=app_config.DATABASE_URL,
+                    async_writes=async_writes,
+                    timeout=30.0,
+                    thread_name="TelemetryStoreWriter",
+                )
+                app.state.telemetry_store = telemetry_store
+                logger.info(f"TelemetryStore initialized (async_writes={async_writes})")
+        except Exception as exc:
+            logger.exception("Failed to initialize TelemetryStore", exc_info=exc)
+            app.state.telemetry_store = None
 
-        # Ensure DatabaseManager is present on state for endpoints/tests to use.
         try:
-            # db_manager already initialized at module import; store a reference
-            app.state.db_manager = db_manager
-        except Exception:
+            if (
+                not hasattr(app.state, "db_manager")
+                or getattr(app.state, "db_manager") is None
+            ):
+                from src.models.database import DatabaseManager
+                from src import config as app_config
+
+                app.state.db_manager = DatabaseManager(app_config.DATABASE_URL)
+                logger.info("DatabaseManager initialized")
+        except Exception as exc:
+            logger.exception("Failed to initialize DatabaseManager", exc_info=exc)
             app.state.db_manager = None
 
-        # Shared HTTP session used by handlers that perform outbound requests
-        shared = requests.Session()
-        _install_origin_proxy_if_enabled(shared)
-        app.state.shared_session = shared
-
-    @app.on_event("shutdown")
-    def app_shutdown_resources():
-        # Flush and shutdown telemetry store if present
         try:
-            ts = getattr(app.state, "telemetry_store", None)
-            if ts is not None:
-                ts.shutdown(wait=True)
-        except Exception:
-            logger.exception("Error shutting down telemetry store")
+            if (
+                not hasattr(app.state, "http_session")
+                or getattr(app.state, "http_session") is None
+            ):
+                session = requests.Session()
+                use_origin_proxy = os.getenv("USE_ORIGIN_PROXY", "").lower() in (
+                    "1",
+                    "true",
+                    "yes",
+                )
+                if use_origin_proxy:
+                    try:
+                        from src.crawler.origin_proxy import enable_origin_proxy
+                        enable_origin_proxy(session)
+                        logger.info("Origin proxy adapter installed")
+                    except Exception as exc:
+                        logger.exception("Failed to install origin proxy", exc_info=exc)
+                app.state.http_session = session
+                logger.info("HTTP session initialized")
+        except Exception as exc:
+            logger.exception("Failed to initialize HTTP session", exc_info=exc)
+            app.state.http_session = None
 
-        # Close shared session
+        app.state.ready = True
+        
+    except Exception as exc:
+        logger.exception("Failed to initialize lifecycle handlers", exc_info=exc)
+    
+    # 2. Start DB writer thread
+    logger.info("Starting DB writer thread...")
+    _worker_stop_event.clear()
+    _worker_thread = threading.Thread(
+        target=_db_writer_worker, name="db-writer", daemon=True
+    )
+    _worker_thread.start()
+    logger.info("DB writer thread started")
+    
+    # 3. Initialize database tables
+    logger.info("Initializing database tables...")
+    try:
+        init_snapshot_tables()
+        logger.info("Snapshot tables initialized")
+    except Exception as exc:
+        logger.exception("Failed to initialize snapshot tables", exc_info=exc)
+    
+    try:
+        init_db()
+        logger.info("Database initialized")
+    except Exception as exc:
+        logger.exception("Failed to initialize database", exc_info=exc)
+    
+    # 4. Initialize gazetteer tables
+    logger.info("Initializing gazetteer tables...")
+    try:
+        ensure_address_updates_table()
+        logger.info("Gazetteer tables initialized")
+    except Exception as exc:
+        logger.exception("Failed to initialize gazetteer tables", exc_info=exc)
+    
+    logger.info("Main app initialization complete")
+    
+    # === APPLICATION RUNS HERE ===
+    yield
+    
+    # === SHUTDOWN ===
+    logger.info("Starting main app shutdown...")
+    
+    # 1. Stop DB writer thread
+    logger.info("Stopping DB writer thread...")
+    _worker_stop_event.set()
+    try:
+        if _worker_thread is not None:
+            _worker_thread.join(timeout=5.0)
+        logger.info("DB writer thread stopped")
+    except Exception as exc:
+        logger.exception("Error stopping DB writer thread", exc_info=exc)
+    
+    # 2. Shutdown telemetry store
+    if hasattr(app.state, "telemetry_store") and app.state.telemetry_store:
         try:
-            sess = getattr(app.state, "shared_session", None)
-            if sess is not None:
-                sess.close()
-        except Exception:
-            logger.exception("Error closing shared_session")
+            logger.info("Shutting down TelemetryStore...")
+            app.state.telemetry_store.shutdown(wait=True)
+            logger.info("TelemetryStore shutdown complete")
+        except Exception as exc:
+            logger.exception("Error shutting down TelemetryStore", exc_info=exc)
+    
+    # 3. Dispose database engine
+    if hasattr(app.state, "db_manager") and app.state.db_manager:
+        try:
+            logger.info("Disposing DatabaseManager engine...")
+            app.state.db_manager.engine.dispose()
+            logger.info("DatabaseManager engine disposed")
+        except Exception as exc:
+            logger.exception("Error disposing DatabaseManager", exc_info=exc)
+    
+    # 4. Close HTTP session
+    if hasattr(app.state, "http_session") and app.state.http_session:
+        try:
+            logger.info("Closing HTTP session...")
+            app.state.http_session.close()
+            logger.info("HTTP session closed")
+        except Exception as exc:
+            logger.exception("Error closing HTTP session", exc_info=exc)
+    
+    # 5. Clear ready flag
+    if hasattr(app.state, "ready"):
+        app.state.ready = False
+    
+    logger.info("Main app shutdown complete")
+
+
+app = FastAPI(title="MizzouNewsCrawler Reviewer API", lifespan=lifespan)
+
+# Lifecycle handlers are now managed by the lifespan context manager above
+# which includes:
+# - Telemetry store initialization and shutdown
+# - DatabaseManager initialization and engine disposal
+# - HTTP session initialization and cleanup
+# - DB writer thread management
+# - Database table initialization
+# - Gazetteer table initialization
 
 
 # Initialize database connection using DatabaseManager
@@ -393,92 +584,9 @@ def init_snapshot_tables():
         return
 
 
-# In-process queue and worker to serialize DB writes so HTTP handlers return
-# quickly instead of blocking on SQLite locks. This reduces client timeouts
-# when many writers contend for the DB file.
-snapshots_queue = pyqueue.Queue()
-_worker_stop_event = threading.Event()
-_worker_thread = None
-
-
-def _db_writer_worker():
-    """Background thread that serially writes snapshot rows to Cloud SQL.
-    Each queue item is a dict with keys matching the snapshot insert.
-    """
-    while not _worker_stop_event.is_set():
-        try:
-            item = snapshots_queue.get(timeout=1.0)
-        except Exception:
-            # timeout, check stop flag again
-            continue
-        try:
-            with db_manager.get_session() as session:
-                snapshot = Snapshot(
-                    id=item.get("id"),
-                    host=item.get("host"),
-                    url=item.get("url"),
-                    path=item.get("path"),
-                    pipeline_run_id=item.get("pipeline_run_id"),
-                    failure_reason=item.get("failure_reason"),
-                    parsed_fields=(
-                        json.dumps(item.get("parsed_fields"))
-                        if item.get("parsed_fields") is not None
-                        else None
-                    ),
-                    model_confidence=item.get("model_confidence"),
-                    status=item.get("status") or "pending",
-                    created_at=item.get("created_at"),
-                )
-                session.add(snapshot)
-                session.commit()
-        except Exception as exc:
-            import traceback
-
-            logger.exception("Snapshot write failed", exc_info=exc)
-            traceback.print_exc()
-        finally:
-            try:
-                snapshots_queue.task_done()
-            except Exception:
-                pass
-
-
-@app.on_event("startup")
-def startup_writer():
-    global _worker_thread
-    # start the DB writer thread
-    _worker_stop_event.clear()
-    _worker_thread = threading.Thread(
-        target=_db_writer_worker, name="db-writer", daemon=True
-    )
-    _worker_thread.start()
-
-
-@app.on_event("shutdown")
-def shutdown_writer():
-    # signal worker to stop and wait a short time
-    _worker_stop_event.set()
-    try:
-        if _worker_thread is not None:
-            _worker_thread.join(timeout=5.0)
-    except Exception:
-        pass
-
-
-@app.on_event("startup")
-def startup_snap_tables():
-    init_snapshot_tables()
-
-
-@app.on_event("startup")
-def startup():
-    init_db()
-
-
-@app.on_event("startup")
-def startup_gazetteer_tables():
-    """Initialize gazetteer telemetry tables on startup."""
-    ensure_address_updates_table()
+# Note: DB writer thread, snapshot queue, and table initialization
+# are now managed by the lifespan context manager defined above.
+# The worker thread is started during app startup and stopped during shutdown.
 
 
 @app.get("/api/articles")
