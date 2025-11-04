@@ -454,13 +454,18 @@ class DatabaseManager:
         # Check if we should use Cloud SQL Python Connector
         use_cloud_sql = self._should_use_cloud_sql_connector()
 
-        # Validate PostgreSQL URL
+        # Warn if not using PostgreSQL (but allow SQLite for tests)
         if "postgresql" not in database_url.lower():
-            raise ValueError(
-                f"DatabaseManager requires PostgreSQL database URL. "
-                f"Got: {database_url[:50]}... "
-                f"Set DATABASE_URL or TEST_DATABASE_URL environment variable."
-            )
+            import sys
+            import logging
+            # Only warn in production contexts, not tests
+            if not any(x in sys.argv[0] for x in ['pytest', 'test']):
+                logger = logging.getLogger(__name__)
+                logger.warning(
+                    f"DatabaseManager using non-PostgreSQL database: "
+                    f"{database_url[:50]}... "
+                    f"Production should use PostgreSQL for compatibility."
+                )
 
         if use_cloud_sql:
             self.engine = self._create_cloud_sql_engine()

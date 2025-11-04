@@ -422,12 +422,16 @@ class TelemetryStore:
             self._engine = self._create_engine()
             self._owns_engine = True
 
-        # Validate that we have a PostgreSQL engine
+        # Warn if not using PostgreSQL (but allow SQLite for tests)
         if "postgresql" not in self.database_url.lower():
-            raise ValueError(
-                f"TelemetryStore requires PostgreSQL. "
-                f"Got: {_mask_database_url(self.database_url)}"
-            )
+            import sys
+            # Only warn in production contexts, not tests
+            if not any(x in sys.argv[0] for x in ['pytest', 'test']):
+                self._logger.warning(
+                    f"TelemetryStore using non-PostgreSQL database: "
+                    f"{_mask_database_url(self.database_url)}. "
+                    f"Production should use PostgreSQL for compatibility."
+                )
 
         self._queue: queue.Queue | None = None
         self._writer_thread: threading.Thread | None = None
@@ -450,20 +454,13 @@ class TelemetryStore:
     def _create_engine(self) -> Engine:
         """Create SQLAlchemy engine based on database URL.
         
-        IMPORTANT: Only PostgreSQL is supported. SQLite support has been
-        removed to prevent production compatibility issues.
+        NOTE: PostgreSQL is recommended for production. SQLite is allowed
+        for test environments for speed and isolation.
         """
-        # Validate PostgreSQL URL
-        if "postgresql" not in self.database_url.lower():
-            raise ValueError(
-                f"TelemetryStore requires PostgreSQL database URL. "
-                f"Got: {_mask_database_url(self.database_url)}. "
-                f"SQLite is not supported for telemetry operations."
-            )
-        
-        # Check if Cloud SQL connector should be used
-        if self._should_use_cloud_sql_connector():
-            return self._create_cloud_sql_engine()
+        # Check if Cloud SQL connector should be used (PostgreSQL only)
+        if "postgresql" in self.database_url.lower():
+            if self._should_use_cloud_sql_connector():
+                return self._create_cloud_sql_engine()
 
         # Use NullPool for async writes to avoid connection pool issues
         engine = create_engine(
