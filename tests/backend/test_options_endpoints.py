@@ -13,8 +13,12 @@ New database implementation:
 - Return distinct counties, sources, reviewers from Cloud SQL
 """
 
+import pytest
 
-def test_options_counties_empty_database(test_client, db_session):
+
+@pytest.mark.postgres
+@pytest.mark.integration
+def test_options_counties_empty_database(test_client, cloud_sql_session):
     """Test options/counties returns empty list when database is empty."""
     response = test_client.get("/api/options/counties")
 
@@ -25,6 +29,8 @@ def test_options_counties_empty_database(test_client, db_session):
     assert len(data) == 0
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_options_counties_returns_distinct_values(
     test_client,
     db_session,
@@ -42,6 +48,8 @@ def test_options_counties_returns_distinct_values(
     assert set(data) == {"Boone", "Cole", "Audrain"}
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_options_counties_no_duplicates(
     test_client,
     db_session,
@@ -57,7 +65,9 @@ def test_options_counties_no_duplicates(
     assert len(data) == len(set(data))
 
 
-def test_options_sources_empty_database(test_client, db_session):
+@pytest.mark.postgres
+@pytest.mark.integration
+def test_options_sources_empty_database(test_client, cloud_sql_session):
     """Test options/sources returns empty list when database is empty."""
     response = test_client.get("/api/options/sources")
 
@@ -68,6 +78,8 @@ def test_options_sources_empty_database(test_client, db_session):
     assert len(data) == 0
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_options_sources_returns_distinct_values(
     test_client,
     db_session,
@@ -99,6 +111,8 @@ def test_options_sources_returns_distinct_values(
         assert set(data) == expected_ids
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_options_sources_format(
     test_client,
     db_session,
@@ -130,7 +144,9 @@ def test_options_sources_format(
         assert "id" in first_item or "name" in first_item
 
 
-def test_options_reviewers_empty_database(test_client, db_session):
+@pytest.mark.postgres
+@pytest.mark.integration
+def test_options_reviewers_empty_database(test_client, cloud_sql_session):
     """Test options/reviewers returns empty list when database is empty."""
     response = test_client.get("/api/options/reviewers")
 
@@ -141,6 +157,8 @@ def test_options_reviewers_empty_database(test_client, db_session):
     assert len(data) == 0
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_options_reviewers_returns_distinct_values(
     test_client,
     db_session,
@@ -159,6 +177,8 @@ def test_options_reviewers_returns_distinct_values(
     assert set(data) == {"user1", "user2"}
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_options_reviewers_no_duplicates(
     test_client,
     db_session,
@@ -174,6 +194,8 @@ def test_options_reviewers_no_duplicates(
     assert len(data) == len(set(data))
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_options_reviewers_only_active(
     test_client,
     db_session,
@@ -194,6 +216,8 @@ def test_options_reviewers_only_active(
     assert "nonexistent" not in data
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_options_counties_sorted(
     test_client,
     db_session,
@@ -213,6 +237,8 @@ def test_options_counties_sorted(
         assert data == sorted(data), "Counties should be sorted alphabetically"
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_options_sources_sorted(
     test_client,
     db_session,
@@ -229,6 +255,8 @@ def test_options_sources_sorted(
         assert data == sorted(data), "Sources should be sorted alphabetically"
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_options_reviewers_sorted(
     test_client,
     db_session,
@@ -245,6 +273,8 @@ def test_options_reviewers_sorted(
         assert data == sorted(data), "Reviewers should be sorted alphabetically"
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_options_counties_filters_null(
     test_client,
     db_session,
@@ -263,8 +293,8 @@ def test_options_counties_filters_null(
         source_name="Example Source",
         source_county=None,  # NULL county
     )
-    db_session.add(candidate_link_null)
-    db_session.flush()
+    cloud_sql_session.add(candidate_link_null)
+    cloud_sql_session.flush()
 
     # Create article with NULL county CandidateLink
     article = Article(
@@ -273,8 +303,8 @@ def test_options_counties_filters_null(
         candidate_link_id=candidate_link_null.id,
         publish_date=datetime.now(),
     )
-    db_session.add(article)
-    db_session.commit()
+    cloud_sql_session.add(article)
+    cloud_sql_session.commit()
 
     response = test_client.get("/api/options/counties")
 
@@ -286,6 +316,8 @@ def test_options_counties_filters_null(
     assert "" not in data
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_options_performance(
     test_client,
     db_session,
@@ -315,6 +347,8 @@ def test_options_performance(
         )
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_options_database_error_handling(test_client, monkeypatch):
     """Test options endpoints handle database errors gracefully."""
 
@@ -337,7 +371,9 @@ def test_options_database_error_handling(test_client, monkeypatch):
         assert response.status_code == 500
 
 
-def test_options_no_csv_dependency(test_client, db_session, tmp_path):
+@pytest.mark.postgres
+@pytest.mark.integration
+def test_options_no_csv_dependency(test_client, cloud_sql_session, tmp_path):
     """Test options endpoints do not depend on CSV files.
 
     Critical test: Verifies the CSV dependency has been removed.
@@ -364,6 +400,8 @@ def test_options_no_csv_dependency(test_client, db_session, tmp_path):
         assert isinstance(data, list)
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_options_special_characters_in_county(
     test_client,
     db_session,
@@ -383,8 +421,8 @@ def test_options_special_characters_in_county(
         source_name="St. Louis Source",
         source_county="St. Louis",  # Has period
     )
-    db_session.add(candidate_link_special)
-    db_session.flush()
+    cloud_sql_session.add(candidate_link_special)
+    cloud_sql_session.flush()
 
     # Create article with special county
     article = Article(
@@ -393,8 +431,8 @@ def test_options_special_characters_in_county(
         candidate_link_id=candidate_link_special.id,
         publish_date=datetime.now(),
     )
-    db_session.add(article)
-    db_session.commit()
+    cloud_sql_session.add(article)
+    cloud_sql_session.commit()
 
     response = test_client.get("/api/options/counties")
 
@@ -405,6 +443,8 @@ def test_options_special_characters_in_county(
     assert "St. Louis" in data
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_options_case_sensitivity(
     test_client,
     db_session,
@@ -431,8 +471,8 @@ def test_options_case_sensitivity(
         source_name="Boone Source 2",
         source_county="boone",  # Different case
     )
-    db_session.add_all([candidate_link1, candidate_link2])
-    db_session.flush()
+    cloud_sql_session.add_all([candidate_link1, candidate_link2])
+    cloud_sql_session.flush()
 
     # Create articles with different case variations
     articles = [
@@ -451,8 +491,8 @@ def test_options_case_sensitivity(
     ]
 
     for article in articles:
-        db_session.add(article)
-    db_session.commit()
+        cloud_sql_session.add(article)
+    cloud_sql_session.commit()
 
     response = test_client.get("/api/options/counties")
 

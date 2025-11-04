@@ -9,8 +9,12 @@ Returns:
 - dedupe_near_misses: dedupe audit records needing review
 """
 
+import pytest
 
-def test_ui_overview_empty_database(test_client, db_session):
+
+@pytest.mark.postgres
+@pytest.mark.integration
+def test_ui_overview_empty_database(test_client, cloud_sql_session):
     """Test ui_overview returns zeros when database is empty."""
     response = test_client.get("/api/ui_overview")
 
@@ -24,6 +28,8 @@ def test_ui_overview_empty_database(test_client, db_session):
     assert data["dedupe_near_misses"] == 0
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_ui_overview_with_articles(
     test_client,
     db_session,
@@ -46,6 +52,8 @@ def test_ui_overview_with_articles(
     assert data["wire_count"] >= 0
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_ui_overview_response_format(
     test_client,
     db_session,
@@ -70,6 +78,8 @@ def test_ui_overview_response_format(
     assert isinstance(data["dedupe_near_misses"], int)
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_ui_overview_performance(
     test_client,
     db_session,
@@ -95,6 +105,8 @@ def test_ui_overview_performance(
     assert data["total_articles"] == 500
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_ui_overview_wire_count(
     test_client,
     db_session,
@@ -134,10 +146,10 @@ def test_ui_overview_wire_count(
         source_name=sample_sources[0].canonical_name,
         source_county=sample_sources[0].county,
     )
-    db_session.add(link1)
-    db_session.add(link2)
-    db_session.add(link3)
-    db_session.commit()
+    cloud_sql_session.add(link1)
+    cloud_sql_session.add(link2)
+    cloud_sql_session.add(link3)
+    cloud_sql_session.commit()
 
     # Create articles with different wire attribution formats
     articles = [
@@ -171,8 +183,8 @@ def test_ui_overview_wire_count(
     ]
 
     for article in articles:
-        db_session.add(article)
-    db_session.commit()
+        cloud_sql_session.add(article)
+    cloud_sql_session.commit()
 
     response = test_client.get("/api/ui_overview")
 
@@ -184,6 +196,8 @@ def test_ui_overview_wire_count(
     assert data["total_articles"] == 3
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_ui_overview_with_multiple_counties(
     test_client,
     db_session,
@@ -204,6 +218,8 @@ def test_ui_overview_with_multiple_counties(
     assert len(counties) == 3
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_ui_overview_database_error_handling(test_client, monkeypatch):
     """Test ui_overview handles database errors gracefully.
 
@@ -227,7 +243,9 @@ def test_ui_overview_database_error_handling(test_client, monkeypatch):
     assert data["wire_count"] == 0
 
 
-def test_ui_overview_no_csv_dependency(test_client, db_session, tmp_path):
+@pytest.mark.postgres
+@pytest.mark.integration
+def test_ui_overview_no_csv_dependency(test_client, cloud_sql_session, tmp_path):
     """Test ui_overview does not depend on CSV files.
 
     Critical test: Verifies the CSV dependency has been removed.

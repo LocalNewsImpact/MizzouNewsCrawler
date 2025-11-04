@@ -16,6 +16,8 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.testclient import TestClient
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_setup_lifecycle_handlers_registers_startup_and_shutdown():
     """Verify that setup_lifecycle_handlers registers event handlers."""
     from backend.app.lifecycle import setup_lifecycle_handlers
@@ -170,6 +172,8 @@ async def test_shutdown_closes_http_session():
     mock_session.close.assert_called_once()
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_get_telemetry_store_dependency():
     """Test get_telemetry_store dependency injection."""
     from backend.app.lifecycle import get_telemetry_store, setup_lifecycle_handlers
@@ -188,6 +192,8 @@ def test_get_telemetry_store_dependency():
         assert "has_store" in response.json()
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_get_db_manager_dependency():
     """Test get_db_manager dependency injection."""
     from backend.app.lifecycle import get_db_manager, setup_lifecycle_handlers
@@ -205,6 +211,8 @@ def test_get_db_manager_dependency():
         assert "has_db" in response.json()
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_get_http_session_dependency():
     """Test get_http_session dependency injection."""
     from backend.app.lifecycle import get_http_session, setup_lifecycle_handlers
@@ -222,6 +230,8 @@ def test_get_http_session_dependency():
         assert "has_session" in response.json()
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_is_ready_dependency():
     """Test is_ready dependency function."""
     from backend.app.lifecycle import is_ready, setup_lifecycle_handlers
@@ -240,6 +250,8 @@ def test_is_ready_dependency():
         assert response.json()["ready"] is True
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_check_db_health_returns_false_when_no_db():
     """Test check_db_health returns False when db_manager is None."""
     from backend.app.lifecycle import check_db_health
@@ -250,6 +262,8 @@ def test_check_db_health_returns_false_when_no_db():
     assert "not initialized" in message.lower()
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_check_db_health_returns_true_on_successful_query():
     """Test check_db_health returns True when database query succeeds."""
     from backend.app.lifecycle import check_db_health
@@ -274,6 +288,8 @@ def test_check_db_health_returns_true_on_successful_query():
         assert executed == "SELECT 1"
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_check_db_health_returns_false_on_operational_error():
     """Test check_db_health returns False on database errors."""
     from sqlalchemy.exc import OperationalError
@@ -292,6 +308,8 @@ def test_check_db_health_returns_false_on_operational_error():
     assert "connection failed" in message.lower()
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_dependency_override_in_tests():
     """Test that dependencies can be overridden for testing."""
     from backend.app.lifecycle import get_db_manager, setup_lifecycle_handlers
@@ -319,6 +337,8 @@ def test_dependency_override_in_tests():
         assert response.json()["test_value"] == "test"
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_origin_proxy_installed_when_env_var_set():
     """Test that origin proxy adapter is installed when USE_ORIGIN_PROXY=true."""
     from backend.app.lifecycle import setup_lifecycle_handlers
@@ -335,6 +355,8 @@ def test_origin_proxy_installed_when_env_var_set():
             assert mock_enable.call_count > 0
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_origin_proxy_not_installed_when_env_var_unset():
     """Test origin proxy adapter not installed when USE_ORIGIN_PROXY unset."""
     from backend.app.lifecycle import setup_lifecycle_handlers
