@@ -376,8 +376,9 @@ def test_telemetry_persistence_integration(cloud_sql_session):
     
     Uses cloud_sql_session fixture for PostgreSQL with automatic rollback.
     """
-    # Get database URL from the session
-    db_url = str(cloud_sql_session.get_bind().url)
+    # Get database URL from the engine
+    engine = cloud_sql_session.get_bind().engine
+    db_url = str(engine.url)
 
     # Create a source
     dbm = DatabaseManager(database_url=db_url)

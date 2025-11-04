@@ -328,8 +328,9 @@ class TestComprehensiveExtractionTelemetry:
     @pytest.fixture
     def temp_db(self, cloud_sql_session):
         """Use PostgreSQL test database with automatic rollback."""
-        # Get database URL from session
-        db_url = str(cloud_sql_session.get_bind().url)
+        # Get database URL from engine
+        engine = cloud_sql_session.get_bind().engine
+        db_url = str(engine.url)
         
         # ComprehensiveExtractionTelemetry expects a URL string
         telemetry = ComprehensiveExtractionTelemetry(db_url)

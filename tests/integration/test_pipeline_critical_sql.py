@@ -33,8 +33,9 @@ def test_db(cloud_sql_session):
     connection with all tables created and automatic rollback after test.
     """
     # cloud_sql_session is a SQLAlchemy Session, but we need a DatabaseManager
-    # Get the engine from the session to create a DatabaseManager
-    db_url = str(cloud_sql_session.get_bind().url)
+    # Get the URL from the engine (bind returns Connection, need engine.url)
+    engine = cloud_sql_session.get_bind().engine
+    db_url = str(engine.url)
     manager = DatabaseManager(database_url=db_url)
     
     yield manager
