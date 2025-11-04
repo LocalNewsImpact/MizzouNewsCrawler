@@ -464,9 +464,8 @@ class DatasetSource(Base):
         String,
         primary_key=True,
         default=lambda: str(uuid.uuid4()),
-        # SQLite-friendly server default to generate a hex UUID when raw SQL
-        # inserts omit the `id` column in tests.
-        server_default=text("lower(hex(randomblob(16)))"),
+        # PostgreSQL: gen_random_uuid() for server-side UUID generation
+        server_default=text("gen_random_uuid()::text"),
     )
     dataset_id = Column(
         String,
