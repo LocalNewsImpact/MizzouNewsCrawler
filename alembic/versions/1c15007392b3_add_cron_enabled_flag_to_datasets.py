@@ -33,11 +33,12 @@ def upgrade() -> None:
     
     if 'cron_enabled' not in columns:
         # Add column with default True for existing datasets
-        # Note: server_default='1' ensures existing datasets are cron-enabled
+        # Note: server_default='TRUE' ensures existing datasets are cron-enabled
+        # PostgreSQL requires TRUE/FALSE for boolean defaults (not 1/0)
         # New datasets will use Python-level default from the model
         op.add_column(
             'datasets',
-            sa.Column('cron_enabled', sa.Boolean(), nullable=False, server_default='1')
+            sa.Column('cron_enabled', sa.Boolean(), nullable=False, server_default='TRUE')
         )
 
 

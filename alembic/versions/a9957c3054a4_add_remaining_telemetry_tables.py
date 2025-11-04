@@ -132,7 +132,7 @@ def upgrade() -> None:
         sa.Column('segment_length', sa.Integer(), nullable=True),
         sa.Column('boundary_score', sa.Float(), nullable=True),
         sa.Column('position_consistency', sa.Float(), nullable=True),
-        sa.Column('is_active', sa.Boolean(), server_default='1'),
+        sa.Column('is_active', sa.Boolean(), server_default='TRUE'),
         sa.Column('created_at', sa.DateTime(), server_default=sa.text('CURRENT_TIMESTAMP')),
         sa.PrimaryKeyConstraint('id')
     )

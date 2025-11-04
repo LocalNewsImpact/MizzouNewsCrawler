@@ -410,7 +410,7 @@ class Dataset(Base):
         Boolean,
         default=True,
         nullable=False,
-        server_default=text("1"),
+        server_default=text("TRUE"),
     )
     # Timestamp for dataset creation (present in older SQLite test schema)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
