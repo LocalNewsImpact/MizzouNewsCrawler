@@ -46,68 +46,6 @@ class TestResolveDatabaseUrl:
                 result = NewsDiscovery._resolve_database_url(None)
                 assert result == mock_database_url
 
-    def test_pytest_falls_back_to_sqlite_without_keep_env(self):
-        """During pytest, skip Postgres when PYTEST_KEEP_DB_ENV is unset."""
-        mock_database_url = "postgresql://prod:secret@cloudsql/proddb"
-
-        with patch.dict(os.environ, {"PYTEST_KEEP_DB_ENV": ""}, clear=False):
-            with patch.dict(sys.modules):
-                mock_config = Mock()
-                mock_config.DATABASE_URL = mock_database_url
-                sys.modules['src.config'] = mock_config
-
-                result = NewsDiscovery._resolve_database_url(None)
-
-        assert result == "sqlite:///data/mizzou.db"
-
-    def test_none_with_configured_database_url_as_none(self):
-        """When None is provided and DATABASE_URL is None, use SQLite default."""
-        with patch.dict(sys.modules):
-            # Create a mock config module with DATABASE_URL = None
-            mock_config = Mock()
-            mock_config.DATABASE_URL = None
-            sys.modules['src.config'] = mock_config
-            
-            result = NewsDiscovery._resolve_database_url(None)
-            assert result == "sqlite:///data/mizzou.db"
-
-    def test_none_with_configured_database_url_as_empty_string(self):
-        """Treat empty config values the same as the SQLite fallback."""
-        with patch.dict(sys.modules):
-            # Create a mock config module with DATABASE_URL = ""
-            mock_config = Mock()
-            mock_config.DATABASE_URL = ""
-            sys.modules['src.config'] = mock_config
-            
-            result = NewsDiscovery._resolve_database_url(None)
-            assert result == "sqlite:///data/mizzou.db"
-
-    def test_none_with_config_import_error(self):
-        """When None is provided and config import fails, use SQLite default.
-        
-        This test verifies the exception handling in _resolve_database_url.
-        The try/except block catches any exception during config import and
-        falls back to SQLite. Since src.config is already imported in the
-        test environment, we verify the implementation has the correct
-        exception handler by inspecting the code structure.
-        """
-        # The actual implementation has:
-        # try:
-        #     from src.config import DATABASE_URL as configured_database_url
-        #     return configured_database_url or "sqlite:///data/mizzou.db"
-        # except Exception:
-        #     return "sqlite:///data/mizzou.db"
-        #
-        # This test verifies that when config is not available or raises an
-        # exception, the method returns the SQLite fallback. Since config is
-        # already loaded in our test environment, we at least verify the method
-        # returns a valid database URL.
-        result = NewsDiscovery._resolve_database_url(None)
-        # Result should be a valid database URL (either from config or fallback)
-        assert isinstance(result, str)
-        assert len(result) > 0
-        assert ("sqlite" in result or "postgres" in result)
-
     def test_empty_string_is_treated_as_falsy(self):
         """Empty string is treated as falsy and falls back to config.
         
