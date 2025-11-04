@@ -22,22 +22,23 @@ from src.models import Article, CandidateLink, Source
 from src.models.database import DatabaseManager
 
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.postgres]
 
 
 @pytest.fixture
-def test_db(tmp_path):
-    """Create a test database with schema."""
-    db_path = tmp_path / "test_critical.db"
-    db_url = f"sqlite:///{db_path}"
+def test_db(cloud_sql_session):
+    """Use PostgreSQL test database with automatic rollback.
+    
+    Uses the cloud_sql_session fixture which provides a PostgreSQL
+    connection with all tables created and automatic rollback after test.
+    """
+    # cloud_sql_session is a SQLAlchemy Session, but we need a DatabaseManager
+    # Get the engine from the session to create a DatabaseManager
+    db_url = str(cloud_sql_session.get_bind().url)
     manager = DatabaseManager(database_url=db_url)
     
-    # Create all tables
-    from src.models import Base
-    Base.metadata.create_all(manager.engine)
-    
     yield manager
-    manager.close()
+    # No explicit cleanup needed - cloud_sql_session handles rollback
 
 
 @pytest.fixture

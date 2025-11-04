@@ -370,10 +370,14 @@ def test_rss_network_error_resets_failure_state(tmp_path, monkeypatch):
 
 
 @pytest.mark.integration
-def test_telemetry_persistence_integration(tmp_path):
-    """Integration test: verify telemetry records are persisted to database."""
-    db_file = tmp_path / "test_telemetry_persist.db"
-    db_url = f"sqlite:///{db_file}"
+@pytest.mark.postgres
+def test_telemetry_persistence_integration(cloud_sql_session):
+    """Integration test: verify telemetry records are persisted to PostgreSQL database.
+    
+    Uses cloud_sql_session fixture for PostgreSQL with automatic rollback.
+    """
+    # Get database URL from the session
+    db_url = str(cloud_sql_session.get_bind().url)
 
     # Create a source
     dbm = DatabaseManager(database_url=db_url)
