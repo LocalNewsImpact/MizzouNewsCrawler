@@ -8,6 +8,8 @@ for pipeline-integral components. Telemetry is critical to pipeline operation an
 be tested against the actual production database type.
 """
 
+import os
+
 import pytest
 from sqlalchemy import select
 
@@ -20,10 +22,10 @@ from src.utils.telemetry import OperationMetrics, OperationTracker, OperationTyp
 class TestOperationTrackerPostgreSQL:
     """Test OperationTracker with PostgreSQL (production-like environment)."""
 
-    def test_operation_tracker_tracks_load_sources_operation(self, cloud_sql_engine):
+    def test_operation_tracker_tracks_load_sources_operation(self, cloud_sql_session):
         """OperationTracker should track load-sources operations with PostgreSQL."""
-        # Use the PostgreSQL engine directly
-        database_url = str(cloud_sql_engine.url)
+        # Use TEST_DATABASE_URL env var directly (preserves password)
+        database_url = os.getenv("TEST_DATABASE_URL")
         tracker = OperationTracker(database_url=database_url)
 
         # Track an operation
@@ -37,9 +39,9 @@ class TestOperationTrackerPostgreSQL:
         # Operation should be completed after context manager exits
         # (no exception means test passed)
 
-    def test_operation_tracker_tracks_crawl_discovery(self, cloud_sql_engine):
+    def test_operation_tracker_tracks_crawl_discovery(self, cloud_sql_session):
         """OperationTracker should track crawl discovery operations."""
-        database_url = str(cloud_sql_engine.url)
+        database_url = os.getenv("TEST_DATABASE_URL")
         tracker = OperationTracker(database_url=database_url)
 
         # Track a crawl operation
@@ -57,9 +59,9 @@ class TestOperationTrackerPostgreSQL:
             assert metrics.processed_items == 2
             assert metrics.total_items == 5
 
-    def test_operation_tracker_handles_failures(self, cloud_sql_engine):
+    def test_operation_tracker_handles_failures(self, cloud_sql_session):
         """OperationTracker should handle operation failures gracefully."""
-        database_url = str(cloud_sql_engine.url)
+        database_url = os.getenv("TEST_DATABASE_URL")
         tracker = OperationTracker(database_url=database_url)
 
         # Track an operation that fails
@@ -71,9 +73,9 @@ class TestOperationTrackerPostgreSQL:
 
         # Operation should be marked as failed (no exception from tracker itself)
 
-    def test_operation_tracker_stores_job_records(self, cloud_sql_engine, cloud_sql_session):
+    def test_operation_tracker_stores_job_records(self, cloud_sql_session):
         """OperationTracker should store job records in PostgreSQL."""
-        database_url = str(cloud_sql_engine.url)
+        database_url = os.getenv("TEST_DATABASE_URL")
         tracker = OperationTracker(database_url=database_url)
 
         # Track an operation
@@ -83,16 +85,17 @@ class TestOperationTrackerPostgreSQL:
             pass
 
         # Verify job was created in database
-        # Note: We use cloud_sql_session for querying, but tracker uses its own connection
-        # The job should still be visible due to transaction semantics
+        # Note: We use cloud_sql_session for querying
+        # Tracker uses its own connection
         jobs = cloud_sql_session.execute(select(Job)).scalars().all()
 
-        # At least one job should exist (may include jobs from other tests in same session)
+        # At least one job should exist
+        # (may include jobs from other tests in same session)
         assert len(jobs) >= 0  # Just verify query works
 
-    def test_operation_tracker_with_metrics(self, cloud_sql_engine):
+    def test_operation_tracker_with_metrics(self, cloud_sql_session):
         """OperationTracker should record operation metrics with PostgreSQL."""
-        database_url = str(cloud_sql_engine.url)
+        database_url = os.getenv("TEST_DATABASE_URL")
         tracker = OperationTracker(database_url=database_url)
 
         # Track an operation with metrics
@@ -112,9 +115,9 @@ class TestOperationTrackerPostgreSQL:
 
         # Operation completed successfully
 
-    def test_operation_tracker_multiple_operations(self, cloud_sql_engine):
+    def test_operation_tracker_multiple_operations(self, cloud_sql_session):
         """OperationTracker should handle multiple concurrent operations."""
-        database_url = str(cloud_sql_engine.url)
+        database_url = os.getenv("TEST_DATABASE_URL")
         tracker = OperationTracker(database_url=database_url)
 
         # Track multiple operations
@@ -130,13 +133,15 @@ class TestOperationTrackerPostgreSQL:
                 # Both operations should be tracked
                 assert op1.operation_id != op2.operation_id
 
-    def test_telemetry_works_with_postgres_aggregate_types(self, cloud_sql_engine):
+    def test_telemetry_works_with_postgres_aggregate_types(
+        self, cloud_sql_engine, cloud_sql_session
+    ):
         """Verify telemetry queries work with PostgreSQL string aggregate results."""
         from sqlalchemy import text
 
         from src.cli.commands.pipeline_status import _to_int
 
-        database_url = str(cloud_sql_engine.url)
+        database_url = os.getenv("TEST_DATABASE_URL")
         tracker = OperationTracker(database_url=database_url)
 
         # Create a few operations
@@ -155,9 +160,9 @@ class TestOperationTrackerPostgreSQL:
             assert count >= 0
             assert isinstance(count, int)
 
-    def test_operation_tracker_error_handling(self, cloud_sql_engine):
+    def test_operation_tracker_error_handling(self, cloud_sql_session):
         """OperationTracker should handle database errors gracefully."""
-        database_url = str(cloud_sql_engine.url)
+        database_url = os.getenv("TEST_DATABASE_URL")
         tracker = OperationTracker(database_url=database_url)
 
         # Track an operation and simulate an internal error
@@ -186,8 +191,6 @@ class TestOperationTrackerPostgreSQL:
 @pytest.mark.postgres
 def test_telemetry_url_env_var_support():
     """TELEMETRY_URL environment variable should be supported."""
-    import os
-
     from src.config import TELEMETRY_URL
 
     # TELEMETRY_URL should be available from config
