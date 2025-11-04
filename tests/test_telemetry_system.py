@@ -322,6 +322,7 @@ def create_telemetry_tables(db_path: str) -> None:
 
 
 @pytest.mark.postgres
+@pytest.mark.integration
 class TestComprehensiveExtractionTelemetry:
     """Test the database operations and telemetry storage using PostgreSQL."""
 

@@ -1,3 +1,5 @@
+import pytest
+
 from src.telemetry.store import TelemetryStore
 from src.utils import comprehensive_telemetry as ct
 
@@ -54,6 +56,8 @@ def test_extraction_metrics_tracks_methods(monkeypatch):
     assert metrics.content_length == len("Body")
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_record_extraction_emits_content_type_detection(
     telemetry_store_with_migrations,
 ):
@@ -111,6 +115,8 @@ def test_set_http_metrics_categorizes_errors():
     assert metrics.http_error_type == "3xx_redirect"
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_comprehensive_telemetry_aggregates(telemetry_store_with_migrations):
     telemetry = ct.ComprehensiveExtractionTelemetry(
         store=telemetry_store_with_migrations
