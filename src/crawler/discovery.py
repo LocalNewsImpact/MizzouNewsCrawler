@@ -6,7 +6,7 @@ This module integrates with the existing pipeline by:
 3. Using storysniffer for intelligent article URL detection
 4. Storing discovered candidate URLs in the candidate_links table
 
-Designed for SQLite with future Postgres migration in mind.
+Designed for PostgreSQL.
 """
 
 import json
@@ -131,8 +131,7 @@ class NewsDiscovery:
 
         Args:
             database_url: Database connection string. When omitted, fall back
-                to the configured ``DATABASE_URL`` (or the local SQLite
-                default during development/tests).
+                to the configured ``DATABASE_URL``. PostgreSQL is required.
             user_agent: User agent string for requests
             timeout: Request timeout in seconds
             delay: Delay between requests in seconds
@@ -197,7 +196,7 @@ class NewsDiscovery:
         self._known_hosts_cache: set[str] | None = None
 
     @staticmethod
-    def _resolve_database_url(candidate: str | None) -> str:
+    def _resolve_database_url(candidate: str | None) -> str | None:
         if candidate:
             return candidate
 
@@ -224,12 +223,12 @@ class NewsDiscovery:
             if configured_url and configured_url.startswith("sqlite"):
                 return configured_url
 
-            return "sqlite:///data/mizzou.db"
+            return None
 
         if configured_url:
             return configured_url
 
-        return "sqlite:///data/mizzou.db"
+        return None
 
     def _configure_proxy_routing(self) -> None:
         """Configure proxy adapter and proxy pool for the discovery session."""
