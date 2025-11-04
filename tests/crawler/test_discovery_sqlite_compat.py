@@ -171,11 +171,15 @@ def test_get_sources_query_works_on_sqlite(sqlite_db: str):
             conn.execute(
                 text(
                     """
-                INSERT INTO dataset_sources (dataset_id, source_id)
-                VALUES (:dataset_id, :source_id)
+                INSERT INTO dataset_sources (id, dataset_id, source_id)
+                VALUES (:id, :dataset_id, :source_id)
                 """
                 ),
-                {"dataset_id": dataset_id, "source_id": source_id},
+                {
+                    "id": str(uuid.uuid4()),
+                    "dataset_id": dataset_id,
+                    "source_id": source_id,
+                },
             )
 
     # Test: get_sources_to_process should not raise SQL error
@@ -211,19 +215,19 @@ def test_dataset_filtering_works_on_sqlite(sqlite_db: str):
             text(
                 """
             INSERT INTO datasets (id, label, slug, created_at)
-            VALUES 
-                (?, ?, ?, datetime('now')),
-                (?, ?, ?, datetime('now'))
+            VALUES (:id1, :label1, :slug1, datetime('now'))
             """
             ),
-            (
-                dataset1_id,
-                "Dataset-1",
-                "dataset-1",
-                dataset2_id,
-                "Dataset-2",
-                "dataset-2",
+            {"id1": dataset1_id, "label1": "Dataset-1", "slug1": "dataset-1"},
+        )
+        conn.execute(
+            text(
+                """
+            INSERT INTO datasets (id, label, slug, created_at)
+            VALUES (:id2, :label2, :slug2, datetime('now'))
+            """
             ),
+            {"id2": dataset2_id, "label2": "Dataset-2", "slug2": "dataset-2"},
         )
 
     # Create sources for each dataset
@@ -236,19 +240,23 @@ def test_dataset_filtering_works_on_sqlite(sqlite_db: str):
             text(
                 """
             INSERT INTO sources (id, canonical_name, host)
-            VALUES (?, ?, ?)
+            VALUES (:id, :name, :host)
             """
             ),
-            (source1_id, "Source 1", "source1.com"),
+            {"id": source1_id, "name": "Source 1", "host": "source1.com"},
         )
         conn.execute(
             text(
                 """
-            INSERT INTO dataset_sources (dataset_id, source_id)
-            VALUES (?, ?)
+            INSERT INTO dataset_sources (id, dataset_id, source_id)
+            VALUES (:id, :dataset_id, :source_id)
             """
             ),
-            (dataset1_id, source1_id),
+            {
+                "id": str(uuid.uuid4()),
+                "dataset_id": dataset1_id,
+                "source_id": source1_id,
+            },
         )
 
         # Source 2 in Dataset 2
@@ -256,19 +264,23 @@ def test_dataset_filtering_works_on_sqlite(sqlite_db: str):
             text(
                 """
             INSERT INTO sources (id, canonical_name, host)
-            VALUES (?, ?, ?)
+            VALUES (:id, :name, :host)
             """
             ),
-            (source2_id, "Source 2", "source2.com"),
+            {"id": source2_id, "name": "Source 2", "host": "source2.com"},
         )
         conn.execute(
             text(
                 """
-            INSERT INTO dataset_sources (dataset_id, source_id)
-            VALUES (?, ?)
+            INSERT INTO dataset_sources (id, dataset_id, source_id)
+            VALUES (:id, :dataset_id, :source_id)
             """
             ),
-            (dataset2_id, source2_id),
+            {
+                "id": str(uuid.uuid4()),
+                "dataset_id": dataset2_id,
+                "source_id": source2_id,
+            },
         )
 
     # Test: Filter by Dataset 1
@@ -296,10 +308,10 @@ def test_invalid_dataset_returns_empty_with_error(sqlite_db: str, caplog):
             text(
                 """
             INSERT INTO datasets (id, label, slug, created_at)
-            VALUES (?, ?, ?, datetime('now'))
+            VALUES (:id, :label, :slug, datetime('now'))
             """
             ),
-            (dataset_id, "Valid-Dataset", "valid-dataset"),
+            {"id": dataset_id, "label": "Valid-Dataset", "slug": "valid-dataset"},
         )
 
     # Test: Query with invalid dataset
@@ -335,10 +347,15 @@ def test_due_only_filtering_on_sqlite(sqlite_db: str):
             text(
                 """
             INSERT INTO sources (id, canonical_name, host, metadata)
-            VALUES (?, ?, ?, ?)
+            VALUES (:id, :name, :host, :metadata)
             """
             ),
-            (source_id, "Test Source", "test.com", json.dumps(metadata)),
+            {
+                "id": source_id,
+                "name": "Test Source",
+                "host": "test.com",
+                "metadata": json.dumps(metadata),
+            },
         )
 
     discovery = NewsDiscovery(database_url=sqlite_db)
@@ -371,10 +388,10 @@ def test_database_dialect_detection(sqlite_db: str):
             text(
                 """
             INSERT INTO sources (id, canonical_name, host)
-            VALUES (?, ?, ?)
+            VALUES (:id, :name, :host)
             """
             ),
-            (source_id, "Test", "test.com"),
+            {"id": source_id, "name": "Test", "host": "test.com"},
         )
 
     # This should work without DISTINCT ON syntax error
