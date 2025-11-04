@@ -376,9 +376,9 @@ jobs:
 
       - name: Run Alembic migrations on test database in container
         env:
-          DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/mizzou_test"
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/mizzou_test"
           DATABASE_ENGINE: "postgresql"
-          DATABASE_HOST: "172.17.0.1"
+          DATABASE_HOST: "localhost"
           DATABASE_PORT: "5432"
           DATABASE_NAME: "mizzou_test"
           DATABASE_USER: "postgres"
@@ -401,11 +401,11 @@ jobs:
       - name: Run all integration tests with PostgreSQL in container
         env:
           PYTEST_KEEP_DB_ENV: "true"
-          DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/mizzou_test"
-          TELEMETRY_DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/mizzou_test"
-          TEST_DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/mizzou_test"
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/mizzou_test"
+          TELEMETRY_DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/mizzou_test"
+          TEST_DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/mizzou_test"
           DATABASE_ENGINE: "postgresql"
-          DATABASE_HOST: "172.17.0.1"
+          DATABASE_HOST: "localhost"
           DATABASE_PORT: "5432"
           DATABASE_NAME: "mizzou_test"
           DATABASE_USER: "postgres"
@@ -434,22 +434,8 @@ jobs:
     timeout-minutes: 45
     needs: [unit]
     # Run on PRs to main (removed push condition since we no longer trigger on push)
-
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: test_db
-          POSTGRES_HOST_AUTH_METHOD: trust
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
+    # Note: This job runs coverage on non-PostgreSQL tests
+    # PostgreSQL-specific tests run in the postgres-integration job
 
     steps:
       - uses: actions/checkout@v4
@@ -471,57 +457,13 @@ jobs:
       - name: Create data directory for tests
         run: mkdir -p data
 
-      - name: Run Alembic migrations on test database in container
-        env:
-          DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/test_db"
-          DATABASE_ENGINE: "postgresql"
-          DATABASE_HOST: "172.17.0.1"
-          DATABASE_PORT: "5432"
-          DATABASE_NAME: "test_db"
-          DATABASE_USER: "postgres"
-          DATABASE_PASSWORD: "postgres"
+      - name: Run tests with coverage (excludes PostgreSQL-specific tests)
         run: |
           docker run --rm \
-            --network host \
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
-            -e DATABASE_URL="$DATABASE_URL" \
-            -e DATABASE_ENGINE="$DATABASE_ENGINE" \
-            -e DATABASE_HOST="$DATABASE_HOST" \
-            -e DATABASE_PORT="$DATABASE_PORT" \
-            -e DATABASE_NAME="$DATABASE_NAME" \
-            -e DATABASE_USER="$DATABASE_USER" \
-            -e DATABASE_PASSWORD="$DATABASE_PASSWORD" \
             us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-            alembic upgrade head
-
-      - name: Run full tests with coverage in container
-        env:
-          DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/test_db"
-          TELEMETRY_DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/test_db"
-          TEST_DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/test_db"
-          DATABASE_ENGINE: "postgresql"
-          DATABASE_HOST: "172.17.0.1"
-          DATABASE_PORT: "5432"
-          DATABASE_NAME: "test_db"
-          DATABASE_USER: "postgres"
-          DATABASE_PASSWORD: "postgres"
-        run: |
-          docker run --rm \
-            --network host \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            -e DATABASE_URL="$DATABASE_URL" \
-            -e TELEMETRY_DATABASE_URL="$TELEMETRY_DATABASE_URL" \
-            -e TEST_DATABASE_URL="$TEST_DATABASE_URL" \
-            -e DATABASE_ENGINE="$DATABASE_ENGINE" \
-            -e DATABASE_HOST="$DATABASE_HOST" \
-            -e DATABASE_PORT="$DATABASE_PORT" \
-            -e DATABASE_NAME="$DATABASE_NAME" \
-            -e DATABASE_USER="$DATABASE_USER" \
-            -e DATABASE_PASSWORD="$DATABASE_PASSWORD" \
-            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-            /bin/bash -c "pytest --cov=src --cov-report=xml --cov-report=html --cov-report=term-missing --cov-fail-under=78"
+            /bin/bash -c "pytest -m 'not postgres' --cov=src --cov-report=xml --cov-report=html --cov-report=term-missing --cov-fail-under=78"
 
       - name: Generate coverage summary
         if: success()
