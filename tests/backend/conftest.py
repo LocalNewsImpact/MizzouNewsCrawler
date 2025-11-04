@@ -323,18 +323,27 @@ def large_article_dataset(
 # Integration test fixtures (require Cloud SQL)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def cloud_sql_engine():
     """Create engine for Cloud SQL integration tests.
 
     Requires TEST_DATABASE_URL environment variable.
     Only used for integration tests marked with @pytest.mark.integration
+    
+    Changed to function scope to match tests/integration/conftest.py
+    for consistency and to avoid connection pooling issues.
     """
     import os
 
     test_db_url = os.getenv("TEST_DATABASE_URL")
     if not test_db_url:
         pytest.skip("TEST_DATABASE_URL not set - skipping Cloud SQL tests")
+    
+    # Replace 'localhost' with '127.0.0.1' to avoid IPv6 resolution issues
+    # psycopg2 tries IPv6 (::1) first when given 'localhost', which may have
+    # different auth configuration than IPv4
+    test_db_url = test_db_url.replace("@localhost/", "@127.0.0.1/")
+    test_db_url = test_db_url.replace("@localhost:", "@127.0.0.1:")
 
     engine = create_engine(test_db_url, echo=False)
 

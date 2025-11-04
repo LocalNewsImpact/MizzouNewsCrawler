@@ -471,6 +471,30 @@ jobs:
       - name: Create data directory for tests
         run: mkdir -p data
 
+      - name: Run Alembic migrations on test database in container
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/test_db"
+          DATABASE_ENGINE: "postgresql"
+          DATABASE_HOST: "172.17.0.1"
+          DATABASE_PORT: "5432"
+          DATABASE_NAME: "test_db"
+          DATABASE_USER: "postgres"
+          DATABASE_PASSWORD: "postgres"
+        run: |
+          docker run --rm \
+            --network host \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            -e DATABASE_URL="$DATABASE_URL" \
+            -e DATABASE_ENGINE="$DATABASE_ENGINE" \
+            -e DATABASE_HOST="$DATABASE_HOST" \
+            -e DATABASE_PORT="$DATABASE_PORT" \
+            -e DATABASE_NAME="$DATABASE_NAME" \
+            -e DATABASE_USER="$DATABASE_USER" \
+            -e DATABASE_PASSWORD="$DATABASE_PASSWORD" \
+            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
+            alembic upgrade head
+
       - name: Run full tests with coverage in container
         env:
           DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/test_db"
