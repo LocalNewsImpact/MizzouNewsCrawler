@@ -1,3 +1,4 @@
+import os
 import pytest
 
 from src.telemetry.store import TelemetryStore
@@ -142,8 +143,14 @@ def test_comprehensive_telemetry_aggregates():
     Note: This test doesn't use cloud_sql_session to avoid connection pool conflicts.
     TelemetryStore needs its own isolated connection for async telemetry writes.
     """
-    # Use PostgreSQL test database with own connection
-    db_url = "postgresql://kiesowd@localhost/news_crawler_test"
+    # Use PostgreSQL test database from environment (respects CI configuration)
+    db_url = os.environ.get(
+        "TEST_DATABASE_URL",
+        os.environ.get(
+            "DATABASE_URL",
+            "postgresql://postgres:postgres@localhost:5432/mizzou_test"
+        )
+    )
     telemetry_store = TelemetryStore(database=db_url, async_writes=False)
     
     # Clean up any previous test data
