@@ -178,36 +178,22 @@ if [ $VALIDATION_EXIT_CODE -ne 0 ]; then
 fi
 echo -e "${GREEN}✅ Workflow template validation passed${NC}"
 
-# Step 7: Run ALL tests like CI does (both postgres and non-postgres)
+# Step 7: Run unit tests (excludes PostgreSQL-specific tests) like CI does
 echo ""
-echo "🧪 Running ALL tests in linux/amd64 container (matches CI ubuntu-latest)..."
-echo "   This runs ~1500 tests and takes 10-15 minutes..."
+echo "🧪 Running unit tests in linux/amd64 container (matches CI ubuntu-latest)..."
+echo "   This runs ~1500 unit tests (excludes PostgreSQL-specific tests) and takes 10-15 minutes..."
 echo "   Progress: . = pass, F = fail, E = error, s = skip"
+echo ""
+echo "   Note: PostgreSQL env vars NOT set - unit tests use SQLite (like CI)"
+echo "   PostgreSQL-specific tests are excluded with -m 'not postgres'"
 
-# On macOS, Docker Desktop runs in a VM so --network host doesn't work
-# We need to use host.docker.internal to reach the host
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    DOCKER_HOST="host.docker.internal"
-else
-    DOCKER_HOST="localhost"
-fi
-
+# DO NOT set PostgreSQL env vars - unit tests should use SQLite (via conftest.py)
+# This matches CI behavior exactly where the unit job has NO DATABASE_URL set
 docker run --rm \
-    --network host \
     -v "$(pwd)":/workspace \
     -w /workspace \
-    -e PYTEST_KEEP_DB_ENV="true" \
-    -e DATABASE_URL="postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$DOCKER_HOST:$POSTGRES_PORT/$POSTGRES_DB" \
-    -e TELEMETRY_DATABASE_URL="postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$DOCKER_HOST:$POSTGRES_PORT/$POSTGRES_DB" \
-    -e TEST_DATABASE_URL="postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$DOCKER_HOST:$POSTGRES_PORT/$POSTGRES_DB" \
-    -e DATABASE_ENGINE="postgresql" \
-    -e DATABASE_HOST="$DOCKER_HOST" \
-    -e DATABASE_PORT="$POSTGRES_PORT" \
-    -e DATABASE_NAME="$POSTGRES_DB" \
-    -e DATABASE_USER="$POSTGRES_USER" \
-    -e DATABASE_PASSWORD="$POSTGRES_PASSWORD" \
     us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-    /bin/bash -c "pytest --cov=src --cov-report=term-missing --cov-fail-under=78" 2>&1 | { grep -v "WARNING: The requested image's platform" || true; }
+    /bin/bash -c "pytest -m 'not postgres' --cov=src --cov-report=term-missing --cov-fail-under=78" 2>&1 | { grep -v "WARNING: The requested image's platform" || true; }
 
 TEST_EXIT_CODE=${PIPESTATUS[0]}
 
