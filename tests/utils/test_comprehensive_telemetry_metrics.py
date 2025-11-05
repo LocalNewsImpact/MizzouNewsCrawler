@@ -324,7 +324,9 @@ def test_proxy_status_to_int():
     assert ct.proxy_status_to_int("success") == ct.PROXY_STATUS_SUCCESS
     assert ct.proxy_status_to_int("failed") == ct.PROXY_STATUS_FAILED
     assert ct.proxy_status_to_int("bypassed") == ct.PROXY_STATUS_BYPASSED
-    assert ct.proxy_status_to_int("DISABLED") == ct.PROXY_STATUS_DISABLED  # Case insensitive
+    assert (
+        ct.proxy_status_to_int("DISABLED") == ct.PROXY_STATUS_DISABLED
+    )  # Case insensitive
     assert ct.proxy_status_to_int("unknown") is None  # Unknown status
     assert ct.proxy_status_to_int(None) is None  # None input
 
@@ -337,7 +339,7 @@ def test_extraction_metrics_initialization():
         url="https://news.example.com/story/123",
         publisher="Example Publisher",
     )
-    
+
     assert metrics.operation_id == "op-123"
     assert metrics.article_id == "art-456"
     assert metrics.url == "https://news.example.com/story/123"
@@ -359,7 +361,7 @@ def test_extraction_metrics_proxy_metrics():
         url="https://example.com/test",
         publisher="Test",
     )
-    
+
     # Test setting proxy metrics
     metrics.set_proxy_metrics(
         proxy_used=True,
@@ -368,22 +370,23 @@ def test_extraction_metrics_proxy_metrics():
         proxy_status="success",
         proxy_error=None,
     )
-    
+
     assert metrics.proxy_used is True
     assert metrics.proxy_url == "http://proxy.example.com:8080"
     assert metrics.proxy_authenticated is True
     assert metrics.proxy_status == ct.PROXY_STATUS_SUCCESS
     assert metrics.proxy_error is None
-    
+
     # Test with error
     metrics.set_proxy_metrics(
         proxy_used=True,
         proxy_url="http://proxy.example.com:8080",
         proxy_authenticated=False,
         proxy_status="failed",
-        proxy_error="Connection timeout" * 50,  # Long error message
+        # Create a long error message to test truncation (500 char limit in production)
+        proxy_error="Connection timeout" * 50,
     )
-    
+
     assert metrics.proxy_status == ct.PROXY_STATUS_FAILED
     assert len(metrics.proxy_error) <= 500  # Truncated
 
@@ -396,10 +399,10 @@ def test_extraction_metrics_end_method_without_start():
         url="https://example.com/test",
         publisher="Test",
     )
-    
+
     # End method without starting - should not crash
     metrics.end_method("never_started", success=False, error="Not found")
-    
+
     assert metrics.method_success["never_started"] is False
     assert metrics.method_errors["never_started"] == "Not found"
     assert "never_started" not in metrics.method_timings  # No timing recorded
@@ -413,10 +416,10 @@ def test_extraction_metrics_successful_method_tracking():
         url="https://example.com/test",
         publisher="Test",
     )
-    
+
     metrics.end_method("method1", success=True)
     assert metrics.successful_method == "method1"
-    
+
     # Second successful method should not override
     metrics.end_method("method2", success=True)
     assert metrics.successful_method == "method1"  # Still the first one
@@ -430,7 +433,7 @@ def test_extraction_metrics_metadata_proxy_extraction():
         url="https://example.com/test",
         publisher="Test",
     )
-    
+
     # Proxy info in metadata should be captured
     metrics.end_method(
         "method1",
@@ -446,7 +449,7 @@ def test_extraction_metrics_metadata_proxy_extraction():
             },
         },
     )
-    
+
     assert metrics.proxy_used is True
     assert metrics.proxy_url == "http://proxy.test:8080"
     assert metrics.proxy_authenticated is True
@@ -461,9 +464,9 @@ def test_extraction_metrics_finalize_empty_result():
         url="https://example.com/test",
         publisher="Test",
     )
-    
+
     metrics.finalize({})
-    
+
     assert metrics.end_time is not None
     assert metrics.total_duration_ms > 0
     assert metrics.extracted_fields["title"] is False
@@ -479,22 +482,24 @@ def test_extraction_metrics_finalize_with_content():
         url="https://example.com/test",
         publisher="Test",
     )
-    
+
     content = "This is the article content." * 10
-    metrics.finalize({
-        "title": "Article Title",
-        "content": content,
-        "author": "John Doe",
-        "publish_date": "2025-01-01",
-        "metadata": {
-            "extraction_methods": {
-                "title": "newspaper",
-                "content": "newspaper",
-                "author": "custom",
-            }
+    metrics.finalize(
+        {
+            "title": "Article Title",
+            "content": content,
+            "author": "John Doe",
+            "publish_date": "2025-01-01",
+            "metadata": {
+                "extraction_methods": {
+                    "title": "newspaper",
+                    "content": "newspaper",
+                    "author": "custom",
+                }
+            },
         }
-    })
-    
+    )
+
     assert metrics.is_success is True
     assert metrics.content_length == len(content)
     assert metrics.extracted_fields["title"] is True
@@ -513,21 +518,21 @@ def test_extraction_metrics_record_alternative_extraction():
         url="https://example.com/test",
         publisher="Test",
     )
-    
-    # Record alternative extraction
-    long_value = "A" * 300
+
+    # Record alternative extraction with long values to test 200-char truncation limit
+    long_value = "A" * 300  # Exceeds the 200 character limit
     metrics.record_alternative_extraction(
         method_name="fallback",
         field_name="title",
         alternative_value=long_value,
         current_value="Original Title",
     )
-    
+
     assert "fallback" in metrics.alternative_extractions
     assert "title" in metrics.alternative_extractions["fallback"]
     alt_data = metrics.alternative_extractions["fallback"]["title"]
     assert alt_data["values_differ"] is True
-    # Values should be truncated to 200 chars
+    # Production code truncates alternative/current values to 200 chars (line 173-174 in comprehensive_telemetry.py)
     assert len(alt_data["alternative_value"]) == 200
     assert len(alt_data["current_value"]) <= 200
 
@@ -540,7 +545,7 @@ def test_extraction_metrics_content_type_detection():
         url="https://example.com/test",
         publisher="Test",
     )
-    
+
     detection = {
         "status": "news",
         "confidence": "high",
@@ -549,7 +554,7 @@ def test_extraction_metrics_content_type_detection():
         "evidence": {"signals": ["news", "article"]},
         "version": "v1.0",
     }
-    
+
     metrics.set_content_type_detection(detection)
     assert metrics.content_type_detection == detection
 
@@ -557,9 +562,9 @@ def test_extraction_metrics_content_type_detection():
 def test_comprehensive_telemetry_init_with_db_path(tmp_path):
     """Test initializing telemetry with a database path."""
     db_path = tmp_path / "telemetry.db"
-    
+
     telemetry = ct.ComprehensiveExtractionTelemetry(db_path=str(db_path))
-    
+
     assert telemetry._database_url.startswith("sqlite:///")
     assert db_path.parent.exists()  # Directory should be created
 
@@ -567,40 +572,59 @@ def test_comprehensive_telemetry_init_with_db_path(tmp_path):
 def test_comprehensive_telemetry_resolve_numeric_confidence():
     """Test _resolve_numeric_confidence static method."""
     # Test numeric score
-    assert ct.ComprehensiveExtractionTelemetry._resolve_numeric_confidence(
-        {"confidence_score": 0.85}
-    ) == 0.85
-    
+    assert (
+        ct.ComprehensiveExtractionTelemetry._resolve_numeric_confidence(
+            {"confidence_score": 0.85}
+        )
+        == 0.85
+    )
+
     # Test confidence label
-    assert ct.ComprehensiveExtractionTelemetry._resolve_numeric_confidence(
-        {"confidence": "very_high"}
-    ) == 0.95
-    
-    assert ct.ComprehensiveExtractionTelemetry._resolve_numeric_confidence(
-        {"confidence": "high"}
-    ) == 0.85
-    
-    assert ct.ComprehensiveExtractionTelemetry._resolve_numeric_confidence(
-        {"confidence": "medium"}
-    ) == 0.5
-    
-    assert ct.ComprehensiveExtractionTelemetry._resolve_numeric_confidence(
-        {"confidence": "low"}
-    ) == 0.25
-    
+    assert (
+        ct.ComprehensiveExtractionTelemetry._resolve_numeric_confidence(
+            {"confidence": "very_high"}
+        )
+        == 0.95
+    )
+
+    assert (
+        ct.ComprehensiveExtractionTelemetry._resolve_numeric_confidence(
+            {"confidence": "high"}
+        )
+        == 0.85
+    )
+
+    assert (
+        ct.ComprehensiveExtractionTelemetry._resolve_numeric_confidence(
+            {"confidence": "medium"}
+        )
+        == 0.5
+    )
+
+    assert (
+        ct.ComprehensiveExtractionTelemetry._resolve_numeric_confidence(
+            {"confidence": "low"}
+        )
+        == 0.25
+    )
+
     # Test unknown label
-    assert ct.ComprehensiveExtractionTelemetry._resolve_numeric_confidence(
-        {"confidence": "unknown"}
-    ) is None
-    
+    assert (
+        ct.ComprehensiveExtractionTelemetry._resolve_numeric_confidence(
+            {"confidence": "unknown"}
+        )
+        is None
+    )
+
     # Test invalid types
-    assert ct.ComprehensiveExtractionTelemetry._resolve_numeric_confidence(
-        {"confidence_score": "not_a_number"}
-    ) is None
-    
-    assert ct.ComprehensiveExtractionTelemetry._resolve_numeric_confidence(
-        {}
-    ) is None
+    assert (
+        ct.ComprehensiveExtractionTelemetry._resolve_numeric_confidence(
+            {"confidence_score": "not_a_number"}
+        )
+        is None
+    )
+
+    assert ct.ComprehensiveExtractionTelemetry._resolve_numeric_confidence({}) is None
 
 
 def test_comprehensive_telemetry_coerce_detected_at():
@@ -608,30 +632,28 @@ def test_comprehensive_telemetry_coerce_detected_at():
     # Test datetime object
     dt = datetime(2025, 1, 1, 12, 0, 0)
     assert ct.ComprehensiveExtractionTelemetry._coerce_detected_at(dt) == dt
-    
+
     # Test ISO format string
     result = ct.ComprehensiveExtractionTelemetry._coerce_detected_at(
         "2025-01-01T12:00:00"
     )
     assert isinstance(result, datetime)
     assert result.year == 2025
-    
+
     # Test ISO format with Z suffix
     result = ct.ComprehensiveExtractionTelemetry._coerce_detected_at(
         "2025-01-01T12:00:00Z"
     )
     assert isinstance(result, datetime)
-    
+
     # Test invalid string
-    assert ct.ComprehensiveExtractionTelemetry._coerce_detected_at(
-        "not-a-date"
-    ) is None
-    
+    assert ct.ComprehensiveExtractionTelemetry._coerce_detected_at("not-a-date") is None
+
     # Test empty string
     assert ct.ComprehensiveExtractionTelemetry._coerce_detected_at("") is None
-    
+
     # Test None
     assert ct.ComprehensiveExtractionTelemetry._coerce_detected_at(None) is None
-    
+
     # Test other types
     assert ct.ComprehensiveExtractionTelemetry._coerce_detected_at(12345) is None

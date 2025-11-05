@@ -521,7 +521,7 @@ class TestProxyManager:
         ):
             manager = ProxyManager()
 
-            # Mock random to get consistent port - need to patch where it's imported
+            # Mock random to get consistent port - Decodo uses ports 10001-10010 for rotation
             import random
 
             with mock.patch.object(random, "randint", return_value=10005):
@@ -545,7 +545,7 @@ class TestProxyManager:
         ):
             manager = ProxyManager()
 
-            # Mock random to get consistent port
+            # Mock random to get consistent port - Decodo uses ports 10001-10010 for rotation
             import random
 
             with mock.patch.object(random, "randint", return_value=10007):
