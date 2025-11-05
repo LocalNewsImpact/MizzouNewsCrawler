@@ -93,3 +93,4 @@ backend/reviews.db*
 *.db
 *.db-*
 test_*.db
+logs/pre-push/*.log
