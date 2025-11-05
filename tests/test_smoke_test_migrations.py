@@ -112,7 +112,7 @@ class TestSmokeTestMigrations:
     )
     def test_smoke_test_with_real_database(self, tmp_path):
         """Integration test: Run smoke test against a real database with migrations.
-        
+
         Note: This test is skipped because it tests the smoke_test_migrations.py
         script via subprocess, which was designed for SQLite. We now use PostgreSQL
         in all testing and production environments.
@@ -125,7 +125,7 @@ class TestSmokeTestMigrations:
     )
     def test_smoke_test_fails_on_missing_tables(self, tmp_path):
         """Integration test: Smoke test should fail if tables are missing.
-        
+
         Note: This test is skipped because it tests the smoke_test_migrations.py
         script via subprocess, which was designed for SQLite. We now use PostgreSQL
         in all testing and production environments.

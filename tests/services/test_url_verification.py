@@ -22,6 +22,20 @@ def _patch_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
         "DatabaseManager",
         lambda *_, **__: SimpleNamespace(),
     )
+    # Mock create_telemetry_system to avoid database connection in unit tests
+    mock_telemetry = SimpleNamespace(
+        start_operation=lambda *_, **__: SimpleNamespace(
+            record_metric=lambda *_, **__: None,
+            complete=lambda *_, **__: None,
+            fail=lambda *_, **__: None,
+        ),
+        get_metrics_summary=lambda: {},
+    )
+    monkeypatch.setattr(
+        url_verification,
+        "create_telemetry_system",
+        lambda *_, **__: mock_telemetry,
+    )
 
     class _Session:
         def __init__(self) -> None:
@@ -203,7 +217,7 @@ def test_save_telemetry_summary_calls_telemetry_tracker(
 ) -> None:
     """Test that save_telemetry_summary calls record_verification_batch."""
     from unittest.mock import Mock
-    
+
     mock_tracker = Mock()
     service = _service()
     service.telemetry = mock_tracker
@@ -228,7 +242,7 @@ def test_save_telemetry_summary_calls_telemetry_tracker(
     # Verify record_verification_batch was called
     mock_tracker.record_verification_batch.assert_called_once()
     call_kwargs = mock_tracker.record_verification_batch.call_args[1]
-    
+
     assert call_kwargs["job_name"] == "job-123"
     assert call_kwargs["batch_size"] == 3
     assert call_kwargs["verified_articles"] == 1

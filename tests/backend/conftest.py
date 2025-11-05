@@ -30,19 +30,20 @@ def test_client(cloud_sql_session, monkeypatch):
     This client uses the PostgreSQL test database instead of production.
     CRITICAL: Uses the same session as fixtures to ensure data visibility.
     """
-    from contextlib import contextmanager
     import os
+    from contextlib import contextmanager
 
     # Get the engine from the cloud_sql_session
     cloud_sql_engine = cloud_sql_session.get_bind().engine
-    
+
     # Get TEST_DATABASE_URL (SQLAlchemy masks password in str(url))
     engine_url = os.getenv("TEST_DATABASE_URL")
     if not engine_url:
         pytest.skip("TEST_DATABASE_URL not set")
-    
+
     # Mock DATABASE_URL in app_config BEFORE db_manager is initialized
     from backend.app import main
+
     monkeypatch.setattr(main.app_config, "DATABASE_URL", engine_url)
 
     # Reset _db_manager to force re-initialization with new URL
@@ -334,7 +335,7 @@ def cloud_sql_engine():
 
     Requires TEST_DATABASE_URL environment variable.
     Only used for integration tests marked with @pytest.mark.integration
-    
+
     Changed to function scope to match tests/integration/conftest.py
     for consistency and to avoid connection pooling issues.
     """
@@ -343,7 +344,7 @@ def cloud_sql_engine():
     test_db_url = os.getenv("TEST_DATABASE_URL")
     if not test_db_url:
         pytest.skip("TEST_DATABASE_URL not set - skipping Cloud SQL tests")
-    
+
     # Replace 'localhost' with '127.0.0.1' to avoid IPv6 resolution issues
     # psycopg2 tries IPv6 (::1) first when given 'localhost', which may have
     # different auth configuration than IPv4

@@ -51,17 +51,18 @@ def test_discovery_method_effectiveness_query_returns_correct_types(
     cloud_sql_session, test_source
 ):
     """Test that discovery method effectiveness queries return proper Python types.
-    
+
     This test validates that numeric columns (articles_found, attempt_count,
     success_rate, avg_response_time_ms) are returned as int/float, not strings.
-    
+
     Without explicit type conversions (int(), float()), this would fail when
     instantiating DiscoveryMethodEffectiveness dataclass because PostgreSQL
     with pg8000 returns strings for numeric columns.
     """
     # Insert test data directly using the cloud_sql_session
     cloud_sql_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO discovery_method_effectiveness (
             source_id, source_url, discovery_method, status,
             articles_found, success_rate, last_attempt, attempt_count,
@@ -71,7 +72,8 @@ def test_discovery_method_effectiveness_query_returns_correct_types(
             :articles_found, :success_rate, NOW(), :attempt_count,
             :avg_response_time_ms, :last_status_codes, :notes
         )
-        """),
+        """
+        ),
         {
             "source_id": test_source.id,
             "source_url": test_source.host,
@@ -81,28 +83,30 @@ def test_discovery_method_effectiveness_query_returns_correct_types(
             "success_rate": 95.5,
             "attempt_count": 10,
             "avg_response_time_ms": 123.45,
-            "last_status_codes": '[]',
+            "last_status_codes": "[]",
             "notes": "Test type handling",
         },
     )
     cloud_sql_session.commit()
-    
+
     # Query back and simulate the type conversion code from telemetry.py
     result = cloud_sql_session.execute(
-        text("""
+        text(
+            """
         SELECT articles_found, attempt_count,
                success_rate, avg_response_time_ms
         FROM discovery_method_effectiveness
         WHERE source_id = :source_id
         AND discovery_method = :discovery_method
-        """),
+        """
+        ),
         {
             "source_id": test_source.id,
             "discovery_method": DiscoveryMethod.RSS_FEED.value,
         },
     )
     row = result.fetchone()
-    
+
     # Apply the same type conversions as in telemetry.py lines 1999-2007
     # Use ._mapping to get dict-like access (same as production code)
     row_dict = row._mapping
@@ -110,21 +114,15 @@ def test_discovery_method_effectiveness_query_returns_correct_types(
     attempt_count = int(row_dict["attempt_count"])
     success_rate = float(row_dict["success_rate"])
     avg_response_time_ms = float(row_dict["avg_response_time_ms"])
-    
+
     # Validate types are correct (not strings)
-    assert isinstance(
-        articles_found, int
-    ), "articles_found should be int, not string"
-    assert isinstance(
-        attempt_count, int
-    ), "attempt_count should be int, not string"
-    assert isinstance(
-        success_rate, float
-    ), "success_rate should be float, not string"
+    assert isinstance(articles_found, int), "articles_found should be int, not string"
+    assert isinstance(attempt_count, int), "attempt_count should be int, not string"
+    assert isinstance(success_rate, float), "success_rate should be float, not string"
     assert isinstance(
         avg_response_time_ms, float
     ), "avg_response_time_ms should be float, not string"
-    
+
     # Validate actual values
     assert articles_found == 42
     assert attempt_count == 10
@@ -136,12 +134,13 @@ def test_discovery_method_effectiveness_with_zero_values(
     cloud_sql_session, test_source
 ):
     """Test type handling with zero values (edge case for int/float conversion).
-    
+
     Validates that "0" strings from database are properly converted to 0 int/float.
     """
     # Insert test data with zero values
     cloud_sql_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO discovery_method_effectiveness (
             source_id, source_url, discovery_method, status,
             articles_found, success_rate, last_attempt, attempt_count,
@@ -151,7 +150,8 @@ def test_discovery_method_effectiveness_with_zero_values(
             :articles_found, :success_rate, NOW(), :attempt_count,
             :avg_response_time_ms, :last_status_codes, :notes
         )
-        """),
+        """
+        ),
         {
             "source_id": test_source.id,
             "source_url": test_source.host,
@@ -161,33 +161,35 @@ def test_discovery_method_effectiveness_with_zero_values(
             "success_rate": 0.0,
             "attempt_count": 1,
             "avg_response_time_ms": 0.0,
-            "last_status_codes": '[]',
+            "last_status_codes": "[]",
             "notes": "Zero values test",
         },
     )
     cloud_sql_session.commit()
-    
+
     # Query back with type conversions
     result = cloud_sql_session.execute(
-        text("""
+        text(
+            """
         SELECT articles_found, attempt_count,
                success_rate, avg_response_time_ms
         FROM discovery_method_effectiveness
         WHERE source_id = :source_id
         AND discovery_method = :discovery_method
-        """),
+        """
+        ),
         {
             "source_id": test_source.id,
             "discovery_method": DiscoveryMethod.NEWSPAPER4K.value,
         },
     )
     row = result.fetchone()
-    
+
     # Apply type conversions
     row_dict = row._mapping
     articles_found = int(row_dict["articles_found"])
     avg_response_time_ms = float(row_dict["avg_response_time_ms"])
-    
+
     # Validate zero values have correct types
     assert isinstance(articles_found, int)
     assert articles_found == 0
@@ -199,13 +201,14 @@ def test_discovery_method_effectiveness_with_large_numbers(
     cloud_sql_session, test_source
 ):
     """Test type handling with large numbers (precision edge case).
-    
+
     Validates that large integers and floats are properly converted without
     precision loss or type errors.
     """
     # Insert test data with large values
     cloud_sql_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO discovery_method_effectiveness (
             source_id, source_url, discovery_method, status,
             articles_found, success_rate, last_attempt, attempt_count,
@@ -215,7 +218,8 @@ def test_discovery_method_effectiveness_with_large_numbers(
             :articles_found, :success_rate, NOW(), :attempt_count,
             :avg_response_time_ms, :last_status_codes, :notes
         )
-        """),
+        """
+        ),
         {
             "source_id": test_source.id,
             "source_url": test_source.host,
@@ -225,33 +229,35 @@ def test_discovery_method_effectiveness_with_large_numbers(
             "success_rate": 99.999,
             "attempt_count": 1000,
             "avg_response_time_ms": 9876.543,
-            "last_status_codes": '[]',
+            "last_status_codes": "[]",
             "notes": "Large numbers test",
         },
     )
     cloud_sql_session.commit()
-    
+
     # Query back with type conversions
     result = cloud_sql_session.execute(
-        text("""
+        text(
+            """
         SELECT articles_found, attempt_count,
                success_rate, avg_response_time_ms
         FROM discovery_method_effectiveness
         WHERE source_id = :source_id
         AND discovery_method = :discovery_method
-        """),
+        """
+        ),
         {
             "source_id": test_source.id,
             "discovery_method": DiscoveryMethod.STORYSNIFFER.value,
         },
     )
     row = result.fetchone()
-    
+
     # Apply type conversions
     row_dict = row._mapping
     articles_found = int(row_dict["articles_found"])
     avg_response_time_ms = float(row_dict["avg_response_time_ms"])
-    
+
     # Validate large numbers preserve types and values
     assert isinstance(articles_found, int)
     assert articles_found == 999999
@@ -259,21 +265,20 @@ def test_discovery_method_effectiveness_with_large_numbers(
     assert abs(avg_response_time_ms - 9876.543) < 0.001
 
 
-def test_sqlite_vs_postgres_type_behavior_difference(
-    cloud_sql_session, test_source
-):
+def test_sqlite_vs_postgres_type_behavior_difference(cloud_sql_session, test_source):
     """Document key difference between SQLite and PostgreSQL type handling.
-    
+
     This test explicitly shows why SQLite tests don't catch type conversion bug:
     - SQLite: Dynamic typing, lenient conversions, returns native Python types
     - PostgreSQL with pg8000: Returns strings for numeric columns without
       explicit conversion
-    
+
     This test queries raw rows to show the actual type behavior.
     """
     # Insert test data
     cloud_sql_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO discovery_method_effectiveness (
             source_id, source_url, discovery_method, status,
             articles_found, success_rate, last_attempt, attempt_count,
@@ -283,7 +288,8 @@ def test_sqlite_vs_postgres_type_behavior_difference(
             :articles_found, :success_rate, NOW(), :attempt_count,
             :avg_response_time_ms, :last_status_codes, :notes
         )
-        """),
+        """
+        ),
         {
             "source_id": test_source.id,
             "source_url": test_source.host,
@@ -293,33 +299,35 @@ def test_sqlite_vs_postgres_type_behavior_difference(
             "success_rate": 85.5,
             "attempt_count": 20,
             "avg_response_time_ms": 250.75,
-            "last_status_codes": '[]',
+            "last_status_codes": "[]",
             "notes": "Type behavior documentation",
         },
     )
     cloud_sql_session.commit()
-    
+
     # Query raw row WITHOUT type conversions to see actual database behavior
     result = cloud_sql_session.execute(
-        text("""
+        text(
+            """
         SELECT articles_found, attempt_count,
                success_rate, avg_response_time_ms
         FROM discovery_method_effectiveness
         WHERE source_id = :source_id
         AND discovery_method = :discovery_method
-        """),
+        """
+        ),
         {
             "source_id": test_source.id,
             "discovery_method": DiscoveryMethod.RSS_FEED.value,
         },
     )
     raw_row = result.fetchone()
-    
+
     # PostgreSQL with pg8000 returns strings for numeric columns
     # (This is the actual behavior that caused production errors)
     # Note: This assertion documents the bug - in production these ARE strings
     # With SQLite, they would be native Python types
-    
+
     # Get the actual types returned from PostgreSQL
     # Use ._mapping to get dict-like access
     row_dict = raw_row._mapping
@@ -327,22 +335,26 @@ def test_sqlite_vs_postgres_type_behavior_difference(
     attempt_type = type(row_dict["attempt_count"])
     success_type = type(row_dict["success_rate"])
     response_type = type(row_dict["avg_response_time_ms"])
-    
+
     # Document what PostgreSQL actually returns
     # (In SQLite these would likely be int/float already)
-    assert articles_type in (int, str), (
-        f"PostgreSQL returns {articles_type.__name__} for INTEGER column"
-    )
-    assert attempt_type in (int, str), (
-        f"PostgreSQL returns {attempt_type.__name__} for INTEGER column"
-    )
-    assert success_type in (float, str), (
-        f"PostgreSQL returns {success_type.__name__} for NUMERIC column"
-    )
-    assert response_type in (float, str), (
-        f"PostgreSQL returns {response_type.__name__} for NUMERIC column"
-    )
-    
+    assert articles_type in (
+        int,
+        str,
+    ), f"PostgreSQL returns {articles_type.__name__} for INTEGER column"
+    assert attempt_type in (
+        int,
+        str,
+    ), f"PostgreSQL returns {attempt_type.__name__} for INTEGER column"
+    assert success_type in (
+        float,
+        str,
+    ), f"PostgreSQL returns {success_type.__name__} for NUMERIC column"
+    assert response_type in (
+        float,
+        str,
+    ), f"PostgreSQL returns {response_type.__name__} for NUMERIC column"
+
     # This is why we need explicit int()/float() conversions!
     # Without them, dataclass instantiation fails with:
     # "'str' object cannot be interpreted as an integer"

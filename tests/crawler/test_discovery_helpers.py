@@ -583,7 +583,7 @@ class _FakeTelemetry:
 
 def test_discover_with_storysniffer_records_success() -> None:
     """Test that discover_with_storysniffer now correctly skips discovery.
-    
+
     StorySniffer.guess() is a classifier (returns bool), not a crawler.
     The method now correctly returns empty list and records SKIPPED status.
     """
@@ -617,7 +617,7 @@ def test_discover_with_storysniffer_records_success() -> None:
 
 def test_discover_with_storysniffer_records_server_error() -> None:
     """Test that discover_with_storysniffer skips even when sniffer exists.
-    
+
     StorySniffer is no longer used for discovery, so errors won't occur.
     Method returns empty list and records SKIPPED status.
     """

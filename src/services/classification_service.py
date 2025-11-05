@@ -80,7 +80,7 @@ class ArticleClassificationService:
         stmt = stmt.order_by(Article.created_at.desc())
         if limit:
             stmt = stmt.limit(limit)
-        
+
         # Add row-level locking for parallel processing (PostgreSQL only)
         # SKIP LOCKED allows multiple workers to process different rows simultaneously
         # SQLite doesn't support FOR UPDATE, so skip it for e2e/unit tests
@@ -89,7 +89,7 @@ class ArticleClassificationService:
         except AttributeError:
             # Mock session in tests
             dialect_name = None
-        
+
         if excluded_article_ids:
             stmt = stmt.where(Article.id.notin_(list(excluded_article_ids)))
 
@@ -120,17 +120,17 @@ class ArticleClassificationService:
         include_existing: bool = False,
     ) -> ClassificationStats:
         """Classify eligible articles and persist results.
-        
+
         Parallel Processing with Row-Level Locking:
         ------------------------------------------
         Uses PostgreSQL FOR UPDATE SKIP LOCKED for safe parallel processing:
-        
+
         1. Select batch_size articles with row locks
         2. Process each article with save(autocommit=False)
         3. Commit entire batch together, releasing all locks
         4. Other workers skip locked articles, process different ones
         5. Loop continues until no more articles
-        
+
         This ensures no duplicate work across parallel workers.
         """
 
@@ -158,9 +158,7 @@ class ArticleClassificationService:
         remaining = limit if limit else float("inf")
         attempted_article_ids: set[str] = set()
 
-        effective_model_version = (
-            model_version or classifier.model_version or "unknown"
-        )
+        effective_model_version = model_version or classifier.model_version or "unknown"
         effective_model_path = model_path or getattr(
             classifier, "model_identifier", None
         )
@@ -294,7 +292,7 @@ class ArticleClassificationService:
                     autocommit=False,
                 )
                 stats.labeled += 1
-            
+
             # Commit batch to release locks for parallel workers
             self.session.commit()
 

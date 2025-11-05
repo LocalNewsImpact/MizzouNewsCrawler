@@ -40,6 +40,21 @@ def test_county_pipeline_verification_retry_exhaustion(
     monkeypatch.setattr(county_pipeline, "DatabaseManager", manager_factory)
     monkeypatch.setattr(url_verification, "DatabaseManager", manager_factory)
 
+    # Mock create_telemetry_system to avoid database connection in unit tests
+    mock_telemetry = SimpleNamespace(
+        start_operation=lambda *_, **__: SimpleNamespace(
+            record_metric=lambda *_, **__: None,
+            complete=lambda *_, **__: None,
+            fail=lambda *_, **__: None,
+        ),
+        get_metrics_summary=lambda: {},
+    )
+    monkeypatch.setattr(
+        url_verification,
+        "create_telemetry_system",
+        lambda *_, **__: mock_telemetry,
+    )
+
     class FakeSniffer:
         def guess(self, _url: str) -> bool:
             return False
@@ -433,6 +448,7 @@ def test_county_pipeline_golden_path(
     source_id = "source-1"
     # Use unique host to avoid constraint violations across parallel tests
     import time
+
     unique_host = f"test-{int(time.time() * 1000000)}.example.com"
     source = Source(
         id=source_id,

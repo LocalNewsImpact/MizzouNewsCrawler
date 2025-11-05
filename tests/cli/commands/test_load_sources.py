@@ -14,6 +14,26 @@ from src.cli.commands.load_sources import (
 from src.models import Dataset, DatasetSource, Source
 
 
+@pytest.fixture(autouse=True)
+def _mock_telemetry(monkeypatch):
+    """Mock telemetry system to prevent database connections in unit tests."""
+    from src.utils import telemetry
+
+    mock_telemetry_tracker = SimpleNamespace(
+        start_operation=lambda *_, **__: SimpleNamespace(
+            record_metric=lambda *_, **__: None,
+            complete=lambda *_, **__: None,
+            fail=lambda *_, **__: None,
+        ),
+        get_metrics_summary=lambda: {},
+    )
+    monkeypatch.setattr(
+        telemetry,
+        "create_telemetry_system",
+        lambda *_, **__: mock_telemetry_tracker,
+    )
+
+
 def test_validate_columns_reports_missing_fields():
     df = pd.DataFrame([{"host_id": 1, "name": "Example", "city": "Columbia"}])
 

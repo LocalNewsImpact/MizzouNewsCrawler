@@ -23,11 +23,11 @@ import pytest
 from sqlalchemy import text
 
 from src.cli.commands.telemetry import (
-    handle_telemetry_command,
+    _show_field_extraction,
     _show_http_errors,
     _show_method_effectiveness,
     _show_publisher_stats,
-    _show_field_extraction,
+    handle_telemetry_command,
 )
 from src.models import Article, CandidateLink, Source
 
@@ -40,7 +40,7 @@ def telemetry_test_sources(cloud_sql_session):
     """Create test sources for telemetry testing."""
     sources = []
     publishers = ["Test Publisher A", "Test Publisher B"]
-    
+
     for i, pub in enumerate(publishers):
         source = Source(
             id=str(uuid.uuid4()),
@@ -52,7 +52,7 @@ def telemetry_test_sources(cloud_sql_session):
         )
         sources.append(source)
         cloud_sql_session.add(source)
-    
+
     cloud_sql_session.commit()
     for source in sources:
         cloud_sql_session.refresh(source)
@@ -78,9 +78,9 @@ def telemetry_test_data(cloud_sql_session, telemetry_test_sources):
         )
         candidates.append(candidate)
         cloud_sql_session.add(candidate)
-    
+
     cloud_sql_session.commit()
-    
+
     # Create extracted articles
     articles = []
     for i, candidate in enumerate(candidates):
@@ -97,9 +97,9 @@ def telemetry_test_data(cloud_sql_session, telemetry_test_sources):
         )
         articles.append(article)
         cloud_sql_session.add(article)
-    
+
     cloud_sql_session.commit()
-    
+
     return {
         "sources": telemetry_test_sources,
         "candidates": candidates,
@@ -110,51 +110,57 @@ def telemetry_test_data(cloud_sql_session, telemetry_test_sources):
 class TestTelemetryHTTPErrorsPostgres:
     """Test telemetry HTTP error queries with PostgreSQL."""
 
-    def test_telemetry_http_errors_table_schema_postgres(
-        self, cloud_sql_session
-    ):
+    def test_telemetry_http_errors_table_schema_postgres(self, cloud_sql_session):
         """Test that http_error_summary table exists and has correct schema."""
         # Check if table exists and get schema
-        query = text("""
+        query = text(
+            """
             SELECT column_name, data_type
             FROM information_schema.columns
             WHERE table_name = 'http_error_summary'
             ORDER BY ordinal_position
-        """)
-        
+        """
+        )
+
         try:
             result = cloud_sql_session.execute(query)
             columns = list(result)
-            
+
             # If table exists, verify it has expected columns
             if columns:
                 column_names = {row[0] for row in columns}
-                expected_columns = {'host', 'status_code', 'error_type', 'count', 'last_seen'}
+                expected_columns = {
+                    "host",
+                    "status_code",
+                    "error_type",
+                    "count",
+                    "last_seen",
+                }
                 # Check for overlap (table might have more columns)
                 assert len(column_names & expected_columns) > 0
         except Exception:
             # Table might not exist in test database, that's OK
             pytest.skip("http_error_summary table not in test database")
 
-    def test_telemetry_error_summary_query_postgres(
-        self, cloud_sql_session
-    ):
+    def test_telemetry_error_summary_query_postgres(self, cloud_sql_session):
         """Test error summary query with PostgreSQL datetime operations."""
         # Test the query pattern used in get_error_summary
         cutoff_time = datetime.now(timezone.utc) - timedelta(days=7)
-        
+
         # This tests the fixed query (using parameterized cutoff instead of INTERVAL)
-        query = text("""
+        query = text(
+            """
             SELECT COUNT(*) as error_count
             FROM (
                 SELECT 1 as dummy_error
                 WHERE CURRENT_TIMESTAMP >= :cutoff_time
             ) dummy_errors
-        """)
-        
+        """
+        )
+
         result = cloud_sql_session.execute(query, {"cutoff_time": cutoff_time})
         count = result.scalar()
-        
+
         # Query should execute without error
         assert count is not None
 
@@ -162,35 +168,34 @@ class TestTelemetryHTTPErrorsPostgres:
 class TestTelemetryMethodEffectivenessPostgres:
     """Test telemetry method effectiveness queries with PostgreSQL."""
 
-    def test_method_effectiveness_table_schema_postgres(
-        self, cloud_sql_session
-    ):
+    def test_method_effectiveness_table_schema_postgres(self, cloud_sql_session):
         """Test extraction_telemetry table schema."""
-        query = text("""
+        query = text(
+            """
             SELECT column_name, data_type
             FROM information_schema.columns
             WHERE table_name = 'extraction_telemetry'
             ORDER BY ordinal_position
-        """)
-        
+        """
+        )
+
         try:
             result = cloud_sql_session.execute(query)
             columns = list(result)
-            
+
             if columns:
                 column_names = {row[0] for row in columns}
                 # Check for key columns
-                expected_columns = {'successful_method', 'url', 'publisher'}
+                expected_columns = {"successful_method", "url", "publisher"}
                 assert len(column_names & expected_columns) > 0
         except Exception:
             pytest.skip("extraction_telemetry table not in test database")
 
-    def test_method_effectiveness_aggregation_postgres(
-        self, cloud_sql_session
-    ):
+    def test_method_effectiveness_aggregation_postgres(self, cloud_sql_session):
         """Test method effectiveness aggregation queries."""
         # Test aggregation patterns used in telemetry
-        query = text("""
+        query = text(
+            """
             SELECT
                 COUNT(*) as total_attempts,
                 COUNT(CASE WHEN status = 'extracted' THEN 1 END) as successful,
@@ -198,12 +203,13 @@ class TestTelemetryMethodEffectivenessPostgres:
                 NULLIF(COUNT(*), 0) as success_rate
             FROM articles
             WHERE extracted_at >= :cutoff_time
-        """)
-        
+        """
+        )
+
         cutoff_time = datetime.now(timezone.utc) - timedelta(days=7)
         result = cloud_sql_session.execute(query, {"cutoff_time": cutoff_time})
         row = result.fetchone()
-        
+
         # Should execute without error
         assert row is not None
         assert row[0] >= 0  # total_attempts
@@ -217,7 +223,8 @@ class TestTelemetryPublisherStatsPostgres:
         self, cloud_sql_session, telemetry_test_data
     ):
         """Test aggregating telemetry by publisher/source."""
-        query = text("""
+        query = text(
+            """
             SELECT 
                 s.canonical_name as publisher,
                 COUNT(DISTINCT a.id) as article_count,
@@ -228,15 +235,16 @@ class TestTelemetryPublisherStatsPostgres:
             WHERE s.id IN :source_ids
             GROUP BY s.canonical_name
             ORDER BY article_count DESC
-        """)
-        
+        """
+        )
+
         source_ids = tuple(s.id for s in telemetry_test_data["sources"])
         result = cloud_sql_session.execute(query, {"source_ids": source_ids})
         stats = list(result)
-        
+
         # Should have 2 publishers
         assert len(stats) == 2
-        
+
         # Each should have article and candidate counts
         for row in stats:
             assert row[0] is not None  # publisher name
@@ -247,7 +255,8 @@ class TestTelemetryPublisherStatsPostgres:
         self, cloud_sql_session, telemetry_test_data
     ):
         """Test publisher stats with timing aggregations."""
-        query = text("""
+        query = text(
+            """
             SELECT 
                 s.canonical_name as publisher,
                 COUNT(a.id) as total_articles,
@@ -259,20 +268,20 @@ class TestTelemetryPublisherStatsPostgres:
             JOIN articles a ON cl.id = a.candidate_link_id
             WHERE s.id IN :source_ids
             GROUP BY s.canonical_name
-        """)
-        
+        """
+        )
+
         source_ids = tuple(s.id for s in telemetry_test_data["sources"])
         recent_cutoff = datetime.now(timezone.utc) - timedelta(hours=1)
-        
+
         result = cloud_sql_session.execute(
-            query, 
-            {"source_ids": source_ids, "recent_cutoff": recent_cutoff}
+            query, {"source_ids": source_ids, "recent_cutoff": recent_cutoff}
         )
         stats = list(result)
-        
+
         # Should have publisher stats
         assert len(stats) >= 1
-        
+
         # Timing fields should be valid
         for row in stats:
             assert row[1] > 0  # total_articles
@@ -287,7 +296,8 @@ class TestTelemetryFieldExtractionPostgres:
         self, cloud_sql_session, telemetry_test_data
     ):
         """Test calculating field extraction success rates."""
-        query = text("""
+        query = text(
+            """
             SELECT 
                 COUNT(*) as total_articles,
                 COUNT(title) as with_title,
@@ -299,16 +309,17 @@ class TestTelemetryFieldExtractionPostgres:
                 CAST(COUNT(content) AS FLOAT) / NULLIF(COUNT(*), 0) as content_rate
             FROM articles
             WHERE extracted_at >= :cutoff_time
-        """)
-        
+        """
+        )
+
         cutoff_time = datetime.now(timezone.utc) - timedelta(hours=24)
         result = cloud_sql_session.execute(query, {"cutoff_time": cutoff_time})
         row = result.fetchone()
-        
+
         # Should have extraction stats
         assert row is not None
         assert row[0] >= 0  # total_articles
-        
+
         # If we have articles, success rates should be between 0 and 1
         if row[0] > 0:
             assert 0 <= row[5] <= 1  # title_rate
@@ -319,7 +330,8 @@ class TestTelemetryFieldExtractionPostgres:
         self, cloud_sql_session, telemetry_test_data
     ):
         """Test field extraction success grouped by publisher."""
-        query = text("""
+        query = text(
+            """
             SELECT 
                 s.canonical_name as publisher,
                 COUNT(a.id) as total_articles,
@@ -332,15 +344,16 @@ class TestTelemetryFieldExtractionPostgres:
             WHERE s.id IN :source_ids
             GROUP BY s.canonical_name
             ORDER BY total_articles DESC
-        """)
-        
+        """
+        )
+
         source_ids = tuple(s.id for s in telemetry_test_data["sources"])
         result = cloud_sql_session.execute(query, {"source_ids": source_ids})
         stats = list(result)
-        
+
         # Should have per-publisher field extraction stats
         assert len(stats) >= 1
-        
+
         for row in stats:
             assert row[0] is not None  # publisher
             assert row[1] > 0  # total_articles
@@ -350,13 +363,11 @@ class TestTelemetryCommandPostgres:
     """Test telemetry command execution with PostgreSQL."""
 
     @patch("src.cli.commands.telemetry.ComprehensiveExtractionTelemetry")
-    def test_telemetry_errors_command_postgres(
-        self, mock_telemetry_class, capsys
-    ):
+    def test_telemetry_errors_command_postgres(self, mock_telemetry_class, capsys):
         """Test telemetry errors subcommand."""
         mock_telemetry = Mock()
         mock_telemetry_class.return_value = mock_telemetry
-        
+
         # Mock error summary data
         mock_telemetry.get_error_summary.return_value = [
             {
@@ -374,31 +385,29 @@ class TestTelemetryCommandPostgres:
                 "last_seen": datetime.now(timezone.utc).isoformat(),
             },
         ]
-        
+
         # Create mock args
         args = Mock()
         args.telemetry_command = "errors"
         args.days = 7
-        
+
         # Execute command
         result = handle_telemetry_command(args)
-        
+
         # Should succeed
         assert result == 0
         mock_telemetry.get_error_summary.assert_called_once_with(7)
-        
+
         # Output should show errors
         captured = capsys.readouterr()
         assert "HTTP Error Summary" in captured.out
 
     @patch("src.cli.commands.telemetry.ComprehensiveExtractionTelemetry")
-    def test_telemetry_methods_command_postgres(
-        self, mock_telemetry_class, capsys
-    ):
+    def test_telemetry_methods_command_postgres(self, mock_telemetry_class, capsys):
         """Test telemetry methods subcommand."""
         mock_telemetry = Mock()
         mock_telemetry_class.return_value = mock_telemetry
-        
+
         # Mock method effectiveness data
         mock_telemetry.get_method_effectiveness.return_value = [
             {
@@ -414,31 +423,29 @@ class TestTelemetryCommandPostgres:
                 "avg_duration": 800,
             },
         ]
-        
+
         # Create mock args
         args = Mock()
         args.telemetry_command = "methods"
         args.publisher = None
-        
+
         # Execute command
         result = handle_telemetry_command(args)
-        
+
         # Should succeed
         assert result == 0
         mock_telemetry.get_method_effectiveness.assert_called_once_with(None)
-        
+
         # Output should show methods
         captured = capsys.readouterr()
         assert "Method Effectiveness" in captured.out
 
     @patch("src.cli.commands.telemetry.ComprehensiveExtractionTelemetry")
-    def test_telemetry_publishers_command_postgres(
-        self, mock_telemetry_class, capsys
-    ):
+    def test_telemetry_publishers_command_postgres(self, mock_telemetry_class, capsys):
         """Test telemetry publishers subcommand."""
         mock_telemetry = Mock()
         mock_telemetry_class.return_value = mock_telemetry
-        
+
         # Mock publisher stats data
         mock_telemetry.get_publisher_stats.return_value = [
             {
@@ -456,30 +463,28 @@ class TestTelemetryCommandPostgres:
                 "avg_duration_ms": 1500,
             },
         ]
-        
+
         # Create mock args
         args = Mock()
         args.telemetry_command = "publishers"
-        
+
         # Execute command
         result = handle_telemetry_command(args)
-        
+
         # Should succeed
         assert result == 0
         mock_telemetry.get_publisher_stats.assert_called_once()
-        
+
         # Output should show publishers
         captured = capsys.readouterr()
         assert "Publisher Performance" in captured.out
 
     @patch("src.cli.commands.telemetry.ComprehensiveExtractionTelemetry")
-    def test_telemetry_fields_command_postgres(
-        self, mock_telemetry_class, capsys
-    ):
+    def test_telemetry_fields_command_postgres(self, mock_telemetry_class, capsys):
         """Test telemetry fields subcommand."""
         mock_telemetry = Mock()
         mock_telemetry_class.return_value = mock_telemetry
-        
+
         # Mock field extraction data
         mock_telemetry.get_field_extraction_stats.return_value = [
             {
@@ -499,20 +504,20 @@ class TestTelemetryCommandPostgres:
                 "count": 50,
             },
         ]
-        
+
         # Create mock args
         args = Mock()
         args.telemetry_command = "fields"
         args.publisher = None
         args.method = None
-        
+
         # Execute command
         result = handle_telemetry_command(args)
-        
+
         # Should succeed
         assert result == 0
         mock_telemetry.get_field_extraction_stats.assert_called_once_with(None, None)
-        
+
         # Output should show field extraction
         captured = capsys.readouterr()
         assert "Field Extraction" in captured.out
@@ -521,9 +526,7 @@ class TestTelemetryCommandPostgres:
 class TestTelemetryPostgresFeatures:
     """Test PostgreSQL-specific telemetry features."""
 
-    def test_telemetry_interval_queries_postgres(
-        self, cloud_sql_session
-    ):
+    def test_telemetry_interval_queries_postgres(self, cloud_sql_session):
         """Test various INTERVAL syntaxes in telemetry queries."""
         # Test different interval units
         intervals = [
@@ -532,21 +535,21 @@ class TestTelemetryPostgresFeatures:
             ("1 hour", timedelta(hours=1)),
             ("30 minutes", timedelta(minutes=30)),
         ]
-        
+
         for interval_str, delta in intervals:
             # Calculate expected cutoff using Python
             expected_cutoff = datetime.now(timezone.utc) - delta
-            
+
             # Query with parameterized cutoff (database-agnostic)
-            query = text("""
+            query = text(
+                """
                 SELECT :cutoff_time as cutoff
-            """)
-            
-            result = cloud_sql_session.execute(
-                query, {"cutoff_time": expected_cutoff}
+            """
             )
+
+            result = cloud_sql_session.execute(query, {"cutoff_time": expected_cutoff})
             cutoff = result.scalar()
-            
+
             # Should return a valid datetime
             assert cutoff is not None
 
@@ -554,7 +557,8 @@ class TestTelemetryPostgresFeatures:
         self, cloud_sql_session, telemetry_test_data
     ):
         """Test CASE statements in telemetry aggregations."""
-        query = text("""
+        query = text(
+            """
             SELECT
                 COUNT(*) as total,
                 COUNT(CASE WHEN title IS NOT NULL THEN 1 END) as with_title,
@@ -562,12 +566,13 @@ class TestTelemetryPostgresFeatures:
                 COUNT(CASE WHEN content IS NOT NULL THEN 1 END) as with_content
             FROM articles
             WHERE candidate_link_id IN :candidate_ids
-        """)
-        
+        """
+        )
+
         candidate_ids = tuple(c.id for c in telemetry_test_data["candidates"])
         result = cloud_sql_session.execute(query, {"candidate_ids": candidate_ids})
         row = result.fetchone()
-        
+
         # Should have aggregated results
         assert row[0] > 0  # total
         assert row[1] >= 0  # with_title
@@ -578,19 +583,21 @@ class TestTelemetryPostgresFeatures:
         self, cloud_sql_session, telemetry_test_data
     ):
         """Test floating-point division in telemetry calculations."""
-        query = text("""
+        query = text(
+            """
             SELECT
                 COUNT(*) as total,
                 COUNT(title) as with_title,
                 CAST(COUNT(title) AS FLOAT) / NULLIF(CAST(COUNT(*) AS FLOAT), 0) as success_rate
             FROM articles
             WHERE candidate_link_id IN :candidate_ids
-        """)
-        
+        """
+        )
+
         candidate_ids = tuple(c.id for c in telemetry_test_data["candidates"])
         result = cloud_sql_session.execute(query, {"candidate_ids": candidate_ids})
         row = result.fetchone()
-        
+
         # Should calculate success rate correctly
         if row[0] > 0:
             assert 0 <= row[2] <= 1  # success_rate between 0 and 1

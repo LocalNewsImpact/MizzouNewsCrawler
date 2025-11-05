@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 def log_and_print(message: str, level: str = "info") -> None:
     """Log message (logging already outputs to stdout in container environments).
-    
+
     Note: The 'print' was removed to avoid duplicate log lines when run via
     continuous_processor.py which streams subprocess output to logs.
     """
@@ -126,16 +126,17 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
                 return 0
 
             log_and_print(f"📊 Found {len(rows)} articles needing entity extraction")
-            
+
             # Group articles by source for efficient processing
             from collections import defaultdict
+
             articles_by_source = defaultdict(list)
             for row in rows:
                 article_id, text, text_hash, source_id, dataset_id, source_name = row
                 articles_by_source[(source_id, dataset_id)].append(
                     (article_id, text, text_hash, source_name)
                 )
-            
+
             num_sources = len(articles_by_source)
             log_and_print(f"   Grouped into {num_sources} source/dataset combos")
             log_and_print("")
@@ -172,7 +173,7 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
                 source_name = articles[0][3] if articles else "unknown"
                 msg = f"📰 Processing {len(articles)} articles from {source_name}"
                 log_and_print(msg)
-                
+
                 # Load gazetteer once per source
                 gazetteer_rows = get_gazetteer_rows(
                     session,
@@ -226,7 +227,7 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
 
                 # Commit all entities for this source batch
                 session.commit()
-                
+
                 # Log progress after each source
                 progress_msg = (
                     f"✓ Completed {source_name}: {processed}/{len(rows)} total"

@@ -138,6 +138,26 @@ disable_error_code = [
 module = "tests.*"
 ignore_errors = true
 
+[tool.coverage.run]
+omit = [
+    # Dead/unused code - safe to exclude
+    "src/cli/commands/proxy.py",  # 0% coverage, not imported anywhere
+    # Legacy/deprecated modules - consider for future removal
+    "src/utils/extraction_telemetry.py",  # Only used in scripts, superseded by comprehensive_telemetry
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
 [tool.bandit]
 exclude_dirs = ["tests", "venv", ".venv", "build", "dist"]
 skips = ["B101", "B601"]  # Skip assert_used and shell injection in subprocess (review these)

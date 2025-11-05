@@ -221,7 +221,9 @@ class TestPostgreSQLAggregateTypes:
         for cat in ["A", "B", "C"]:
             for i in range(3):
                 cloud_sql_session.execute(
-                    text("INSERT INTO test_groups (category, value) VALUES (:cat, :val)"),
+                    text(
+                        "INSERT INTO test_groups (category, value) VALUES (:cat, :val)"
+                    ),
                     {"cat": cat, "val": i},
                 )
         cloud_sql_session.commit()

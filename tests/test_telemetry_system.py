@@ -330,55 +330,55 @@ class TestComprehensiveExtractionTelemetry:
     def clear_telemetry_tables_once(self):
         """Clear all telemetry tables once before running this test class."""
         import os
+
         from sqlalchemy import create_engine, text
-        
+
         # Get TEST_DATABASE_URL directly
         test_db_url = os.getenv("TEST_DATABASE_URL")
         if not test_db_url:
             pytest.skip("TEST_DATABASE_URL not set")
-        
+
         # Create a temporary engine for cleanup
         engine = create_engine(test_db_url)
-        
+
         try:
             with engine.connect() as conn:
                 conn.execute(text("DELETE FROM http_error_summary"))
-                conn.execute(
-                    text("DELETE FROM content_type_detection_telemetry")
-                )
+                conn.execute(text("DELETE FROM content_type_detection_telemetry"))
                 conn.execute(text("DELETE FROM extraction_telemetry_v2"))
                 conn.commit()
         finally:
             engine.dispose()
-        
+
         yield
 
     @pytest.fixture
     def temp_db(self, cloud_sql_session):
         """Use PostgreSQL test database with automatic rollback."""
         import os
-        
+
         # Get TEST_DATABASE_URL (SQLAlchemy masks password in str(url))
         db_url = os.getenv("TEST_DATABASE_URL")
         if not db_url:
             pytest.skip("TEST_DATABASE_URL not set")
-        
+
         # Get the engine from cloud_sql_session for reuse
         engine = cloud_sql_session.get_bind().engine
-        
+
         # Create TelemetryStore with PostgreSQL URL, reusing the same engine
         from src.telemetry.store import TelemetryStore
+
         store = TelemetryStore(database=db_url, async_writes=False, engine=engine)
-        
+
         # Pass store directly to avoid SQLite file path interpretation
         telemetry = ComprehensiveExtractionTelemetry(store=store)
-        
+
         # Return telemetry and session for queries
         yield telemetry, cloud_sql_session
 
         # Explicitly close store connection to avoid leaks
         store.shutdown()
-        
+
         # No cleanup needed - cloud_sql_session handles rollback
 
     def test_database_initialization(self, temp_db):
@@ -386,12 +386,16 @@ class TestComprehensiveExtractionTelemetry:
         telemetry, session = temp_db
 
         # Use PostgreSQL information_schema to check tables
-        result = session.execute(text("""
+        result = session.execute(
+            text(
+                """
             SELECT column_name 
             FROM information_schema.columns 
             WHERE table_name = 'extraction_telemetry_v2'
             ORDER BY ordinal_position
-        """))
+        """
+            )
+        )
         columns = [row[0] for row in result.fetchall()]
 
         expected_columns = [
@@ -426,12 +430,16 @@ class TestComprehensiveExtractionTelemetry:
             assert col in columns
 
         # Check http_error_summary table exists
-        result = session.execute(text("""
+        result = session.execute(
+            text(
+                """
             SELECT column_name 
             FROM information_schema.columns 
             WHERE table_name = 'http_error_summary'
             ORDER BY ordinal_position
-        """))
+        """
+            )
+        )
         columns = [row[0] for row in result.fetchall()]
 
         expected_columns = [
@@ -479,9 +487,7 @@ class TestComprehensiveExtractionTelemetry:
         telemetry.record_extraction(metrics)
 
         # Verify data was saved using PostgreSQL
-        result = session.execute(
-            text("SELECT * FROM extraction_telemetry_v2")
-        )
+        result = session.execute(text("SELECT * FROM extraction_telemetry_v2"))
         records = result.fetchall()
         assert len(records) == 1
 
@@ -521,22 +527,26 @@ class TestComprehensiveExtractionTelemetry:
         telemetry.record_extraction(metrics)
 
         # Verify extraction telemetry using PostgreSQL
-        result = session.execute(text(
-            "SELECT http_status_code, http_error_type, is_success "
-            "FROM extraction_telemetry_v2 "
-            "WHERE article_id = 'art2' AND operation_id = 'op2'"
-        ))
+        result = session.execute(
+            text(
+                "SELECT http_status_code, http_error_type, is_success "
+                "FROM extraction_telemetry_v2 "
+                "WHERE article_id = 'art2' AND operation_id = 'op2'"
+            )
+        )
         record = result.fetchone()._mapping
         assert record["http_status_code"] == 403
         assert record["http_error_type"] == "4xx_client_error"
         assert record["is_success"] is False
 
         # Verify HTTP error summary
-        result = session.execute(text(
-            "SELECT host, status_code, error_type, count "
-            "FROM http_error_summary "
-            "WHERE host = 'blocked.com'"
-        ))
+        result = session.execute(
+            text(
+                "SELECT host, status_code, error_type, count "
+                "FROM http_error_summary "
+                "WHERE host = 'blocked.com'"
+            )
+        )
         error_record = result.fetchone()._mapping
         assert error_record["host"] == "blocked.com"
         assert error_record["status_code"] == 403
@@ -591,7 +601,7 @@ class TestComprehensiveExtractionTelemetry:
 @pytest.mark.integration
 class TestContentExtractorIntegration:
     """Test integration between ContentExtractor and telemetry system.
-    
+
     Uses PostgreSQL cloud_sql_session for proper test isolation.
     """
 
@@ -599,22 +609,23 @@ class TestContentExtractorIntegration:
     def temp_db(self, cloud_sql_session):
         """Use PostgreSQL test database with automatic rollback."""
         import os
-        
+
         # Get TEST_DATABASE_URL (SQLAlchemy masks password in str(url))
         db_url = os.getenv("TEST_DATABASE_URL")
         if not db_url:
             pytest.skip("TEST_DATABASE_URL not set")
-        
+
         # Get the engine from cloud_sql_session for reuse
         engine = cloud_sql_session.get_bind().engine
-        
+
         # Create TelemetryStore with PostgreSQL URL, reusing the same engine
         from src.telemetry.store import TelemetryStore
+
         store = TelemetryStore(database=db_url, async_writes=False, engine=engine)
-        
+
         # Pass store directly to avoid SQLite file path interpretation
         telemetry = ComprehensiveExtractionTelemetry(store=store)
-        
+
         # Return telemetry and session for queries
         yield telemetry, cloud_sql_session
 
@@ -715,8 +726,10 @@ class TestContentExtractorIntegration:
 
         for i, (host, status, success, method) in enumerate(test_scenarios):
             metrics = ExtractionMetrics(
-                f"extractor-op{i}", f"extractor-art{i}",
-                f"https://{host}/article{i}", host
+                f"extractor-op{i}",
+                f"extractor-art{i}",
+                f"https://{host}/article{i}",
+                host,
             )
             metrics.start_time = datetime.utcnow()
             metrics.end_time = datetime.utcnow() + timedelta(seconds=2)
@@ -744,7 +757,9 @@ class TestContentExtractorIntegration:
         from sqlalchemy import text
 
         # Test method performance query - filter by our test hosts
-        result = session.execute(text("""
+        result = session.execute(
+            text(
+                """
             SELECT
                 COALESCE(successful_method, 'failed') as method,
                 host,
@@ -754,30 +769,37 @@ class TestContentExtractorIntegration:
             WHERE host LIKE 'test-extractor%' OR host LIKE 'blocked-extractor%'
             GROUP BY COALESCE(successful_method, 'failed'), host
             ORDER BY total_attempts DESC
-        """))
+        """
+            )
+        )
         method_results = result.fetchall()
         assert len(method_results) > 0
 
         # Test HTTP error summary query - filter by our test hosts
-        result = session.execute(text("""
+        result = session.execute(
+            text(
+                """
             SELECT host, status_code, count
             FROM http_error_summary
             WHERE host LIKE 'test-extractor%' OR host LIKE 'blocked-extractor%'
             ORDER BY count DESC
-        """))
+        """
+            )
+        )
         error_results = result.fetchall()
         assert len(error_results) > 0
 
         # Verify blocked-extractor.com has 2 403 errors
         blocked_errors = [
-            r for r in error_results
-            if r[0] == "blocked-extractor.com" and r[1] == 403
+            r for r in error_results if r[0] == "blocked-extractor.com" and r[1] == 403
         ]
         assert len(blocked_errors) == 1
         assert blocked_errors[0][2] == 2  # count should be 2
 
         # Test publisher stats query - filter by our test hosts
-        result = session.execute(text("""
+        result = session.execute(
+            text(
+                """
             SELECT
                 host,
                 COUNT(*) as total_extractions,
@@ -786,7 +808,9 @@ class TestContentExtractorIntegration:
             FROM extraction_telemetry_v2
             WHERE host LIKE 'test-extractor%' OR host LIKE 'blocked-extractor%'
             GROUP BY host
-        """))
+        """
+            )
+        )
         publisher_results = result.fetchall()
         # test-extractor1.com, test-extractor2.com, blocked-extractor.com
         assert len(publisher_results) == 3
@@ -824,7 +848,7 @@ class TestHTTPErrorExtraction:
 @pytest.mark.integration
 class TestTelemetrySystemEndToEnd:
     """End-to-end integration tests for the complete telemetry system.
-    
+
     Uses PostgreSQL cloud_sql_session for proper test isolation.
     """
 
@@ -832,22 +856,23 @@ class TestTelemetrySystemEndToEnd:
     def temp_db(self, cloud_sql_session):
         """Use PostgreSQL test database with automatic rollback."""
         import os
-        
+
         # Get TEST_DATABASE_URL (SQLAlchemy masks password in str(url))
         db_url = os.getenv("TEST_DATABASE_URL")
         if not db_url:
             pytest.skip("TEST_DATABASE_URL not set")
-        
+
         # Get the engine from cloud_sql_session for reuse
         engine = cloud_sql_session.get_bind().engine
-        
+
         # Create TelemetryStore with PostgreSQL URL, reusing the same engine
         from src.telemetry.store import TelemetryStore
+
         store = TelemetryStore(database=db_url, async_writes=False, engine=engine)
-        
+
         # Pass store directly to avoid SQLite file path interpretation
         telemetry = ComprehensiveExtractionTelemetry(store=store)
-        
+
         # Return telemetry and session for queries
         yield telemetry, cloud_sql_session
 
@@ -857,7 +882,7 @@ class TestTelemetrySystemEndToEnd:
     def test_complete_workflow_simulation(self, temp_db):
         """Simulate a complete extraction workflow with telemetry."""
         telemetry, session = temp_db
-        
+
         # Simulate a batch extraction job with unique host names
         urls = [
             "https://e2e-good-site.com/article1",
@@ -914,13 +939,17 @@ class TestTelemetrySystemEndToEnd:
         from sqlalchemy import text
 
         # Overall success rate - filter by our unique hosts
-        result = session.execute(text("""
+        result = session.execute(
+            text(
+                """
             SELECT
                 COUNT(*) as total,
                 SUM(CASE WHEN is_success THEN 1 ELSE 0 END) as successful
             FROM extraction_telemetry_v2
             WHERE host LIKE 'e2e-%'
-        """))
+        """
+            )
+        )
         total, successful = result.fetchone()
         success_rate = (successful / total * 100) if total > 0 else 0
 
@@ -929,12 +958,16 @@ class TestTelemetrySystemEndToEnd:
         assert success_rate == 50.0
 
         # HTTP error breakdown - filter by our unique hosts
-        result = session.execute(text("""
+        result = session.execute(
+            text(
+                """
             SELECT status_code, COUNT(*)
             FROM http_error_summary
             WHERE host LIKE 'e2e-%'
             GROUP BY status_code
-        """))
+        """
+            )
+        )
         error_breakdown = dict(result.fetchall())
         assert 403 in error_breakdown
         assert 500 in error_breakdown

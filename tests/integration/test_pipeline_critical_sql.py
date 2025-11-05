@@ -26,30 +26,27 @@ from sqlalchemy.exc import (
 from src.models import Article, CandidateLink, Source
 from src.models.database import DatabaseManager
 
-
 pytestmark = [pytest.mark.integration, pytest.mark.postgres]
 
 
 @pytest.fixture(autouse=True, scope="function")
 def cleanup_test_data(cloud_sql_session):
     """Clean up test data before and after each test.
-    
+
     This fixture runs automatically for every test in this module.
     Cleans up Sources, CandidateLinks, and Articles from test.example.com domain.
     """
     engine = cloud_sql_session.get_bind().engine
-    
+
     def _cleanup():
         with engine.begin() as conn:
             try:
                 # Delete in correct order due to FK constraints
                 # 1. Articles reference candidate_links
                 conn.execute(
-                    text(
-                        "DELETE FROM articles WHERE url LIKE '%test%.example.com%'"
-                    )
+                    text("DELETE FROM articles WHERE url LIKE '%test%.example.com%'")
                 )
-                
+
                 # 2. CandidateLinks reference sources
                 conn.execute(
                     text(
@@ -57,17 +54,15 @@ def cleanup_test_data(cloud_sql_session):
                         "WHERE url LIKE '%test%.example.com%'"
                     )
                 )
-                
+
                 # 3. Sources
                 conn.execute(
-                    text(
-                        "DELETE FROM sources WHERE host LIKE '%test%.example.com'"
-                    )
+                    text("DELETE FROM sources WHERE host LIKE '%test%.example.com'")
                 )
             except Exception:
                 # Tables might not exist or other issues - don't fail the test
                 pass
-    
+
     _cleanup()  # Clean before test
     yield
     _cleanup()  # Clean after test
@@ -76,19 +71,19 @@ def cleanup_test_data(cloud_sql_session):
 @pytest.fixture
 def test_db(cloud_sql_session):
     """Use PostgreSQL test database with automatic rollback.
-    
+
     Uses the cloud_sql_session fixture which provides a PostgreSQL
     connection with all tables created and automatic rollback after test.
     """
     import os
-    
+
     # Get TEST_DATABASE_URL (SQLAlchemy masks password in str(url))
     db_url = os.getenv("TEST_DATABASE_URL")
     if not db_url:
         pytest.skip("TEST_DATABASE_URL not set")
-    
+
     manager = DatabaseManager(database_url=db_url)
-    
+
     yield manager
     # No explicit cleanup needed - cloud_sql_session handles rollback
 
@@ -106,18 +101,18 @@ def test_source(test_db):
         city="Test City",
         county="Test County",
     )
-    
+
     with test_db.session as session:
         session.add(source)
         session.commit()
         session.refresh(source)
-    
+
     return source
 
 
 class TestDiscoveryCriticalSQL:
     """Test critical SQL operations in discovery phase."""
-    
+
     def test_insert_candidate_link(self, test_db, test_source):
         """Test inserting a candidate link (most basic discovery operation)."""
         with test_db.session as session:
@@ -133,22 +128,22 @@ class TestDiscoveryCriticalSQL:
             )
             session.add(candidate)
             session.commit()
-            
+
             # Verify
-            result = session.query(CandidateLink).filter_by(
-                url=candidate.url
-            ).first()
+            result = session.query(CandidateLink).filter_by(url=candidate.url).first()
             assert result is not None
             assert result.status == "discovered"
-    
+
     def test_query_sources_for_discovery(self, test_db, test_source):
         """Test SQL query used to find sources for discovery."""
-        query = text("""
+        query = text(
+            """
             SELECT id, host, canonical_name
             FROM sources
             WHERE id = :source_id
-        """)
-        
+        """
+        )
+
         with test_db.session as session:
             result = session.execute(query, {"source_id": test_source.id})
             rows = result.fetchall()
@@ -158,7 +153,7 @@ class TestDiscoveryCriticalSQL:
 
 class TestVerificationCriticalSQL:
     """Test critical SQL operations in verification phase."""
-    
+
     def test_update_verification_status(self, test_db, test_source):
         """Test updating candidate link status after verification."""
         # Create discovered candidate
@@ -176,20 +171,20 @@ class TestVerificationCriticalSQL:
             )
             session.add(candidate)
             session.commit()
-        
+
         # Update status (verification result)
         with test_db.session as session:
             candidate = session.get(CandidateLink, candidate_id)
             candidate.status = "article"
             candidate.processed_at = datetime.now(timezone.utc)
             session.commit()
-        
+
         # Verify update
         with test_db.session as session:
             result = session.get(CandidateLink, candidate_id)
             assert result.status == "article"
             assert result.processed_at is not None
-    
+
     def test_query_pending_verification(self, test_db, test_source):
         """Test SQL query to fetch candidates needing verification."""
         # Create some candidates
@@ -207,15 +202,17 @@ class TestVerificationCriticalSQL:
                 )
                 session.add(candidate)
                 session.commit()
-        
+
         # Query for pending
-        query = text("""
+        query = text(
+            """
             SELECT id, url
             FROM candidate_links
             WHERE status = 'discovered'
             LIMIT 10
-        """)
-        
+        """
+        )
+
         with test_db.session as session:
             result = session.execute(query)
             rows = result.fetchall()
@@ -224,7 +221,7 @@ class TestVerificationCriticalSQL:
 
 class TestExtractionCriticalSQL:
     """Test critical SQL operations in extraction phase."""
-    
+
     def test_insert_article(self, test_db, test_source):
         """Test inserting an extracted article."""
         # First create a candidate link
@@ -242,7 +239,7 @@ class TestExtractionCriticalSQL:
             )
             session.add(candidate)
             session.commit()
-        
+
         # Now create the article
         with test_db.session as session:
             article = Article(
@@ -256,16 +253,16 @@ class TestExtractionCriticalSQL:
             )
             session.add(article)
             session.commit()
-            
+
             # Verify
             result = session.query(Article).filter_by(url=article.url).first()
             assert result is not None
             assert result.title == "Test Article"
-    
+
     def test_duplicate_article_url_constraint(self, test_db, test_source):
         """Test that duplicate article URLs are prevented by constraint."""
         url = "https://test.example.com/duplicate"
-        
+
         # Create candidate link first
         candidate_id = str(uuid.uuid4())
         with test_db.session as session:
@@ -281,7 +278,7 @@ class TestExtractionCriticalSQL:
             )
             session.add(candidate)
             session.commit()
-        
+
         # Insert first article
         with test_db.session as session:
             article1 = Article(
@@ -294,7 +291,7 @@ class TestExtractionCriticalSQL:
             )
             session.add(article1)
             session.commit()
-        
+
         # Try to insert duplicate
         with test_db.session as session:
             article2 = Article(
@@ -313,7 +310,8 @@ class TestExtractionCriticalSQL:
                 # If it succeeds, that's also ok for this test
             except IntegrityError:
                 # Expected if there's a unique constraint on URL
-                pass    
+                pass
+
     def test_query_verified_candidates(self, test_db, test_source):
         """Test SQL query to fetch verified candidates for extraction."""
         # Create verified candidates
@@ -332,15 +330,17 @@ class TestExtractionCriticalSQL:
                 )
                 session.add(candidate)
                 session.commit()
-        
+
         # Query verified
-        query = text("""
+        query = text(
+            """
             SELECT id, url
             FROM candidate_links
             WHERE status = 'article'
             LIMIT 10
-        """)
-        
+        """
+        )
+
         with test_db.session as session:
             result = session.execute(query)
             rows = result.fetchall()
@@ -349,7 +349,7 @@ class TestExtractionCriticalSQL:
 
 class TestLabelingCriticalSQL:
     """Test critical SQL operations in labeling/ML phase."""
-    
+
     def test_update_article_to_labeled(self, test_db, test_source):
         """Test updating article status to labeled after ML analysis."""
         # Create candidate link first
@@ -367,7 +367,7 @@ class TestLabelingCriticalSQL:
             )
             session.add(candidate)
             session.commit()
-        
+
         # Create extracted article
         article_id = str(uuid.uuid4())
         with test_db.session as session:
@@ -382,18 +382,18 @@ class TestLabelingCriticalSQL:
             )
             session.add(article)
             session.commit()
-        
+
         # Update to labeled
         with test_db.session as session:
             article = session.get(Article, article_id)
             article.status = "labeled"
             session.commit()
-        
+
         # Verify
         with test_db.session as session:
             result = session.get(Article, article_id)
             assert result.status == "labeled"
-    
+
     def test_query_cleaned_articles(self, test_db, test_source):
         """Test SQL query to fetch cleaned articles for labeling."""
         # Create cleaned articles
@@ -413,7 +413,7 @@ class TestLabelingCriticalSQL:
                 )
                 session.add(candidate)
                 session.commit()
-            
+
             # Create article
             with test_db.session as session:
                 article = Article(
@@ -427,15 +427,17 @@ class TestLabelingCriticalSQL:
                 )
                 session.add(article)
                 session.commit()
-        
+
         # Query cleaned
-        query = text("""
+        query = text(
+            """
             SELECT id, url, title
             FROM articles
             WHERE status = 'cleaned'
             LIMIT 10
-        """)
-        
+        """
+        )
+
         with test_db.session as session:
             result = session.execute(query)
             rows = result.fetchall()
@@ -444,10 +446,10 @@ class TestLabelingCriticalSQL:
 
 class TestErrorHandling:
     """Test error handling in pipeline operations."""
-    
+
     def test_sql_syntax_error_handling(self, test_db):
         """Test that SQL syntax errors are caught.
-        
+
         PostgreSQL raises ProgrammingError for syntax errors,
         while SQLite might raise OperationalError.
         """

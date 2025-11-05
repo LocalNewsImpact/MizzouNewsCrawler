@@ -29,7 +29,8 @@ def test_skip_locked_syntax_is_valid_postgres(cloud_sql_session):
     from sqlalchemy import text as sql_text
 
     # This is the actual query from entity_extraction.py
-    query = sql_text("""
+    query = sql_text(
+        """
         SELECT a.id
         FROM articles a
         JOIN candidate_links cl ON a.candidate_link_id = cl.id
@@ -39,7 +40,8 @@ def test_skip_locked_syntax_is_valid_postgres(cloud_sql_session):
         ORDER BY cl.source_id, cl.dataset_id
         LIMIT 10
         FOR UPDATE OF a SKIP LOCKED
-    """)
+    """
+    )
 
     # Should execute without syntax error
     result = cloud_sql_session.execute(query)

@@ -61,20 +61,20 @@ def postgres_db_uri():
 @pytest.fixture
 def postgres_discovery_db(postgres_db_uri):
     """PostgreSQL database with Alembic-migrated schema for discovery tests.
-    
+
     Assumes the test database has been migrated with Alembic migrations.
     Cleans up test data before and after tests.
     """
     if not HAS_POSTGRES:
         pytest.skip("PostgreSQL test database not configured")
-    
+
     db = DatabaseManager(postgres_db_uri)
-    
+
     # Clean up any existing test data
     _cleanup_test_data(db.engine)
-    
+
     yield postgres_db_uri
-    
+
     # Cleanup after test
     _cleanup_test_data(db.engine)
 
@@ -85,18 +85,18 @@ class TestDiscoveryPostgreSQL:
 
     def test_get_sources_query_uses_distinct_on(self, postgres_discovery_db):
         """Verify get_sources_to_process uses DISTINCT ON with PostgreSQL.
-        
+
         This test ensures that the PostgreSQL-specific query syntax works
         correctly and doesn't cause SQL errors.
         """
         db = DatabaseManager(postgres_discovery_db)
-        
+
         # Insert test sources
         source_ids = []
         for i in range(3):
             source_id = f"test-disc-{uuid.uuid4()}"
             source_ids.append(source_id)
-            
+
             with db.engine.begin() as conn:
                 conn.execute(
                     text(
@@ -115,34 +115,34 @@ class TestDiscoveryPostgreSQL:
                         "type": "news",
                     },
                 )
-        
+
         # Test: get_sources_to_process should use DISTINCT ON without errors
         discovery = NewsDiscovery(database_url=postgres_discovery_db)
         sources_df, stats = discovery.get_sources_to_process(limit=10)
-        
+
         # Assertions
         assert len(sources_df) == 3, f"Expected 3 sources, got {len(sources_df)}"
         assert "id" in sources_df.columns
         assert "name" in sources_df.columns
         assert "url" in sources_df.columns
         assert "discovery_attempted" in sources_df.columns
-        
+
         # Verify stats
         assert stats["sources_available"] == 3
         assert stats["sources_due"] == 3
 
     def test_dataset_filtering_works_on_postgres(self, postgres_discovery_db):
         """Verify dataset filtering works correctly on PostgreSQL.
-        
+
         This test ensures the dataset JOIN clause works properly with
         PostgreSQL's DISTINCT ON syntax.
         """
         db = DatabaseManager(postgres_discovery_db)
-        
+
         # Create two datasets
         dataset1_id = f"test-disc-{uuid.uuid4()}"
         dataset2_id = f"test-disc-{uuid.uuid4()}"
-        
+
         with db.engine.begin() as conn:
             conn.execute(
                 text(
@@ -162,11 +162,11 @@ class TestDiscoveryPostgreSQL:
                     "slug2": "test-dataset-2",
                 },
             )
-        
+
         # Create sources for each dataset
         source1_id = f"test-disc-{uuid.uuid4()}"
         source2_id = f"test-disc-{uuid.uuid4()}"
-        
+
         with db.engine.begin() as conn:
             # Source 1 in Dataset 1
             conn.execute(
@@ -199,7 +199,7 @@ class TestDiscoveryPostgreSQL:
                     "source_id": source1_id,
                 },
             )
-            
+
             # Source 2 in Dataset 2
             conn.execute(
                 text(
@@ -231,32 +231,36 @@ class TestDiscoveryPostgreSQL:
                     "source_id": source2_id,
                 },
             )
-        
+
         # Test: Filter by Dataset 1
         discovery = NewsDiscovery(database_url=postgres_discovery_db)
-        sources_df, stats = discovery.get_sources_to_process(dataset_label="Test-Dataset-1")
-        
+        sources_df, stats = discovery.get_sources_to_process(
+            dataset_label="Test-Dataset-1"
+        )
+
         assert len(sources_df) == 1, f"Expected 1 source, got {len(sources_df)}"
         assert sources_df.iloc[0]["name"] == "Source 1"
-        
+
         # Test: Filter by Dataset 2
-        sources_df, stats = discovery.get_sources_to_process(dataset_label="Test-Dataset-2")
-        
+        sources_df, stats = discovery.get_sources_to_process(
+            dataset_label="Test-Dataset-2"
+        )
+
         assert len(sources_df) == 1, f"Expected 1 source, got {len(sources_df)}"
         assert sources_df.iloc[0]["name"] == "Source 2"
 
     def test_discovery_attempted_flag_with_postgres(self, postgres_discovery_db):
         """Verify discovery_attempted flag works correctly with PostgreSQL.
-        
+
         This tests that the DISTINCT ON query properly identifies sources
         that have or haven't been attempted for discovery.
         """
         db = DatabaseManager(postgres_discovery_db)
-        
+
         # Create two sources
         attempted_id = f"test-disc-{uuid.uuid4()}"
         new_id = f"test-disc-{uuid.uuid4()}"
-        
+
         with db.engine.begin() as conn:
             # Source that has been attempted
             conn.execute(
@@ -276,7 +280,7 @@ class TestDiscoveryPostgreSQL:
                     "type": "news",
                 },
             )
-            
+
             # Add a candidate link to mark as attempted
             conn.execute(
                 text(
@@ -296,7 +300,7 @@ class TestDiscoveryPostgreSQL:
                     "status": "discovered",
                 },
             )
-            
+
             # Source that hasn't been attempted
             conn.execute(
                 text(
@@ -315,24 +319,24 @@ class TestDiscoveryPostgreSQL:
                     "type": "news",
                 },
             )
-        
+
         # Get sources and verify ordering (new sources should come first)
         discovery = NewsDiscovery(database_url=postgres_discovery_db)
         sources_df, stats = discovery.get_sources_to_process(limit=10)
-        
+
         assert len(sources_df) >= 2
-        
+
         # Find our test sources in the results
         attempted_row = sources_df[sources_df["id"] == attempted_id]
         new_row = sources_df[sources_df["id"] == new_id]
-        
+
         assert len(attempted_row) == 1
         assert len(new_row) == 1
-        
+
         # Verify discovery_attempted flag
         assert attempted_row.iloc[0]["discovery_attempted"] == 1
         assert new_row.iloc[0]["discovery_attempted"] == 0
-        
+
         # New source should have lower index (come first in priority)
         new_idx = sources_df.index[sources_df["id"] == new_id].tolist()[0]
         attempted_idx = sources_df.index[sources_df["id"] == attempted_id].tolist()[0]
@@ -340,18 +344,18 @@ class TestDiscoveryPostgreSQL:
 
     def test_due_only_filtering_with_postgres(self, postgres_discovery_db):
         """Verify due_only filtering works correctly on PostgreSQL.
-        
+
         This tests that sources are correctly filtered based on their
         last_discovery_at metadata and frequency.
         """
         db = DatabaseManager(postgres_discovery_db)
-        
+
         now = datetime.utcnow()
-        
+
         # Create source with old last_discovery_at (should be due)
         due_source_id = f"test-disc-{uuid.uuid4()}"
         old_discovery = (now - timedelta(days=10)).isoformat()
-        
+
         with db.engine.begin() as conn:
             conn.execute(
                 text(
@@ -368,34 +372,33 @@ class TestDiscoveryPostgreSQL:
                     "city": "TestCity",
                     "county": "TestCounty",
                     "type": "news",
-                    "metadata": json.dumps({
-                        "last_discovery_at": old_discovery,
-                        "frequency": "daily"
-                    }),
+                    "metadata": json.dumps(
+                        {"last_discovery_at": old_discovery, "frequency": "daily"}
+                    ),
                 },
             )
-        
+
         # Test with due_only=False (should return source)
         discovery = NewsDiscovery(database_url=postgres_discovery_db)
         sources_df, stats = discovery.get_sources_to_process(due_only=False)
-        
+
         due_sources = sources_df[sources_df["id"] == due_source_id]
         assert len(due_sources) == 1, "Source should be returned with due_only=False"
-        
+
         # Test with due_only=True (should also return since it's overdue)
         sources_df_due, stats_due = discovery.get_sources_to_process(due_only=True)
-        
+
         due_sources_filtered = sources_df_due[sources_df_due["id"] == due_source_id]
         assert len(due_sources_filtered) == 1, "Source should be returned when overdue"
 
     def test_host_and_city_filters_with_postgres(self, postgres_discovery_db):
         """Verify host and city filters work correctly with PostgreSQL.
-        
+
         This tests that filter parameters work properly with the
         PostgreSQL DISTINCT ON query.
         """
         db = DatabaseManager(postgres_discovery_db)
-        
+
         # Create sources with different hosts and cities
         sources = [
             {
@@ -413,7 +416,7 @@ class TestDiscoveryPostgreSQL:
                 "county": "Los Angeles",
             },
         ]
-        
+
         for src in sources:
             with db.engine.begin() as conn:
                 conn.execute(
@@ -433,16 +436,16 @@ class TestDiscoveryPostgreSQL:
                         "type": "news",
                     },
                 )
-        
+
         discovery = NewsDiscovery(database_url=postgres_discovery_db)
-        
+
         # Test host filter
         sources_df, _ = discovery.get_sources_to_process(host_filter="nyc.example.com")
         assert len(sources_df) >= 1
         filtered_sources = sources_df[sources_df["host"] == "nyc.example.com"]
         assert len(filtered_sources) == 1
         assert filtered_sources.iloc[0]["name"] == "NYC Source"
-        
+
         # Test city filter
         sources_df, _ = discovery.get_sources_to_process(city_filter="Los Angeles")
         assert len(sources_df) >= 1
@@ -450,10 +453,12 @@ class TestDiscoveryPostgreSQL:
         assert len(filtered_sources) == 1
         assert filtered_sources.iloc[0]["name"] == "LA Source"
 
-    def test_invalid_dataset_returns_empty_with_postgres(self, postgres_discovery_db, caplog):
+    def test_invalid_dataset_returns_empty_with_postgres(
+        self, postgres_discovery_db, caplog
+    ):
         """Verify invalid dataset label returns empty result with error on PostgreSQL."""
         db = DatabaseManager(postgres_discovery_db)
-        
+
         # Create a valid dataset
         dataset_id = f"test-disc-{uuid.uuid4()}"
         with db.engine.begin() as conn:
@@ -470,17 +475,17 @@ class TestDiscoveryPostgreSQL:
                     "slug": "valid-dataset",
                 },
             )
-        
+
         # Test: Query with invalid dataset
         discovery = NewsDiscovery(database_url=postgres_discovery_db)
-        
+
         with caplog.at_level(logging.ERROR):
             sources_df, stats = discovery.get_sources_to_process(
                 dataset_label="Invalid-Dataset-PostgreSQL"
             )
-        
+
         # Should return empty DataFrame
         assert len(sources_df) == 0
-        
+
         # Should have logged error
         assert "Dataset 'Invalid-Dataset-PostgreSQL' not found" in caplog.text

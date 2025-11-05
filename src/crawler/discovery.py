@@ -856,7 +856,7 @@ class NewsDiscovery:
                         # Best-effort only; don't fail if listing datasets fails.
                         logger.error(
                             "Failed to list available datasets for suggestion: %s",
-                            str(e)
+                            str(e),
                         )
 
                     return pd.DataFrame(), {

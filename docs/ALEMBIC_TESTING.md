@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the comprehensive Alembic migration testing framework added to prevent database issues from reaching production.
+This document describes the comprehensive Alembic migration testing framework added to prevent database issues from repeatedly reaching production.
 
 ## Test Structure
 

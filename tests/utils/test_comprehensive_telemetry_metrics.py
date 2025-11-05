@@ -1,4 +1,5 @@
 import os
+
 import pytest
 
 from src.telemetry.store import TelemetryStore
@@ -61,9 +62,10 @@ def test_extraction_metrics_tracks_methods(monkeypatch):
 @pytest.mark.integration
 def test_record_extraction_emits_content_type_detection(cloud_sql_session):
     # Clean up any leftover test data before and after test
-    from sqlalchemy import text
     import os
-    
+
+    from sqlalchemy import text
+
     def cleanup():
         try:
             cloud_sql_session.execute(
@@ -75,14 +77,14 @@ def test_record_extraction_emits_content_type_detection(cloud_sql_session):
             cloud_sql_session.commit()
         except Exception:
             cloud_sql_session.rollback()
-    
+
     cleanup()  # Clean before test
-    
+
     # Get TEST_DATABASE_URL (SQLAlchemy masks password in str(url))
     db_url = os.getenv("TEST_DATABASE_URL")
     if not db_url:
         pytest.skip("TEST_DATABASE_URL not set")
-    
+
     telemetry_store = TelemetryStore(database=db_url, async_writes=False)
     telemetry = ct.ComprehensiveExtractionTelemetry(store=telemetry_store)
 
@@ -109,7 +111,7 @@ def test_record_extraction_emits_content_type_detection(cloud_sql_session):
     telemetry.record_extraction(metrics)
 
     detections = telemetry.get_content_type_detections(statuses=["opinion"])
-    
+
     try:
         assert len(detections) == 1
         detection = detections[0]
@@ -144,7 +146,7 @@ def test_set_http_metrics_categorizes_errors():
 @pytest.mark.integration
 def test_comprehensive_telemetry_aggregates():
     """Test comprehensive telemetry aggregation with PostgreSQL.
-    
+
     Note: This test doesn't use cloud_sql_session to avoid connection pool conflicts.
     TelemetryStore needs its own isolated connection for async telemetry writes.
     """
@@ -152,27 +154,24 @@ def test_comprehensive_telemetry_aggregates():
     db_url = os.environ.get(
         "TEST_DATABASE_URL",
         os.environ.get(
-            "DATABASE_URL",
-            "postgresql://postgres:postgres@localhost:5432/mizzou_test"
-        )
+            "DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/mizzou_test"
+        ),
     )
     telemetry_store = TelemetryStore(database=db_url, async_writes=False)
-    
+
     # Clean up any previous test data
     with telemetry_store.connection() as conn:
         conn.execute(
             "DELETE FROM content_type_detection_telemetry "
             "WHERE article_id LIKE 'article-agg-%'"
         )
-        conn.execute(
-            "DELETE FROM http_error_summary WHERE host LIKE '%.example'"
-        )
+        conn.execute("DELETE FROM http_error_summary WHERE host LIKE '%.example'")
         conn.execute(
             "DELETE FROM extraction_telemetry_v2 "
             "WHERE article_id LIKE 'article-agg-%'"
         )
         conn.commit()
-    
+
     telemetry = ct.ComprehensiveExtractionTelemetry(store=telemetry_store)
 
     metrics_primary = ct.ExtractionMetrics(

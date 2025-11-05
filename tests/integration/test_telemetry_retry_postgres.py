@@ -53,12 +53,12 @@ def test_source(cloud_sql_session):
 )
 def test_http_status_tracking_handles_transient_errors(cloud_sql_session, test_source):
     """Test that HTTP status tracking properly handles transient database errors.
-    
+
     This test verifies that:
     1. Transient errors trigger retries
     2. Retries work without 25P02 transaction abort errors
     3. Data is successfully written after retry
-    
+
     NOTE: Skipped because OperationTracker.__init__ creates a new database
     connection using str(cloud_sql_session.bind.engine.url), which fails
     authentication in CI environment. Test passes locally but needs refactoring
@@ -67,7 +67,7 @@ def test_http_status_tracking_handles_transient_errors(cloud_sql_session, test_s
     # Create tracker directly with the test database URL
     database_url = str(cloud_sql_session.bind.engine.url)
     tracker = OperationTracker(database_url=database_url)
-    
+
     tracking = HTTPStatusTracking(
         source_id=test_source.id,
         source_url=test_source.host,
@@ -81,7 +81,7 @@ def test_http_status_tracking_handles_transient_errors(cloud_sql_session, test_s
         error_message=None,
         content_length=1024,
     )
-    
+
     # Track the HTTP status - should succeed
     tracker.track_http_status(
         operation_id=tracking.operation_id,
@@ -94,13 +94,13 @@ def test_http_status_tracking_handles_transient_errors(cloud_sql_session, test_s
         error_message=tracking.error_message,
         content_length=tracking.content_length,
     )
-    
+
     # Force any async writes to complete
     tracker._store.flush()
-    
+
     # Verify data was written
     from sqlalchemy import text
-    
+
     result = cloud_sql_session.execute(
         text(
             "SELECT source_id, status_code FROM http_status_tracking "
@@ -108,7 +108,7 @@ def test_http_status_tracking_handles_transient_errors(cloud_sql_session, test_s
         ),
         {"sid": test_source.id},
     ).fetchone()
-    
+
     assert result is not None
     assert result.source_id == test_source.id
     assert result.status_code == 200
@@ -122,21 +122,21 @@ def test_discovery_outcome_survives_retry_without_25P02_error(
     cloud_sql_session, test_source
 ):
     """Test that discovery outcome recording works correctly with retries.
-    
+
     Simulates a scenario where the first attempt fails but the retry succeeds,
     verifying that we don't get the 25P02 transaction abort error.
-    
+
     NOTE: Skipped because OperationTracker.__init__ creates a new database
     connection using str(cloud_sql_session.bind.engine.url), which fails
     authentication in CI environment. Test passes locally but needs refactoring
     to accept a session parameter instead of database_url.
     """
     from src.utils.discovery_outcomes import DiscoveryOutcome, DiscoveryResult
-    
+
     # Create tracker directly with the test database URL
     database_url = str(cloud_sql_session.bind.engine.url)
     tracker = OperationTracker(database_url=database_url)
-    
+
     # Create a discovery result
     discovery_result = DiscoveryResult(
         outcome=DiscoveryOutcome.NEW_ARTICLES_FOUND,
@@ -152,7 +152,7 @@ def test_discovery_outcome_survives_retry_without_25P02_error(
             "discovery_time_ms": 150.5,
         },
     )
-    
+
     # Record discovery outcome - should succeed
     tracker.record_discovery_outcome(
         operation_id="test-op-2",
@@ -161,13 +161,13 @@ def test_discovery_outcome_survives_retry_without_25P02_error(
         source_url=f"https://{test_source.host}",
         discovery_result=discovery_result,
     )
-    
+
     # Force any async writes to complete
     tracker._store.flush()
-    
+
     # Verify data was written
     from sqlalchemy import text
-    
+
     result = cloud_sql_session.execute(
         text(
             "SELECT source_id, articles_found, articles_new FROM discovery_outcomes "
@@ -175,7 +175,7 @@ def test_discovery_outcome_survives_retry_without_25P02_error(
         ),
         {"sid": test_source.id},
     ).fetchone()
-    
+
     assert result is not None
     assert result.source_id == test_source.id
     assert result.articles_found == 5
@@ -188,25 +188,25 @@ def test_discovery_outcome_survives_retry_without_25P02_error(
 )
 def test_telemetry_writer_commit_clears_transaction(cloud_sql_session, test_source):
     """Test that explicit commit() in telemetry writers clears transactions.
-    
+
     This regression test ensures that calling conn.commit() inside a writer
     function properly clears the transaction state, so that subsequent writes
     don't encounter 25P02 errors.
-    
+
     NOTE: Skipped because TelemetryStore.__init__ creates a new database
     connection using str(cloud_sql_session.bind.engine.url), which fails
     authentication in CI environment. Test passes locally but needs refactoring
     to accept a session parameter instead of database_url.
     """
     from src.telemetry.store import TelemetryStore
-    
+
     # Create a telemetry store with the test database URL
     database_url = str(cloud_sql_session.bind.engine.url)
     store = TelemetryStore(database=database_url, async_writes=False)
-    
+
     # Track multiple writes in sequence
     write_count = 0
-    
+
     def test_writer(conn):
         nonlocal write_count
         write_count += 1
@@ -241,7 +241,7 @@ def test_telemetry_writer_commit_clears_transaction(cloud_sql_session, test_sour
             conn.commit()
         finally:
             cursor.close()
-    
+
     # Create schema if needed
     schema = """
     CREATE TABLE IF NOT EXISTS http_status_tracking (
@@ -259,24 +259,23 @@ def test_telemetry_writer_commit_clears_transaction(cloud_sql_session, test_sour
         content_length INTEGER
     )
     """
-    
+
     # Submit multiple writes - all should succeed without 25P02 errors
     store.submit(test_writer, ensure=[schema])
     store.submit(test_writer, ensure=[schema])
     store.submit(test_writer, ensure=[schema])
-    
+
     # Verify all writes succeeded
     assert write_count == 3
-    
+
     # Verify data in database
     from sqlalchemy import text
-    
+
     count = cloud_sql_session.execute(
         text(
-            "SELECT COUNT(*) as cnt FROM http_status_tracking "
-            "WHERE source_id = :sid"
+            "SELECT COUNT(*) as cnt FROM http_status_tracking " "WHERE source_id = :sid"
         ),
         {"sid": test_source.id},
     ).fetchone()
-    
+
     assert count.cnt == 3

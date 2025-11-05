@@ -1,12 +1,29 @@
 import sys
-from datetime import datetime
 
 sys.path.insert(0, ".")
 
-from src.crawler.discovery import NewsDiscovery
+from datetime import datetime  # noqa: E402
+from types import SimpleNamespace  # noqa: E402
+
+from src.crawler import discovery  # noqa: E402
+from src.crawler.discovery import NewsDiscovery  # noqa: E402
 
 
 def test_newspaper_build_not_called_when_allow_build_false(monkeypatch):
+    # Mock create_telemetry_system to avoid database connection
+    mock_telemetry = SimpleNamespace(
+        start_operation=lambda *_, **__: SimpleNamespace(
+            record_metric=lambda *_, **__: None,
+            complete=lambda *_, **__: None,
+            fail=lambda *_, **__: None,
+        ),
+        get_metrics_summary=lambda: {},
+    )
+    monkeypatch.setattr(
+        discovery,
+        "create_telemetry_system",
+        lambda *_, **__: mock_telemetry,
+    )
     nd = NewsDiscovery(timeout=5, delay=0)
 
     # If newspaper.build gets called, fail the test

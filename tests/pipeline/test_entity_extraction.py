@@ -173,7 +173,7 @@ def test_get_gazetteer_rows_filters_by_source_or_dataset(
     in_memory_session: Session,
 ) -> None:
     """Test that get_gazetteer_rows uses AND logic for filters.
-    
+
     When both source_id and dataset_id are provided, only entries matching
     BOTH should be returned (not OR). This was fixed in commit ba814da to
     prevent loading 326K entries instead of ~8.5K.
