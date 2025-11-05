@@ -79,6 +79,7 @@ def service_factory(monkeypatch: pytest.MonkeyPatch):
     )
     # Mock create_telemetry_system to avoid database connection in unit tests
     from types import SimpleNamespace
+
     mock_telemetry = SimpleNamespace(
         start_operation=lambda *_, **__: SimpleNamespace(
             record_metric=lambda *_, **__: None,
