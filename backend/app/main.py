@@ -159,93 +159,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # === STARTUP ===
     logger.info("Starting main app initialization...")
     
-    # 1. Set up centralized lifecycle handlers (telemetry, db, http session)
-    try:
-        from backend.app.lifecycle import lifespan as base_lifespan
-        
-        # The base lifespan handler needs to run its startup logic
-        # We'll need to manually invoke it since we can't nest lifespan contexts
-        # Instead, we'll call setup_lifecycle_handlers which sets up the resources
-        from backend.app.lifecycle import setup_lifecycle_handlers
-        
-        # This will set up the lifespan on the app router
-        setup_lifecycle_handlers(app)
-        
-        # Now we need to manually trigger the startup portion of the base lifespan
-        # by invoking it directly (this is a workaround for combining lifespan handlers)
-        # Actually, setup_lifecycle_handlers already sets the lifespan, so we need
-        # to ensure our startup logic runs after it
-        
-        # The cleanest approach: directly initialize resources here
-        # (duplicating base lifespan logic for now - can be refactored later)
-        try:
-            if (
-                not hasattr(app.state, "telemetry_store")
-                or app.state.telemetry_store is None
-            ):
-                from src.telemetry.store import TelemetryStore
-                from src import config as app_config
-
-                async_writes = os.getenv("TELEMETRY_ASYNC_WRITES", "true").lower() in (
-                    "true",
-                    "1",
-                    "yes",
-                )
-
-                telemetry_store = TelemetryStore(
-                    database=app_config.DATABASE_URL,
-                    async_writes=async_writes,
-                    timeout=30.0,
-                    thread_name="TelemetryStoreWriter",
-                )
-                app.state.telemetry_store = telemetry_store
-                logger.info(f"TelemetryStore initialized (async_writes={async_writes})")
-        except Exception as exc:
-            logger.exception("Failed to initialize TelemetryStore", exc_info=exc)
-            app.state.telemetry_store = None
-
-        try:
-            if (
-                not hasattr(app.state, "db_manager")
-                or app.state.db_manager is None
-            ):
-                from src.models.database import DatabaseManager
-                from src import config as app_config
-
-                app.state.db_manager = DatabaseManager(app_config.DATABASE_URL)
-                logger.info("DatabaseManager initialized")
-        except Exception as exc:
-            logger.exception("Failed to initialize DatabaseManager", exc_info=exc)
-            app.state.db_manager = None
-
-        try:
-            if (
-                not hasattr(app.state, "http_session")
-                or app.state.http_session is None
-            ):
-                session = requests.Session()
-                use_origin_proxy = os.getenv("USE_ORIGIN_PROXY", "").lower() in (
-                    "1",
-                    "true",
-                    "yes",
-                )
-                if use_origin_proxy:
-                    try:
-                        from src.crawler.origin_proxy import enable_origin_proxy
-                        enable_origin_proxy(session)
-                        logger.info("Origin proxy adapter installed")
-                    except Exception as exc:
-                        logger.exception("Failed to install origin proxy", exc_info=exc)
-                app.state.http_session = session
-                logger.info("HTTP session initialized")
-        except Exception as exc:
-            logger.exception("Failed to initialize HTTP session", exc_info=exc)
-            app.state.http_session = None
-
-        app.state.ready = True
-        
-    except Exception as exc:
-        logger.exception("Failed to initialize lifecycle handlers", exc_info=exc)
+    # 1. Initialize centralized lifecycle handlers (telemetry, db, http session)
+    from backend.app.lifecycle import startup_resources
+    
+    await startup_resources(app)
+    logger.info("Base lifecycle resources initialized")
     
     # 2. Start DB writer thread
     logger.info("Starting DB writer thread...")
@@ -296,36 +214,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     except Exception as exc:
         logger.exception("Error stopping DB writer thread", exc_info=exc)
     
-    # 2. Shutdown telemetry store
-    if hasattr(app.state, "telemetry_store") and app.state.telemetry_store:
-        try:
-            logger.info("Shutting down TelemetryStore...")
-            app.state.telemetry_store.shutdown(wait=True)
-            logger.info("TelemetryStore shutdown complete")
-        except Exception as exc:
-            logger.exception("Error shutting down TelemetryStore", exc_info=exc)
+    # 2. Shut down base lifecycle resources (telemetry, db, http session)
+    from backend.app.lifecycle import shutdown_resources
     
-    # 3. Dispose database engine
-    if hasattr(app.state, "db_manager") and app.state.db_manager:
-        try:
-            logger.info("Disposing DatabaseManager engine...")
-            app.state.db_manager.engine.dispose()
-            logger.info("DatabaseManager engine disposed")
-        except Exception as exc:
-            logger.exception("Error disposing DatabaseManager", exc_info=exc)
-    
-    # 4. Close HTTP session
-    if hasattr(app.state, "http_session") and app.state.http_session:
-        try:
-            logger.info("Closing HTTP session...")
-            app.state.http_session.close()
-            logger.info("HTTP session closed")
-        except Exception as exc:
-            logger.exception("Error closing HTTP session", exc_info=exc)
-    
-    # 5. Clear ready flag
-    if hasattr(app.state, "ready"):
-        app.state.ready = False
+    await shutdown_resources(app)
+    logger.info("Base lifecycle resources shut down")
     
     logger.info("Main app shutdown complete")
 

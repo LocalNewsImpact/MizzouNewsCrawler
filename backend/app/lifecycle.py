@@ -14,7 +14,8 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol, cast
+from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING, Any, AsyncIterator, Callable, Optional, Protocol, cast
 
 import requests
 from sqlalchemy import text
@@ -72,164 +73,184 @@ else:
     DatabaseManager = _DatabaseManager
 
 
-def setup_lifecycle_handlers(app: FastAPI) -> None:
-    """Register startup and shutdown handlers for the FastAPI app.
-
-    This function should be called once during app initialization.
-    It registers handlers that:
-    - Create and attach shared resources to app.state on startup
-    - Clean up resources gracefully on shutdown
-
+async def startup_resources(app: FastAPI) -> None:
+    """Initialize shared resources for the FastAPI app.
+    
+    This function can be called from a lifespan context manager or directly.
+    
     Args:
         app: The FastAPI application instance
     """
+    logger.info("Starting resource initialization...")
 
-    @app.on_event("startup")
-    async def startup_resources():
-        """Initialize shared resources and attach to app.state."""
-        logger.info("Starting resource initialization...")
+    # 1. Initialize TelemetryStore (unless already provided by tests)
+    try:
+        if (
+            not hasattr(app.state, "telemetry_store")
+            or getattr(app.state, "telemetry_store") is None
+        ):
+            from src.telemetry.store import TelemetryStore
+            from src import config as app_config
 
-        # 1. Initialize TelemetryStore (unless already provided by tests)
-        try:
-            if (
-                not hasattr(app.state, "telemetry_store")
-                or getattr(app.state, "telemetry_store") is None
-            ):
-                from src.telemetry.store import TelemetryStore
-                from src import config as app_config
+            # Determine if async writes should be enabled
+            # Default to True for production, can be overridden via env
+            async_writes = os.getenv("TELEMETRY_ASYNC_WRITES", "true").lower() in (
+                "true",
+                "1",
+                "yes",
+            )
 
-                # Determine if async writes should be enabled
-                # Default to True for production, can be overridden via env
-                async_writes = os.getenv("TELEMETRY_ASYNC_WRITES", "true").lower() in (
-                    "true",
-                    "1",
-                    "yes",
-                )
+            telemetry_store: TelemetryStoreProtocol = TelemetryStore(
+                database=app_config.DATABASE_URL,
+                async_writes=async_writes,
+                timeout=30.0,
+                thread_name="TelemetryStoreWriter",
+            )
+            app.state.telemetry_store = telemetry_store
+            logger.info(f"TelemetryStore initialized (async_writes={async_writes})")
+        else:
+            logger.info(
+                "TelemetryStore already provided on app.state; skipping init"
+            )
+    except Exception as exc:
+        logger.exception("Failed to initialize TelemetryStore", exc_info=exc)
+        # Continue without telemetry rather than failing startup
+        app.state.telemetry_store = None
 
-                telemetry_store: TelemetryStoreProtocol = TelemetryStore(
-                    database=app_config.DATABASE_URL,
-                    async_writes=async_writes,
-                    timeout=30.0,
-                    thread_name="TelemetryStoreWriter",
-                )
-                app.state.telemetry_store = telemetry_store
-                logger.info(f"TelemetryStore initialized (async_writes={async_writes})")
-            else:
-                logger.info(
-                    "TelemetryStore already provided on app.state; skipping init"
-                )
-        except Exception as exc:
-            logger.exception("Failed to initialize TelemetryStore", exc_info=exc)
-            # Continue without telemetry rather than failing startup
-            app.state.telemetry_store = None
+    # 2. Initialize DatabaseManager (unless already provided by tests)
+    try:
+        if (
+            not hasattr(app.state, "db_manager")
+            or getattr(app.state, "db_manager") is None
+        ):
+            from src.models.database import DatabaseManager
+            from src import config as app_config
 
-        # 2. Initialize DatabaseManager (unless already provided by tests)
-        try:
-            if (
-                not hasattr(app.state, "db_manager")
-                or getattr(app.state, "db_manager") is None
-            ):
-                from src.models.database import DatabaseManager
-                from src import config as app_config
+            db_manager = DatabaseManager(app_config.DATABASE_URL)
+            app.state.db_manager = db_manager
+            logger.info(
+                f"DatabaseManager initialized: {app_config.DATABASE_URL[:50]}..."
+            )
+        else:
+            logger.info(
+                "DatabaseManager already provided on app.state; skipping init"
+            )
+    except Exception as exc:
+        logger.exception("Failed to initialize DatabaseManager", exc_info=exc)
+        # Allow startup to continue; endpoints will fail if DB is needed
+        app.state.db_manager = None
 
-                db_manager = DatabaseManager(app_config.DATABASE_URL)
-                app.state.db_manager = db_manager
-                logger.info(
-                    f"DatabaseManager initialized: {app_config.DATABASE_URL[:50]}..."
-                )
-            else:
-                logger.info(
-                    "DatabaseManager already provided on app.state; skipping init"
-                )
-        except Exception as exc:
-            logger.exception("Failed to initialize DatabaseManager", exc_info=exc)
-            # Allow startup to continue; endpoints will fail if DB is needed
-            app.state.db_manager = None
+    # 3. Initialize shared HTTP session with optional origin proxy
+    try:
+        # Only create an HTTP session if not already provided by tests
+        if (
+            not hasattr(app.state, "http_session")
+            or getattr(app.state, "http_session") is None
+        ):
+            session = requests.Session()
 
-        # 3. Initialize shared HTTP session with optional origin proxy
-        try:
-            # Only create an HTTP session if not already provided by tests
-            if (
-                not hasattr(app.state, "http_session")
-                or getattr(app.state, "http_session") is None
-            ):
-                session = requests.Session()
+            # Install origin proxy adapter if enabled
+            use_origin_proxy = os.getenv("USE_ORIGIN_PROXY", "").lower() in (
+                "1",
+                "true",
+                "yes",
+            )
 
-                # Install origin proxy adapter if enabled
-                use_origin_proxy = os.getenv("USE_ORIGIN_PROXY", "").lower() in (
-                    "1",
-                    "true",
-                    "yes",
-                )
-
-                if use_origin_proxy:
-                    try:
-                        # Prefer the module-level symbol which tests can patch.
-                        if enable_origin_proxy:
-                            enable_origin_proxy(session)
-                        else:
-                            # Fall back to importing the implementation
-                            from src.crawler.origin_proxy import (
-                                enable_origin_proxy as _enable_origin_proxy,
-                            )
-
-                            _enable_origin_proxy(session)
-
-                        logger.info("Origin proxy adapter installed on shared session")
-                    except Exception as exc:
-                        logger.exception(
-                            "Failed to install origin proxy adapter", exc_info=exc
+            if use_origin_proxy:
+                try:
+                    # Prefer the module-level symbol which tests can patch.
+                    if enable_origin_proxy:
+                        enable_origin_proxy(session)
+                    else:
+                        # Fall back to importing the implementation
+                        from src.crawler.origin_proxy import (
+                            enable_origin_proxy as _enable_origin_proxy,
                         )
 
-                app.state.http_session = session
-                logger.info("HTTP session initialized")
-            else:
-                logger.info("HTTP session already provided on app.state; skipping init")
+                        _enable_origin_proxy(session)
+
+                    logger.info("Origin proxy adapter installed on shared session")
+                except Exception as exc:
+                    logger.exception(
+                        "Failed to install origin proxy adapter", exc_info=exc
+                    )
+
+            app.state.http_session = session
+            logger.info("HTTP session initialized")
+        else:
+            logger.info("HTTP session already provided on app.state; skipping init")
+    except Exception as exc:
+        logger.exception("Failed to initialize HTTP session", exc_info=exc)
+        app.state.http_session = None
+
+    # 4. Set ready flag
+    app.state.ready = True
+    logger.info("All resources initialized, app is ready")
+
+
+async def shutdown_resources(app: FastAPI) -> None:
+    """Clean up shared resources gracefully.
+    
+    This function can be called from a lifespan context manager or directly.
+    
+    Args:
+        app: The FastAPI application instance
+    """
+    logger.info("Starting resource cleanup...")
+
+    # 1. Shutdown TelemetryStore (flush pending writes, stop worker thread)
+    if hasattr(app.state, "telemetry_store") and app.state.telemetry_store:
+        try:
+            logger.info("Shutting down TelemetryStore...")
+            app.state.telemetry_store.shutdown(wait=True)
+            logger.info("TelemetryStore shutdown complete")
         except Exception as exc:
-            logger.exception("Failed to initialize HTTP session", exc_info=exc)
-            app.state.http_session = None
+            logger.exception("Error shutting down TelemetryStore", exc_info=exc)
 
-        # 4. Set ready flag
-        app.state.ready = True
-        logger.info("All resources initialized, app is ready")
+    # 2. Dispose DatabaseManager engine/connection pool
+    if hasattr(app.state, "db_manager") and app.state.db_manager:
+        try:
+            logger.info("Disposing DatabaseManager engine...")
+            app.state.db_manager.engine.dispose()
+            logger.info("DatabaseManager engine disposed")
+        except Exception as exc:
+            logger.exception("Error disposing DatabaseManager", exc_info=exc)
 
-    @app.on_event("shutdown")
-    async def shutdown_resources():
-        """Clean up shared resources gracefully."""
-        logger.info("Starting resource cleanup...")
+    # 3. Close HTTP session
+    if hasattr(app.state, "http_session") and app.state.http_session:
+        try:
+            logger.info("Closing HTTP session...")
+            app.state.http_session.close()
+            logger.info("HTTP session closed")
+        except Exception as exc:
+            logger.exception("Error closing HTTP session", exc_info=exc)
 
-        # 1. Shutdown TelemetryStore (flush pending writes, stop worker thread)
-        if hasattr(app.state, "telemetry_store") and app.state.telemetry_store:
-            try:
-                logger.info("Shutting down TelemetryStore...")
-                app.state.telemetry_store.shutdown(wait=True)
-                logger.info("TelemetryStore shutdown complete")
-            except Exception as exc:
-                logger.exception("Error shutting down TelemetryStore", exc_info=exc)
+    # 4. Clear ready flag
+    if hasattr(app.state, "ready"):
+        app.state.ready = False
 
-        # 2. Dispose DatabaseManager engine/connection pool
-        if hasattr(app.state, "db_manager") and app.state.db_manager:
-            try:
-                logger.info("Disposing DatabaseManager engine...")
-                app.state.db_manager.engine.dispose()
-                logger.info("DatabaseManager engine disposed")
-            except Exception as exc:
-                logger.exception("Error disposing DatabaseManager", exc_info=exc)
+    logger.info("Resource cleanup complete")
 
-        # 3. Close HTTP session
-        if hasattr(app.state, "http_session") and app.state.http_session:
-            try:
-                logger.info("Closing HTTP session...")
-                app.state.http_session.close()
-                logger.info("HTTP session closed")
-            except Exception as exc:
-                logger.exception("Error closing HTTP session", exc_info=exc)
 
-        # 4. Clear ready flag
-        if hasattr(app.state, "ready"):
-            app.state.ready = False
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Lifespan context manager for FastAPI app lifecycle.
 
-        logger.info("Resource cleanup complete")
+    This replaces the deprecated @app.on_event("startup") and @app.on_event("shutdown")
+    decorators with the modern lifespan pattern.
+
+    Resources are initialized on startup (before yield) and cleaned up on
+    shutdown (after yield).
+
+    Args:
+        app: The FastAPI application instance
+
+    Yields:
+        None
+    """
+    await startup_resources(app)
+    yield
+    await shutdown_resources(app)
 
 
 # Dependency injection functions for route handlers
