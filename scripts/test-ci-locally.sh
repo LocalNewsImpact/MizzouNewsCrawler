@@ -122,9 +122,67 @@ else
     exit 1
 fi
 
-# Step 7: Run ALL integration tests with PostgreSQL (EXACTLY like CI with --network host)
+# Step 6.5: Run linting and validation checks (like CI lint job)
 echo ""
-echo "🧪 Running integration tests in linux/amd64 container (matches CI ubuntu-latest)..."
+echo "🔍 Running linting and validation checks..."
+docker run --rm \
+    -v "$(pwd)":/workspace \
+    -w /workspace \
+    us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
+    /bin/bash -c "
+        python -m ruff check . &&
+        python -m black --check src/ tests/ web/ &&
+        python -m isort --check-only --profile black src/ tests/ web/
+    " 2>&1 | { grep -v "WARNING: The requested image's platform" || true; }
+
+LINT_EXIT_CODE=${PIPESTATUS[0]}
+if [ $LINT_EXIT_CODE -ne 0 ]; then
+    echo -e "${RED}❌ Linting checks failed${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✅ Linting checks passed${NC}"
+
+# Step 6.6: Run mypy type checking
+echo ""
+echo "🔍 Running mypy type checking..."
+docker run --rm \
+    -v "$(pwd)":/workspace \
+    -w /workspace \
+    us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
+    python -m mypy src/ --ignore-missing-imports 2>&1 | { grep -v "WARNING: The requested image's platform" || true; }
+
+MYPY_EXIT_CODE=${PIPESTATUS[0]}
+if [ $MYPY_EXIT_CODE -ne 0 ]; then
+    echo -e "${RED}❌ Mypy type checking failed${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✅ Mypy type checking passed${NC}"
+
+# Step 6.7: Validate workflow templates
+echo ""
+echo "🔍 Validating Argo workflow templates..."
+docker run --rm \
+    --network host \
+    -v "$(pwd)":/workspace \
+    -w /workspace \
+    -e DATABASE_URL="$DATABASE_URL" \
+    -e TELEMETRY_DATABASE_URL="$DATABASE_URL" \
+    -e TEST_DATABASE_URL="$DATABASE_URL" \
+    us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
+    python3 scripts/validate_workflow_templates.py 2>&1 | { grep -v "WARNING: The requested image's platform" || true; }
+
+VALIDATION_EXIT_CODE=${PIPESTATUS[0]}
+if [ $VALIDATION_EXIT_CODE -ne 0 ]; then
+    echo -e "${RED}❌ Workflow template validation failed${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✅ Workflow template validation passed${NC}"
+
+# Step 7: Run ALL tests like CI does (both postgres and non-postgres)
+echo ""
+echo "🧪 Running ALL tests in linux/amd64 container (matches CI ubuntu-latest)..."
+echo "   This runs ~1500 tests and takes 3-5 minutes..."
+echo "   Progress: . = pass, F = fail, E = error, s = skip"
 docker run --rm \
     --network host \
     -v "$(pwd)":/workspace \
@@ -140,19 +198,24 @@ docker run --rm \
     -e DATABASE_USER="$POSTGRES_USER" \
     -e DATABASE_PASSWORD="$POSTGRES_PASSWORD" \
     us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-    /bin/bash -c "pytest -v -m integration --tb=short -o addopts='--cov=src --cov-report=term-missing --cov-fail-under=78 -p no:postgresql' --no-cov" 2>&1 | { grep -v "WARNING: The requested image's platform" || true; }
+    /bin/bash -c "pytest --cov=src --cov-report=term-missing --cov-fail-under=78" 2>&1 | { grep -v "WARNING: The requested image's platform" || true; }
 
 TEST_EXIT_CODE=${PIPESTATUS[0]}
 
 if [ $TEST_EXIT_CODE -eq 0 ]; then
-    echo -e "${GREEN}✅ All integration tests passed${NC}"
+    echo -e "${GREEN}✅ All tests passed${NC}"
 else
-    echo -e "${RED}❌ Integration tests failed${NC}"
+    echo -e "${RED}❌ Tests failed${NC}"
     exit 1
 fi
 
 echo ""
-echo -e "${GREEN}🎉 All local CI tests passed!${NC}"
+echo -e "${GREEN}🎉 All local CI checks passed!${NC}"
+echo "   ✅ Linting (ruff, black, isort)"
+echo "   ✅ Type checking (mypy)"
+echo "   ✅ Workflow template validation"
+echo "   ✅ Database migrations"
+echo "   ✅ All tests with coverage (~1500 tests)"
 echo ""
 echo "💡 To debug interactively:"
 echo "   docker exec -it $POSTGRES_CONTAINER psql -U $POSTGRES_USER -d $POSTGRES_DB"
