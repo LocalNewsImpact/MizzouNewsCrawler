@@ -162,7 +162,6 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: test_db
-          POSTGRES_HOST_AUTH_METHOD: trust
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -190,6 +189,18 @@ jobs:
 
       - name: Create data directory for tests
         run: mkdir -p data
+
+      - name: Run migrations in container
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/test_db"
+        run: |
+          docker run --rm \
+            --network host \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            -e DATABASE_URL="$DATABASE_URL" \
+            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
+            alembic upgrade head
 
       - name: Run unit tests in container
         env:
@@ -223,7 +234,6 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: test_db
-          POSTGRES_HOST_AUTH_METHOD: trust
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -251,6 +261,18 @@ jobs:
 
       - name: Create data directory for tests
         run: mkdir -p data
+
+      - name: Run migrations in container
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/test_db"
+        run: |
+          docker run --rm \
+            --network host \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            -e DATABASE_URL="$DATABASE_URL" \
+            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
+            alembic upgrade head
 
       - name: Quick validator and targeted tests in container
         env:
@@ -286,7 +308,6 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: test_db
-          POSTGRES_HOST_AUTH_METHOD: trust
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -314,6 +335,18 @@ jobs:
 
       - name: Create data directory for tests
         run: mkdir -p data
+
+      - name: Run migrations in container
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/test_db"
+        run: |
+          docker run --rm \
+            --network host \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            -e DATABASE_URL="$DATABASE_URL" \
+            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
+            alembic upgrade head
 
       - name: Run origin-proxy tests only in container
         env:
@@ -582,7 +615,6 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: test_db
-          POSTGRES_HOST_AUTH_METHOD: trust
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -607,6 +639,18 @@ jobs:
 
       - name: Pull base image
         run: docker pull us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest
+
+      - name: Run migrations in container
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/test_db"
+        run: |
+          docker run --rm \
+            --network host \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            -e DATABASE_URL="$DATABASE_URL" \
+            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
+            alembic upgrade head
 
       - name: Run stress tests with RUN_STRESS_TESTS=1 in container
         env:
