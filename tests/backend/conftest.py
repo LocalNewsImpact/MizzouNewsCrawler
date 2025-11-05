@@ -342,7 +342,8 @@ def cloud_sql_engine():
     # Replace 'localhost' with '127.0.0.1' to avoid IPv6 resolution issues
     # psycopg2 tries IPv6 (::1) first when given 'localhost', which may have
     # different auth configuration than IPv4
-    test_db_url = test_db_url.replace("@localhost/", "@127.0.0.1/")
+    # Handle both @localhost/ and @localhost:port/ patterns
+    test_db_url = test_db_url.replace("@localhost:", "@127.0.0.1:").replace("@localhost/", "@127.0.0.1/")
     test_db_url = test_db_url.replace("@localhost:", "@127.0.0.1:")
 
     engine = create_engine(test_db_url, echo=False)
