@@ -1,4 +1,5 @@
 import os
+
 import pytest
 
 from src.telemetry.store import TelemetryStore
@@ -61,8 +62,9 @@ def test_extraction_metrics_tracks_methods(monkeypatch):
 @pytest.mark.integration
 def test_record_extraction_emits_content_type_detection(cloud_sql_session):
     # Clean up any leftover test data before and after test
-    from sqlalchemy import text
     import os
+
+    from sqlalchemy import text
 
     def cleanup():
         try:

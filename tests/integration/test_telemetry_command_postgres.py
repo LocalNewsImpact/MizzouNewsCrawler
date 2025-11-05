@@ -23,11 +23,11 @@ import pytest
 from sqlalchemy import text
 
 from src.cli.commands.telemetry import (
-    handle_telemetry_command,
+    _show_field_extraction,
     _show_http_errors,
     _show_method_effectiveness,
     _show_publisher_stats,
-    _show_field_extraction,
+    handle_telemetry_command,
 )
 from src.models import Article, CandidateLink, Source
 

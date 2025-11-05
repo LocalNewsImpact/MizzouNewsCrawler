@@ -26,7 +26,6 @@ from sqlalchemy.exc import (
 from src.models import Article, CandidateLink, Source
 from src.models.database import DatabaseManager
 
-
 pytestmark = [pytest.mark.integration, pytest.mark.postgres]
 
 

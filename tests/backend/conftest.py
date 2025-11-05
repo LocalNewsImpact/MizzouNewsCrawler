@@ -30,8 +30,8 @@ def test_client(cloud_sql_session, monkeypatch):
     This client uses the PostgreSQL test database instead of production.
     CRITICAL: Uses the same session as fixtures to ensure data visibility.
     """
-    from contextlib import contextmanager
     import os
+    from contextlib import contextmanager
 
     # Get the engine from the cloud_sql_session
     cloud_sql_engine = cloud_sql_session.get_bind().engine

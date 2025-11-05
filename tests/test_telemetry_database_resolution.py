@@ -217,8 +217,9 @@ class TestRunDiscoveryPipelineSignature:
 
     def test_run_discovery_pipeline_accepts_none_database_url(self):
         """run_discovery_pipeline should accept database_url as None."""
-        from src.crawler.discovery import run_discovery_pipeline
         import inspect
+
+        from src.crawler.discovery import run_discovery_pipeline
 
         # Check function signature
         sig = inspect.signature(run_discovery_pipeline)

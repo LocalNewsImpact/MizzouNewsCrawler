@@ -12,13 +12,14 @@ POSTGRES_DSN = os.environ.get("POSTGRES_TEST_DSN")
     not POSTGRES_DSN, reason="Postgres DSN not provided in POSTGRES_TEST_DSN"
 )
 def test_export_snapshot_postgres(tmp_path):
+    from sqlalchemy import text
+
     from src.models import create_database_engine
     from src.models.versioning import (
         create_dataset_version,
         create_versioning_tables,
         export_snapshot_for_version,
     )
-    from sqlalchemy import text
 
     assert POSTGRES_DSN is not None
 

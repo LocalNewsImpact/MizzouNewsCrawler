@@ -5,8 +5,9 @@ PostgreSQL database. We mock the database responses to simulate PostgreSQL's
 string aggregate behavior.
 """
 
-import pytest
 from unittest.mock import Mock
+
+import pytest
 
 from src.cli.commands.extraction import _to_int as extraction_to_int
 from src.cli.commands.pipeline_status import _to_int as pipeline_to_int

@@ -225,8 +225,9 @@ def test_parallel_entity_extraction_with_skip_locked(cloud_sql_session):
 @pytest.mark.integration
 def test_parallel_classification_batch_processing(cloud_sql_session):
     """Validate parallel classification: workers process different batches."""
-    from src.ml.article_classifier import Prediction
     import time
+
+    from src.ml.article_classifier import Prediction
 
     timestamp = int(time.time() * 1000)
 

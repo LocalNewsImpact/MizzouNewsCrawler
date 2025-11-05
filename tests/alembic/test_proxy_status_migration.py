@@ -69,9 +69,10 @@ class TestProxyStatusMigration:
         """Test that the column accepts all expected proxy_status values."""
         engine = cloud_sql_engine
 
-        from src.models.telemetry_orm import Base, ExtractionTelemetryV2
-        from datetime import datetime
         import time
+        from datetime import datetime
+
+        from src.models.telemetry_orm import Base, ExtractionTelemetryV2
 
         Base.metadata.create_all(engine)
 
@@ -124,8 +125,9 @@ class TestProxyStatusMigration:
         """Test that raw SQL INSERT with string proxy_status works."""
         engine = cloud_sql_engine
 
-        from src.models.telemetry_orm import Base
         from datetime import datetime
+
+        from src.models.telemetry_orm import Base
 
         Base.metadata.create_all(engine)
 

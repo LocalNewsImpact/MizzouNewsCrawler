@@ -61,8 +61,8 @@ def test_telemetry_schemas_postgresql_compatible(cloud_sql_session):
 
 def test_no_sqlite_imports_in_telemetry():
     """Ensure telemetry modules don't import sqlite3."""
-    import src.utils.telemetry as telemetry_module
     import src.utils.extraction_telemetry as extraction_telemetry_module
+    import src.utils.telemetry as telemetry_module
 
     # Check telemetry module
     telemetry_source = telemetry_module.__file__
@@ -81,8 +81,8 @@ def test_no_sqlite_imports_in_telemetry():
 
 def test_no_sqlite_specific_sql_in_telemetry():
     """Ensure telemetry SQL uses PostgreSQL-compatible syntax."""
-    import src.utils.telemetry as telemetry_module
     import src.utils.extraction_telemetry as extraction_telemetry_module
+    import src.utils.telemetry as telemetry_module
 
     # Check for SQLite-specific patterns
     sqlite_patterns = [

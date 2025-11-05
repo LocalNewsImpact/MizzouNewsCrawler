@@ -12,10 +12,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.models import Base, Source
-from src.models.telemetry_orm import Base as TelemetryBase
 
 # Import models needed for testing
 from src.models.telemetry import ExtractionTelemetryV2, HttpErrorSummary
+from src.models.telemetry_orm import Base as TelemetryBase
 
 
 class TestTelemetryAPIEndpoints:
@@ -175,6 +175,7 @@ class TestTelemetryAPIEndpoints:
         contains the test data, avoiding SQLite isolation issues.
         """
         from contextlib import contextmanager
+
         from sqlalchemy.orm import sessionmaker
 
         # Get the test engine and create a session factory
@@ -405,6 +406,7 @@ class TestSiteManagementAPI:
         Uses the same approach as TestTelemetryAPIEndpoints for consistency.
         """
         from contextlib import contextmanager
+
         from sqlalchemy.orm import sessionmaker
 
         # Get the test engine and create a session factory
@@ -590,8 +592,9 @@ class TestCompleteAPIWorkflow:
 
         Uses PostgreSQL with actual commits for proper API testing.
         """
-        from sqlalchemy import text
         import os
+
+        from sqlalchemy import text
 
         # Get TEST_DATABASE_URL (SQLAlchemy masks password in str(url))
         test_db_url = os.getenv("TEST_DATABASE_URL")

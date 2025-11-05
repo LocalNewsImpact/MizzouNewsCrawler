@@ -330,6 +330,7 @@ class TestComprehensiveExtractionTelemetry:
     def clear_telemetry_tables_once(self):
         """Clear all telemetry tables once before running this test class."""
         import os
+
         from sqlalchemy import create_engine, text
 
         # Get TEST_DATABASE_URL directly

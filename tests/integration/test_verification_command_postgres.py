@@ -85,7 +85,6 @@ class TestVerificationStatusPostgres:
         # We need to inject the session into the service, but the service
         # creates its own DatabaseManager. For this test, we'll test the
         # query directly.
-
         # Test the status summary query against PostgreSQL
         query = text(
             """
