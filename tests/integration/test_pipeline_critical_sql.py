@@ -16,13 +16,61 @@ from datetime import datetime, timezone
 
 import pytest
 from sqlalchemy import text
-from sqlalchemy.exc import IntegrityError, OperationalError
+from sqlalchemy.exc import (
+    DBAPIError,
+    IntegrityError,
+    OperationalError,
+    ProgrammingError,
+)
 
 from src.models import Article, CandidateLink, Source
 from src.models.database import DatabaseManager
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.postgres]
+
+
+@pytest.fixture(autouse=True, scope="function")
+def cleanup_test_data(cloud_sql_session):
+    """Clean up test data before and after each test.
+    
+    This fixture runs automatically for every test in this module.
+    Cleans up Sources, CandidateLinks, and Articles from test.example.com domain.
+    """
+    engine = cloud_sql_session.get_bind().engine
+    
+    def _cleanup():
+        with engine.begin() as conn:
+            try:
+                # Delete in correct order due to FK constraints
+                # 1. Articles reference candidate_links
+                conn.execute(
+                    text(
+                        "DELETE FROM articles WHERE url LIKE '%test%.example.com%'"
+                    )
+                )
+                
+                # 2. CandidateLinks reference sources
+                conn.execute(
+                    text(
+                        "DELETE FROM candidate_links "
+                        "WHERE url LIKE '%test%.example.com%'"
+                    )
+                )
+                
+                # 3. Sources
+                conn.execute(
+                    text(
+                        "DELETE FROM sources WHERE host LIKE '%test%.example.com'"
+                    )
+                )
+            except Exception:
+                # Tables might not exist or other issues - don't fail the test
+                pass
+    
+    _cleanup()  # Clean before test
+    yield
+    _cleanup()  # Clean after test
 
 
 @pytest.fixture
@@ -44,11 +92,13 @@ def test_db(cloud_sql_session):
 
 @pytest.fixture
 def test_source(test_db):
-    """Create a test source."""
+    """Create a test source with unique host to avoid conflicts."""
+    # Use unique host to prevent constraint violations across test runs
+    unique_id = str(uuid.uuid4())[:8]
     source = Source(
         id=str(uuid.uuid4()),
-        host="test.example.com",
-        host_norm="test.example.com",
+        host=f"test-{unique_id}.example.com",
+        host_norm=f"test-{unique_id}.example.com",
         canonical_name="Test Source",
         city="Test City",
         county="Test County",
@@ -393,7 +443,11 @@ class TestErrorHandling:
     """Test error handling in pipeline operations."""
     
     def test_sql_syntax_error_handling(self, test_db):
-        """Test that SQL syntax errors are caught."""
+        """Test that SQL syntax errors are caught.
+        
+        PostgreSQL raises ProgrammingError for syntax errors,
+        while SQLite might raise OperationalError.
+        """
         with test_db.session as session:
-            with pytest.raises(OperationalError):
+            with pytest.raises((ProgrammingError, OperationalError)):
                 session.execute(text("INVALID SQL SYNTAX"))

@@ -113,32 +113,85 @@ def cleanup_test_data(database_url: str):
         with db.engine.begin() as conn:
             try:
                 # Clean up test data - match actual test patterns
-                # E2E discovery tests use hosts like "test-*.example.com"
+                # E2E discovery tests use hosts like "*.example.com"
+                # Must delete in correct order due to foreign key constraints
+                
+                # 1. Delete bot_detection_events first (has FK to sources)
+                conn.execute(
+                    text(
+                        "DELETE FROM bot_detection_events WHERE source_id IN "
+                        "(SELECT id FROM sources WHERE host LIKE '%example.com')"
+                    )
+                )
+                
+                # 2. Delete candidate_links (has FK to sources)
                 conn.execute(
                     text(
                         "DELETE FROM candidate_links WHERE url LIKE '%example.com%'"
                     )
                 )
+                
+                # 3. Delete dataset_sources (junction table)
                 conn.execute(
                     text(
-                        "DELETE FROM dataset_sources WHERE source_id LIKE 'test-e2e-%'"
+                        "DELETE FROM dataset_sources WHERE source_id IN "
+                        "(SELECT id FROM sources WHERE host LIKE '%example.com')"
                     )
                 )
-                # Clean sources by host pattern (covers random UUID ids)
+                
+                # 4. Delete discovery_outcomes from telemetry
+                conn.execute(
+                    text(
+                        "DELETE FROM discovery_outcomes WHERE source_id IN "
+                        "(SELECT id FROM sources WHERE host LIKE '%example.com')"
+                    )
+                )
+                
+                # 5. Delete sources by host pattern (covers UUID ids)
                 conn.execute(
                     text(
                         "DELETE FROM sources WHERE host LIKE '%example.com'"
                     )
                 )
-                # Also clean test-disc- pattern used by postgres integration tests
+                
+                # 6. Clean test-disc- pattern used by other postgres tests
+                conn.execute(
+                    text(
+                        "DELETE FROM candidate_links WHERE source_id LIKE 'test-disc-%'"
+                    )
+                )
+                conn.execute(
+                    text(
+                        "DELETE FROM dataset_sources WHERE source_id LIKE 'test-disc-%'"
+                    )
+                )
+                conn.execute(
+                    text(
+                        "DELETE FROM discovery_outcomes "
+                        "WHERE source_id LIKE 'test-disc-%'"
+                    )
+                )
+                conn.execute(
+                    text(
+                        "DELETE FROM bot_detection_events "
+                        "WHERE source_id LIKE 'test-disc-%'"
+                    )
+                )
                 conn.execute(
                     text(
                         "DELETE FROM sources WHERE id LIKE 'test-disc-%'"
                     )
                 )
+                
+                # 7. Clean test datasets
                 conn.execute(text("DELETE FROM datasets WHERE id LIKE 'test-e2e-%'"))
-            except Exception:
-                pass  # Tables might not exist yet
+                
+            except Exception as e:
+                # Tables might not exist yet, or FK constraint issues
+                # Don't fail the test, just print warning
+                import sys
+                print(f"Cleanup warning: {e}", file=sys.stderr)
+                pass
 
     _cleanup()  # Clean before test
     yield
@@ -597,7 +650,12 @@ def test_run_discovery_rss_timeout_uses_fallback_and_records_failure(
     assert outcome.articles_new == 1
 
     with DatabaseManager(database_url) as db:
-        stored_links = list(db.session.query(CandidateLink).all())
+        # Filter by source_id to avoid interference from other tests
+        stored_links = list(
+            db.session.query(CandidateLink)
+            .filter(CandidateLink.source_id == source_id)
+            .all()
+        )
         source_row = db.session.get(Source, source_id)
 
     assert len(stored_links) == 1

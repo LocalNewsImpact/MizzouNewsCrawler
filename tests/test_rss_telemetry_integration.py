@@ -13,14 +13,60 @@ from unittest.mock import MagicMock, call
 
 import pandas as pd
 import pytest
+from sqlalchemy import text
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.crawler.discovery import NewsDiscovery
-from src.models import Source
-from src.models.database import DatabaseManager
-from src.utils.telemetry import DiscoveryMethod, DiscoveryMethodStatus
+# Module level imports
+from src.crawler.discovery import NewsDiscovery  # noqa: E402
+from src.models import Source  # noqa: E402
+from src.models.database import DatabaseManager  # noqa: E402
+from src.utils.telemetry import (  # noqa: E402
+    DiscoveryMethod,
+    DiscoveryMethodStatus,
+)
+
+
+@pytest.fixture
+def cleanup_rss_telemetry_data(cloud_sql_session):
+    """Clean up test data created by RSS telemetry tests.
+    
+    Removes test-source-6 and related records from example.com.
+    """
+    engine = cloud_sql_session.get_bind().engine
+    
+    def _cleanup():
+        with engine.begin() as conn:
+            try:
+                # Delete in FK order
+                # 1. Discovery method effectiveness (telemetry)
+                conn.execute(
+                    text(
+                        "DELETE FROM discovery_method_effectiveness "
+                        "WHERE source_id = 'test-source-6'"
+                    )
+                )
+                
+                # 2. Candidate links
+                conn.execute(
+                    text(
+                        "DELETE FROM candidate_links "
+                        "WHERE source_id = 'test-source-6'"
+                    )
+                )
+                
+                # 3. Source
+                conn.execute(
+                    text("DELETE FROM sources WHERE id = 'test-source-6'")
+                )
+            except Exception:
+                # Tables might not exist - don't fail the test
+                pass
+    
+    _cleanup()  # Clean before test
+    yield
+    _cleanup()  # Clean after test
 
 
 def test_rss_success_calls_telemetry_update(tmp_path, monkeypatch):
@@ -371,7 +417,9 @@ def test_rss_network_error_resets_failure_state(tmp_path, monkeypatch):
 
 @pytest.mark.integration
 @pytest.mark.postgres
-def test_telemetry_persistence_integration(cloud_sql_session):
+def test_telemetry_persistence_integration(
+    cloud_sql_session, cleanup_rss_telemetry_data
+):
     """Integration test: verify telemetry records are persisted to PostgreSQL database.
     
     Uses cloud_sql_session fixture for PostgreSQL with automatic rollback.

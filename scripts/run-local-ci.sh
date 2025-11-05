@@ -56,10 +56,10 @@ run_unit_tests() {
     echo ""
     
     pytest \
-        -v \
-        --no-cov \
+        --override-ini='addopts=' \
         -m "not integration and not postgres and not slow" \
         --maxfail=5 \
+        --tb=short \
         tests/
 }
 
@@ -76,10 +76,10 @@ run_integration_tests() {
     unset TELEMETRY_DATABASE_URL
     
     pytest \
-        -v \
-        --no-cov \
+        --override-ini='addopts=' \
         -m "not postgres" \
         --maxfail=5 \
+        --tb=short \
         tests/
 }
 
@@ -107,23 +107,57 @@ run_postgres_tests() {
     echo ""
     
     pytest \
-        -v \
-        --no-cov \
+        --override-ini='addopts=' \
         -m "integration" \
         --maxfail=5 \
+        --tb=short \
         tests/
 }
 
-# Run full CI test suite with coverage
+# Run full CI test suite with coverage (matches GitHub Actions CI)
 run_full_ci() {
     echo -e "${BLUE}========================================${NC}"
     echo -e "${BLUE}Running Full CI Test Suite${NC}"
+    echo -e "${BLUE}(Unit + Integration + PostgreSQL)${NC}"
     echo -e "${BLUE}========================================${NC}"
     echo ""
     
     if ! check_postgres; then
         return 1
     fi
+    
+    # Step 1: Run unit + integration tests (SQLite, no postgres marker)
+    echo -e "${BLUE}========================================${NC}"
+    echo -e "${BLUE}Step 1/2: Unit + Integration Tests${NC}"
+    echo -e "${BLUE}(Matches 'integration' job in CI)${NC}"
+    echo -e "${BLUE}========================================${NC}"
+    echo ""
+    
+    # Clear environment variables for SQLite tests
+    unset DATABASE_URL
+    unset TEST_DATABASE_URL
+    unset TELEMETRY_DATABASE_URL
+    unset PYTEST_KEEP_DB_ENV
+    
+    pytest \
+        -m 'not postgres' \
+        --cov=src \
+        --cov-report=xml \
+        --cov-report=html \
+        --cov-report=term-missing \
+        --cov-fail-under=78 \
+        tests/
+    
+    echo ""
+    echo -e "${GREEN}✓ Unit + Integration tests passed${NC}"
+    echo ""
+    
+    # Step 2: Run PostgreSQL integration tests
+    echo -e "${BLUE}========================================${NC}"
+    echo -e "${BLUE}Step 2/2: PostgreSQL Integration Tests${NC}"
+    echo -e "${BLUE}(Matches 'postgres-integration' job in CI)${NC}"
+    echo -e "${BLUE}========================================${NC}"
+    echo ""
     
     # Set environment variables for PostgreSQL tests
     export TEST_DATABASE_URL="postgresql://$USER@localhost/news_crawler_test"
@@ -138,13 +172,13 @@ run_full_ci() {
     echo ""
     
     pytest \
-        --cov=src \
-        --cov-report=xml \
-        --cov-report=html \
-        --cov-report=term-missing \
-        --cov-fail-under=78 \
-        -v \
+        -m integration \
+        --tb=short \
+        --no-cov \
         tests/
+    
+    echo ""
+    echo -e "${GREEN}✓ PostgreSQL integration tests passed${NC}"
 }
 
 # Main script logic

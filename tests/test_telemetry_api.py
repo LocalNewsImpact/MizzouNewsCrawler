@@ -7,7 +7,6 @@ import sqlite3
 import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -582,192 +581,200 @@ class TestAPIErrorHandling:
 
 
 @pytest.mark.integration
+@pytest.mark.postgres
 class TestCompleteAPIWorkflow:
     """End-to-end tests for the complete API workflow."""
 
-    def test_telemetry_to_site_management_workflow(self):
-        """Test workflow from telemetry detection to site management action."""
-        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
-            db_path = f.name
+    def test_telemetry_to_site_management_workflow(self, cloud_sql_engine, monkeypatch):
+        """Test workflow from telemetry detection to site management action.
+        
+        Uses PostgreSQL with actual commits for proper API testing.
+        """
+        from sqlalchemy import text
+        
+        # Set DATABASE_URL before any app imports to ensure app connects to test DB
+        monkeypatch.setenv("DATABASE_URL", str(cloud_sql_engine.url))
+        
+        # Force reload of config and app modules to pick up new DATABASE_URL
+        import sys
+        if "src.config" in sys.modules:
+            del sys.modules["src.config"]
+        if "backend.app.main" in sys.modules:
+            del sys.modules["backend.app.main"]
+        
+        # Clean up any previous test data - use unique host to avoid conflicts
+        test_host = "problem-site-test-workflow.com"
+        
+        # Create a connection that can actually commit to the database
+        # so the data is visible to the API's connection pool
+        connection = cloud_sql_engine.connect()
+        
+        # Clean up any previous test data
+        connection.execute(
+            text(f"DELETE FROM extraction_telemetry_v2 WHERE host = '{test_host}'")
+        )
+        connection.execute(
+            text(f"DELETE FROM http_error_summary WHERE host = '{test_host}'")
+        )
+        connection.execute(
+            text(f"DELETE FROM sources WHERE host = '{test_host}'")
+        )
+        connection.commit()
+
+        # Create a source entry for the problematic site
+        connection.execute(
+            text("""
+                INSERT INTO sources (id, host, host_norm, status)
+                VALUES (:id, :host, :host_norm, :status)
+            """),
+            {
+                "id": "problem-site-test-workflow-com",
+                "host": test_host,
+                "host_norm": test_host,
+                "status": "active",
+            },
+        )
+
+        # Insert a problematic site with many failures
+        now = datetime.utcnow()
+        for i in range(10):
+            created_at = now - timedelta(hours=i)
+            connection.execute(
+                text("""
+                    INSERT INTO extraction_telemetry_v2
+                    (operation_id, article_id, url, publisher, host, start_time,
+                     end_time, http_status_code, http_error_type, is_success,
+                     total_duration_ms, created_at)
+                    VALUES (:op_id, :art_id, :url, :publisher, :host, :start_time,
+                            :end_time, :status_code, :error_type, :is_success,
+                            :duration, :created_at)
+                """),
+                {
+                    "op_id": f"workflow-op{i}",
+                    "art_id": f"workflow-art{i}",
+                    "url": f"https://{test_host}/article{i}",
+                    "publisher": test_host,
+                    "host": test_host,
+                    "start_time": created_at,
+                    "end_time": created_at + timedelta(seconds=5),
+                    "status_code": 403,
+                    "error_type": "4xx_client_error",
+                    "is_success": False,
+                    "duration": 5000,
+                    "created_at": created_at,
+                },
+            )
+
+        # Add HTTP error summary
+        connection.execute(
+            text("""
+                INSERT INTO http_error_summary
+                (host, status_code, error_type, count, first_seen, last_seen)
+                VALUES (:host, :status_code, :error_type, :count,
+                        :first_seen, :last_seen)
+            """),
+            {
+                "host": test_host,
+                "status_code": 403,
+                "error_type": "4xx_client_error",
+                "count": 10,
+                "first_seen": now - timedelta(hours=10),
+                "last_seen": now,
+            },
+        )
+        connection.commit()
+        
+        connection.close()
 
         try:
-            # Set up comprehensive test database
-            conn = sqlite3.connect(db_path)
-            cur = conn.cursor()
-
-            # Create all necessary tables
-            cur.execute(
-                """
-            CREATE TABLE extraction_telemetry_v2 (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                operation_id TEXT, article_id TEXT, url TEXT, publisher TEXT,
-                host TEXT,
-                start_time TIMESTAMP, end_time TIMESTAMP,
-                total_duration_ms REAL,
-                http_status_code INTEGER, http_error_type TEXT,
-                response_size_bytes INTEGER,
-                response_time_ms REAL,
-                proxy_used INTEGER, proxy_url TEXT, proxy_authenticated INTEGER,
-                proxy_status TEXT, proxy_error TEXT,
-                methods_attempted TEXT, successful_method TEXT,
-                method_timings TEXT, method_success TEXT, method_errors TEXT,
-                field_extraction TEXT, extracted_fields TEXT,
-                final_field_attribution TEXT, alternative_extractions TEXT,
-                content_length INTEGER,
-                is_success BOOLEAN, error_message TEXT, error_type TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-            """
-            )
-
-            cur.execute(
-                """
-            CREATE TABLE http_error_summary (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                host TEXT NOT NULL, status_code INTEGER NOT NULL,
-                error_type TEXT NOT NULL,
-                count INTEGER DEFAULT 1,
-                first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-            """
-            )
-
-            cur.execute(
-                """
-            CREATE TABLE sources (
-                id VARCHAR PRIMARY KEY, host VARCHAR NOT NULL,
-                host_norm VARCHAR NOT NULL,
-                canonical_name VARCHAR, city VARCHAR, county VARCHAR,
-                owner VARCHAR,
-                type VARCHAR, metadata JSON, discovery_attempted TIMESTAMP,
-                status VARCHAR DEFAULT 'active', paused_at TIMESTAMP,
-                paused_reason TEXT,
-                bot_sensitivity INTEGER DEFAULT 5,
-                bot_sensitivity_updated_at TIMESTAMP,
-                bot_encounters INTEGER DEFAULT 0,
-                last_bot_detection_at TIMESTAMP,
-                bot_detection_metadata JSON
-            )
-            """
-            )
-
-            # Insert a problematic site with many failures
-            now = datetime.utcnow()
-            for i in range(10):
-                created_at = now - timedelta(hours=i)
-                cur.execute(
-                    """
-                INSERT INTO extraction_telemetry_v2
-                (operation_id, article_id, url, publisher, host, start_time,
-                 end_time, http_status_code, http_error_type, is_success,
-                 total_duration_ms, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                    (
-                        f"op{i}",
-                        f"art{i}",
-                        f"https://problem-site.com/article{i}",
-                        "problem-site.com",
-                        "problem-site.com",
-                        created_at,
-                        created_at + timedelta(seconds=5),
-                        403,
-                        "4xx_client_error",
-                        0,
-                        5000,
-                        created_at,
-                    ),
-                )
-
-            # Add HTTP error summary
-            cur.execute(
-                """
-            INSERT INTO http_error_summary (host, status_code, error_type, count)
-            VALUES (?, ?, ?, ?)
-            """,
-                ("problem-site.com", 403, "4xx_client_error", 10),
-            )
-
-            conn.commit()
-            conn.close()
-
-            from sqlalchemy import create_engine
-
-            from backend.app import main as app_main
+            # Import app after DATABASE_URL is set via monkeypatch
             from backend.app.main import app
+            from src.models.database import DatabaseManager
+            
+            # Create a test DatabaseManager pointing to the test database
+            test_db_manager = DatabaseManager(str(cloud_sql_engine.url))
+            
+            # Replace the app's lazy db_manager with our test instance
+            import backend.app.main as app_main
+            app_main._db_manager = test_db_manager
 
-            # Create engine for the test database
-            db_url = f"sqlite:///{db_path}"
-            test_engine = create_engine(
-                db_url, connect_args={"check_same_thread": False}
+            client = TestClient(app)
+
+            # 1. Check poor performers
+            response = client.get(
+                "/api/telemetry/poor-performers?min_attempts=5&max_success_rate=25"
             )
+            assert response.status_code == 200
 
-            # Force initialization of the lazy db_manager and patch its engine
-            # The module-level db_manager is a lazy proxy, so we need to
-            # get the actual DatabaseManager instance and patch that
-            actual_db_manager = app_main._get_module_db_manager()
-            with patch.object(actual_db_manager, "engine", test_engine):
-                client = TestClient(app)
+            poor_performers = response.json()["poor_performers"]
+            problem_site = [
+                p for p in poor_performers if p["host"] == test_host
+            ]
+            assert len(problem_site) > 0, (
+                f"Could not find {test_host} in poor_performers. "
+                f"Found hosts: {[p['host'] for p in poor_performers]}"
+            )
+            problem_site = problem_site[0]
+            assert problem_site["success_rate"] == 0.0
+            assert problem_site["recommendation"] == "pause"
 
-                # 1. Check poor performers
-                response = client.get(
-                    "/api/telemetry/poor-performers?min_attempts=5&max_success_rate=25"
-                )
-                assert response.status_code == 200
+            # 2. Pause the problematic site
+            pause_response = client.post(
+                "/api/site-management/pause",
+                json={
+                    "host": test_host,
+                    "reason": (
+                        "Automatic pause due to poor performance: "
+                        "0% success rate with 10 attempts"
+                    ),
+                },
+            )
+            assert pause_response.status_code == 200
 
-                poor_performers = response.json()["poor_performers"]
-                problem_site = [
-                    p for p in poor_performers if p["host"] == "problem-site.com"
-                ][0]
-                assert problem_site["success_rate"] == 0.0
-                assert problem_site["recommendation"] == "pause"
+            # 3. Verify site is paused
+            status_response = client.get(
+                f"/api/site-management/status/{test_host}"
+            )
+            assert status_response.status_code == 200
 
-                # 2. Pause the problematic site
-                pause_response = client.post(
-                    "/api/site-management/pause",
-                    json={
-                        "host": "problem-site.com",
-                        "reason": (
-                            "Automatic pause due to poor performance: "
-                            "0% success rate with 10 attempts"
-                        ),
-                    },
-                )
-                assert pause_response.status_code == 200
+            site_status = status_response.json()
+            assert site_status["status"] == "paused"
+            assert "poor performance" in site_status["paused_reason"].lower()
 
-                # 3. Verify site is paused
-                status_response = client.get(
-                    "/api/site-management/status/problem-site.com"
-                )
-                assert status_response.status_code == 200
+            # 4. Check paused sites list
+            paused_response = client.get("/api/site-management/paused")
+            assert paused_response.status_code == 200
 
-                site_status = status_response.json()
-                assert site_status["status"] == "paused"
-                assert "poor performance" in site_status["paused_reason"].lower()
+            paused_sites = paused_response.json()["paused_sites"]
+            assert any(site["host"] == test_host for site in paused_sites)
 
-                # 4. Check paused sites list
-                paused_response = client.get("/api/site-management/paused")
-                assert paused_response.status_code == 200
+            # 5. Resume the site (e.g., after manual review)
+            resume_response = client.post(
+                "/api/site-management/resume", json={"host": test_host}
+            )
+            assert resume_response.status_code == 200
 
-                paused_sites = paused_response.json()["paused_sites"]
-                assert any(site["host"] == "problem-site.com" for site in paused_sites)
-
-                # 5. Resume the site (e.g., after manual review)
-                resume_response = client.post(
-                    "/api/site-management/resume", json={"host": "problem-site.com"}
-                )
-                assert resume_response.status_code == 200
-
-                # 6. Verify site is active again
-                final_status = client.get(
-                    "/api/site-management/status/problem-site.com"
-                )
-                assert final_status.status_code == 200
-                assert final_status.json()["status"] == "active"
-
+            # 6. Verify site is active again
+            final_status = client.get(
+                f"/api/site-management/status/{test_host}"
+            )
+            assert final_status.status_code == 200
+            assert final_status.json()["status"] == "active"
+        
         finally:
-            Path(db_path).unlink(missing_ok=True)
+            # Cleanup: Remove test data
+            cleanup_conn = cloud_sql_engine.connect()
+            cleanup_conn.execute(
+                text(f"DELETE FROM extraction_telemetry_v2 WHERE host = '{test_host}'")
+            )
+            cleanup_conn.execute(
+                text(f"DELETE FROM http_error_summary WHERE host = '{test_host}'")
+            )
+            cleanup_conn.execute(
+                text(f"DELETE FROM sources WHERE host = '{test_host}'")
+            )
+            cleanup_conn.commit()
+            cleanup_conn.close()
 
 
 if __name__ == "__main__":

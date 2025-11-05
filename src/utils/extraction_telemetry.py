@@ -139,30 +139,30 @@ class ExtractionTelemetry:
             extraction_result.end_time.isoformat(),
             extraction_result.http_status_code,
             extraction_result.response_size_bytes,
-            int(extraction_result.has_title),
-            int(extraction_result.has_content),
-            int(extraction_result.has_author),
-            int(extraction_result.has_publish_date),
+            extraction_result.has_title,  # Boolean for PostgreSQL
+            extraction_result.has_content,  # Boolean for PostgreSQL
+            extraction_result.has_author,  # Boolean for PostgreSQL
+            extraction_result.has_publish_date,  # Boolean for PostgreSQL
             extraction_result.content_length,
             extraction_result.title_length,
             extraction_result.author_count,
             extraction_result.content_quality_score,
             extraction_result.error_message,
             extraction_result.error_type,
-            int(extraction_result.is_success),
-            int(extraction_result.is_content_success),
-            int(extraction_result.is_technical_failure),
-            int(extraction_result.is_bot_protection),
+            extraction_result.is_success,  # Boolean for PostgreSQL
+            extraction_result.is_content_success,  # Boolean for PostgreSQL
+            extraction_result.is_technical_failure,  # Boolean for PostgreSQL
+            extraction_result.is_bot_protection,  # Boolean for PostgreSQL
             metadata_json,
             title_issues,
             content_issues,
             author_issues,
             date_issues,
             extraction_result.overall_quality_score,
-            int(bool(extraction_result.title_quality_issues)),
-            int(bool(extraction_result.content_quality_issues)),
-            int(bool(extraction_result.author_quality_issues)),
-            int(bool(extraction_result.publish_date_quality_issues)),
+            bool(extraction_result.title_quality_issues),  # Boolean
+            bool(extraction_result.content_quality_issues),  # Boolean
+            bool(extraction_result.author_quality_issues),  # Boolean
+            bool(extraction_result.publish_date_quality_issues),  # Boolean
         )
 
         insert_query = """
