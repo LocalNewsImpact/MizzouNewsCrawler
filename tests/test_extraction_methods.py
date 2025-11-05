@@ -471,6 +471,7 @@ class TestContentExtractor:
         assert methods.get("publish_date") == "none"
 
 
+@pytest.mark.slow
 class TestRealWorldExtraction:
     """Integration tests for real URLs with missing fields."""
 

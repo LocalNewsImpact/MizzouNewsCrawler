@@ -54,11 +54,11 @@ def create_telemetry_tables():
                 -- Quality metrics
                 confidence_score REAL DEFAULT 0.0,
                 processing_time_ms REAL,
-                has_wire_service BOOLEAN DEFAULT 0,
-                has_email BOOLEAN DEFAULT 0,
-                has_title BOOLEAN DEFAULT 0,
-                has_organization BOOLEAN DEFAULT 0,
-                source_name_removed BOOLEAN DEFAULT 0,
+                has_wire_service BOOLEAN DEFAULT FALSE,
+                has_email BOOLEAN DEFAULT FALSE,
+                has_title BOOLEAN DEFAULT FALSE,
+                has_organization BOOLEAN DEFAULT FALSE,
+                source_name_removed BOOLEAN DEFAULT FALSE,
                 duplicates_removed_count INTEGER DEFAULT 0,
                 -- Classification flags for ML training
                 likely_valid_authors BOOLEAN,
@@ -131,7 +131,7 @@ def create_telemetry_tables():
                 input_features TEXT NOT NULL, -- JSON with feature vector
                 expected_output TEXT NOT NULL, -- JSON with expected author list
                 actual_output TEXT, -- JSON with actual cleaner output
-                human_validated BOOLEAN DEFAULT 0,
+                human_validated BOOLEAN DEFAULT FALSE,
                 validation_timestamp DATETIME,
                 validator_notes TEXT,
                 training_set_version TEXT,

@@ -410,7 +410,7 @@ class Dataset(Base):
         Boolean,
         default=True,
         nullable=False,
-        server_default=text("1"),
+        server_default=text("TRUE"),
     )
     # Timestamp for dataset creation (present in older SQLite test schema)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
@@ -464,9 +464,8 @@ class DatasetSource(Base):
         String,
         primary_key=True,
         default=lambda: str(uuid.uuid4()),
-        # SQLite-friendly server default to generate a hex UUID when raw SQL
-        # inserts omit the `id` column in tests.
-        server_default=text("lower(hex(randomblob(16)))"),
+        # Note: server_default removed for SQLite test compatibility
+        # Python-side default works for both PostgreSQL and SQLite
     )
     dataset_id = Column(
         String,

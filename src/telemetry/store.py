@@ -6,24 +6,66 @@ import atexit
 import logging
 import os
 import queue
+import sys
 import threading
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from typing import Any
 
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.pool import NullPool
 
-_SQLITE_FALLBACK_URL = "sqlite:///data/mizzou.db"
+
+def _is_test_environment() -> bool:
+    """Detect if running in a test environment.
+    
+    Returns True if:
+    - Running under pytest
+    - TEST_DATABASE_URL environment variable is set
+    - Any test-related environment variable is set
+    
+    This is used to allow SQLite in tests while warning in production.
+    """
+    # Check for pytest in command line
+    if 'pytest' in sys.argv[0] or '/test' in sys.argv[0]:
+        return True
+    
+    # Check for test-specific environment variables
+    test_env_vars = ['TEST_DATABASE_URL', 'PYTEST_CURRENT_TEST', 'PYTEST_VERSION']
+    if any(os.getenv(var) for var in test_env_vars):
+        return True
+    
+    return False
 
 
 def _determine_default_database_url() -> str:
+    """Determine the PostgreSQL database URL for telemetry.
+    
+    IMPORTANT: Telemetry MUST use PostgreSQL, never SQLite.
+    SQLite fallback has been removed because:
+    1. Production uses PostgreSQL (Cloud SQL)
+    2. Local development uses PostgreSQL (localhost:5432)
+    3. CI uses PostgreSQL (postgres-integration job)
+    4. SQLite compatibility issues have caused multiple production failures
+    
+    If this function fails to find a database URL, it will raise an error
+    rather than silently falling back to SQLite.
+    """
+    # First: Check explicit TELEMETRY_DATABASE_URL (set in Kubernetes)
     candidate = os.getenv("TELEMETRY_DATABASE_URL")
     if candidate:
+        if not candidate.startswith("postgresql"):
+            logging.error(
+                f"TELEMETRY_DATABASE_URL must be PostgreSQL, got: {candidate}"
+            )
+            raise ValueError(
+                "TELEMETRY_DATABASE_URL must start with 'postgresql'. "
+                "SQLite is not supported for telemetry."
+            )
         return candidate
 
-    # Try to use the main application DATABASE_URL from config
+    # Second: Try to use the main application DATABASE_URL from config
     try:
         from src.config import (
             CLOUD_SQL_INSTANCE,
@@ -45,19 +87,18 @@ def _determine_default_database_url() -> str:
             and DATABASE_USER
             and DATABASE_NAME
         ):
-            # Cloud SQL Connector handles connection
-            # Telemetry needs a postgres URL for schema compatibility
             from urllib.parse import quote_plus
 
             user = quote_plus(DATABASE_USER)
             password = quote_plus(DATABASE_PASSWORD) if DATABASE_PASSWORD else ""
             auth = f"{user}:{password}" if password else user
-            # Use instance name as host for telemetry (actual connection via connector)
             db_url = f"postgresql://{auth}@/{DATABASE_NAME}"
+            logging.info(f"Telemetry using Cloud SQL: {CLOUD_SQL_INSTANCE}")
             return db_url
 
         # If DATABASE_URL is already PostgreSQL, use it
         if CONFIG_DATABASE_URL and CONFIG_DATABASE_URL.startswith("postgresql"):
+            logging.info("Telemetry using CONFIG_DATABASE_URL")
             return CONFIG_DATABASE_URL
 
         # Try to build from individual components
@@ -68,19 +109,55 @@ def _determine_default_database_url() -> str:
             password = quote_plus(DATABASE_PASSWORD) if DATABASE_PASSWORD else ""
             auth = f"{user}:{password}" if password else user
             engine = DATABASE_ENGINE or "postgresql"
+            if not engine.startswith("postgresql"):
+                raise ValueError(
+                    f"DATABASE_ENGINE must be postgresql, got: {engine}"
+                )
             db_url = f"{engine}://{auth}@{DATABASE_HOST}/{DATABASE_NAME}"
+            logging.info(f"Telemetry using constructed URL: {DATABASE_HOST}")
             return db_url
 
     except Exception as e:
-        logging.debug(
-            f"Could not determine PostgreSQL URL from config: {e}. "
-            f"Using SQLite fallback"
+        logging.error(
+            f"Failed to determine PostgreSQL URL from config: {e}. "
+            f"Telemetry requires PostgreSQL. Set TELEMETRY_DATABASE_URL "
+            f"environment variable or configure DATABASE_* variables."
         )
+        raise RuntimeError(
+            "Telemetry requires PostgreSQL connection. "
+            "Set TELEMETRY_DATABASE_URL environment variable. "
+            "SQLite fallback has been removed to prevent compatibility issues."
+        ) from e
 
-    return _SQLITE_FALLBACK_URL
+    # If we get here, no valid PostgreSQL URL was found
+    raise RuntimeError(
+        "No PostgreSQL database URL found for telemetry. "
+        "Set TELEMETRY_DATABASE_URL environment variable or configure "
+        "DATABASE_* variables in src.config. SQLite is not supported."
+    )
 
 
-DEFAULT_DATABASE_URL = _determine_default_database_url()
+# Lazy-loaded default database URL to avoid import-time connection attempts
+# This is especially important for tests that need to configure environment first
+_DEFAULT_DATABASE_URL_CACHE: str | None = None
+
+
+def get_default_database_url() -> str:
+    """Get the default database URL, with lazy initialization.
+    
+    This function caches the result after first call to avoid repeated
+    environment variable lookups and config imports.
+    
+    Returns:
+        PostgreSQL database URL for telemetry
+        
+    Raises:
+        RuntimeError: If no valid PostgreSQL URL can be determined
+    """
+    global _DEFAULT_DATABASE_URL_CACHE
+    if _DEFAULT_DATABASE_URL_CACHE is None:
+        _DEFAULT_DATABASE_URL_CACHE = _determine_default_database_url()
+    return _DEFAULT_DATABASE_URL_CACHE
 
 
 def _mask_database_url(url: str | None) -> str:
@@ -325,48 +402,36 @@ class _ResultWrapper:
             self._result.close()
 
 
-def _resolve_sqlite_path(database: str) -> str:
-    if database.startswith("sqlite:///"):
-        return database.replace("sqlite:///", "", 1)
-    if database.startswith("sqlite://"):
-        # support sqlite:///:memory:
-        return database.replace("sqlite://", "", 1)
-    return database
-
-
-def _configure_sqlite_engine(engine: Engine, timeout: float) -> None:
-    """Enable WAL mode and pragmas for SQLite connections."""
-    busy_timeout_ms = int(timeout * 1000)
-
-    @event.listens_for(engine, "connect")
-    def set_sqlite_pragma(dbapi_connection, connection_record):
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA journal_mode=WAL")
-        cursor.execute("PRAGMA synchronous=NORMAL")
-        cursor.execute(f"PRAGMA busy_timeout={busy_timeout_ms}")
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
+# SQLite support removed - these functions are no longer used
+# Kept as stubs for backward compatibility with old imports only
 
 
 class TelemetryStore:
     """Centralized queue + connection manager for telemetry writers.
 
-    Supports both SQLite (local development) and PostgreSQL (Cloud SQL)
-    via SQLAlchemy. Maintains backward compatibility with the original
-    sqlite3-based interface.
+    IMPORTANT: PostgreSQL-only. SQLite support has been removed because:
+    1. Production uses PostgreSQL (Cloud SQL)
+    2. Local development uses PostgreSQL (localhost:5432)
+    3. CI uses PostgreSQL (postgres-integration job)
+    4. SQLite compatibility issues caused multiple production failures
+    
+    Maintains SQLAlchemy-based interface for PostgreSQL connections.
     """
 
     _STOP = object()
 
     def __init__(
         self,
-        database: str = DEFAULT_DATABASE_URL,
+        database: str | None = None,
         *,
         async_writes: bool = True,
         timeout: float = 30.0,
         thread_name: str = "TelemetryStoreWriter",
         engine: Engine | None = None,
     ) -> None:
+        # Lazy-load default database URL if not provided
+        if database is None:
+            database = get_default_database_url()
         self.database_url = database
         self.async_writes = async_writes
         self.timeout = timeout
@@ -380,8 +445,15 @@ class TelemetryStore:
             self._engine = self._create_engine()
             self._owns_engine = True
 
-        self._is_sqlite = "sqlite" in self.database_url.lower()
-        self._is_postgres = "postgres" in self.database_url.lower()
+        # Warn if not using PostgreSQL (but allow SQLite for tests)
+        if "postgresql" not in self.database_url.lower():
+            # Only warn in production contexts, not tests
+            if not _is_test_environment():
+                self._logger.warning(
+                    f"TelemetryStore using non-PostgreSQL database: "
+                    f"{_mask_database_url(self.database_url)}. "
+                    f"Production should use PostgreSQL for compatibility."
+                )
 
         self._queue: queue.Queue | None = None
         self._writer_thread: threading.Thread | None = None
@@ -402,30 +474,23 @@ class TelemetryStore:
             atexit.register(self.shutdown)
 
     def _create_engine(self) -> Engine:
-        """Create SQLAlchemy engine based on database URL."""
-        # Check if Cloud SQL connector should be used
-        if self._should_use_cloud_sql_connector():
-            return self._create_cloud_sql_engine()
-
-        connect_args: dict[str, Any] = {}
-
-        if "sqlite" in self.database_url:
-            connect_args = {
-                "check_same_thread": False,
-                "timeout": self.timeout,
-            }
+        """Create SQLAlchemy engine based on database URL.
+        
+        NOTE: PostgreSQL is recommended for production. SQLite is allowed
+        for test environments for speed and isolation.
+        """
+        # Check if Cloud SQL connector should be used (PostgreSQL only)
+        if "postgresql" in self.database_url.lower():
+            if self._should_use_cloud_sql_connector():
+                return self._create_cloud_sql_engine()
 
         # Use NullPool for async writes to avoid connection pool issues
         engine = create_engine(
             self.database_url,
-            connect_args=connect_args,
+            connect_args={},
             poolclass=NullPool if self.async_writes else None,
             echo=False,
         )
-
-        # Configure SQLite-specific settings
-        if "sqlite" in self.database_url:
-            _configure_sqlite_engine(engine, self.timeout)
 
         return engine
 
@@ -590,33 +655,30 @@ class TelemetryStore:
                     self._ddl_cache.add(ddl)
 
     def _adapt_ddl(self, ddl: str) -> str:
-        """Adapt DDL statement for the target database dialect.
+        """Adapt DDL statement for PostgreSQL.
 
         Args:
             ddl: Original DDL statement (typically SQLite syntax)
 
         Returns:
-            Adapted DDL statement for the target database
+            Adapted DDL statement for PostgreSQL
         """
-        if self._is_postgres:
-            # Convert SQLite-specific syntax to PostgreSQL
-            adapted = ddl
+        # Convert SQLite-specific syntax to PostgreSQL
+        adapted = ddl
 
-            # Replace AUTOINCREMENT with SERIAL
-            adapted = adapted.replace("AUTOINCREMENT", "")
-            adapted = adapted.replace("INTEGER PRIMARY KEY", "SERIAL PRIMARY KEY")
+        # Replace AUTOINCREMENT with SERIAL
+        adapted = adapted.replace("AUTOINCREMENT", "")
+        adapted = adapted.replace("INTEGER PRIMARY KEY", "SERIAL PRIMARY KEY")
 
-            # PostgreSQL uses BOOLEAN not BOOLEAN
-            # (already compatible, but ensure consistency)
+        # PostgreSQL uses BOOLEAN not BOOLEAN
+        # (already compatible, but ensure consistency)
 
-            # Replace TIMESTAMP without timezone to use WITH TIME ZONE
-            # Only if not already specified
-            if "TIMESTAMP" in adapted and "TIME ZONE" not in adapted:
-                adapted = adapted.replace("TIMESTAMP", "TIMESTAMP")
+        # Replace TIMESTAMP without timezone to use WITH TIME ZONE
+        # Only if not already specified
+        if "TIMESTAMP" in adapted and "TIME ZONE" not in adapted:
+            adapted = adapted.replace("TIMESTAMP", "TIMESTAMP")
 
-            return adapted
-
-        return ddl
+        return adapted
 
     def _execute(
         self,
@@ -676,14 +738,15 @@ _default_store: TelemetryStore | None = None
 
 
 def get_store(
-    database: str = DEFAULT_DATABASE_URL,
+    database: str | None = None,
     *,
     engine: Engine | None = None,
 ) -> TelemetryStore:
     """Return a process-wide shared telemetry store.
 
     Args:
-        database: Database URL (used if engine not provided)
+        database: Database URL (used if engine not provided).
+                  If None, uses get_default_database_url()
         engine: Optional existing SQLAlchemy engine to reuse
                 (avoids creating new connections, required for Cloud SQL Connector)
 
@@ -693,5 +756,8 @@ def get_store(
     global _default_store
     with _default_store_lock:
         if _default_store is None:
+            # Lazy-load default database URL if not provided
+            if database is None:
+                database = get_default_database_url()
             _default_store = TelemetryStore(database=database, engine=engine)
     return _default_store

@@ -14,7 +14,11 @@ New database implementation:
 - Return article data from Cloud SQL
 """
 
+import pytest
 
+
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_articles_empty_database(test_client):
     """Test articles endpoint returns empty results when no data."""
     response = test_client.get("/api/articles")
@@ -26,7 +30,9 @@ def test_articles_empty_database(test_client):
     assert data["results"] == []
 
 
-def test_articles_returns_all_articles(test_client, db_session, sample_articles):
+@pytest.mark.postgres
+@pytest.mark.integration
+def test_articles_returns_all_articles(test_client, cloud_sql_session, sample_articles):
     """Test articles endpoint returns paginated articles."""
     response = test_client.get("/api/articles")
 
@@ -40,7 +46,9 @@ def test_articles_returns_all_articles(test_client, db_session, sample_articles)
     assert len(data["results"]) == 20
 
 
-def test_articles_response_format(test_client, db_session, sample_articles):
+@pytest.mark.postgres
+@pytest.mark.integration
+def test_articles_response_format(test_client, cloud_sql_session, sample_articles):
     """Test articles endpoint returns correctly formatted data."""
     response = test_client.get("/api/articles")
 
@@ -63,9 +71,11 @@ def test_articles_response_format(test_client, db_session, sample_articles):
     assert "county" in article
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_articles_filter_by_reviewer(
     test_client,
-    db_session,
+    cloud_sql_session,
     sample_articles,
     sample_reviews,
 ):
@@ -85,9 +95,11 @@ def test_articles_filter_by_reviewer(
     assert len(data["results"]) == 20
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_articles_filter_by_different_reviewers(
     test_client,
-    db_session,
+    cloud_sql_session,
     sample_articles,
     sample_reviews,
 ):
@@ -108,9 +120,11 @@ def test_articles_filter_by_different_reviewers(
     assert len(data2["results"]) == 20
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_articles_nonexistent_reviewer(
     test_client,
-    db_session,
+    cloud_sql_session,
     sample_articles,
     sample_reviews,
 ):
@@ -125,9 +139,11 @@ def test_articles_nonexistent_reviewer(
     assert len(data["results"]) == 20  # Default limit
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_articles_pagination(
     test_client,
-    db_session,
+    cloud_sql_session,
     large_article_dataset,
 ):
     """Test articles endpoint supports pagination.
@@ -157,9 +173,11 @@ def test_articles_pagination(
     assert len(data_offset["results"]) == 10
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_articles_performance(
     test_client,
-    db_session,
+    cloud_sql_session,
     large_article_dataset,
 ):
     """Test articles endpoint performance with large dataset.
@@ -180,9 +198,11 @@ def test_articles_performance(
     ), f"Response time {elapsed_time:.2f}s exceeds 500ms requirement"
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_articles_includes_wire_detected(
     test_client,
-    db_session,
+    cloud_sql_session,
     sample_articles,
 ):
     """Test articles response includes wire service detection.
@@ -216,9 +236,11 @@ def test_articles_includes_wire_detected(
     assert len(wire_articles) > 0, "Test data should include wire articles"
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_articles_multiple_counties(
     test_client,
-    db_session,
+    cloud_sql_session,
     sample_articles,
 ):
     """Test articles endpoint returns articles from all counties."""
@@ -234,9 +256,11 @@ def test_articles_multiple_counties(
     assert len(counties_in_response) >= 2
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_articles_sorted_by_date(
     test_client,
-    db_session,
+    cloud_sql_session,
     sample_articles,
 ):
     """Test articles are sorted by publish date (most recent first).
@@ -268,6 +292,8 @@ def test_articles_sorted_by_date(
             ), "Articles should be sorted by date (newest first)"
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_articles_database_error_handling(test_client, monkeypatch):
     """Test articles endpoint handles database errors gracefully."""
     from contextlib import contextmanager
@@ -288,7 +314,9 @@ def test_articles_database_error_handling(test_client, monkeypatch):
     assert response.status_code == 200
 
 
-def test_articles_no_csv_dependency(test_client, db_session, tmp_path):
+@pytest.mark.postgres
+@pytest.mark.integration
+def test_articles_no_csv_dependency(test_client, cloud_sql_session, tmp_path):
     """Test articles endpoint does not depend on CSV files.
 
     Critical test: Verifies the CSV dependency has been removed.
@@ -310,9 +338,11 @@ def test_articles_no_csv_dependency(test_client, db_session, tmp_path):
     assert "results" in data
 
 
+@pytest.mark.postgres
+@pytest.mark.integration
 def test_articles_with_special_characters(
     test_client,
-    db_session,
+    cloud_sql_session,
     sample_sources,
     sample_candidate_links,
 ):
@@ -330,8 +360,8 @@ def test_articles_with_special_characters(
         content="Content with émojis 🎉 and spëcial çharacters",
         author="O'Brien",
     )
-    db_session.add(article)
-    db_session.commit()
+    cloud_sql_session.add(article)
+    cloud_sql_session.commit()
 
     response = test_client.get("/api/articles")
 

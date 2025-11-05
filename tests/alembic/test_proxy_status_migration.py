@@ -2,44 +2,24 @@
 
 This test validates that the migration d1e2f3a4b5c6 correctly changes
 the proxy_status column type from Integer to String.
+
+Uses PostgreSQL for testing migrations (production database type).
 """
 
-import tempfile
-from pathlib import Path
-
 import pytest
-from alembic import command
-from alembic.config import Config
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
 
-@pytest.fixture
-def sqlite_db():
-    """Create a temporary SQLite database for testing."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = Path(tmpdir) / "test_migration.db"
-        db_url = f"sqlite:///{db_path}"
-        yield db_url
-
-
-@pytest.fixture
-def alembic_config(sqlite_db):
-    """Create an Alembic configuration for testing."""
-    # Create a test alembic.ini in memory
-    config = Config()
-    config.set_main_option("script_location", "alembic")
-    config.set_main_option("sqlalchemy.url", sqlite_db)
-    return config
-
-
+@pytest.mark.integration
+@pytest.mark.postgres
 class TestProxyStatusMigration:
     """Test the proxy_status column type migration."""
 
-    def test_migration_creates_correct_column_type(self, sqlite_db):
+    def test_migration_creates_correct_column_type(self, cloud_sql_engine):
         """Test that migrating to the fix creates a String column."""
-        # Create engine and run migrations up to the fix
-        engine = create_engine(sqlite_db)
+        # Use PostgreSQL engine for migration testing
+        engine = cloud_sql_engine
         
         # Import and create tables using the ORM
         from src.models.telemetry_orm import Base, ExtractionTelemetryV2
@@ -84,23 +64,27 @@ class TestProxyStatusMigration:
             
             assert result.proxy_status == "success"
 
-    def test_proxy_status_accepts_all_valid_values(self, sqlite_db):
+    def test_proxy_status_accepts_all_valid_values(self, cloud_sql_engine):
         """Test that the column accepts all expected proxy_status values."""
-        engine = create_engine(sqlite_db)
+        engine = cloud_sql_engine
         
         from src.models.telemetry_orm import Base, ExtractionTelemetryV2
         from datetime import datetime
+        import time
         
         Base.metadata.create_all(engine)
         
         valid_statuses = ["success", "failed", "bypassed", "disabled", None]
         
+        # Use timestamp to ensure unique operation_ids across test runs
+        timestamp = int(time.time() * 1000)
+        
         with Session(engine) as session:
             for idx, status in enumerate(valid_statuses):
                 record = ExtractionTelemetryV2(
-                    operation_id=f"test-status-{idx}",
-                    article_id=f"article-{idx}",
-                    url=f"https://example.com/test-{idx}",
+                    operation_id=f"test-status-{timestamp}-{idx}",
+                    article_id=f"article-{timestamp}-{idx}",
+                    url=f"https://example.com/test-{timestamp}-{idx}",
                     publisher="Test",
                     host="example.com",
                     start_time=datetime.utcnow(),
@@ -114,19 +98,28 @@ class TestProxyStatusMigration:
             session.commit()
             
             # Verify all records were inserted successfully
-            count = session.query(ExtractionTelemetryV2).count()
+            count = (
+                session.query(ExtractionTelemetryV2)
+                .filter(
+                    ExtractionTelemetryV2.operation_id.like(
+                        f"test-status-{timestamp}-%"
+                    )
+                )
+                .count()
+            )
             assert count == len(valid_statuses)
             
             # Verify each status value
             for idx, expected_status in enumerate(valid_statuses):
                 result = session.query(ExtractionTelemetryV2).filter_by(
-                    operation_id=f"test-status-{idx}"
+                    operation_id=f"test-status-{timestamp}-{idx}"
                 ).first()
+                assert result is not None
                 assert result.proxy_status == expected_status
 
-    def test_raw_sql_insert_with_string_status(self, sqlite_db):
+    def test_raw_sql_insert_with_string_status(self, cloud_sql_engine):
         """Test that raw SQL INSERT with string proxy_status works."""
-        engine = create_engine(sqlite_db)
+        engine = cloud_sql_engine
         
         from src.models.telemetry_orm import Base
         from datetime import datetime
@@ -163,7 +156,10 @@ class TestProxyStatusMigration:
             
             # Query back and verify
             result = conn.execute(
-                text("SELECT proxy_status FROM extraction_telemetry_v2 WHERE operation_id = :op_id"),
+                text(
+                    "SELECT proxy_status FROM extraction_telemetry_v2 "
+                    "WHERE operation_id = :op_id"
+                ),
                 {"op_id": "raw-sql-test"}
             ).fetchone()
             
@@ -173,7 +169,11 @@ class TestProxyStatusMigration:
 
 def test_migration_documentation():
     """Verify the migration file has proper documentation."""
-    migration_file = Path("alembic/versions/d1e2f3a4b5c6_fix_proxy_status_column_type.py")
+    from pathlib import Path
+    
+    migration_file = Path(
+        "alembic/versions/d1e2f3a4b5c6_fix_proxy_status_column_type.py"
+    )
     
     assert migration_file.exists(), f"Migration file not found: {migration_file}"
     

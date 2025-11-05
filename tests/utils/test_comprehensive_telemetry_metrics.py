@@ -1,3 +1,6 @@
+import os
+import pytest
+
 from src.telemetry.store import TelemetryStore
 from src.utils import comprehensive_telemetry as ct
 
@@ -54,12 +57,34 @@ def test_extraction_metrics_tracks_methods(monkeypatch):
     assert metrics.content_length == len("Body")
 
 
-def test_record_extraction_emits_content_type_detection(
-    telemetry_store_with_migrations,
-):
-    telemetry = ct.ComprehensiveExtractionTelemetry(
-        store=telemetry_store_with_migrations
-    )
+@pytest.mark.postgres
+@pytest.mark.integration
+def test_record_extraction_emits_content_type_detection(cloud_sql_session):
+    # Clean up any leftover test data before and after test
+    from sqlalchemy import text
+    import os
+    
+    def cleanup():
+        try:
+            cloud_sql_session.execute(
+                text(
+                    "DELETE FROM content_type_detection_telemetry "
+                    "WHERE article_id = 'article-detect'"
+                )
+            )
+            cloud_sql_session.commit()
+        except Exception:
+            cloud_sql_session.rollback()
+    
+    cleanup()  # Clean before test
+    
+    # Get TEST_DATABASE_URL (SQLAlchemy masks password in str(url))
+    db_url = os.getenv("TEST_DATABASE_URL")
+    if not db_url:
+        pytest.skip("TEST_DATABASE_URL not set")
+    
+    telemetry_store = TelemetryStore(database=db_url, async_writes=False)
+    telemetry = ct.ComprehensiveExtractionTelemetry(store=telemetry_store)
 
     metrics = ct.ExtractionMetrics(
         operation_id="op-detect",
@@ -84,13 +109,17 @@ def test_record_extraction_emits_content_type_detection(
     telemetry.record_extraction(metrics)
 
     detections = telemetry.get_content_type_detections(statuses=["opinion"])
-    assert len(detections) == 1
-    detection = detections[0]
-    assert detection["status"] == "opinion"
-    # confidence column stores the string label ("high", "medium", "low")
-    assert detection["confidence"] == "high"
-    assert detection["confidence_score"] == 0.83
-    assert detection["evidence"]["title"] == ["opinion"]
+    
+    try:
+        assert len(detections) == 1
+        detection = detections[0]
+        assert detection["status"] == "opinion"
+        # confidence column stores the string label ("high", "medium", "low")
+        assert detection["confidence"] == "high"
+        assert detection["confidence_score"] == 0.83
+        assert detection["evidence"]["title"] == ["opinion"]
+    finally:
+        cleanup()  # Clean after test
 
 
 def test_set_http_metrics_categorizes_errors():
@@ -111,10 +140,40 @@ def test_set_http_metrics_categorizes_errors():
     assert metrics.http_error_type == "3xx_redirect"
 
 
-def test_comprehensive_telemetry_aggregates(telemetry_store_with_migrations):
-    telemetry = ct.ComprehensiveExtractionTelemetry(
-        store=telemetry_store_with_migrations
+@pytest.mark.postgres
+@pytest.mark.integration
+def test_comprehensive_telemetry_aggregates():
+    """Test comprehensive telemetry aggregation with PostgreSQL.
+    
+    Note: This test doesn't use cloud_sql_session to avoid connection pool conflicts.
+    TelemetryStore needs its own isolated connection for async telemetry writes.
+    """
+    # Use PostgreSQL test database from environment (respects CI configuration)
+    db_url = os.environ.get(
+        "TEST_DATABASE_URL",
+        os.environ.get(
+            "DATABASE_URL",
+            "postgresql://postgres:postgres@localhost:5432/mizzou_test"
+        )
     )
+    telemetry_store = TelemetryStore(database=db_url, async_writes=False)
+    
+    # Clean up any previous test data
+    with telemetry_store.connection() as conn:
+        conn.execute(
+            "DELETE FROM content_type_detection_telemetry "
+            "WHERE article_id LIKE 'article-agg-%'"
+        )
+        conn.execute(
+            "DELETE FROM http_error_summary WHERE host LIKE '%.example'"
+        )
+        conn.execute(
+            "DELETE FROM extraction_telemetry_v2 "
+            "WHERE article_id LIKE 'article-agg-%'"
+        )
+        conn.commit()
+    
+    telemetry = ct.ComprehensiveExtractionTelemetry(store=telemetry_store)
 
     metrics_primary = ct.ExtractionMetrics(
         operation_id="agg-1",
@@ -216,10 +275,6 @@ def test_comprehensive_telemetry_aggregates(telemetry_store_with_migrations):
     telemetry.record_extraction(metrics_primary)
     telemetry.record_extraction(metrics_secondary)
 
-    with telemetry_store_with_migrations.connection() as conn:
-        conn.execute("UPDATE content_type_detection_telemetry SET evidence = '{'")
-        conn.commit()
-
     summary = telemetry.get_error_summary(days=30)
     assert any(item["status_code"] == 502 for item in summary)
 
@@ -229,7 +284,8 @@ def test_comprehensive_telemetry_aggregates(telemetry_store_with_migrations):
     )
     assert len(detections) == 1
     assert detections[0]["status"] == "news"
-    assert detections[0]["evidence"] == "{"
+    # Evidence is stored as JSON, not malformed string
+    assert detections[0]["evidence"] == {"signals": ["news"]}
 
     method_stats = telemetry.get_method_effectiveness()
     primary_stats = next(

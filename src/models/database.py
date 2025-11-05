@@ -3,8 +3,10 @@
 import hashlib
 import json
 import logging
+import os
 import random
 import re
+import sys
 import time
 import uuid
 from datetime import datetime
@@ -38,6 +40,56 @@ from . import (
     MLResult,
     Source,
 )
+
+
+def _is_test_environment() -> bool:
+    """Detect if running in a test environment.
+    
+    Returns True if:
+    - Running under pytest
+    - TEST_DATABASE_URL environment variable is set
+    - Any test-related environment variable is set
+    
+    This is used to allow SQLite in tests while warning in production.
+    """
+    # Check for pytest in command line
+    if 'pytest' in sys.argv[0] or '/test' in sys.argv[0]:
+        return True
+    
+    # Check for test-specific environment variables
+    test_env_vars = ['TEST_DATABASE_URL', 'PYTEST_CURRENT_TEST', 'PYTEST_VERSION']
+    if any(os.getenv(var) for var in test_env_vars):
+        return True
+    
+    return False
+
+
+def _mask_database_url(url: str | None) -> str:
+    """Mask credentials in database URL to prevent password leakage in logs.
+    
+    Args:
+        url: Database URL that may contain credentials
+        
+    Returns:
+        Masked URL with credentials replaced by ***
+    """
+    if not url:
+        return "<empty>"
+    
+    try:
+        if "://" not in url:
+            return url
+        
+        scheme, remainder = url.split("://", 1)
+        if "@" not in remainder:
+            return f"{scheme}://{remainder}"
+        
+        credentials, host = remainder.split("@", 1)
+        if ":" in credentials:
+            return f"{scheme}://***:***@{host}"
+        return f"{scheme}://***@{host}"
+    except Exception:
+        return "<redacted>"
 
 logger = logging.getLogger(__name__)
 
@@ -422,10 +474,11 @@ class DatabaseManager:
         # Resolution order:
         # 1. explicit `database_url` arg
         # 2. environment variable `DATABASE_URL` (allows runtime overrides)
-        # 3. if running under pytest, default to local sqlite to avoid
-        #    requiring a local Postgres instance during unit tests
-        # 4. finally, fall back to the application's configured value
-        #    from `src.config` or local sqlite if that isn't available.
+        # 3. environment variable `TEST_DATABASE_URL` (test environments)
+        # 4. finally, fall back to configured value from `src.config`
+        #
+        # NOTE: SQLite fallback removed. All environments use PostgreSQL.
+        # Tests use TEST_DATABASE_URL or DATABASE_URL.
         import os
 
         if not database_url:
@@ -433,72 +486,48 @@ class DatabaseManager:
             if env_db:
                 database_url = env_db
             else:
-                # Quick test-detection: when running under pytest, prefer sqlite
-                # so tests don't require a running Postgres on localhost.
-                if os.getenv("PYTEST_CURRENT_TEST"):
-                    database_url = "sqlite:///data/mizzou.db"
+                # Check for TEST_DATABASE_URL (used in local dev and CI)
+                test_db = os.getenv("TEST_DATABASE_URL")
+                if test_db:
+                    database_url = test_db
                 else:
                     try:
                         from src.config import DATABASE_URL as _cfg_db_url
 
                         database_url = _cfg_db_url
                     except Exception:
-                        database_url = "sqlite:///data/mizzou.db"
+                        raise RuntimeError(
+                            "No PostgreSQL database URL found. "
+                            "Set DATABASE_URL or TEST_DATABASE_URL."
+                        )
 
         self.database_url = database_url
 
         # Check if we should use Cloud SQL Python Connector
         use_cloud_sql = self._should_use_cloud_sql_connector()
 
+        # Warn if not using PostgreSQL (but allow SQLite for tests)
+        if "postgresql" not in database_url.lower():
+            # Only warn in production contexts, not tests
+            if not _is_test_environment():
+                logger = logging.getLogger(__name__)
+                logger.warning(
+                    f"DatabaseManager using non-PostgreSQL database: "
+                    f"{_mask_database_url(database_url)}. "
+                    f"Production should use PostgreSQL for compatibility."
+                )
+
         if use_cloud_sql:
             self.engine = self._create_cloud_sql_engine()
         else:
-            # Traditional connection (SQLite or direct PostgreSQL)
-            connect_args = {}
-            if "sqlite" in database_url:
-                connect_args = {"check_same_thread": False, "timeout": 30}
-
+            # Direct PostgreSQL connection
             self.engine = create_engine(
                 database_url,
-                connect_args=connect_args,
+                connect_args={},
                 echo=False,
             )
-            if "sqlite" in database_url:
-                _configure_sqlite_engine(self.engine, connect_args.get("timeout"))
-
-            # For SQLite, wrap the engine so `with engine.begin() as conn:`
-            # yields a connection whose execute() accepts legacy positional
-            # parameter styles used in older tests (qmark / %s).
-            if "sqlite" in database_url:
-                # Preserve the real Engine object for pandas/inspection but
-                # ensure connections returned from it are proxied.
-                _wrap_engine_connections(self.engine)
 
         Base.metadata.create_all(self.engine)
-        # SQLite compatibility: ensure triggers that populate missing UUID
-        # primary keys for tables where tests may perform raw INSERTs that
-        # omit the `id` column. We create AFTER INSERT triggers that set
-        # a hex-encoded randomblob value when id is empty/null.
-        try:
-            if "sqlite" in self.database_url:
-                with self.engine.begin() as conn:
-                    conn.execute(
-                        text(
-                            """
-                    CREATE TRIGGER IF NOT EXISTS trg_dataset_sources_fill_id
-                    AFTER INSERT ON dataset_sources
-                    WHEN NEW.id IS NULL OR NEW.id = ''
-                    BEGIN
-                        UPDATE dataset_sources
-                        SET id = lower(hex(randomblob(16)))
-                        WHERE rowid = NEW.rowid;
-                    END;
-                    """
-                        )
-                    )
-        except Exception:
-            # Non-fatal: if trigger creation fails (e.g., in Postgres), ignore.
-            pass
         Session = sessionmaker(bind=self.engine)
         self.session = Session()
 
@@ -1223,10 +1252,25 @@ def bulk_insert_candidate_links(
 
         def _exec_table_info(tbl_name: str):
             with engine.connect() as conn:
-                # PRAGMA table_info returns rows with columns:
-                # (cid, name, type, notnull, dflt_value, pk)
-                res = conn.execute(text(f"PRAGMA table_info({tbl_name})"))
-                return [r[1] for r in res.fetchall()]
+                if "postgresql" in engine.dialect.name:
+                    # PostgreSQL: Use information_schema
+                    res = conn.execute(
+                        text(
+                            """
+                            SELECT column_name
+                            FROM information_schema.columns
+                            WHERE table_name = :table_name
+                            ORDER BY ordinal_position
+                            """
+                        ),
+                        {"table_name": tbl_name},
+                    )
+                    return [r[0] for r in res.fetchall()]
+                else:
+                    # SQLite: PRAGMA table_info returns rows with columns:
+                    # (cid, name, type, notnull, dflt_value, pk)
+                    res = conn.execute(text(f"PRAGMA table_info({tbl_name})"))
+                    return [r[1] for r in res.fetchall()]
 
         # Retry PRAGMA/table_info in case of transient locks.
         inspector_cols = []
@@ -1550,8 +1594,24 @@ def bulk_insert_articles(
 
         def _exec_table_info(tbl_name: str):
             with engine.connect() as conn:
-                res = conn.execute(text(f"PRAGMA table_info({tbl_name})"))
-                return [r[1] for r in res.fetchall()]
+                if "postgresql" in engine.dialect.name:
+                    # PostgreSQL: Use information_schema
+                    res = conn.execute(
+                        text(
+                            """
+                            SELECT column_name
+                            FROM information_schema.columns
+                            WHERE table_name = :table_name
+                            ORDER BY ordinal_position
+                            """
+                        ),
+                        {"table_name": tbl_name},
+                    )
+                    return [r[0] for r in res.fetchall()]
+                else:
+                    # SQLite: PRAGMA table_info
+                    res = conn.execute(text(f"PRAGMA table_info({tbl_name})"))
+                    return [r[1] for r in res.fetchall()]
 
         # Retry PRAGMA/table_info in case of transient locks.
         attempts = 0

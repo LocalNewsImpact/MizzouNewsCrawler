@@ -2064,8 +2064,34 @@ git push origin feature/your-feature-name
 
 ### Testing
 
+**⚠️ IMPORTANT: Run local CI tests before pushing to catch failures early:**
+
 ```bash
-# Run all tests
+# Quick commands (using Makefile)
+make test-ci          # Full CI suite with coverage (matches GitHub Actions)
+make test-unit        # Unit tests only (no database)
+make test-integration # Integration tests with SQLite
+make test-postgres    # PostgreSQL integration tests
+make test-all-ci      # All suites sequentially
+
+# Or use the script directly
+./scripts/run-local-ci.sh ci          # Full CI suite
+./scripts/run-local-ci.sh unit        # Unit tests
+./scripts/run-local-ci.sh integration # SQLite tests
+./scripts/run-local-ci.sh postgres    # PostgreSQL tests
+./scripts/run-local-ci.sh all         # All suites
+
+# Benefits:
+# ✅ Matches exact CI environment (PostgreSQL, markers, coverage)
+# ✅ Runs migrations automatically
+# ✅ Catches CI failures before pushing
+# ✅ Color-coded output
+```
+
+**Manual test commands (may differ from CI):**
+
+```bash
+# Run all tests (not recommended - may differ from CI)
 python -m pytest tests/
 
 # Run with coverage
@@ -2075,7 +2101,13 @@ python -m pytest tests/ --cov=src --cov-report=term-missing
 python -m pytest tests/test_telemetry_system.py -v
 ```
 
-See [docs/TESTING_OPERATIONS_DASHBOARD.md](docs/TESTING_OPERATIONS_DASHBOARD.md) for testing guidelines.
+**📚 Documentation:**
+
+- [docs/TESTING_STRATEGY.md](docs/TESTING_STRATEGY.md) - **Complete testing guide** (markers, CI matching, debugging)
+- [docs/TESTING_OPERATIONS_DASHBOARD.md](docs/TESTING_OPERATIONS_DASHBOARD.md) - Operations testing guidelines
+
+**Git Pre-Push Hook Installed:**
+A git hook automatically runs tests before every push. Use `git push --no-verify` to skip (not recommended).
 
 ### Code Quality Tools
 

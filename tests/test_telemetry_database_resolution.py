@@ -36,7 +36,12 @@ class TestResolveDatabaseUrl:
         # Mock the config import to provide a configured DATABASE_URL
         mock_database_url = "postgresql://prod:secret@cloudsql/proddb"
         
-        with patch.dict(os.environ, {"PYTEST_KEEP_DB_ENV": "true"}, clear=False):
+        env_overrides = {
+            "PYTEST_KEEP_DB_ENV": "true",
+            "DATABASE_URL": "",
+            "TEST_DATABASE_URL": "",
+        }
+        with patch.dict(os.environ, env_overrides, clear=False):
             with patch.dict(sys.modules):
                 # Create a mock config module
                 mock_config = Mock()
@@ -46,83 +51,26 @@ class TestResolveDatabaseUrl:
                 result = NewsDiscovery._resolve_database_url(None)
                 assert result == mock_database_url
 
-    def test_pytest_falls_back_to_sqlite_without_keep_env(self):
-        """During pytest, skip Postgres when PYTEST_KEEP_DB_ENV is unset."""
-        mock_database_url = "postgresql://prod:secret@cloudsql/proddb"
-
-        with patch.dict(os.environ, {"PYTEST_KEEP_DB_ENV": ""}, clear=False):
-            with patch.dict(sys.modules):
-                mock_config = Mock()
-                mock_config.DATABASE_URL = mock_database_url
-                sys.modules['src.config'] = mock_config
-
-                result = NewsDiscovery._resolve_database_url(None)
-
-        assert result == "sqlite:///data/mizzou.db"
-
-    def test_none_with_configured_database_url_as_none(self):
-        """When None is provided and DATABASE_URL is None, use SQLite default."""
-        with patch.dict(sys.modules):
-            # Create a mock config module with DATABASE_URL = None
-            mock_config = Mock()
-            mock_config.DATABASE_URL = None
-            sys.modules['src.config'] = mock_config
-            
-            result = NewsDiscovery._resolve_database_url(None)
-            assert result == "sqlite:///data/mizzou.db"
-
-    def test_none_with_configured_database_url_as_empty_string(self):
-        """Treat empty config values the same as the SQLite fallback."""
-        with patch.dict(sys.modules):
-            # Create a mock config module with DATABASE_URL = ""
-            mock_config = Mock()
-            mock_config.DATABASE_URL = ""
-            sys.modules['src.config'] = mock_config
-            
-            result = NewsDiscovery._resolve_database_url(None)
-            assert result == "sqlite:///data/mizzou.db"
-
-    def test_none_with_config_import_error(self):
-        """When None is provided and config import fails, use SQLite default.
-        
-        This test verifies the exception handling in _resolve_database_url.
-        The try/except block catches any exception during config import and
-        falls back to SQLite. Since src.config is already imported in the
-        test environment, we verify the implementation has the correct
-        exception handler by inspecting the code structure.
-        """
-        # The actual implementation has:
-        # try:
-        #     from src.config import DATABASE_URL as configured_database_url
-        #     return configured_database_url or "sqlite:///data/mizzou.db"
-        # except Exception:
-        #     return "sqlite:///data/mizzou.db"
-        #
-        # This test verifies that when config is not available or raises an
-        # exception, the method returns the SQLite fallback. Since config is
-        # already loaded in our test environment, we at least verify the method
-        # returns a valid database URL.
-        result = NewsDiscovery._resolve_database_url(None)
-        # Result should be a valid database URL (either from config or fallback)
-        assert isinstance(result, str)
-        assert len(result) > 0
-        assert ("sqlite" in result or "postgres" in result)
-
     def test_empty_string_is_treated_as_falsy(self):
         """Empty string is treated as falsy and falls back to config.
-        
+
         This is the actual behavior: `if candidate:` treats "" as False.
         This is reasonable behavior - empty string is not a valid database URL.
         """
-        with patch.dict(os.environ, {"PYTEST_KEEP_DB_ENV": "true"}, clear=False):
+        env_overrides = {
+            "PYTEST_KEEP_DB_ENV": "true",
+            "DATABASE_URL": "",
+            "TEST_DATABASE_URL": "",
+        }
+        with patch.dict(os.environ, env_overrides, clear=False):
             with patch.dict(sys.modules):
                 mock_config = Mock()
-                mock_config.DATABASE_URL = "postgresql://config:config@host:5432/db"
+                mock_config.DATABASE_URL = "postgresql://host:5432/db"
                 sys.modules['src.config'] = mock_config
 
                 # Empty string is treated as falsy, falls back to config
                 result = NewsDiscovery._resolve_database_url("")
-                assert result == "postgresql://config:config@host:5432/db"
+                assert result == "postgresql://host:5432/db"
 
 
 class TestNewsDiscoveryInitialization:
@@ -156,7 +104,12 @@ class TestNewsDiscoveryInitialization:
         
         configured_url = "postgresql://config:config@confighost:5432/configdb"
         
-        with patch.dict(os.environ, {"PYTEST_KEEP_DB_ENV": "true"}, clear=False):
+        env_overrides = {
+            "PYTEST_KEEP_DB_ENV": "true",
+            "DATABASE_URL": "",
+            "TEST_DATABASE_URL": "",
+        }
+        with patch.dict(os.environ, env_overrides, clear=False):
             with patch.dict(sys.modules):
                 mock_config = Mock()
                 mock_config.DATABASE_URL = configured_url
@@ -164,10 +117,9 @@ class TestNewsDiscoveryInitialization:
 
                 # Initialize NewsDiscovery without database_url
                 discovery = NewsDiscovery()
-            
+
                 # Verify database_url is resolved from config
                 assert discovery.database_url == configured_url
-
                 # Verify telemetry uses None so DatabaseManager can manage the
                 # Cloud SQL connection when no explicit database_url is provided.
                 mock_create_telemetry.assert_called_once()
@@ -175,21 +127,30 @@ class TestNewsDiscoveryInitialization:
                 assert call_kwargs['database_url'] is None
 
     @patch('src.crawler.discovery.create_telemetry_system')
-    def test_no_database_url_falls_back_to_sqlite(self, mock_create_telemetry):
-        """NewsDiscovery without database_url and no config should use SQLite."""
+    def test_no_database_url_requires_postgresql(self, mock_create_telemetry):
+        """NewsDiscovery without database_url and no config should raise error.
+        
+        SQLite fallback has been removed - system must have PostgreSQL configured.
+        """
         mock_telemetry = MagicMock()
         mock_create_telemetry.return_value = mock_telemetry
         
-        with patch.dict(sys.modules):
-            mock_config = Mock()
-            mock_config.DATABASE_URL = None
-            sys.modules['src.config'] = mock_config
-            
-            # Initialize NewsDiscovery without database_url
-            discovery = NewsDiscovery()
-            
-            # Verify database_url falls back to SQLite
-            assert discovery.database_url == "sqlite:///data/mizzou.db"
+        env_overrides = {
+            "DATABASE_URL": "",
+            "TEST_DATABASE_URL": "",
+        }
+        with patch.dict(os.environ, env_overrides, clear=False):
+            with patch.dict(sys.modules):
+                mock_config = Mock()
+                mock_config.DATABASE_URL = None
+                sys.modules['src.config'] = mock_config
+                
+                # Initialize NewsDiscovery without database_url should use None
+                # (DatabaseManager will handle the connection)
+                discovery = NewsDiscovery()
+                
+                # Verify database_url is None (no SQLite fallback)
+                assert discovery.database_url is None
             
             # Verify telemetry was created with None
             mock_create_telemetry.assert_called_once()
@@ -227,7 +188,12 @@ class TestTelemetryDatabaseUrlPassing:
         
         configured_url = "postgresql://cloud:sql@instance/db"
         
-        with patch.dict(os.environ, {"PYTEST_KEEP_DB_ENV": "true"}, clear=False):
+        env_overrides = {
+            "PYTEST_KEEP_DB_ENV": "true",
+            "DATABASE_URL": "",
+            "TEST_DATABASE_URL": "",
+        }
+        with patch.dict(os.environ, env_overrides, clear=False):
             with patch.dict(sys.modules):
                 mock_config = Mock()
                 mock_config.DATABASE_URL = configured_url
@@ -313,9 +279,17 @@ class TestDatabaseUrlBehaviorIntegration:
         mock_create_telemetry.return_value = mock_telemetry
         
         # Simulate production DATABASE_URL
-        cloud_sql_url = "postgresql+psycopg2://user:pass@/dbname?host=/cloudsql/project:region:instance"
+        cloud_sql_url = (
+            "postgresql+psycopg2://user:pass@/dbname?"
+            "host=/cloudsql/project:region:instance"
+        )
         
-        with patch.dict(os.environ, {"PYTEST_KEEP_DB_ENV": "true"}, clear=False):
+        env_overrides = {
+            "PYTEST_KEEP_DB_ENV": "true",
+            "DATABASE_URL": "",
+            "TEST_DATABASE_URL": "",
+        }
+        with patch.dict(os.environ, env_overrides, clear=False):
             with patch.dict(sys.modules):
                 mock_config = Mock()
                 mock_config.DATABASE_URL = cloud_sql_url
@@ -327,29 +301,38 @@ class TestDatabaseUrlBehaviorIntegration:
                 # Verify discovery has the Cloud SQL URL
                 assert discovery.database_url == cloud_sql_url
 
-                # Verify telemetry received None (can use DatabaseManager's Cloud SQL engine)
+                # Verify telemetry received None
+                # (can use DatabaseManager's Cloud SQL engine)
                 mock_create_telemetry.assert_called_once()
                 call_kwargs = mock_create_telemetry.call_args[1]
                 assert call_kwargs['database_url'] is None
 
     @patch('src.crawler.discovery.create_telemetry_system')
-    def test_development_scenario_sqlite_fallback(self, mock_create_telemetry):
-        """Simulate development: no DATABASE_URL configured, falls back to SQLite."""
+    def test_development_scenario_requires_postgresql(self, mock_create_telemetry):
+        """Simulate development: no DATABASE_URL configured requires PostgreSQL.
+        
+        SQLite fallback removed - even in development, PostgreSQL must be configured.
+        """
         mock_telemetry = MagicMock()
         mock_create_telemetry.return_value = mock_telemetry
         
-        with patch.dict(sys.modules):
-            mock_config = Mock()
-            mock_config.DATABASE_URL = None
-            sys.modules['src.config'] = mock_config
+        env_overrides = {
+            "DATABASE_URL": "",
+            "TEST_DATABASE_URL": "",
+        }
+        with patch.dict(os.environ, env_overrides, clear=False):
+            with patch.dict(sys.modules):
+                mock_config = Mock()
+                mock_config.DATABASE_URL = None
+                sys.modules['src.config'] = mock_config
+                
+                # Initialize in development (no explicit database_url, no config)
+                discovery = NewsDiscovery()
+                
+                # Verify discovery uses None (no SQLite fallback)
+                assert discovery.database_url is None
             
-            # Initialize in development (no explicit database_url, no config)
-            discovery = NewsDiscovery()
-            
-            # Verify discovery falls back to SQLite
-            assert discovery.database_url == "sqlite:///data/mizzou.db"
-            
-            # Telemetry receives None (will also fall back to SQLite in dev)
+            # Telemetry receives None (will use DatabaseManager or fail)
             mock_create_telemetry.assert_called_once()
             call_kwargs = mock_create_telemetry.call_args[1]
             assert call_kwargs['database_url'] is None

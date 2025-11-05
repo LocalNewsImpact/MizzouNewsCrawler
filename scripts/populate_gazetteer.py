@@ -1300,14 +1300,26 @@ def get_cached_geocode(session, provider: str, input_str: str, wait_timeout: int
     if ready_row:
         return ready_row
 
-    # Try to claim a row (INSERT OR IGNORE -> status='in_progress')
-    ins_sql = (
-        "INSERT OR IGNORE INTO geocode_cache "
-        "(provider, input, normalized_input, status, "
-        "attempt_count, created_at) "
-        "VALUES (:provider, :input, :norm, 'in_progress', 0, "
-        "CURRENT_TIMESTAMP)"
-    )
+    # Try to claim a row
+    # INSERT...ON CONFLICT for PostgreSQL, INSERT OR IGNORE for SQLite
+    dialect = session.bind.dialect.name
+    if "postgresql" in dialect:
+        ins_sql = (
+            "INSERT INTO geocode_cache "
+            "(provider, input, normalized_input, status, "
+            "attempt_count, created_at) "
+            "VALUES (:provider, :input, :norm, 'in_progress', 0, "
+            "CURRENT_TIMESTAMP) "
+            "ON CONFLICT (provider, normalized_input) DO NOTHING"
+        )
+    else:
+        ins_sql = (
+            "INSERT OR IGNORE INTO geocode_cache "
+            "(provider, input, normalized_input, status, "
+            "attempt_count, created_at) "
+            "VALUES (:provider, :input, :norm, 'in_progress', 0, "
+            "CURRENT_TIMESTAMP)"
+        )
     try:
         session.execute(
             text(ins_sql),

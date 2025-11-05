@@ -1,4 +1,76 @@
-.PHONY: coverage lint format security type-check test-full test-migrations test-alembic ci-check test-parallel test-quick
+.PHONY: help coverage lint format security type-check test-full test-migrations test-alembic ci-check test-parallel test-quick test-ci test-unit test-integration test-postgres
+
+.DEFAULT_GOAL := help
+
+help:
+	@echo ""
+	@echo "📦 MizzouNewsCrawler - Available Make Targets"
+	@echo "=============================================="
+	@echo ""
+	@echo "🧪 Testing (Run before pushing!)"
+	@echo "  make test-ci          - Run full CI suite (Unit + Integration + PostgreSQL)"
+	@echo "  make test-unit        - Run unit tests only (fast)"
+	@echo "  make test-integration - Run integration tests with SQLite"
+	@echo "  make test-postgres    - Run PostgreSQL integration tests"
+	@echo "  make test-all-ci      - Run all test suites sequentially"
+	@echo ""
+	@echo "🔍 Code Quality"
+	@echo "  make lint             - Check code style (ruff, black, isort, mypy)"
+	@echo "  make format           - Auto-format code (black, isort, ruff --fix)"
+	@echo "  make security         - Run security scans (bandit, safety)"
+	@echo "  make type-check       - Run mypy type checker"
+	@echo ""
+	@echo "📊 Coverage & Legacy"
+	@echo "  make coverage         - Run tests with coverage report"
+	@echo "  make test-full        - Full test suite with coverage"
+	@echo "  make test-migrations  - Test Alembic migrations"
+	@echo "  make ci-check         - Run all CI checks locally"
+	@echo ""
+	@echo "⚡ Recommended workflow:"
+	@echo "  1. make format        - Format your code"
+	@echo "  2. make lint          - Check for issues"
+	@echo "  3. make test-ci       - Run full CI test suite"
+	@echo "  4. git push           - Push with confidence!"
+	@echo ""
+
+# ========================================
+# Local CI Test Runners
+# ========================================
+# These match GitHub Actions CI behavior exactly.
+# Run 'make test-ci' before pushing to catch issues early!
+
+test-ci:
+	@echo "🚀 Running FULL CI test suite (Unit + Integration + PostgreSQL)"
+	@echo "   This matches GitHub Actions CI exactly:"
+	@echo "   1. Unit + Integration tests (-m 'not postgres') with coverage"
+	@echo "   2. PostgreSQL integration tests (-m integration)"
+	@echo ""
+	./scripts/run-local-ci.sh ci
+
+test-unit:
+	@echo "⚡ Running unit tests only (fast, no database)"
+	@echo "   Tests marked with: -m 'not integration and not postgres and not slow'"
+	@echo ""
+	./scripts/run-local-ci.sh unit
+
+test-integration:
+	@echo "🔧 Running integration tests with SQLite"
+	@echo "   Tests marked with: -m 'not postgres'"
+	@echo ""
+	./scripts/run-local-ci.sh integration
+
+test-postgres:
+	@echo "🐘 Running PostgreSQL integration tests only"
+	@echo "   Tests marked with: -m integration"
+	@echo "   Requires PostgreSQL at localhost:5432"
+	@echo ""
+	./scripts/run-local-ci.sh postgres
+
+test-all-ci:
+	@echo "🔄 Running ALL test suites sequentially"
+	@echo "   Runs: unit → integration (SQLite) → postgres"
+	@echo ""
+	./scripts/run-local-ci.sh all
 
 coverage:
 	python -m pytest --cov=src --cov-report=term-missing --cov-fail-under=45

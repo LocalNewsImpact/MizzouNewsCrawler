@@ -12,7 +12,7 @@ from typing import List
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import sessionmaker
 
 # Add project root to path
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -21,73 +21,46 @@ sys.path.insert(0, str(REPO_ROOT))
 from backend.app.main import app  # noqa: E402
 from src.models import Article, Source  # noqa: E402
 from src.models.api_backend import Candidate, Review, Snapshot  # noqa: E402
-from src.models.database import Base  # noqa: E402
-
-
-@pytest.fixture(scope="function")
-def db_engine():
-    """Create in-memory SQLite database for testing.
-
-    Creates a fresh database for each test function to ensure isolation.
-    All tables are created from SQLAlchemy models.
-    Uses check_same_thread=False to allow multi-threaded access.
-    Uses StaticPool to ensure all connections share the same in-memory db.
-    """
-    from sqlalchemy.pool import StaticPool
-
-    engine = create_engine(
-        "sqlite:///:memory:",
-        echo=False,
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,  # Share the same connection across threads
-    )
-    Base.metadata.create_all(engine)
-    yield engine
-    Base.metadata.drop_all(engine)
-    engine.dispose()
-
-
-@pytest.fixture(scope="function")
-def db_session(db_engine) -> Session:
-    """Create database session for tests.
-
-    Provides a session for fixture setup that shares the same
-    in-memory database with the test client.
-    """
-    SessionLocal = sessionmaker(bind=db_engine)
-    session = SessionLocal()
-    yield session
-    session.close()
 
 
 @pytest.fixture
-def test_client(db_engine, monkeypatch):
+def test_client(cloud_sql_session, monkeypatch):
     """Create FastAPI test client with mocked database engine.
 
-    This client uses the test database engine instead of production.
-    By mocking at the engine level and using StaticPool, we ensure
-    all sessions (both fixture and endpoint) see the same data.
+    This client uses the PostgreSQL test database instead of production.
+    CRITICAL: Uses the same session as fixtures to ensure data visibility.
     """
     from contextlib import contextmanager
+    import os
 
+    # Get the engine from the cloud_sql_session
+    cloud_sql_engine = cloud_sql_session.get_bind().engine
+    
+    # Get TEST_DATABASE_URL (SQLAlchemy masks password in str(url))
+    engine_url = os.getenv("TEST_DATABASE_URL")
+    if not engine_url:
+        pytest.skip("TEST_DATABASE_URL not set")
+    
+    # Mock DATABASE_URL in app_config BEFORE db_manager is initialized
     from backend.app import main
+    monkeypatch.setattr(main.app_config, "DATABASE_URL", engine_url)
 
-    # Mock the DatabaseManager's engine with our test engine
-    monkeypatch.setattr(main.db_manager, "engine", db_engine)
+    # Reset _db_manager to force re-initialization with new URL
+    main._db_manager = None
 
-    # Mock get_session to use the test engine
+    # Now mock the engine to use our test engine
+    # (db_manager will be created lazily with the mocked URL)
+    monkeypatch.setattr(main.db_manager, "engine", cloud_sql_engine)
+
+    # Mock get_session to use the SAME session as fixtures
+    # This ensures test_client sees data committed by fixtures
     @contextmanager
     def mock_get_session_context():
-        SessionLocal = sessionmaker(bind=db_engine)
-        session = SessionLocal()
         try:
-            yield session
-            session.commit()  # Commit so changes are visible
+            yield cloud_sql_session
+            # Don't commit here - let the fixture handle transaction management
         except Exception:
-            session.rollback()
             raise
-        finally:
-            session.close()
 
     def mock_get_session():
         return mock_get_session_context()
@@ -99,7 +72,7 @@ def test_client(db_engine, monkeypatch):
 
 
 @pytest.fixture
-def sample_sources(db_session) -> list[Source]:
+def sample_sources(cloud_sql_session) -> list[Source]:
     """Create sample news sources for testing.
 
     Uses actual Cloud SQL Source schema:
@@ -136,14 +109,14 @@ def sample_sources(db_session) -> list[Source]:
     ]
 
     for source in sources:
-        db_session.add(source)
-    db_session.commit()
+        cloud_sql_session.add(source)
+    cloud_sql_session.flush()  # Flush to DB but don't commit transaction
 
     return sources
 
 
 @pytest.fixture
-def sample_candidate_links(db_session, sample_sources) -> list:
+def sample_candidate_links(cloud_sql_session, sample_sources) -> list:
     """Create sample candidate links for articles.
 
     CandidateLink connects articles to sources in Cloud SQL schema.
@@ -161,15 +134,15 @@ def sample_candidate_links(db_session, sample_sources) -> list:
             source_county=source.county,
         )
         links.append(link)
-        db_session.add(link)
+        cloud_sql_session.add(link)
 
-    db_session.commit()
+    cloud_sql_session.flush()  # Flush to DB without committing transaction
     return links
 
 
 @pytest.fixture
 def sample_articles(
-    db_session, sample_sources, sample_candidate_links
+    cloud_sql_session, sample_sources, sample_candidate_links
 ) -> list[Article]:
     """Create sample articles for testing.
 
@@ -208,14 +181,14 @@ def sample_articles(
             status="extracted",
         )
         articles.append(article)
-        db_session.add(article)
+        cloud_sql_session.add(article)
 
-    db_session.commit()
+    cloud_sql_session.flush()  # Flush to DB without committing transaction
     return articles
 
 
 @pytest.fixture
-def sample_reviews(db_session, sample_articles) -> list[Review]:
+def sample_reviews(cloud_sql_session, sample_articles) -> list[Review]:
     """Create sample reviews for testing.
 
     Creates 20 reviews across the first 20 articles.
@@ -242,14 +215,14 @@ def sample_reviews(db_session, sample_articles) -> list[Review]:
             reviewed_at=datetime.now() - timedelta(hours=i, minutes=30),
         )
         reviews.append(review)
-        db_session.add(review)
+        cloud_sql_session.add(review)
 
-    db_session.commit()
+    cloud_sql_session.flush()  # Flush to DB without committing transaction
     return reviews
 
 
 @pytest.fixture
-def sample_snapshots(db_session, sample_sources) -> list[Snapshot]:
+def sample_snapshots(cloud_sql_session, sample_sources) -> list[Snapshot]:
     """Create sample HTML snapshots for testing.
 
     Snapshot model stores HTML snapshots captured during extraction.
@@ -276,14 +249,14 @@ def sample_snapshots(db_session, sample_sources) -> list[Snapshot]:
             reviewed_at=reviewed_time,
         )
         snapshots.append(snapshot)
-        db_session.add(snapshot)
+        cloud_sql_session.add(snapshot)
 
-    db_session.commit()
+    cloud_sql_session.flush()  # Flush to DB without committing transaction
     return snapshots
 
 
 @pytest.fixture
-def sample_candidates(db_session, sample_snapshots) -> list[Candidate]:
+def sample_candidates(cloud_sql_session, sample_snapshots) -> list[Candidate]:
     """Create sample extraction candidates for testing.
 
     Candidate model is for field extraction selectors, not news issues.
@@ -304,15 +277,15 @@ def sample_candidates(db_session, sample_snapshots) -> list[Candidate]:
             accepted=(i % 3 == 0),  # Every 3rd is accepted
         )
         candidates.append(candidate)
-        db_session.add(candidate)
+        cloud_sql_session.add(candidate)
 
-    db_session.commit()
+    cloud_sql_session.flush()  # Flush to DB without committing transaction
     return candidates
 
 
 @pytest.fixture
 def large_article_dataset(
-    db_session, sample_sources, sample_candidate_links
+    cloud_sql_session, sample_sources, sample_candidate_links
 ) -> list[Article]:
     """Create large dataset for pagination and load testing.
 
@@ -342,31 +315,41 @@ def large_article_dataset(
             status="extracted",
         )
         articles.append(article)
-        db_session.add(article)
+        cloud_sql_session.add(article)
 
         # Commit in batches for performance
         if (i + 1) % 100 == 0:
-            db_session.commit()
+            cloud_sql_session.flush()  # Flush to DB without committing transaction
 
-    db_session.commit()
+    cloud_sql_session.flush()  # Flush to DB without committing transaction
     return articles
 
 
 # Integration test fixtures (require Cloud SQL)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def cloud_sql_engine():
     """Create engine for Cloud SQL integration tests.
 
     Requires TEST_DATABASE_URL environment variable.
     Only used for integration tests marked with @pytest.mark.integration
+    
+    Changed to function scope to match tests/integration/conftest.py
+    for consistency and to avoid connection pooling issues.
     """
     import os
 
     test_db_url = os.getenv("TEST_DATABASE_URL")
     if not test_db_url:
         pytest.skip("TEST_DATABASE_URL not set - skipping Cloud SQL tests")
+    
+    # Replace 'localhost' with '127.0.0.1' to avoid IPv6 resolution issues
+    # psycopg2 tries IPv6 (::1) first when given 'localhost', which may have
+    # different auth configuration than IPv4
+    # Handle both @localhost/ and @localhost:port/ patterns
+    test_db_url = test_db_url.replace("@localhost:", "@127.0.0.1:")
+    test_db_url = test_db_url.replace("@localhost/", "@127.0.0.1/")
 
     engine = create_engine(test_db_url, echo=False)
 

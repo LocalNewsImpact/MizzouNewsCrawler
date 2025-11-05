@@ -277,6 +277,11 @@ def _apply_schema(conn: Any, statements: Iterable[str]) -> None:
                     logging.getLogger(__name__).debug(
                         "Telemetry DDL failed (continuing): %s -- %s", statement, e
                     )
+                    # Rollback the failed transaction before continuing
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
                     continue
                 # If it's an unexpected exception, re-raise it.
                 raise
@@ -420,9 +425,9 @@ _DISCOVERY_OUTCOMES_SCHEMA = (
         error_details TEXT,
         http_status INTEGER,
         discovery_time_ms REAL NOT NULL DEFAULT 0.0,
-        is_success BOOLEAN NOT NULL DEFAULT 0,
-        is_content_success BOOLEAN NOT NULL DEFAULT 0,
-        is_technical_failure BOOLEAN NOT NULL DEFAULT 0,
+        is_success BOOLEAN NOT NULL DEFAULT FALSE,
+        is_content_success BOOLEAN NOT NULL DEFAULT FALSE,
+        is_technical_failure BOOLEAN NOT NULL DEFAULT FALSE,
         metadata TEXT,
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
@@ -894,8 +899,16 @@ class OperationTracker:
             }
 
             if summary_row:
+                # PostgreSQL returns aggregates as strings, SQLite as native types
+                # Convert all aggregate results to proper types
                 for key in summary:
-                    summary[key] = summary_row[key] or 0
+                    val = summary_row[key]
+                    if val is None:
+                        summary[key] = 0 if key != "avg_discovery_time_ms" else 0.0
+                    elif key == "avg_discovery_time_ms":
+                        summary[key] = float(val)
+                    else:
+                        summary[key] = int(val)
 
             total_sources = summary["total_sources"]
             if total_sources:
@@ -908,7 +921,10 @@ class OperationTracker:
                 content_rate = 0.0
 
             breakdown = [
-                {"outcome": row["outcome"], "count": row["count"]}
+                {
+                    "outcome": row["outcome"],
+                    "count": int(row["count"]) if row["count"] is not None else 0
+                }
                 for row in breakdown_rows
             ]
 
@@ -922,14 +938,32 @@ class OperationTracker:
 
             top_performers = []
             for row in top_rows:
-                attempts = row["attempts"] or 0
-                rate = row["content_success_rate"] or 0.0
+                # Convert aggregates from strings (PostgreSQL) to ints/floats
+                attempts = (
+                    int(row["attempts"]) if row["attempts"] is not None else 0
+                )
+                rate = (
+                    float(row["content_success_rate"])
+                    if row["content_success_rate"] is not None
+                    else 0.0
+                )
+                content_successes = (
+                    int(row["content_successes"])
+                    if row["content_successes"] is not None
+                    else 0
+                )
+                total_new = (
+                    int(row["total_new_articles"])
+                    if row["total_new_articles"] is not None
+                    else 0
+                )
+                
                 top_performers.append(
                     {
                         "source_name": row["source_name"],
                         "attempts": attempts,
-                        "content_successes": row["content_successes"] or 0,
-                        "total_new_articles": row["total_new_articles"] or 0,
+                        "content_successes": content_successes,
+                        "total_new_articles": total_new,
                         "content_success_rate": rate,
                     }
                 )
@@ -1991,11 +2025,11 @@ class OperationTracker:
                         source_url=row["source_url"],
                         discovery_method=DiscoveryMethod(row["discovery_method"]),
                         status=DiscoveryMethodStatus(row["status"]),
-                        articles_found=row["articles_found"],
-                        success_rate=row["success_rate"],
+                        articles_found=int(row["articles_found"]),
+                        success_rate=float(row["success_rate"]),
                         last_attempt=_parse_timestamp(row["last_attempt"]),
-                        attempt_count=row["attempt_count"],
-                        avg_response_time_ms=row["avg_response_time_ms"],
+                        attempt_count=int(row["attempt_count"]),
+                        avg_response_time_ms=float(row["avg_response_time_ms"]),
                         last_status_codes=json.loads(row["last_status_codes"] or "[]"),
                         notes=row["notes"],
                     )

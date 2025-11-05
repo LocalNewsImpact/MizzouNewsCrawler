@@ -434,8 +434,8 @@ class ContentCleaningTelemetry:
                 first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 removal_reason TEXT,
-                is_active BOOLEAN DEFAULT 1,
-                is_ml_training_eligible BOOLEAN DEFAULT 1,
+                is_active BOOLEAN DEFAULT TRUE,
+                is_ml_training_eligible BOOLEAN DEFAULT TRUE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
