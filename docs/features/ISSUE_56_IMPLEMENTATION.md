@@ -185,7 +185,7 @@ AND NOT EXISTS (SELECT 1 FROM article_entities ae WHERE ae.article_id = a.id)
 SELECT COUNT(*)
 FROM articles a
 WHERE a.status IN ('extracted', 'cleaned', 'local')
-AND NOT EXISTS (SELECT 1 FROM article_classifications ac WHERE ac.article_id = a.id)
+AND NOT EXISTS (SELECT 1 FROM article_labels al WHERE al.article_id = a.id)
 ```
 
 ## Testing
