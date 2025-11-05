@@ -183,16 +183,25 @@ echo ""
 echo "🧪 Running ALL tests in linux/amd64 container (matches CI ubuntu-latest)..."
 echo "   This runs ~1500 tests and takes 3-5 minutes..."
 echo "   Progress: . = pass, F = fail, E = error, s = skip"
+
+# On macOS, Docker Desktop runs in a VM so --network host doesn't work
+# We need to use host.docker.internal to reach the host
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    DOCKER_HOST="host.docker.internal"
+else
+    DOCKER_HOST="localhost"
+fi
+
 docker run --rm \
     --network host \
     -v "$(pwd)":/workspace \
     -w /workspace \
     -e PYTEST_KEEP_DB_ENV="true" \
-    -e DATABASE_URL="$DATABASE_URL" \
-    -e TELEMETRY_DATABASE_URL="$DATABASE_URL" \
-    -e TEST_DATABASE_URL="$DATABASE_URL" \
+    -e DATABASE_URL="postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$DOCKER_HOST:$POSTGRES_PORT/$POSTGRES_DB" \
+    -e TELEMETRY_DATABASE_URL="postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$DOCKER_HOST:$POSTGRES_PORT/$POSTGRES_DB" \
+    -e TEST_DATABASE_URL="postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$DOCKER_HOST:$POSTGRES_PORT/$POSTGRES_DB" \
     -e DATABASE_ENGINE="postgresql" \
-    -e DATABASE_HOST="localhost" \
+    -e DATABASE_HOST="$DOCKER_HOST" \
     -e DATABASE_PORT="$POSTGRES_PORT" \
     -e DATABASE_NAME="$POSTGRES_DB" \
     -e DATABASE_USER="$POSTGRES_USER" \
