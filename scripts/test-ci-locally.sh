@@ -181,7 +181,7 @@ echo -e "${GREEN}✅ Workflow template validation passed${NC}"
 # Step 7: Run ALL tests like CI does (both postgres and non-postgres)
 echo ""
 echo "🧪 Running ALL tests in linux/amd64 container (matches CI ubuntu-latest)..."
-echo "   This runs ~1500 tests and takes 3-5 minutes..."
+echo "   This runs ~1500 tests and takes 10-15 minutes..."
 echo "   Progress: . = pass, F = fail, E = error, s = skip"
 
 # On macOS, Docker Desktop runs in a VM so --network host doesn't work
