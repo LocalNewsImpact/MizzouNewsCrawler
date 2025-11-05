@@ -23,7 +23,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from src.telemetry.store import get_store as get_telemetry_store
 
 logger = logging.getLogger(__name__)
 
@@ -182,7 +181,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         try:
             if (
                 not hasattr(app.state, "telemetry_store")
-                or getattr(app.state, "telemetry_store") is None
+                or app.state.telemetry_store is None
             ):
                 from src.telemetry.store import TelemetryStore
                 from src import config as app_config
@@ -208,7 +207,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         try:
             if (
                 not hasattr(app.state, "db_manager")
-                or getattr(app.state, "db_manager") is None
+                or app.state.db_manager is None
             ):
                 from src.models.database import DatabaseManager
                 from src import config as app_config
@@ -222,7 +221,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         try:
             if (
                 not hasattr(app.state, "http_session")
-                or getattr(app.state, "http_session") is None
+                or app.state.http_session is None
             ):
                 session = requests.Session()
                 use_origin_proxy = os.getenv("USE_ORIGIN_PROXY", "").lower() in (
