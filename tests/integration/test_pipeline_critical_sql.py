@@ -80,10 +80,13 @@ def test_db(cloud_sql_session):
     Uses the cloud_sql_session fixture which provides a PostgreSQL
     connection with all tables created and automatic rollback after test.
     """
-    # cloud_sql_session is a SQLAlchemy Session, but we need a DatabaseManager
-    # Get the URL from the engine (bind returns Connection, need engine.url)
-    engine = cloud_sql_session.get_bind().engine
-    db_url = str(engine.url)
+    import os
+    
+    # Get TEST_DATABASE_URL (SQLAlchemy masks password in str(url))
+    db_url = os.getenv("TEST_DATABASE_URL")
+    if not db_url:
+        pytest.skip("TEST_DATABASE_URL not set")
+    
     manager = DatabaseManager(database_url=db_url)
     
     yield manager

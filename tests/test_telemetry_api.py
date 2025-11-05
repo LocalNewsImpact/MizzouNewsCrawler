@@ -591,9 +591,15 @@ class TestCompleteAPIWorkflow:
         Uses PostgreSQL with actual commits for proper API testing.
         """
         from sqlalchemy import text
+        import os
+        
+        # Get TEST_DATABASE_URL (SQLAlchemy masks password in str(url))
+        test_db_url = os.getenv("TEST_DATABASE_URL")
+        if not test_db_url:
+            pytest.skip("TEST_DATABASE_URL not set")
         
         # Set DATABASE_URL before any app imports to ensure app connects to test DB
-        monkeypatch.setenv("DATABASE_URL", str(cloud_sql_engine.url))
+        monkeypatch.setenv("DATABASE_URL", test_db_url)
         
         # Force reload of config and app modules to pick up new DATABASE_URL
         import sys
@@ -692,7 +698,8 @@ class TestCompleteAPIWorkflow:
             from src.models.database import DatabaseManager
             
             # Create a test DatabaseManager pointing to the test database
-            test_db_manager = DatabaseManager(str(cloud_sql_engine.url))
+            # Use test_db_url which has the actual password (str(url) masks it)
+            test_db_manager = DatabaseManager(test_db_url)
             
             # Replace the app's lazy db_manager with our test instance
             import backend.app.main as app_main

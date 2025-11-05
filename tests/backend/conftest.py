@@ -31,12 +31,17 @@ def test_client(cloud_sql_session, monkeypatch):
     CRITICAL: Uses the same session as fixtures to ensure data visibility.
     """
     from contextlib import contextmanager
+    import os
 
     # Get the engine from the cloud_sql_session
     cloud_sql_engine = cloud_sql_session.get_bind().engine
     
+    # Get TEST_DATABASE_URL (SQLAlchemy masks password in str(url))
+    engine_url = os.getenv("TEST_DATABASE_URL")
+    if not engine_url:
+        pytest.skip("TEST_DATABASE_URL not set")
+    
     # Mock DATABASE_URL in app_config BEFORE db_manager is initialized
-    engine_url = str(cloud_sql_engine.url)
     from backend.app import main
     monkeypatch.setattr(main.app_config, "DATABASE_URL", engine_url)
 
@@ -343,8 +348,8 @@ def cloud_sql_engine():
     # psycopg2 tries IPv6 (::1) first when given 'localhost', which may have
     # different auth configuration than IPv4
     # Handle both @localhost/ and @localhost:port/ patterns
-    test_db_url = test_db_url.replace("@localhost:", "@127.0.0.1:").replace("@localhost/", "@127.0.0.1/")
     test_db_url = test_db_url.replace("@localhost:", "@127.0.0.1:")
+    test_db_url = test_db_url.replace("@localhost/", "@127.0.0.1/")
 
     engine = create_engine(test_db_url, echo=False)
 

@@ -329,26 +329,42 @@ class TestComprehensiveExtractionTelemetry:
     @pytest.fixture(scope="class", autouse=True)
     def clear_telemetry_tables_once(self):
         """Clear all telemetry tables once before running this test class."""
-        import psycopg2
-        conn = psycopg2.connect(
-            host="localhost",
-            database="news_crawler_test",
-            user="kiesowd"
-        )
-        cur = conn.cursor()
-        cur.execute("DELETE FROM http_error_summary")
-        cur.execute("DELETE FROM content_type_detection_telemetry")
-        cur.execute("DELETE FROM extraction_telemetry_v2")
-        conn.commit()
-        conn.close()
+        import os
+        from sqlalchemy import create_engine, text
+        
+        # Get TEST_DATABASE_URL directly
+        test_db_url = os.getenv("TEST_DATABASE_URL")
+        if not test_db_url:
+            pytest.skip("TEST_DATABASE_URL not set")
+        
+        # Create a temporary engine for cleanup
+        engine = create_engine(test_db_url)
+        
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("DELETE FROM http_error_summary"))
+                conn.execute(
+                    text("DELETE FROM content_type_detection_telemetry")
+                )
+                conn.execute(text("DELETE FROM extraction_telemetry_v2"))
+                conn.commit()
+        finally:
+            engine.dispose()
+        
         yield
 
     @pytest.fixture
     def temp_db(self, cloud_sql_session):
         """Use PostgreSQL test database with automatic rollback."""
-        # Get the SAME engine from cloud_sql_session to avoid separate connections
+        import os
+        
+        # Get TEST_DATABASE_URL (SQLAlchemy masks password in str(url))
+        db_url = os.getenv("TEST_DATABASE_URL")
+        if not db_url:
+            pytest.skip("TEST_DATABASE_URL not set")
+        
+        # Get the engine from cloud_sql_session for reuse
         engine = cloud_sql_session.get_bind().engine
-        db_url = str(engine.url)
         
         # Create TelemetryStore with PostgreSQL URL, reusing the same engine
         from src.telemetry.store import TelemetryStore
@@ -582,9 +598,15 @@ class TestContentExtractorIntegration:
     @pytest.fixture
     def temp_db(self, cloud_sql_session):
         """Use PostgreSQL test database with automatic rollback."""
-        # Get the engine from cloud_sql_session
+        import os
+        
+        # Get TEST_DATABASE_URL (SQLAlchemy masks password in str(url))
+        db_url = os.getenv("TEST_DATABASE_URL")
+        if not db_url:
+            pytest.skip("TEST_DATABASE_URL not set")
+        
+        # Get the engine from cloud_sql_session for reuse
         engine = cloud_sql_session.get_bind().engine
-        db_url = str(engine.url)
         
         # Create TelemetryStore with PostgreSQL URL, reusing the same engine
         from src.telemetry.store import TelemetryStore
@@ -809,9 +831,15 @@ class TestTelemetrySystemEndToEnd:
     @pytest.fixture
     def temp_db(self, cloud_sql_session):
         """Use PostgreSQL test database with automatic rollback."""
-        # Get the engine from cloud_sql_session
+        import os
+        
+        # Get TEST_DATABASE_URL (SQLAlchemy masks password in str(url))
+        db_url = os.getenv("TEST_DATABASE_URL")
+        if not db_url:
+            pytest.skip("TEST_DATABASE_URL not set")
+        
+        # Get the engine from cloud_sql_session for reuse
         engine = cloud_sql_session.get_bind().engine
-        db_url = str(engine.url)
         
         # Create TelemetryStore with PostgreSQL URL, reusing the same engine
         from src.telemetry.store import TelemetryStore

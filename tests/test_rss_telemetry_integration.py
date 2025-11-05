@@ -424,12 +424,13 @@ def test_telemetry_persistence_integration(
     
     Uses cloud_sql_session fixture for PostgreSQL with automatic rollback.
     """
-    # Get database URL from the engine
-    engine = cloud_sql_session.get_bind().engine
-    db_url = str(engine.url)
+    # Get database URL with password (SQLAlchemy masks password in str(url))
+    import os
+    db_url = os.getenv("TEST_DATABASE_URL")
+    if not db_url:
+        pytest.skip("TEST_DATABASE_URL not set")
 
-    # Create a source
-    dbm = DatabaseManager(database_url=db_url)
+    # Create a source using the provided session
     source = Source(
         id="test-source-6",
         host="example.com",
@@ -437,9 +438,8 @@ def test_telemetry_persistence_integration(
         canonical_name="Example Persist",
         meta={},
     )
-    dbm.session.add(source)
-    dbm.session.commit()
-    dbm.close()
+    cloud_sql_session.add(source)
+    cloud_sql_session.commit()
 
     # Create discovery with real telemetry
     from src.utils.telemetry import create_telemetry_system

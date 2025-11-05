@@ -62,11 +62,15 @@ def test_extraction_metrics_tracks_methods(monkeypatch):
 def test_record_extraction_emits_content_type_detection(cloud_sql_session):
     # Clean up any leftover test data before and after test
     from sqlalchemy import text
+    import os
     
     def cleanup():
         try:
             cloud_sql_session.execute(
-                text("DELETE FROM content_type_detection_telemetry WHERE article_id = 'article-detect'")
+                text(
+                    "DELETE FROM content_type_detection_telemetry "
+                    "WHERE article_id = 'article-detect'"
+                )
             )
             cloud_sql_session.commit()
         except Exception:
@@ -74,9 +78,10 @@ def test_record_extraction_emits_content_type_detection(cloud_sql_session):
     
     cleanup()  # Clean before test
     
-    # Use PostgreSQL test database
-    engine = cloud_sql_session.get_bind().engine
-    db_url = str(engine.url)
+    # Get TEST_DATABASE_URL (SQLAlchemy masks password in str(url))
+    db_url = os.getenv("TEST_DATABASE_URL")
+    if not db_url:
+        pytest.skip("TEST_DATABASE_URL not set")
     
     telemetry_store = TelemetryStore(database=db_url, async_writes=False)
     telemetry = ct.ComprehensiveExtractionTelemetry(store=telemetry_store)

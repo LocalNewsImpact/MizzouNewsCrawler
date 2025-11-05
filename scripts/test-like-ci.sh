@@ -76,34 +76,50 @@ done
 # Give PostgreSQL a moment to fully initialize
 sleep 2
 
-# Run migrations from local venv
-echo ""
-echo "📦 Running Alembic migrations..."
+# Use host.docker.internal for Docker on Mac to access the PostgreSQL container
+# On Linux, use --network host instead
 DATABASE_URL="postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@localhost:$POSTGRES_PORT/$POSTGRES_DB"
-export DATABASE_URL
 
-if [ -d "venv" ]; then
-    source venv/bin/activate
-    alembic upgrade head
-    
-    if [ $? -eq 0 ]; then
-        echo "✅ Migrations completed"
-    else
-        echo "❌ Migrations failed"
-        exit 1
-    fi
-else
-    echo "❌ No venv found"
+# Pull the CI base image (same as CI uses)
+echo ""
+echo "🐳 Pulling CI base image..."
+$DOCKER pull us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest
+
+if [ $? -ne 0 ]; then
+    echo "❌ Failed to pull CI base image. Check your GCP authentication."
     exit 1
 fi
 
-# Run PostgreSQL integration tests
+# Run migrations in CI container (matching CI exactly)
 echo ""
-echo "🐘 Running PostgreSQL integration tests..."
-export TELEMETRY_DATABASE_URL="$DATABASE_URL"
-export TEST_DATABASE_URL="$DATABASE_URL"
+echo "📦 Running Alembic migrations in CI container..."
+$DOCKER run --rm \
+    --network host \
+    -v "$(pwd):/workspace" \
+    -w /workspace \
+    -e DATABASE_URL="$DATABASE_URL" \
+    us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
+    alembic upgrade head
 
-pytest tests/ -m integration -v --maxfail=3 --tb=short
+if [ $? -eq 0 ]; then
+    echo "✅ Migrations completed"
+else
+    echo "❌ Migrations failed"
+    exit 1
+fi
+
+# Run PostgreSQL integration tests in CI container (matching CI exactly)
+echo ""
+echo "🧪 Running PostgreSQL integration tests in CI container..."
+$DOCKER run --rm \
+    --network host \
+    -v "$(pwd):/workspace" \
+    -w /workspace \
+    -e DATABASE_URL="$DATABASE_URL" \
+    -e TELEMETRY_DATABASE_URL="$DATABASE_URL" \
+    -e TEST_DATABASE_URL="$DATABASE_URL" \
+    us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
+    pytest tests/ -m integration -v --maxfail=3 --tb=short
 
 if [ $? -eq 0 ]; then
     echo ""
