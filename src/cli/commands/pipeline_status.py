@@ -488,7 +488,7 @@ def _check_overall_health(session, hours):
             session,
             text(
                 """
-                SELECT COUNT(DISTINCT article_id) FROM article_classifications
+                SELECT COUNT(DISTINCT article_id) FROM article_labels
                 WHERE created_at >= :cutoff
             """
             ),

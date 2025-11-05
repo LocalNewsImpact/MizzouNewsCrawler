@@ -143,31 +143,30 @@ def upgrade() -> None:
     op.create_table(
         'content_type_detection_telemetry',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column('operation_id', sa.String(), nullable=False),
         sa.Column('article_id', sa.String(), nullable=False),
+        sa.Column('operation_id', sa.String(), nullable=False),
         sa.Column('url', sa.String(), nullable=False),
+        sa.Column('publisher', sa.String(), nullable=True),
         sa.Column('host', sa.String(), nullable=True),
-        sa.Column('http_content_type', sa.String(), nullable=True),
-        sa.Column('detected_type', sa.String(), nullable=False),
-        sa.Column('detection_method', sa.String(), nullable=False),
-        sa.Column('confidence', sa.Float(), nullable=True),
-        sa.Column('file_extension', sa.String(), nullable=True),
-        sa.Column('mime_type', sa.String(), nullable=True),
-        sa.Column('byte_signature', sa.String(), nullable=True),
-        sa.Column('content_sample', sa.Text(), nullable=True),
-        sa.Column('error_message', sa.Text(), nullable=True),
+        sa.Column('status', sa.String(), nullable=True),
+        sa.Column('confidence', sa.String(), nullable=True),
+        sa.Column('confidence_score', sa.Float(), nullable=True),
+        sa.Column('reason', sa.String(), nullable=True),
+        sa.Column('evidence', sa.Text(), nullable=True),
+        sa.Column('version', sa.String(), nullable=True),
+        sa.Column('detected_at', sa.DateTime(), nullable=True),
         sa.Column('created_at', sa.DateTime(), server_default=sa.text('CURRENT_TIMESTAMP')),
         sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_content_type_detection_telemetry_article_id'), 'content_type_detection_telemetry', ['article_id'], unique=False)
-    op.create_index(op.f('ix_content_type_detection_telemetry_detected_type'), 'content_type_detection_telemetry', ['detected_type'], unique=False)
+    op.create_index(op.f('ix_content_type_detection_telemetry_status'), 'content_type_detection_telemetry', ['status'], unique=False)
     op.create_index(op.f('ix_content_type_detection_telemetry_created_at'), 'content_type_detection_telemetry', ['created_at'], unique=False)
 
 
 def downgrade() -> None:
     """Downgrade schema - remove telemetry tables."""
     op.drop_index(op.f('ix_content_type_detection_telemetry_created_at'), table_name='content_type_detection_telemetry')
-    op.drop_index(op.f('ix_content_type_detection_telemetry_detected_type'), table_name='content_type_detection_telemetry')
+    op.drop_index(op.f('ix_content_type_detection_telemetry_status'), table_name='content_type_detection_telemetry')
     op.drop_index(op.f('ix_content_type_detection_telemetry_article_id'), table_name='content_type_detection_telemetry')
     op.drop_table('content_type_detection_telemetry')
     

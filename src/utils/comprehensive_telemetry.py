@@ -322,9 +322,10 @@ class ComprehensiveExtractionTelemetry:
                 method_timings, method_success, method_errors,
                 field_extraction, extracted_fields,
                 final_field_attribution, alternative_extractions,
-                content_length, is_success, error_message, error_type
+                content_length, is_success, error_message, error_type,
+                created_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     metrics.operation_id,
@@ -362,9 +363,10 @@ class ComprehensiveExtractionTelemetry:
                     json.dumps(metrics.final_field_attribution),
                     json.dumps(metrics.alternative_extractions),
                     metrics.content_length,
-                    int(is_success),
+                    is_success,  # Keep as boolean for PostgreSQL compatibility
                     metrics.error_message,
                     metrics.error_type,
+                    datetime.utcnow(),  # created_at timestamp
                 ),
             )
 
@@ -472,7 +474,30 @@ class ComprehensiveExtractionTelemetry:
         """Return lower-case column names for a table."""
         columns: set[str] = set()
         try:
-            if getattr(self._store, "_is_sqlite", False):
+            # Detect database type from connection dialect
+            dialect_name = None
+            if hasattr(conn, 'dialect'):
+                dialect_name = conn.dialect.name
+            elif hasattr(conn, 'engine') and hasattr(conn.engine, 'dialect'):
+                dialect_name = conn.engine.dialect.name
+            elif hasattr(conn, 'connection') and hasattr(conn.connection, 'engine'):
+                dialect_name = conn.connection.engine.dialect.name
+            
+            # Fallback: check URL if available
+            if not dialect_name:
+                try:
+                    url_str = str(conn.engine.url) if hasattr(conn, 'engine') else None
+                    if url_str:
+                        dialect_name = 'sqlite' if 'sqlite' in url_str else 'postgresql'
+                except Exception:
+                    pass
+            
+            is_sqlite = dialect_name == "sqlite"
+            
+            if is_sqlite:
+                # SQLite: Use PRAGMA (cannot use parameterized queries with PRAGMA)
+                # Note: table_name is validated to be a string, f-string is safe here
+                # TelemetryStore.execute() expects plain SQL string, not TextClause
                 cursor = conn.execute(f"PRAGMA table_info({table_name})")
                 rows = cursor.fetchall()
                 for row in rows:
@@ -486,16 +511,14 @@ class ComprehensiveExtractionTelemetry:
                         columns.add(str(col_name).lower())
             else:
                 # PostgreSQL: Use information_schema with named parameters
-                from sqlalchemy import text
+                # TelemetryStore.execute() will convert to text() internally
                 cursor = conn.execute(
-                    text(
-                        """
-                        SELECT column_name
-                        FROM information_schema.columns
-                        WHERE table_schema = current_schema()
-                          AND table_name = :table_name
-                        """
-                    ),
+                    """
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_schema = current_schema()
+                      AND table_name = :table_name
+                    """,
                     {"table_name": table_name},
                 )
                 rows = cursor.fetchall()
