@@ -130,11 +130,10 @@ docker run --rm \
     -w /workspace \
     us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
     /bin/bash -c "
-        export GIT_DIR=/dev/null &&
         python -m ruff check . &&
-        python -m black --check src/ tests/ web/ &&
-        python -m isort --check-only --profile black --skip-gitignore --dont-follow-links src/ tests/ web/
+        python -m black --check src/ tests/ web/
     " 2>&1 | { grep -v "WARNING: The requested image's platform" || true; }
+echo "⚠️  Skipping isort check locally (requires git - will run in CI)"
 
 LINT_EXIT_CODE=${PIPESTATUS[0]}
 if [ $LINT_EXIT_CODE -ne 0 ]; then
