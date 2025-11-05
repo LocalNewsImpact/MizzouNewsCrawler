@@ -10,7 +10,7 @@ from src.models.database import DatabaseManager, safe_execute
 
 def _to_int(value, default=0):
     """Convert PostgreSQL string or native int to int.
-    
+
     PostgreSQL returns aggregate results as strings, native Python returns ints.
     This helper ensures consistent int conversion across both databases.
     """

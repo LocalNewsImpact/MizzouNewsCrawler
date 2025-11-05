@@ -68,17 +68,15 @@ def test_no_sqlite_imports_in_telemetry():
     telemetry_source = telemetry_module.__file__
     with open(telemetry_source) as f:
         content = f.read()
-        assert "import sqlite3" not in content, (
-            "telemetry.py should not import sqlite3"
-        )
+        assert "import sqlite3" not in content, "telemetry.py should not import sqlite3"
 
     # Check extraction_telemetry module
     extraction_source = extraction_telemetry_module.__file__
     with open(extraction_source) as f:
         content = f.read()
-        assert "import sqlite3" not in content, (
-            "extraction_telemetry.py should not import sqlite3"
-        )
+        assert (
+            "import sqlite3" not in content
+        ), "extraction_telemetry.py should not import sqlite3"
 
 
 def test_no_sqlite_specific_sql_in_telemetry():
@@ -100,18 +98,18 @@ def test_no_sqlite_specific_sql_in_telemetry():
     with open(telemetry_source) as f:
         content = f.read()
         for pattern in sqlite_patterns:
-            assert pattern not in content, (
-                f"telemetry.py contains SQLite-specific pattern: {pattern}"
-            )
+            assert (
+                pattern not in content
+            ), f"telemetry.py contains SQLite-specific pattern: {pattern}"
 
     # Check extraction_telemetry module
     extraction_source = extraction_telemetry_module.__file__
     with open(extraction_source) as f:
         content = f.read()
         for pattern in sqlite_patterns:
-            assert pattern not in content, (
-                f"extraction_telemetry.py contains SQLite-specific pattern: {pattern}"
-            )
+            assert (
+                pattern not in content
+            ), f"extraction_telemetry.py contains SQLite-specific pattern: {pattern}"
 
 
 def test_no_sqlite_patterns_in_production_code():
@@ -158,15 +156,14 @@ def test_no_sqlite_patterns_in_production_code():
                         context_start = max(0, i - 10)
                         context_end = min(len(lines), i + 5)
                         context = "".join(lines[context_start:context_end])
-                        
+
                         if not any(safe in context for safe in safe_contexts):
                             failures.append(
                                 f"{py_file}:{i} has '{pattern}' - {suggestion}"
                             )
 
     if failures:
-        error_msg = (
-            "Found SQLite-specific patterns in production code:\n"
-            + "\n".join(f"  - {f}" for f in failures)
+        error_msg = "Found SQLite-specific patterns in production code:\n" + "\n".join(
+            f"  - {f}" for f in failures
         )
         pytest.fail(error_msg)

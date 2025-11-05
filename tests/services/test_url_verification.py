@@ -203,7 +203,7 @@ def test_save_telemetry_summary_calls_telemetry_tracker(
 ) -> None:
     """Test that save_telemetry_summary calls record_verification_batch."""
     from unittest.mock import Mock
-    
+
     mock_tracker = Mock()
     service = _service()
     service.telemetry = mock_tracker
@@ -228,7 +228,7 @@ def test_save_telemetry_summary_calls_telemetry_tracker(
     # Verify record_verification_batch was called
     mock_tracker.record_verification_batch.assert_called_once()
     call_kwargs = mock_tracker.record_verification_batch.call_args[1]
-    
+
     assert call_kwargs["job_name"] == "job-123"
     assert call_kwargs["batch_size"] == 3
     assert call_kwargs["verified_articles"] == 1

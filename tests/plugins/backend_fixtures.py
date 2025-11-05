@@ -13,6 +13,7 @@ plugin (which can cause duplicate registration errors).
 # cloud_sql_engine and cloud_sql_session are defined in tests/backend/conftest.py
 try:
     from tests.backend import conftest as backend_conftest
+
     cloud_sql_engine = backend_conftest.cloud_sql_engine
     cloud_sql_session = backend_conftest.cloud_sql_session
 except (ImportError, ModuleNotFoundError):

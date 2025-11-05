@@ -19,36 +19,36 @@ from sqlalchemy.pool import NullPool
 
 def _is_test_environment() -> bool:
     """Detect if running in a test environment.
-    
+
     Returns True if:
     - Running under pytest
     - TEST_DATABASE_URL environment variable is set
     - Any test-related environment variable is set
-    
+
     This is used to allow SQLite in tests while warning in production.
     """
     # Check for pytest in command line
-    if 'pytest' in sys.argv[0] or '/test' in sys.argv[0]:
+    if "pytest" in sys.argv[0] or "/test" in sys.argv[0]:
         return True
-    
+
     # Check for test-specific environment variables
-    test_env_vars = ['TEST_DATABASE_URL', 'PYTEST_CURRENT_TEST', 'PYTEST_VERSION']
+    test_env_vars = ["TEST_DATABASE_URL", "PYTEST_CURRENT_TEST", "PYTEST_VERSION"]
     if any(os.getenv(var) for var in test_env_vars):
         return True
-    
+
     return False
 
 
 def _determine_default_database_url() -> str:
     """Determine the PostgreSQL database URL for telemetry.
-    
+
     IMPORTANT: Telemetry MUST use PostgreSQL, never SQLite.
     SQLite fallback has been removed because:
     1. Production uses PostgreSQL (Cloud SQL)
     2. Local development uses PostgreSQL (localhost:5432)
     3. CI uses PostgreSQL (postgres-integration job)
     4. SQLite compatibility issues have caused multiple production failures
-    
+
     If this function fails to find a database URL, it will raise an error
     rather than silently falling back to SQLite.
     """
@@ -110,9 +110,7 @@ def _determine_default_database_url() -> str:
             auth = f"{user}:{password}" if password else user
             engine = DATABASE_ENGINE or "postgresql"
             if not engine.startswith("postgresql"):
-                raise ValueError(
-                    f"DATABASE_ENGINE must be postgresql, got: {engine}"
-                )
+                raise ValueError(f"DATABASE_ENGINE must be postgresql, got: {engine}")
             db_url = f"{engine}://{auth}@{DATABASE_HOST}/{DATABASE_NAME}"
             logging.info(f"Telemetry using constructed URL: {DATABASE_HOST}")
             return db_url
@@ -144,13 +142,13 @@ _DEFAULT_DATABASE_URL_CACHE: str | None = None
 
 def get_default_database_url() -> str:
     """Get the default database URL, with lazy initialization.
-    
+
     This function caches the result after first call to avoid repeated
     environment variable lookups and config imports.
-    
+
     Returns:
         PostgreSQL database URL for telemetry
-        
+
     Raises:
         RuntimeError: If no valid PostgreSQL URL can be determined
     """
@@ -300,7 +298,7 @@ class _CursorWrapper:
 
 class _RowProxy:
     """Proxy that provides both tuple and dict-like access to SQLAlchemy Row objects.
-    
+
     SQLAlchemy Row objects can lose their key mapping when detached from the result,
     so we capture both the tuple data and the mapping during construction.
     """
@@ -345,7 +343,7 @@ class _RowProxy:
 
 class _ResultWrapper:
     """Wrapper that makes SQLAlchemy CursorResult behave like sqlite3.Cursor.
-    
+
     Ensures rows support dict-like access for both SQLite and PostgreSQL.
     """
 
@@ -353,7 +351,7 @@ class _ResultWrapper:
         self._result = result
         self._cached_description = None
         self._keys = None
-        
+
         # Cache column names for dict conversion
         # DDL statements (CREATE TABLE, etc.) don't return rows
         if hasattr(result, "keys"):
@@ -414,7 +412,7 @@ class TelemetryStore:
     2. Local development uses PostgreSQL (localhost:5432)
     3. CI uses PostgreSQL (postgres-integration job)
     4. SQLite compatibility issues caused multiple production failures
-    
+
     Maintains SQLAlchemy-based interface for PostgreSQL connections.
     """
 
@@ -475,7 +473,7 @@ class TelemetryStore:
 
     def _create_engine(self) -> Engine:
         """Create SQLAlchemy engine based on database URL.
-        
+
         NOTE: PostgreSQL is recommended for production. SQLite is allowed
         for test environments for speed and isolation.
         """

@@ -257,7 +257,7 @@ class TestMigrationWorkflow:
     )
     def test_rollback_and_reapply_migration(self, cloud_sql_session):
         """Test rolling back and reapplying migrations.
-        
+
         Note: This test is skipped because it requires running actual Alembic
         downgrade/upgrade commands via subprocess, which can't be done with
         the cloud_sql_session fixture that manages transactions automatically.

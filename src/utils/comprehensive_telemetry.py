@@ -456,7 +456,7 @@ class ComprehensiveExtractionTelemetry:
             detection = metrics.content_type_detection
             if detection:
                 self._insert_content_type_detection(conn, metrics, detection)
-            
+
             # Explicit commit to ensure transaction completes
             conn.commit()
 
@@ -476,24 +476,24 @@ class ComprehensiveExtractionTelemetry:
         try:
             # Detect database type from connection dialect
             dialect_name = None
-            if hasattr(conn, 'dialect'):
+            if hasattr(conn, "dialect"):
                 dialect_name = conn.dialect.name
-            elif hasattr(conn, 'engine') and hasattr(conn.engine, 'dialect'):
+            elif hasattr(conn, "engine") and hasattr(conn.engine, "dialect"):
                 dialect_name = conn.engine.dialect.name
-            elif hasattr(conn, 'connection') and hasattr(conn.connection, 'engine'):
+            elif hasattr(conn, "connection") and hasattr(conn.connection, "engine"):
                 dialect_name = conn.connection.engine.dialect.name
-            
+
             # Fallback: check URL if available
             if not dialect_name:
                 try:
-                    url_str = str(conn.engine.url) if hasattr(conn, 'engine') else None
+                    url_str = str(conn.engine.url) if hasattr(conn, "engine") else None
                     if url_str:
-                        dialect_name = 'sqlite' if 'sqlite' in url_str else 'postgresql'
+                        dialect_name = "sqlite" if "sqlite" in url_str else "postgresql"
                 except Exception:
                     pass
-            
+
             is_sqlite = dialect_name == "sqlite"
-            
+
             if is_sqlite:
                 # SQLite: Use PRAGMA (cannot use parameterized queries with PRAGMA)
                 # Note: table_name is validated to be a string, f-string is safe here
@@ -528,9 +528,7 @@ class ComprehensiveExtractionTelemetry:
                         columns.add(str(col_name).lower())
         except Exception as e:
             # Introspection failures should not break extraction telemetry
-            logger.warning(
-                f"Failed to fetch table columns for {table_name}: {e!r}"
-            )
+            logger.warning(f"Failed to fetch table columns for {table_name}: {e!r}")
             columns = set()
 
         return columns
@@ -567,7 +565,9 @@ class ComprehensiveExtractionTelemetry:
 
         return self._content_type_strategy
 
-    def _insert_content_type_detection(self, conn, metrics: ExtractionMetrics, detection: dict[str, Any]) -> None:
+    def _insert_content_type_detection(
+        self, conn, metrics: ExtractionMetrics, detection: dict[str, Any]
+    ) -> None:
         """Insert content type telemetry, adapting to legacy schemas when needed."""
         strategy = self._ensure_content_type_strategy(conn)
         if not strategy:
@@ -637,7 +637,9 @@ class ComprehensiveExtractionTelemetry:
                 )
         except Exception:  # pragma: no cover - defensive telemetry handling
             if not self._content_type_warning_logged:
-                logger.exception("Failed to insert content type telemetry (strategy=%s)", strategy)
+                logger.exception(
+                    "Failed to insert content type telemetry (strategy=%s)", strategy
+                )
                 self._content_type_warning_logged = True
 
     @staticmethod
@@ -678,8 +680,9 @@ class ComprehensiveExtractionTelemetry:
         """Get HTTP error summary for the last N days."""
         # Use Python datetime to avoid SQL dialect issues
         from datetime import timedelta
+
         cutoff_time = datetime.utcnow() - timedelta(days=days)
-        
+
         with self._store.connection() as conn:
             cursor = conn.execute(
                 """
@@ -688,7 +691,7 @@ class ComprehensiveExtractionTelemetry:
                 WHERE last_seen >= ?
                 ORDER BY count DESC, last_seen DESC
                 """,
-                (cutoff_time,)
+                (cutoff_time,),
             )
             try:
                 columns = [col[0] for col in cursor.description]
@@ -718,6 +721,7 @@ class ComprehensiveExtractionTelemetry:
         if days is not None:
             # Use Python datetime to avoid SQL dialect issues
             from datetime import timedelta
+
             cutoff_time = datetime.utcnow() - timedelta(days=days)
             where_clauses.append("created_at >= ?")
             params.append(cutoff_time)

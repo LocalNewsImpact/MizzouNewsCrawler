@@ -170,17 +170,17 @@ class TestTelemetryAPIEndpoints:
     @pytest.fixture
     def api_client(self, test_db_session, monkeypatch):
         """Create a test client with monkeypatched db_manager.get_session.
-        
+
         This ensures the API endpoints use the same database session/engine that
         contains the test data, avoiding SQLite isolation issues.
         """
         from contextlib import contextmanager
         from sqlalchemy.orm import sessionmaker
-        
+
         # Get the test engine and create a session factory
         test_engine = test_db_session.bind
         TestSessionLocal = sessionmaker(bind=test_engine)
-        
+
         # Create a mock get_session context manager
         @contextmanager
         def mock_get_session():
@@ -189,7 +189,7 @@ class TestTelemetryAPIEndpoints:
                 yield session
             finally:
                 session.close()
-        
+
         # Import the app's db_manager INSTANCE and monkeypatch IT
         from backend.app import main as app_main
 
@@ -197,7 +197,7 @@ class TestTelemetryAPIEndpoints:
         monkeypatch.setattr(
             app_main.db_manager, "get_session", lambda: mock_get_session()
         )
-        
+
         # Now use the app
         from backend.app.main import app
 
@@ -357,7 +357,7 @@ class TestSiteManagementAPI:
     @pytest.fixture
     def test_db_session(self, tmp_path):
         """Create a temporary SQLAlchemy database with test sources.
-        
+
         Uses the same approach as TestTelemetryAPIEndpoints for consistency.
         """
         from sqlalchemy import create_engine
@@ -401,7 +401,7 @@ class TestSiteManagementAPI:
     @pytest.fixture
     def api_client(self, test_db_session, monkeypatch):
         """Create a test client with monkeypatched db_manager.get_session.
-        
+
         Uses the same approach as TestTelemetryAPIEndpoints for consistency.
         """
         from contextlib import contextmanager
@@ -587,34 +587,35 @@ class TestCompleteAPIWorkflow:
 
     def test_telemetry_to_site_management_workflow(self, cloud_sql_engine, monkeypatch):
         """Test workflow from telemetry detection to site management action.
-        
+
         Uses PostgreSQL with actual commits for proper API testing.
         """
         from sqlalchemy import text
         import os
-        
+
         # Get TEST_DATABASE_URL (SQLAlchemy masks password in str(url))
         test_db_url = os.getenv("TEST_DATABASE_URL")
         if not test_db_url:
             pytest.skip("TEST_DATABASE_URL not set")
-        
+
         # Set DATABASE_URL before any app imports to ensure app connects to test DB
         monkeypatch.setenv("DATABASE_URL", test_db_url)
-        
+
         # Force reload of config and app modules to pick up new DATABASE_URL
         import sys
+
         if "src.config" in sys.modules:
             del sys.modules["src.config"]
         if "backend.app.main" in sys.modules:
             del sys.modules["backend.app.main"]
-        
+
         # Clean up any previous test data - use unique host to avoid conflicts
         test_host = "problem-site-test-workflow.com"
-        
+
         # Create a connection that can actually commit to the database
         # so the data is visible to the API's connection pool
         connection = cloud_sql_engine.connect()
-        
+
         # Clean up any previous test data
         connection.execute(
             text(f"DELETE FROM extraction_telemetry_v2 WHERE host = '{test_host}'")
@@ -622,17 +623,17 @@ class TestCompleteAPIWorkflow:
         connection.execute(
             text(f"DELETE FROM http_error_summary WHERE host = '{test_host}'")
         )
-        connection.execute(
-            text(f"DELETE FROM sources WHERE host = '{test_host}'")
-        )
+        connection.execute(text(f"DELETE FROM sources WHERE host = '{test_host}'"))
         connection.commit()
 
         # Create a source entry for the problematic site
         connection.execute(
-            text("""
+            text(
+                """
                 INSERT INTO sources (id, host, host_norm, status)
                 VALUES (:id, :host, :host_norm, :status)
-            """),
+            """
+            ),
             {
                 "id": "problem-site-test-workflow-com",
                 "host": test_host,
@@ -646,7 +647,8 @@ class TestCompleteAPIWorkflow:
         for i in range(10):
             created_at = now - timedelta(hours=i)
             connection.execute(
-                text("""
+                text(
+                    """
                     INSERT INTO extraction_telemetry_v2
                     (operation_id, article_id, url, publisher, host, start_time,
                      end_time, http_status_code, http_error_type, is_success,
@@ -654,7 +656,8 @@ class TestCompleteAPIWorkflow:
                     VALUES (:op_id, :art_id, :url, :publisher, :host, :start_time,
                             :end_time, :status_code, :error_type, :is_success,
                             :duration, :created_at)
-                """),
+                """
+                ),
                 {
                     "op_id": f"workflow-op{i}",
                     "art_id": f"workflow-art{i}",
@@ -673,12 +676,14 @@ class TestCompleteAPIWorkflow:
 
         # Add HTTP error summary
         connection.execute(
-            text("""
+            text(
+                """
                 INSERT INTO http_error_summary
                 (host, status_code, error_type, count, first_seen, last_seen)
                 VALUES (:host, :status_code, :error_type, :count,
                         :first_seen, :last_seen)
-            """),
+            """
+            ),
             {
                 "host": test_host,
                 "status_code": 403,
@@ -689,20 +694,21 @@ class TestCompleteAPIWorkflow:
             },
         )
         connection.commit()
-        
+
         connection.close()
 
         try:
             # Import app after DATABASE_URL is set via monkeypatch
             from backend.app.main import app
             from src.models.database import DatabaseManager
-            
+
             # Create a test DatabaseManager pointing to the test database
             # Use test_db_url which has the actual password (str(url) masks it)
             test_db_manager = DatabaseManager(test_db_url)
-            
+
             # Replace the app's lazy db_manager with our test instance
             import backend.app.main as app_main
+
             app_main._db_manager = test_db_manager
 
             client = TestClient(app)
@@ -714,9 +720,7 @@ class TestCompleteAPIWorkflow:
             assert response.status_code == 200
 
             poor_performers = response.json()["poor_performers"]
-            problem_site = [
-                p for p in poor_performers if p["host"] == test_host
-            ]
+            problem_site = [p for p in poor_performers if p["host"] == test_host]
             assert len(problem_site) > 0, (
                 f"Could not find {test_host} in poor_performers. "
                 f"Found hosts: {[p['host'] for p in poor_performers]}"
@@ -739,9 +743,7 @@ class TestCompleteAPIWorkflow:
             assert pause_response.status_code == 200
 
             # 3. Verify site is paused
-            status_response = client.get(
-                f"/api/site-management/status/{test_host}"
-            )
+            status_response = client.get(f"/api/site-management/status/{test_host}")
             assert status_response.status_code == 200
 
             site_status = status_response.json()
@@ -762,12 +764,10 @@ class TestCompleteAPIWorkflow:
             assert resume_response.status_code == 200
 
             # 6. Verify site is active again
-            final_status = client.get(
-                f"/api/site-management/status/{test_host}"
-            )
+            final_status = client.get(f"/api/site-management/status/{test_host}")
             assert final_status.status_code == 200
             assert final_status.json()["status"] == "active"
-        
+
         finally:
             # Cleanup: Remove test data
             cleanup_conn = cloud_sql_engine.connect()

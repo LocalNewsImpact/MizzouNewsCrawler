@@ -6,6 +6,7 @@ This module tests that:
 3. has_historical_data() returns correct values after telemetry writes
 4. RSS metadata updates (_increment_rss_failure, _reset_rss_failure_state) work
 """
+
 import json
 import pathlib
 import sys
@@ -31,11 +32,11 @@ from src.utils.telemetry import (  # noqa: E402
 @pytest.fixture
 def cleanup_rss_telemetry_data(cloud_sql_session):
     """Clean up test data created by RSS telemetry tests.
-    
+
     Removes test-source-6 and related records from example.com.
     """
     engine = cloud_sql_session.get_bind().engine
-    
+
     def _cleanup():
         with engine.begin() as conn:
             try:
@@ -47,7 +48,7 @@ def cleanup_rss_telemetry_data(cloud_sql_session):
                         "WHERE source_id = 'test-source-6'"
                     )
                 )
-                
+
                 # 2. Candidate links
                 conn.execute(
                     text(
@@ -55,15 +56,13 @@ def cleanup_rss_telemetry_data(cloud_sql_session):
                         "WHERE source_id = 'test-source-6'"
                     )
                 )
-                
+
                 # 3. Source
-                conn.execute(
-                    text("DELETE FROM sources WHERE id = 'test-source-6'")
-                )
+                conn.execute(text("DELETE FROM sources WHERE id = 'test-source-6'"))
             except Exception:
                 # Tables might not exist - don't fail the test
                 pass
-    
+
     _cleanup()  # Clean before test
     yield
     _cleanup()  # Clean after test
@@ -421,11 +420,12 @@ def test_telemetry_persistence_integration(
     cloud_sql_session, cleanup_rss_telemetry_data
 ):
     """Integration test: verify telemetry records are persisted to PostgreSQL database.
-    
+
     Uses cloud_sql_session fixture for PostgreSQL with automatic rollback.
     """
     # Get database URL with password (SQLAlchemy masks password in str(url))
     import os
+
     db_url = os.getenv("TEST_DATABASE_URL")
     if not db_url:
         pytest.skip("TEST_DATABASE_URL not set")
@@ -473,9 +473,7 @@ def test_telemetry_persistence_integration(
         from sqlalchemy import text
 
         result = conn.execute(
-            text(
-                "SELECT * FROM discovery_method_effectiveness WHERE source_id = :id"
-            ),
+            text("SELECT * FROM discovery_method_effectiveness WHERE source_id = :id"),
             {"id": "test-source-6"},
         ).fetchone()
     dbm2.close()
@@ -491,4 +489,3 @@ def test_telemetry_persistence_integration(
     # and may not see uncommitted data in the same transaction context.
     # The important thing is that the data IS written to the database,
     # which we've verified above.
-

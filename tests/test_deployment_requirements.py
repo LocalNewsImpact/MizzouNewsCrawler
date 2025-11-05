@@ -154,9 +154,7 @@ class TestKubernetesDeploymentConfiguration:
 
         return deployments
 
-    def test_processor_deployment_has_secret_manager_env_vars(
-        self, k8s_deployments
-    ):
+    def test_processor_deployment_has_secret_manager_env_vars(self, k8s_deployments):
         """Processor deployment needs Secret Manager env vars if using proxy."""
         if "processor" not in k8s_deployments:
             pytest.skip("Processor deployment manifest not found")
@@ -190,12 +188,11 @@ class TestRequirementsConsistency:
         for name, content in requirements_files.items():
             # Check for common credential patterns
             assert (
-                "password" not in content.lower()
-                or "passwordless" in content.lower()
+                "password" not in content.lower() or "passwordless" in content.lower()
             ), f"{name} requirements may contain password reference"
-            assert "sp8z2fzi1e" not in content, (
-                f"{name} requirements contains hard-coded Decodo username"
-            )
+            assert (
+                "sp8z2fzi1e" not in content
+            ), f"{name} requirements contains hard-coded Decodo username"
 
     def test_all_services_have_consistent_google_cloud_versions(
         self, requirements_files
@@ -222,12 +219,12 @@ class TestRequirementsConsistency:
                 google_cloud_packages["google-cloud-secret-manager"].keys()
             )
             # At minimum, crawler, processor, and api should have it
-            assert "crawler" in services_with_secret_manager, (
-                "Crawler must have google-cloud-secret-manager for proxy"
-            )
-            assert "processor" in services_with_secret_manager, (
-                "Processor must have google-cloud-secret-manager for proxy"
-            )
-            assert "api" in services_with_secret_manager, (
-                "API must have google-cloud-secret-manager for proxy"
-            )
+            assert (
+                "crawler" in services_with_secret_manager
+            ), "Crawler must have google-cloud-secret-manager for proxy"
+            assert (
+                "processor" in services_with_secret_manager
+            ), "Processor must have google-cloud-secret-manager for proxy"
+            assert (
+                "api" in services_with_secret_manager
+            ), "API must have google-cloud-secret-manager for proxy"

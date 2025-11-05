@@ -923,7 +923,7 @@ class OperationTracker:
             breakdown = [
                 {
                     "outcome": row["outcome"],
-                    "count": int(row["count"]) if row["count"] is not None else 0
+                    "count": int(row["count"]) if row["count"] is not None else 0,
                 }
                 for row in breakdown_rows
             ]
@@ -939,9 +939,7 @@ class OperationTracker:
             top_performers = []
             for row in top_rows:
                 # Convert aggregates from strings (PostgreSQL) to ints/floats
-                attempts = (
-                    int(row["attempts"]) if row["attempts"] is not None else 0
-                )
+                attempts = int(row["attempts"]) if row["attempts"] is not None else 0
                 rate = (
                     float(row["content_success_rate"])
                     if row["content_success_rate"] is not None
@@ -957,7 +955,7 @@ class OperationTracker:
                     if row["total_new_articles"] is not None
                     else 0
                 )
-                
+
                 top_performers.append(
                     {
                         "source_name": row["source_name"],

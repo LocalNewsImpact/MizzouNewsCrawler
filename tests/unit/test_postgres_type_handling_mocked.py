@@ -50,7 +50,7 @@ class TestPostgresStringAggregates:
         # Mock a result that returns string like PostgreSQL
         mock_result = Mock()
         mock_result.scalar.return_value = "42"  # PostgreSQL behavior
-        
+
         # Our code should handle this
         count = pipeline_to_int(mock_result.scalar(), 0)
         assert count == 42
@@ -60,7 +60,7 @@ class TestPostgresStringAggregates:
         """Simulate PostgreSQL SUM() returning string."""
         mock_result = Mock()
         mock_result.scalar.return_value = "12345"  # PostgreSQL behavior
-        
+
         total = pipeline_to_int(mock_result.scalar(), 0)
         assert total == 12345
         assert isinstance(total, int)
@@ -69,7 +69,7 @@ class TestPostgresStringAggregates:
         """Simulate PostgreSQL MAX() returning string."""
         mock_result = Mock()
         mock_result.scalar.return_value = "999"  # PostgreSQL behavior
-        
+
         maximum = pipeline_to_int(mock_result.scalar(), 0)
         assert maximum == 999
         assert isinstance(maximum, int)
@@ -78,7 +78,7 @@ class TestPostgresStringAggregates:
         """Simulate aggregate on empty table returning NULL."""
         mock_result = Mock()
         mock_result.scalar.return_value = None  # NULL from database
-        
+
         count = pipeline_to_int(mock_result.scalar(), 0)
         assert count == 0
         assert isinstance(count, int)
@@ -88,7 +88,7 @@ class TestPostgresStringAggregates:
         # Mock a row that returns string for aggregate column
         mock_row = Mock()
         mock_row.__getitem__ = Mock(return_value="75")  # row[1] returns string
-        
+
         value = pipeline_to_int(mock_row[1], 0)
         assert value == 75
         assert isinstance(value, int)
@@ -99,18 +99,18 @@ class TestScalarOrPatternBug:
 
     def test_scalar_or_pattern_fails_with_string(self):
         """Demonstrate why '.scalar() or 0' doesn't work with PostgreSQL.
-        
+
         PostgreSQL returns "42" (truthy string), so the `or` never evaluates
         to the default. But "42" is not an int, breaking arithmetic.
         """
         mock_result = Mock()
         mock_result.scalar.return_value = "42"  # PostgreSQL returns string
-        
+
         # BAD PATTERN: This "works" but returns wrong type
         bad_result = mock_result.scalar() or 0
         assert bad_result == "42"  # ❌ Returns STRING, not int!
         assert isinstance(bad_result, str)
-        
+
         # GOOD PATTERN: Use _to_int helper
         good_result = pipeline_to_int(mock_result.scalar(), 0)
         assert good_result == 42  # ✅ Returns INT
@@ -120,11 +120,11 @@ class TestScalarOrPatternBug:
         """PostgreSQL returns "0" string, which is truthy!"""
         mock_result = Mock()
         mock_result.scalar.return_value = "0"  # PostgreSQL returns string "0"
-        
+
         # BAD: String "0" is truthy, so `or 999` never triggers
         bad_result = mock_result.scalar() or 999
         assert bad_result == "0"  # ❌ Returns "0" not 999
-        
+
         # GOOD: _to_int properly converts
         good_result = pipeline_to_int(mock_result.scalar(), 999)
         assert good_result == 0  # ✅ Returns int 0
@@ -134,11 +134,11 @@ class TestScalarOrPatternBug:
         """The only case where `.scalar() or default` works correctly."""
         mock_result = Mock()
         mock_result.scalar.return_value = None  # NULL result
-        
+
         # Works because None is falsy
         result = mock_result.scalar() or 0
         assert result == 0
-        
+
         # But _to_int is still better for consistency
         good_result = pipeline_to_int(mock_result.scalar(), 0)
         assert good_result == 0
@@ -147,15 +147,18 @@ class TestScalarOrPatternBug:
 class TestDatabaseIndependence:
     """Test that our code works with both SQLite and PostgreSQL behaviors."""
 
-    @pytest.mark.parametrize("db_value,expected", [
-        (42, 42),        # SQLite native int
-        ("42", 42),      # PostgreSQL string
-        (0, 0),          # SQLite zero
-        ("0", 0),        # PostgreSQL zero string
-        (None, 0),       # NULL result
-        ("", 0),         # Empty string
-        ("invalid", 0),  # Invalid string
-    ])
+    @pytest.mark.parametrize(
+        "db_value,expected",
+        [
+            (42, 42),  # SQLite native int
+            ("42", 42),  # PostgreSQL string
+            (0, 0),  # SQLite zero
+            ("0", 0),  # PostgreSQL zero string
+            (None, 0),  # NULL result
+            ("", 0),  # Empty string
+            ("invalid", 0),  # Invalid string
+        ],
+    )
     def test_to_int_handles_both_databases(self, db_value, expected):
         """Verify _to_int works with both SQLite ints and PostgreSQL strings."""
         result = pipeline_to_int(db_value, 0)

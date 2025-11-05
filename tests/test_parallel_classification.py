@@ -13,16 +13,10 @@ def test_classification_service_uses_with_for_update():
     )
 
     # Read the source to verify with_for_update is present
-    source = inspect.getsource(
-        ArticleClassificationService._select_articles
-    )
+    source = inspect.getsource(ArticleClassificationService._select_articles)
 
-    assert (
-        "with_for_update" in source
-    ), "Query must include with_for_update"
-    assert (
-        "skip_locked=True" in source
-    ), "Query must use skip_locked=True"
+    assert "with_for_update" in source, "Query must include with_for_update"
+    assert "skip_locked=True" in source, "Query must use skip_locked=True"
 
 
 @pytest.mark.postgres

@@ -103,7 +103,7 @@ class URLVerificationService:
         """
         self.batch_size = batch_size
         self.sleep_interval = sleep_interval
-        
+
         # Initialize telemetry
         if telemetry_tracker is None:
             telemetry_tracker = create_telemetry_system()
@@ -549,7 +549,7 @@ class URLVerificationService:
     ):
         """Save telemetry summary to database."""
         sources = list(set(c.get("source_name", "Unknown") for c in candidates))
-        
+
         self.telemetry.record_verification_batch(
             job_name=job_name,
             batch_size=len(candidates),
@@ -558,9 +558,7 @@ class URLVerificationService:
             verification_errors=batch_metrics.get("verification_errors", 0),
             total_processed=batch_metrics.get("total_processed", 0),
             batch_time_seconds=batch_metrics.get("batch_time_seconds", 0.0),
-            avg_verification_time_ms=batch_metrics.get(
-                "avg_verification_time_ms", 0.0
-            ),
+            avg_verification_time_ms=batch_metrics.get("avg_verification_time_ms", 0.0),
             total_time_ms=batch_metrics.get("total_time_ms", 0.0),
             sources_processed=sources,
         )

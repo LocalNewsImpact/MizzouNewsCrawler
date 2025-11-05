@@ -51,7 +51,7 @@ def test_sources(cloud_sql_session):
         )
         sources.append(source)
         cloud_sql_session.add(source)
-    
+
     cloud_sql_session.commit()
     for source in sources:
         cloud_sql_session.refresh(source)
@@ -76,7 +76,7 @@ def pipeline_test_data(cloud_sql_session, test_sources):
         )
         discovered_candidates.append(candidate)
         cloud_sql_session.add(candidate)
-    
+
     # Stage 2: Verification - verified as articles
     verified_candidates = []
     for i in range(3):
@@ -93,9 +93,9 @@ def pipeline_test_data(cloud_sql_session, test_sources):
         )
         verified_candidates.append(candidate)
         cloud_sql_session.add(candidate)
-    
+
     cloud_sql_session.commit()
-    
+
     # Stage 3: Extraction - extracted articles
     extracted_articles = []
     for i, candidate in enumerate(verified_candidates[:2]):
@@ -111,9 +111,9 @@ def pipeline_test_data(cloud_sql_session, test_sources):
         )
         extracted_articles.append(article)
         cloud_sql_session.add(article)
-    
+
     cloud_sql_session.commit()
-    
+
     return {
         "sources": test_sources,
         "discovered": discovered_candidates,
@@ -125,19 +125,19 @@ def pipeline_test_data(cloud_sql_session, test_sources):
 class TestPipelineDiscoveryStatusPostgres:
     """Test discovery status queries with PostgreSQL."""
 
-    def test_discovery_total_sources_postgres(
-        self, cloud_sql_session, test_sources
-    ):
+    def test_discovery_total_sources_postgres(self, cloud_sql_session, test_sources):
         """Test counting total sources in PostgreSQL."""
-        query = text("""
+        query = text(
+            """
             SELECT COUNT(*) 
             FROM sources 
             WHERE host IS NOT NULL
-        """)
-        
+        """
+        )
+
         result = cloud_sql_session.execute(query)
         total_sources = result.scalar()
-        
+
         # Should have our 3 test sources
         assert total_sources >= 3
 
@@ -146,16 +146,18 @@ class TestPipelineDiscoveryStatusPostgres:
     ):
         """Test querying recent discovery activity with PostgreSQL INTERVAL."""
         cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
-        
-        query = text("""
+
+        query = text(
+            """
             SELECT COUNT(DISTINCT source_host_id)
             FROM candidate_links
             WHERE discovered_at >= :cutoff
-        """)
-        
+        """
+        )
+
         result = cloud_sql_session.execute(query, {"cutoff": cutoff})
         sources_discovered = result.scalar()
-        
+
         # Should have discovered from at least 1 source
         assert sources_discovered >= 1
 
@@ -164,16 +166,18 @@ class TestPipelineDiscoveryStatusPostgres:
     ):
         """Test counting URLs discovered in time window."""
         cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
-        
-        query = text("""
+
+        query = text(
+            """
             SELECT COUNT(*)
             FROM candidate_links
             WHERE discovered_at >= :cutoff
-        """)
-        
+        """
+        )
+
         result = cloud_sql_session.execute(query, {"cutoff": cutoff})
         urls_discovered = result.scalar()
-        
+
         # Should have discovered URLs
         assert urls_discovered >= 5
 
@@ -182,8 +186,9 @@ class TestPipelineDiscoveryStatusPostgres:
     ):
         """Test detailed discovery breakdown by source."""
         cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
-        
-        query = text("""
+
+        query = text(
+            """
             SELECT s.canonical_name, COUNT(*) as url_count
             FROM candidate_links cl
             JOIN sources s ON cl.source_host_id = s.id
@@ -191,14 +196,15 @@ class TestPipelineDiscoveryStatusPostgres:
             GROUP BY s.canonical_name
             ORDER BY url_count DESC
             LIMIT 10
-        """)
-        
+        """
+        )
+
         result = cloud_sql_session.execute(query, {"cutoff": cutoff})
         top_sources = list(result)
-        
+
         # Should have at least 1 source with URLs
         assert len(top_sources) >= 1
-        
+
         # Each row should have source name and count
         for row in top_sources:
             assert row[0] is not None  # canonical_name
@@ -212,15 +218,17 @@ class TestPipelineVerificationStatusPostgres:
         self, cloud_sql_session, pipeline_test_data
     ):
         """Test counting pending verification URLs."""
-        query = text("""
+        query = text(
+            """
             SELECT COUNT(*) 
             FROM candidate_links 
             WHERE status = 'discovered'
-        """)
-        
+        """
+        )
+
         result = cloud_sql_session.execute(query)
         pending = result.scalar()
-        
+
         # Should have discovered URLs pending verification
         assert pending >= 5
 
@@ -228,15 +236,17 @@ class TestPipelineVerificationStatusPostgres:
         self, cloud_sql_session, pipeline_test_data
     ):
         """Test counting verified articles."""
-        query = text("""
+        query = text(
+            """
             SELECT COUNT(*) 
             FROM candidate_links 
             WHERE status = 'article'
-        """)
-        
+        """
+        )
+
         result = cloud_sql_session.execute(query)
         articles = result.scalar()
-        
+
         # Should have verified articles
         assert articles >= 3
 
@@ -245,16 +255,18 @@ class TestPipelineVerificationStatusPostgres:
     ):
         """Test counting recent verification activity with INTERVAL."""
         cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
-        
-        query = text("""
+
+        query = text(
+            """
             SELECT COUNT(*)
             FROM candidate_links
             WHERE processed_at >= :cutoff
-        """)
-        
+        """
+        )
+
         result = cloud_sql_session.execute(query, {"cutoff": cutoff})
         verified_recent = result.scalar()
-        
+
         # Should have recent verification activity
         assert verified_recent >= 3
 
@@ -266,7 +278,8 @@ class TestPipelineExtractionStatusPostgres:
         self, cloud_sql_session, pipeline_test_data
     ):
         """Test counting articles ready for extraction."""
-        query = text("""
+        query = text(
+            """
             SELECT COUNT(*)
             FROM candidate_links
             WHERE status = 'article'
@@ -275,11 +288,12 @@ class TestPipelineExtractionStatusPostgres:
                 FROM articles 
                 WHERE candidate_link_id IS NOT NULL
             )
-        """)
-        
+        """
+        )
+
         result = cloud_sql_session.execute(query)
         ready_for_extraction = result.scalar()
-        
+
         # Should have at least 1 article ready (3 verified, 2 extracted)
         assert ready_for_extraction >= 1
 
@@ -287,14 +301,16 @@ class TestPipelineExtractionStatusPostgres:
         self, cloud_sql_session, pipeline_test_data
     ):
         """Test counting total extracted articles."""
-        query = text("""
+        query = text(
+            """
             SELECT COUNT(*) 
             FROM articles
-        """)
-        
+        """
+        )
+
         result = cloud_sql_session.execute(query)
         total_extracted = result.scalar()
-        
+
         # Should have extracted articles
         assert total_extracted >= 2
 
@@ -303,16 +319,18 @@ class TestPipelineExtractionStatusPostgres:
     ):
         """Test counting recent extraction activity."""
         cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
-        
-        query = text("""
+
+        query = text(
+            """
             SELECT COUNT(*) 
             FROM articles 
             WHERE extracted_at >= :cutoff
-        """)
-        
+        """
+        )
+
         result = cloud_sql_session.execute(query, {"cutoff": cutoff})
         extracted_recent = result.scalar()
-        
+
         # Should have recent extraction activity
         assert extracted_recent >= 2
 
@@ -320,19 +338,21 @@ class TestPipelineExtractionStatusPostgres:
         self, cloud_sql_session, pipeline_test_data
     ):
         """Test extraction status breakdown with GROUP BY."""
-        query = text("""
+        query = text(
+            """
             SELECT status, COUNT(*) as count
             FROM articles
             GROUP BY status
             ORDER BY count DESC
-        """)
-        
+        """
+        )
+
         result = cloud_sql_session.execute(query)
         status_breakdown = list(result)
-        
+
         # Should have status breakdown
         assert len(status_breakdown) >= 1
-        
+
         # All should be extracted status
         statuses = {row[0]: row[1] for row in status_breakdown}
         assert statuses.get("extracted", 0) >= 2
@@ -345,7 +365,8 @@ class TestPipelineEntityExtractionStatusPostgres:
         self, cloud_sql_session, pipeline_test_data
     ):
         """Test counting articles ready for entity extraction."""
-        query = text("""
+        query = text(
+            """
             SELECT COUNT(*)
             FROM articles a
             WHERE a.content IS NOT NULL
@@ -355,11 +376,12 @@ class TestPipelineEntityExtractionStatusPostgres:
                 SELECT 1 FROM article_entities ae 
                 WHERE ae.article_id = a.id
             )
-        """)
-        
+        """
+        )
+
         result = cloud_sql_session.execute(query)
         ready_for_entities = result.scalar()
-        
+
         # Should have articles ready for entity extraction
         assert ready_for_entities >= 2
 
@@ -368,7 +390,8 @@ class TestPipelineEntityExtractionStatusPostgres:
     ):
         """Test NOT EXISTS subquery works in PostgreSQL."""
         # This tests a PostgreSQL-specific optimization
-        query = text("""
+        query = text(
+            """
             SELECT a.id, a.title
             FROM articles a
             WHERE NOT EXISTS (
@@ -376,11 +399,12 @@ class TestPipelineEntityExtractionStatusPostgres:
                 WHERE ae.article_id = a.id
                 LIMIT 1
             )
-        """)
-        
+        """
+        )
+
         result = cloud_sql_session.execute(query)
         articles_without_entities = list(result)
-        
+
         # Should find articles without entities
         assert len(articles_without_entities) >= 2
 
@@ -388,20 +412,20 @@ class TestPipelineEntityExtractionStatusPostgres:
 class TestPipelineAnalysisStatusPostgres:
     """Test analysis/classification status queries with PostgreSQL."""
 
-    def test_analysis_ready_count_postgres(
-        self, cloud_sql_session, pipeline_test_data
-    ):
+    def test_analysis_ready_count_postgres(self, cloud_sql_session, pipeline_test_data):
         """Test counting articles ready for classification."""
         # This tests that the query doesn't fail even if article_labels doesn't exist
-        query = text("""
+        query = text(
+            """
             SELECT COUNT(*)
             FROM articles a
             WHERE a.status IN ('extracted', 'cleaned', 'local')
-        """)
-        
+        """
+        )
+
         result = cloud_sql_session.execute(query)
         ready_for_analysis = result.scalar()
-        
+
         # Should have articles in analyzed-ready statuses
         assert ready_for_analysis >= 2
 
@@ -411,11 +435,14 @@ class TestPipelineAnalysisStatusPostgres:
         """Test that analysis handles missing tables gracefully."""
         # Call the actual analysis status function
         _check_analysis_status(cloud_sql_session, 24, False)
-        
+
         captured = capsys.readouterr()
         # Should either show results or graceful error message
         # (depending on whether article_labels table exists)
-        assert "Ready for classification" in captured.out or "not available" in captured.out
+        assert (
+            "Ready for classification" in captured.out
+            or "not available" in captured.out
+        )
 
 
 class TestPipelineOverallHealthPostgres:
@@ -426,34 +453,34 @@ class TestPipelineOverallHealthPostgres:
     ):
         """Test overall health calculation with real data."""
         cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
-        
+
         # Count active stages
         stages_active = 0
-        
+
         # Discovery
         result = cloud_sql_session.execute(
             text("SELECT COUNT(*) FROM candidate_links WHERE discovered_at >= :cutoff"),
-            {"cutoff": cutoff}
+            {"cutoff": cutoff},
         )
         if (result.scalar() or 0) > 0:
             stages_active += 1
-        
+
         # Verification
         result = cloud_sql_session.execute(
             text("SELECT COUNT(*) FROM candidate_links WHERE processed_at >= :cutoff"),
-            {"cutoff": cutoff}
+            {"cutoff": cutoff},
         )
         if (result.scalar() or 0) > 0:
             stages_active += 1
-        
+
         # Extraction
         result = cloud_sql_session.execute(
             text("SELECT COUNT(*) FROM articles WHERE extracted_at >= :cutoff"),
-            {"cutoff": cutoff}
+            {"cutoff": cutoff},
         )
         if (result.scalar() or 0) > 0:
             stages_active += 1
-        
+
         # Should have at least 3 active stages from our test data
         assert stages_active >= 3
 
@@ -462,7 +489,7 @@ class TestPipelineOverallHealthPostgres:
     ):
         """Test overall health output with real data."""
         _check_overall_health(cloud_sql_session, 24)
-        
+
         captured = capsys.readouterr()
         # Should show pipeline stages and health score
         assert "Pipeline stages active:" in captured.out
@@ -486,18 +513,18 @@ class TestPipelineCommandPostgres:
         mock_context.__exit__ = Mock(return_value=False)
         mock_db.get_session = Mock(return_value=mock_context)
         mock_db_manager.return_value = mock_db
-        
+
         # Create mock args
         args = Mock()
         args.detailed = False
         args.hours = 24
-        
+
         # Execute command
         result = handle_pipeline_status_command(args)
-        
+
         # Should execute successfully
         assert result == 0
-        
+
         # Verify output contains all stages
         captured = capsys.readouterr()
         assert "STAGE 1: DISCOVERY" in captured.out
@@ -519,18 +546,18 @@ class TestPipelineCommandPostgres:
         mock_context.__exit__ = Mock(return_value=False)
         mock_db.get_session = Mock(return_value=mock_context)
         mock_db_manager.return_value = mock_db
-        
+
         # Create mock args with detailed flag
         args = Mock()
         args.detailed = True
         args.hours = 24
-        
+
         # Execute command
         result = handle_pipeline_status_command(args)
-        
+
         # Should execute successfully
         assert result == 0
-        
+
         # In detailed mode, should show source breakdowns
         captured = capsys.readouterr()
         # The detailed flag should trigger additional queries
@@ -540,9 +567,7 @@ class TestPipelineCommandPostgres:
 class TestPipelinePostgresSpecificFeatures:
     """Test PostgreSQL-specific features in pipeline queries."""
 
-    def test_interval_syntax_postgres(
-        self, cloud_sql_session, pipeline_test_data
-    ):
+    def test_interval_syntax_postgres(self, cloud_sql_session, pipeline_test_data):
         """Test PostgreSQL INTERVAL syntax in queries."""
         # Test various INTERVAL syntaxes used in pipeline_status
         intervals = [
@@ -551,15 +576,17 @@ class TestPipelinePostgresSpecificFeatures:
             "INTERVAL '24 hours'",
             "INTERVAL '7 days'",
         ]
-        
+
         for interval in intervals:
-            query = text(f"""
+            query = text(
+                f"""
                 SELECT CURRENT_TIMESTAMP - {interval} as cutoff_time
-            """)
-            
+            """
+            )
+
             result = cloud_sql_session.execute(query)
             cutoff = result.scalar()
-            
+
             # Should return a valid timestamp
             assert cutoff is not None
             assert isinstance(cutoff, datetime)
@@ -569,21 +596,23 @@ class TestPipelinePostgresSpecificFeatures:
     ):
         """Test COALESCE with SUM in PostgreSQL."""
         # This pattern is used in pipeline metrics
-        query = text("""
+        query = text(
+            """
             SELECT 
                 status,
                 COUNT(*) as count,
                 COALESCE(SUM(CASE WHEN processed_at IS NOT NULL THEN 1 ELSE 0 END), 0) as processed
             FROM candidate_links
             GROUP BY status
-        """)
-        
+        """
+        )
+
         result = cloud_sql_session.execute(query)
         metrics = list(result)
-        
+
         # Should have status metrics
         assert len(metrics) >= 1
-        
+
         # COALESCE should prevent NULL values
         for row in metrics:
             assert row[2] is not None  # processed count
@@ -592,7 +621,8 @@ class TestPipelinePostgresSpecificFeatures:
         self, cloud_sql_session, pipeline_test_data
     ):
         """Test CASE statements in aggregate queries."""
-        query = text("""
+        query = text(
+            """
             SELECT 
                 CASE 
                     WHEN status = 'discovered' THEN 'pending'
@@ -603,14 +633,15 @@ class TestPipelinePostgresSpecificFeatures:
             FROM candidate_links
             GROUP BY status_category
             ORDER BY count DESC
-        """)
-        
+        """
+        )
+
         result = cloud_sql_session.execute(query)
         categories = list(result)
-        
+
         # Should have categorized results
         assert len(categories) >= 1
-        
+
         # Should have proper categories
         category_names = {row[0] for row in categories}
         assert len(category_names & {"pending", "verified", "other"}) > 0
@@ -619,7 +650,8 @@ class TestPipelinePostgresSpecificFeatures:
         self, cloud_sql_session, pipeline_test_data
     ):
         """Test DISTINCT COUNT in complex subqueries."""
-        query = text("""
+        query = text(
+            """
             SELECT 
                 (SELECT COUNT(DISTINCT source_host_id) 
                  FROM candidate_links 
@@ -627,11 +659,12 @@ class TestPipelinePostgresSpecificFeatures:
                 (SELECT COUNT(*) 
                  FROM candidate_links 
                  WHERE discovered_at >= CURRENT_TIMESTAMP - INTERVAL '24 hours') as urls_discovered
-        """)
-        
+        """
+        )
+
         result = cloud_sql_session.execute(query)
         row = result.fetchone()
-        
+
         # Both metrics should be non-negative
         assert row[0] is not None
         assert row[1] is not None

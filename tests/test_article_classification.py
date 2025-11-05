@@ -16,6 +16,7 @@ def _create_article(session, **kwargs):
     # Create candidate link first (required FK)
     # Use unique IDs to avoid collisions across tests
     import uuid
+
     link_id = kwargs.get("candidate_link_id", f"link-{uuid.uuid4()}")
     candidate_link = CandidateLink(
         id=link_id,
@@ -24,7 +25,7 @@ def _create_article(session, **kwargs):
     )
     session.add(candidate_link)
     session.commit()
-    
+
     defaults = {
         "id": kwargs.get("id", "article-1"),
         "candidate_link_id": candidate_link.id,

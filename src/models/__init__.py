@@ -737,6 +737,7 @@ def create_tables(engine):
     Base.metadata.create_all(engine)
     # Also create telemetry tables (separate Base)
     from src.models.telemetry_orm import Base as TelemetryBase
+
     TelemetryBase.metadata.create_all(engine)
 
 

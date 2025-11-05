@@ -44,52 +44,53 @@ from . import (
 
 def _is_test_environment() -> bool:
     """Detect if running in a test environment.
-    
+
     Returns True if:
     - Running under pytest
     - TEST_DATABASE_URL environment variable is set
     - Any test-related environment variable is set
-    
+
     This is used to allow SQLite in tests while warning in production.
     """
     # Check for pytest in command line
-    if 'pytest' in sys.argv[0] or '/test' in sys.argv[0]:
+    if "pytest" in sys.argv[0] or "/test" in sys.argv[0]:
         return True
-    
+
     # Check for test-specific environment variables
-    test_env_vars = ['TEST_DATABASE_URL', 'PYTEST_CURRENT_TEST', 'PYTEST_VERSION']
+    test_env_vars = ["TEST_DATABASE_URL", "PYTEST_CURRENT_TEST", "PYTEST_VERSION"]
     if any(os.getenv(var) for var in test_env_vars):
         return True
-    
+
     return False
 
 
 def _mask_database_url(url: str | None) -> str:
     """Mask credentials in database URL to prevent password leakage in logs.
-    
+
     Args:
         url: Database URL that may contain credentials
-        
+
     Returns:
         Masked URL with credentials replaced by ***
     """
     if not url:
         return "<empty>"
-    
+
     try:
         if "://" not in url:
             return url
-        
+
         scheme, remainder = url.split("://", 1)
         if "@" not in remainder:
             return f"{scheme}://{remainder}"
-        
+
         credentials, host = remainder.split("@", 1)
         if ":" in credentials:
             return f"{scheme}://***:***@{host}"
         return f"{scheme}://***@{host}"
     except Exception:
         return "<redacted>"
+
 
 logger = logging.getLogger(__name__)
 
@@ -929,7 +930,7 @@ def save_article_classification(
     autocommit: bool = True,
 ) -> ArticleLabel:
     """Persist primary/alternate labels and update article snapshot.
-    
+
     Args:
         autocommit: If False, caller must commit. Use for batch processing.
     """
@@ -985,11 +986,11 @@ def save_article_classification(
         article.label_version = label_version
         article.label_model_version = model_version
         article.labels_updated_at = now
-        
+
         # Set status to 'labeled' for BigQuery export
         # Only update if status is 'cleaned' or 'local'
-        if article.status in ('cleaned', 'local'):
-            article.status = 'labeled'
+        if article.status in ("cleaned", "local"):
+            article.status = "labeled"
 
     if autocommit:
         _commit_with_retry(session)
@@ -1049,7 +1050,7 @@ def save_article_entities(
     autocommit: bool = True,
 ) -> list[ArticleEntity]:
     """Replace article entities for the given extractor version.
-    
+
     Args:
         autocommit: If False, caller must commit. Use for batch processing.
     """

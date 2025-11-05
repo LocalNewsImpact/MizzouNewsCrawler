@@ -177,14 +177,12 @@ class TestAlembicMigrations:
     @pytest.mark.postgres
     def test_migrations_are_idempotent(self, cloud_sql_session):
         """Test that running migrations multiple times is safe.
-        
+
         Since migrations are already applied via fixture, we verify the
         alembic_version table has exactly one entry (idempotent state).
         """
         # Check that alembic_version table has exactly one row
-        result = cloud_sql_session.execute(
-            text("SELECT COUNT(*) FROM alembic_version")
-        )
+        result = cloud_sql_session.execute(text("SELECT COUNT(*) FROM alembic_version"))
         count = result.scalar()
         assert count == 1, f"Expected 1 version entry, got {count}"
 

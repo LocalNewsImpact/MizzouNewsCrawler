@@ -409,17 +409,14 @@ class ContentTypeDetector:
                     if service_name == "NPR" and "npr.org" in url_lower:
                         is_own_source = True
                     elif (
-                        service_name == "Associated Press"
-                        and "apnews.com" in url_lower
+                        service_name == "Associated Press" and "apnews.com" in url_lower
                     ):
                         is_own_source = True
                     elif service_name == "Reuters" and "reuters.com" in url_lower:
                         is_own_source = True
                     elif service_name == "CNN" and "cnn.com" in url_lower:
                         is_own_source = True
-                    elif (
-                        service_name == "Bloomberg" and "bloomberg.com" in url_lower
-                    ):
+                    elif service_name == "Bloomberg" and "bloomberg.com" in url_lower:
                         is_own_source = True
 
                     # Only mark as wire if it's NOT from the service's own source
@@ -440,11 +437,8 @@ class ContentTypeDetector:
             return None
 
         # Require strong evidence
-        has_strong_evidence = (
-            wire_byline_found
-            or any(
-                "copyright" in m or "byline" in m for m in matches.get("content", [])
-            )
+        has_strong_evidence = wire_byline_found or any(
+            "copyright" in m or "byline" in m for m in matches.get("content", [])
         )
 
         # Weak URL + weak content = not enough

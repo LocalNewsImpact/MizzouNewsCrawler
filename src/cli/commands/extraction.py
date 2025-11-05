@@ -71,7 +71,7 @@ logger = logging.getLogger(__name__)
 
 def _to_int(value, default=0):
     """Convert PostgreSQL string or SQLite int to int.
-    
+
     PostgreSQL returns aggregate results as strings, SQLite returns native types.
     This helper ensures consistent int conversion across both databases.
     """

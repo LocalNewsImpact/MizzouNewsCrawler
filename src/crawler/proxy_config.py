@@ -211,7 +211,9 @@ class ProxyManager:
                     # Not JSON — treat the payload as the full proxy URL
                     decodo_creds = {"full_proxy_url": payload}
             except Exception as e:  # pragma: no cover - best-effort runtime
-                logger.warning("Could not read Decodo secret from Secret Manager: %s", e)
+                logger.warning(
+                    "Could not read Decodo secret from Secret Manager: %s", e
+                )
 
         # If secret manager not used or failed, fall back to environment vars.
         if not decodo_creds:
@@ -236,7 +238,11 @@ class ProxyManager:
             )
         else:
             # Determine whether the secret provided a full proxy URL or parts
-            full_url = decodo_creds.get("full_proxy_url") if isinstance(decodo_creds, dict) else None
+            full_url = (
+                decodo_creds.get("full_proxy_url")
+                if isinstance(decodo_creds, dict)
+                else None
+            )
             use_port_rotation = os.getenv("DECODO_ROTATE_IP", "true").lower() == "true"
 
             if use_port_rotation:
@@ -248,18 +254,28 @@ class ProxyManager:
 
             if full_url:
                 decodo_url = full_url
-                decodo_host = decodo_creds.get("host") or os.getenv("DECODO_HOST", "isp.decodo.com")
-                decodo_country = decodo_creds.get("country") or os.getenv("DECODO_COUNTRY", "us")
+                decodo_host = decodo_creds.get("host") or os.getenv(
+                    "DECODO_HOST", "isp.decodo.com"
+                )
+                decodo_country = decodo_creds.get("country") or os.getenv(
+                    "DECODO_COUNTRY", "us"
+                )
                 username = None
                 password = None
             else:
                 username = decodo_creds.get("username")
                 password = decodo_creds.get("password")
-                decodo_host = decodo_creds.get("host") or os.getenv("DECODO_HOST", "isp.decodo.com")
-                decodo_country = decodo_creds.get("country") or os.getenv("DECODO_COUNTRY", "us")
+                decodo_host = decodo_creds.get("host") or os.getenv(
+                    "DECODO_HOST", "isp.decodo.com"
+                )
+                decodo_country = decodo_creds.get("country") or os.getenv(
+                    "DECODO_COUNTRY", "us"
+                )
 
                 if decodo_port:
-                    decodo_url = f"http://{username}:{password}@{decodo_host}:{decodo_port}"
+                    decodo_url = (
+                        f"http://{username}:{password}@{decodo_host}:{decodo_port}"
+                    )
                 else:
                     # For rotating mode we keep a representative URL (port TBD)
                     decodo_url = f"http://{username}:{password}@{decodo_host}"
@@ -484,7 +500,9 @@ class ProxyManager:
 
         if not username or not password:
             # Credentials missing — cannot build rotating URL
-            logger.warning("Decodo rotation requested but credentials are missing; returning None")
+            logger.warning(
+                "Decodo rotation requested but credentials are missing; returning None"
+            )
             return None
 
         return f"https://{username}:{password}@{host}:{port}"

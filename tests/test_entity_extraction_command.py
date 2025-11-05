@@ -274,7 +274,7 @@ class TestEntityExtractionCommand:
         self, mock_db_manager, mock_entity_extractor, mock_gazetteer, mock_save_entities
     ):
         """Test entity extraction commits after each article.
-        
+
         Commits happen via save_article_entities which is called once per article.
         """
         # Setup mock session with 25 articles

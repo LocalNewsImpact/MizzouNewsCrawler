@@ -253,6 +253,7 @@ def test_extraction_pipeline_through_analysis(
     session = setup_manager.session
     # Use unique host to avoid constraint violations across parallel tests
     import time
+
     unique_host = f"test-{int(time.time() * 1000000)}.example.com"
     source = Source(
         id="source-1",
