@@ -535,19 +535,20 @@ class ComprehensiveExtractionTelemetry:
 
     def _get_column_type(self, conn, table_name: str, column_name: str) -> str | None:
         """Get the data type of a specific column.
-        
+
         Returns the column type in lowercase (e.g., 'character varying', 'double precision', 'text', 'real', 'float').
         Returns None if the column doesn't exist or type cannot be determined.
-        
+
         Note: table_name is validated to prevent SQL injection.
         """
         # Validate table_name to prevent SQL injection
         # Only allow alphanumeric characters, underscores, and hyphens
         import re
-        if not re.match(r'^[a-zA-Z0-9_-]+$', table_name):
+
+        if not re.match(r"^[a-zA-Z0-9_-]+$", table_name):
             logger.warning(f"Invalid table name: {table_name}")
             return None
-        
+
         try:
             # Detect database type from connection dialect
             dialect_name = None
@@ -651,7 +652,7 @@ class ComprehensiveExtractionTelemetry:
                 confidence_col_type = self._get_column_type(
                     conn, "content_type_detection_telemetry", "confidence"
                 )
-                
+
                 # If confidence column is numeric (float/double/real), use numeric value
                 if confidence_col_type and any(
                     numeric_type in confidence_col_type
@@ -666,7 +667,7 @@ class ComprehensiveExtractionTelemetry:
                         confidence_col_type,
                         confidence_value,
                     )
-                
+
                 evidence_payload = detection.get("evidence")
                 conn.execute(
                     """

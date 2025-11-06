@@ -21,12 +21,12 @@ from datetime import datetime, timezone
 import pytest
 from sqlalchemy import text
 
-from src.models import Operation, Article, Source, CandidateLink
-from src.utils.comprehensive_telemetry import (
-    ExtractionMetrics,
-    ComprehensiveExtractionTelemetry,
-)
+from src.models import Article, CandidateLink, Operation, Source
 from src.telemetry.store import TelemetryStore
+from src.utils.comprehensive_telemetry import (
+    ComprehensiveExtractionTelemetry,
+    ExtractionMetrics,
+)
 
 pytestmark = [pytest.mark.postgres, pytest.mark.integration]
 
@@ -187,7 +187,11 @@ def test_content_type_telemetry_schema_detection(cloud_sql_session):
         strategy = check_strategy(conn)
 
         # Should detect modern or legacy (or missing if table doesn't exist yet)
-        assert strategy in ["modern", "legacy", None], f"Unexpected strategy: {strategy}"
+        assert strategy in [
+            "modern",
+            "legacy",
+            None,
+        ], f"Unexpected strategy: {strategy}"
 
         if strategy == "modern":
             # Modern schema should have status, confidence (string), confidence_score (float)
@@ -278,9 +282,7 @@ def test_content_type_telemetry_handles_numeric_confidence_column(
             telemetry.save_extraction_metrics(metrics)
             print("✅ Telemetry saved successfully despite potential schema mismatch")
         except Exception as e:
-            pytest.fail(
-                f"Telemetry save failed with schema mismatch handling: {e}"
-            )
+            pytest.fail(f"Telemetry save failed with schema mismatch handling: {e}")
 
         # Verify telemetry was saved
         result = cloud_sql_session.execute(
