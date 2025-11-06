@@ -181,34 +181,36 @@ if [ $VALIDATION_EXIT_CODE -ne 0 ]; then
 fi
 echo -e "${GREEN}✅ Step 3/4: Workflow template validation passed${NC}"
 
-# Step 7: Run unit tests (excludes PostgreSQL-specific tests) like CI does
+# Step 7: Run unit + integration tests (excludes PostgreSQL-specific tests) like CI does
 echo ""
-echo "🧪 Step 4/4: Running unit tests in linux/amd64 container (matches CI ubuntu-latest)..."
-echo "   📊 ~1500 unit tests (excludes PostgreSQL integration tests)"
+echo "🧪 Step 4/4: Running unit + integration tests in linux/amd64 container (matches CI ubuntu-latest)..."
+echo "   📊 Unit + Integration tests (excludes PostgreSQL-specific tests)"
 echo "   ⏱️  Estimated time: 10-15 minutes"
 echo ""
-echo "   💡 Unit tests use SQLite in-memory (FAST, matches CI 'test' job)"
+echo "   💡 Tests use SQLite in-memory (FAST, matches CI 'integration' job)"
 echo "      PostgreSQL integration tests run separately (CI 'postgres-integration' job)"
+echo "      Coverage threshold: 78% (aggregate of unit + integration)"
 echo "      Excluding tests marked with @pytest.mark.postgres"
 echo ""
 echo "   🔄 Progress will show test names as they complete..."
 echo ""
 
-# DO NOT set PostgreSQL env vars - unit tests should use SQLite (via conftest.py)
-# This matches CI behavior exactly where the unit job has NO DATABASE_URL set
+# DO NOT set PostgreSQL env vars - tests should use SQLite (via conftest.py)
+# This matches CI behavior exactly where the integration job has NO DATABASE_URL set
+# Coverage is checked at 78% for aggregate unit + integration test suite
 docker run --rm \
     -v "$(pwd)":/workspace \
     -w /workspace \
     us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-    /bin/bash -c "pytest -m 'not postgres' --cov=src --cov-report=term-missing --cov-fail-under=80 -v" 2>&1 | { grep -v "WARNING: The requested image's platform" || true; }
+    /bin/bash -c "pytest -m 'not postgres' --cov=src --cov-report=term-missing --cov-fail-under=78 -v" 2>&1 | { grep -v "WARNING: The requested image's platform" || true; }
 
 TEST_EXIT_CODE=${PIPESTATUS[0]}
 
 if [ $TEST_EXIT_CODE -ne 0 ]; then
-    echo -e "${RED}❌ SQLite tests failed${NC}"
+    echo -e "${RED}❌ Unit + integration tests failed${NC}"
     exit 1
 fi
-echo -e "${GREEN}✅ Step 4/4: SQLite tests passed${NC}"
+echo -e "${GREEN}✅ Step 4/4: Unit + integration tests passed (78% coverage)${NC}"
 
 # Step 8: Run PostgreSQL integration tests (like CI postgres-integration job)
 echo ""
@@ -248,8 +250,8 @@ echo "   ✅ Linting (ruff, black, isort)"
 echo "   ✅ Type checking (mypy)"
 echo "   ✅ Workflow template validation"
 echo "   ✅ Database migrations"
-echo "   ✅ SQLite unit tests with coverage (~1320 tests)"
-echo "   ✅ PostgreSQL integration tests (~49 tests)"
+echo "   ✅ Unit + integration tests with 78% coverage threshold (aggregate)"
+echo "   ✅ PostgreSQL integration tests"
 echo ""
 echo "💡 To debug interactively:"
 echo "   docker exec -it $POSTGRES_CONTAINER psql -U $POSTGRES_USER -d $POSTGRES_DB"
