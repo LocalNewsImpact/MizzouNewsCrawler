@@ -2081,6 +2081,34 @@ class OperationTracker:
                         )
                         avg_response_time_val = 0.0
 
+                    # Parse last_status_codes, ensuring it's always a list
+                    try:
+                        parsed_codes = json.loads(row["last_status_codes"] or "[]")
+                        # Ensure result is a list (invalid JSON in DB)
+                        if isinstance(parsed_codes, list):
+                            last_status_codes_val = parsed_codes
+                        else:
+                            # Not a list (e.g., single number), wrap it
+                            self.logger.warning(
+                                "last_status_codes is not a list for source %s: "
+                                "got %s (type: %s), wrapping in list",
+                                row["source_id"],
+                                parsed_codes,
+                                type(parsed_codes),
+                            )
+                            last_status_codes_val = (
+                                [parsed_codes] if parsed_codes else []
+                            )
+                    except (json.JSONDecodeError, TypeError) as e:
+                        self.logger.warning(
+                            "Failed to parse last_status_codes '%s' "
+                            "for source %s: %s",
+                            row["last_status_codes"],
+                            row["source_id"],
+                            e,
+                        )
+                        last_status_codes_val = []
+
                     return DiscoveryMethodEffectiveness(
                         source_id=row["source_id"],
                         source_url=row["source_url"],
@@ -2091,7 +2119,7 @@ class OperationTracker:
                         last_attempt=_parse_timestamp(row["last_attempt"]),
                         attempt_count=attempt_count_val,
                         avg_response_time_ms=avg_response_time_val,
-                        last_status_codes=json.loads(row["last_status_codes"] or "[]"),
+                        last_status_codes=last_status_codes_val,
                         notes=row["notes"],
                     )
         except Exception as exc:
@@ -2099,6 +2127,7 @@ class OperationTracker:
                 "Failed to get method effectiveness for %s: %s",
                 source_id,
                 exc,
+                exc_info=True,  # This will include the full traceback
             )
 
         # Create new record
