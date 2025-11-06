@@ -533,6 +533,77 @@ class ComprehensiveExtractionTelemetry:
 
         return columns
 
+    def _get_column_type(self, conn, table_name: str, column_name: str) -> str | None:
+        """Get the data type of a specific column.
+
+        Returns the column type in lowercase (e.g., 'character varying', 'double precision', 'text', 'real', 'float').
+        Returns None if the column doesn't exist or type cannot be determined.
+
+        Note: table_name is validated to prevent SQL injection.
+        """
+        # Validate table_name to prevent SQL injection
+        # Only allow alphanumeric characters, underscores, and hyphens
+        import re
+
+        if not re.match(r"^[a-zA-Z0-9_-]+$", table_name):
+            logger.warning(f"Invalid table name: {table_name}")
+            return None
+
+        try:
+            # Detect database type from connection dialect
+            dialect_name = None
+            if hasattr(conn, "dialect"):
+                dialect_name = conn.dialect.name
+            elif hasattr(conn, "engine") and hasattr(conn.engine, "dialect"):
+                dialect_name = conn.engine.dialect.name
+            elif hasattr(conn, "connection") and hasattr(conn.connection, "engine"):
+                dialect_name = conn.connection.engine.dialect.name
+
+            # Fallback: check URL if available
+            if not dialect_name:
+                try:
+                    url_str = str(conn.engine.url) if hasattr(conn, "engine") else None
+                    if url_str:
+                        dialect_name = "sqlite" if "sqlite" in url_str else "postgresql"
+                except Exception:
+                    pass
+
+            is_sqlite = dialect_name == "sqlite"
+
+            if is_sqlite:
+                # Safe to use f-string here since table_name is validated above
+                cursor = conn.execute(f"PRAGMA table_info({table_name})")
+                rows = cursor.fetchall()
+                for row in rows:
+                    try:
+                        col_name = row[1] if len(row) > 1 else None
+                        col_type = row[2] if len(row) > 2 else None
+                        if col_name and str(col_name).lower() == column_name.lower():
+                            return str(col_type).lower() if col_type else None
+                    except (TypeError, KeyError, IndexError):
+                        continue
+            else:
+                # PostgreSQL: Use information_schema
+                cursor = conn.execute(
+                    """
+                    SELECT data_type
+                    FROM information_schema.columns
+                    WHERE table_schema = current_schema()
+                      AND table_name = :table_name
+                      AND column_name = :column_name
+                    """,
+                    {"table_name": table_name, "column_name": column_name},
+                )
+                row = cursor.fetchone()
+                if row:
+                    return str(row[0]).lower() if row[0] else None
+        except Exception as e:
+            logger.debug(
+                f"Failed to get column type for {table_name}.{column_name}: {e!r}"
+            )
+
+        return None
+
     def _ensure_content_type_strategy(self, conn) -> str | None:
         """Detect which schema version the content type telemetry table uses."""
         if self._content_type_strategy:
@@ -575,6 +646,28 @@ class ComprehensiveExtractionTelemetry:
 
         try:
             if strategy == "modern":
+                # Defensive check: If confidence column is numeric type (legacy schema),
+                # convert string confidence to numeric value
+                confidence_value = detection.get("confidence")
+                confidence_col_type = self._get_column_type(
+                    conn, "content_type_detection_telemetry", "confidence"
+                )
+
+                # If confidence column is numeric (float/double/real), use numeric value
+                if confidence_col_type and any(
+                    numeric_type in confidence_col_type
+                    for numeric_type in ["double", "float", "real", "numeric"]
+                ):
+                    # Schema mismatch: confidence column is numeric but we have string value
+                    # Use the numeric confidence_score or convert label to numeric
+                    confidence_value = self._resolve_numeric_confidence(detection)
+                    logger.debug(
+                        "Schema mismatch detected: confidence column is numeric type (%s), "
+                        "using numeric value %s instead of string label",
+                        confidence_col_type,
+                        confidence_value,
+                    )
+
                 evidence_payload = detection.get("evidence")
                 conn.execute(
                     """
@@ -591,7 +684,7 @@ class ComprehensiveExtractionTelemetry:
                         metrics.publisher,
                         metrics.host,
                         detection.get("status"),
-                        detection.get("confidence"),
+                        confidence_value,
                         detection.get("confidence_score"),
                         detection.get("reason"),
                         (

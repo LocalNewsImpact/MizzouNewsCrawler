@@ -66,8 +66,19 @@ COPY --chown=appuser:appuser orchestration/ ./orchestration/
 # Create data directory for SQLite (will be replaced with Cloud SQL)
 RUN mkdir -p /app/data && chown -R appuser:appuser /app/data
 
-# Create bin directory for chromedriver (undetected-chromedriver will install it here at runtime)
-RUN mkdir -p /app/bin && chown appuser:appuser /app/bin
+# Install ChromeDriver using a dedicated script for testability
+# Previous issues: Runtime download by undetected-chromedriver fails when CHROMEDRIVER_PATH is set
+# Root cause: If driver_executable_path is provided, uc.Chrome expects file to exist (no auto-download)
+# Solution: Install ChromeDriver at build time so the path exists, with robust error handling
+COPY scripts/install-chromedriver.sh /tmp/
+RUN chmod +x /tmp/install-chromedriver.sh && \
+    /tmp/install-chromedriver.sh /app/bin && \
+    rm /tmp/install-chromedriver.sh && \
+    # Ensure ownership for appuser
+    chown -R appuser:appuser /app/bin && \
+    # Create additional directories for undetected-chromedriver cache
+    mkdir -p /opt/chromedriver-cache /home/appuser/.wdm && \
+    chmod 777 /opt/chromedriver-cache /home/appuser/.wdm
 
 # Switch to non-root user
 USER appuser
@@ -75,7 +86,8 @@ USER appuser
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    CHROMEDRIVER_PATH=/app/bin/chromedriver
+    CHROMEDRIVER_PATH=/app/bin/chromedriver \
+    CHROME_BIN=/usr/bin/chromium
 
 # Default command (can be overridden in Kubernetes)
 # NOTE: --dataset parameter ensures candidate_links get proper dataset_id assignment
