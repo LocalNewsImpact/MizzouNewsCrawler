@@ -9,29 +9,6 @@ FROM ${BASE_IMAGE}
 
 WORKDIR /app
 
-# Install Chromium and dependencies for Selenium extraction
-# Processor needs this for JavaScript-heavy site extraction fallback
-RUN apt-get clean && \
-    rm -rf /var/lib/apt/lists/* && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends \
-        fonts-liberation libnss3 libxss1 xdg-utils libxdamage1 \
-        libgconf-2-4 libx11-xcb1 wget ca-certificates unzip && \
-    # Try to install chromium from bookworm-backports, then testing, then snapshot
-    apt-get install -y --no-install-recommends chromium 2>/dev/null || \
-    (grep -q "bookworm-backports" /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || \
-     echo "deb http://deb.debian.org/debian bookworm-backports main contrib non-free" >> /etc/apt/sources.list.d/backports.list && \
-     apt-get update && \
-     apt-get install -y --no-install-recommends -t bookworm-backports chromium) || \
-    (echo "deb http://deb.debian.org/debian testing main contrib non-free" >> /etc/apt/sources.list.d/testing.list && \
-     apt-get update && \
-     apt-get install -y --no-install-recommends chromium) || \
-    echo "WARNING: chromium package not available, extraction fallback may fail" && \
-    rm -rf /var/lib/apt/lists/* && \
-    mkdir -p /app/bin /opt/chromedriver-cache /home/appuser/.wdm /tmp/chromedriver && \
-    chmod 777 /opt/chromedriver-cache /home/appuser/.wdm /tmp/chromedriver && \
-    echo "Chromium browser dependencies installed"
-
 # Copy ML-specific requirements
 COPY requirements-ml.txt ./
 
@@ -52,25 +29,10 @@ RUN mkdir -p /app/models
 # Copy ML model (downloaded by Cloud Build from GCS)
 COPY --chown=appuser:appuser models/productionmodel.pt /app/models/
 
-# Install ChromeDriver matching the Chromium version
-# This is critical: APT chromium (v142) != APT chromedriver (v114)
-# Solution: Download ChromeDriver from Google to match Chromium version
-COPY scripts/install-chromedriver.sh /tmp/
-RUN chmod +x /tmp/install-chromedriver.sh && \
-    /tmp/install-chromedriver.sh /app/bin && \
-    rm /tmp/install-chromedriver.sh && \
-    chown -R appuser:appuser /app/bin && \
-    echo "ChromeDriver installation complete"
-
-# Set environment variables for Selenium
-ENV CHROMEDRIVER_PATH=/app/bin/chromedriver \
-    CHROME_BIN=/usr/bin/chromium \
-    GOOGLE_CHROME_BIN=/usr/bin/chromium
-
 # Metadata
 LABEL maintainer="LocalNewsImpact"
-LABEL description="ML base image with PyTorch, Transformers, Chromium, and article extraction tools"
-LABEL version="1.1.0"
+LABEL description="ML base image with PyTorch, Transformers, and article extraction tools"
+LABEL version="1.0.0"
 
 # The application code will be added in the processor image
 CMD ["python", "--version"]
