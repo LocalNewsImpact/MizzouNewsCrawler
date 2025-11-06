@@ -124,14 +124,17 @@ fi
 
 # Step 6.5: Run linting and validation checks (like CI lint job)
 echo ""
-echo "🔍 Running linting and validation checks..."
+echo "🔍 Step 1/4: Running linting checks (ruff, black, isort)..."
 docker run --rm \
     -v "$(pwd)":/workspace \
     -w /workspace \
     us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
     /bin/bash -c "
+        echo '  → Running ruff...' &&
         python -m ruff check . &&
+        echo '  → Running black...' &&
         python -m black --check src/ tests/ web/ &&
+        echo '  → Running isort...' &&
         python -m isort --check-only --profile black src/ tests/ web/
     " 2>&1 | { grep -v "WARNING: The requested image's platform" || true; }
 
@@ -140,11 +143,11 @@ if [ $LINT_EXIT_CODE -ne 0 ]; then
     echo -e "${RED}❌ Linting checks failed${NC}"
     exit 1
 fi
-echo -e "${GREEN}✅ Linting checks passed${NC}"
+echo -e "${GREEN}✅ Step 1/4: Linting checks passed${NC}"
 
 # Step 6.6: Run mypy type checking
 echo ""
-echo "🔍 Running mypy type checking..."
+echo "🔍 Step 2/4: Running mypy type checking..."
 docker run --rm \
     -v "$(pwd)":/workspace \
     -w /workspace \
@@ -156,11 +159,11 @@ if [ $MYPY_EXIT_CODE -ne 0 ]; then
     echo -e "${RED}❌ Mypy type checking failed${NC}"
     exit 1
 fi
-echo -e "${GREEN}✅ Mypy type checking passed${NC}"
+echo -e "${GREEN}✅ Step 2/4: Mypy type checking passed${NC}"
 
 # Step 6.7: Validate workflow templates
 echo ""
-echo "🔍 Validating Argo workflow templates..."
+echo "🔍 Step 3/4: Validating Argo workflow templates..."
 docker run --rm \
     --network host \
     -v "$(pwd)":/workspace \
@@ -176,16 +179,20 @@ if [ $VALIDATION_EXIT_CODE -ne 0 ]; then
     echo -e "${RED}❌ Workflow template validation failed${NC}"
     exit 1
 fi
-echo -e "${GREEN}✅ Workflow template validation passed${NC}"
+echo -e "${GREEN}✅ Step 3/4: Workflow template validation passed${NC}"
 
 # Step 7: Run unit tests (excludes PostgreSQL-specific tests) like CI does
 echo ""
-echo "🧪 Running unit tests in linux/amd64 container (matches CI ubuntu-latest)..."
-echo "   This runs ~1500 unit tests (excludes PostgreSQL-specific tests) and takes 10-15 minutes..."
-echo "   Progress: . = pass, F = fail, E = error, s = skip"
+echo "🧪 Step 4/4: Running unit tests in linux/amd64 container (matches CI ubuntu-latest)..."
+echo "   📊 ~1500 unit tests (excludes PostgreSQL integration tests)"
+echo "   ⏱️  Estimated time: 10-15 minutes"
 echo ""
-echo "   Note: PostgreSQL env vars NOT set - unit tests use SQLite (like CI)"
-echo "   PostgreSQL-specific tests are excluded with -m 'not postgres'"
+echo "   💡 Unit tests use SQLite in-memory (FAST, matches CI 'test' job)"
+echo "      PostgreSQL integration tests run separately (CI 'postgres-integration' job)"
+echo "      Excluding tests marked with @pytest.mark.postgres"
+echo ""
+echo "   🔄 Progress will show test names as they complete..."
+echo ""
 
 # DO NOT set PostgreSQL env vars - unit tests should use SQLite (via conftest.py)
 # This matches CI behavior exactly where the unit job has NO DATABASE_URL set
@@ -193,7 +200,7 @@ docker run --rm \
     -v "$(pwd)":/workspace \
     -w /workspace \
     us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-    /bin/bash -c "pytest -m 'not postgres' --cov=src --cov-report=term-missing --cov-fail-under=78" 2>&1 | { grep -v "WARNING: The requested image's platform" || true; }
+    /bin/bash -c "pytest -m 'not postgres' --cov=src --cov-report=term-missing --cov-fail-under=80 -v" 2>&1 | { grep -v "WARNING: The requested image's platform" || true; }
 
 TEST_EXIT_CODE=${PIPESTATUS[0]}
 

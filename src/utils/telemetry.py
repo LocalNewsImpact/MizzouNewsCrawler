@@ -2018,16 +2018,79 @@ class OperationTracker:
                 ).fetchone()
 
                 if row:
+                    # Explicit type conversions for PostgreSQL compatibility
+                    # PostgreSQL may return strings for numeric types in some contexts
+                    try:
+                        articles_found_val = (
+                            int(row["articles_found"])
+                            if row["articles_found"] is not None
+                            else 0
+                        )
+                    except (TypeError, ValueError) as e:
+                        self.logger.warning(
+                            "Failed to convert articles_found '%s' (type: %s): %s",
+                            row["articles_found"],
+                            type(row["articles_found"]),
+                            e,
+                        )
+                        articles_found_val = 0
+
+                    try:
+                        attempt_count_val = (
+                            int(row["attempt_count"])
+                            if row["attempt_count"] is not None
+                            else 0
+                        )
+                    except (TypeError, ValueError) as e:
+                        self.logger.warning(
+                            "Failed to convert attempt_count '%s' (type: %s): %s",
+                            row["attempt_count"],
+                            type(row["attempt_count"]),
+                            e,
+                        )
+                        attempt_count_val = 0
+
+                    try:
+                        success_rate_val = (
+                            float(row["success_rate"])
+                            if row["success_rate"] is not None
+                            else 0.0
+                        )
+                    except (TypeError, ValueError) as e:
+                        self.logger.warning(
+                            "Failed to convert success_rate '%s' (type: %s): %s",
+                            row["success_rate"],
+                            type(row["success_rate"]),
+                            e,
+                        )
+                        success_rate_val = 0.0
+
+                    try:
+                        avg_response_time_val = (
+                            float(row["avg_response_time_ms"])
+                            if row["avg_response_time_ms"] is not None
+                            else 0.0
+                        )
+                    except (TypeError, ValueError) as e:
+                        self.logger.warning(
+                            "Failed to convert avg_response_time_ms "
+                            "'%s' (type: %s): %s",
+                            row["avg_response_time_ms"],
+                            type(row["avg_response_time_ms"]),
+                            e,
+                        )
+                        avg_response_time_val = 0.0
+
                     return DiscoveryMethodEffectiveness(
                         source_id=row["source_id"],
                         source_url=row["source_url"],
                         discovery_method=DiscoveryMethod(row["discovery_method"]),
                         status=DiscoveryMethodStatus(row["status"]),
-                        articles_found=int(row["articles_found"]),
-                        success_rate=float(row["success_rate"]),
+                        articles_found=articles_found_val,
+                        success_rate=success_rate_val,
                         last_attempt=_parse_timestamp(row["last_attempt"]),
-                        attempt_count=int(row["attempt_count"]),
-                        avg_response_time_ms=float(row["avg_response_time_ms"]),
+                        attempt_count=attempt_count_val,
+                        avg_response_time_ms=avg_response_time_val,
                         last_status_codes=json.loads(row["last_status_codes"] or "[]"),
                         notes=row["notes"],
                     )
@@ -2139,7 +2202,8 @@ class OperationTracker:
                     if attempt == retries - 1:
                         # Last attempt - let exception propagate
                         self.logger.error(
-                            "Failed to store method effectiveness for %s after %d retries: %s",
+                            "Failed to store method effectiveness for %s "
+                            "after %d retries: %s",
                             effectiveness.source_id,
                             retries,
                             exc,
