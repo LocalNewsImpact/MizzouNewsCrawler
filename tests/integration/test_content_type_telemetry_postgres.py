@@ -16,7 +16,7 @@ column type and converting values appropriately.
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pytest
 from sqlalchemy import text
@@ -86,7 +86,7 @@ def test_operation(cloud_sql_session):
         id=str(uuid.uuid4()),
         operation_type="extraction",
         status="running",
-        started_at=datetime.utcnow(),
+        started_at=datetime.now(timezone.utc),
     )
     cloud_sql_session.add(operation)
     cloud_sql_session.commit()
@@ -128,7 +128,7 @@ def test_content_type_telemetry_with_string_confidence(
             "url": ["wire-test.example.com"],
         },
         "version": "2025-10-23b",
-        "detected_at": datetime.utcnow().isoformat(),
+        "detected_at": datetime.now(timezone.utc).isoformat(),
     }
 
     # Set content type detection
@@ -266,7 +266,7 @@ def test_content_type_telemetry_handles_numeric_confidence_column(
             "reason": "wire_service_detected",
             "evidence": {"dateline": ["NPR"]},
             "version": "2025-10-23b",
-            "detected_at": datetime.utcnow().isoformat(),
+            "detected_at": datetime.now(timezone.utc).isoformat(),
         }
 
         metrics.set_content_type_detection(detection_payload)

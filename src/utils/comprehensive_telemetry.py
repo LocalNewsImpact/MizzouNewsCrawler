@@ -538,7 +538,16 @@ class ComprehensiveExtractionTelemetry:
         
         Returns the column type in lowercase (e.g., 'character varying', 'double precision', 'text', 'real', 'float').
         Returns None if the column doesn't exist or type cannot be determined.
+        
+        Note: table_name is validated to prevent SQL injection.
         """
+        # Validate table_name to prevent SQL injection
+        # Only allow alphanumeric characters, underscores, and hyphens
+        import re
+        if not re.match(r'^[a-zA-Z0-9_-]+$', table_name):
+            logger.warning(f"Invalid table name: {table_name}")
+            return None
+        
         try:
             # Detect database type from connection dialect
             dialect_name = None
@@ -561,6 +570,7 @@ class ComprehensiveExtractionTelemetry:
             is_sqlite = dialect_name == "sqlite"
 
             if is_sqlite:
+                # Safe to use f-string here since table_name is validated above
                 cursor = conn.execute(f"PRAGMA table_info({table_name})")
                 rows = cursor.fetchall()
                 for row in rows:
