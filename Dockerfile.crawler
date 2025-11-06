@@ -66,8 +66,41 @@ COPY --chown=appuser:appuser orchestration/ ./orchestration/
 # Create data directory for SQLite (will be replaced with Cloud SQL)
 RUN mkdir -p /app/data && chown -R appuser:appuser /app/data
 
-# Create bin directory for chromedriver (undetected-chromedriver will install it here at runtime)
-RUN mkdir -p /app/bin && chown appuser:appuser /app/bin
+# Create bin directory and install chromedriver
+RUN mkdir -p /app/bin && \
+    # Install chromedriver to match installed chromium version
+    # Get chromium version and install matching chromedriver
+    CHROMIUM_VERSION=$(chromium --version 2>/dev/null | grep -oP '\d+\.\d+\.\d+\.\d+' | head -1 || echo "unknown") && \
+    echo "Detected Chromium version: ${CHROMIUM_VERSION}" && \
+    # Download chromedriver for Linux
+    # Use latest stable if version detection fails
+    if [ "$CHROMIUM_VERSION" != "unknown" ]; then \
+        CHROME_MAJOR_VERSION=$(echo $CHROMIUM_VERSION | cut -d. -f1) && \
+        echo "Installing chromedriver for Chrome major version: ${CHROME_MAJOR_VERSION}" && \
+        wget -q -O /tmp/chromedriver-linux64.zip \
+            "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_MAJOR_VERSION}.0.0.0/linux64/chromedriver-linux64.zip" || \
+        wget -q -O /tmp/chromedriver-linux64.zip \
+            "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_MAJOR_VERSION}/chromedriver_linux64.zip"; \
+    else \
+        echo "Could not detect Chromium version, installing latest chromedriver" && \
+        LATEST_VERSION=$(wget -qO- https://chromedriver.storage.googleapis.com/LATEST_RELEASE) && \
+        wget -q -O /tmp/chromedriver-linux64.zip \
+            "https://chromedriver.storage.googleapis.com/${LATEST_VERSION}/chromedriver_linux64.zip"; \
+    fi && \
+    if [ -f /tmp/chromedriver-linux64.zip ]; then \
+        apt-get update && apt-get install -y unzip && \
+        unzip -j /tmp/chromedriver-linux64.zip -d /app/bin/ '*/chromedriver' || \
+        unzip /tmp/chromedriver-linux64.zip -d /tmp/ && mv /tmp/chromedriver /app/bin/ || \
+        echo "WARNING: Failed to extract chromedriver from zip"; \
+        rm -f /tmp/chromedriver-linux64.zip && \
+        chmod +x /app/bin/chromedriver 2>/dev/null && \
+        chown appuser:appuser /app/bin/chromedriver 2>/dev/null && \
+        echo "ChromeDriver installed successfully" || \
+        echo "WARNING: ChromeDriver installation failed, will rely on runtime download"; \
+    else \
+        echo "WARNING: Could not download chromedriver, will rely on runtime download"; \
+    fi && \
+    chown -R appuser:appuser /app/bin
 
 # Switch to non-root user
 USER appuser
@@ -75,7 +108,8 @@ USER appuser
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    CHROMEDRIVER_PATH=/app/bin/chromedriver
+    CHROMEDRIVER_PATH=/app/bin/chromedriver \
+    CHROME_BIN=/usr/bin/chromium
 
 # Default command (can be overridden in Kubernetes)
 # NOTE: --dataset parameter ensures candidate_links get proper dataset_id assignment
