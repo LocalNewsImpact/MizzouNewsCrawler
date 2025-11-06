@@ -10,9 +10,9 @@ RUN apt-get clean && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* && \
     apt-get update -o Acquire::Check-Valid-Until=false && \
     (apt-get install -y --no-install-recommends --allow-unauthenticated \
-        gcc g++ libpq-dev wget ca-certificates || \
+        gcc g++ libpq-dev wget ca-certificates procps || \
      apt-get install -y --no-install-recommends --fix-missing \
-        gcc g++ libpq-dev wget ca-certificates) && \
+        gcc g++ libpq-dev wget ca-certificates procps) && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
