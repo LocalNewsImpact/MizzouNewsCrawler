@@ -105,7 +105,7 @@ wait_for_build() {
     echo -e "${COLOR_YELLOW}⏳ Waiting for ${service_name} build to complete...${COLOR_RESET}"
     
     while true; do
-        status=$(gcloud builds describe "$build_id" --format='value(status)' 2>/dev/null || echo "UNKNOWN")
+        status=$(gcloud builds describe "$build_id" --format='value(status)')
         
         if [ "$status" = "SUCCESS" ]; then
             echo -e "${COLOR_GREEN}✅ ${service_name} build completed successfully${COLOR_RESET}"
@@ -113,9 +113,6 @@ wait_for_build() {
         elif [ "$status" = "FAILURE" ] || [ "$status" = "TIMEOUT" ] || [ "$status" = "CANCELLED" ]; then
             echo -e "${COLOR_RED}❌ ${service_name} build failed with status: ${status}${COLOR_RESET}"
             echo -e "${COLOR_YELLOW}View logs: gcloud builds log ${build_id}${COLOR_RESET}"
-            return 1
-        elif [ "$status" = "UNKNOWN" ]; then
-            echo -e "${COLOR_RED}❌ Failed to get build status for ${service_name}${COLOR_RESET}"
             return 1
         fi
         
