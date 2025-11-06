@@ -522,12 +522,19 @@ _BASE_SCHEMA = (
 )
 
 
-def _parse_timestamp(value: str | None) -> datetime:
-    """Parse a SQLite timestamp string into a timezone-aware datetime."""
+def _parse_timestamp(value: str | datetime | None) -> datetime:
+    """Parse timestamp string (SQLite) or datetime (PostgreSQL)."""
 
     if not value:
         return datetime.now(timezone.utc)
 
+    # PostgreSQL returns datetime objects directly
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value
+
+    # SQLite returns strings that need parsing
     try:
         parsed = datetime.fromisoformat(value.replace(" ", "T"))
     except ValueError:
