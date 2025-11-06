@@ -54,6 +54,7 @@ def test_candidate_link(cloud_sql_session, test_source):
     link = CandidateLink(
         id=str(uuid.uuid4()),
         url="https://wire-test.example.com/article-1",
+        source="Wire Service Test",  # NOT NULL field required
         source_id=test_source.id,
         status="article",
     )
@@ -166,8 +167,8 @@ def test_content_type_telemetry_schema_detection(cloud_sql_session):
     def check_strategy(conn):
         return telemetry._ensure_content_type_strategy(conn)
 
-    # Get a connection from the store
-    with store.get_connection() as conn:
+    # Get a connection from the store (connection is a property with contextmanager)
+    with store.connection() as conn:
         strategy = check_strategy(conn)
 
         # Should detect modern or legacy (or missing if table doesn't exist yet)
@@ -178,11 +179,11 @@ def test_content_type_telemetry_schema_detection(cloud_sql_session):
         ], f"Unexpected strategy: {strategy}"
 
         if strategy == "modern":
-            # Modern schema should have status, confidence (string), confidence_score (float)
+            # Modern: status, confidence (str), confidence_score (float)
             print("✅ Detected modern schema with String confidence column")
         elif strategy == "legacy":
-            # Legacy schema should have detected_type, detection_method, confidence (float)
-            print("ℹ️  Detected legacy schema with Float confidence column")
+            # Legacy: detected_type, detection_method, confidence (float)
+            print("ℹ️  Detected legacy schema with Float confidence")
         else:
             # Table doesn't exist yet
             print("ℹ️  content_type_detection_telemetry table not found")
