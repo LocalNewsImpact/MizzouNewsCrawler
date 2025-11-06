@@ -3,64 +3,70 @@ name: Test ChromeDriver Installation
 on:
   pull_request:
     paths:
-      - 'scripts/install-chromedriver.sh'
       - 'Dockerfile.crawler'
       - '.github/workflows/test-chromedriver.yml'
   workflow_dispatch: {}
 
 jobs:
-  test-chromedriver-script:
-    name: Test ChromeDriver Installation Script
+  test-apt-packages:
+    name: Test APT Package Installation
     runs-on: ubuntu-latest
     
     steps:
       - uses: actions/checkout@v4
       
-      - name: Install Chromium
+      - name: Install Chromium and ChromeDriver from APT
         run: |
           sudo apt-get update
-          sudo apt-get install -y chromium-browser wget ca-certificates unzip
+          sudo apt-get install -y chromium chromium-driver
       
-      - name: Test install-chromedriver.sh
+      - name: Verify versions match
         run: |
-          mkdir -p /tmp/test-chromedriver
-          bash scripts/install-chromedriver.sh /tmp/test-chromedriver
-      
-      - name: Verify ChromeDriver installed
-        run: |
-          if [ ! -f /tmp/test-chromedriver/chromedriver ]; then
-            echo "❌ ChromeDriver not installed"
+          echo "=== Chromium ==="
+          chromium --version
+          
+          echo ""
+          echo "=== ChromeDriver ==="
+          chromedriver --version
+          
+          echo ""
+          echo "=== Version Check ==="
+          CHROME_MAJOR=$(chromium --version | grep -oP '\d+' | head -1)
+          DRIVER_MAJOR=$(chromedriver --version | grep -oP '\d+' | head -1)
+          
+          echo "Chrome major: $CHROME_MAJOR"
+          echo "Driver major: $DRIVER_MAJOR"
+          
+          if [ "$CHROME_MAJOR" = "$DRIVER_MAJOR" ]; then
+            echo "✅ SUCCESS: Versions match!"
+          else
+            echo "❌ FAIL: Version mismatch (Chrome $CHROME_MAJOR vs Driver $DRIVER_MAJOR)"
             exit 1
           fi
-          
-          echo "✅ ChromeDriver installed"
-          /tmp/test-chromedriver/chromedriver --version
       
-      - name: Check version compatibility
+      - name: Test Selenium
         run: |
-          CHROME_VERSION=$(chromium-browser --version | grep -oP '\d+\.\d+\.\d+\.\d+' | head -1)
-          CHROME_MAJOR=$(echo $CHROME_VERSION | cut -d. -f1)
-          
-          DRIVER_VERSION=$(/tmp/test-chromedriver/chromedriver --version | grep -oP '\d+\.\d+\.\d+\.\d+' | head -1)
-          DRIVER_MAJOR=$(echo $DRIVER_VERSION | cut -d. -f1)
-          
-          echo "Chrome version: $CHROME_VERSION (major: $CHROME_MAJOR)"
-          echo "Driver version: $DRIVER_VERSION (major: $DRIVER_MAJOR)"
-          
-          DIFF=$((CHROME_MAJOR - DRIVER_MAJOR))
-          echo "Version difference: $DIFF major versions"
-          
-          if [ $DIFF -lt 0 ]; then
-            DIFF=$((-DIFF))
-          fi
-          
-          if [ $DIFF -gt 5 ]; then
-            echo "❌ Version difference too large: $DIFF major versions"
-            echo "ChromeDriver $DRIVER_MAJOR is too far from Chrome $CHROME_MAJOR"
-            exit 1
-          fi
-          
-          echo "✅ Version compatibility OK (within 5 major versions)"
+          pip install --quiet selenium
+          python3 << 'PYEOF'
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+
+options = Options()
+options.add_argument("--headless=new")
+options.add_argument("--no-sandbox")
+options.add_argument("--disable-dev-shm-usage")
+
+service = Service("/usr/bin/chromedriver")
+
+try:
+    driver = webdriver.Chrome(service=service, options=options)
+    print("✅ Selenium works with APT packages!")
+    driver.quit()
+except Exception as e:
+    print(f"❌ Selenium failed: {e}")
+    exit(1)
+PYEOF
 
   test-chromedriver-docker:
     name: Test ChromeDriver in Docker Build
@@ -77,26 +83,24 @@ jobs:
           cat > /tmp/Dockerfile.chromedriver-test <<'EOF'
           FROM python:3.11-slim
           
-          # Install Chromium
+          # Install Chromium and ChromeDriver from APT (matching what Dockerfile.crawler does)
           RUN apt-get clean && \
               rm -rf /var/lib/apt/lists/* && \
               apt-get update && \
               apt-get install -y --no-install-recommends \
-                  chromium fonts-liberation libnss3 libxss1 xdg-utils \
-                  wget ca-certificates unzip procps && \
-              rm -rf /var/lib/apt/lists/*
-          
-          # Create install directory
-          RUN mkdir -p /app/bin
-          
-          # Copy and run installation script
-          COPY scripts/install-chromedriver.sh /tmp/
-          RUN chmod +x /tmp/install-chromedriver.sh && \
-              /tmp/install-chromedriver.sh /app/bin
-          
-          # Verify installation
-          RUN chromium --version && \
-              /app/bin/chromedriver --version
+                  chromium \
+                  chromium-driver \
+                  fonts-liberation \
+                  libnss3 \
+                  libxss1 \
+                  xdg-utils \
+                  libxdamage1 \
+                  libx11-xcb1 && \
+              rm -rf /var/lib/apt/lists/* && \
+              mkdir -p /opt/chromedriver-cache /home/appuser/.wdm && \
+              chmod 777 /opt/chromedriver-cache /home/appuser/.wdm && \
+              echo "Chromium version: $(chromium --version)" && \
+              echo "ChromeDriver version: $(chromedriver --version)"
           
           CMD ["/bin/bash"]
           EOF
@@ -111,29 +115,22 @@ jobs:
             
             echo ""
             echo "=== ChromeDriver ==="
-            /app/bin/chromedriver --version
+            chromedriver --version
             
             echo ""
             echo "=== Compatibility Check ==="
             CHROME_MAJOR=$(chromium --version | grep -oP "\d+" | head -1)
-            DRIVER_MAJOR=$(/app/bin/chromedriver --version | grep -oP "\d+" | head -1)
+            DRIVER_MAJOR=$(chromedriver --version | grep -oP "\d+" | head -1)
             
             echo "Chrome major: $CHROME_MAJOR"
             echo "Driver major: $DRIVER_MAJOR"
             
-            DIFF=$((CHROME_MAJOR - DRIVER_MAJOR))
-            if [ $DIFF -lt 0 ]; then
-              DIFF=$((-DIFF))
-            fi
-            
-            echo "Difference: $DIFF major versions"
-            
-            if [ $DIFF -gt 5 ]; then
-              echo "❌ FAIL: Version difference too large"
+            if [ "$CHROME_MAJOR" = "$DRIVER_MAJOR" ]; then
+              echo "✅ PASS: Versions match exactly!"
+            else
+              echo "❌ FAIL: Version mismatch"
               exit 1
             fi
-            
-            echo "✅ PASS: Versions compatible"
           '
       
       - name: Test Selenium initialization
@@ -149,9 +146,8 @@ options = Options()
 options.add_argument(\"--headless=new\")
 options.add_argument(\"--no-sandbox\")
 options.add_argument(\"--disable-dev-shm-usage\")
-options.binary_location = \"/usr/bin/chromium\"
 
-service = Service(\"/app/bin/chromedriver\")
+service = Service(\"/usr/bin/chromedriver\")
 
 try:
     driver = webdriver.Chrome(service=service, options=options)
