@@ -129,26 +129,25 @@ def test_content_type_telemetry_schema_detection(cloud_sql_session):
     telemetry = ComprehensiveExtractionTelemetry(store=None)
 
     # Check if we can access the schema detection
-    # Get a connection directly from cloud_sql_session for testing
-    with cloud_sql_session() as conn:
-        strategy = telemetry._ensure_content_type_strategy(conn)
+    # cloud_sql_session is already a SQLAlchemy Session object
+    strategy = telemetry._ensure_content_type_strategy(cloud_sql_session)
 
-        # Should detect modern or legacy (or None if table doesn't exist yet)
-        assert strategy in [
-            "modern",
-            "legacy",
-            None,
-        ], f"Unexpected strategy: {strategy}"
+    # Should detect modern or legacy (or None if table doesn't exist yet)
+    assert strategy in [
+        "modern",
+        "legacy",
+        None,
+    ], f"Unexpected strategy: {strategy}"
 
-        if strategy == "modern":
-            # Modern: status, confidence (str), confidence_score (float)
-            print("✅ Detected modern schema with String confidence")
-        elif strategy == "legacy":
-            # Legacy: detected_type, detection_method, confidence (float)
-            print("ℹ️  Detected legacy schema with Float confidence")
-        else:
-            # Table doesn't exist yet
-            print("ℹ️  content_type_detection_telemetry table not found")
+    if strategy == "modern":
+        # Modern: status, confidence (str), confidence_score (float)
+        print("✅ Detected modern schema with String confidence")
+    elif strategy == "legacy":
+        # Legacy: detected_type, detection_method, confidence (float)
+        print("ℹ️  Detected legacy schema with Float confidence")
+    else:
+        # Table doesn't exist yet
+        print("ℹ️  content_type_detection_telemetry table not found")
 
 
 def test_content_type_telemetry_handles_numeric_confidence_column(
