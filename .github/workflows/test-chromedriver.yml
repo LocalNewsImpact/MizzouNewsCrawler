@@ -48,25 +48,25 @@ jobs:
         run: |
           pip install --quiet selenium
           python3 << 'PYEOF'
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
+          from selenium import webdriver
+          from selenium.webdriver.chrome.options import Options
+          from selenium.webdriver.chrome.service import Service
 
-options = Options()
-options.add_argument("--headless=new")
-options.add_argument("--no-sandbox")
-options.add_argument("--disable-dev-shm-usage")
+          options = Options()
+          options.add_argument("--headless=new")
+          options.add_argument("--no-sandbox")
+          options.add_argument("--disable-dev-shm-usage")
 
-service = Service("/usr/bin/chromedriver")
+          service = Service("/usr/bin/chromedriver")
 
-try:
-    driver = webdriver.Chrome(service=service, options=options)
-    print("✅ Selenium works with APT packages!")
-    driver.quit()
-except Exception as e:
-    print(f"❌ Selenium failed: {e}")
-    exit(1)
-PYEOF
+          try:
+              driver = webdriver.Chrome(service=service, options=options)
+              print("✅ Selenium works with APT packages!")
+              driver.quit()
+          except Exception as e:
+              print(f"❌ Selenium failed: {e}")
+              exit(1)
+          PYEOF
 
   test-chromedriver-docker:
     name: Test ChromeDriver in Docker Build
@@ -135,26 +135,26 @@ PYEOF
       
       - name: Test Selenium initialization
         run: |
-          docker run --rm chromedriver-test:ci bash -c '
-            pip install --quiet selenium
-            python3 -c "
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
+          docker run --rm chromedriver-test:ci bash << 'TESTEOF'
+          pip install --quiet selenium
+          python3 << 'PYEOF'
+          from selenium import webdriver
+          from selenium.webdriver.chrome.options import Options
+          from selenium.webdriver.chrome.service import Service
 
-options = Options()
-options.add_argument(\"--headless=new\")
-options.add_argument(\"--no-sandbox\")
-options.add_argument(\"--disable-dev-shm-usage\")
+          options = Options()
+          options.add_argument("--headless=new")
+          options.add_argument("--no-sandbox")
+          options.add_argument("--disable-dev-shm-usage")
 
-service = Service(\"/usr/bin/chromedriver\")
+          service = Service("/usr/bin/chromedriver")
 
-try:
-    driver = webdriver.Chrome(service=service, options=options)
-    print(\"✅ Selenium initialized successfully\")
-    driver.quit()
-except Exception as e:
-    print(f\"❌ Selenium failed: {e}\")
-    exit(1)
-            "
-          '
+          try:
+              driver = webdriver.Chrome(service=service, options=options)
+              print("✅ Selenium initialized successfully")
+              driver.quit()
+          except Exception as e:
+              print(f"❌ Selenium failed: {e}")
+              exit(1)
+          PYEOF
+          TESTEOF
