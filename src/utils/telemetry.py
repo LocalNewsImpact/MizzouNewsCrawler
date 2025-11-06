@@ -2127,6 +2127,7 @@ class OperationTracker:
                 "Failed to get method effectiveness for %s: %s",
                 source_id,
                 exc,
+                exc_info=True,  # This will include the full traceback
             )
 
         # Create new record
