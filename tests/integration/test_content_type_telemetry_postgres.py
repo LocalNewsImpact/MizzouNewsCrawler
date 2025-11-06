@@ -193,10 +193,6 @@ def test_content_type_telemetry_handles_numeric_confidence_column(
     # The defensive code should handle it gracefully
     try:
         telemetry.record_extraction(metrics)
-        print(
-            "✅ Telemetry recorded successfully despite potential schema mismatch"
-        )
+        print("✅ Telemetry recorded successfully despite potential schema mismatch")
     except Exception as e:
-        pytest.fail(
-            f"Telemetry recording failed with schema mismatch handling: {e}"
-        )
+        pytest.fail(f"Telemetry recording failed with schema mismatch handling: {e}")
