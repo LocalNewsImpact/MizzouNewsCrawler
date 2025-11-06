@@ -204,12 +204,43 @@ docker run --rm \
 
 TEST_EXIT_CODE=${PIPESTATUS[0]}
 
-if [ $TEST_EXIT_CODE -eq 0 ]; then
-    echo -e "${GREEN}✅ All tests passed${NC}"
-else
-    echo -e "${RED}❌ Tests failed${NC}"
+if [ $TEST_EXIT_CODE -ne 0 ]; then
+    echo -e "${RED}❌ SQLite tests failed${NC}"
     exit 1
 fi
+echo -e "${GREEN}✅ Step 4/4: SQLite tests passed${NC}"
+
+# Step 8: Run PostgreSQL integration tests (like CI postgres-integration job)
+echo ""
+echo "🧪 Step 5/5: Running PostgreSQL integration tests..."
+echo "   📊 Tests marked with @pytest.mark.integration"
+echo "   ⏱️  Estimated time: 5-10 minutes"
+echo ""
+
+docker run --rm \
+    --network host \
+    -v "$(pwd)":/workspace \
+    -w /workspace \
+    -e PYTEST_KEEP_DB_ENV="true" \
+    -e DATABASE_URL="$DATABASE_URL" \
+    -e TELEMETRY_DATABASE_URL="$DATABASE_URL" \
+    -e TEST_DATABASE_URL="$DATABASE_URL" \
+    -e DATABASE_ENGINE="postgresql" \
+    -e DATABASE_HOST="localhost" \
+    -e DATABASE_PORT="$POSTGRES_PORT" \
+    -e DATABASE_NAME="$POSTGRES_DB" \
+    -e DATABASE_USER="$POSTGRES_USER" \
+    -e DATABASE_PASSWORD="$POSTGRES_PASSWORD" \
+    us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
+    /bin/bash -c "pytest -v -m integration --tb=short --no-cov" 2>&1 | { grep -v "WARNING: The requested image's platform" || true; }
+
+POSTGRES_TEST_EXIT_CODE=${PIPESTATUS[0]}
+
+if [ $POSTGRES_TEST_EXIT_CODE -ne 0 ]; then
+    echo -e "${RED}❌ PostgreSQL integration tests failed${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✅ Step 5/5: PostgreSQL integration tests passed${NC}"
 
 echo ""
 echo -e "${GREEN}🎉 All local CI checks passed!${NC}"
@@ -217,7 +248,8 @@ echo "   ✅ Linting (ruff, black, isort)"
 echo "   ✅ Type checking (mypy)"
 echo "   ✅ Workflow template validation"
 echo "   ✅ Database migrations"
-echo "   ✅ All tests with coverage (~1500 tests)"
+echo "   ✅ SQLite unit tests with coverage (~1320 tests)"
+echo "   ✅ PostgreSQL integration tests (~49 tests)"
 echo ""
 echo "💡 To debug interactively:"
 echo "   docker exec -it $POSTGRES_CONTAINER psql -U $POSTGRES_USER -d $POSTGRES_DB"
