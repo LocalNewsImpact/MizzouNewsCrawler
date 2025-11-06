@@ -18,11 +18,13 @@ RUN apt-get clean && \
         chromium-browser chromium-chromedriver fonts-liberation libnss3 libxss1 xdg-utils wget unzip || \
      apt-get install -y --no-install-recommends --fix-missing \
         chromium-browser chromium-chromedriver fonts-liberation libnss3 libxss1 xdg-utils wget unzip) && \
-    # Verify chromium and chromedriver exist
-    which chromium-browser && which chromedriver && \
+    # Verify chromium exists (chromedriver installed separately)
+    which chromium-browser && \
     # Create symlinks for compatibility with various library expectations
     ln -sf /usr/bin/chromium-browser /usr/bin/chromium || true && \
     ln -sf /usr/bin/chromium-browser /usr/bin/google-chrome || true && \
+    # Find and symlink chromedriver from its actual location
+    if [ -f /usr/lib/chromium/chromedriver ]; then ln -sf /usr/lib/chromium/chromedriver /usr/bin/chromedriver; elif [ -f /usr/bin/chromedriver ]; then true; else echo "chromedriver not found" && exit 1; fi && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -60,7 +62,7 @@ RUN mkdir -p /app/data && chown -R appuser:appuser /app/data
 
 # Provide a writable copy of chromedriver for undetected-chromedriver patching
 RUN mkdir -p /app/bin && \
-    cp /usr/bin/chromedriver /app/bin/chromedriver && \
+    (if [ -f /usr/lib/chromium/chromedriver ]; then cp /usr/lib/chromium/chromedriver /app/bin/chromedriver; elif [ -f /usr/bin/chromedriver ]; then cp /usr/bin/chromedriver /app/bin/chromedriver; else echo "chromedriver not found" && exit 1; fi) && \
     chmod 666 /app/bin/chromedriver
 
 # Switch to non-root user
