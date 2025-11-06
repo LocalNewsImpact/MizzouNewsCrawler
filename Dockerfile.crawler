@@ -8,16 +8,21 @@ ARG BASE_IMAGE=mizzou-base:latest
 # Stage 1: Base with additional crawler system dependencies
 FROM ${BASE_IMAGE} AS base-crawler
 
-# Install additional system dependencies for browser automation (Playwright, Selenium)
+# Install additional system dependencies for browser automation (Playwright, Selenium, Chromium)
 # Base image has gcc, g++, libpq-dev, wget, ca-certificates
-# We add browser-specific packages here
+# We add browser-specific packages including Chromium and Chromedriver here
 RUN apt-get clean && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* && \
     apt-get update -o Acquire::Check-Valid-Until=false && \
     (apt-get install -y --no-install-recommends --allow-unauthenticated \
-        fonts-liberation libnss3 libxss1 xdg-utils || \
+        chromium-browser chromium-chromedriver fonts-liberation libnss3 libxss1 xdg-utils wget unzip || \
      apt-get install -y --no-install-recommends --fix-missing \
-        fonts-liberation libnss3 libxss1 xdg-utils) && \
+        chromium-browser chromium-chromedriver fonts-liberation libnss3 libxss1 xdg-utils wget unzip) && \
+    # Verify chromium and chromedriver exist
+    which chromium-browser && which chromedriver && \
+    # Create symlinks for compatibility with various library expectations
+    ln -sf /usr/bin/chromium-browser /usr/bin/chromium || true && \
+    ln -sf /usr/bin/chromium-browser /usr/bin/google-chrome || true && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -53,12 +58,20 @@ COPY --chown=appuser:appuser orchestration/ ./orchestration/
 # Create data directory for SQLite (will be replaced with Cloud SQL)
 RUN mkdir -p /app/data && chown -R appuser:appuser /app/data
 
+# Provide a writable copy of chromedriver for undetected-chromedriver patching
+RUN mkdir -p /app/bin && \
+    cp /usr/bin/chromedriver /app/bin/chromedriver && \
+    chmod 666 /app/bin/chromedriver
+
 # Switch to non-root user
 USER appuser
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    CHROME_BIN=/usr/bin/chromium-browser \
+    GOOGLE_CHROME_BIN=/usr/bin/chromium-browser \
+    CHROMEDRIVER_PATH=/usr/bin/chromedriver
 
 # Default command (can be overridden in Kubernetes)
 # NOTE: --dataset parameter ensures candidate_links get proper dataset_id assignment
