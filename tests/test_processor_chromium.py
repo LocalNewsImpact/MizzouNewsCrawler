@@ -19,9 +19,9 @@ def test_chromium_binary_exists():
             pytest.skip("chromium not installed in this environment")
 
     assert os.path.exists(chromium_bin), f"chromium binary not found at {chromium_bin}"
-    assert os.access(chromium_bin, os.X_OK), (
-        f"chromium binary not executable at {chromium_bin}"
-    )
+    assert os.access(
+        chromium_bin, os.X_OK
+    ), f"chromium binary not executable at {chromium_bin}"
 
 
 def test_chromedriver_binary_exists():
@@ -37,12 +37,12 @@ def test_chromedriver_binary_exists():
             chromedriver_bin = path
             break
 
-    assert chromedriver_bin is not None, (
-        f"chromedriver not found in {chromedriver_paths}"
-    )
-    assert os.access(chromedriver_bin, os.X_OK), (
-        f"chromedriver not executable at {chromedriver_bin}"
-    )
+    assert (
+        chromedriver_bin is not None
+    ), f"chromedriver not found in {chromedriver_paths}"
+    assert os.access(
+        chromedriver_bin, os.X_OK
+    ), f"chromedriver not executable at {chromedriver_bin}"
 
 
 def test_chromedriver_version():
@@ -70,9 +70,9 @@ def test_chromedriver_version():
     )
 
     assert result.returncode == 0, f"chromedriver --version failed: {result.stderr}"
-    assert "ChromeDriver" in result.stdout, (
-        f"unexpected chromedriver version output: {result.stdout}"
-    )
+    assert (
+        "ChromeDriver" in result.stdout
+    ), f"unexpected chromedriver version output: {result.stdout}"
     print(f"✓ chromedriver version: {result.stdout.strip()}")
 
 
@@ -105,9 +105,7 @@ def test_chromium_can_start():
         # chromium --version should work
         assert result.returncode == 0, f"chromium failed to start: {result.stderr}"
         chrome_str = "Chrome" in result.stdout or "Chromium" in result.stdout
-        assert chrome_str, (
-            f"unexpected chromium version output: {result.stdout}"
-        )
+        assert chrome_str, f"unexpected chromium version output: {result.stdout}"
         print(f"✓ chromium can start: {result.stdout.strip()}")
     except subprocess.TimeoutExpired:
         print("⚠ chromium startup test timed out (may be normal in container)")
@@ -115,31 +113,31 @@ def test_chromium_can_start():
 
 if __name__ == "__main__":
     print("🔍 Testing processor Docker image chromium/chromedriver installation\n")
-    
+
     try:
         test_chromium_binary_exists()
         print("✓ chromium binary exists and is executable")
     except AssertionError as e:
         print(f"✗ chromium test failed: {e}")
         sys.exit(1)
-    
+
     try:
         test_chromedriver_binary_exists()
         print("✓ chromedriver binary exists and is executable")
     except AssertionError as e:
         print(f"✗ chromedriver test failed: {e}")
         sys.exit(1)
-    
+
     try:
         test_chromedriver_version()
     except AssertionError as e:
         print(f"✗ chromedriver version test failed: {e}")
         sys.exit(1)
-    
+
     try:
         test_chromium_can_start()
     except AssertionError as e:
         print(f"✗ chromium startup test failed: {e}")
         sys.exit(1)
-    
+
     print("\n✅ All chromium/chromedriver tests passed!")
