@@ -3,70 +3,9 @@
 # Cloud Deploy handles the actual deployment to GKE
 
 steps:
-  # Build Processor
-  - name: 'gcr.io/cloud-builders/docker'
-    id: 'build-processor'
-    args:
-      - 'build'
-      - '-t'
-      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/processor:${SHORT_SHA}'
-      - '-t'
-      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/processor:latest'
-      - '-f'
-      - 'Dockerfile.processor'
-      - '.'
-
-  # Build API
-  - name: 'gcr.io/cloud-builders/docker'
-    id: 'build-api'
-    args:
-      - 'build'
-      - '-t'
-      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/api:${SHORT_SHA}'
-      - '-t'
-      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/api:latest'
-      - '-f'
-      - 'Dockerfile.api'
-      - '.'
-
-  # Build Crawler
-  - name: 'gcr.io/cloud-builders/docker'
-    id: 'build-crawler'
-    args:
-      - 'build'
-      - '-t'
-      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/crawler:${SHORT_SHA}'
-      - '-t'
-      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/crawler:latest'
-      - '-f'
-      - 'Dockerfile.crawler'
-      - '.'
-
-  # Push all images
-  - name: 'gcr.io/cloud-builders/docker'
-    id: 'push-processor'
-    args:
-      - 'push'
-      - '--all-tags'
-      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/processor'
-    waitFor: ['build-processor']
-
-  - name: 'gcr.io/cloud-builders/docker'
-    id: 'push-api'
-    args:
-      - 'push'
-      - '--all-tags'
-      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/api'
-    waitFor: ['build-api']
-
-  - name: 'gcr.io/cloud-builders/docker'
-    id: 'push-crawler'
-    args:
-      - 'push'
-      - '--all-tags'
-      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/crawler'
-    waitFor: ['build-crawler']
-
+  # PHASE 1: Build and push migrator FIRST, then run migrations
+  # This ensures migrations run before wasting time building other images
+  
   # Build and push migrator image
   - name: 'gcr.io/cloud-builders/docker'
     id: 'build-migrator'
@@ -88,7 +27,7 @@ steps:
       - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/migrator'
     waitFor: ['build-migrator']
 
-  # Run database migrations BEFORE deployment (only on main branch)
+  # Run database migrations BEFORE building other services (only on main branch)
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'run-migrations'
     entrypoint: 'bash'
@@ -181,7 +120,76 @@ steps:
         fi
     waitFor: ['push-migrator']
 
-  # Create Cloud Deploy release (only on main branch)
+  # PHASE 2: Build application services (in parallel, after migrations succeed)
+  
+  # Build Processor
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-processor'
+    waitFor: ['run-migrations']
+    args:
+      - 'build'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/processor:${SHORT_SHA}'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/processor:latest'
+      - '-f'
+      - 'Dockerfile.processor'
+      - '.'
+
+  # Build API
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-api'
+    waitFor: ['run-migrations']
+    args:
+      - 'build'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/api:${SHORT_SHA}'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/api:latest'
+      - '-f'
+      - 'Dockerfile.api'
+      - '.'
+
+  # Build Crawler
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-crawler'
+    waitFor: ['run-migrations']
+    args:
+      - 'build'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/crawler:${SHORT_SHA}'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/crawler:latest'
+      - '-f'
+      - 'Dockerfile.crawler'
+      - '.'
+
+  # Push all images
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-processor'
+    args:
+      - 'push'
+      - '--all-tags'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/processor'
+    waitFor: ['build-processor']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-api'
+    args:
+      - 'push'
+      - '--all-tags'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/api'
+    waitFor: ['build-api']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-crawler'
+    args:
+      - 'push'
+      - '--all-tags'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/crawler'
+    waitFor: ['build-crawler']
+
+  # PHASE 3: Create Cloud Deploy release (only on main branch)
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'create-release'
     entrypoint: 'bash'
@@ -200,7 +208,7 @@ steps:
           echo "   To manually deploy this build:"
           echo "   gcloud deploy releases create release-${SHORT_SHA} --delivery-pipeline=mizzou-news-crawler --region=us-central1 --images=processor=us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/processor:${SHORT_SHA},api=us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/api:${SHORT_SHA},crawler=us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/crawler:${SHORT_SHA}"
         fi
-    waitFor: ['push-processor', 'push-api', 'push-crawler', 'run-migrations']
+    waitFor: ['push-processor', 'push-api', 'push-crawler']
 
 options:
   machineType: 'N1_HIGHCPU_8'
