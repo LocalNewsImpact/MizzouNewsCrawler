@@ -168,6 +168,41 @@ class SourceProcessor:
                 )
             else:
                 logger.info("No historical data for %s", self.source_name)
+                # Check if we've ever captured articles from this source
+                article_count = self.discovery._get_existing_article_count(
+                    self.source_id
+                )
+                if article_count == 0:
+                    # Increment consecutive failure counter
+                    failure_count = self.discovery._increment_no_effective_methods(
+                        self.source_id
+                    )
+                    logger.warning(
+                        "No effective methods and zero articles captured from %s "
+                        "(failure count: %d/3)",
+                        self.source_name,
+                        failure_count,
+                    )
+                    
+                    # Pause after 3 consecutive failures
+                    if failure_count >= 3:
+                        self.discovery._pause_source(
+                            self.source_id,
+                            (
+                                "Automatic pause: no effective discovery methods and "
+                                "no successful article captures after 3 attempts"
+                            ),
+                            host=self.source_name,
+                        )
+                        logger.warning(
+                            "Source %s paused after %d consecutive failures "
+                            "with no captures",
+                            self.source_name,
+                            failure_count,
+                        )
+                    
+                    # Return empty list to skip discovery for this source
+                    return []
                 logger.info("Trying all methods")
             # Note: STORYSNIFFER removed from default methods as it's a URL
             # classifier (not a discovery crawler) and cannot discover articles
@@ -662,6 +697,10 @@ class SourceProcessor:
                         exc,
                     )
                     continue
+
+        # Reset 'no effective methods' counter if we successfully stored articles
+        if stored_count > 0:
+            self.discovery._reset_no_effective_methods(self.source_id)
 
         return {
             "articles_found_total": articles_found_total,
