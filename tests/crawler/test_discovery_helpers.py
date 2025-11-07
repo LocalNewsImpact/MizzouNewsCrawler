@@ -1166,7 +1166,10 @@ def test_source_processor_skips_rss_when_recently_missing(
 
     assert not rss_increments
     assert not rss_resets
-    assert not meta_updates
+    # New behavior: metadata is updated to reset 'no_effective_methods_consecutive' on success
+    assert len(meta_updates) == 1
+    assert meta_updates[0][0] == "src-rss-skip"
+    assert meta_updates[0][1] == {"no_effective_methods_consecutive": 0}
     assert telemetry.failures == []
 
 
