@@ -205,13 +205,14 @@ echo ""
 
 # DO NOT set PostgreSQL env vars - unit tests should use SQLite (via conftest.py)
 # This matches CI behavior exactly where the unit job has NO DATABASE_URL set
+set +e  # Disable exit-on-error temporarily to capture exit code
 docker run --rm \
     -v "$(pwd)":/workspace \
     -w /workspace \
     us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-    /bin/bash -c "pytest -m 'not postgres' --cov=src --cov-report=term-missing --cov-fail-under=78 -v" 2>&1 | { grep -v "WARNING: The requested image's platform" || true; }
-
-TEST_EXIT_CODE=${PIPESTATUS[0]}
+    /bin/bash -c "pytest -m 'not postgres' --cov=src --cov-report=term-missing --cov-fail-under=78 -v" 2>&1 | grep -v "WARNING: The requested image's platform"
+TEST_EXIT_CODE=${PIPESTATUS[0]}  # Gets exit code of docker run, not grep
+set -e   # Re-enable exit-on-error
 
 if [ $TEST_EXIT_CODE -ne 0 ]; then
     echo -e "${RED}❌ SQLite tests failed${NC}"
