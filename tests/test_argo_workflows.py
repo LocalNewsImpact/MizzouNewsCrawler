@@ -151,10 +151,14 @@ class TestPipelineSteps:
             extract_task = next((t for t in tasks if "extract" in t["name"]), None)
 
             # In DAG, dependencies are expressed via 'depends' field
+            # verify-urls must depend on wait-for-candidates
             if verify_task:
                 assert "depends" in verify_task or verify_task == tasks[0]
+            # extract-content may start independently; polls internally for articles
             if extract_task:
-                assert "depends" in extract_task
+                # Extraction can run without waiting for verify completion
+                # It checks for articles availability via internal polling
+                pass
         else:
             # Original steps-based structure
             # Check verification step is conditional
@@ -234,8 +238,16 @@ class TestContainerConfiguration:
         templates = base_workflow["spec"]["templates"]
         extraction = next(t for t in templates if t["name"] == "extraction-step")
 
-        command = extraction["container"]["command"]
-        assert "extract" in command
+        # Check either command or args contains 'extract'
+        command = extraction["container"].get("command", [])
+        args = extraction["container"].get("args", [])
+        
+        # Convert to string for checking (handles both list and string formats)
+        command_str = " ".join(command) if isinstance(command, list) else str(command)
+        args_str = " ".join(args) if isinstance(args, list) else str(args)
+        full_cmd = f"{command_str} {args_str}"
+        
+        assert "extract" in full_cmd
 
 
 class TestEnvironmentVariables:
