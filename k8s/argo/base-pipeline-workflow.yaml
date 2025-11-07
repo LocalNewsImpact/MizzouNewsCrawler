@@ -82,19 +82,10 @@ spec:
           - name: inter-request-max
             value: "{{inputs.parameters.inter-request-max}}"
 
-      - name: wait-for-verified
-        template: wait-for-verified
-        depends: "verify-urls"
-        arguments:
-          parameters:
-          - name: min-verified
-            value: "{{inputs.parameters.min-verified}}"
-          - name: timeout-seconds
-            value: "{{inputs.parameters.verified-wait-seconds}}"
-
       - name: extract-content
         template: extraction-step
-        depends: "wait-for-verified"
+        # No dependency - starts immediately in parallel with verification
+        # Extraction will check for eligible articles and wait if none available
         arguments:
           parameters:
           - name: dataset
@@ -340,12 +331,60 @@ spec:
             exit 0
           fi
           
-          echo "✅ No active extraction found - proceeding"
+          echo "✅ No active extraction found - checking for articles ready to extract..."
+          
+          # Wait up to 10 minutes for articles to become available
+          MAX_WAIT=600  # 10 minutes
+          CHECK_INTERVAL=30  # Check every 30 seconds
+          elapsed=0
+          
+          while [ $elapsed -lt $MAX_WAIT ]; do
+            # Count articles ready for extraction (verified but not yet extracted)
+            count=$(python -c "
+          from src.models.database import db
+          from sqlalchemy import text
+          
+          with db.engine.connect() as conn:
+              result = conn.execute(text('''
+                  SELECT COUNT(*) 
+                  FROM candidate_links cl
+                  WHERE cl.status = 'article'
+                  AND NOT EXISTS (
+                      SELECT 1 
+                      FROM articles a
+                      WHERE a.candidate_link_id = cl.id
+                  )
+              '''))
+              print(result.scalar() or 0)
+          ")
+            
+            echo "Articles ready for extraction: $count"
+            
+            if [ "$count" -gt 0 ]; then
+              echo "✅ Found $count articles - starting extraction"
+              break
+            fi
+            
+            if [ $elapsed -eq 0 ]; then
+              echo "⏳ No articles ready yet - waiting up to $MAX_WAIT seconds for verification..."
+            else
+              echo "⏳ Still waiting... ($elapsed/${MAX_WAIT}s elapsed)"
+            fi
+            
+            sleep $CHECK_INTERVAL
+            elapsed=$((elapsed + CHECK_INTERVAL))
+          done
+          
+          if [ "$count" -eq 0 ]; then
+            echo "⚠️  Timeout: No articles became available after ${MAX_WAIT}s - exiting"
+            exit 0
+          fi
+          
+          echo "🚀 Starting extraction..."
           python -m src.cli.cli_modular extract \
             --dataset "{{inputs.parameters.dataset}}" \
             --limit "{{inputs.parameters.limit}}" \
-            --batches "{{inputs.parameters.batches}}" \
-            --exhaust-queue
+            --batches "{{inputs.parameters.batches}}"
       envFrom:
       - secretRef:
           name: origin-proxy-credentials
@@ -553,16 +592,15 @@ spec:
           while True:
               try:
                   with engine.connect() as conn:
-                      # Count articles ready for extraction (verified but not extracted yet)
+                      # Count verified candidate_links that don't have a corresponding article yet
                       r = conn.execute(text("""
                           SELECT COUNT(*) 
-                          FROM candidate_links 
-                          WHERE status = 'article' 
-                          AND article_id IS NOT NULL
-                          AND article_id NOT IN (
-                              SELECT DISTINCT article_id 
-                              FROM extraction_telemetry_v2 
-                              WHERE article_id IS NOT NULL
+                          FROM candidate_links cl
+                          WHERE cl.status = 'article'
+                          AND NOT EXISTS (
+                              SELECT 1 
+                              FROM articles a
+                              WHERE a.candidate_link_id = cl.id
                           )
                       """))
                       count = r.scalar() or 0
