@@ -43,8 +43,8 @@ except ImportError:
 
 # Optional flexible date parser (dateutil). Not required at import time.
 try:
-    from dateutil.parser import parse as _dateutil_parse
     from dateutil import tz
+    from dateutil.parser import parse as _dateutil_parse
 
     # Define common US timezone abbreviations to avoid UnknownTimezoneWarning
     _TZINFOS = {
