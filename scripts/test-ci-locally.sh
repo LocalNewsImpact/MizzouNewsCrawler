@@ -7,10 +7,8 @@ set -e
 # 2. Runs migrations
 # 3. Runs tests in ci-base container with same network/env as CI
 
-# Use Docker from Docker Desktop if not in PATH
-if ! command -v docker &> /dev/null; then
-    export PATH="/Applications/Docker.app/Contents/Resources/bin:$PATH"
-fi
+# Ensure Docker is in PATH (for macOS Docker Desktop)
+export PATH="/usr/local/bin:/opt/homebrew/bin:/Applications/Docker.app/Contents/Resources/bin:$PATH"
 
 echo "🧪 Testing CI workflow locally..."
 echo ""
@@ -38,6 +36,11 @@ cleanup() {
 
 # Trap EXIT to ensure cleanup
 trap cleanup EXIT
+
+# Pre-flight: Remove any stale containers from previous runs
+echo "🧹 Checking for stale containers from previous runs..."
+docker rm -f "$POSTGRES_CONTAINER" 2>/dev/null || true
+docker system prune -f --volumes 2>/dev/null | grep -E "deleted|reclaimed" | head -5 || true
 
 # Step 1: Start PostgreSQL container with host network (EXACTLY like CI)
 echo "🐘 Starting PostgreSQL 15 container on port $POSTGRES_PORT..."
@@ -74,6 +77,12 @@ docker exec "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c 
 # Drop and recreate database to ensure clean slate (like CI does)
 echo ""
 echo "🗑️  Dropping and recreating database for clean state..."
+# Terminate all active connections to the database
+docker exec "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d postgres -c \
+    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$POSTGRES_DB' AND pid <> pg_backend_pid();" 2>/dev/null || true
+# Give it a moment for connections to close
+sleep 1
+# Now drop and recreate
 docker exec "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d postgres -c "DROP DATABASE IF EXISTS $POSTGRES_DB;"
 docker exec "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d postgres -c "CREATE DATABASE $POSTGRES_DB;"
 echo -e "${GREEN}✅ Clean database created${NC}"
@@ -195,16 +204,16 @@ echo ""
 echo "   🔄 Progress will show test names as they complete..."
 echo ""
 
-# DO NOT set PostgreSQL env vars - tests should use SQLite (via conftest.py)
-# This matches CI behavior exactly where the integration job has NO DATABASE_URL set
-# Coverage is checked at 78% for aggregate unit + integration test suite
+# DO NOT set PostgreSQL env vars - unit tests should use SQLite (via conftest.py)
+# This matches CI behavior exactly where the unit job has NO DATABASE_URL set
+set +e  # Disable exit-on-error temporarily to capture exit code
 docker run --rm \
     -v "$(pwd)":/workspace \
     -w /workspace \
     us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-    /bin/bash -c "pytest -m 'not postgres' --cov=src --cov-report=term-missing --cov-fail-under=78 -v" 2>&1 | { grep -v "WARNING: The requested image's platform" || true; }
-
-TEST_EXIT_CODE=${PIPESTATUS[0]}
+    /bin/bash -c "pytest -m 'not postgres' --cov=src --cov-report=term-missing --cov-fail-under=78 -v" 2>&1 | grep -v "WARNING: The requested image's platform" || true
+TEST_EXIT_CODE=${PIPESTATUS[0]}  # Gets exit code of docker run, not grep
+set -e   # Re-enable exit-on-error
 
 if [ $TEST_EXIT_CODE -ne 0 ]; then
     echo -e "${RED}❌ Unit + integration tests failed${NC}"
@@ -218,6 +227,8 @@ echo "🧪 Step 5/5: Running PostgreSQL integration tests..."
 echo "   📊 Tests marked with @pytest.mark.integration"
 echo "   ⏱️  Estimated time: 5-10 minutes"
 echo ""
+echo "📡 PostgreSQL status before tests:"
+docker exec "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d postgres -c "SELECT version();" 2>&1 | head -3
 
 docker run --rm \
     --network host \
@@ -234,12 +245,14 @@ docker run --rm \
     -e DATABASE_USER="$POSTGRES_USER" \
     -e DATABASE_PASSWORD="$POSTGRES_PASSWORD" \
     us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-    /bin/bash -c "pytest -v -m integration --tb=short --no-cov" 2>&1 | { grep -v "WARNING: The requested image's platform" || true; }
+    /bin/bash -c "pytest -v -m integration --tb=short --no-cov 2>&1"
 
-POSTGRES_TEST_EXIT_CODE=${PIPESTATUS[0]}
+POSTGRES_TEST_EXIT_CODE=$?
 
 if [ $POSTGRES_TEST_EXIT_CODE -ne 0 ]; then
     echo -e "${RED}❌ PostgreSQL integration tests failed${NC}"
+    echo "📡 PostgreSQL status after failure:"
+    docker exec "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d postgres -c "SELECT version();" 2>&1 || echo "PostgreSQL container not responding"
     exit 1
 fi
 echo -e "${GREEN}✅ Step 5/5: PostgreSQL integration tests passed${NC}"

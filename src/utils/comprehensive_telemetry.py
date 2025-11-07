@@ -669,13 +669,19 @@ class ComprehensiveExtractionTelemetry:
                     )
 
                 evidence_payload = detection.get("evidence")
+                # Get detected_type and detection_method with defaults
+                # for required NOT NULL fields
+                detected_type = detection.get("status", "unknown")
+                detection_method = "content_type_detector"
+
                 conn.execute(
                     """
                     INSERT INTO content_type_detection_telemetry (
                         article_id, operation_id, url, publisher, host,
+                        detected_type, detection_method,
                         status, confidence, confidence_score, reason,
                         evidence, version, detected_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         metrics.article_id,
@@ -683,6 +689,8 @@ class ComprehensiveExtractionTelemetry:
                         metrics.url,
                         metrics.publisher,
                         metrics.host,
+                        detected_type,
+                        detection_method,
                         detection.get("status"),
                         confidence_value,
                         detection.get("confidence_score"),

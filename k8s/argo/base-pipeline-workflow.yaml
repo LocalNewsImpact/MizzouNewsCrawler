@@ -82,19 +82,10 @@ spec:
           - name: inter-request-max
             value: "{{inputs.parameters.inter-request-max}}"
 
-      - name: wait-for-verified
-        template: wait-for-verified
-        depends: "verify-urls"
-        arguments:
-          parameters:
-          - name: min-verified
-            value: "{{inputs.parameters.min-verified}}"
-          - name: timeout-seconds
-            value: "{{inputs.parameters.verified-wait-seconds}}"
-
       - name: extract-content
         template: extraction-step
-        depends: "wait-for-verified"
+        # No dependency - starts immediately in parallel with verification
+        # Extraction will check for eligible articles and wait if none available
         arguments:
           parameters:
           - name: dataset
@@ -137,7 +128,7 @@ spec:
         maxDuration: "20m"
     container:
       image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:latest
-      imagePullPolicy: Always
+      imagePullPolicy: IfNotPresent
       command:
         - python
         - -m
@@ -230,7 +221,7 @@ spec:
         maxDuration: "20m"
     container:
       image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:latest
-      imagePullPolicy: Always
+      imagePullPolicy: IfNotPresent
       command:
         - python
         - -m
@@ -329,18 +320,16 @@ spec:
         maxDuration: "20m"
     container:
       image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:latest
-      imagePullPolicy: Always
-      command:
-        - python
-        - -m
-        - src.cli.cli_modular
-        - extract
-        - --dataset
-        - "{{inputs.parameters.dataset}}"
-        - --limit
-        - "{{inputs.parameters.limit}}"
-        - --batches
-        - "{{inputs.parameters.batches}}"
+      imagePullPolicy: IfNotPresent
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          echo "✅ Starting extraction immediately without waiting"
+          echo "Note: Extract command will check for available articles internally"
+          python -m src.cli.cli_modular extract \
+            --dataset "{{inputs.parameters.dataset}}" \
+            --limit "{{inputs.parameters.limit}}" \
+            --batches "{{inputs.parameters.batches}}"
       envFrom:
       - secretRef:
           name: origin-proxy-credentials
@@ -548,12 +537,24 @@ spec:
           while True:
               try:
                   with engine.connect() as conn:
-                      r = conn.execute(text("SELECT COUNT(*) FROM candidate_links WHERE status = 'article' AND verified_at >= now() - interval '1 hour'"))
+                      # Count verified candidate_links that don't have a corresponding article yet
+                      r = conn.execute(text("""
+                          SELECT COUNT(*) 
+                          FROM candidate_links cl
+                          WHERE cl.status = 'article'
+                          AND NOT EXISTS (
+                              SELECT 1 
+                              FROM articles a
+                              WHERE a.candidate_link_id = cl.id
+                          )
+                      """))
                       count = r.scalar() or 0
-                      print(f"verified_in_last_hour={count}")
+                      print(f"articles_ready_for_extraction={count}")
                       if count >= min_verified:
-                          print("verified threshold met")
+                          print(f"threshold met: {count} >= {min_verified}")
                           sys.exit(0)
+                      elif count > 0:
+                          print(f"found {count} articles, waiting for {min_verified}")
               except Exception as e:
                   print(f"db check error: {e}")
 

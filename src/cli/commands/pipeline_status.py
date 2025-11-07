@@ -313,16 +313,15 @@ def _check_extraction_status(session, hours, detailed):
 
 def _check_entity_extraction_status(session, hours, detailed):
     """Check entity extraction pipeline status."""
-    # Articles ready for entity extraction (have content but no entities)
+    # Articles ready for entity extraction (extracted or classified)
     result = safe_session_execute(
         session,
         text(
             """
             SELECT COUNT(*)
             FROM articles a
-            WHERE a.content IS NOT NULL
-            AND a.text IS NOT NULL
-            AND a.status NOT IN ('wire', 'opinion', 'obituary', 'error')
+            WHERE a.status IN ('extracted', 'classified')
+            AND a.content IS NOT NULL
             AND NOT EXISTS (
                 SELECT 1 FROM article_entities ae WHERE ae.article_id = a.id
             )
@@ -369,14 +368,14 @@ def _check_analysis_status(session, hours, detailed):
     """Check analysis/classification pipeline status."""
     # Query the article_labels table (the actual classification results table)
     try:
-        # Count articles eligible for classification
+        # Count articles eligible for classification (only status='extracted' are ready)
         result = safe_session_execute(
             session,
             text(
                 """
                 SELECT COUNT(*)
                 FROM articles a
-                WHERE a.status IN ('extracted', 'cleaned', 'local')
+                WHERE a.status = 'extracted'
                 AND NOT EXISTS (
                     SELECT 1 FROM article_labels al
                     WHERE al.article_id = a.id

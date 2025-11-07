@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: production
+
+resources:
+  - ../../base
+
+# Production-specific labels
+commonLabels:
+  environment: production
+
+# Use immutable image tags in production (no :latest)
+# Images are specified in base deployments with specific commit SHAs

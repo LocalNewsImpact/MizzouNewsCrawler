@@ -87,11 +87,19 @@ class WorkQueue:
                 counts["verification_pending"] = result.scalar() or 0
 
             # Count candidate_links ready for extraction (only if enabled)
+            # Only count those that haven't been extracted yet
             if ENABLE_EXTRACTION:
                 result = db.session.execute(
                     text(
-                        "SELECT COUNT(*) FROM candidate_links "
-                        "WHERE status = 'article' OR status = 'verification_uncertain'"
+                        """
+                        SELECT COUNT(*)
+                        FROM candidate_links
+                        WHERE status = 'article'
+                        AND id NOT IN (
+                            SELECT candidate_link_id FROM articles
+                            WHERE candidate_link_id IS NOT NULL
+                        )
+                        """
                     )
                 )
                 counts["extraction_pending"] = result.scalar() or 0
@@ -106,23 +114,25 @@ class WorkQueue:
                 )
                 counts["cleaning_pending"] = result.scalar() or 0
 
-            # Count articles without ML analysis (only 'cleaned' status is eligible)
+            # Count articles without ML analysis (only status='extracted' are ready)
             if ENABLE_ML_ANALYSIS:
                 result = db.session.execute(
                     text(
                         "SELECT COUNT(*) FROM articles "
-                        "WHERE status IN ('cleaned', 'local') "
+                        "WHERE status = 'extracted' "
                         "AND primary_label IS NULL"
                     )
                 )
                 counts["analysis_pending"] = result.scalar() or 0
 
             # Count articles without entity extraction
+            # (extracted or classified articles are ready)
             if ENABLE_ENTITY_EXTRACTION:
                 result = db.session.execute(
                     text(
                         "SELECT COUNT(*) FROM articles a "
-                        "WHERE NOT EXISTS ("
+                        "WHERE a.status IN ('extracted', 'classified') "
+                        "AND NOT EXISTS ("
                         "  SELECT 1 FROM article_entities ae WHERE ae.article_id = a.id"
                         ") AND a.content IS NOT NULL"
                     )
