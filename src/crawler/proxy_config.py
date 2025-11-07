@@ -2,9 +2,17 @@
 
 import logging
 import os
+import warnings
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
+
+# Suppress InsecureRequestWarning for proxy connections (expected behavior)
+try:
+    from urllib3.exceptions import InsecureRequestWarning
+    warnings.filterwarnings('ignore', category=InsecureRequestWarning)
+except ImportError:
+    pass
 
 logger = logging.getLogger(__name__)
 

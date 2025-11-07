@@ -330,17 +330,22 @@ spec:
     container:
       image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:latest
       imagePullPolicy: Always
-      command:
-        - python
-        - -m
-        - src.cli.cli_modular
-        - extract
-        - --dataset
-        - "{{inputs.parameters.dataset}}"
-        - --limit
-        - "{{inputs.parameters.limit}}"
-        - --batches
-        - "{{inputs.parameters.batches}}"
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          # Check if extraction is already running by looking for active Argo workflows
+          echo "Checking for active extraction workflows..."
+          if kubectl get workflows -n production -l stage=extraction --field-selector status.phase=Running 2>/dev/null | grep -q extraction; then
+            echo "⚠️  Extraction workflow already running - skipping to avoid duplication"
+            exit 0
+          fi
+          
+          echo "✅ No active extraction found - proceeding"
+          python -m src.cli.cli_modular extract \
+            --dataset "{{inputs.parameters.dataset}}" \
+            --limit "{{inputs.parameters.limit}}" \
+            --batches "{{inputs.parameters.batches}}" \
+            --exhaust-queue
       envFrom:
       - secretRef:
           name: origin-proxy-credentials
@@ -548,12 +553,25 @@ spec:
           while True:
               try:
                   with engine.connect() as conn:
-                      r = conn.execute(text("SELECT COUNT(*) FROM candidate_links WHERE status = 'article' AND verified_at >= now() - interval '1 hour'"))
+                      # Count articles ready for extraction (verified but not extracted yet)
+                      r = conn.execute(text("""
+                          SELECT COUNT(*) 
+                          FROM candidate_links 
+                          WHERE status = 'article' 
+                          AND article_id IS NOT NULL
+                          AND article_id NOT IN (
+                              SELECT DISTINCT article_id 
+                              FROM extraction_telemetry_v2 
+                              WHERE article_id IS NOT NULL
+                          )
+                      """))
                       count = r.scalar() or 0
-                      print(f"verified_in_last_hour={count}")
+                      print(f"articles_ready_for_extraction={count}")
                       if count >= min_verified:
-                          print("verified threshold met")
+                          print(f"threshold met: {count} >= {min_verified}")
                           sys.exit(0)
+                      elif count > 0:
+                          print(f"found {count} articles, waiting for {min_verified}")
               except Exception as e:
                   print(f"db check error: {e}")
 

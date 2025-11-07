@@ -104,15 +104,25 @@ wait_for_build() {
     
     echo -e "${COLOR_YELLOW}⏳ Waiting for ${service_name} build to complete...${COLOR_RESET}"
     
+    # Get project ID
+    local project_id
+    project_id=$(gcloud config get-value project 2>/dev/null)
+    
     while true; do
-        status=$(gcloud builds describe "$build_id" --format='value(status)')
+        status=$(gcloud builds describe "$build_id" --project="$project_id" --format='value(status)' 2>&1)
+        
+        if [ $? -ne 0 ]; then
+            echo -e "${COLOR_RED}❌ Error querying build status: ${status}${COLOR_RESET}"
+            echo -e "${COLOR_YELLOW}View logs: gcloud builds log ${build_id} --project=${project_id}${COLOR_RESET}"
+            return 1
+        fi
         
         if [ "$status" = "SUCCESS" ]; then
             echo -e "${COLOR_GREEN}✅ ${service_name} build completed successfully${COLOR_RESET}"
             return 0
         elif [ "$status" = "FAILURE" ] || [ "$status" = "TIMEOUT" ] || [ "$status" = "CANCELLED" ]; then
             echo -e "${COLOR_RED}❌ ${service_name} build failed with status: ${status}${COLOR_RESET}"
-            echo -e "${COLOR_YELLOW}View logs: gcloud builds log ${build_id}${COLOR_RESET}"
+            echo -e "${COLOR_YELLOW}View logs: gcloud builds log ${build_id} --project=${project_id}${COLOR_RESET}"
             return 1
         fi
         
