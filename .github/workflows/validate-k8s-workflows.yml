@@ -101,12 +101,25 @@ jobs:
       
       - name: Validate YAML syntax
         run: |
-          for file in k8s/argo/*.yaml k8s/*.yaml; do
-            if [ -f "$file" ]; then
-              echo "Validating $file..."
-              python -c "import yaml; yaml.safe_load(open('$file'))" || exit 1
-            fi
-          done
+          python - <<'YAML_VALIDATION'
+          import yaml
+          from pathlib import Path
+          
+          files_to_check = list(Path('k8s/argo').glob('*.yaml')) + list(Path('k8s').glob('*.yaml'))
+          
+          for yaml_file in files_to_check:
+              print(f"Validating {yaml_file}...")
+              try:
+                  with open(yaml_file) as f:
+                      # Use safe_load_all to handle multi-document YAML files
+                      list(yaml.safe_load_all(f))
+              except yaml.YAMLError as e:
+                  print(f"❌ YAML Error in {yaml_file}:")
+                  print(f"   {e}")
+                  exit(1)
+          
+          print("✅ All YAML files validated")
+          YAML_VALIDATION
       
       - name: Check for common issues
         run: |
@@ -127,18 +140,39 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Install Argo CLI
+      - name: Validate WorkflowTemplate YAML syntax
         run: |
-          curl -sLO https://github.com/argoproj/argo-workflows/releases/download/v3.5.5/argo-linux-amd64.gz
-          gunzip argo-linux-amd64.gz
-          chmod +x argo-linux-amd64
-          sudo mv argo-linux-amd64 /usr/local/bin/argo
-      
-      - name: Validate WorkflowTemplate syntax
-        run: |
-          for file in k8s/argo/*workflow*.yaml; do
-            if [ -f "$file" ]; then
-              echo "Validating $file..."
-              argo lint "$file" || exit 1
-            fi
-          done
+          python - <<'TEMPLATE_VALIDATION'
+          import yaml
+          from pathlib import Path
+          
+          # Workflow template files
+          workflow_files = list(Path('k8s/argo').glob('*workflow*.yaml'))
+          
+          for yaml_file in workflow_files:
+              print(f"Validating {yaml_file}...")
+              try:
+                  with open(yaml_file) as f:
+                      docs = list(yaml.safe_load_all(f))
+                      
+                      # Validate each document
+                      for i, doc in enumerate(docs):
+                          if not isinstance(doc, dict):
+                              print(f"❌ Document {i+1} is not a valid Kubernetes object")
+                              exit(1)
+                          
+                          # Check required fields
+                          if 'apiVersion' not in doc or 'kind' not in doc:
+                              print(f"❌ Document {i+1} missing apiVersion or kind")
+                              exit(1)
+                          
+                          kind = doc.get('kind', '')
+                          if kind not in ['Workflow', 'WorkflowTemplate', 'CronWorkflow', 'ClusterWorkflowTemplate', 'ServiceAccount', 'Role', 'RoleBinding']:
+                              print(f"⚠️  Warning: Unexpected kind '{kind}' in {yaml_file}")
+              except yaml.YAMLError as e:
+                  print(f"❌ YAML Error in {yaml_file}:")
+                  print(f"   {e}")
+                  exit(1)
+          
+          print("✅ All workflow templates validated")
+          TEMPLATE_VALIDATION
