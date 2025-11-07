@@ -77,6 +77,12 @@ docker exec "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c 
 # Drop and recreate database to ensure clean slate (like CI does)
 echo ""
 echo "🗑️  Dropping and recreating database for clean state..."
+# Terminate all active connections to the database
+docker exec "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d postgres -c \
+    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$POSTGRES_DB' AND pid <> pg_backend_pid();" 2>/dev/null || true
+# Give it a moment for connections to close
+sleep 1
+# Now drop and recreate
 docker exec "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d postgres -c "DROP DATABASE IF EXISTS $POSTGRES_DB;"
 docker exec "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d postgres -c "CREATE DATABASE $POSTGRES_DB;"
 echo -e "${GREEN}✅ Clean database created${NC}"
