@@ -71,3 +71,8 @@ spec:
               value: "1800"    # 30 minutes
             - name: captcha-backoff-max
               value: "7200"    # 2 hours
+            # Wait parameters - start extraction when ready
+            - name: min-verified
+              value: "10"      # Start with just 10 articles ready
+            - name: verified-wait-seconds
+              value: "120"     # Wait max 2 minutes if threshold not met

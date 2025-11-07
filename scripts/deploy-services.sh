@@ -39,9 +39,30 @@ COLOR_RED='\033[0;31m'
 COLOR_CYAN='\033[0;36m'
 COLOR_RESET='\033[0m'
 
-# Parse arguments
-BRANCH="${1:-main}"
-shift || true
+# Parse arguments -- prefer current git branch when available.
+# If the user did not pass a branch explicitly and there are uncommitted
+# changes in the working tree, abort to avoid accidentally triggering
+# remote builds for the wrong code state.
+if [ -n "${1:-}" ]; then
+    BRANCH="$1"
+    shift || true
+else
+    # If we're inside a git work tree, prefer the current branch name.
+    if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        # Abort if there are uncommitted changes to avoid accidental builds
+        if [ -n "$(git status --porcelain)" ]; then
+            echo -e "${COLOR_RED}❌ Uncommitted changes detected in the working tree.${COLOR_RESET}"
+            echo -e "${COLOR_YELLOW}By default this script builds the current branch, but local uncommitted changes won't be included in remote builds.${COLOR_RESET}"
+            echo -e "${COLOR_YELLOW}Commit or stash changes, or pass an explicit branch to continue:${COLOR_RESET} ./scripts/deploy-services.sh <branch> [services]"
+            exit 1
+        fi
+
+        BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
+    else
+        # Not a git checkout (CI/CD environment) — fall back to main
+        BRANCH="main"
+    fi
+fi
 
 # Service selection
 SERVICES_TO_BUILD=()
@@ -104,15 +125,23 @@ wait_for_build() {
     
     echo -e "${COLOR_YELLOW}⏳ Waiting for ${service_name} build to complete...${COLOR_RESET}"
     
+    # Get project ID
+    local project_id
+    project_id=$(gcloud config get-value project 2>/dev/null)
+    
     while true; do
-        status=$(gcloud builds describe "$build_id" --format='value(status)')
+        if ! status=$(gcloud builds describe "$build_id" --project="$project_id" --format='value(status)' 2>&1); then
+            echo -e "${COLOR_RED}❌ Error querying build status: ${status}${COLOR_RESET}"
+            echo -e "${COLOR_YELLOW}View logs: gcloud builds log ${build_id} --project=${project_id}${COLOR_RESET}"
+            return 1
+        fi
         
         if [ "$status" = "SUCCESS" ]; then
             echo -e "${COLOR_GREEN}✅ ${service_name} build completed successfully${COLOR_RESET}"
             return 0
         elif [ "$status" = "FAILURE" ] || [ "$status" = "TIMEOUT" ] || [ "$status" = "CANCELLED" ]; then
             echo -e "${COLOR_RED}❌ ${service_name} build failed with status: ${status}${COLOR_RESET}"
-            echo -e "${COLOR_YELLOW}View logs: gcloud builds log ${build_id}${COLOR_RESET}"
+            echo -e "${COLOR_YELLOW}View logs: gcloud builds log ${build_id} --project=${project_id}${COLOR_RESET}"
             return 1
         fi
         

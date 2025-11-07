@@ -673,7 +673,7 @@ class ComprehensiveExtractionTelemetry:
                 # for required NOT NULL fields
                 detected_type = detection.get("status", "unknown")
                 detection_method = "content_type_detector"
-                
+
                 conn.execute(
                     """
                     INSERT INTO content_type_detection_telemetry (

@@ -1,0 +1,6 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: mizzou-news-pipeline
+spec:
+  suspend: true  # Disable automatic cron runs in staging
