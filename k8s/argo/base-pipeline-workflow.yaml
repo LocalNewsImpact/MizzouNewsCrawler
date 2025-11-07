@@ -324,7 +324,7 @@ spec:
       command: ["/bin/bash", "-c"]
       args:
         - |
-                    echo "✅ No active extraction found - starting extraction"
+          echo "✅ Starting extraction immediately without waiting"
           echo "Note: Extract command will check for available articles internally"
           python -m src.cli.cli_modular extract \
             --dataset "{{inputs.parameters.dataset}}" \
