@@ -67,6 +67,120 @@ steps:
       - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/crawler'
     waitFor: ['build-crawler']
 
+  # Build and push migrator image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-migrator'
+    args:
+      - 'build'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/migrator:${SHORT_SHA}'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/migrator:latest'
+      - '-f'
+      - 'Dockerfile.migrator'
+      - '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-migrator'
+    args:
+      - 'push'
+      - '--all-tags'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/migrator'
+    waitFor: ['build-migrator']
+
+  # Run database migrations BEFORE deployment (only on main branch)
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'run-migrations'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        if [ "${BRANCH_NAME}" = "main" ]; then
+          echo "🔄 Running database migrations..."
+          
+          # Get GKE credentials
+          gcloud container clusters get-credentials mizzou-cluster \
+            --zone=us-central1-a \
+            --project=${PROJECT_ID}
+          
+          # Create migration job
+          cat > /tmp/migration-job.yaml <<EOF
+        apiVersion: batch/v1
+        kind: Job
+        metadata:
+          name: migration-${SHORT_SHA}
+          namespace: production
+          labels:
+            app: migrator
+            component: database
+            commit: ${SHORT_SHA}
+        spec:
+          backoffLimit: 2
+          ttlSecondsAfterFinished: 86400
+          template:
+            metadata:
+              labels:
+                app: migrator
+            spec:
+              serviceAccountName: mizzou-app
+              restartPolicy: Never
+              containers:
+              - name: migrator
+                image: us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/migrator:${SHORT_SHA}
+                command: ["alembic", "upgrade", "head"]
+                env:
+                - name: DATABASE_ENGINE
+                  value: "postgresql+psycopg2"
+                - name: DATABASE_HOST
+                  value: "127.0.0.1"
+                - name: DATABASE_PORT
+                  value: "5432"
+                - name: DATABASE_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: cloudsql-db-credentials
+                      key: username
+                - name: DATABASE_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: cloudsql-db-credentials
+                      key: password
+                - name: DATABASE_NAME
+                  valueFrom:
+                    secretKeyRef:
+                      name: cloudsql-db-credentials
+                      key: database
+                - name: USE_CLOUD_SQL_CONNECTOR
+                  value: "true"
+                - name: CLOUD_SQL_INSTANCE
+                  value: "${PROJECT_ID}:us-central1:mizzou-db-prod"
+              - name: cloud-sql-proxy
+                image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.8.0
+                args:
+                  - "--port=5432"
+                  - "${PROJECT_ID}:us-central1:mizzou-db-prod"
+                securityContext:
+                  runAsNonRoot: true
+        EOF
+          
+          # Apply the job
+          kubectl apply -f /tmp/migration-job.yaml
+          
+          # Wait for migration to complete (timeout 5 minutes)
+          echo "⏳ Waiting for migration to complete..."
+          kubectl wait --for=condition=complete --timeout=300s job/migration-${SHORT_SHA} -n production || {
+            echo "❌ Migration failed or timed out"
+            kubectl logs job/migration-${SHORT_SHA} -n production || true
+            exit 1
+          }
+          
+          echo "✅ Database migrations completed successfully"
+          kubectl logs job/migration-${SHORT_SHA} -n production
+        else
+          echo "ℹ️  Skipping migrations - not on main branch"
+        fi
+    waitFor: ['push-migrator']
+
   # Create Cloud Deploy release (only on main branch)
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'create-release'
@@ -86,7 +200,7 @@ steps:
           echo "   To manually deploy this build:"
           echo "   gcloud deploy releases create release-${SHORT_SHA} --delivery-pipeline=mizzou-news-crawler --region=us-central1 --images=processor=us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/processor:${SHORT_SHA},api=us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/api:${SHORT_SHA},crawler=us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/crawler:${SHORT_SHA}"
         fi
-    waitFor: ['push-processor', 'push-api', 'push-crawler']
+    waitFor: ['push-processor', 'push-api', 'push-crawler', 'run-migrations']
 
 options:
   machineType: 'N1_HIGHCPU_8'
