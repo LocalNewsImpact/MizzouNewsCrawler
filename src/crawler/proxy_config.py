@@ -13,6 +13,8 @@ try:
 
     warnings.filterwarnings("ignore", category=InsecureRequestWarning)
 except ImportError:
+    # If urllib3 is not available, we can't suppress InsecureRequestWarning.
+    # This is fine; continue without suppressing the warning.
     pass
 
 logger = logging.getLogger(__name__)

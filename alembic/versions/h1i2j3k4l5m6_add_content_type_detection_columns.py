@@ -24,36 +24,19 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Add detected_type and detection_method columns."""
     
-    # Add detected_type column
-    try:
-        op.add_column(
-            'content_type_detection_telemetry',
-            sa.Column('detected_type', sa.String(), nullable=True)
-        )
-    except Exception:
-        # Column might already exist
-        pass
+    op.add_column(
+        'content_type_detection_telemetry',
+        sa.Column('detected_type', sa.String(), nullable=True)
+    )
     
-    # Add detection_method column
-    try:
-        op.add_column(
-            'content_type_detection_telemetry',
-            sa.Column('detection_method', sa.String(), nullable=True)
-        )
-    except Exception:
-        # Column might already exist
-        pass
+    op.add_column(
+        'content_type_detection_telemetry',
+        sa.Column('detection_method', sa.String(), nullable=True)
+    )
 
 
 def downgrade() -> None:
     """Remove detected_type and detection_method columns."""
     
-    try:
-        op.drop_column('content_type_detection_telemetry', 'detection_method')
-    except Exception:
-        pass
-    
-    try:
-        op.drop_column('content_type_detection_telemetry', 'detected_type')
-    except Exception:
-        pass
+    op.drop_column('content_type_detection_telemetry', 'detection_method')
+    op.drop_column('content_type_detection_telemetry', 'detected_type')

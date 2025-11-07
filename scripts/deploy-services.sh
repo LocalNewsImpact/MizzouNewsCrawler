@@ -130,9 +130,7 @@ wait_for_build() {
     project_id=$(gcloud config get-value project 2>/dev/null)
     
     while true; do
-        status=$(gcloud builds describe "$build_id" --project="$project_id" --format='value(status)' 2>&1)
-        
-        if [ $? -ne 0 ]; then
+        if ! status=$(gcloud builds describe "$build_id" --project="$project_id" --format='value(status)' 2>&1); then
             echo -e "${COLOR_RED}❌ Error querying build status: ${status}${COLOR_RESET}"
             echo -e "${COLOR_YELLOW}View logs: gcloud builds log ${build_id} --project=${project_id}${COLOR_RESET}"
             return 1
