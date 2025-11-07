@@ -37,6 +37,11 @@ cleanup() {
 # Trap EXIT to ensure cleanup
 trap cleanup EXIT
 
+# Pre-flight: Remove any stale containers from previous runs
+echo "🧹 Checking for stale containers from previous runs..."
+docker rm -f "$POSTGRES_CONTAINER" 2>/dev/null || true
+docker system prune -f --volumes 2>/dev/null | grep -E "deleted|reclaimed" | head -5 || true
+
 # Step 1: Start PostgreSQL container with host network (EXACTLY like CI)
 echo "🐘 Starting PostgreSQL 15 container on port $POSTGRES_PORT..."
 docker run -d \
