@@ -102,10 +102,47 @@ echo -e "${COLOR_CYAN}Branch:${COLOR_RESET}    ${BRANCH}"
 echo -e "${COLOR_CYAN}Services:${COLOR_RESET}  ${SERVICES_TO_BUILD[*]}"
 echo -e "${COLOR_BLUE}========================================${COLOR_RESET}"
 
+# Function to check if service is in build list
+should_build() {
+    local service=$1
+    for s in "${SERVICES_TO_BUILD[@]}"; do
+        if [ "$s" = "$service" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Check if building all services or just app services - use main cloudbuild.yaml
+# This ensures migrations run and Cloud Deploy creates proper releases
+if should_build "api" && should_build "crawler" && should_build "processor"; then
+    echo -e "\n${COLOR_CYAN}ℹ️  Building multiple services - using main cloudbuild.yaml pipeline${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}   This includes: build → migrate → deploy${COLOR_RESET}\n"
+    
+    gcloud builds submit --config=gcp/cloudbuild/cloudbuild.yaml \
+        --project=mizzou-news-crawler \
+        --substitutions=BRANCH_NAME="${BRANCH}"
+    
+    exit_code=$?
+    
+    if [ $exit_code -eq 0 ]; then
+        echo -e "\n${COLOR_GREEN}✅ Pipeline completed successfully!${COLOR_RESET}"
+        echo -e "${COLOR_GREEN}   - Built all images${COLOR_RESET}"
+        echo -e "${COLOR_GREEN}   - Ran database migrations${COLOR_RESET}"
+        echo -e "${COLOR_GREEN}   - Created Cloud Deploy release${COLOR_RESET}"
+    else
+        echo -e "\n${COLOR_RED}❌ Pipeline failed${COLOR_RESET}"
+    fi
+    
+    exit $exit_code
+fi
+
+# For individual service builds, use the old trigger-based approach
+echo -e "\n${COLOR_CYAN}ℹ️  Building individual services via triggers${COLOR_RESET}\n"
+
 # Dependency graph:
-# base → ml, api, crawler
+# base → ml, api, crawler, migrator
 # ml → processor
-# No dependencies: (standalone builds)
 
 # Function to check if service is in build list
 should_build() {
