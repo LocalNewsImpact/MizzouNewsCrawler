@@ -1,0 +1,160 @@
+name: Test ChromeDriver Installation
+
+on:
+  pull_request:
+    paths:
+      - 'Dockerfile.crawler'
+      - '.github/workflows/test-chromedriver.yml'
+  workflow_dispatch: {}
+
+jobs:
+  test-apt-packages:
+    name: Test APT Package Installation
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Chromium and ChromeDriver from APT
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium chromium-driver
+      
+      - name: Verify versions match
+        run: |
+          echo "=== Chromium ==="
+          chromium --version
+          
+          echo ""
+          echo "=== ChromeDriver ==="
+          chromedriver --version
+          
+          echo ""
+          echo "=== Version Check ==="
+          CHROME_MAJOR=$(chromium --version | grep -oP '\d+' | head -1)
+          DRIVER_MAJOR=$(chromedriver --version | grep -oP '\d+' | head -1)
+          
+          echo "Chrome major: $CHROME_MAJOR"
+          echo "Driver major: $DRIVER_MAJOR"
+          
+          if [ "$CHROME_MAJOR" = "$DRIVER_MAJOR" ]; then
+            echo "✅ SUCCESS: Versions match!"
+          else
+            echo "❌ FAIL: Version mismatch (Chrome $CHROME_MAJOR vs Driver $DRIVER_MAJOR)"
+            exit 1
+          fi
+      
+      - name: Test Selenium
+        run: |
+          pip install --quiet selenium
+          python3 << 'PYEOF'
+          from selenium import webdriver
+          from selenium.webdriver.chrome.options import Options
+          from selenium.webdriver.chrome.service import Service
+
+          options = Options()
+          options.add_argument("--headless=new")
+          options.add_argument("--no-sandbox")
+          options.add_argument("--disable-dev-shm-usage")
+
+          service = Service("/usr/bin/chromedriver")
+
+          try:
+              driver = webdriver.Chrome(service=service, options=options)
+              print("✅ Selenium works with APT packages!")
+              driver.quit()
+          except Exception as e:
+              print(f"❌ Selenium failed: {e}")
+              exit(1)
+          PYEOF
+
+  test-chromedriver-docker:
+    name: Test ChromeDriver in Docker Build
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build test image
+        run: |
+          cat > /tmp/Dockerfile.chromedriver-test <<'EOF'
+          FROM python:3.11-slim
+          
+          # Install Chromium and ChromeDriver from APT (matching what Dockerfile.crawler does)
+          RUN apt-get clean && \
+              rm -rf /var/lib/apt/lists/* && \
+              apt-get update && \
+              apt-get install -y --no-install-recommends \
+                  chromium \
+                  chromium-driver \
+                  fonts-liberation \
+                  libnss3 \
+                  libxss1 \
+                  xdg-utils \
+                  libxdamage1 \
+                  libx11-xcb1 && \
+              rm -rf /var/lib/apt/lists/* && \
+              mkdir -p /opt/chromedriver-cache /home/appuser/.wdm && \
+              chmod 777 /opt/chromedriver-cache /home/appuser/.wdm && \
+              echo "Chromium version: $(chromium --version)" && \
+              echo "ChromeDriver version: $(chromedriver --version)"
+          
+          CMD ["/bin/bash"]
+          EOF
+          
+          docker build -f /tmp/Dockerfile.chromedriver-test -t chromedriver-test:ci .
+      
+      - name: Verify versions in container
+        run: |
+          docker run --rm chromedriver-test:ci bash -c '
+            echo "=== Chromium ==="
+            chromium --version
+            
+            echo ""
+            echo "=== ChromeDriver ==="
+            chromedriver --version
+            
+            echo ""
+            echo "=== Compatibility Check ==="
+            CHROME_MAJOR=$(chromium --version | grep -oP "\d+" | head -1)
+            DRIVER_MAJOR=$(chromedriver --version | grep -oP "\d+" | head -1)
+            
+            echo "Chrome major: $CHROME_MAJOR"
+            echo "Driver major: $DRIVER_MAJOR"
+            
+            if [ "$CHROME_MAJOR" = "$DRIVER_MAJOR" ]; then
+              echo "✅ PASS: Versions match exactly!"
+            else
+              echo "❌ FAIL: Version mismatch"
+              exit 1
+            fi
+          '
+      
+      - name: Test Selenium initialization
+        run: |
+          docker run --rm chromedriver-test:ci bash << 'TESTEOF'
+          pip install --quiet selenium
+          python3 << 'PYEOF'
+          from selenium import webdriver
+          from selenium.webdriver.chrome.options import Options
+          from selenium.webdriver.chrome.service import Service
+
+          options = Options()
+          options.add_argument("--headless=new")
+          options.add_argument("--no-sandbox")
+          options.add_argument("--disable-dev-shm-usage")
+
+          service = Service("/usr/bin/chromedriver")
+
+          try:
+              driver = webdriver.Chrome(service=service, options=options)
+              print("✅ Selenium initialized successfully")
+              driver.quit()
+          except Exception as e:
+              print(f"❌ Selenium failed: {e}")
+              exit(1)
+          PYEOF
+          TESTEOF
