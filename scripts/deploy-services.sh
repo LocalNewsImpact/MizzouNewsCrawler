@@ -3,12 +3,12 @@ set -e
 
 # Flexible Build Script for GCP Services
 # Usage: ./scripts/deploy-services.sh [branch] [services...]
-# Services: base, ml, api, crawler, processor, ci (or 'all')
+# Services: base, ml, api, crawler, processor, migrator, services (or 'all')
 # Examples:
 #   ./scripts/deploy-services.sh fix/telemetrystring crawler processor
 #   ./scripts/deploy-services.sh main base ml processor
 #   ./scripts/deploy-services.sh main all
-#   ./scripts/deploy-services.sh main ci  # Just CI/CD services (api, crawler, processor)
+#   ./scripts/deploy-services.sh main services  # Just application services (api, crawler, processor, migrator)
 
 # Ensure gcloud CLI is available
 if ! command -v gcloud >/dev/null 2>&1; then
@@ -68,24 +68,24 @@ fi
 SERVICES_TO_BUILD=()
 if [ $# -eq 0 ]; then
     echo -e "${COLOR_YELLOW}⚠️  No services specified. Building all services.${COLOR_RESET}"
-    SERVICES_TO_BUILD=("base" "ml" "api" "crawler" "processor")
+    SERVICES_TO_BUILD=("base" "ml" "api" "crawler" "processor" "migrator")
 else
     for arg in "$@"; do
         case "$arg" in
             all)
-                SERVICES_TO_BUILD=("base" "ml" "api" "crawler" "processor")
+                SERVICES_TO_BUILD=("base" "ml" "api" "crawler" "processor" "migrator")
                 break
                 ;;
-            ci)
-                # CI services only (no base images)
-                SERVICES_TO_BUILD+=("api" "crawler" "processor")
+            services)
+                # Application services only (no base images)
+                SERVICES_TO_BUILD+=("api" "crawler" "processor" "migrator")
                 ;;
-            base|ml|api|crawler|processor)
+            base|ml|api|crawler|processor|migrator)
                 SERVICES_TO_BUILD+=("$arg")
                 ;;
             *)
                 echo -e "${COLOR_RED}❌ Unknown service: $arg${COLOR_RESET}"
-                echo "Valid services: base, ml, api, crawler, processor, ci, all"
+                echo "Valid services: base, ml, api, crawler, processor, migrator, services, all"
                 exit 1
                 ;;
         esac
@@ -255,7 +255,22 @@ if should_build "crawler"; then
     ((STEP_COUNTER++))
 fi
 
-# Wait for parallel builds (api, crawler)
+if should_build "migrator"; then
+    echo -e "\n${COLOR_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
+    echo -e "${COLOR_BLUE}Phase 3c: Migrator Service (Step ${STEP_COUNTER}/${TOTAL_STEPS})${COLOR_RESET}"
+    echo -e "${COLOR_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
+    
+    if ! should_build "base"; then
+        echo -e "${COLOR_YELLOW}⚠️  Building Migrator without rebuilding base image (using existing base)${COLOR_RESET}"
+    fi
+    
+    MIGRATOR_BUILD_ID=$(trigger_build "build-migrator-manual" "Migrator Service" "$BRANCH")
+    PARALLEL_BUILDS+=("$MIGRATOR_BUILD_ID")
+    PARALLEL_SERVICES+=("Migrator Service")
+    ((STEP_COUNTER++))
+fi
+
+# Wait for parallel builds (api, crawler, migrator)
 if [ ${#PARALLEL_BUILDS[@]} -gt 0 ]; then
     echo -e "\n${COLOR_YELLOW}⏳ Waiting for ${#PARALLEL_BUILDS[@]} parallel builds to complete...${COLOR_RESET}"
     for i in "${!PARALLEL_BUILDS[@]}"; do
