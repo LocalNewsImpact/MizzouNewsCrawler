@@ -225,6 +225,8 @@ echo "🧪 Step 5/5: Running PostgreSQL integration tests..."
 echo "   📊 Tests marked with @pytest.mark.integration"
 echo "   ⏱️  Estimated time: 5-10 minutes"
 echo ""
+echo "📡 PostgreSQL status before tests:"
+docker exec "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d postgres -c "SELECT version();" 2>&1 | head -3
 
 docker run --rm \
     --network host \
@@ -241,12 +243,14 @@ docker run --rm \
     -e DATABASE_USER="$POSTGRES_USER" \
     -e DATABASE_PASSWORD="$POSTGRES_PASSWORD" \
     us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-    /bin/bash -c "pytest -v -m integration --tb=short --no-cov" 2>&1 | { grep -v "WARNING: The requested image's platform" || true; }
+    /bin/bash -c "pytest -v -m integration --tb=short --no-cov 2>&1"
 
-POSTGRES_TEST_EXIT_CODE=${PIPESTATUS[0]}
+POSTGRES_TEST_EXIT_CODE=$?
 
 if [ $POSTGRES_TEST_EXIT_CODE -ne 0 ]; then
     echo -e "${RED}❌ PostgreSQL integration tests failed${NC}"
+    echo "📡 PostgreSQL status after failure:"
+    docker exec "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d postgres -c "SELECT version();" 2>&1 || echo "PostgreSQL container not responding"
     exit 1
 fi
 echo -e "${GREEN}✅ Step 5/5: PostgreSQL integration tests passed${NC}"
