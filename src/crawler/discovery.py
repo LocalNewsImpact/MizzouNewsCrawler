@@ -45,24 +45,24 @@ except ImportError:
 try:
     from dateutil.parser import parse as _dateutil_parse
     from dateutil import tz
-    
+
     # Define common US timezone abbreviations to avoid UnknownTimezoneWarning
     _TZINFOS = {
-        'CST': tz.gettz('America/Chicago'),  # Central Standard Time
-        'CDT': tz.gettz('America/Chicago'),  # Central Daylight Time
-        'EST': tz.gettz('America/New_York'),  # Eastern Standard Time
-        'EDT': tz.gettz('America/New_York'),  # Eastern Daylight Time
-        'MST': tz.gettz('America/Denver'),    # Mountain Standard Time
-        'MDT': tz.gettz('America/Denver'),    # Mountain Daylight Time
-        'PST': tz.gettz('America/Los_Angeles'),  # Pacific Standard Time
-        'PDT': tz.gettz('America/Los_Angeles'),  # Pacific Daylight Time
+        "CST": tz.gettz("America/Chicago"),  # Central Standard Time
+        "CDT": tz.gettz("America/Chicago"),  # Central Daylight Time
+        "EST": tz.gettz("America/New_York"),  # Eastern Standard Time
+        "EDT": tz.gettz("America/New_York"),  # Eastern Daylight Time
+        "MST": tz.gettz("America/Denver"),  # Mountain Standard Time
+        "MDT": tz.gettz("America/Denver"),  # Mountain Daylight Time
+        "PST": tz.gettz("America/Los_Angeles"),  # Pacific Standard Time
+        "PDT": tz.gettz("America/Los_Angeles"),  # Pacific Daylight Time
     }
-    
+
     def _parse_date(date_string, **kwargs):
         """Wrapper around dateutil.parser.parse with US timezone mappings."""
-        kwargs.setdefault('tzinfos', _TZINFOS)
+        kwargs.setdefault("tzinfos", _TZINFOS)
         return _dateutil_parse(date_string, **kwargs)
-        
+
 except Exception:
     _parse_date = None  # type: ignore[assignment]
 

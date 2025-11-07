@@ -10,7 +10,8 @@ from typing import Optional
 # Suppress InsecureRequestWarning for proxy connections (expected behavior)
 try:
     from urllib3.exceptions import InsecureRequestWarning
-    warnings.filterwarnings('ignore', category=InsecureRequestWarning)
+
+    warnings.filterwarnings("ignore", category=InsecureRequestWarning)
 except ImportError:
     pass
 
