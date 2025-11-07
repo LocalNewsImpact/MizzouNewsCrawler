@@ -1,0 +1,144 @@
+name: Validate K8s Workflows
+
+on:
+  pull_request:
+    paths:
+      - 'k8s/argo/**/*.yaml'
+      - 'k8s/**/*.yaml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'k8s/argo/**/*.yaml'
+      - 'k8s/**/*.yaml'
+
+jobs:
+  validate-sql-queries:
+    runs-on: ubuntu-latest
+    name: Validate SQL in Argo Workflows
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install sqlparse pyyaml sqlalchemy psycopg2-binary
+      
+      - name: Extract and validate SQL from workflows
+        run: |
+          python - <<'EOF'
+          import yaml
+          import re
+          import sqlparse
+          from pathlib import Path
+          import sys
+          
+          errors = []
+          
+          # Known PostgreSQL table schemas
+          SCHEMAS = {
+              'candidate_links': {
+                  'id', 'url', 'source', 'discovered_at', 'crawl_depth', 
+                  'discovered_by', 'status', 'fetched_at', 'http_status',
+                  'content_hash', 'meta', 'publish_date', 'source_host_id',
+                  'created_at', 'dataset_id', 'source_id'
+              },
+              'articles': {
+                  'id', 'candidate_link_id', 'url', 'title', 'author',
+                  'publish_date', 'content', 'text', 'text_hash', 'text_excerpt',
+                  'status', 'metadata', 'wire', 'created_at', 'raw_gcs_path',
+                  'extracted_at', 'extraction_version'
+              },
+              'extraction_telemetry_v2': {
+                  'id', 'article_id', 'operation_id', 'url', 'status',
+                  'started_at', 'completed_at', 'duration_ms', 'error_message'
+              }
+          }
+          
+          # Find all YAML files in k8s/argo/
+          for yaml_file in Path('k8s/argo').glob('**/*.yaml'):
+              print(f"\nChecking {yaml_file}...")
+              
+              with open(yaml_file) as f:
+                  content = f.read()
+              
+              # Extract SQL queries from the file
+              sql_queries = re.findall(r'SELECT.*?(?="""|\'\'\')|\s+FROM\s+(\w+)', content, re.DOTALL | re.IGNORECASE)
+              
+              # Check for common column name errors
+              if 'article_id' in content and 'candidate_links' in content:
+                  # Check if we're referencing article_id from candidate_links
+                  if re.search(r'candidate_links.*article_id', content, re.IGNORECASE | re.DOTALL):
+                      errors.append(f"{yaml_file}: candidate_links table does not have 'article_id' column")
+              
+              # Check for invalid CLI arguments
+              if '--exhaust-queue' in content:
+                  errors.append(f"{yaml_file}: Invalid flag '--exhaust-queue'. Use '--no-exhaust-queue' to disable or omit (default is True)")
+              
+              # Look for table references and validate columns
+              for table_name in SCHEMAS.keys():
+                  if table_name in content:
+                      # Find column references for this table
+                      pattern = rf'{table_name}\.(\w+)'
+                      matches = re.findall(pattern, content)
+                      for col in matches:
+                          if col not in SCHEMAS[table_name]:
+                              errors.append(f"{yaml_file}: Column '{col}' does not exist in table '{table_name}'")
+          
+          if errors:
+              print("\n❌ VALIDATION ERRORS FOUND:\n")
+              for error in errors:
+                  print(f"  - {error}")
+              sys.exit(1)
+          else:
+              print("\n✅ All SQL queries validated successfully")
+          EOF
+      
+      - name: Validate YAML syntax
+        run: |
+          for file in k8s/argo/*.yaml k8s/*.yaml; do
+            if [ -f "$file" ]; then
+              echo "Validating $file..."
+              python -c "import yaml; yaml.safe_load(open('$file'))" || exit 1
+            fi
+          done
+      
+      - name: Check for common issues
+        run: |
+          echo "Checking for hardcoded production namespaces..."
+          if grep -r "namespace: production" k8s/ | grep -v "# production only" | grep -q .; then
+            echo "⚠️  Warning: Found hardcoded 'namespace: production' - consider using Kustomize overlays"
+          fi
+          
+          echo "Checking for :latest image tags..."
+          if grep -r ":latest" k8s/ | grep -v "# latest ok" | grep -q .; then
+            echo "⚠️  Warning: Found ':latest' image tags - consider using immutable tags in production"
+          fi
+
+  validate-workflow-templates:
+    runs-on: ubuntu-latest
+    name: Validate Argo WorkflowTemplates
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Argo CLI
+        run: |
+          curl -sLO https://github.com/argoproj/argo-workflows/releases/download/v3.5.5/argo-linux-amd64.gz
+          gunzip argo-linux-amd64.gz
+          chmod +x argo-linux-amd64
+          sudo mv argo-linux-amd64 /usr/local/bin/argo
+      
+      - name: Validate WorkflowTemplate syntax
+        run: |
+          for file in k8s/argo/*workflow*.yaml; do
+            if [ -f "$file" ]; then
+              echo "Validating $file..."
+              argo lint "$file" || exit 1
+            fi
+          done

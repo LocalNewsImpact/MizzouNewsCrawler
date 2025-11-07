@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mizzou-api
+spec:
+  template:
+    spec:
+      containers:
+      - name: cloud-sql-proxy
+        command:
+          - "/cloud-sql-proxy"
+          - "--private-ip"
+          - "mizzou-news-crawler:us-central1:mizzou-crawler-staging"  # Staging instance
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mizzou-processor
+spec:
+  template:
+    spec:
+      containers:
+      - name: cloud-sql-proxy
+        command:
+          - "/cloud-sql-proxy"
+          - "--private-ip"
+          - "mizzou-news-crawler:us-central1:mizzou-crawler-staging"  # Staging instance
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mizzou-cli
+spec:
+  template:
+    spec:
+      containers:
+      - name: cloud-sql-proxy
+        command:
+          - "/cloud-sql-proxy"
+          - "--private-ip"
+          - "mizzou-news-crawler:us-central1:mizzou-crawler-staging"  # Staging instance

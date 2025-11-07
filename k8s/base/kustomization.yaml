@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Base K8s resources (environment-agnostic)
+resources:
+  - ../api-deployment.yaml
+  - ../processor-deployment.yaml
+  - ../cli-deployment.yaml
+  - ../argo/base-pipeline-workflow.yaml
+  - ../argo/mizzou-pipeline-cronworkflow.yaml
+  - ../argo/rbac.yaml
+
+# Common labels applied to all resources
+commonLabels:
+  app.kubernetes.io/part-of: mizzou-news-crawler
+
+# Common annotations
+commonAnnotations:
+  managed-by: kustomize
