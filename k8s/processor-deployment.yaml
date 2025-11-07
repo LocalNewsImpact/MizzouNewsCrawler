@@ -29,7 +29,7 @@ spec:
       containers:
       - name: processor
         image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:2e04e54
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         command:
           - python
           - orchestration/continuous_processor.py

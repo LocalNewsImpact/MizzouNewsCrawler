@@ -137,7 +137,7 @@ spec:
         maxDuration: "20m"
     container:
       image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:latest
-      imagePullPolicy: Always
+      imagePullPolicy: IfNotPresent
       command:
         - python
         - -m
@@ -230,7 +230,7 @@ spec:
         maxDuration: "20m"
     container:
       image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:latest
-      imagePullPolicy: Always
+      imagePullPolicy: IfNotPresent
       command:
         - python
         - -m
@@ -329,7 +329,7 @@ spec:
         maxDuration: "20m"
     container:
       image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:latest
-      imagePullPolicy: Always
+      imagePullPolicy: IfNotPresent
       command: ["/bin/bash", "-c"]
       args:
         - |
