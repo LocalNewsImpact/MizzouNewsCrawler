@@ -37,6 +37,24 @@ class _BaseDiscoveryStub:
     def _rss_retry_window_days(self, _freq: Any) -> int:
         return self._retry_days
 
+    def _get_existing_article_count(self, source_id: str) -> int:
+        """Mock method for article count check (default: 0)."""
+        return 0
+
+    def _increment_no_effective_methods(self, source_id: str) -> int:
+        """Mock method for incrementing failure counter (returns 1)."""
+        return 1
+
+    def _reset_no_effective_methods(self, source_id: str) -> None:
+        """Mock method for resetting failure counter."""
+        pass
+
+    def _pause_source(
+        self, source_id: str, reason: str, host: str | None = None
+    ) -> bool:
+        """Mock method for pausing a source."""
+        return True
+
 
 def _make_series(metadata: dict[str, Any] | None = None) -> pd.Series:
     return pd.Series(
