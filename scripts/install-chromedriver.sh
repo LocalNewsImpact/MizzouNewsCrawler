@@ -63,26 +63,42 @@ detect_chromium_version() {
 }
 
 # Download ChromeDriver from Chrome for Testing
+# Tries the requested version, then falls back to recent versions
 download_chromedriver_cft() {
     local major_version="$1"
-    local url="https://storage.googleapis.com/chrome-for-testing-public/${major_version}.0.0.0/linux64/chromedriver-linux64.zip"
     
+    # Try exact version first
+    local url="https://storage.googleapis.com/chrome-for-testing-public/${major_version}.0.0.0/linux64/chromedriver-linux64.zip"
     log_info "Attempting Chrome for Testing download: $url"
     
     if wget -q --spider "$url" 2>/dev/null; then
         wget -q -O "$TEMP_DIR/chromedriver.zip" "$url" && return 0
     fi
     
+    # If exact version not found, try recent versions (ChromeDriver often lags behind Chrome)
+    # ChromeDriver N-3 typically works with Chrome N (e.g., ChromeDriver 139 works with Chrome 142)
+    log_warn "Chrome for Testing doesn't have v${major_version}, trying recent versions..."
+    for fallback_version in $((major_version - 1)) $((major_version - 2)) $((major_version - 3)) $((major_version - 4)); do
+        url="https://storage.googleapis.com/chrome-for-testing-public/${fallback_version}.0.0.0/linux64/chromedriver-linux64.zip"
+        log_info "Trying fallback v${fallback_version}..."
+        
+        if wget -q --spider "$url" 2>/dev/null; then
+            log_info "Found compatible version: v${fallback_version}"
+            wget -q -O "$TEMP_DIR/chromedriver.zip" "$url" && return 0
+        fi
+    done
+    
     return 1
 }
 
 # Download ChromeDriver from legacy ChromeDriver storage
+# Tries the requested version, then falls back to recent versions
 download_chromedriver_legacy() {
     local major_version="$1"
     
     log_info "Attempting legacy ChromeDriver storage..."
     
-    # Get latest version for this major release
+    # Try exact version first
     local latest_url="https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${major_version}"
     local version=$(wget -qO- "$latest_url" 2>/dev/null)
     
@@ -91,6 +107,19 @@ download_chromedriver_legacy() {
         log_info "Found version: $version"
         wget -q -O "$TEMP_DIR/chromedriver.zip" "$download_url" && return 0
     fi
+    
+    # Try recent versions as fallback
+    log_warn "Legacy storage doesn't have v${major_version}, trying recent versions..."
+    for fallback_version in $((major_version - 1)) $((major_version - 2)) $((major_version - 3)) $((major_version - 4)); do
+        latest_url="https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${fallback_version}"
+        version=$(wget -qO- "$latest_url" 2>/dev/null)
+        
+        if [ -n "$version" ]; then
+            local download_url="https://chromedriver.storage.googleapis.com/${version}/chromedriver_linux64.zip"
+            log_info "Found compatible fallback version: $version"
+            wget -q -O "$TEMP_DIR/chromedriver.zip" "$download_url" && return 0
+        fi
+    done
     
     return 1
 }

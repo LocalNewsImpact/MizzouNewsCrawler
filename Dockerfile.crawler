@@ -8,30 +8,28 @@ ARG BASE_IMAGE=mizzou-base:latest
 # Stage 1: Base with additional crawler system dependencies
 FROM ${BASE_IMAGE} AS base-crawler
 
-# Install system dependencies for browser automation (Playwright, Selenium)
-# Note: Chromium was removed from Debian Bookworm repos - use Debian testing repos or Snap
-# Install base libraries + chromium from testing repos + pre-create cache directories
-
+# Install system dependencies for browser automation (Selenium)
+# Using Debian APT packages for both Chromium and ChromeDriver ensures version compatibility
+# chromium-driver package is maintained to match chromium version in Debian repos
 RUN apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
-        fonts-liberation libnss3 libxss1 xdg-utils libxdamage1 libgconf-2-4 libx11-xcb1 wget ca-certificates && \
-    # Try to install chromium from bookworm-backports, then testing, then snapshot
-    apt-get install -y --no-install-recommends chromium 2>/dev/null || \
-    (grep -q "bookworm-backports" /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || \
-     echo "deb http://deb.debian.org/debian bookworm-backports main contrib non-free" >> /etc/apt/sources.list.d/backports.list && \
-     apt-get update && \
-     apt-get install -y --no-install-recommends -t bookworm-backports chromium) || \
-    (echo "deb http://deb.debian.org/debian testing main contrib non-free" >> /etc/apt/sources.list.d/testing.list && \
-     apt-get update && \
-     apt-get install -y --no-install-recommends chromium) || \
-    echo "WARNING: chromium package not available, relying on undetected-chromedriver download at runtime" && \
+        chromium \
+        chromium-driver \
+        fonts-liberation \
+        libnss3 \
+        libxss1 \
+        xdg-utils \
+        libxdamage1 \
+        libx11-xcb1 && \
     rm -rf /var/lib/apt/lists/* && \
-    # Pre-create writable directories for undetected-chromedriver browser cache and chromedriver binary storage
-    mkdir -p /opt/chromedriver-cache /home/appuser/.wdm /tmp/chromedriver && \
-    chmod 777 /opt/chromedriver-cache /home/appuser/.wdm /tmp/chromedriver && \
-    echo "Browser dependencies installed with fallback support for runtime chromium download"
+    # Create cache directories for Selenium/undetected-chromedriver
+    mkdir -p /opt/chromedriver-cache /home/appuser/.wdm && \
+    chmod 777 /opt/chromedriver-cache /home/appuser/.wdm && \
+    # Verify installation and version match
+    echo "Chromium version: $(chromium --version)" && \
+    echo "ChromeDriver version: $(chromedriver --version)"
 
 WORKDIR /app
 
@@ -66,27 +64,14 @@ COPY --chown=appuser:appuser orchestration/ ./orchestration/
 # Create data directory for SQLite (will be replaced with Cloud SQL)
 RUN mkdir -p /app/data && chown -R appuser:appuser /app/data
 
-# Install ChromeDriver using a dedicated script for testability
-# Previous issues: Runtime download by undetected-chromedriver fails when CHROMEDRIVER_PATH is set
-# Root cause: If driver_executable_path is provided, uc.Chrome expects file to exist (no auto-download)
-# Solution: Install ChromeDriver at build time so the path exists, with robust error handling
-COPY scripts/install-chromedriver.sh /tmp/
-RUN chmod +x /tmp/install-chromedriver.sh && \
-    /tmp/install-chromedriver.sh /app/bin && \
-    rm /tmp/install-chromedriver.sh && \
-    # Ensure ownership for appuser
-    chown -R appuser:appuser /app/bin && \
-    # Create additional directories for undetected-chromedriver cache
-    mkdir -p /opt/chromedriver-cache /home/appuser/.wdm && \
-    chmod 777 /opt/chromedriver-cache /home/appuser/.wdm
-
 # Switch to non-root user
 USER appuser
 
 # Set environment variables
+# ChromeDriver installed via APT is in /usr/bin, not /app/bin
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    CHROMEDRIVER_PATH=/app/bin/chromedriver \
+    CHROMEDRIVER_PATH=/usr/bin/chromedriver \
     CHROME_BIN=/usr/bin/chromium
 
 # Default command (can be overridden in Kubernetes)
