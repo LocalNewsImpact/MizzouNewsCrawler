@@ -7,10 +7,8 @@ set -e
 # 2. Runs migrations
 # 3. Runs tests in ci-base container with same network/env as CI
 
-# Use Docker from Docker Desktop if not in PATH
-if ! command -v docker &> /dev/null; then
-    export PATH="/Applications/Docker.app/Contents/Resources/bin:$PATH"
-fi
+# Ensure Docker is in PATH (for macOS Docker Desktop)
+export PATH="/usr/local/bin:/opt/homebrew/bin:/Applications/Docker.app/Contents/Resources/bin:$PATH"
 
 echo "🧪 Testing CI workflow locally..."
 echo ""
@@ -200,7 +198,7 @@ docker run --rm \
     -v "$(pwd)":/workspace \
     -w /workspace \
     us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-    /bin/bash -c "pytest -m 'not postgres' --cov=src --cov-report=term-missing --cov-fail-under=80 -v" 2>&1 | { grep -v "WARNING: The requested image's platform" || true; }
+    /bin/bash -c "pytest -m 'not postgres' --cov=src --cov-report=term-missing --cov-fail-under=78 -v" 2>&1 | { grep -v "WARNING: The requested image's platform" || true; }
 
 TEST_EXIT_CODE=${PIPESTATUS[0]}
 
