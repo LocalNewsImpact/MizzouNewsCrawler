@@ -3,12 +3,12 @@ set -e
 
 # Flexible Build Script for GCP Services
 # Usage: ./scripts/deploy-services.sh [branch] [services...]
-# Services: base, ml, api, crawler, processor, migrator, services (or 'all')
+# Services: base, ml, api, crawler, processor, ci (or 'all')
 # Examples:
 #   ./scripts/deploy-services.sh fix/telemetrystring crawler processor
 #   ./scripts/deploy-services.sh main base ml processor
 #   ./scripts/deploy-services.sh main all
-#   ./scripts/deploy-services.sh main services  # Just application services (api, crawler, processor, migrator)
+#   ./scripts/deploy-services.sh main ci  # Just CI/CD services (api, crawler, processor)
 
 # Ensure gcloud CLI is available
 if ! command -v gcloud >/dev/null 2>&1; then
@@ -66,26 +66,36 @@ fi
 
 # Service selection
 SERVICES_TO_BUILD=()
+USE_MAIN_PIPELINE=false
+
 if [ $# -eq 0 ]; then
     echo -e "${COLOR_YELLOW}⚠️  No services specified. Building all services.${COLOR_RESET}"
-    SERVICES_TO_BUILD=("base" "ml" "api" "crawler" "processor" "migrator")
+    SERVICES_TO_BUILD=("base" "ml" "api" "crawler" "processor")
+    USE_MAIN_PIPELINE=true
 else
     for arg in "$@"; do
         case "$arg" in
             all)
-                SERVICES_TO_BUILD=("base" "ml" "api" "crawler" "processor" "migrator")
+                SERVICES_TO_BUILD=("base" "ml" "api" "crawler" "processor")
+                USE_MAIN_PIPELINE=true
                 break
                 ;;
             services)
-                # Application services only (no base images)
-                SERVICES_TO_BUILD+=("api" "crawler" "processor" "migrator")
+                # Application services only (no base images) - use main pipeline for migrations
+                SERVICES_TO_BUILD+=("api" "crawler" "processor")
+                USE_MAIN_PIPELINE=true
                 ;;
-            base|ml|api|crawler|processor|migrator)
+            ci)
+                # Legacy alias for 'services'
+                SERVICES_TO_BUILD+=("api" "crawler" "processor")
+                USE_MAIN_PIPELINE=true
+                ;;
+            base|ml|api|crawler|processor)
                 SERVICES_TO_BUILD+=("$arg")
                 ;;
             *)
                 echo -e "${COLOR_RED}❌ Unknown service: $arg${COLOR_RESET}"
-                echo "Valid services: base, ml, api, crawler, processor, migrator, services, all"
+                echo "Valid services: base, ml, api, crawler, processor, services, ci, all"
                 exit 1
                 ;;
         esac
@@ -95,6 +105,26 @@ fi
 # Remove duplicates and maintain order
 SERVICES_TO_BUILD=($(echo "${SERVICES_TO_BUILD[@]}" | tr ' ' '\n' | awk '!seen[$0]++'))
 
+# Use main cloudbuild.yaml pipeline for multi-service builds (includes migrations)
+if [ "$USE_MAIN_PIPELINE" = true ]; then
+    echo -e "${COLOR_BLUE}========================================${COLOR_RESET}"
+    echo -e "${COLOR_BLUE}GCP Service Deployment (Main Pipeline)${COLOR_RESET}"
+    echo -e "${COLOR_BLUE}========================================${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}Branch:${COLOR_RESET}    ${BRANCH}"
+    echo -e "${COLOR_CYAN}Services:${COLOR_RESET}  ${SERVICES_TO_BUILD[*]}"
+    echo -e "${COLOR_CYAN}Pipeline:${COLOR_RESET}  Build → Migrate → Deploy"
+    echo -e "${COLOR_BLUE}========================================${COLOR_RESET}\n"
+    
+    gcloud builds submit --config=gcp/cloudbuild/cloudbuild.yaml \
+        --project=mizzou-news-crawler \
+        --substitutions=BRANCH_NAME="${BRANCH}"
+    
+    exit $?
+fi
+
+# Individual service builds (no migrations)
+SERVICES_TO_BUILD=($(echo "${SERVICES_TO_BUILD[@]}" | tr ' ' '\n' | awk '!seen[$0]++'))
+
 echo -e "${COLOR_BLUE}========================================${COLOR_RESET}"
 echo -e "${COLOR_BLUE}GCP Service Deployment${COLOR_RESET}"
 echo -e "${COLOR_BLUE}========================================${COLOR_RESET}"
@@ -102,47 +132,10 @@ echo -e "${COLOR_CYAN}Branch:${COLOR_RESET}    ${BRANCH}"
 echo -e "${COLOR_CYAN}Services:${COLOR_RESET}  ${SERVICES_TO_BUILD[*]}"
 echo -e "${COLOR_BLUE}========================================${COLOR_RESET}"
 
-# Function to check if service is in build list
-should_build() {
-    local service=$1
-    for s in "${SERVICES_TO_BUILD[@]}"; do
-        if [ "$s" = "$service" ]; then
-            return 0
-        fi
-    done
-    return 1
-}
-
-# Check if building all services or just app services - use main cloudbuild.yaml
-# This ensures migrations run and Cloud Deploy creates proper releases
-if should_build "api" && should_build "crawler" && should_build "processor"; then
-    echo -e "\n${COLOR_CYAN}ℹ️  Building multiple services - using main cloudbuild.yaml pipeline${COLOR_RESET}"
-    echo -e "${COLOR_CYAN}   This includes: build → migrate → deploy${COLOR_RESET}\n"
-    
-    gcloud builds submit --config=gcp/cloudbuild/cloudbuild.yaml \
-        --project=mizzou-news-crawler \
-        --substitutions=BRANCH_NAME="${BRANCH}"
-    
-    exit_code=$?
-    
-    if [ $exit_code -eq 0 ]; then
-        echo -e "\n${COLOR_GREEN}✅ Pipeline completed successfully!${COLOR_RESET}"
-        echo -e "${COLOR_GREEN}   - Built all images${COLOR_RESET}"
-        echo -e "${COLOR_GREEN}   - Ran database migrations${COLOR_RESET}"
-        echo -e "${COLOR_GREEN}   - Created Cloud Deploy release${COLOR_RESET}"
-    else
-        echo -e "\n${COLOR_RED}❌ Pipeline failed${COLOR_RESET}"
-    fi
-    
-    exit $exit_code
-fi
-
-# For individual service builds, use the old trigger-based approach
-echo -e "\n${COLOR_CYAN}ℹ️  Building individual services via triggers${COLOR_RESET}\n"
-
 # Dependency graph:
-# base → ml, api, crawler, migrator
+# base → ml, api, crawler
 # ml → processor
+# No dependencies: (standalone builds)
 
 # Function to check if service is in build list
 should_build() {
@@ -292,22 +285,7 @@ if should_build "crawler"; then
     ((STEP_COUNTER++))
 fi
 
-if should_build "migrator"; then
-    echo -e "\n${COLOR_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
-    echo -e "${COLOR_BLUE}Phase 3c: Migrator Service (Step ${STEP_COUNTER}/${TOTAL_STEPS})${COLOR_RESET}"
-    echo -e "${COLOR_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
-    
-    if ! should_build "base"; then
-        echo -e "${COLOR_YELLOW}⚠️  Building Migrator without rebuilding base image (using existing base)${COLOR_RESET}"
-    fi
-    
-    MIGRATOR_BUILD_ID=$(trigger_build "build-migrator-manual" "Migrator Service" "$BRANCH")
-    PARALLEL_BUILDS+=("$MIGRATOR_BUILD_ID")
-    PARALLEL_SERVICES+=("Migrator Service")
-    ((STEP_COUNTER++))
-fi
-
-# Wait for parallel builds (api, crawler, migrator)
+# Wait for parallel builds (api, crawler)
 if [ ${#PARALLEL_BUILDS[@]} -gt 0 ]; then
     echo -e "\n${COLOR_YELLOW}⏳ Waiting for ${#PARALLEL_BUILDS[@]} parallel builds to complete...${COLOR_RESET}"
     for i in "${!PARALLEL_BUILDS[@]}"; do
