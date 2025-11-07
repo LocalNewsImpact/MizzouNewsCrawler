@@ -241,12 +241,12 @@ class TestContainerConfiguration:
         # Check either command or args contains 'extract'
         command = extraction["container"].get("command", [])
         args = extraction["container"].get("args", [])
-        
+
         # Convert to string for checking (handles both list and string formats)
         command_str = " ".join(command) if isinstance(command, list) else str(command)
         args_str = " ".join(args) if isinstance(args, list) else str(args)
         full_cmd = f"{command_str} {args_str}"
-        
+
         assert "extract" in full_cmd
 
 
