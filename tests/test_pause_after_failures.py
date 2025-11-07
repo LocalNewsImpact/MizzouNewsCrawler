@@ -299,10 +299,9 @@ class TestSourceProcessorPauseIntegration:
         )
 
         # Mock telemetry to return no historical data and no effective methods
-        with patch.object(
-            discovery, "telemetry"
-        ) as mock_telemetry, patch.object(
-            discovery, "_get_existing_article_count", return_value=0
+        with (
+            patch.object(discovery, "telemetry") as mock_telemetry,
+            patch.object(discovery, "_get_existing_article_count", return_value=0),
         ):
             mock_telemetry.has_historical_data.return_value = False
             mock_telemetry.get_effective_discovery_methods.return_value = []

@@ -181,9 +181,7 @@ class TestPauseEdgeCases:
             )
 
         # Pause again with new reason
-        result = discovery._pause_source(
-            source_id, "New pause reason", host=host
-        )
+        result = discovery._pause_source(source_id, "New pause reason", host=host)
         assert result is True
 
         # Verify reason was updated
@@ -204,9 +202,7 @@ class TestPauseEdgeCases:
         host = "nonexistent.com"
 
         # Pause nonexistent source
-        result = discovery._pause_source(
-            source_id, "Auto-created pause", host=host
-        )
+        result = discovery._pause_source(source_id, "Auto-created pause", host=host)
         assert result is True
 
         # Verify a source was created for this host and paused
@@ -274,7 +270,7 @@ class TestPauseEdgeCases:
         # 1. No errors occur
         # 2. The final count reflects at least some increments
         # 3. Data is not corrupted
-        
+
         # Final count should be >= 1 (at least one increment succeeded)
         with db_manager.engine.connect() as conn:
             result = safe_execute(
@@ -477,10 +473,9 @@ class TestTelemetryIntegration:
         )
 
         # Mock telemetry to indicate no historical data
-        with patch.object(
-            discovery, "telemetry"
-        ) as mock_telemetry, patch.object(
-            discovery, "_get_existing_article_count", return_value=0
+        with (
+            patch.object(discovery, "telemetry") as mock_telemetry,
+            patch.object(discovery, "_get_existing_article_count", return_value=0),
         ):
             mock_telemetry.has_historical_data.return_value = False
             mock_telemetry.get_effective_discovery_methods.return_value = []
@@ -532,9 +527,7 @@ class TestTelemetryIntegration:
                     "host": host,
                     "host_norm": host.lower(),
                     "status": "active",
-                    "metadata": json.dumps(
-                        {"no_effective_methods_consecutive": 2}
-                    ),
+                    "metadata": json.dumps({"no_effective_methods_consecutive": 2}),
                 },
             )
 
@@ -596,10 +589,9 @@ class TestTelemetryIntegration:
         )
 
         # Mock telemetry to raise exception
-        with patch.object(
-            discovery, "telemetry"
-        ) as mock_telemetry, patch.object(
-            discovery, "_get_existing_article_count", return_value=0
+        with (
+            patch.object(discovery, "telemetry") as mock_telemetry,
+            patch.object(discovery, "_get_existing_article_count", return_value=0),
         ):
             mock_telemetry.has_historical_data.side_effect = Exception(
                 "Telemetry error"

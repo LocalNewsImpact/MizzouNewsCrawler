@@ -183,7 +183,7 @@ class SourceProcessor:
                         self.source_name,
                         failure_count,
                     )
-                    
+
                     # Pause after 3 consecutive failures
                     if failure_count >= 3:
                         self.discovery._pause_source(
@@ -200,7 +200,7 @@ class SourceProcessor:
                             self.source_name,
                             failure_count,
                         )
-                    
+
                     # Return empty list to skip discovery for this source
                     return []
                 logger.info("Trying all methods")
