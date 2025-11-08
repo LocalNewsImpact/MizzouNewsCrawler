@@ -139,9 +139,8 @@ class SourceProcessor:
 
     def _determine_effective_methods(self) -> list[DiscoveryMethod]:
         # Check if source is already paused due to repeated failures
-        source_meta = self._get_source_metadata()
-        if source_meta:
-            failure_count = source_meta.get("no_effective_methods_consecutive", 0)
+        if self.source_meta:
+            failure_count = self.source_meta.get("no_effective_methods_consecutive", 0)
             if failure_count >= 3:
                 logger.warning(
                     "Skipping discovery for %s: already at failure threshold (%d/3)",
