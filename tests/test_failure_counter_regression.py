@@ -30,8 +30,9 @@ def test_failure_counter_set_when_no_articles_found(cloud_sql_session):
     cloud_sql_session.commit()
     source_id = source.id
 
-    # Use the cloud_sql_session connection
-    database_url = str(cloud_sql_session.get_bind().url)
+    # Get database URL from the session's engine
+    engine = cloud_sql_session.get_bind().engine
+    database_url = str(engine.url)
     discovery = NewsDiscovery(database_url=database_url)
 
     # Create source row
@@ -139,8 +140,9 @@ def test_failure_counter_not_set_when_articles_exist(cloud_sql_session):
     cloud_sql_session.commit()
     source_id = source.id
 
-    # Use the cloud_sql_session connection
-    database_url = str(cloud_sql_session.get_bind().url)
+    # Get database URL from the session's engine
+    engine = cloud_sql_session.get_bind().engine
+    database_url = str(engine.url)
     discovery = NewsDiscovery(database_url=database_url)
 
     source_row = pd.Series(
