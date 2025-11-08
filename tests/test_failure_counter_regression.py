@@ -14,6 +14,7 @@ from src.crawler.source_processing import SourceProcessor
 
 
 @pytest.mark.integration
+@pytest.mark.postgres
 def test_failure_counter_set_when_no_articles_found(cloud_sql_session):
     """Test that counter is incremented when discovery finds nothing."""
     # Create a real source in the database
@@ -29,11 +30,9 @@ def test_failure_counter_set_when_no_articles_found(cloud_sql_session):
     cloud_sql_session.commit()
     source_id = source.id
 
-    # Create NewsDiscovery with real database
-    from src.models.database import DatabaseManager
-
-    dbm = DatabaseManager()
-    discovery = NewsDiscovery(database_url=str(dbm.engine.url))
+    # Use the cloud_sql_session connection
+    database_url = str(cloud_sql_session.get_bind().url)
+    discovery = NewsDiscovery(database_url=database_url)
 
     # Create source row
     source_row = pd.Series(
@@ -104,6 +103,7 @@ def test_failure_counter_set_when_no_articles_found(cloud_sql_session):
 
 
 @pytest.mark.integration
+@pytest.mark.postgres
 def test_failure_counter_not_set_when_articles_exist(cloud_sql_session):
     """Test that counter is NOT incremented if source has historical articles."""
     from src.models import Article, CandidateLink, Source
@@ -139,11 +139,9 @@ def test_failure_counter_not_set_when_articles_exist(cloud_sql_session):
     cloud_sql_session.commit()
     source_id = source.id
 
-    # Create NewsDiscovery
-    from src.models.database import DatabaseManager
-
-    dbm = DatabaseManager()
-    discovery = NewsDiscovery(database_url=str(dbm.engine.url))
+    # Use the cloud_sql_session connection
+    database_url = str(cloud_sql_session.get_bind().url)
+    discovery = NewsDiscovery(database_url=database_url)
 
     source_row = pd.Series(
         {
