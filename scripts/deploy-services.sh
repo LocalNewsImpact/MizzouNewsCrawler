@@ -123,8 +123,6 @@ if [ "$USE_MAIN_PIPELINE" = true ]; then
 fi
 
 # Individual service builds (no migrations)
-SERVICES_TO_BUILD=($(echo "${SERVICES_TO_BUILD[@]}" | tr ' ' '\n' | awk '!seen[$0]++'))
-
 echo -e "${COLOR_BLUE}========================================${COLOR_RESET}"
 echo -e "${COLOR_BLUE}GCP Service Deployment${COLOR_RESET}"
 echo -e "${COLOR_BLUE}========================================${COLOR_RESET}"

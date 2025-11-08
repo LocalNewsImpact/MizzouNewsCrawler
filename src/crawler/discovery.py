@@ -679,33 +679,36 @@ class NewsDiscovery:
             return 0
         try:
             dbm = DatabaseManager(self.database_url)
-            with dbm.engine.connect() as conn:
-                query = "SELECT metadata FROM sources WHERE id = :id"
-                result = safe_execute(conn, query, {"id": source_id}).fetchone()
+            try:
+                with dbm.engine.connect() as conn:
+                    query = "SELECT metadata FROM sources WHERE id = :id"
+                    result = safe_execute(conn, query, {"id": source_id}).fetchone()
 
-            cur_meta: dict[str, Any] = {}
-            if result and result[0]:
-                raw_meta = result[0]
-                try:
-                    cur_meta = json.loads(raw_meta)
-                except Exception:
-                    cur_meta = raw_meta or {}
+                cur_meta: dict[str, Any] = {}
+                if result and result[0]:
+                    raw_meta = result[0]
+                    try:
+                        cur_meta = json.loads(raw_meta)
+                    except Exception:
+                        cur_meta = raw_meta or {}
 
-            failure_count = 0
-            if isinstance(cur_meta, dict):
-                failure_count = cur_meta.get(
-                    "no_effective_methods_consecutive",
-                    0,
-                )
+                failure_count = 0
+                if isinstance(cur_meta, dict):
+                    failure_count = cur_meta.get(
+                        "no_effective_methods_consecutive",
+                        0,
+                    )
 
-            next_count = failure_count + 1
-            updates = {
-                "no_effective_methods_consecutive": next_count,
-                "no_effective_methods_last_seen": datetime.utcnow().isoformat(),
-            }
+                next_count = failure_count + 1
+                updates = {
+                    "no_effective_methods_consecutive": next_count,
+                    "no_effective_methods_last_seen": datetime.utcnow().isoformat(),
+                }
 
-            self._update_source_meta(source_id, updates)
-            return next_count
+                self._update_source_meta(source_id, updates)
+                return next_count
+            finally:
+                dbm.close()
         except Exception:
             logger.debug(
                 "Failed to increment no_effective_methods counter for source %s",
@@ -749,67 +752,73 @@ class NewsDiscovery:
 
         try:
             dbm = DatabaseManager(self.database_url)
-            with dbm.engine.begin() as conn:
-                # Check if source exists
-                result = safe_execute(
-                    conn,
-                    "SELECT id, host FROM sources WHERE id = :id",
-                    {"id": source_id},
-                ).fetchone()
-
-                now_iso = datetime.utcnow().isoformat()
-
-                if result:
-                    # Update existing source
-                    safe_execute(
+            try:
+                with dbm.engine.begin() as conn:
+                    # Check if source exists
+                    result = safe_execute(
                         conn,
-                        """
-                        UPDATE sources
-                        SET status = :status,
-                            paused_at = :paused_at,
-                            paused_reason = :reason
-                        WHERE id = :id
-                        """,
-                        {
-                            "status": "paused",
-                            "paused_at": now_iso,
-                            "reason": reason,
-                            "id": source_id,
-                        },
-                    )
-                    logger.info(
-                        "Paused source %s: %s",
-                        source_id,
-                        reason,
-                    )
-                else:
-                    # Create new source (fallback for sources not yet in table)
-                    import uuid
+                        "SELECT id, host FROM sources WHERE id = :id",
+                        {"id": source_id},
+                    ).fetchone()
 
-                    host_value = host or source_id
-                    safe_execute(
-                        conn,
-                        """
-                        INSERT INTO sources
-                        (id, host, host_norm, status, paused_at, paused_reason)
-                        VALUES (:id, :host, :host_norm, :status, :paused_at, :reason)
-                        """,
-                        {
-                            "id": str(uuid.uuid4()),
-                            "host": host_value,
-                            "host_norm": host_value.lower(),
-                            "status": "paused",
-                            "paused_at": now_iso,
-                            "reason": reason,
-                        },
-                    )
-                    logger.info(
-                        "Created and paused source %s: %s",
-                        source_id,
-                        reason,
-                    )
+                    now_iso = datetime.utcnow().isoformat()
 
-                return True
+                    if result:
+                        # Update existing source
+                        safe_execute(
+                            conn,
+                            """
+                            UPDATE sources
+                            SET status = :status,
+                                paused_at = :paused_at,
+                                paused_reason = :reason
+                            WHERE id = :id
+                            """,
+                            {
+                                "status": "paused",
+                                "paused_at": now_iso,
+                                "reason": reason,
+                                "id": source_id,
+                            },
+                        )
+                        logger.info(
+                            "Paused source %s: %s",
+                            source_id,
+                            reason,
+                        )
+                    else:
+                        # Create new source (fallback for sources not yet in table)
+                        import uuid
+
+                        host_value = host or source_id
+                        safe_execute(
+                            conn,
+                            """
+                            INSERT INTO sources
+                            (id, host, host_norm, status, paused_at, paused_reason)
+                            VALUES (
+                                :id, :host, :host_norm,
+                                :status, :paused_at, :reason
+                            )
+                            """,
+                            {
+                                "id": str(uuid.uuid4()),
+                                "host": host_value,
+                                "host_norm": host_value.lower(),
+                                "status": "paused",
+                                "paused_at": now_iso,
+                                "reason": reason,
+                            },
+                        )
+                        logger.info(
+                            "Created and paused source %s: %s",
+                            source_id,
+                            reason,
+                        )
+
+                    return True
+            finally:
+                dbm.close()
 
         except Exception as e:
             logger.error(

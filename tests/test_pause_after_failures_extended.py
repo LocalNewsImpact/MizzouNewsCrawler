@@ -11,8 +11,7 @@ Tests edge cases like:
 
 import json
 import threading
-from datetime import datetime, timedelta
-from unittest.mock import MagicMock, Mock, call, patch
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
