@@ -1166,7 +1166,10 @@ def test_source_processor_skips_rss_when_recently_missing(
 
     assert not rss_increments
     assert not rss_resets
-    assert not meta_updates
+    # New behavior: metadata is updated to reset 'no_effective_methods_consecutive' on success
+    assert len(meta_updates) == 1
+    assert meta_updates[0][0] == "src-rss-skip"
+    assert meta_updates[0][1] == {"no_effective_methods_consecutive": 0}
     assert telemetry.failures == []
 
 
@@ -1281,9 +1284,13 @@ def test_source_processor_records_network_rss_failure(
     )
 
     assert meta_updates
-    meta_payload = meta_updates[-1][1]
-    assert "rss_last_failed" in meta_payload
-    assert "rss_missing" not in meta_payload
+    # Merge all metadata updates to get final state (RSS tracking + pause counter)
+    final_meta = {}
+    for _, update in meta_updates:
+        final_meta.update(update)
+    assert "rss_last_failed" in final_meta
+    assert "rss_missing" not in final_meta
+    assert "no_effective_methods_consecutive" in final_meta
 
 
 def test_source_processor_marks_rss_missing_after_non_network_failure(
@@ -1397,9 +1404,13 @@ def test_source_processor_marks_rss_missing_after_non_network_failure(
     )
 
     assert meta_updates
-    meta_payload = meta_updates[-1][1]
-    assert "rss_missing" in meta_payload
-    assert "rss_last_failed" not in meta_payload
+    # Merge all metadata updates to get final state (RSS tracking + pause counter)
+    final_meta = {}
+    for _, update in meta_updates:
+        final_meta.update(update)
+    assert "rss_missing" in final_meta
+    assert "rss_last_failed" not in final_meta
+    assert "no_effective_methods_consecutive" in final_meta
 
 
 def test_source_processor_records_failures_for_downstream_methods(

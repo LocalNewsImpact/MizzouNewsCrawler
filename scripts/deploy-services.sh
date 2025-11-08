@@ -66,26 +66,36 @@ fi
 
 # Service selection
 SERVICES_TO_BUILD=()
+USE_MAIN_PIPELINE=false
+
 if [ $# -eq 0 ]; then
     echo -e "${COLOR_YELLOW}⚠️  No services specified. Building all services.${COLOR_RESET}"
     SERVICES_TO_BUILD=("base" "ml" "api" "crawler" "processor")
+    USE_MAIN_PIPELINE=true
 else
     for arg in "$@"; do
         case "$arg" in
             all)
                 SERVICES_TO_BUILD=("base" "ml" "api" "crawler" "processor")
+                USE_MAIN_PIPELINE=true
                 break
                 ;;
-            ci)
-                # CI services only (no base images)
+            services)
+                # Application services only (no base images) - use main pipeline for migrations
                 SERVICES_TO_BUILD+=("api" "crawler" "processor")
+                USE_MAIN_PIPELINE=true
+                ;;
+            ci)
+                # Legacy alias for 'services'
+                SERVICES_TO_BUILD+=("api" "crawler" "processor")
+                USE_MAIN_PIPELINE=true
                 ;;
             base|ml|api|crawler|processor)
                 SERVICES_TO_BUILD+=("$arg")
                 ;;
             *)
                 echo -e "${COLOR_RED}❌ Unknown service: $arg${COLOR_RESET}"
-                echo "Valid services: base, ml, api, crawler, processor, ci, all"
+                echo "Valid services: base, ml, api, crawler, processor, services, ci, all"
                 exit 1
                 ;;
         esac
@@ -95,6 +105,24 @@ fi
 # Remove duplicates and maintain order
 SERVICES_TO_BUILD=($(echo "${SERVICES_TO_BUILD[@]}" | tr ' ' '\n' | awk '!seen[$0]++'))
 
+# Use main cloudbuild.yaml pipeline for multi-service builds (includes migrations)
+if [ "$USE_MAIN_PIPELINE" = true ]; then
+    echo -e "${COLOR_BLUE}========================================${COLOR_RESET}"
+    echo -e "${COLOR_BLUE}GCP Service Deployment (Main Pipeline)${COLOR_RESET}"
+    echo -e "${COLOR_BLUE}========================================${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}Branch:${COLOR_RESET}    ${BRANCH}"
+    echo -e "${COLOR_CYAN}Services:${COLOR_RESET}  ${SERVICES_TO_BUILD[*]}"
+    echo -e "${COLOR_CYAN}Pipeline:${COLOR_RESET}  Build → Migrate → Deploy"
+    echo -e "${COLOR_BLUE}========================================${COLOR_RESET}\n"
+    
+    gcloud builds submit --config=gcp/cloudbuild/cloudbuild.yaml \
+        --project=mizzou-news-crawler \
+        --substitutions=BRANCH_NAME="${BRANCH}"
+    
+    exit $?
+fi
+
+# Individual service builds (no migrations)
 echo -e "${COLOR_BLUE}========================================${COLOR_RESET}"
 echo -e "${COLOR_BLUE}GCP Service Deployment${COLOR_RESET}"
 echo -e "${COLOR_BLUE}========================================${COLOR_RESET}"

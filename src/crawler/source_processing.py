@@ -21,6 +21,8 @@ logger = logging.getLogger(__name__)
 class SourceProcessor:
     """Coordinated processor for the discovery pipeline per source."""
 
+    PAUSE_THRESHOLD = 3  # Consecutive failures before auto-pause
+
     discovery: Any
     source_row: pd.Series
     dataset_label: str | None = None
@@ -137,7 +139,24 @@ class SourceProcessor:
             )
             return None
 
+    def _get_counter_value(self) -> int:
+        """Get current value of the no_effective_methods_consecutive counter."""
+        if not isinstance(self.source_meta, dict):
+            return 0
+        return self.source_meta.get("no_effective_methods_consecutive", 0)
+
     def _determine_effective_methods(self) -> list[DiscoveryMethod]:
+        # Check if we've hit the pause threshold for this source
+        counter = self._get_counter_value()
+        if counter >= self.PAUSE_THRESHOLD:
+            logger.info(
+                "%s has reached failure threshold (%d/%d), not attempting discovery",
+                self.source_name,
+                counter,
+                self.PAUSE_THRESHOLD,
+            )
+            return []
+
         telemetry = getattr(self.discovery, "telemetry", None)
         methods: list[DiscoveryMethod] = []
         has_historical_data = False
@@ -167,8 +186,10 @@ class SourceProcessor:
                     self.source_name,
                 )
             else:
-                logger.info("No historical data for %s", self.source_name)
-                logger.info("Trying all methods")
+                logger.info(
+                    "No historical data for %s, trying all methods",
+                    self.source_name,
+                )
             # Note: STORYSNIFFER removed from default methods as it's a URL
             # classifier (not a discovery crawler) and cannot discover articles
             # from homepages without additional HTML parsing logic.
@@ -663,6 +684,10 @@ class SourceProcessor:
                     )
                     continue
 
+        # Reset 'no effective methods' counter if we successfully stored articles
+        if stored_count > 0:
+            self.discovery._reset_no_effective_methods(self.source_id)
+
         return {
             "articles_found_total": articles_found_total,
             "articles_new": articles_new,
@@ -715,6 +740,40 @@ class SourceProcessor:
                 )
             except Exception:
                 pass
+
+        # Track "no effective methods" failures when discovery attempts yield
+        # no articles. This applies to:
+        # 1. New sources with no historical data (cold start)
+        # 2. Sources with historical data but all methods failed (degraded)
+        article_count = self.discovery._get_existing_article_count(self.source_id)
+        if article_count == 0:
+            # Increment consecutive failure counter
+            failure_count = self.discovery._increment_no_effective_methods(
+                self.source_id
+            )
+            logger.warning(
+                "No effective methods and zero articles captured from %s "
+                "(failure count: %d/3)",
+                self.source_name,
+                failure_count,
+            )
+
+            # Pause after 3 consecutive failures
+            if failure_count >= 3:
+                self.discovery._pause_source(
+                    self.source_id,
+                    (
+                        "Automatic pause after 3 consecutive 'no effective "
+                        "methods' attempts"
+                    ),
+                    host=self.source_name,
+                )
+                logger.warning(
+                    "Source %s paused after %d consecutive failures "
+                    "with no captures",
+                    self.source_name,
+                    failure_count,
+                )
 
     def _handle_global_failure(self, exc: Exception) -> DiscoveryResult:
         logger.error(
