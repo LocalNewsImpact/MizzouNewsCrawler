@@ -4,10 +4,11 @@ This test reproduces the production issue where sources with 0 articles
 don't have the no_effective_methods_consecutive counter set.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
+from sqlalchemy.orm import sessionmaker
 
 from src.crawler.discovery import NewsDiscovery
 from src.crawler.source_processing import SourceProcessor
@@ -15,92 +16,117 @@ from src.crawler.source_processing import SourceProcessor
 
 @pytest.mark.integration
 @pytest.mark.postgres
-def test_failure_counter_set_when_no_articles_found(cloud_sql_session):
-    """Test that counter is incremented when discovery finds nothing."""
-    # Create a real source in the database
-    from src.models import Source
+def test_failure_counter_set_when_no_articles_found(cloud_sql_engine):
+    """Test that counter is incremented when discovery finds nothing.
+    
+    Note: This test uses cloud_sql_engine directly (not cloud_sql_session)
+    because it needs actual committed data visible to new connections.
+    The transactional fixture would rollback changes, making them invisible
+    to Discovery's separate database connections.
+    """
+    # Create a real session WITHOUT the transaction wrapper
+    SessionLocal = sessionmaker(bind=cloud_sql_engine)
+    session = SessionLocal()
+    
+    try:
+        # Create a real source in the database
+        from src.models import Source
 
-    source = Source(
-        host="example.com",
-        host_norm="example.com",
-        canonical_name="Example News",
-        metadata={"frequency": "daily"},
-    )
-    cloud_sql_session.add(source)
-    cloud_sql_session.commit()
-    source_id = source.id
+        source = Source(
+            host="example-regression.com",
+            host_norm="example-regression.com",
+            canonical_name="Example Regression Test",
+            meta={"frequency": "daily"},  # Use 'meta' attribute, not 'metadata'
+        )
+        session.add(source)
+        session.commit()  # This actually commits to the database
+        source_id = source.id
 
-    # Get database URL from the session's engine
-    engine = cloud_sql_session.get_bind().engine
-    database_url = str(engine.url)
-    discovery = NewsDiscovery(database_url=database_url)
+        # Verify source exists immediately after commit
+        test_check = session.query(Source).filter_by(id=source_id).first()
+        assert test_check is not None, "Source should exist after commit"
+        print(f"\n=== Source created and committed: {source_id} ===")
+        print(f"Source.meta = {test_check.meta}")
 
-    # Create source row
-    source_row = pd.Series(
-        {
-            "id": source_id,
-            "url": "https://example.com",
-            "name": "Example News",
-            "host": "example.com",
-            "metadata": '{"frequency": "daily"}',
-        }
-    )
+        # Get database URL from the engine
+        database_url = str(cloud_sql_engine.url)
+        discovery = NewsDiscovery(database_url=database_url)
 
-    # Mock discovery methods to return nothing
-    processor = SourceProcessor(
-        discovery=discovery,
-        source_row=source_row,
-        dataset_label=None,
-        operation_id="test-op",
-    )
+        # Create source row
+        source_row = pd.Series(
+            {
+                "id": source_id,
+                "url": "https://example-regression.com",
+                "name": "Example Regression Test",
+                "host": "example-regression.com",
+                "metadata": '{"frequency": "daily"}',  # This is the serialized JSON string
+            }
+        )
 
-    # Mock the discovery methods to return empty results
-    with patch.object(processor, "_try_rss", return_value=([], {}, False, False)):
-        with patch.object(processor, "_try_newspaper", return_value=[]):
-            with patch.object(processor, "_try_storysniffer", return_value=[]):
-                # Process should find nothing
-                result = processor.process()
+        # Mock discovery methods to return nothing
+        processor = SourceProcessor(
+            discovery=discovery,
+            source_row=source_row,
+            dataset_label=None,
+            operation_id="test-op",
+        )
 
-    # Verify result shows no articles
-    assert result.articles_found == 0
+        # Mock the discovery methods to return empty results
+        with patch.object(processor, "_try_rss", return_value=([], {}, False, False)):
+            with patch.object(processor, "_try_newspaper", return_value=[]):
+                with patch.object(processor, "_try_storysniffer", return_value=[]):
+                    # Process should find nothing
+                    result = processor.process()
 
-    # Check that the counter was incremented in the database
-    # Need to commit the test transaction and start a new one to see
-    # changes made by _update_source_meta in its own transaction
-    cloud_sql_session.commit()
+        # Verify result shows no articles
+        assert result.articles_found == 0
 
-    source = cloud_sql_session.query(Source).filter_by(id=source_id).first()
+        # Refresh the source to see the updated metadata
+        session.expire_all()
+        source = session.query(Source).filter_by(id=source_id).first()
 
-    assert source is not None
-    print("\n=== After first discovery ===")
-    print(f"Source ID: {source_id}")
-    print(f"Metadata type: {type(source.metadata)}")
-    print(f"Metadata: {source.metadata}")
-    assert source.metadata is not None
+        assert source is not None
+        print("\n=== After first discovery ===")
+        print(f"Source ID: {source_id}")
+        print(f"Metadata type: {type(source.meta)}")
+        print(f"Metadata: {source.meta}")
+        assert source.meta is not None
 
-    # This should be set but isn't in production
-    counter = source.metadata.get("no_effective_methods_consecutive")
-    print(f"Counter value: {counter}")
-    assert counter is not None, "Counter should be set when no articles found"
-    assert counter == 1, f"Counter should be 1, got {counter}"
+        # This should be set but isn't in production
+        counter = source.meta.get("no_effective_methods_consecutive")
+        print(f"Counter value: {counter}")
+        assert counter is not None, "Counter should be set when no articles found"
+        assert counter == 1, f"Counter should be 1, got {counter}"
 
-    # Run again to verify it increments
-    processor2 = SourceProcessor(
-        discovery=discovery,
-        source_row=source_row,
-        dataset_label=None,
-        operation_id="test-op-2",
-    )
+        # Run again to verify it increments
+        processor2 = SourceProcessor(
+            discovery=discovery,
+            source_row=source_row,
+            dataset_label=None,
+            operation_id="test-op-2",
+        )
 
-    with patch.object(processor2, "_try_rss", return_value=([], {}, False, False)):
-        with patch.object(processor2, "_try_newspaper", return_value=[]):
-            with patch.object(processor2, "_try_storysniffer", return_value=[]):
-                processor2.process()
+        with patch.object(processor2, "_try_rss", return_value=([], {}, False, False)):
+            with patch.object(processor2, "_try_newspaper", return_value=[]):
+                with patch.object(processor2, "_try_storysniffer", return_value=[]):
+                    processor2.process()
 
-    cloud_sql_session.expire_all()
-    source = cloud_sql_session.query(Source).filter_by(id=source_id).first()
-    counter = source.metadata.get("no_effective_methods_consecutive")
-    assert counter == 2, f"Counter should increment to 2, got {counter}"
+        session.expire_all()
+        source = session.query(Source).filter_by(id=source_id).first()
+        assert source is not None
+        counter = source.meta.get("no_effective_methods_consecutive")
+        assert counter == 2, f"Counter should increment to 2, got {counter}"
+        
+    finally:
+        # Clean up: delete the test source
+        try:
+            from src.models import Source as SourceCleanup
+            session.query(SourceCleanup).filter_by(id=source_id).delete()
+            session.commit()
+        except Exception:
+            session.rollback()
+        finally:
+            session.close()
 
 
 @pytest.mark.integration
