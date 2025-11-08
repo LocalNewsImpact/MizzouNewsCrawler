@@ -317,9 +317,17 @@ class TestSourceProcessorPauseIntegration:
                 # Initialize context (which sets source_meta and other attrs)
                 processor._initialize_context()
 
-                # Check methods after initialization - should be empty
-                # (triggers pause logic on 3rd iteration)
-                assert processor.effective_methods == []
+                # When telemetry has no historical data, processor tries all methods
+                # (gives new sources a chance before auto-pause logic kicks in)
+                from src.crawler.discovery import DiscoveryMethod
+
+                assert processor.effective_methods == [
+                    DiscoveryMethod.RSS_FEED,
+                    DiscoveryMethod.NEWSPAPER4K,
+                ]
+
+                # Simulate failure by calling _record_no_articles
+                processor._record_no_articles()
 
         # Verify source is paused after 3rd attempt
         with db_manager.engine.connect() as conn:

@@ -494,8 +494,17 @@ class TestTelemetryIntegration:
                 source_id
             )
 
-            # Verify effective_methods is empty
-            assert processor.effective_methods == []
+            # When telemetry has no historical data, processor tries all methods
+            # (new sources get a chance before auto-pause kicks in)
+            from src.crawler.discovery import DiscoveryMethod
+
+            assert processor.effective_methods == [
+                DiscoveryMethod.RSS_FEED,
+                DiscoveryMethod.NEWSPAPER4K,
+            ]
+
+            # Simulate failure and record it (will increment counter)
+            processor._record_no_articles()
 
         # Verify counter was incremented
         with db_manager.engine.connect() as conn:
@@ -605,8 +614,16 @@ class TestTelemetryIntegration:
             )
             processor._initialize_context()
 
-            # Should fall back to empty methods
-            assert processor.effective_methods == []
+            # Should fall back to trying all methods (telemetry exception is caught)
+            from src.crawler.discovery import DiscoveryMethod
+
+            assert processor.effective_methods == [
+                DiscoveryMethod.RSS_FEED,
+                DiscoveryMethod.NEWSPAPER4K,
+            ]
+
+            # Simulate failure
+            processor._record_no_articles()
 
         # Counter should still be incremented
         with db_manager.engine.connect() as conn:
