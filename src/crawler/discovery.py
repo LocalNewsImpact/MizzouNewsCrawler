@@ -676,7 +676,7 @@ class NewsDiscovery:
 
             # Add current failure
             now_iso = datetime.utcnow().isoformat()
-            failure_record = {"timestamp": now_iso}
+            failure_record: dict[str, Any] = {"timestamp": now_iso}
             if status_code:
                 failure_record["status"] = status_code
             transient_failures.append(failure_record)
