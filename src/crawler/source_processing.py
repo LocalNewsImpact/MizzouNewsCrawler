@@ -21,6 +21,8 @@ logger = logging.getLogger(__name__)
 class SourceProcessor:
     """Coordinated processor for the discovery pipeline per source."""
 
+    PAUSE_THRESHOLD = 3  # Consecutive failures before auto-pause
+
     discovery: Any
     source_row: pd.Series
     dataset_label: str | None = None
@@ -137,7 +139,24 @@ class SourceProcessor:
             )
             return None
 
+    def _get_counter_value(self) -> int:
+        """Get current value of the no_effective_methods_consecutive counter."""
+        if not isinstance(self.source_meta, dict):
+            return 0
+        return self.source_meta.get("no_effective_methods_consecutive", 0)
+
     def _determine_effective_methods(self) -> list[DiscoveryMethod]:
+        # Check if we've hit the pause threshold for this source
+        counter = self._get_counter_value()
+        if counter >= self.PAUSE_THRESHOLD:
+            logger.info(
+                "%s has reached failure threshold (%d/%d), not attempting discovery",
+                self.source_name,
+                counter,
+                self.PAUSE_THRESHOLD,
+            )
+            return []
+
         telemetry = getattr(self.discovery, "telemetry", None)
         methods: list[DiscoveryMethod] = []
         has_historical_data = False
