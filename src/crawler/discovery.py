@@ -133,6 +133,13 @@ def _newspaper_build_worker(
 # before we mark a source as permanently missing an RSS feed.
 RSS_MISSING_THRESHOLD = 3
 
+# How many "transient" errors (429, 403, 5xx) within a time window are required
+# before we treat them as permanent failures and mark RSS as missing.
+# This prevents wasting resources on feeds that repeatedly return transient
+# errors that are actually permanent blocks (misreported by the server).
+RSS_TRANSIENT_THRESHOLD = 5
+RSS_TRANSIENT_WINDOW_DAYS = 7
+
 
 class NewsDiscovery:
     """Advanced news URL discovery using newspaper4k and storysniffer."""
@@ -627,6 +634,90 @@ class NewsDiscovery:
             "rss_consecutive_failures": 0,
         }
         self._update_source_meta(source_id, updates)
+
+    def _track_transient_rss_failure(
+        self,
+        source_id: str | None,
+        status_code: int | None = None,
+    ) -> None:
+        """Track repeated 'transient' RSS errors (429, 403, 5xx) over time.
+
+        If a source repeatedly returns transient errors over a time window,
+        treat it as a permanent failure. This prevents wasting resources on
+        feeds that are actually permanently blocked but misreported by the server.
+
+        Args:
+            source_id: Source ID to track
+            status_code: HTTP status code of the transient error (optional)
+        """
+        if not source_id:
+            return
+
+        try:
+            dbm = DatabaseManager(self.database_url)
+            with dbm.engine.connect() as conn:
+                query = "SELECT metadata FROM sources WHERE id = :id"
+                result = safe_execute(conn, query, {"id": source_id}).fetchone()
+
+            cur_meta: dict[str, Any] = {}
+            if result and result[0]:
+                raw_meta = result[0]
+                try:
+                    cur_meta = json.loads(raw_meta)
+                except Exception:
+                    cur_meta = raw_meta or {}
+
+            # Get existing transient failure history
+            transient_failures = []
+            if isinstance(cur_meta, dict):
+                transient_failures = cur_meta.get("rss_transient_failures", [])
+                if not isinstance(transient_failures, list):
+                    transient_failures = []
+
+            # Add current failure
+            now_iso = datetime.utcnow().isoformat()
+            failure_record = {"timestamp": now_iso}
+            if status_code:
+                failure_record["status"] = status_code
+            transient_failures.append(failure_record)
+
+            # Filter to rolling window (last N days)
+            cutoff = datetime.utcnow() - timedelta(days=RSS_TRANSIENT_WINDOW_DAYS)
+            cutoff_iso = cutoff.isoformat()
+            recent_failures = [
+                f
+                for f in transient_failures
+                if f.get("timestamp", "") >= cutoff_iso
+            ]
+
+            # Prepare updates
+            updates = {
+                "rss_last_failed": now_iso,
+                "rss_transient_failures": recent_failures,
+                "rss_consecutive_failures": 0,  # Reset consecutive counter
+            }
+
+            # If threshold exceeded, mark as missing
+            if len(recent_failures) >= RSS_TRANSIENT_THRESHOLD:
+                updates["rss_missing"] = now_iso
+                logger.warning(
+                    "Source %s exceeded transient RSS error threshold "
+                    "(%d errors in %d days). Marking RSS as missing.",
+                    source_id,
+                    len(recent_failures),
+                    RSS_TRANSIENT_WINDOW_DAYS,
+                )
+            else:
+                updates["rss_missing"] = None
+
+            self._update_source_meta(source_id, updates)
+            dbm.close()
+
+        except Exception:
+            logger.debug(
+                "Failed to track transient RSS failure for source %s",
+                source_id,
+            )
 
     def _increment_rss_failure(
         self,
@@ -1789,6 +1880,7 @@ class NewsDiscovery:
         duplicate_count = 0
         old_article_count = 0
         network_error_count = 0
+        last_transient_status: int | None = None  # Track last transient error status
 
         # Build candidate feed list (custom first, then common paths)
         potential_feeds: list[str] = []
@@ -1910,6 +2002,7 @@ class NewsDiscovery:
 
                 if status in (401, 403, 429) or status >= 500:
                     network_error_count += 1
+                    last_transient_status = status  # Track for metadata
                     logger.warning(
                         "Transient RSS error %s for %s",
                         status,
@@ -2151,6 +2244,7 @@ class NewsDiscovery:
             "feeds_tried": feeds_tried,
             "feeds_successful": feeds_successful,
             "network_errors": network_error_count,
+            "last_transient_status": last_transient_status,
         }
 
         return discovered_articles, summary

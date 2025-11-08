@@ -392,6 +392,7 @@ class SourceProcessor:
             feeds_tried = summary.get("feeds_tried", 0)
             feeds_successful = summary.get("feeds_successful", 0)
             network_errors = summary.get("network_errors", 0)
+            last_transient_status = summary.get("last_transient_status")
             if articles:
                 self.discovery._update_source_meta(
                     self.source_id,
@@ -400,11 +401,15 @@ class SourceProcessor:
                         "rss_missing": None,
                         "rss_last_failed": None,
                         "rss_consecutive_failures": 0,
+                        "rss_transient_failures": [],  # Clear on success
                     },
                 )
             elif feeds_tried > 0 and feeds_successful == 0:
                 if network_errors > 0:
-                    self.discovery._reset_rss_failure_state(self.source_id)
+                    # Track repeated transient errors over time
+                    self.discovery._track_transient_rss_failure(
+                        self.source_id, last_transient_status
+                    )
                 else:
                     self.discovery._increment_rss_failure(self.source_id)
         except Exception:
