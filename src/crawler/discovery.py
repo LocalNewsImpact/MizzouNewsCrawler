@@ -159,8 +159,11 @@ class NewsDiscovery:
         """
         resolved_database_url = self._resolve_database_url(database_url)
         self.database_url = resolved_database_url
-        self.user_agent = (
-            user_agent or "Mozilla/5.0 (compatible; MizzouNewsCrawler/2.0)"
+        # Use modern browser UA to avoid bot detection (many sites block crawler UAs)
+        self.user_agent = user_agent or (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
         )
         self.timeout = timeout
         self.delay = delay

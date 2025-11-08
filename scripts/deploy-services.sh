@@ -187,13 +187,18 @@ trigger_build() {
     echo -e "\n${COLOR_BLUE}🔨 Building: ${service_name}${COLOR_RESET}"
     
     local build_id
-    build_id=$(gcloud builds triggers run "$trigger_name" --branch="$branch" --format='value(metadata.build.id)' 2>&1)
+    local build_output
+    build_output=$(gcloud builds triggers run "$trigger_name" --branch="$branch" --format='value(metadata.build.id)' 2>&1)
+    local exit_code=$?
     
-    if [ $? -ne 0 ]; then
+    if [ $exit_code -ne 0 ]; then
         echo -e "${COLOR_RED}❌ Failed to trigger ${service_name} build${COLOR_RESET}" >&2
-        echo "$build_id" >&2
+        echo "$build_output" >&2
         return 1
     fi
+    
+    # Extract just the build ID (first line, trimmed)
+    build_id=$(echo "$build_output" | head -n 1 | tr -d '[:space:]')
     
     echo -e "${COLOR_CYAN}Build ID:${COLOR_RESET} $build_id" >&2
     echo "$build_id"
