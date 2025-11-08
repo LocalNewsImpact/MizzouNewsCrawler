@@ -836,13 +836,16 @@ def test_due_only_respects_existing_article_limit(
         first_id = first.id
         second_id = second.id
 
-    counts = iter([0, 2])
+    # Sources are ordered by canonical_name ASC in discovery query
+    # "Crowded Source" comes before "Eligible Source" alphabetically
+    # Map source IDs to their expected article counts
+    article_counts = {
+        first_id: 0,  # Eligible Source: 0 articles (should process)
+        second_id: 2,  # Crowded Source: 2 articles (should skip with limit=1)
+    }
 
     def fake_existing_count(self, source_id: str) -> int:
-        try:
-            return next(counts)
-        except StopIteration:
-            return 0
+        return article_counts.get(source_id, 0)
 
     monkeypatch.setattr(
         NewsDiscovery,
