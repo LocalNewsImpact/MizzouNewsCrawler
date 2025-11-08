@@ -746,9 +746,7 @@ class SourceProcessor:
         # 1. No historical data (new/struggling sources)
         # 2. Zero article captures ever
         if not has_historical_data:
-            article_count = self.discovery._get_existing_article_count(
-                self.source_id
-            )
+            article_count = self.discovery._get_existing_article_count(self.source_id)
             if article_count == 0:
                 # Increment consecutive failure counter
                 failure_count = self.discovery._increment_no_effective_methods(
