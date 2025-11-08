@@ -138,6 +138,18 @@ class SourceProcessor:
             return None
 
     def _determine_effective_methods(self) -> list[DiscoveryMethod]:
+        # Check if source is already paused due to repeated failures
+        source_meta = self._get_source_metadata()
+        if source_meta:
+            failure_count = source_meta.get("no_effective_methods_consecutive", 0)
+            if failure_count >= 3:
+                logger.warning(
+                    "Skipping discovery for %s: already at failure threshold (%d/3)",
+                    self.source_name,
+                    failure_count,
+                )
+                return []
+
         telemetry = getattr(self.discovery, "telemetry", None)
         methods: list[DiscoveryMethod] = []
         has_historical_data = False
@@ -161,20 +173,12 @@ class SourceProcessor:
         methods = self._prioritize_last_success(methods)
 
         if not methods:
-            if has_historical_data:
-                logger.info(
-                    "No effective methods found for %s, trying all methods",
-                    self.source_name,
-                )
-            else:
-                logger.info("No historical data for %s", self.source_name)
-                # Check if we've ever captured articles from this source
-                article_count = self.discovery._get_existing_article_count(
-                    self.source_id
-                )
+            # Check if we should pause source due to repeated failures
+            # (only for sources with no historical data and zero articles)
+            if not has_historical_data:
+                article_count = self._get_existing_article_count(self.source_id)
                 if article_count == 0:
-                    # Increment consecutive failure counter
-                    failure_count = self.discovery._increment_no_effective_methods(
+                    failure_count = self._increment_no_effective_methods(
                         self.source_id
                     )
                     logger.warning(
@@ -184,26 +188,34 @@ class SourceProcessor:
                         failure_count,
                     )
 
-                    # Pause after 3 consecutive failures
+                    # Pause source after 3 consecutive failures
                     if failure_count >= 3:
-                        self.discovery._pause_source(
-                            self.source_id,
-                            (
-                                "Automatic pause: no effective discovery methods and "
-                                "no successful article captures after 3 attempts"
-                            ),
-                            host=self.source_name,
-                        )
-                        logger.warning(
-                            "Source %s paused after %d consecutive failures "
-                            "with no captures",
+                        logger.error(
+                            "Pausing %s after %d consecutive "
+                            "'no effective methods' failures with zero articles",
                             self.source_name,
                             failure_count,
                         )
+                        self._pause_source(
+                            self.source_id,
+                            reason=(
+                                "Automatic pause after 3 consecutive "
+                                "'no effective methods' attempts"
+                            ),
+                            host=self.host,
+                        )
+                        return []  # Return empty to skip discovery
 
-                    # Return empty list to skip discovery for this source
-                    return []
-                logger.info("Trying all methods")
+            if has_historical_data:
+                logger.info(
+                    "No effective methods found for %s, trying all methods",
+                    self.source_name,
+                )
+            else:
+                logger.info(
+                    "No historical data for %s, trying all methods",
+                    self.source_name,
+                )
             # Note: STORYSNIFFER removed from default methods as it's a URL
             # classifier (not a discovery crawler) and cannot discover articles
             # from homepages without additional HTML parsing logic.
@@ -754,6 +766,50 @@ class SourceProcessor:
                 )
             except Exception:
                 pass
+
+        # Check if this source has historical data and captures
+        has_historical_data = False
+        if telemetry:
+            try:
+                has_historical_data = telemetry.has_historical_data(self.source_id)
+            except Exception:
+                pass
+
+        # Only track "no effective methods" failures for sources with:
+        # 1. No historical data (new/struggling sources)
+        # 2. Zero article captures ever
+        if not has_historical_data:
+            article_count = self.discovery._get_existing_article_count(
+                self.source_id
+            )
+            if article_count == 0:
+                # Increment consecutive failure counter
+                failure_count = self.discovery._increment_no_effective_methods(
+                    self.source_id
+                )
+                logger.warning(
+                    "No effective methods and zero articles captured from %s "
+                    "(failure count: %d/3)",
+                    self.source_name,
+                    failure_count,
+                )
+
+                # Pause after 3 consecutive failures
+                if failure_count >= 3:
+                    self.discovery._pause_source(
+                        self.source_id,
+                        (
+                            "Automatic pause after 3 consecutive 'no effective "
+                            "methods' attempts"
+                        ),
+                        host=self.source_name,
+                    )
+                    logger.warning(
+                        "Source %s paused after %d consecutive failures "
+                        "with no captures",
+                        self.source_name,
+                        failure_count,
+                    )
 
     def _handle_global_failure(self, exc: Exception) -> DiscoveryResult:
         logger.error(
