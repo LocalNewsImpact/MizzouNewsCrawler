@@ -620,10 +620,9 @@ class NewsDiscovery:
                         source_id,
                         updates,
                     )
-                    raise ValueError(
-                        f"Failed to update metadata for source {source_id}: "
-                        f"source not found or UPDATE matched 0 rows"
-                    )
+                    # Don't raise - metadata updates are best-effort
+                    # Raising breaks RSS tracking and counter tracking
+                    return
                 
                 logger.debug(
                     "Successfully updated metadata for source %s: %s (%d rows)",
@@ -638,8 +637,8 @@ class NewsDiscovery:
                 e,
                 exc_info=True,
             )
-            # Re-raise to let caller know the update failed
-            raise
+            # Don't re-raise - metadata updates are best-effort
+            # Callers catch and log at DEBUG level, hiding the error
 
     def _reset_rss_failure_state(
         self,
