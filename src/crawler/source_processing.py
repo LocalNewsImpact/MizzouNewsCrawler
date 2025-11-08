@@ -751,6 +751,11 @@ class SourceProcessor:
         # 1. New sources with no historical data (cold start)
         # 2. Sources with historical data but all methods failed (degraded)
         article_count = self.discovery._get_existing_article_count(self.source_id)
+        logger.warning(
+            "DEBUG: Checking counter condition for %s: article_count=%d",
+            self.source_name,
+            article_count,
+        )
         if article_count == 0:
             # Increment consecutive failure counter
             failure_count = self.discovery._increment_no_effective_methods(
