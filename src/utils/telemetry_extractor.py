@@ -24,8 +24,11 @@ class TelemetryContentExtractor:
         """Initialize the telemetry-enabled content extractor."""
         self.extractor = ContentExtractor()
         self.timeout = timeout
-        self.user_agent = (
-            user_agent or "Mozilla/5.0 (compatible; MizzouNewsCrawler/1.0)"
+        # Use modern browser UA to avoid bot detection
+        self.user_agent = user_agent or (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
         )
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": self.user_agent})

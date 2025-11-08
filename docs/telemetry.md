@@ -70,8 +70,9 @@ Records the overall outcome of discovery attempts per source.
 In addition to telemetry tables, the `sources.metadata` JSONB column tracks RSS-specific failure state:
 
 **Metadata Fields:**
-- `rss_missing`: ISO timestamp when RSS was marked as permanently unavailable (set after `RSS_MISSING_THRESHOLD` consecutive non-network failures, default 3)
+- `rss_missing`: ISO timestamp when RSS was marked as permanently unavailable (set after `RSS_MISSING_THRESHOLD` consecutive non-network failures, default 3, OR `RSS_TRANSIENT_THRESHOLD` repeated transient errors, default 5 in 7 days)
 - `rss_consecutive_failures`: Counter of consecutive non-network RSS failures
+- `rss_transient_failures`: Array of transient error records with timestamps (rolling 7-day window)
 - `rss_last_failed`: ISO timestamp of the most recent RSS network error (timeout, connection refused, etc.)
 - `last_successful_method`: The discovery method that last successfully found articles
 
@@ -79,11 +80,13 @@ In addition to telemetry tables, the `sources.metadata` JSONB column tracks RSS-
 
 1. **Non-Network Failures:** When RSS discovery tries all candidate feeds and finds no valid RSS (404, parse errors), `rss_consecutive_failures` increments. After reaching `RSS_MISSING_THRESHOLD`, `rss_missing` is set to the current timestamp.
 
-2. **Network Errors:** Transient errors (timeouts, 5xx, 429, 403, 401) are treated differently. They increment network_errors but DON'T increment `rss_consecutive_failures`. Instead, `_reset_rss_failure_state()` is called, which sets `rss_last_failed` and resets the consecutive failure counter. This prevents temporary outages from permanently marking RSS as missing.
+2. **Transient Errors (NEW):** Repeated "transient" errors (429, 403, 5xx) are now tracked over time in `rss_transient_failures`. Each failure records a timestamp and status code. If a source exceeds `RSS_TRANSIENT_THRESHOLD` (default 5) transient failures within `RSS_TRANSIENT_WINDOW_DAYS` (default 7 days), it's marked as permanently blocked (`rss_missing` is set). This prevents wasting resources on feeds that repeatedly return transient errors that are actually permanent blocks misreported by the server.
 
-3. **Success:** When RSS successfully discovers articles, `_update_source_meta()` is called with `last_successful_method: "rss_feed"`, `rss_missing: null`, `rss_last_failed: null`, and `rss_consecutive_failures: 0`, fully resetting the failure state.
+3. **Network Errors (Legacy):** Pure network errors (timeouts, connection refused) set `rss_last_failed` timestamp but don't count toward either consecutive or transient thresholds.
 
-4. **Retry Windows:** If `rss_missing` is set, the discovery pipeline skips RSS for that source for a configurable window (default 30 days). After the window expires, RSS is re-attempted, allowing recovery if the site adds an RSS feed later.
+4. **Success:** When RSS successfully discovers articles, `_update_source_meta()` is called with `last_successful_method: "rss_feed"`, `rss_missing: null`, `rss_last_failed: null`, `rss_consecutive_failures: 0`, and `rss_transient_failures: []`, fully resetting all failure state.
+
+5. **Retry Windows:** If `rss_missing` is set, the discovery pipeline skips RSS for that source for a configurable window (default 30 days). After the window expires, RSS is re-attempted, allowing recovery if the site adds an RSS feed later.
 
 ## Querying Telemetry Data
 

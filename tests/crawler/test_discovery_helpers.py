@@ -777,6 +777,7 @@ def test_discover_with_rss_feeds_returns_empty_on_not_found(monkeypatch):
         "feeds_tried": session.calls,
         "feeds_successful": 0,
         "network_errors": 0,
+        "last_transient_status": None,
     }
 
 
