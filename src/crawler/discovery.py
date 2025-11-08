@@ -610,8 +610,8 @@ class NewsDiscovery:
                     "UPDATE sources SET metadata = :meta WHERE id = :id",
                     {"meta": json.dumps(merged), "id": source_id},
                 )
-                rows_affected = result.rowcount if hasattr(result, 'rowcount') else 0
-                
+                rows_affected = result.rowcount if hasattr(result, "rowcount") else 0
+
                 if rows_affected == 0:
                     logger.error(
                         "CRITICAL: UPDATE affected 0 rows for source_id=%s. "
@@ -623,7 +623,7 @@ class NewsDiscovery:
                     # Don't raise - metadata updates are best-effort
                     # Raising breaks RSS tracking and counter tracking
                     return
-                
+
                 logger.debug(
                     "Successfully updated metadata for source %s: %s (%d rows)",
                     source_id,

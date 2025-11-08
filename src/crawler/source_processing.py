@@ -393,7 +393,7 @@ class SourceProcessor:
             feeds_successful = summary.get("feeds_successful", 0)
             network_errors = summary.get("network_errors", 0)
             last_transient_status = summary.get("last_transient_status")
-            
+
             logger.info(
                 "RSS_PERSIST: source=%s, articles=%d, feeds_tried=%d, "
                 "feeds_successful=%d, network_errors=%d, status=%s",
@@ -404,7 +404,7 @@ class SourceProcessor:
                 network_errors,
                 last_transient_status,
             )
-            
+
             if articles:
                 logger.info("RSS_PERSIST: Has articles, marking RSS as working")
                 self.discovery._update_source_meta(
