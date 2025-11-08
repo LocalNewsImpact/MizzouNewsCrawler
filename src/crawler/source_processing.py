@@ -393,7 +393,20 @@ class SourceProcessor:
             feeds_successful = summary.get("feeds_successful", 0)
             network_errors = summary.get("network_errors", 0)
             last_transient_status = summary.get("last_transient_status")
+            
+            logger.info(
+                "RSS_PERSIST: source=%s, articles=%d, feeds_tried=%d, "
+                "feeds_successful=%d, network_errors=%d, status=%s",
+                self.source_name,
+                len(articles),
+                feeds_tried,
+                feeds_successful,
+                network_errors,
+                last_transient_status,
+            )
+            
             if articles:
+                logger.info("RSS_PERSIST: Has articles, marking RSS as working")
                 self.discovery._update_source_meta(
                     self.source_id,
                     {
@@ -406,16 +419,25 @@ class SourceProcessor:
                 )
             elif feeds_tried > 0 and feeds_successful == 0:
                 if network_errors > 0:
+                    logger.info(
+                        "RSS_PERSIST: Network errors detected, calling _track_transient_rss_failure"
+                    )
                     # Track repeated transient errors over time
                     self.discovery._track_transient_rss_failure(
                         self.source_id, last_transient_status
                     )
+                    logger.info("RSS_PERSIST: _track_transient_rss_failure completed")
                 else:
+                    logger.info(
+                        "RSS_PERSIST: No network errors, calling _increment_rss_failure"
+                    )
                     self.discovery._increment_rss_failure(self.source_id)
-        except Exception:
-            logger.debug(
-                "Failed to persist RSS discovery metadata for source %s",
+        except Exception as e:
+            logger.error(
+                "RSS_PERSIST: Exception in _persist_rss_metadata for source %s: %s",
                 self.source_id,
+                e,
+                exc_info=True,
             )
 
     def _handle_rss_failure(self, rss_error: Exception) -> None:
