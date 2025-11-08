@@ -583,11 +583,6 @@ class NewsDiscovery:
         if not source_id:
             return
         try:
-            logger.warning(
-                "DBURL CHECK: Using database_url=%s... for source_id=%s",
-                str(self.database_url)[:80],
-                source_id,
-            )
             dbm = DatabaseManager(self.database_url)
             with dbm.engine.begin() as conn:
                 res = safe_execute(
@@ -609,19 +604,6 @@ class NewsDiscovery:
                 merged = dict(cur_meta or {})
                 merged.update(updates or {})
 
-                # Debug: Verify source exists before UPDATE
-                verify_res = safe_execute(
-                    conn,
-                    "SELECT id FROM sources WHERE id = :id",
-                    {"id": source_id},
-                ).fetchone()
-                logger.warning(
-                    "PRE-UPDATE CHECK: source_id=%s (type=%s), found=%s",
-                    source_id,
-                    type(source_id).__name__,
-                    "YES" if verify_res else "NOT FOUND",
-                )
-
                 # Update sources metadata (handles RSS metadata persistence)
                 result = safe_execute(
                     conn,
@@ -630,8 +612,21 @@ class NewsDiscovery:
                 )
                 rows_affected = result.rowcount if hasattr(result, 'rowcount') else 0
                 
-                logger.warning(
-                    "POST-UPDATE: source %s: %s (rows affected: %d)",
+                if rows_affected == 0:
+                    logger.error(
+                        "CRITICAL: UPDATE affected 0 rows for source_id=%s. "
+                        "Source may not exist or ID type mismatch. "
+                        "Metadata update FAILED: %s",
+                        source_id,
+                        updates,
+                    )
+                    raise ValueError(
+                        f"Failed to update metadata for source {source_id}: "
+                        f"source not found or UPDATE matched 0 rows"
+                    )
+                
+                logger.debug(
+                    "Successfully updated metadata for source %s: %s (%d rows)",
                     source_id,
                     updates,
                     rows_affected,
@@ -643,6 +638,8 @@ class NewsDiscovery:
                 e,
                 exc_info=True,
             )
+            # Re-raise to let caller know the update failed
+            raise
 
     def _reset_rss_failure_state(
         self,
