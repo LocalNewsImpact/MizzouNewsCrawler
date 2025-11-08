@@ -90,7 +90,7 @@ def test_failure_counter_set_when_no_articles_found(cloud_sql_session):
     with patch.object(processor2, '_try_rss', return_value=([], {}, False, False)):
         with patch.object(processor2, '_try_newspaper', return_value=[]):
             with patch.object(processor2, '_try_storysniffer', return_value=[]):
-                result2 = processor2.process()
+                processor2.process()
     
     cloud_sql_session.expire_all()
     source = cloud_sql_session.query(Source).filter_by(id=source_id).first()
@@ -157,7 +157,7 @@ def test_failure_counter_not_set_when_articles_exist(cloud_sql_session):
     # Mock discovery to return nothing
     with patch.object(processor, '_try_rss', return_value=([], {}, False, False)):
         with patch.object(processor, '_try_newspaper', return_value=[]):
-            result = processor.process()
+            processor.process()
     
     # Counter should NOT be set because source has historical articles
     cloud_sql_session.expire_all()
