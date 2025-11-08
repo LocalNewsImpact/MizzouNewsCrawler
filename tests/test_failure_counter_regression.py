@@ -4,9 +4,11 @@ This test reproduces the production issue where sources with 0 articles
 don't have the no_effective_methods_consecutive counter set.
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
+
 import pandas as pd
+import pytest
+
 from src.crawler.discovery import NewsDiscovery
 from src.crawler.source_processing import SourceProcessor
 
@@ -104,7 +106,7 @@ def test_failure_counter_set_when_no_articles_found(cloud_sql_session):
 @pytest.mark.integration
 def test_failure_counter_not_set_when_articles_exist(cloud_sql_session):
     """Test that counter is NOT incremented if source has historical articles."""
-    from src.models import Source, CandidateLink, Article
+    from src.models import Article, CandidateLink, Source
 
     # Create source with one extracted article
     source = Source(
