@@ -665,7 +665,9 @@ class NewsDiscovery:
                         "UPDATE sources SET metadata = :meta WHERE id = :id",
                         {"meta": json.dumps(merged), "id": source_id},
                     )
-                    rows_affected = result.rowcount if hasattr(result, "rowcount") else 0
+                    rows_affected = (
+                        result.rowcount if hasattr(result, "rowcount") else 0
+                    )
 
                     if rows_affected == 0:
                         logger.error(
@@ -755,10 +757,14 @@ class NewsDiscovery:
                     transient_failures.append(failure_record)
 
                     # Filter to rolling window (last N days)
-                    cutoff = datetime.utcnow() - timedelta(days=RSS_TRANSIENT_WINDOW_DAYS)
+                    cutoff = datetime.utcnow() - timedelta(
+                        days=RSS_TRANSIENT_WINDOW_DAYS
+                    )
                     cutoff_iso = cutoff.isoformat()
                     recent_failures = [
-                        f for f in transient_failures if f.get("timestamp", "") >= cutoff_iso
+                        f
+                        for f in transient_failures
+                        if f.get("timestamp", "") >= cutoff_iso
                     ]
 
                     # Prepare updates

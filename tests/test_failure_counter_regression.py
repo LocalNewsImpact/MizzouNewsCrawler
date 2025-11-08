@@ -18,7 +18,7 @@ from src.crawler.source_processing import SourceProcessor
 @pytest.mark.postgres
 def test_failure_counter_set_when_no_articles_found(cloud_sql_engine):
     """Test that counter is incremented when discovery finds nothing.
-    
+
     Note: This test uses cloud_sql_engine directly (not cloud_sql_session)
     because it needs actual committed data visible to new connections.
     The transactional fixture would rollback changes, making them invisible
@@ -27,7 +27,7 @@ def test_failure_counter_set_when_no_articles_found(cloud_sql_engine):
     # Create a real session WITHOUT the transaction wrapper
     SessionLocal = sessionmaker(bind=cloud_sql_engine)
     session = SessionLocal()
-    
+
     try:
         # Create a real source in the database
         from src.models import Source
@@ -116,11 +116,12 @@ def test_failure_counter_set_when_no_articles_found(cloud_sql_engine):
         assert source is not None
         counter = source.meta.get("no_effective_methods_consecutive")
         assert counter == 2, f"Counter should increment to 2, got {counter}"
-        
+
     finally:
         # Clean up: delete the test source
         try:
             from src.models import Source as SourceCleanup
+
             session.query(SourceCleanup).filter_by(id=source_id).delete()
             session.commit()
         except Exception:
