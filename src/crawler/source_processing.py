@@ -173,39 +173,6 @@ class SourceProcessor:
         methods = self._prioritize_last_success(methods)
 
         if not methods:
-            # Check if we should pause source due to repeated failures
-            # (only for sources with no historical data and zero articles)
-            if not has_historical_data:
-                article_count = self._get_existing_article_count(self.source_id)
-                if article_count == 0:
-                    failure_count = self._increment_no_effective_methods(
-                        self.source_id
-                    )
-                    logger.warning(
-                        "No effective methods and zero articles captured from %s "
-                        "(failure count: %d/3)",
-                        self.source_name,
-                        failure_count,
-                    )
-
-                    # Pause source after 3 consecutive failures
-                    if failure_count >= 3:
-                        logger.error(
-                            "Pausing %s after %d consecutive "
-                            "'no effective methods' failures with zero articles",
-                            self.source_name,
-                            failure_count,
-                        )
-                        self._pause_source(
-                            self.source_id,
-                            reason=(
-                                "Automatic pause after 3 consecutive "
-                                "'no effective methods' attempts"
-                            ),
-                            host=self.host,
-                        )
-                        return []  # Return empty to skip discovery
-
             if has_historical_data:
                 logger.info(
                     "No effective methods found for %s, trying all methods",
