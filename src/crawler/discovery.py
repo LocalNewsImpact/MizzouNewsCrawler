@@ -583,6 +583,11 @@ class NewsDiscovery:
         if not source_id:
             return
         try:
+            logger.warning(
+                "DBURL CHECK: Using database_url=%s... for source_id=%s",
+                str(self.database_url)[:80],
+                source_id,
+            )
             dbm = DatabaseManager(self.database_url)
             with dbm.engine.begin() as conn:
                 res = safe_execute(
@@ -604,21 +609,39 @@ class NewsDiscovery:
                 merged = dict(cur_meta or {})
                 merged.update(updates or {})
 
+                # Debug: Verify source exists before UPDATE
+                verify_res = safe_execute(
+                    conn,
+                    "SELECT id FROM sources WHERE id = :id",
+                    {"id": source_id},
+                ).fetchone()
+                logger.warning(
+                    "PRE-UPDATE CHECK: source_id=%s (type=%s), found=%s",
+                    source_id,
+                    type(source_id).__name__,
+                    "YES" if verify_res else "NOT FOUND",
+                )
+
                 # Update sources metadata (handles RSS metadata persistence)
-                safe_execute(
+                result = safe_execute(
                     conn,
                     "UPDATE sources SET metadata = :meta WHERE id = :id",
                     {"meta": json.dumps(merged), "id": source_id},
                 )
-                logger.debug(
-                    "Updated metadata for source %s: %s",
+                rows_affected = result.rowcount if hasattr(result, 'rowcount') else 0
+                
+                logger.warning(
+                    "POST-UPDATE: source %s: %s (rows affected: %d)",
                     source_id,
                     updates,
+                    rows_affected,
                 )
-        except Exception:
-            logger.debug(
-                "Failed to update metadata for source %s",
+        except Exception as e:
+            logger.error(
+                "Failed to update metadata for source %s: %s",
                 source_id,
+                e,
+                exc_info=True,
             )
 
     def _reset_rss_failure_state(
