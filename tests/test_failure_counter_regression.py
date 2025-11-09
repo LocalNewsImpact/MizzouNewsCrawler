@@ -27,6 +27,7 @@ def test_failure_counter_set_when_no_articles_found(cloud_sql_engine):
     # Create a real session WITHOUT the transaction wrapper
     SessionLocal = sessionmaker(bind=cloud_sql_engine)
     session = SessionLocal()
+    source_id = None  # Initialize to prevent NameError in cleanup if exception occurs
 
     try:
         # Create a real source in the database
@@ -124,15 +125,15 @@ def test_failure_counter_set_when_no_articles_found(cloud_sql_engine):
 
     finally:
         # Clean up: delete the test source
-        try:
-            from src.models import Source as SourceCleanup
+        if source_id is not None:
+            try:
+                from src.models import Source as SourceCleanup
 
-            session.query(SourceCleanup).filter_by(id=source_id).delete()
-            session.commit()
-        except Exception:
-            session.rollback()
-        finally:
-            session.close()
+                session.query(SourceCleanup).filter_by(id=source_id).delete()
+                session.commit()
+            except Exception:
+                session.rollback()
+        session.close()
 
 
 @pytest.mark.integration
@@ -146,7 +147,7 @@ def test_failure_counter_not_set_when_articles_exist(cloud_sql_session):
         host="hasnews.com",
         host_norm="hasnews.com",
         canonical_name="Has News",
-        metadata={"frequency": "daily"},
+        meta={"frequency": "daily"},
     )
     cloud_sql_session.add(source)
     cloud_sql_session.flush()
@@ -205,7 +206,7 @@ def test_failure_counter_not_set_when_articles_exist(cloud_sql_session):
     # Counter should NOT be set because source has historical articles
     cloud_sql_session.expire_all()
     source = cloud_sql_session.query(Source).filter_by(id=source_id).first()
-    counter = source.metadata.get("no_effective_methods_consecutive")
+    counter = source.meta.get("no_effective_methods_consecutive")
 
     assert (
         counter is None or counter == 0
