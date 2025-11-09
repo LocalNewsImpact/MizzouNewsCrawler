@@ -101,8 +101,15 @@ class TestDiscoveryPostgreSQL:
                 conn.execute(
                     text(
                         """
-                        INSERT INTO sources (id, canonical_name, host, host_norm, city, county, type)
-                        VALUES (:id, :name, :host, :host_norm, :city, :county, :type)
+                        INSERT INTO sources (
+                            id, canonical_name, host, host_norm, city, county, type,
+                            rss_consecutive_failures, rss_transient_failures,
+                            no_effective_methods_consecutive
+                        )
+                        VALUES (
+                            :id, :name, :host, :host_norm, :city, :county, :type,
+                            :rcf, :rtf, :nemc
+                        )
                         """
                     ),
                     {
@@ -113,6 +120,9 @@ class TestDiscoveryPostgreSQL:
                         "city": "TestCity",
                         "county": "TestCounty",
                         "type": "news",
+                        "rcf": 0,
+                        "rtf": "[]",
+                        "nemc": 0,
                     },
                 )
 
@@ -148,7 +158,7 @@ class TestDiscoveryPostgreSQL:
                 text(
                     """
                     INSERT INTO datasets (id, label, slug, ingested_at)
-                    VALUES 
+                    VALUES
                         (:id1, :label1, :slug1, NOW()),
                         (:id2, :label2, :slug2, NOW())
                     """
@@ -172,8 +182,15 @@ class TestDiscoveryPostgreSQL:
             conn.execute(
                 text(
                     """
-                    INSERT INTO sources (id, canonical_name, host, host_norm, city, county, type)
-                    VALUES (:id, :name, :host, :host_norm, :city, :county, :type)
+                    INSERT INTO sources (
+                        id, canonical_name, host, host_norm, city, county, type,
+                        rss_consecutive_failures, rss_transient_failures,
+                        no_effective_methods_consecutive
+                    )
+                    VALUES (
+                        :id, :name, :host, :host_norm, :city, :county, :type,
+                        :rcf, :rtf, :nemc
+                    )
                     """
                 ),
                 {
@@ -184,6 +201,9 @@ class TestDiscoveryPostgreSQL:
                     "city": "City1",
                     "county": "County1",
                     "type": "news",
+                    "rcf": 0,
+                    "rtf": "[]",
+                    "nemc": 0,
                 },
             )
             conn.execute(
@@ -204,8 +224,15 @@ class TestDiscoveryPostgreSQL:
             conn.execute(
                 text(
                     """
-                    INSERT INTO sources (id, canonical_name, host, host_norm, city, county, type)
-                    VALUES (:id, :name, :host, :host_norm, :city, :county, :type)
+                    INSERT INTO sources (
+                        id, canonical_name, host, host_norm, city, county, type,
+                        rss_consecutive_failures, rss_transient_failures,
+                        no_effective_methods_consecutive
+                    )
+                    VALUES (
+                        :id, :name, :host, :host_norm, :city, :county, :type,
+                        :rcf, :rtf, :nemc
+                    )
                     """
                 ),
                 {
@@ -216,6 +243,9 @@ class TestDiscoveryPostgreSQL:
                     "city": "City2",
                     "county": "County2",
                     "type": "news",
+                    "rcf": 0,
+                    "rtf": "[]",
+                    "nemc": 0,
                 },
             )
             conn.execute(
@@ -266,8 +296,15 @@ class TestDiscoveryPostgreSQL:
             conn.execute(
                 text(
                     """
-                    INSERT INTO sources (id, canonical_name, host, host_norm, city, county, type)
-                    VALUES (:id, :name, :host, :host_norm, :city, :county, :type)
+                    INSERT INTO sources (
+                        id, canonical_name, host, host_norm, city, county, type,
+                        rss_consecutive_failures, rss_transient_failures,
+                        no_effective_methods_consecutive
+                    )
+                    VALUES (
+                        :id, :name, :host, :host_norm, :city, :county, :type,
+                        :rcf, :rtf, :nemc
+                    )
                     """
                 ),
                 {
@@ -278,6 +315,9 @@ class TestDiscoveryPostgreSQL:
                     "city": "TestCity",
                     "county": "TestCounty",
                     "type": "news",
+                    "rcf": 0,
+                    "rtf": "[]",
+                    "nemc": 0,
                 },
             )
 
@@ -285,9 +325,14 @@ class TestDiscoveryPostgreSQL:
             conn.execute(
                 text(
                     """
-                    INSERT INTO candidate_links 
-                    (id, url, source, source_id, source_host_id, dataset_id, status, discovered_at)
-                    VALUES (:id, :url, :source, :source_id, :source_host_id, :dataset_id, :status, NOW())
+                    INSERT INTO candidate_links (
+                        id, url, source, source_id, source_host_id,
+                        dataset_id, status, discovered_at
+                    )
+                    VALUES (
+                        :id, :url, :source, :source_id, :source_host_id,
+                        :dataset_id, :status, NOW()
+                    )
                     """
                 ),
                 {
@@ -305,8 +350,15 @@ class TestDiscoveryPostgreSQL:
             conn.execute(
                 text(
                     """
-                    INSERT INTO sources (id, canonical_name, host, host_norm, city, county, type)
-                    VALUES (:id, :name, :host, :host_norm, :city, :county, :type)
+                    INSERT INTO sources (
+                        id, canonical_name, host, host_norm, city, county, type,
+                        rss_consecutive_failures, rss_transient_failures,
+                        no_effective_methods_consecutive
+                    )
+                    VALUES (
+                        :id, :name, :host, :host_norm, :city, :county, :type,
+                        :rcf, :rtf, :nemc
+                    )
                     """
                 ),
                 {
@@ -317,6 +369,9 @@ class TestDiscoveryPostgreSQL:
                     "city": "TestCity",
                     "county": "TestCounty",
                     "type": "news",
+                    "rcf": 0,
+                    "rtf": "[]",
+                    "nemc": 0,
                 },
             )
 
@@ -360,8 +415,15 @@ class TestDiscoveryPostgreSQL:
             conn.execute(
                 text(
                     """
-                    INSERT INTO sources (id, canonical_name, host, host_norm, city, county, type, metadata)
-                    VALUES (:id, :name, :host, :host_norm, :city, :county, :type, :metadata)
+                    INSERT INTO sources (
+                        id, canonical_name, host, host_norm, city, county, type,
+                        metadata, rss_consecutive_failures, rss_transient_failures,
+                        no_effective_methods_consecutive
+                    )
+                    VALUES (
+                        :id, :name, :host, :host_norm, :city, :county, :type,
+                        :metadata, :rcf, :rtf, :nemc
+                    )
                     """
                 ),
                 {
@@ -375,6 +437,9 @@ class TestDiscoveryPostgreSQL:
                     "metadata": json.dumps(
                         {"last_discovery_at": old_discovery, "frequency": "daily"}
                     ),
+                    "rcf": 0,
+                    "rtf": "[]",
+                    "nemc": 0,
                 },
             )
 
@@ -422,8 +487,15 @@ class TestDiscoveryPostgreSQL:
                 conn.execute(
                     text(
                         """
-                        INSERT INTO sources (id, canonical_name, host, host_norm, city, county, type)
-                        VALUES (:id, :name, :host, :host_norm, :city, :county, :type)
+                        INSERT INTO sources (
+                            id, canonical_name, host, host_norm, city, county, type,
+                            rss_consecutive_failures, rss_transient_failures,
+                            no_effective_methods_consecutive
+                        )
+                        VALUES (
+                            :id, :name, :host, :host_norm, :city, :county, :type,
+                            :rcf, :rtf, :nemc
+                        )
                         """
                     ),
                     {
@@ -434,6 +506,9 @@ class TestDiscoveryPostgreSQL:
                         "city": src["city"],
                         "county": src["county"],
                         "type": "news",
+                        "rcf": 0,
+                        "rtf": "[]",
+                        "nemc": 0,
                     },
                 )
 
@@ -456,7 +531,7 @@ class TestDiscoveryPostgreSQL:
     def test_invalid_dataset_returns_empty_with_postgres(
         self, postgres_discovery_db, caplog
     ):
-        """Verify invalid dataset label returns empty result with error on PostgreSQL."""
+        """Verify invalid dataset label returns empty result with error on PG."""
         db = DatabaseManager(postgres_discovery_db)
 
         # Create a valid dataset

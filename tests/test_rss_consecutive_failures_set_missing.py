@@ -1,5 +1,6 @@
 import pathlib
 import sys
+
 import pandas as pd
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
@@ -59,6 +60,6 @@ def test_repeated_non_network_failures_set_rss_missing(tmp_path, monkeypatch):
 
     # After threshold, missing should be set
     final_state = read_source_state(DatabaseManager(db_url).engine, "test-source-2")
-    assert final_state.get("rss_missing_at") is not None, (
-        "rss_missing_at was not set after repeated non-network failures"
-    )
+    assert (
+        final_state.get("rss_missing_at") is not None
+    ), "rss_missing_at was not set after repeated non-network failures"

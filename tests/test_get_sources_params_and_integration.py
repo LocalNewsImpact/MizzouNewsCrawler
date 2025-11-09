@@ -7,7 +7,7 @@ import pytest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from src.crawler.discovery import NewsDiscovery
+from src.crawler.discovery import NewsDiscovery  # noqa: E402
 
 # Check if PostgreSQL is available for testing
 POSTGRES_TEST_URL = os.getenv("TEST_DATABASE_URL")
@@ -108,14 +108,19 @@ def test_get_sources_integration_postgres():
             # Insert source (host_norm is required NOT NULL, no created_at)
             conn.execute(
                 text(
-                    "INSERT INTO sources (id, canonical_name, host, host_norm) "
-                    "VALUES (:id, :name, :host, :host_norm)"
+                    "INSERT INTO sources (id, canonical_name, host, host_norm, "
+                    "rss_consecutive_failures, rss_transient_failures, "
+                    "no_effective_methods_consecutive) "
+                    "VALUES (:id, :name, :host, :host_norm, :rcf, :rtf, :nemc)"
                 ),
                 {
                     "id": test_source_id,
                     "name": "Test Params Source",
                     "host": "test-params.example.com",
                     "host_norm": "test-params.example.com",
+                    "rcf": 0,
+                    "rtf": "[]",
+                    "nemc": 0,
                 },
             )
 

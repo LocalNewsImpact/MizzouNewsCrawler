@@ -62,6 +62,11 @@ def seed_source_records(db_url: str) -> None:
                     "county": "Test County",
                     "type": "news",
                     "metadata": None,
+                    # Defaults for NOT NULL typed columns added in migration
+                    "rss_consecutive_failures": 0,
+                    # Use JSON string for SQLite binding
+                    "rss_transient_failures": "[]",
+                    "no_effective_methods_consecutive": 0,
                 }
             ]
         )

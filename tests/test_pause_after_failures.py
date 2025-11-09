@@ -13,7 +13,9 @@ import pytest
 
 from src.crawler.discovery import NewsDiscovery
 from src.crawler.source_processing import SourceProcessor
+from src.models import create_tables
 from src.models.database import DatabaseManager, safe_execute
+from tests.helpers.source_state import read_source_state
 
 
 class TestPauseAfterFailures:
@@ -28,26 +30,10 @@ class TestPauseAfterFailures:
         # Create discovery instance
         discovery = NewsDiscovery(database_url=database_url)
 
-        # Create sources table using DatabaseManager
+        # Create ORM tables (ensures typed columns exist)
         db_manager = DatabaseManager(database_url)
-        with db_manager.engine.begin() as conn:
-            safe_execute(
-                conn,
-                """
-                CREATE TABLE IF NOT EXISTS sources (
-                    id VARCHAR PRIMARY KEY,
-                    host VARCHAR NOT NULL,
-                    host_norm VARCHAR,
-                    status VARCHAR DEFAULT 'active',
-                    paused_at TIMESTAMP,
-                    paused_reason TEXT,
-                    metadata TEXT
-                )
-                """,
-            )
-
+        create_tables(db_manager.engine)
         yield discovery
-
         db_manager.close()
 
     def test_increment_and_reset_counter(self, mock_discovery):
@@ -61,8 +47,15 @@ class TestPauseAfterFailures:
             safe_execute(
                 conn,
                 """
-                INSERT INTO sources (id, host, host_norm, status, metadata)
-                VALUES (:id, :host, :host_norm, :status, :metadata)
+                INSERT INTO sources (
+                    id, host, host_norm, status, metadata,
+                    rss_consecutive_failures, rss_transient_failures,
+                    no_effective_methods_consecutive
+                )
+                VALUES (
+                    :id, :host, :host_norm, :status, :metadata,
+                    :rss_cf, :rss_tf, :nem_cf
+                )
                 """,
                 {
                     "id": source_id,
@@ -70,6 +63,9 @@ class TestPauseAfterFailures:
                     "host_norm": host.lower(),
                     "status": "active",
                     "metadata": json.dumps({}),
+                    "rss_cf": 0,
+                    "rss_tf": json.dumps([]),
+                    "nem_cf": 0,
                 },
             )
 
@@ -83,31 +79,17 @@ class TestPauseAfterFailures:
         count3 = mock_discovery._increment_no_effective_methods(source_id)
         assert count3 == 3
 
-        # Verify metadata was updated
-        with db_manager.engine.connect() as conn:
-            result = safe_execute(
-                conn,
-                "SELECT metadata FROM sources WHERE id = :id",
-                {"id": source_id},
-            ).fetchone()
-
-            metadata = json.loads(result[0])
-            assert metadata["no_effective_methods_consecutive"] == 3
-            assert "no_effective_methods_last_seen" in metadata
+        # Verify typed columns were updated
+        state = read_source_state(db_manager.engine, source_id)
+        assert state.get("no_effective_methods_consecutive") == 3
+        assert state.get("no_effective_methods_last_seen") is not None
 
         # Reset counter
         mock_discovery._reset_no_effective_methods(source_id)
 
         # Verify counter was reset
-        with db_manager.engine.connect() as conn:
-            result = safe_execute(
-                conn,
-                "SELECT metadata FROM sources WHERE id = :id",
-                {"id": source_id},
-            ).fetchone()
-
-            metadata = json.loads(result[0])
-            assert metadata["no_effective_methods_consecutive"] == 0
+        state = read_source_state(db_manager.engine, source_id)
+        assert state.get("no_effective_methods_consecutive") == 0
 
         db_manager.close()
 
@@ -122,14 +104,23 @@ class TestPauseAfterFailures:
             safe_execute(
                 conn,
                 """
-                INSERT INTO sources (id, host, host_norm, status)
-                VALUES (:id, :host, :host_norm, :status)
+                INSERT INTO sources (
+                  id, host, host_norm, status,
+                  rss_consecutive_failures, rss_transient_failures,
+                  no_effective_methods_consecutive
+                ) VALUES (
+                  :id, :host, :host_norm, :status,
+                  :rss_cf, :rss_tf, :nem_cf
+                )
                 """,
                 {
                     "id": source_id,
                     "host": host,
                     "host_norm": host.lower(),
                     "status": "active",
+                    "rss_cf": 0,
+                    "rss_tf": json.dumps([]),
+                    "nem_cf": 0,
                 },
             )
 
@@ -162,8 +153,15 @@ class TestPauseAfterFailures:
             safe_execute(
                 conn,
                 """
-                INSERT INTO sources (id, host, host_norm, status, metadata)
-                VALUES (:id, :host, :host_norm, :status, :metadata)
+                INSERT INTO sources (
+                    id, host, host_norm, status, metadata,
+                    rss_consecutive_failures, rss_transient_failures,
+                    no_effective_methods_consecutive
+                )
+                VALUES (
+                    :id, :host, :host_norm, :status, :metadata,
+                    :rss_cf, :rss_tf, :nem_cf
+                )
                 """,
                 {
                     "id": source_id,
@@ -171,6 +169,9 @@ class TestPauseAfterFailures:
                     "host_norm": host.lower(),
                     "status": "active",
                     "metadata": json.dumps({}),
+                    "rss_cf": 0,
+                    "rss_tf": json.dumps([]),
+                    "nem_cf": 0,
                 },
             )
 
@@ -213,53 +214,9 @@ class TestSourceProcessorPauseIntegration:
         # Create discovery instance
         discovery = NewsDiscovery(database_url=database_url)
 
-        # Create required tables
+        # Create required tables via ORM (includes typed columns)
         db_manager = DatabaseManager(database_url)
-        with db_manager.engine.begin() as conn:
-            # Sources table
-            safe_execute(
-                conn,
-                """
-                CREATE TABLE IF NOT EXISTS sources (
-                    id VARCHAR PRIMARY KEY,
-                    host VARCHAR NOT NULL,
-                    host_norm VARCHAR,
-                    canonical_name VARCHAR,
-                    city VARCHAR,
-                    county VARCHAR,
-                    owner VARCHAR,
-                    type VARCHAR,
-                    status VARCHAR DEFAULT 'active',
-                    paused_at TIMESTAMP,
-                    paused_reason TEXT,
-                    metadata TEXT
-                )
-                """,
-            )
-            # Articles table (for article count check)
-            safe_execute(
-                conn,
-                """
-                CREATE TABLE IF NOT EXISTS articles (
-                    id VARCHAR PRIMARY KEY,
-                    candidate_link_id VARCHAR NOT NULL,
-                    title TEXT,
-                    content TEXT
-                )
-                """,
-            )
-            # Candidate links table
-            safe_execute(
-                conn,
-                """
-                CREATE TABLE IF NOT EXISTS candidate_links (
-                    id VARCHAR PRIMARY KEY,
-                    url VARCHAR UNIQUE NOT NULL,
-                    source_id VARCHAR,
-                    source_host_id VARCHAR
-                )
-                """,
-            )
+        create_tables(db_manager.engine)
 
         yield discovery, database_url, db_manager
 
@@ -276,8 +233,15 @@ class TestSourceProcessorPauseIntegration:
             safe_execute(
                 conn,
                 """
-                INSERT INTO sources (id, host, host_norm, status, metadata)
-                VALUES (:id, :host, :host_norm, :status, :metadata)
+                INSERT INTO sources (
+                    id, host, host_norm, status, metadata,
+                    rss_consecutive_failures, rss_transient_failures,
+                    no_effective_methods_consecutive
+                )
+                VALUES (
+                    :id, :host, :host_norm, :status, :metadata,
+                    :rss_cf, :rss_tf, :nem_cf
+                )
                 """,
                 {
                     "id": source_id,
@@ -285,6 +249,9 @@ class TestSourceProcessorPauseIntegration:
                     "host_norm": host.lower(),
                     "status": "active",
                     "metadata": json.dumps({}),
+                    "rss_cf": 0,
+                    "rss_tf": json.dumps([]),
+                    "nem_cf": 0,
                 },
             )
 
@@ -329,19 +296,17 @@ class TestSourceProcessorPauseIntegration:
                 # Simulate failure by calling _record_no_articles
                 processor._record_no_articles()
 
-        # Verify source is paused after 3rd attempt
+        # Verify source is paused after 3rd attempt (typed counter at threshold)
         with db_manager.engine.connect() as conn:
             row = safe_execute(
                 conn,
-                "SELECT status, paused_reason, metadata FROM sources WHERE id = :id",
+                "SELECT status, paused_reason FROM sources WHERE id = :id",
                 {"id": source_id},
             ).fetchone()
-
             assert row[0] == "paused"
             assert "automatic pause" in row[1].lower()
-
-            metadata = json.loads(row[2])
-            assert metadata["no_effective_methods_consecutive"] == 3
+        state = read_source_state(db_manager.engine, source_id)
+        assert state.get("no_effective_methods_consecutive") == 3
 
 
 if __name__ == "__main__":

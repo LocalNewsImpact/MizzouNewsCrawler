@@ -10,7 +10,6 @@ sys.path.insert(0, str(ROOT))
 from src.crawler.discovery import RSS_MISSING_THRESHOLD, NewsDiscovery  # noqa: E402
 from src.models import Source  # noqa: E402
 from src.models.database import DatabaseManager  # noqa: E402
-
 from tests.helpers.source_state import read_source_state  # noqa: E402
 
 

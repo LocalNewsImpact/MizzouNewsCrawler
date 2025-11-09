@@ -32,16 +32,15 @@ from unittest.mock import patch
 
 import pandas as pd
 import pytest
-from sqlalchemy.orm import sessionmaker
 from sqlalchemy import text
+from sqlalchemy.orm import sessionmaker
 
 from src.crawler.discovery import (
-    NewsDiscovery,
     RSS_MISSING_THRESHOLD,
     RSS_TRANSIENT_THRESHOLD,
+    NewsDiscovery,
 )
 from src.models import Source
-
 
 pytestmark = [pytest.mark.postgres, pytest.mark.integration]
 
@@ -86,6 +85,7 @@ def _make_source(session, **meta_overrides) -> Source:
     base_meta = meta_overrides or {}
     # Generate a unique host_norm to avoid ix_sources_host_norm collisions
     import uuid
+
     unique_host_norm = f"test-{uuid.uuid4().hex[:12]}.example.test"
     s = Source(
         host=f"rss-meta-{datetime.utcnow().timestamp()}".replace(".", "-"),
@@ -160,6 +160,7 @@ def test_rss_non_network_failures_mark_missing_postgres(cloud_sql_engine, caplog
     session = SessionLocal()
     # Create source with unique host_norm to avoid unique constraint collisions
     import uuid
+
     unique_host_norm = f"telemetry-{uuid.uuid4().hex[:12]}.example.test"
     source = Source(
         host=f"rss-meta-{datetime.utcnow().timestamp()}".replace(".", "-"),
@@ -211,6 +212,7 @@ def test_rss_network_failures_transient_tracking_postgres(cloud_sql_engine, capl
     session = SessionLocal()
     # Create source with unique host_norm to avoid uniqueness collisions
     import uuid
+
     unique_host_norm = f"telemetry-{uuid.uuid4().hex[:10]}.example.test"
     source = Source(
         host=f"rss-meta-{datetime.utcnow().timestamp()}".replace(".", "-"),
@@ -232,6 +234,7 @@ def test_rss_network_failures_transient_tracking_postgres(cloud_sql_engine, capl
                 "network_errors": 1,
                 "last_transient_status": status,
             }
+
         return _mock
 
     source_row = pd.Series(
@@ -277,6 +280,7 @@ def test_transient_resets_consecutive_with_interleaved_success(
     session = SessionLocal()
     # Create a unique source to avoid ix_sources_host_norm collisions
     import uuid
+
     source = Source(
         host=f"rss-meta-{datetime.utcnow().timestamp()}".replace(".", "-"),
         host_norm=f"telemetry-{uuid.uuid4().hex[:10]}.example.test",
@@ -381,9 +385,7 @@ def test_transient_resets_consecutive_with_interleaved_success(
     assert not any("UPDATE affected 0 rows" in r.message for r in caplog.records)
 
 
-def test_rss_success_records_discovery_outcome_row_postgres(
-    cloud_sql_engine, caplog
-):
+def test_rss_success_records_discovery_outcome_row_postgres(cloud_sql_engine, caplog):
     """Successful RSS discovery with an operation_id should record a row.
 
     Verifies telemetry integration path:
@@ -395,13 +397,14 @@ def test_rss_success_records_discovery_outcome_row_postgres(
     Assertions focus on minimal correctness (outcome classification,
     counts, method_used).
     """
-    from sqlalchemy.orm import sessionmaker
     from sqlalchemy import text
+    from sqlalchemy.orm import sessionmaker
 
     SessionLocal = sessionmaker(bind=cloud_sql_engine)
     session = SessionLocal()
     # Create a unique source to avoid ix_sources_host_norm collisions
     import uuid
+
     unique_host_norm = f"telemetry-{uuid.uuid4().hex[:12]}.example.test"
     source = Source(
         host=f"rss-meta-{datetime.utcnow().timestamp()}".replace(".", "-"),

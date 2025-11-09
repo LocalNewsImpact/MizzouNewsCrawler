@@ -5,14 +5,14 @@ doesn't require bespoke SQL in every test. Returns a dict with the new column
 names; legacy tests can still map to old keys if needed.
 """
 
-from typing import Any, Dict
 import json
+from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 
-def read_source_state(engine: Engine, source_id: str) -> Dict[str, Any]:
+def read_source_state(engine: Engine, source_id: str) -> dict[str, Any]:
     """Return typed RSS / effectiveness state for a source.
 
     Columns:
@@ -68,7 +68,7 @@ def read_source_state(engine: Engine, source_id: str) -> Dict[str, Any]:
     }
 
 
-def legacy_mapping(state: Dict[str, Any]) -> Dict[str, Any]:
+def legacy_mapping(state: dict[str, Any]) -> dict[str, Any]:
     """Optional helper to expose legacy JSON key names for transitional tests."""
     out = dict(state)
     if "rss_missing_at" in state:

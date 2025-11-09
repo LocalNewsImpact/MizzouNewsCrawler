@@ -111,19 +111,19 @@ def upgrade():  # noqa: C901 - complexity acceptable for migration
                                 (metadata->>'rss_consecutive_failures')::int, 0
                             ),
                             rss_transient_failures = COALESCE(
-                                metadata->'rss_transient_failures', '[]'::jsonb
+                                (metadata->'rss_transient_failures')::jsonb, '[]'::jsonb
                             ),
-              rss_missing_at = (
+                            rss_missing_at = (
                 CASE
-                                    WHEN metadata ? 'rss_missing' THEN
-                                        NULLIF(metadata->>'rss_missing','')::timestamp
-                  ELSE NULL
+                    WHEN ((metadata::jsonb) ? 'rss_missing') THEN
+                        NULLIF(metadata->>'rss_missing','')::timestamp
+                    ELSE NULL
                 END
               ),
               rss_last_failed_at = (
                 CASE
-                                    WHEN metadata ? 'rss_last_failed' THEN
-                                        NULLIF(metadata->>'rss_last_failed','')::timestamp
+                    WHEN ((metadata::jsonb) ? 'rss_last_failed') THEN
+                        NULLIF(metadata->>'rss_last_failed','')::timestamp
                   ELSE NULL
                 END
               ),
@@ -135,10 +135,13 @@ def upgrade():  # noqa: C901 - complexity acceptable for migration
                             ),
                             no_effective_methods_last_seen = (
                                 CASE
-                                    WHEN metadata ? 'no_effective_methods_last_seen'
-                                    THEN NULLIF(
-                                        metadata->>'no_effective_methods_last_seen',''
-                                    )::timestamp
+                                    WHEN (
+                                        (metadata::jsonb) ?
+                                        'no_effective_methods_last_seen'
+                                    ) THEN
+                                        NULLIF(
+                                            metadata->>'no_effective_methods_last_seen',''
+                                        )::timestamp
                                     ELSE NULL
                                 END
                             )

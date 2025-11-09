@@ -1433,12 +1433,18 @@ def bulk_insert_candidate_links(
                         if missing:
                             ins_rows: list[dict[str, Any]] = []
                             for h in missing:
+                                # Provide explicit defaults for new NOT NULL reliability columns
+                                # (rss_consecutive_failures, rss_transient_failures,
+                                #  no_effective_methods_consecutive) to avoid IntegrityError
                                 ins_rows.append(
                                     {
                                         "id": str(uuid.uuid4()),
                                         "host": h,
                                         "host_norm": (h or "").lower(),
                                         "canonical_name": h,
+                                        "rss_consecutive_failures": 0,
+                                        "rss_transient_failures": [],  # JSON column
+                                        "no_effective_methods_consecutive": 0,
                                     }
                                 )
                             conn.execute(insert(sources_tbl), ins_rows)

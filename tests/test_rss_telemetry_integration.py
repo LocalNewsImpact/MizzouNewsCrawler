@@ -7,9 +7,9 @@ This module tests that:
 4. RSS metadata updates (_increment_rss_failure, _reset_rss_failure_state) work
 """
 
-import json
 import pathlib
 import sys
+from datetime import datetime
 from unittest.mock import MagicMock
 
 import pandas as pd
@@ -277,12 +277,15 @@ def test_rss_metadata_reset_on_success(tmp_path, monkeypatch):
 
     # Create a source with existing failures
     dbm = DatabaseManager(database_url=db_url)
+    # Seed prior failure state via typed columns (migrated from legacy JSON)
     source = Source(
         id="test-source-4",
         host="example.io",
         host_norm="example.io",
         canonical_name="Example IO",
-        meta={"rss_consecutive_failures": 2, "rss_missing": "2023-01-01T00:00:00"},
+        rss_consecutive_failures=2,
+        rss_missing_at=datetime(2023, 1, 1, 0, 0, 0),
+        meta={},  # legacy meta no longer authoritative for failure state
     )
     dbm.session.add(source)
     dbm.session.commit()
@@ -310,14 +313,13 @@ def test_rss_metadata_reset_on_success(tmp_path, monkeypatch):
     monkeypatch.setattr(discovery, "discover_with_newspaper4k", lambda *a, **k: [])
     monkeypatch.setattr(discovery, "discover_with_storysniffer", lambda *a, **k: [])
 
+    # Provide minimal source row (typed columns are in DB already)
     source_row = pd.Series(
         {
             "id": "test-source-4",
             "name": "Example IO",
             "url": "https://example.io",
-            "metadata": json.dumps(
-                {"rss_consecutive_failures": 2, "rss_missing": "2023-01-01T00:00:00"}
-            ),
+            "metadata": None,
         }
     )
 
@@ -342,12 +344,14 @@ def test_rss_network_error_resets_failure_state(tmp_path, monkeypatch):
 
     # Create a source with some failures
     dbm = DatabaseManager(database_url=db_url)
+    # Seed prior failure count using typed column
     source = Source(
         id="test-source-5",
         host="example.biz",
         host_norm="example.biz",
         canonical_name="Example Biz",
-        meta={"rss_consecutive_failures": 1},
+        rss_consecutive_failures=1,
+        meta={},
     )
     dbm.session.add(source)
     dbm.session.commit()
@@ -371,7 +375,7 @@ def test_rss_network_error_resets_failure_state(tmp_path, monkeypatch):
             "id": "test-source-5",
             "name": "Example Biz",
             "url": "https://example.biz",
-            "metadata": json.dumps({"rss_consecutive_failures": 1}),
+            "metadata": None,
         }
     )
 
