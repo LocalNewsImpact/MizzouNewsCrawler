@@ -81,14 +81,12 @@ else
                 break
                 ;;
             services)
-                # Application services only (no base images) - use main pipeline for migrations
+                # Application services only (no base images) - use individual triggers
                 SERVICES_TO_BUILD+=("api" "crawler" "processor")
-                USE_MAIN_PIPELINE=true
                 ;;
             ci)
                 # Legacy alias for 'services'
                 SERVICES_TO_BUILD+=("api" "crawler" "processor")
-                USE_MAIN_PIPELINE=true
                 ;;
             base|ml|api|crawler|processor)
                 SERVICES_TO_BUILD+=("$arg")
@@ -184,21 +182,23 @@ trigger_build() {
     local service_name=$2
     local branch=$3
     
-    echo -e "\n${COLOR_BLUE}🔨 Building: ${service_name}${COLOR_RESET}"
+    echo -e "\n${COLOR_BLUE}🔨 Building: ${service_name}${COLOR_RESET}" >&2
     
     local build_id
     local build_output
-    build_output=$(gcloud builds triggers run "$trigger_name" --branch="$branch" --format='value(metadata.build.id)' 2>&1)
+    # Redirect stderr to /dev/null to avoid capturing extra output
+    build_output=$(gcloud builds triggers run "$trigger_name" --branch="$branch" --format='value(metadata.build.id)' 2>/dev/null)
     local exit_code=$?
     
     if [ $exit_code -ne 0 ]; then
         echo -e "${COLOR_RED}❌ Failed to trigger ${service_name} build${COLOR_RESET}" >&2
-        echo "$build_output" >&2
+        # Run again to show error
+        gcloud builds triggers run "$trigger_name" --branch="$branch" >&2
         return 1
     fi
     
     # Extract just the build ID (first line, trimmed)
-    build_id=$(echo "$build_output" | head -n 1 | tr -d '[:space:]')
+    build_id=$(echo "$build_output" | grep -E '^[a-f0-9-]+$' | head -n 1 | tr -d '[:space:]')
     
     echo -e "${COLOR_CYAN}Build ID:${COLOR_RESET} $build_id" >&2
     echo "$build_id"

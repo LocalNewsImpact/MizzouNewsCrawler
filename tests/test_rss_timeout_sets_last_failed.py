@@ -15,7 +15,9 @@ def test_timeout_records_rss_last_failed(monkeypatch):
 
     recorded_updates = []
     monkeypatch.setattr(
-        nd, "_update_source_meta", lambda sid, updates: recorded_updates.append(updates)
+        nd,
+        "_update_source_meta",
+        lambda sid, updates, conn=None: recorded_updates.append(updates),
     )
 
     def fake_rss(*args, **kwargs):

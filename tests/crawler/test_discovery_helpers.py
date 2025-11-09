@@ -1219,7 +1219,7 @@ def test_source_processor_records_network_rss_failure(
 
     instance._update_source_meta = _bind_method(
         instance,
-        lambda _self, source_id, payload: meta_updates.append(
+        lambda _self, source_id, payload, conn=None: meta_updates.append(
             (source_id, dict(payload))
         ),
     )
@@ -1339,7 +1339,7 @@ def test_source_processor_marks_rss_missing_after_non_network_failure(
 
     instance._update_source_meta = _bind_method(
         instance,
-        lambda _self, source_id, payload: meta_updates.append(
+        lambda _self, source_id, payload, conn=None: meta_updates.append(
             (source_id, dict(payload))
         ),
     )
