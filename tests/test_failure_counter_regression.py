@@ -4,7 +4,7 @@ This test reproduces the production issue where sources with 0 articles
 don't have the no_effective_methods_consecutive counter set.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
@@ -51,14 +51,8 @@ def test_failure_counter_set_when_no_articles_found(cloud_sql_engine):
         # Get database URL from the engine
         database_url = str(cloud_sql_engine.url)
 
-        # Mock telemetry to avoid connection issues in CI
-        # Telemetry tries to create its own connection which may fail with different credentials
-        mock_telemetry = MagicMock()
-        with patch(
-            "src.crawler.discovery.create_telemetry_system",
-            return_value=mock_telemetry,
-        ):
-            discovery = NewsDiscovery(database_url=database_url)
+        # Create NewsDiscovery with the real database
+        discovery = NewsDiscovery(database_url=database_url)
 
         # Create source row
         source_row = pd.Series(
@@ -179,14 +173,8 @@ def test_failure_counter_not_set_when_articles_exist(cloud_sql_session):
     engine = cloud_sql_session.get_bind().engine
     database_url = str(engine.url)
 
-    # Mock telemetry to avoid connection issues in CI
-    # Telemetry tries to create its own connection
-    mock_telemetry = MagicMock()
-    with patch(
-        "src.crawler.discovery.create_telemetry_system",
-        return_value=mock_telemetry,
-    ):
-        discovery = NewsDiscovery(database_url=database_url)
+    # Create NewsDiscovery with the real database
+    discovery = NewsDiscovery(database_url=database_url)
 
     source_row = pd.Series(
         {
