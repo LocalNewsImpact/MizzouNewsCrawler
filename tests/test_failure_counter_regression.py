@@ -205,7 +205,7 @@ def test_failure_counter_not_set_when_articles_exist(cloud_sql_session):
     # Counter should NOT be set because source has historical articles
     cloud_sql_session.expire_all()
     source = cloud_sql_session.query(Source).filter_by(id=source_id).first()
-    counter = source.metadata.get("no_effective_methods_consecutive")
+    counter = source.meta.get("no_effective_methods_consecutive")
 
     assert (
         counter is None or counter == 0
