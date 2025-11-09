@@ -48,8 +48,9 @@ def test_failure_counter_set_when_no_articles_found(cloud_sql_engine):
         print(f"\n=== Source created and committed: {source_id} ===")
         print(f"Source.meta = {test_check.meta}")
 
-        # Get database URL from the engine
-        database_url = str(cloud_sql_engine.url)
+        # Get database URL from environment (same as other postgres tests)
+        import os
+        database_url = os.getenv("TEST_DATABASE_URL")
 
         # Create NewsDiscovery with the real database
         discovery = NewsDiscovery(database_url=database_url)
@@ -61,7 +62,8 @@ def test_failure_counter_set_when_no_articles_found(cloud_sql_engine):
                 "url": "https://example-regression.com",
                 "name": "Example Regression Test",
                 "host": "example-regression.com",
-                "metadata": '{"frequency": "daily"}',  # This is the serialized JSON string
+                # This is the serialized JSON string
+                "metadata": '{"frequency": "daily"}',
             }
         )
 
@@ -169,9 +171,9 @@ def test_failure_counter_not_set_when_articles_exist(cloud_sql_session):
     cloud_sql_session.commit()
     source_id = source.id
 
-    # Get database URL from the session's engine
-    engine = cloud_sql_session.get_bind().engine
-    database_url = str(engine.url)
+    # Get database URL from environment (same as other postgres tests)
+    import os
+    database_url = os.getenv("TEST_DATABASE_URL")
 
     # Create NewsDiscovery with the real database
     discovery = NewsDiscovery(database_url=database_url)
