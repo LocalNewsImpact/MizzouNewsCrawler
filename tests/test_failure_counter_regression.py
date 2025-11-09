@@ -50,6 +50,7 @@ def test_failure_counter_set_when_no_articles_found(cloud_sql_engine):
 
         # Get database URL from environment (same as other postgres tests)
         import os
+
         database_url = os.getenv("TEST_DATABASE_URL")
 
         # Create NewsDiscovery with the real database
@@ -173,6 +174,7 @@ def test_failure_counter_not_set_when_articles_exist(cloud_sql_session):
 
     # Get database URL from environment (same as other postgres tests)
     import os
+
     database_url = os.getenv("TEST_DATABASE_URL")
 
     # Create NewsDiscovery with the real database
