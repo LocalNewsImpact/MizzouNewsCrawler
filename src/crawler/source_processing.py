@@ -10,10 +10,10 @@ from urllib.parse import urljoin, urlparse
 
 import pandas as pd
 import requests
+from sqlalchemy import JSON as SA_JSON
+from sqlalchemy import bindparam, text
 
 from src.models.database import safe_execute  # Column update helper
-from sqlalchemy import text, bindparam
-from sqlalchemy import JSON as SA_JSON
 from src.utils.discovery_outcomes import DiscoveryOutcome, DiscoveryResult
 from src.utils.telemetry import DiscoveryMethod
 
@@ -686,6 +686,7 @@ class SourceProcessor:
                                         from src.crawler.discovery import (
                                             RSS_TRANSIENT_THRESHOLD,
                                         )
+
                                         threshold_met = (
                                             len(existing) >= RSS_TRANSIENT_THRESHOLD
                                         )
@@ -1027,9 +1028,8 @@ class SourceProcessor:
                                     self.discovery, "_recent_cutoff", None
                                 )
                                 cutoff_fallback = None
-                                if (
-                                    recent_cutoff
-                                    and isinstance(recent_cutoff, datetime)
+                                if recent_cutoff and isinstance(
+                                    recent_cutoff, datetime
                                 ):
                                     cutoff_fallback = recent_cutoff
                                 else:
@@ -1055,7 +1055,7 @@ class SourceProcessor:
                                         is_recent,
                                         getattr(
                                             cutoff_fallback,
-                                            'isoformat',
+                                            "isoformat",
                                             lambda: cutoff_fallback,
                                         )(),
                                         typed_publish_date.isoformat(),
@@ -1273,6 +1273,7 @@ class SourceProcessor:
         # unexpected failure (e.g., silent transaction issues).
         try:
             from src.models.database import DatabaseManager
+
             # Only attempt fallback if we have a source_id
             if self.source_id:
                 rss_summary = getattr(self, "rss_summary", {}) or {}

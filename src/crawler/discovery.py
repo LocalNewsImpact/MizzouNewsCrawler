@@ -8,13 +8,14 @@ This module integrates with the existing pipeline by:
 
 Designed for PostgreSQL.
 """
+
 import json
 import logging
 import os
 import random
 import time
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Mapping, TypedDict
 from urllib.parse import urljoin, urlparse
 
 import feedparser  # type: ignore[import]
@@ -22,9 +23,9 @@ import pandas as pd
 import requests
 import urllib3
 from newspaper import Config, build  # type: ignore[import]
-from sqlalchemy import text, bindparam, JSON as SA_JSON
+from sqlalchemy import JSON as SA_JSON
+from sqlalchemy import bindparam, text
 from sqlalchemy.exc import IntegrityError
-from typing import TypedDict, Mapping
 
 # Suppress InsecureRequestWarning for proxies without SSL certs
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -108,6 +109,7 @@ class NormalizedFeedEntry(TypedDict, total=False):
     published: str
     author: str
     publish_date: datetime | None
+
 
 def _safe_struct_time_to_datetime(value: Any) -> datetime | None:
     """Convert a feedparser published_parsed/updated_parsed to datetime safely.
@@ -1322,6 +1324,7 @@ class NewsDiscovery:
                     else:
                         # Create new source (fallback for sources not yet in table)
                         import uuid
+
                         host_value = host or source_id
                         # Typed NOT NULL columns (rss_consecutive_failures,
                         # rss_transient_failures, no_effective_methods_consecutive)

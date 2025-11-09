@@ -445,8 +445,7 @@ class BotSensitivityManager:
                 is_pg = str(dialect_name) == "postgresql"
                 json_empty = "'[]'::jsonb" if is_pg else "'[]'"
 
-                insert_sql = (
-                    f"""
+                insert_sql = f"""
                     INSERT INTO sources (
                         id, host, host_norm, bot_sensitivity,
                         rss_consecutive_failures,
@@ -458,7 +457,6 @@ class BotSensitivityManager:
                         0, {json_empty}, 0
                     )
                     """
-                )
                 safe_session_execute(
                     session,
                     text(insert_sql),
