@@ -1,25 +1,39 @@
 import pathlib
 import sys
-
 import pandas as pd
 
-# Make local `src` importable for tests
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from src.crawler.discovery import NewsDiscovery
+from src.crawler.discovery import NewsDiscovery  # noqa: E402
+from src.models import Source  # noqa: E402
+from src.models.database import DatabaseManager  # noqa: E402
+from tests.helpers.source_state import read_source_state  # noqa: E402
 
 
-def test_timeout_records_rss_last_failed(monkeypatch):
-    """Transient network errors record rss_last_failed but do not set rss_missing."""
-    nd = NewsDiscovery(timeout=1, delay=0)
+def test_timeout_records_rss_last_failed(tmp_path, monkeypatch):
+    """Network (transient) errors set rss_last_failed_at but do not mark missing.
 
-    recorded_updates = []
-    monkeypatch.setattr(
-        nd,
-        "_update_source_meta",
-        lambda sid, updates, conn=None: recorded_updates.append(updates),
+    Migrated to typed column assertions instead of inspecting legacy metadata updates.
+    """
+    db_file = tmp_path / "timeout_last_failed.db"
+    db_url = f"sqlite:///{db_file}"
+
+    # Seed source row
+    dbm = DatabaseManager(database_url=db_url)
+    src = Source(
+        id="test-source-1",
+        host="example.com",
+        host_norm="example.com",
+        canonical_name="Example",
+        meta={},
     )
+    dbm.session.add(src)
+    dbm.session.commit()
+    dbm.close()
 
+    nd = NewsDiscovery(database_url=db_url, timeout=1, delay=0)
+
+    # Simulate network error (network_errors=1)
     def fake_rss(*args, **kwargs):
         return ([], {"feeds_tried": 1, "feeds_successful": 0, "network_errors": 1})
 
@@ -29,27 +43,17 @@ def test_timeout_records_rss_last_failed(monkeypatch):
 
     source_row = pd.Series(
         {
+            "id": "test-source-1",
             "url": "https://example.com",
             "name": "Example",
-            "id": "test-source-1",
-            "metadata": None,
-            "city": None,
-            "county": None,
-            "type_classification": None,
+            "metadata": "{}",
         }
     )
 
     nd.process_source(source_row, dataset_label=None, operation_id=None)
 
-    assert recorded_updates, "_update_source_meta was not called"
+    state = read_source_state(DatabaseManager(db_url).engine, "test-source-1")
 
-    found_last_failed = any("rss_last_failed" in u for u in recorded_updates)
-    found_rss_missing = any(
-        "rss_missing" in u and u.get("rss_missing") for u in recorded_updates
-    )
-
-    assert found_last_failed
-    assert not found_rss_missing
-    assert (
-        found_last_failed
-    ), "Expected rss_last_failed to be recorded for network errors"
+    assert state.get("rss_last_failed_at") is not None, "Expected last_failed timestamp"
+    assert state.get("rss_missing_at") is None, "rss_missing_at should not be set"
+    assert state.get("rss_consecutive_failures", 0) == 0, "Network errors reset counter"

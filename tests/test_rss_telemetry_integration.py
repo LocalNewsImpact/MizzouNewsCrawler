@@ -10,7 +10,7 @@ This module tests that:
 import json
 import pathlib
 import sys
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
@@ -27,6 +27,7 @@ from src.utils.telemetry import (  # noqa: E402
     DiscoveryMethod,
     DiscoveryMethodStatus,
 )
+from tests.helpers.source_state import read_source_state  # noqa: E402
 
 
 @pytest.fixture
@@ -69,7 +70,7 @@ def cleanup_rss_telemetry_data(cloud_sql_session):
 
 
 def test_rss_success_calls_telemetry_update(tmp_path, monkeypatch):
-    """Test that successful RSS discovery calls update_discovery_method_effectiveness."""
+    """Successful RSS discovery calls telemetry update method."""
     db_file = tmp_path / "test_telemetry.db"
     db_url = f"sqlite:///{db_file}"
 
@@ -260,22 +261,13 @@ def test_rss_metadata_increment_on_failure(tmp_path, monkeypatch):
     # Process once
     discovery.process_source(source_row, dataset_label="test", operation_id=None)
 
-    # Read metadata from database
+    # Read typed column state from database
     dbm2 = DatabaseManager(database_url=db_url)
-    with dbm2.engine.connect() as conn:
-        from sqlalchemy import text
-
-        result = conn.execute(
-            text("SELECT metadata FROM sources WHERE id = :id"),
-            {"id": "test-source-3"},
-        ).fetchone()
+    state = read_source_state(dbm2.engine, "test-source-3")
     dbm2.close()
 
-    meta = json.loads(result[0]) if result and result[0] else {}
-
-    # Verify rss_consecutive_failures was incremented
-    assert "rss_consecutive_failures" in meta
-    assert meta["rss_consecutive_failures"] == 1
+    # Verify rss_consecutive_failures was incremented (typed column)
+    assert state.get("rss_consecutive_failures", 0) == 1
 
 
 def test_rss_metadata_reset_on_success(tmp_path, monkeypatch):
@@ -332,24 +324,15 @@ def test_rss_metadata_reset_on_success(tmp_path, monkeypatch):
     # Process once
     discovery.process_source(source_row, dataset_label="test", operation_id=None)
 
-    # Read metadata from database
+    # Read typed column state from database
     dbm2 = DatabaseManager(database_url=db_url)
-    with dbm2.engine.connect() as conn:
-        from sqlalchemy import text
-
-        result = conn.execute(
-            text("SELECT metadata FROM sources WHERE id = :id"),
-            {"id": "test-source-4"},
-        ).fetchone()
+    state = read_source_state(dbm2.engine, "test-source-4")
     dbm2.close()
 
-    meta = json.loads(result[0]) if result and result[0] else {}
-
-    # Verify failure counters were reset
-    assert meta.get("rss_consecutive_failures", 0) == 0
-    assert meta.get("rss_missing") is None
-    assert "last_successful_method" in meta
-    assert meta["last_successful_method"] == "rss_feed"
+    # Verify failure counters were reset (typed columns)
+    assert state.get("rss_consecutive_failures", 0) == 0
+    assert state.get("rss_missing_at") is None
+    assert state.get("last_successful_method") == "rss_feed"
 
 
 def test_rss_network_error_resets_failure_state(tmp_path, monkeypatch):
@@ -395,23 +378,15 @@ def test_rss_network_error_resets_failure_state(tmp_path, monkeypatch):
     # Process once
     discovery.process_source(source_row, dataset_label="test", operation_id=None)
 
-    # Read metadata from database
+    # Read typed column state from database
     dbm2 = DatabaseManager(database_url=db_url)
-    with dbm2.engine.connect() as conn:
-        from sqlalchemy import text
-
-        result = conn.execute(
-            text("SELECT metadata FROM sources WHERE id = :id"),
-            {"id": "test-source-5"},
-        ).fetchone()
+    state = read_source_state(dbm2.engine, "test-source-5")
     dbm2.close()
 
-    meta = json.loads(result[0]) if result and result[0] else {}
-
     # Verify counter was reset (network errors don't increment)
-    assert meta.get("rss_consecutive_failures", 0) == 0
-    # But rss_last_failed should be set
-    assert "rss_last_failed" in meta
+    assert state.get("rss_consecutive_failures", 0) == 0
+    # But rss_last_failed_at should be set
+    assert state.get("rss_last_failed_at") is not None
 
 
 @pytest.mark.integration
@@ -479,7 +454,9 @@ def test_telemetry_persistence_integration(
     dbm2.close()
 
     assert result is not None, "Telemetry record should exist in database"
-    # Check some fields (0:id, 1:source_id, 2:source_url, 3:discovery_method, 4:status, 5:articles_found)
+    # Check key fields:
+    # (0:id, 1:source_id, 2:source_url, 3:discovery_method,
+    #  4:status, 5:articles_found)
     assert result[1] == "test-source-6"  # source_id
     assert result[3] == "rss_feed"  # discovery_method column
     assert result[4] == "success"  # status column

@@ -7,27 +7,11 @@ import pandas as pd
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from sqlalchemy import text
+from src.crawler.discovery import RSS_MISSING_THRESHOLD, NewsDiscovery  # noqa: E402
+from src.models import Source  # noqa: E402
+from src.models.database import DatabaseManager  # noqa: E402
 
-from src.crawler.discovery import RSS_MISSING_THRESHOLD, NewsDiscovery
-from src.models import Source
-from src.models.database import DatabaseManager
-
-
-def _read_meta(db_url, source_id):
-    dbm = DatabaseManager(database_url=db_url)
-    with dbm.engine.connect() as conn:
-        res = conn.execute(
-            text("SELECT metadata FROM sources WHERE id = :id"),
-            {"id": source_id},
-        ).fetchone()
-        dbm.close()
-    if not res or not res[0]:
-        return {}
-    try:
-        return json.loads(res[0])
-    except Exception:
-        return res[0] or {}
+from tests.helpers.source_state import read_source_state  # noqa: E402
 
 
 def test_consecutive_non_network_failures(tmp_path, monkeypatch):
@@ -65,17 +49,16 @@ def test_consecutive_non_network_failures(tmp_path, monkeypatch):
 
     monkeypatch.setattr(discovery, "discover_with_rss_feeds", rss_non_network)
 
-    # Run process_source RSS_MISSING_THRESHOLD times
+    # Run process_source RSS_MISSING_THRESHOLD times, asserting increment
     for i in range(RSS_MISSING_THRESHOLD):
         discovery.process_source(src, dataset_label="test", operation_id=None)
-        meta = _read_meta(db_url, "fail-source")
-        # After i+1 runs, consecutive failures should be i+1 until threshold
+        state = read_source_state(DatabaseManager(db_url).engine, "fail-source")
         expected = i + 1
-        assert meta.get("rss_consecutive_failures", 0) == expected
+        assert state.get("rss_consecutive_failures", 0) == expected
 
-    # After threshold, rss_missing should be set
-    meta = _read_meta(db_url, "fail-source")
-    assert "rss_missing" in meta and meta["rss_missing"]
+    # After threshold, rss_missing_at should be set
+    state = read_source_state(DatabaseManager(db_url).engine, "fail-source")
+    assert state.get("rss_missing_at") is not None
 
 
 def test_network_error_resets_counter(tmp_path, monkeypatch):
@@ -113,7 +96,7 @@ def test_network_error_resets_counter(tmp_path, monkeypatch):
 
     discovery.process_source(src, dataset_label="test", operation_id=None)
 
-    meta = _read_meta(db_url, "net-source")
-    # rss_last_failed should be set and consecutive failures reset
-    assert "rss_last_failed" in meta and meta["rss_last_failed"]
-    assert meta.get("rss_consecutive_failures", 0) == 0
+    state = read_source_state(DatabaseManager(db_url).engine, "net-source")
+    # rss_last_failed_at should be set and consecutive failures reset
+    assert state.get("rss_last_failed_at") is not None
+    assert state.get("rss_consecutive_failures", 0) == 0

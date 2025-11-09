@@ -701,18 +701,31 @@ class NewsDiscovery:
     ) -> None:
         if not source_id:
             return
-        now_iso = datetime.utcnow().isoformat()
-        updates = {
-            "rss_last_failed": now_iso,
-            "rss_missing": None,
-            "rss_consecutive_failures": 0,
-        }
-        self._update_source_meta(source_id, updates)
+        # Column-based reset: clear missing marker, consecutive failures.
+        try:
+            dbm = DatabaseManager(self.database_url)
+            with dbm.engine.begin() as conn:
+                safe_execute(
+                    conn,
+                    """
+                    UPDATE sources
+                    SET rss_consecutive_failures = 0,
+                        rss_missing_at = NULL
+                    WHERE id = :id
+                    """,
+                    {"id": source_id},
+                )
+        except Exception:
+            logger.debug(
+                "Failed to reset RSS failure state for source %s (columns)",
+                source_id,
+            )
 
     def _track_transient_rss_failure(
         self,
         source_id: str | None,
         status_code: int | None = None,
+        conn=None,
     ) -> None:
         """Track repeated 'transient' RSS errors (429, 403, 5xx) over time.
 
@@ -728,117 +741,204 @@ class NewsDiscovery:
             return
 
         try:
-            dbm = DatabaseManager(self.database_url)
-            try:
-                with dbm.engine.begin() as conn:
-                    query = "SELECT metadata FROM sources WHERE id = :id"
-                    result = safe_execute(conn, query, {"id": source_id}).fetchone()
+            now = datetime.utcnow()
+            cutoff = now - timedelta(days=RSS_TRANSIENT_WINDOW_DAYS)
+            # Build transient record
+            failure_record: dict[str, Any] = {"timestamp": now.isoformat()}
+            if status_code:
+                failure_record["status"] = status_code
 
-                    cur_meta: dict[str, Any] = {}
-                    if result and result[0]:
-                        raw_meta = result[0]
-                        try:
-                            cur_meta = json.loads(raw_meta)
-                        except Exception:
-                            cur_meta = raw_meta or {}
+            def _load_existing(conn_obj):
+                row = safe_execute(
+                    conn_obj,
+                    "SELECT rss_transient_failures FROM sources WHERE id = :id",
+                    {"id": source_id},
+                ).fetchone()
+                if not row:
+                    return []
+                data = row[0]
+                if isinstance(data, list):
+                    return data
+                return []
 
-                    # Get existing transient failure history
-                    transient_failures = []
-                    if isinstance(cur_meta, dict):
-                        transient_failures = cur_meta.get("rss_transient_failures", [])
-                        if not isinstance(transient_failures, list):
-                            transient_failures = []
-
-                    # Add current failure
-                    now_iso = datetime.utcnow().isoformat()
-                    failure_record: dict[str, Any] = {"timestamp": now_iso}
-                    if status_code:
-                        failure_record["status"] = status_code
-                    transient_failures.append(failure_record)
-
-                    # Filter to rolling window (last N days)
-                    cutoff = datetime.utcnow() - timedelta(
-                        days=RSS_TRANSIENT_WINDOW_DAYS
-                    )
-                    cutoff_iso = cutoff.isoformat()
-                    recent_failures = [
-                        f
-                        for f in transient_failures
-                        if f.get("timestamp", "") >= cutoff_iso
-                    ]
-
-                    # Prepare updates
-                    updates = {
-                        "rss_last_failed": now_iso,
-                        "rss_transient_failures": recent_failures,
-                        "rss_consecutive_failures": 0,  # Reset consecutive counter
-                    }
-
-                    # If threshold exceeded, mark as missing
-                    if len(recent_failures) >= RSS_TRANSIENT_THRESHOLD:
-                        updates["rss_missing"] = now_iso
-                        logger.warning(
-                            "Source %s exceeded transient RSS error threshold "
-                            "(%d errors in %d days). Marking RSS as missing.",
-                            source_id,
-                            len(recent_failures),
-                            RSS_TRANSIENT_WINDOW_DAYS,
+            if conn is None:
+                dbm = DatabaseManager(self.database_url)
+                try:
+                    with dbm.engine.begin() as local_conn:
+                        existing = _load_existing(local_conn)
+                        existing.append(failure_record)
+                        recent = [
+                            f
+                            for f in existing
+                            if f.get("timestamp", "") >= cutoff.isoformat()
+                        ]
+                        # Decide missing flag
+                        missing_val = None
+                        if len(recent) >= RSS_TRANSIENT_THRESHOLD:
+                            missing_val = now
+                            logger.warning(
+                                (
+                                    "Source %s exceeded transient RSS error "
+                                    "threshold (%d errors in %d days). "
+                                    "Marking RSS as missing."
+                                ),
+                                source_id,
+                                len(recent),
+                                RSS_TRANSIENT_WINDOW_DAYS,
+                            )
+                        safe_execute(
+                            local_conn,
+                            """
+                            UPDATE sources
+                            SET rss_transient_failures = :failures::jsonb,
+                                rss_consecutive_failures = 0,
+                                rss_last_failed_at = :last_failed,
+                                rss_missing_at = :missing
+                            WHERE id = :id
+                            """
+                            if local_conn.dialect.name == "postgresql"
+                            else """
+                            UPDATE sources
+                            SET rss_transient_failures = :failures,
+                                rss_consecutive_failures = 0,
+                                rss_last_failed_at = :last_failed,
+                                rss_missing_at = :missing
+                            WHERE id = :id
+                            """,
+                            {
+                                "failures": json.dumps(recent),
+                                "last_failed": now,
+                                "missing": missing_val,
+                                "id": source_id,
+                            },
                         )
-                    else:
-                        updates["rss_missing"] = None
-
-                    # Pass connection to use same transaction
-                    self._update_source_meta(source_id, updates, conn=conn)
-            finally:
-                dbm.close()
-
+                finally:
+                    if 'dbm' in locals():
+                        dbm.close()
+            else:
+                existing = _load_existing(conn)
+                existing.append(failure_record)
+                recent = [
+                    f
+                    for f in existing
+                    if f.get("timestamp", "") >= cutoff.isoformat()
+                ]
+                missing_val = None
+                if len(recent) >= RSS_TRANSIENT_THRESHOLD:
+                    missing_val = now
+                    logger.warning(
+                        (
+                            "Source %s exceeded transient RSS error threshold "
+                            "(%d errors in %d days). Marking RSS as missing."
+                        ),
+                        source_id,
+                        len(recent),
+                        RSS_TRANSIENT_WINDOW_DAYS,
+                    )
+                safe_execute(
+                    conn,
+                    """
+                    UPDATE sources
+                    SET rss_transient_failures = :failures::jsonb,
+                        rss_consecutive_failures = 0,
+                        rss_last_failed_at = :last_failed,
+                        rss_missing_at = :missing
+                    WHERE id = :id
+                    """
+                    if conn.dialect.name == "postgresql"
+                    else """
+                    UPDATE sources
+                    SET rss_transient_failures = :failures,
+                        rss_consecutive_failures = 0,
+                        rss_last_failed_at = :last_failed,
+                        rss_missing_at = :missing
+                    WHERE id = :id
+                    """,
+                    {
+                        "failures": json.dumps(recent),
+                        "last_failed": now,
+                        "missing": missing_val,
+                        "id": source_id,
+                    },
+                )
         except Exception:
             logger.debug(
-                "Failed to track transient RSS failure for source %s",
+                "Failed to track transient RSS failure for source %s (columns)",
                 source_id,
             )
 
     def _increment_rss_failure(
         self,
         source_id: str | None,
+        conn=None,
     ) -> None:
         if not source_id:
             return
         try:
-            dbm = DatabaseManager(self.database_url)
-            with dbm.engine.connect() as conn:
-                query = "SELECT metadata FROM sources WHERE id = :id"
-                result = safe_execute(conn, query, {"id": source_id}).fetchone()
+            def _get_current(conn_obj):
+                row = safe_execute(
+                    conn_obj,
+                    "SELECT rss_consecutive_failures FROM sources WHERE id = :id",
+                    {"id": source_id},
+                ).fetchone()
+                return int(row[0] or 0) if row else 0
 
-            cur_meta: dict[str, Any] = {}
-            if result and result[0]:
-                raw_meta = result[0]
+            if conn is None:
+                dbm = DatabaseManager(self.database_url)
                 try:
-                    cur_meta = json.loads(raw_meta)
-                except Exception:
-                    cur_meta = raw_meta or {}
-
-            failure_count = 0
-            if isinstance(cur_meta, dict):
-                failure_count = cur_meta.get(
-                    "rss_consecutive_failures",
-                    0,
+                    with dbm.engine.begin() as tx_conn:
+                        current = _get_current(tx_conn)
+                        next_count = current + 1
+                        missing_val = None
+                        if next_count >= RSS_MISSING_THRESHOLD:
+                            missing_val = datetime.utcnow()
+                        safe_execute(
+                            tx_conn,
+                            """
+                            UPDATE sources
+                            SET rss_consecutive_failures = :cnt,
+                                rss_missing_at = :missing
+                            WHERE id = :id
+                            """,
+                            {
+                                "cnt": next_count,
+                                "missing": missing_val,
+                                "id": source_id,
+                            },
+                        )
+                finally:
+                    if 'dbm' in locals():
+                        dbm.close()
+            else:
+                current = _get_current(conn)
+                next_count = current + 1
+                missing_val = None
+                if next_count >= RSS_MISSING_THRESHOLD:
+                    missing_val = datetime.utcnow()
+                safe_execute(
+                    conn,
+                    """
+                    UPDATE sources
+                    SET rss_consecutive_failures = :cnt,
+                        rss_missing_at = :missing
+                    WHERE id = :id
+                    """,
+                    {"cnt": next_count, "missing": missing_val, "id": source_id},
                 )
-
-            next_count = failure_count + 1
-            updates = {
-                "rss_consecutive_failures": next_count,
-            }
-            if next_count >= RSS_MISSING_THRESHOLD:
-                updates["rss_missing"] = datetime.utcnow().isoformat()
-
-            self._update_source_meta(source_id, updates)
         except Exception:
-            missing_iso = datetime.utcnow().isoformat()
-            self._update_source_meta(
-                source_id,
-                {"rss_missing": missing_iso},
-            )
+            try:
+                dbm = DatabaseManager(self.database_url)
+                with dbm.engine.begin() as tx_conn:
+                    safe_execute(
+                        tx_conn,
+                        "UPDATE sources SET rss_missing_at = :ts WHERE id = :id",
+                        {"ts": datetime.utcnow(), "id": source_id},
+                    )
+            except Exception:
+                logger.debug(
+                    "Failed hard to increment RSS failure state for source %s",
+                    source_id,
+                )
 
     def _increment_no_effective_methods(
         self,
@@ -854,38 +954,39 @@ class NewsDiscovery:
             dbm = DatabaseManager(self.database_url)
             try:
                 with dbm.engine.begin() as conn:
-                    query = "SELECT metadata FROM sources WHERE id = :id"
-                    result = safe_execute(conn, query, {"id": source_id}).fetchone()
-
-                    cur_meta: dict[str, Any] = {}
-                    if result and result[0]:
-                        raw_meta = result[0]
-                        try:
-                            cur_meta = json.loads(raw_meta)
-                        except Exception:
-                            cur_meta = raw_meta or {}
-
-                    failure_count = 0
-                    if isinstance(cur_meta, dict):
-                        failure_count = cur_meta.get(
-                            "no_effective_methods_consecutive",
-                            0,
-                        )
-
-                    next_count = failure_count + 1
-                    updates = {
-                        "no_effective_methods_consecutive": next_count,
-                        "no_effective_methods_last_seen": datetime.utcnow().isoformat(),
-                    }
-
-                    # Pass connection to use same transaction
-                    self._update_source_meta(source_id, updates, conn=conn)
+                    row = safe_execute(
+                        conn,
+                        (
+                            "SELECT no_effective_methods_consecutive "
+                            "FROM sources WHERE id = :id"
+                        ),
+                        {"id": source_id},
+                    ).fetchone()
+                    current = int(row[0] or 0) if row else 0
+                    next_count = current + 1
+                    safe_execute(
+                        conn,
+                        """
+                        UPDATE sources
+                        SET no_effective_methods_consecutive = :cnt,
+                            no_effective_methods_last_seen = :seen
+                        WHERE id = :id
+                        """,
+                        {
+                            "cnt": next_count,
+                            "seen": datetime.utcnow(),
+                            "id": source_id,
+                        },
+                    )
                     return next_count
             finally:
                 dbm.close()
         except Exception as e:
             logger.debug(
-                "Failed to increment no_effective_methods counter for source %s: %s",
+                (
+                    "Failed to increment no_effective_methods counter for "
+                    "source %s (columns): %s"
+                ),
                 source_id,
                 e,
             )
@@ -898,10 +999,22 @@ class NewsDiscovery:
         """Reset consecutive 'no effective methods' counter to 0."""
         if not source_id:
             return
-        updates = {
-            "no_effective_methods_consecutive": 0,
-        }
-        self._update_source_meta(source_id, updates)
+        try:
+            dbm = DatabaseManager(self.database_url)
+            with dbm.engine.begin() as conn:
+                safe_execute(
+                    conn,
+                    (
+                        "UPDATE sources SET no_effective_methods_consecutive = 0 "
+                        "WHERE id = :id"
+                    ),
+                    {"id": source_id},
+                )
+        except Exception:
+            logger.debug(
+                "Failed to reset no_effective_methods counter for source %s (columns)",
+                source_id,
+            )
 
     def _pause_source(
         self,

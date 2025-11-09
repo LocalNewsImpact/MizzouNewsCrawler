@@ -13,6 +13,7 @@ import requests
 
 from src.utils.discovery_outcomes import DiscoveryOutcome, DiscoveryResult
 from src.utils.telemetry import DiscoveryMethod
+from src.models.database import safe_execute  # Column update helper
 
 logger = logging.getLogger(__name__)
 
@@ -98,13 +99,106 @@ class SourceProcessor:
         if not raw_meta:
             return None
         if isinstance(raw_meta, dict):
-            return raw_meta
+            meta = raw_meta
         if isinstance(raw_meta, str):
             try:
-                return json.loads(raw_meta)
+                meta = json.loads(raw_meta)
             except Exception:
-                return None
-        return None
+                meta = None
+        else:
+            meta = None
+
+    # Bridging legacy reads: prefer typed columns; fallback to JSON when columns NULL.
+        # Merge typed column values into legacy JSON key names so existing code using
+        # source_meta works transparently during transition.
+        try:
+            if self.source_id:
+                from src.models.database import DatabaseManager
+
+                with DatabaseManager(self.discovery.database_url).engine.connect() as conn:
+                    row = safe_execute(
+                        conn,
+                        (
+                            "SELECT rss_consecutive_failures, "
+                            "rss_transient_failures, rss_missing_at, "
+                            "rss_last_failed_at, last_successful_method, "
+                            "no_effective_methods_consecutive, "
+                            "no_effective_methods_last_seen "
+                            "FROM sources WHERE id = :id"
+                        ),
+                        {"id": self.source_id},
+                    ).fetchone()
+                if row:
+                    (
+                        rss_consecutive_failures,
+                        rss_transient_failures,
+                        rss_missing_at,
+                        rss_last_failed_at,
+                        last_successful_method,
+                        no_effective_methods_consecutive,
+                        no_effective_methods_last_seen,
+                    ) = row
+                    # Only hydrate legacy dict if typed values exist
+                    typed_present = any(
+                        v is not None and (not isinstance(v, list) or v)
+                        for v in [
+                            rss_consecutive_failures,
+                            rss_transient_failures,
+                            rss_missing_at,
+                            rss_last_failed_at,
+                            last_successful_method,
+                            no_effective_methods_consecutive,
+                            no_effective_methods_last_seen,
+                        ]
+                    )
+                    if typed_present:
+                        if meta is None:
+                            meta = {}
+                        # Legacy key mapping
+                        if rss_consecutive_failures is not None:
+                            meta.setdefault(
+                                "rss_consecutive_failures", rss_consecutive_failures
+                            )
+                        if rss_transient_failures is not None:
+                            meta.setdefault(
+                                "rss_transient_failures", rss_transient_failures or []
+                            )
+                        if rss_missing_at is not None:
+                            iso = (
+                                rss_missing_at.isoformat()
+                                if hasattr(rss_missing_at, "isoformat")
+                                else rss_missing_at
+                            )
+                            meta.setdefault("rss_missing", iso)
+                        if rss_last_failed_at is not None:
+                            iso2 = (
+                                rss_last_failed_at.isoformat()
+                                if hasattr(rss_last_failed_at, "isoformat")
+                                else rss_last_failed_at
+                            )
+                            meta.setdefault("rss_last_failed", iso2)
+                        if last_successful_method is not None:
+                            meta.setdefault(
+                                "last_successful_method", last_successful_method
+                            )
+                        if no_effective_methods_consecutive is not None:
+                            meta.setdefault(
+                                "no_effective_methods_consecutive",
+                                no_effective_methods_consecutive,
+                            )
+                        if no_effective_methods_last_seen is not None:
+                            meta.setdefault(
+                                "no_effective_methods_last_seen",
+                                getattr(
+                                    no_effective_methods_last_seen,
+                                    "isoformat",
+                                    lambda: no_effective_methods_last_seen,
+                                )(),
+                            )
+        except Exception:  # pragma: no cover - defensive bridge
+            pass
+
+        return meta
 
     def _resolve_dataset_label(self) -> str | None:
         """Resolve dataset_label (name/slug) to canonical UUID.
@@ -369,7 +463,17 @@ class SourceProcessor:
             if isinstance(rss_result, tuple) and len(rss_result) == 2:
                 articles, summary = rss_result
             else:
-                articles = rss_result or []
+                # Coerce rss_result into list[dict]; handle legacy tuple shapes
+                coerced: list[dict[str, Any]] = []
+                if isinstance(rss_result, list):
+                    coerced = [a for a in rss_result if isinstance(a, dict)]
+                elif isinstance(rss_result, tuple):  # unexpected shape, ignore
+                    coerced = []
+                elif isinstance(rss_result, dict):
+                    coerced = [rss_result]
+                else:
+                    coerced = []
+                articles = coerced
                 summary = {
                     "feeds_tried": int(bool(articles)),
                     "feeds_successful": int(bool(articles)),
@@ -388,7 +492,11 @@ class SourceProcessor:
     ) -> None:
         if not self.source_id:
             return
+        # Use a single transaction for all metadata updates to avoid isolation issues
         try:
+            # Local import to avoid potential circular import cost on module load
+            from ..models.database import DatabaseManager
+
             feeds_tried = summary.get("feeds_tried", 0)
             feeds_successful = summary.get("feeds_successful", 0)
             network_errors = summary.get("network_errors", 0)
@@ -405,33 +513,75 @@ class SourceProcessor:
                 last_transient_status,
             )
 
-            if articles:
-                logger.info("RSS_PERSIST: Has articles, marking RSS as working")
-                self.discovery._update_source_meta(
-                    self.source_id,
-                    {
-                        "last_successful_method": "rss_feed",
-                        "rss_missing": None,
-                        "rss_last_failed": None,
-                        "rss_consecutive_failures": 0,
-                        "rss_transient_failures": [],  # Clear on success
-                    },
-                )
-            elif feeds_tried > 0 and feeds_successful == 0:
-                if network_errors > 0:
-                    logger.info(
-                        "RSS_PERSIST: Network errors detected, calling _track_transient_rss_failure"
-                    )
-                    # Track repeated transient errors over time
-                    self.discovery._track_transient_rss_failure(
-                        self.source_id, last_transient_status
-                    )
-                    logger.info("RSS_PERSIST: _track_transient_rss_failure completed")
-                else:
-                    logger.info(
-                        "RSS_PERSIST: No network errors, calling _increment_rss_failure"
-                    )
-                    self.discovery._increment_rss_failure(self.source_id)
+            dbm = DatabaseManager(self.discovery.database_url)
+            try:
+                with dbm.engine.begin() as conn:
+                    if articles:
+                        logger.info(
+                            "RSS_PERSIST: Has articles, marking RSS as working"
+                        )
+                        self.discovery._update_source_meta(
+                            self.source_id,
+                            {
+                                "last_successful_method": "rss_feed",
+                                "rss_missing": None,
+                                "rss_last_failed": None,
+                                "rss_consecutive_failures": 0,
+                                "rss_transient_failures": [],  # Clear on success
+                            },
+                            conn=conn,
+                        )
+                        # Also update typed columns for reliability
+                        try:
+                            safe_execute(
+                                conn,
+                                (
+                                    "UPDATE sources SET "
+                                    "last_successful_method = :method, "
+                                    "rss_consecutive_failures = 0, "
+                                    "rss_transient_failures = :empty, "
+                                    "rss_missing_at = NULL, "
+                                    "rss_last_failed_at = NULL "
+                                    "WHERE id = :id"
+                                ),
+                                {
+                                    "method": "rss_feed",
+                                    "empty": json.dumps([]),
+                                    "id": self.source_id,
+                                },
+                            )
+                        except Exception:
+                            logger.debug(
+                                (
+                                    "RSS_PERSIST: column update failed for success "
+                                    "state on %s"
+                                ),
+                                self.source_id,
+                            )
+                    elif feeds_tried > 0 and feeds_successful == 0:
+                        if network_errors > 0:
+                            logger.info(
+                                "RSS_PERSIST: Network errors; tracking transient"
+                            )
+                            # Track repeated transient errors over time
+                            self.discovery._track_transient_rss_failure(
+                                self.source_id,
+                                last_transient_status,
+                                conn=conn,
+                            )
+                            logger.info(
+                                "RSS_PERSIST: _track_transient_rss_failure completed"
+                            )
+                        else:
+                            logger.info(
+                                "RSS_PERSIST: No network errors; incrementing count"
+                            )
+                            self.discovery._increment_rss_failure(
+                                self.source_id,
+                                conn=conn,
+                            )
+            finally:
+                dbm.close()
         except Exception as e:
             logger.error(
                 "RSS_PERSIST: Exception in _persist_rss_metadata for source %s: %s",
@@ -488,12 +638,50 @@ class SourceProcessor:
                     self.source_id,
                     {"rss_last_failed": failed_iso},
                 )
+                # Columns: set last_failed_at
+                try:
+                    from ..models.database import DatabaseManager
+
+                    dbm = DatabaseManager(self.discovery.database_url)
+                    with dbm.engine.begin() as conn:
+                        safe_execute(
+                            conn,
+                            (
+                                "UPDATE sources SET rss_last_failed_at = :ts "
+                                "WHERE id = :id"
+                            ),
+                            {"ts": datetime.utcnow(), "id": self.source_id},
+                        )
+                except Exception:
+                    logger.debug(
+                        "RSS_PERSIST: failed to set rss_last_failed_at for %s",
+                        self.source_id,
+                    )
             else:
                 missing_iso = datetime.utcnow().isoformat()
                 self.discovery._update_source_meta(
                     self.source_id,
                     {"rss_missing": missing_iso},
                 )
+                # Columns: set missing_at
+                try:
+                    from ..models.database import DatabaseManager
+
+                    dbm = DatabaseManager(self.discovery.database_url)
+                    with dbm.engine.begin() as conn:
+                        safe_execute(
+                            conn,
+                            (
+                                "UPDATE sources SET rss_missing_at = :ts "
+                                "WHERE id = :id"
+                            ),
+                            {"ts": datetime.utcnow(), "id": self.source_id},
+                        )
+                except Exception:
+                    logger.debug(
+                        "RSS_PERSIST: failed to set rss_missing_at for %s",
+                        self.source_id,
+                    )
         except Exception:
             logger.debug(
                 "Failed to persist rss failure for %s",

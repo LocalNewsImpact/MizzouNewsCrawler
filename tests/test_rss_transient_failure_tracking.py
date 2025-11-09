@@ -21,22 +21,14 @@ from src.crawler.discovery import (
 )
 from src.models import Source
 from src.models.database import DatabaseManager
+from tests.helpers.source_state import read_source_state
 
 
-def _read_source_meta(db_url: str, source_id: str) -> dict:
-    """Helper to read source metadata from database."""
+def _read_source_state(db_url: str, source_id: str) -> dict:
+    """Return typed column RSS state for a source (test helper)."""
     dbm = DatabaseManager(database_url=db_url)
     try:
-        with dbm.engine.connect() as conn:
-            from sqlalchemy import text
-
-            result = conn.execute(
-                text("SELECT metadata FROM sources WHERE id = :id"),
-                {"id": source_id},
-            ).fetchone()
-        if result and result[0]:
-            return json.loads(result[0])
-        return {}
+        return read_source_state(dbm.engine, source_id)
     finally:
         dbm.close()
 
@@ -89,19 +81,11 @@ class TestTransientFailureTracking:
                     source_row, dataset_label="test", operation_id=None
                 )
 
-        # Check metadata
-        meta = _read_source_meta(db_url, "test-source-single")
-
-        # Should have transient failure recorded
-        assert "rss_transient_failures" in meta
-        assert len(meta["rss_transient_failures"]) == 1
-        assert meta["rss_transient_failures"][0]["status"] == 429
-
-        # Should NOT be marked as missing yet
-        assert meta.get("rss_missing") is None
-
-        # Should have rss_last_failed timestamp
-        assert "rss_last_failed" in meta
+        state = _read_source_state(db_url, "test-source-single")
+        assert len(state.get("rss_transient_failures", [])) == 1
+        assert state["rss_transient_failures"][0].get("status") == 429
+        assert state.get("rss_missing_at") is None
+        assert state.get("rss_last_failed_at") is not None
 
     def test_threshold_reached_marks_missing(self, tmp_path):
         """Test that 5 transient failures in 7 days marks RSS as missing."""
@@ -150,18 +134,12 @@ class TestTransientFailureTracking:
                     discovery.process_source(
                         source_row, dataset_label="test", operation_id=None
                     )
-                    meta = _read_source_meta(db_url, "test-source-threshold")
-
-                    # Check progress
-                    assert len(meta["rss_transient_failures"]) == i + 1
-
+                    state = _read_source_state(db_url, "test-source-threshold")
+                    assert len(state.get("rss_transient_failures", [])) == i + 1
                     if i < RSS_TRANSIENT_THRESHOLD - 1:
-                        # Not yet at threshold
-                        assert meta.get("rss_missing") is None
+                        assert state.get("rss_missing_at") is None
                     else:
-                        # Threshold reached!
-                        assert "rss_missing" in meta
-                        assert meta["rss_missing"] is not None
+                        assert state.get("rss_missing_at") is not None
 
     def test_rolling_window_expiration(self, tmp_path):
         """Test that old failures outside 7-day window don't count."""
@@ -222,13 +200,9 @@ class TestTransientFailureTracking:
                 )
 
         # Check metadata
-        meta = _read_source_meta(db_url, "test-source-old")
-
-        # Old failures should be filtered out, only 1 recent failure
-        assert len(meta["rss_transient_failures"]) == 1
-
-        # Should NOT be marked as missing (only 1 in window)
-        assert meta.get("rss_missing") is None
+        state = _read_source_state(db_url, "test-source-old")
+        assert len(state.get("rss_transient_failures", [])) == 1
+        assert state.get("rss_missing_at") is None
 
     def test_successful_rss_clears_transient_failures(self, tmp_path):
         """Test that successful RSS discovery clears transient failure history."""
@@ -293,16 +267,10 @@ class TestTransientFailureTracking:
                 )
 
         # Check metadata
-        meta = _read_source_meta(db_url, "test-source-success")
-
-        # Transient failures should be cleared
-        assert meta.get("rss_transient_failures", []) == []
-
-        # Should not be marked as missing
-        assert meta.get("rss_missing") is None
-
-        # Should have last_successful_method set
-        assert meta.get("last_successful_method") == "rss_feed"
+        state = _read_source_state(db_url, "test-source-success")
+        assert state.get("rss_transient_failures", []) == []
+        assert state.get("rss_missing_at") is None
+        assert state.get("last_successful_method") == "rss_feed"
 
     def test_different_status_codes_tracked(self, tmp_path):
         """Test that 403, 429, and 5xx all count toward threshold."""
@@ -355,17 +323,10 @@ class TestTransientFailureTracking:
                     )
 
         # Check metadata
-        meta = _read_source_meta(db_url, "test-source-codes")
-
-        # All 5 failures should be tracked
-        assert len(meta["rss_transient_failures"]) == 5
-
-        # Should be marked as missing (threshold reached)
-        assert "rss_missing" in meta
-        assert meta["rss_missing"] is not None
-
-        # Check that different status codes were recorded
-        recorded_statuses = [f["status"] for f in meta["rss_transient_failures"]]
+        state = _read_source_state(db_url, "test-source-codes")
+        assert len(state.get("rss_transient_failures", [])) == 5
+        assert state.get("rss_missing_at") is not None
+        recorded_statuses = [f.get("status") for f in state["rss_transient_failures"]]
         assert 403 in recorded_statuses
         assert 429 in recorded_statuses
         assert 500 in recorded_statuses
@@ -417,15 +378,10 @@ class TestTransientFailureTracking:
                 )
 
         # Check metadata
-        meta = _read_source_meta(db_url, "test-source-no-status")
-
-        # Should still track the failure
-        assert "rss_transient_failures" in meta
-        assert len(meta["rss_transient_failures"]) == 1
-
-        # Failure record should have timestamp but no status
-        assert "timestamp" in meta["rss_transient_failures"][0]
-        assert "status" not in meta["rss_transient_failures"][0]
+        state = _read_source_state(db_url, "test-source-no-status")
+        assert len(state.get("rss_transient_failures", [])) == 1
+        assert "timestamp" in state["rss_transient_failures"][0]
+        assert "status" not in state["rss_transient_failures"][0]
 
     def test_mixed_transient_and_consecutive_failures(self, tmp_path):
         """Test that transient and consecutive failures are tracked independently."""
@@ -474,9 +430,9 @@ class TestTransientFailureTracking:
                         source_row, dataset_label="test", operation_id=None
                     )
 
-        meta = _read_source_meta(db_url, "test-source-mixed")
-        assert len(meta["rss_transient_failures"]) == 2
-        assert meta.get("rss_consecutive_failures", 0) == 0  # Transient resets this
+        state = _read_source_state(db_url, "test-source-mixed")
+        assert len(state.get("rss_transient_failures", [])) == 2
+        assert state.get("rss_consecutive_failures", 0) == 0
 
         # Then: 2 non-network failures (404, parse error)
         def mock_rss_404(*args, **kwargs):
@@ -496,16 +452,10 @@ class TestTransientFailureTracking:
                         source_row, dataset_label="test", operation_id=None
                     )
 
-        meta = _read_source_meta(db_url, "test-source-mixed")
-
-        # Transient failures should still be 2
-        assert len(meta["rss_transient_failures"]) == 2
-
-        # Consecutive failures should be incremented
-        assert meta.get("rss_consecutive_failures", 0) == 2
-
-        # Not marked as missing yet (need 3 consecutive or 5 transient)
-        assert meta.get("rss_missing") is None
+        state = _read_source_state(db_url, "test-source-mixed")
+        assert len(state.get("rss_transient_failures", [])) == 2
+        assert state.get("rss_consecutive_failures", 0) == 2
+        assert state.get("rss_missing_at") is None
 
 
 if __name__ == "__main__":
