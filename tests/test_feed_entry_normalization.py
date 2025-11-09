@@ -17,7 +17,7 @@ from datetime import datetime
 
 import pytest
 
-from src.crawler.discovery import _safe_struct_time_to_datetime, _coerce_feed_entry
+from src.crawler.discovery import _coerce_feed_entry, _safe_struct_time_to_datetime
 
 
 def test_coerce_feed_entry_title_list_mixed_types():
