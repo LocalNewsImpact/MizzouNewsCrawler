@@ -27,6 +27,9 @@ def test_failure_counter_set_when_no_articles_found(cloud_sql_engine):
     # Create a real session WITHOUT the transaction wrapper
     SessionLocal = sessionmaker(bind=cloud_sql_engine)
     session = SessionLocal()
+    source_id = (
+        None  # Initialize to avoid NameError in cleanup if exception occurs early
+    )
 
     try:
         # Create a real source in the database
@@ -125,10 +128,11 @@ def test_failure_counter_set_when_no_articles_found(cloud_sql_engine):
     finally:
         # Clean up: delete the test source
         try:
-            from src.models import Source as SourceCleanup
+            if source_id is not None:
+                from src.models import Source as SourceCleanup
 
-            session.query(SourceCleanup).filter_by(id=source_id).delete()
-            session.commit()
+                session.query(SourceCleanup).filter_by(id=source_id).delete()
+                session.commit()
         except Exception:
             session.rollback()
         finally:
