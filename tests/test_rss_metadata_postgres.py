@@ -109,7 +109,6 @@ def test_rss_success_resets_failure_state_postgres(cloud_sql_engine, caplog):
         rss_transient_failures=[
             {"timestamp": datetime.utcnow().isoformat(), "status": 429}
         ],
-        rss_missing=datetime.utcnow().isoformat(),
     )
     db_url = _db_url_from_env(cloud_sql_engine)
     discovery = NewsDiscovery(database_url=db_url)

@@ -43,6 +43,9 @@ class SourceProcessor:
     effective_methods: list[DiscoveryMethod] = field(init=False)
     discovery_methods_attempted: list[str] = field(init=False)
     rss_summary: dict[str, int] = field(default_factory=dict, init=False)
+    # Track article counts per attempted method so we can distinguish
+    # between methods that merely ran vs. those that produced articles.
+    method_articles: dict[str, int] = field(default_factory=dict, init=False)
 
     def process(self) -> DiscoveryResult:
         self._initialize_context()
@@ -65,6 +68,7 @@ class SourceProcessor:
         self.source_name = str(self.source_row["name"])
         self.source_id = str(self.source_row["id"])
         self.start_time = time.time()
+        self.method_articles = {}
 
         # Resolve dataset_label to UUID for consistent database storage
         self.dataset_id = self._resolve_dataset_label()
@@ -514,6 +518,9 @@ class SourceProcessor:
             self._persist_rss_metadata(articles, summary)
         except Exception as rss_error:  # pragma: no cover - side effects
             self._handle_rss_failure(rss_error)
+        # Record count (even if zero) so downstream logic can decide
+        # which methods actually yielded articles.
+        self.method_articles["rss_feed"] = len(articles)
         return articles, summary, attempted, skip_rss
 
     def _persist_rss_metadata(
@@ -897,6 +904,7 @@ class SourceProcessor:
                     )
                 except Exception:
                     pass
+        self.method_articles["newspaper4k"] = len(articles)
         return articles or []
 
     def _try_storysniffer(self) -> list[dict[str, Any]]:
@@ -933,6 +941,7 @@ class SourceProcessor:
                     )
                 except Exception:
                     pass
+        self.method_articles["storysniffer"] = len(articles)
         return articles or []
 
     # ------------------------------------------------------------------
@@ -1372,10 +1381,21 @@ class SourceProcessor:
             articles_new=stats["articles_new"],
             articles_duplicate=stats["articles_duplicate"],
             articles_expired=stats["articles_expired"],
+            # Prefer only methods that actually produced >=1 articles; if none
+            # did (e.g., all attempts yielded zero) fall back to attempted list.
             method_used=(
-                ",".join(self.discovery_methods_attempted)
-                if self.discovery_methods_attempted
-                else "unknown"
+                ",".join(
+                    [
+                        m
+                        for m in self.discovery_methods_attempted
+                        if self.method_articles.get(m, 0) > 0
+                    ]
+                )
+                or (
+                    ",".join(self.discovery_methods_attempted)
+                    if self.discovery_methods_attempted
+                    else "unknown"
+                )
             ),
             metadata={
                 "source_name": self.source_name,
