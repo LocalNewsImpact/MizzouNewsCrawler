@@ -1310,7 +1310,9 @@ class SourceProcessor:
                                 {"method": "rss_feed", "id": self.source_id},
                             )
                         except Exception:
-                            pass
+                            logger.exception(
+                                "Failed to update last_successful_method in sources table"
+                            )  # noqa: E501
 
                     # Transient failure fallback: if we observed network errors
                     # but rss_transient_failures list remained empty, append one.
@@ -1371,10 +1373,16 @@ class SourceProcessor:
                                     {"val": json.dumps(existing), "id": self.source_id},
                                 )
                         except Exception:
-                            pass
+                            logger.exception(
+                                "Failed to update rss_transient_failures for source_id %s",
+                                self.source_id,
+                            )  # noqa: E501
                 dbm.close()
         except Exception:
-            pass
+            # Log and ignore errors during fallback processing; main flow continues
+            logger.exception(
+                "Exception occurred during fallback processing in source_processing."
+            )
         return DiscoveryResult(
             outcome=outcome,
             articles_found=stats["articles_found_total"],

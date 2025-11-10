@@ -187,7 +187,15 @@ def _newspaper_build_worker(
         try:
             p = build(target_url, config=cfg)
             urls = [a.url for a in getattr(p, "articles", [])]
-        except Exception:
+        except Exception as build_err:
+            # Log at debug to avoid noisy stack traces in normal operation; a build
+            # failure just means we fallback to other discovery methods.
+            logger.debug(
+                "newspaper.build failed for %s: %s",
+                target_url,
+                build_err,
+                exc_info=True,
+            )
             urls = []
 
         # Write URLs back to disk via pickle; best-effort
@@ -196,10 +204,22 @@ def _newspaper_build_worker(
 
             with open(out_path, "wb") as fh:
                 _pickle.dump(urls, fh)
-        except Exception:
-            pass
-    except Exception:
-        # Swallow any unexpected errors in the worker
+        except Exception as persist_err:
+            # Best-effort persistence; ignore but log for diagnosis.
+            logger.debug(
+                "Failed to persist newspaper URLs pickle for %s: %s",
+                target_url,
+                persist_err,
+                exc_info=True,
+            )
+    except Exception as worker_err:
+        # Swallow any unexpected errors in the worker but surface minimal context.
+        logger.debug(
+            "_newspaper_build_worker unexpected error for %s: %s",
+            target_url,
+            worker_err,
+            exc_info=True,
+        )
         return
 
 
