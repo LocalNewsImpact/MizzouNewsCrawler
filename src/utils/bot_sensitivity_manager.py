@@ -438,15 +438,28 @@ class BotSensitivityManager:
 
                 # Create new source if not found
                 source_id = str(uuid.uuid4())
-                insert = text(
+                # Choose JSON array literal depending on dialect for typed
+                # column default
+                bind = session.get_bind()
+                dialect_name = getattr(getattr(bind, "dialect", None), "name", "")
+                is_pg = str(dialect_name) == "postgresql"
+                json_empty = "'[]'::jsonb" if is_pg else "'[]'"
+
+                insert_sql = f"""
+                    INSERT INTO sources (
+                        id, host, host_norm, bot_sensitivity,
+                        rss_consecutive_failures,
+                        rss_transient_failures,
+                        no_effective_methods_consecutive
+                    )
+                    VALUES (
+                        :id, :host, :host_norm, 5,
+                        0, {json_empty}, 0
+                    )
                     """
-                    INSERT INTO sources (id, host, host_norm, bot_sensitivity)
-                    VALUES (:id, :host, :host_norm, 5)
-                    """
-                )
                 safe_session_execute(
                     session,
-                    insert,
+                    text(insert_sql),
                     {
                         "id": source_id,
                         "host": host,

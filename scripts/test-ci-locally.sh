@@ -42,6 +42,29 @@ echo "🧹 Checking for stale containers from previous runs..."
 docker rm -f "$POSTGRES_CONTAINER" 2>/dev/null || true
 docker system prune -f --volumes 2>/dev/null | grep -E "deleted|reclaimed" | head -5 || true
 
+# Helper: print Artifact Registry auth instructions
+print_gcloud_auth_instructions() {
+    echo -e "${YELLOW}Authentication required for Artifact Registry image pull.${NC}"
+    echo "Run the following once on your machine:"
+    echo ""
+    echo "  gcloud auth login"
+    echo "  gcloud config set project mizzou-news-crawler"
+    echo "  gcloud auth configure-docker us-central1-docker.pkg.dev"
+    echo ""
+    echo -e "${YELLOW}After authenticating, re-run this script.${NC}"
+}
+
+# Optional pre-check: if gcloud exists but not logged in, prompt instructions
+if command -v gcloud >/dev/null 2>&1; then
+    set +e
+    gcloud auth print-access-token >/dev/null 2>&1
+    GCLOUD_TOKEN_STATUS=$?
+    set -e
+    if [ $GCLOUD_TOKEN_STATUS -ne 0 ]; then
+        print_gcloud_auth_instructions
+    fi
+fi
+
 # Step 1: Start PostgreSQL container with host network (EXACTLY like CI)
 echo "🐘 Starting PostgreSQL 15 container on port $POSTGRES_PORT..."
 docker run -d \
@@ -90,7 +113,19 @@ echo -e "${GREEN}✅ Clean database created${NC}"
 # Step 4: Pull ci-base image (linux/amd64 to match CI's ubuntu-latest)
 echo ""
 echo "📦 Pulling ci-base image (linux/amd64 - matches CI ubuntu-latest)..."
-docker pull --quiet --platform linux/amd64 us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest 2>&1 | grep -v "WARNING: The requested image" || true
+set +e
+docker pull --quiet --platform linux/amd64 us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest 2>&1 | grep -v "WARNING: The requested image"
+PULL_EXIT_CODE=${PIPESTATUS[0]}
+set -e
+if [ $PULL_EXIT_CODE -ne 0 ]; then
+    echo -e "${RED}❌ Failed to pull CI base image${NC}"
+    # If auth failed, provide explicit instructions
+    print_gcloud_auth_instructions
+    echo ""
+    echo "Alternatively, you can run the local (non-Docker) CI helper:"
+    echo "  ./scripts/run-local-ci.sh ci"
+    exit 1
+fi
 echo -e "${GREEN}✅ CI base image ready${NC}"
 
 # Step 5: Run migrations (with --network host like CI)
@@ -98,7 +133,8 @@ echo ""
 echo "🔄 Running migrations in linux/amd64 container..."
 DATABASE_URL="postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@localhost:$POSTGRES_PORT/$POSTGRES_DB"
 
-docker run --rm \
+ set +e
+ docker run --rm \
     --network host \
     -v "$(pwd)":/workspace \
     -w /workspace \
@@ -110,14 +146,18 @@ docker run --rm \
     -e DATABASE_USER="$POSTGRES_USER" \
     -e DATABASE_PASSWORD="$POSTGRES_PASSWORD" \
     us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-    alembic upgrade head 2>&1 | grep -v "WARNING: The requested image" || true
+    alembic upgrade head 2>&1 | grep -v "WARNING: The requested image"
+MIG_EXIT_CODE=${PIPESTATUS[0]}
+set -e
 
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✅ Migrations completed successfully${NC}"
-else
+if [ $MIG_EXIT_CODE -ne 0 ]; then
     echo -e "${RED}❌ Migrations failed${NC}"
+    echo "Tip: If you saw 'Multiple head revisions are present', create a merge migration, e.g.:"
+    echo "  alembic heads"
+    echo "  alembic merge -m 'Merge heads' <rev1> <rev2>"
     exit 1
 fi
+echo -e "${GREEN}✅ Migrations completed successfully${NC}"
 
 # Step 6: Verify tables exist
 echo ""

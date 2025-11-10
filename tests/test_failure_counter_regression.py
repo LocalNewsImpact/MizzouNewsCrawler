@@ -89,7 +89,7 @@ def test_failure_counter_set_when_no_articles_found(cloud_sql_engine):
         # Verify result shows no articles
         assert result.articles_found == 0
 
-        # Refresh the source to see the updated metadata
+        # Refresh the source to see the updated state
         session.expire_all()
         source = session.query(Source).filter_by(id=source_id).first()
 
@@ -98,12 +98,9 @@ def test_failure_counter_set_when_no_articles_found(cloud_sql_engine):
         print(f"Source ID: {source_id}")
         print(f"Metadata type: {type(source.meta)}")
         print(f"Metadata: {source.meta}")
-        assert source.meta is not None
-
-        # This should be set but isn't in production
-        counter = source.meta.get("no_effective_methods_consecutive")
-        print(f"Counter value: {counter}")
-        assert counter is not None, "Counter should be set when no articles found"
+        # Column-based counter should increment on no-article discovery
+        counter = getattr(source, "no_effective_methods_consecutive", None)
+        print(f"Column counter value: {counter}")
         assert counter == 1, f"Counter should be 1, got {counter}"
 
         # Run again to verify it increments
@@ -122,7 +119,7 @@ def test_failure_counter_set_when_no_articles_found(cloud_sql_engine):
         session.expire_all()
         source = session.query(Source).filter_by(id=source_id).first()
         assert source is not None
-        counter = source.meta.get("no_effective_methods_consecutive")
+        counter = getattr(source, "no_effective_methods_consecutive", None)
         assert counter == 2, f"Counter should increment to 2, got {counter}"
 
     finally:
@@ -209,8 +206,8 @@ def test_failure_counter_not_set_when_articles_exist(cloud_sql_session):
     # Counter should NOT be set because source has historical articles
     cloud_sql_session.expire_all()
     source = cloud_sql_session.query(Source).filter_by(id=source_id).first()
-    counter = source.meta.get("no_effective_methods_consecutive")
-
-    assert (
-        counter is None or counter == 0
-    ), f"Counter should not be set for sources with articles, got {counter}"
+    counter = getattr(source, "no_effective_methods_consecutive", None)
+    assert counter in (None, 0), (
+        f"Counter should not be incremented when historical articles exist, "
+        f"got {counter}"
+    )

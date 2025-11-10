@@ -18,7 +18,9 @@ import pytest
 
 from src.crawler.discovery import NewsDiscovery
 from src.crawler.source_processing import SourceProcessor
+from src.models import create_tables
 from src.models.database import DatabaseManager, safe_execute
+from tests.helpers.source_state import read_source_state
 
 
 class TestPauseEdgeCases:
@@ -33,21 +35,7 @@ class TestPauseEdgeCases:
         discovery = NewsDiscovery(database_url=database_url)
 
         db_manager = DatabaseManager(database_url)
-        with db_manager.engine.begin() as conn:
-            safe_execute(
-                conn,
-                """
-                CREATE TABLE IF NOT EXISTS sources (
-                    id VARCHAR PRIMARY KEY,
-                    host VARCHAR NOT NULL,
-                    host_norm VARCHAR,
-                    status VARCHAR DEFAULT 'active',
-                    paused_at TIMESTAMP,
-                    paused_reason TEXT,
-                    metadata TEXT
-                )
-                """,
-            )
+        create_tables(db_manager.engine)
 
         yield discovery, db_manager
 
@@ -64,8 +52,14 @@ class TestPauseEdgeCases:
             safe_execute(
                 conn,
                 """
-                INSERT INTO sources (id, host, host_norm, status, metadata)
-                VALUES (:id, :host, :host_norm, :status, :metadata)
+                INSERT INTO sources (
+                  id, host, host_norm, status, metadata,
+                  rss_consecutive_failures, rss_transient_failures,
+                  no_effective_methods_consecutive
+                ) VALUES (
+                  :id, :host, :host_norm, :status, :metadata,
+                  :rss_cf, :rss_tf, :nem_cf
+                )
                 """,
                 {
                     "id": source_id,
@@ -73,6 +67,9 @@ class TestPauseEdgeCases:
                     "host_norm": host.lower(),
                     "status": "active",
                     "metadata": None,
+                    "rss_cf": 0,
+                    "rss_tf": json.dumps([]),
+                    "nem_cf": 0,
                 },
             )
 
@@ -80,17 +77,10 @@ class TestPauseEdgeCases:
         count = discovery._increment_no_effective_methods(source_id)
         assert count == 1
 
-        # Verify metadata was created
-        with db_manager.engine.connect() as conn:
-            result = safe_execute(
-                conn,
-                "SELECT metadata FROM sources WHERE id = :id",
-                {"id": source_id},
-            ).fetchone()
-
-            metadata = json.loads(result[0])
-            assert metadata["no_effective_methods_consecutive"] == 1
-            assert "no_effective_methods_last_seen" in metadata
+        # Verify typed columns reflect increment
+        state = read_source_state(db_manager.engine, source_id)
+        assert state.get("no_effective_methods_consecutive") == 1
+        assert state.get("no_effective_methods_last_seen") is not None
 
     def test_corrupt_metadata_reinitializes(self, mock_discovery):
         """Test that corrupt metadata is handled gracefully."""
@@ -103,8 +93,14 @@ class TestPauseEdgeCases:
             safe_execute(
                 conn,
                 """
-                INSERT INTO sources (id, host, host_norm, status, metadata)
-                VALUES (:id, :host, :host_norm, :status, :metadata)
+                INSERT INTO sources (
+                  id, host, host_norm, status, metadata,
+                  rss_consecutive_failures, rss_transient_failures,
+                  no_effective_methods_consecutive
+                ) VALUES (
+                  :id, :host, :host_norm, :status, :metadata,
+                  :rss_cf, :rss_tf, :nem_cf
+                )
                 """,
                 {
                     "id": source_id,
@@ -112,6 +108,9 @@ class TestPauseEdgeCases:
                     "host_norm": host.lower(),
                     "status": "active",
                     "metadata": "{invalid json",
+                    "rss_cf": 0,
+                    "rss_tf": json.dumps([]),
+                    "nem_cf": 0,
                 },
             )
 
@@ -130,8 +129,14 @@ class TestPauseEdgeCases:
             safe_execute(
                 conn,
                 """
-                INSERT INTO sources (id, host, host_norm, status, metadata)
-                VALUES (:id, :host, :host_norm, :status, :metadata)
+                INSERT INTO sources (
+                  id, host, host_norm, status, metadata,
+                  rss_consecutive_failures, rss_transient_failures,
+                  no_effective_methods_consecutive
+                ) VALUES (
+                  :id, :host, :host_norm, :status, :metadata,
+                  :rss_cf, :rss_tf, :nem_cf
+                )
                 """,
                 {
                     "id": source_id,
@@ -139,22 +144,18 @@ class TestPauseEdgeCases:
                     "host_norm": host.lower(),
                     "status": "active",
                     "metadata": json.dumps({"other_field": "value"}),
+                    "rss_cf": 0,
+                    "rss_tf": json.dumps([]),
+                    "nem_cf": 0,
                 },
             )
 
         # Reset should succeed without error
         discovery._reset_no_effective_methods(source_id)
 
-        # Verify counter was set to 0
-        with db_manager.engine.connect() as conn:
-            result = safe_execute(
-                conn,
-                "SELECT metadata FROM sources WHERE id = :id",
-                {"id": source_id},
-            ).fetchone()
-
-            metadata = json.loads(result[0])
-            assert metadata["no_effective_methods_consecutive"] == 0
+        # Verify typed counter was set to 0
+        state = read_source_state(db_manager.engine, source_id)
+        assert state.get("no_effective_methods_consecutive") == 0
 
     def test_pause_already_paused_source(self, mock_discovery):
         """Test pausing a source that's already paused."""
@@ -167,8 +168,14 @@ class TestPauseEdgeCases:
             safe_execute(
                 conn,
                 """
-                INSERT INTO sources (id, host, host_norm, status, paused_reason)
-                VALUES (:id, :host, :host_norm, :status, :paused_reason)
+                INSERT INTO sources (
+                  id, host, host_norm, status, paused_reason,
+                  rss_consecutive_failures, rss_transient_failures,
+                  no_effective_methods_consecutive
+                ) VALUES (
+                  :id, :host, :host_norm, :status, :paused_reason,
+                  :rss_cf, :rss_tf, :nem_cf
+                )
                 """,
                 {
                     "id": source_id,
@@ -176,6 +183,9 @@ class TestPauseEdgeCases:
                     "host_norm": host.lower(),
                     "status": "paused",
                     "paused_reason": "Previously paused",
+                    "rss_cf": 0,
+                    "rss_tf": json.dumps([]),
+                    "nem_cf": 0,
                 },
             )
 
@@ -229,8 +239,14 @@ class TestPauseEdgeCases:
             safe_execute(
                 conn,
                 """
-                INSERT INTO sources (id, host, host_norm, status, metadata)
-                VALUES (:id, :host, :host_norm, :status, :metadata)
+                INSERT INTO sources (
+                  id, host, host_norm, status, metadata,
+                  rss_consecutive_failures, rss_transient_failures,
+                  no_effective_methods_consecutive
+                ) VALUES (
+                  :id, :host, :host_norm, :status, :metadata,
+                  :rss_cf, :rss_tf, :nem_cf
+                )
                 """,
                 {
                     "id": source_id,
@@ -238,6 +254,9 @@ class TestPauseEdgeCases:
                     "host_norm": host.lower(),
                     "status": "active",
                     "metadata": json.dumps({}),
+                    "rss_cf": 0,
+                    "rss_tf": json.dumps([]),
+                    "nem_cf": 0,
                 },
             )
 
@@ -271,19 +290,12 @@ class TestPauseEdgeCases:
         # 3. Data is not corrupted
 
         # Final count should be >= 1 (at least one increment succeeded)
-        with db_manager.engine.connect() as conn:
-            result = safe_execute(
-                conn,
-                "SELECT metadata FROM sources WHERE id = :id",
-                {"id": source_id},
-            ).fetchone()
-
-            metadata = json.loads(result[0])
-            final_count = metadata["no_effective_methods_consecutive"]
-            # With SQLite's read-modify-write pattern, race conditions may occur
-            # The final count should be at least 1, but may not be 5
-            assert final_count >= 1
-            assert final_count <= 5
+        state = read_source_state(db_manager.engine, source_id)
+        final_count = int(state.get("no_effective_methods_consecutive") or 0)
+        # With SQLite's read-modify-write pattern, race conditions may occur
+        # The final count should be at least 1, but may not be 5
+        assert final_count >= 1
+        assert final_count <= 5
 
 
 class TestPauseResumeWorkflow:
@@ -298,21 +310,7 @@ class TestPauseResumeWorkflow:
         discovery = NewsDiscovery(database_url=database_url)
 
         db_manager = DatabaseManager(database_url)
-        with db_manager.engine.begin() as conn:
-            safe_execute(
-                conn,
-                """
-                CREATE TABLE IF NOT EXISTS sources (
-                    id VARCHAR PRIMARY KEY,
-                    host VARCHAR NOT NULL,
-                    host_norm VARCHAR,
-                    status VARCHAR DEFAULT 'active',
-                    paused_at TIMESTAMP,
-                    paused_reason TEXT,
-                    metadata TEXT
-                )
-                """,
-            )
+        create_tables(db_manager.engine)
 
         yield discovery, db_manager
 
@@ -329,8 +327,14 @@ class TestPauseResumeWorkflow:
             safe_execute(
                 conn,
                 """
-                INSERT INTO sources (id, host, host_norm, status, metadata)
-                VALUES (:id, :host, :host_norm, :status, :metadata)
+                INSERT INTO sources (
+                  id, host, host_norm, status, metadata,
+                  rss_consecutive_failures, rss_transient_failures,
+                  no_effective_methods_consecutive
+                ) VALUES (
+                  :id, :host, :host_norm, :status, :metadata,
+                  :rss_cf, :rss_tf, :nem_cf
+                )
                 """,
                 {
                     "id": source_id,
@@ -338,6 +342,9 @@ class TestPauseResumeWorkflow:
                     "host_norm": host.lower(),
                     "status": "active",
                     "metadata": json.dumps({}),
+                    "rss_cf": 0,
+                    "rss_tf": json.dumps([]),
+                    "nem_cf": 0,
                 },
             )
 
@@ -371,16 +378,9 @@ class TestPauseResumeWorkflow:
         # Reset counter on resume
         discovery._reset_no_effective_methods(source_id)
 
-        # Verify counter was reset
-        with db_manager.engine.connect() as conn:
-            result = safe_execute(
-                conn,
-                "SELECT metadata FROM sources WHERE id = :id",
-                {"id": source_id},
-            ).fetchone()
-
-            metadata = json.loads(result[0])
-            assert metadata["no_effective_methods_consecutive"] == 0
+        # Verify typed counter was reset
+        state = read_source_state(db_manager.engine, source_id)
+        assert state.get("no_effective_methods_consecutive") == 0
 
 
 class TestTelemetryIntegration:
@@ -395,45 +395,7 @@ class TestTelemetryIntegration:
         discovery = NewsDiscovery(database_url=database_url)
 
         db_manager = DatabaseManager(database_url)
-        with db_manager.engine.begin() as conn:
-            # Sources table
-            safe_execute(
-                conn,
-                """
-                CREATE TABLE IF NOT EXISTS sources (
-                    id VARCHAR PRIMARY KEY,
-                    host VARCHAR NOT NULL,
-                    host_norm VARCHAR,
-                    canonical_name VARCHAR,
-                    status VARCHAR DEFAULT 'active',
-                    paused_at TIMESTAMP,
-                    paused_reason TEXT,
-                    metadata TEXT
-                )
-                """,
-            )
-            # Articles table
-            safe_execute(
-                conn,
-                """
-                CREATE TABLE IF NOT EXISTS articles (
-                    id VARCHAR PRIMARY KEY,
-                    candidate_link_id VARCHAR NOT NULL,
-                    title TEXT
-                )
-                """,
-            )
-            # Candidate links table
-            safe_execute(
-                conn,
-                """
-                CREATE TABLE IF NOT EXISTS candidate_links (
-                    id VARCHAR PRIMARY KEY,
-                    url VARCHAR UNIQUE NOT NULL,
-                    source_id VARCHAR
-                )
-                """,
-            )
+        create_tables(db_manager.engine)
 
         yield discovery, database_url, db_manager
 
@@ -450,8 +412,14 @@ class TestTelemetryIntegration:
             safe_execute(
                 conn,
                 """
-                INSERT INTO sources (id, host, host_norm, status, metadata)
-                VALUES (:id, :host, :host_norm, :status, :metadata)
+                INSERT INTO sources (
+                  id, host, host_norm, status, metadata,
+                  rss_consecutive_failures, rss_transient_failures,
+                  no_effective_methods_consecutive
+                ) VALUES (
+                  :id, :host, :host_norm, :status, :metadata,
+                  :rss_cf, :rss_tf, :nem_cf
+                )
                 """,
                 {
                     "id": source_id,
@@ -459,6 +427,9 @@ class TestTelemetryIntegration:
                     "host_norm": host.lower(),
                     "status": "active",
                     "metadata": json.dumps({}),
+                    "rss_cf": 0,
+                    "rss_tf": json.dumps([]),
+                    "nem_cf": 0,
                 },
             )
 
@@ -505,16 +476,9 @@ class TestTelemetryIntegration:
             # Simulate failure and record it (will increment counter)
             processor._record_no_articles()
 
-        # Verify counter was incremented
-        with db_manager.engine.connect() as conn:
-            result = safe_execute(
-                conn,
-                "SELECT metadata FROM sources WHERE id = :id",
-                {"id": source_id},
-            ).fetchone()
-
-            metadata = json.loads(result[0])
-            assert metadata["no_effective_methods_consecutive"] == 1
+        # Verify typed counter was incremented
+        state = read_source_state(db_manager.engine, source_id)
+        assert state.get("no_effective_methods_consecutive") == 1
 
     def test_successful_store_resets_counter_and_calls_telemetry(self, mock_setup):
         """Test that storing candidates resets counter."""
@@ -522,47 +486,51 @@ class TestTelemetryIntegration:
         source_id = "test-reset-on-success"
         host = "reset-success.com"
 
-        # Insert source with counter at 2
+        # Insert source, then set typed counter to 2
         with db_manager.engine.begin() as conn:
             safe_execute(
                 conn,
                 """
-                INSERT INTO sources (id, host, host_norm, status, metadata)
-                VALUES (:id, :host, :host_norm, :status, :metadata)
+                INSERT INTO sources (
+                  id, host, host_norm, status, metadata,
+                  rss_consecutive_failures, rss_transient_failures,
+                  no_effective_methods_consecutive
+                ) VALUES (
+                  :id, :host, :host_norm, :status, :metadata,
+                  :rss_cf, :rss_tf, :nem_cf
+                )
                 """,
                 {
                     "id": source_id,
                     "host": host,
                     "host_norm": host.lower(),
                     "status": "active",
-                    "metadata": json.dumps({"no_effective_methods_consecutive": 2}),
+                    "metadata": json.dumps({}),
+                    "rss_cf": 0,
+                    "rss_tf": json.dumps([]),
+                    "nem_cf": 0,
                 },
             )
-
-        # Verify counter starts at 2
-        with db_manager.engine.connect() as conn:
-            result = safe_execute(
+            # Set typed column to 2 explicitly
+            safe_execute(
                 conn,
-                "SELECT metadata FROM sources WHERE id = :id",
+                (
+                    "UPDATE sources SET no_effective_methods_consecutive = 2 "
+                    "WHERE id = :id"
+                ),
                 {"id": source_id},
-            ).fetchone()
+            )
 
-            metadata = json.loads(result[0])
-            assert metadata["no_effective_methods_consecutive"] == 2
+        # Verify typed counter starts at 2
+        state = read_source_state(db_manager.engine, source_id)
+        assert state.get("no_effective_methods_consecutive") == 2
 
         # Simulate successful article discovery by calling reset
         discovery._reset_no_effective_methods(source_id)
 
-        # Verify counter was reset to 0
-        with db_manager.engine.connect() as conn:
-            result = safe_execute(
-                conn,
-                "SELECT metadata FROM sources WHERE id = :id",
-                {"id": source_id},
-            ).fetchone()
-
-            metadata = json.loads(result[0])
-            assert metadata["no_effective_methods_consecutive"] == 0
+        # Verify typed counter was reset to 0
+        state = read_source_state(db_manager.engine, source_id)
+        assert state.get("no_effective_methods_consecutive") == 0
 
     def test_telemetry_exception_doesnt_break_pause_logic(self, mock_setup):
         """Test that telemetry exceptions don't prevent pause logic."""
@@ -575,8 +543,14 @@ class TestTelemetryIntegration:
             safe_execute(
                 conn,
                 """
-                INSERT INTO sources (id, host, host_norm, status, metadata)
-                VALUES (:id, :host, :host_norm, :status, :metadata)
+                INSERT INTO sources (
+                  id, host, host_norm, status, metadata,
+                  rss_consecutive_failures, rss_transient_failures,
+                  no_effective_methods_consecutive
+                ) VALUES (
+                  :id, :host, :host_norm, :status, :metadata,
+                  :rss_cf, :rss_tf, :nem_cf
+                )
                 """,
                 {
                     "id": source_id,
@@ -584,6 +558,9 @@ class TestTelemetryIntegration:
                     "host_norm": host.lower(),
                     "status": "active",
                     "metadata": json.dumps({}),
+                    "rss_cf": 0,
+                    "rss_tf": json.dumps([]),
+                    "nem_cf": 0,
                 },
             )
 
@@ -624,16 +601,9 @@ class TestTelemetryIntegration:
             # Simulate failure
             processor._record_no_articles()
 
-        # Counter should still be incremented
-        with db_manager.engine.connect() as conn:
-            result = safe_execute(
-                conn,
-                "SELECT metadata FROM sources WHERE id = :id",
-                {"id": source_id},
-            ).fetchone()
-
-            metadata = json.loads(result[0])
-            assert metadata["no_effective_methods_consecutive"] == 1
+        # Counter should still be incremented (typed)
+        state = read_source_state(db_manager.engine, source_id)
+        assert state.get("no_effective_methods_consecutive") == 1
 
 
 class TestCounterTimestamps:
@@ -648,21 +618,7 @@ class TestCounterTimestamps:
         discovery = NewsDiscovery(database_url=database_url)
 
         db_manager = DatabaseManager(database_url)
-        with db_manager.engine.begin() as conn:
-            safe_execute(
-                conn,
-                """
-                CREATE TABLE IF NOT EXISTS sources (
-                    id VARCHAR PRIMARY KEY,
-                    host VARCHAR NOT NULL,
-                    host_norm VARCHAR,
-                    status VARCHAR DEFAULT 'active',
-                    paused_at TIMESTAMP,
-                    paused_reason TEXT,
-                    metadata TEXT
-                )
-                """,
-            )
+        create_tables(db_manager.engine)
 
         yield discovery, db_manager
 
@@ -679,8 +635,14 @@ class TestCounterTimestamps:
             safe_execute(
                 conn,
                 """
-                INSERT INTO sources (id, host, host_norm, status, metadata)
-                VALUES (:id, :host, :host_norm, :status, :metadata)
+                INSERT INTO sources (
+                  id, host, host_norm, status, metadata,
+                  rss_consecutive_failures, rss_transient_failures,
+                  no_effective_methods_consecutive
+                ) VALUES (
+                  :id, :host, :host_norm, :status, :metadata,
+                  :rss_cf, :rss_tf, :nem_cf
+                )
                 """,
                 {
                     "id": source_id,
@@ -688,21 +650,17 @@ class TestCounterTimestamps:
                     "host_norm": host.lower(),
                     "status": "active",
                     "metadata": json.dumps({}),
+                    "rss_cf": 0,
+                    "rss_tf": json.dumps([]),
+                    "nem_cf": 0,
                 },
             )
 
         # First increment
         discovery._increment_no_effective_methods(source_id)
 
-        with db_manager.engine.connect() as conn:
-            result = safe_execute(
-                conn,
-                "SELECT metadata FROM sources WHERE id = :id",
-                {"id": source_id},
-            ).fetchone()
-
-            metadata = json.loads(result[0])
-            first_timestamp = metadata["no_effective_methods_last_seen"]
+        state = read_source_state(db_manager.engine, source_id)
+        first_timestamp = state.get("no_effective_methods_last_seen")
 
         # Second increment (with slight delay to ensure different timestamp)
         import time
@@ -710,18 +668,15 @@ class TestCounterTimestamps:
         time.sleep(0.01)
         discovery._increment_no_effective_methods(source_id)
 
-        with db_manager.engine.connect() as conn:
-            result = safe_execute(
-                conn,
-                "SELECT metadata FROM sources WHERE id = :id",
-                {"id": source_id},
-            ).fetchone()
-
-            metadata = json.loads(result[0])
-            second_timestamp = metadata["no_effective_methods_last_seen"]
+        state = read_source_state(db_manager.engine, source_id)
+        second_timestamp = state.get("no_effective_methods_last_seen")
 
         # Timestamps should be different (second should be later)
-        assert second_timestamp > first_timestamp
+        assert (
+            second_timestamp is not None
+            and first_timestamp is not None
+            and second_timestamp > first_timestamp
+        )
 
 
 if __name__ == "__main__":

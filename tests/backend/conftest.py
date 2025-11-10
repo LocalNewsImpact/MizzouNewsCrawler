@@ -354,14 +354,47 @@ def cloud_sql_engine():
 
     engine = create_engine(test_db_url, echo=False)
 
-    # Verify connection
+    # Verify connection and ensure test schema is migrated to head
     try:
         from sqlalchemy import text
 
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
+
+            # Check if new typed RSS columns exist; if not, run Alembic upgrade
+            col_check = conn.execute(
+                text(
+                    """
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name = 'sources'
+                      AND column_name = 'rss_consecutive_failures'
+                    LIMIT 1
+                    """
+                )
+            ).fetchone()
+
+        if not col_check:
+            # Point Alembic at the test database URL and upgrade to head
+            import os
+            from pathlib import Path
+
+            from alembic import command
+            from alembic.config import Config
+
+            # Ensure Alembic uses the test DB URL
+            alembic_ini = str(Path(__file__).resolve().parents[2] / "alembic.ini")
+            cfg = Config(alembic_ini)
+            script_loc = str(Path(alembic_ini).parent / "alembic")
+            cfg.set_main_option("script_location", script_loc)
+            cfg.set_main_option("sqlalchemy.url", test_db_url)
+
+            # Some environments rely on DATABASE_URL in env.py; set it to the test URL
+            os.environ["DATABASE_URL"] = test_db_url
+
+            command.upgrade(cfg, "head")
     except Exception as e:
-        pytest.skip(f"Cannot connect to test database: {e}")
+        pytest.skip(f"Cannot connect or migrate test database: {e}")
 
     yield engine
     engine.dispose()

@@ -3,6 +3,7 @@ Test suite for telemetry API endpoints and site management functionality.
 Tests the FastAPI endpoints without running the actual server.
 """
 
+import json
 import sqlite3
 import tempfile
 from datetime import datetime, timedelta
@@ -543,7 +544,10 @@ class TestAPIErrorHandling:
             host_norm VARCHAR NOT NULL,
             status VARCHAR DEFAULT 'active',
             paused_at TIMESTAMP,
-            paused_reason TEXT
+            paused_reason TEXT,
+            rss_consecutive_failures INTEGER NOT NULL DEFAULT 0,
+            rss_transient_failures TEXT NOT NULL DEFAULT '[]',
+            no_effective_methods_consecutive INTEGER NOT NULL DEFAULT 0
         )
         """
         )
@@ -571,12 +575,14 @@ class TestAPIErrorHandling:
             assert response.status_code == 422  # Validation error
 
             # Test pause with invalid JSON
+            # Send invalid JSON by passing bytes not decodable as JSON structure
+            # Malformed JSON payload triggers 422 validation error
             response = client.post(
                 "/api/site-management/pause",
-                data="invalid json",
+                content="{invalid json",
                 headers={"Content-Type": "application/json"},
             )
-            assert response.status_code == 422
+            assert response.status_code == 422  # Expect JSON decode failure
 
         finally:
             Path(db_path).unlink(missing_ok=True)
@@ -633,8 +639,14 @@ class TestCompleteAPIWorkflow:
         connection.execute(
             text(
                 """
-                INSERT INTO sources (id, host, host_norm, status)
-                VALUES (:id, :host, :host_norm, :status)
+                INSERT INTO sources (
+                  id, host, host_norm, status,
+                  rss_consecutive_failures, rss_transient_failures,
+                  no_effective_methods_consecutive
+                ) VALUES (
+                  :id, :host, :host_norm, :status,
+                  :rss_cf, :rss_tf, :nem_cf
+                )
             """
             ),
             {
@@ -642,6 +654,9 @@ class TestCompleteAPIWorkflow:
                 "host": test_host,
                 "host_norm": test_host,
                 "status": "active",
+                "rss_cf": 0,
+                "rss_tf": json.dumps([]),
+                "nem_cf": 0,
             },
         )
 

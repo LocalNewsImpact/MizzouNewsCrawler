@@ -24,7 +24,7 @@ def sqlite_db(tmp_path: Path) -> str:
     db = DatabaseManager(database_url)
 
     with db.engine.begin() as conn:
-        # Create sources table
+        # Create sources table (include typed columns with sane defaults)
         conn.execute(
             text(
                 """
@@ -36,7 +36,25 @@ def sqlite_db(tmp_path: Path) -> str:
                 city TEXT,
                 county TEXT,
                 type TEXT,
-                metadata TEXT
+                metadata TEXT,
+                -- Typed RSS/discovery columns
+                rss_consecutive_failures INTEGER NOT NULL DEFAULT 0,
+                rss_transient_failures TEXT NOT NULL DEFAULT '[]',
+                rss_missing_at TEXT,
+                rss_last_failed_at TEXT,
+                last_successful_method TEXT,
+                no_effective_methods_consecutive INTEGER NOT NULL DEFAULT 0,
+                no_effective_methods_last_seen TEXT,
+                -- Site management fields
+                status TEXT DEFAULT 'active',
+                paused_at TEXT,
+                paused_reason TEXT,
+                -- Bot sensitivity fields
+                bot_sensitivity INTEGER DEFAULT 5,
+                bot_sensitivity_updated_at TEXT,
+                bot_encounters INTEGER DEFAULT 0,
+                last_bot_detection_at TEXT,
+                bot_detection_metadata TEXT
             )
             """
             )
@@ -56,11 +74,12 @@ def sqlite_db(tmp_path: Path) -> str:
             )
         )
 
-        # Create dataset_sources junction table
+        # Create dataset_sources junction table (include id column for inserts)
         conn.execute(
             text(
                 """
             CREATE TABLE IF NOT EXISTS dataset_sources (
+                id TEXT,
                 dataset_id TEXT,
                 source_id TEXT,
                 PRIMARY KEY (dataset_id, source_id)
@@ -154,8 +173,15 @@ def test_get_sources_query_works_on_sqlite(sqlite_db: str):
             conn.execute(
                 text(
                     """
-                INSERT INTO sources (id, canonical_name, host, city, county)
-                VALUES (:id, :name, :host, :city, :county)
+                INSERT INTO sources (
+                    id, canonical_name, host, city, county,
+                    rss_consecutive_failures, rss_transient_failures,
+                    no_effective_methods_consecutive
+                )
+                VALUES (
+                    :id, :name, :host, :city, :county,
+                    :rcf, :rtf, :nemc
+                )
                 """
                 ),
                 {
@@ -164,6 +190,9 @@ def test_get_sources_query_works_on_sqlite(sqlite_db: str):
                     "host": f"test{i+1}.example.com",
                     "city": "TestCity",
                     "county": "TestCounty",
+                    "rcf": 0,
+                    "rtf": "[]",
+                    "nemc": 0,
                 },
             )
 
@@ -239,11 +268,24 @@ def test_dataset_filtering_works_on_sqlite(sqlite_db: str):
         conn.execute(
             text(
                 """
-            INSERT INTO sources (id, canonical_name, host)
-            VALUES (:id, :name, :host)
+            INSERT INTO sources (
+                id, canonical_name, host,
+                rss_consecutive_failures, rss_transient_failures,
+                no_effective_methods_consecutive
+            )
+            VALUES (
+                :id, :name, :host, :rcf, :rtf, :nemc
+            )
             """
             ),
-            {"id": source1_id, "name": "Source 1", "host": "source1.com"},
+            {
+                "id": source1_id,
+                "name": "Source 1",
+                "host": "source1.com",
+                "rcf": 0,
+                "rtf": "[]",
+                "nemc": 0,
+            },
         )
         conn.execute(
             text(
@@ -263,11 +305,24 @@ def test_dataset_filtering_works_on_sqlite(sqlite_db: str):
         conn.execute(
             text(
                 """
-            INSERT INTO sources (id, canonical_name, host)
-            VALUES (:id, :name, :host)
+            INSERT INTO sources (
+                id, canonical_name, host,
+                rss_consecutive_failures, rss_transient_failures,
+                no_effective_methods_consecutive
+            )
+            VALUES (
+                :id, :name, :host, :rcf, :rtf, :nemc
+            )
             """
             ),
-            {"id": source2_id, "name": "Source 2", "host": "source2.com"},
+            {
+                "id": source2_id,
+                "name": "Source 2",
+                "host": "source2.com",
+                "rcf": 0,
+                "rtf": "[]",
+                "nemc": 0,
+            },
         )
         conn.execute(
             text(
@@ -346,8 +401,15 @@ def test_due_only_filtering_on_sqlite(sqlite_db: str):
         conn.execute(
             text(
                 """
-            INSERT INTO sources (id, canonical_name, host, metadata)
-            VALUES (:id, :name, :host, :metadata)
+            INSERT INTO sources (
+                id, canonical_name, host, metadata,
+                rss_consecutive_failures, rss_transient_failures,
+                no_effective_methods_consecutive
+            )
+            VALUES (
+                :id, :name, :host, :metadata,
+                :rcf, :rtf, :nemc
+            )
             """
             ),
             {
@@ -355,6 +417,9 @@ def test_due_only_filtering_on_sqlite(sqlite_db: str):
                 "name": "Test Source",
                 "host": "test.com",
                 "metadata": json.dumps(metadata),
+                "rcf": 0,
+                "rtf": "[]",
+                "nemc": 0,
             },
         )
 
@@ -387,11 +452,24 @@ def test_database_dialect_detection(sqlite_db: str):
         conn.execute(
             text(
                 """
-            INSERT INTO sources (id, canonical_name, host)
-            VALUES (:id, :name, :host)
+            INSERT INTO sources (
+                id, canonical_name, host,
+                rss_consecutive_failures, rss_transient_failures,
+                no_effective_methods_consecutive
+            )
+            VALUES (
+                :id, :name, :host, :rcf, :rtf, :nemc
+            )
             """
             ),
-            {"id": source_id, "name": "Test", "host": "test.com"},
+            {
+                "id": source_id,
+                "name": "Test",
+                "host": "test.com",
+                "rcf": 0,
+                "rtf": "[]",
+                "nemc": 0,
+            },
         )
 
     # This should work without DISTINCT ON syntax error

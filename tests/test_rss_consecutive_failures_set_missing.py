@@ -1,107 +1,65 @@
-import json
 import pathlib
 import sys
 
 import pandas as pd
 
-# Make the local `src` package importable for tests
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from src.crawler.discovery import RSS_MISSING_THRESHOLD, NewsDiscovery
+from src.crawler.discovery import RSS_MISSING_THRESHOLD, NewsDiscovery  # noqa: E402
+from src.models import Source  # noqa: E402
+from src.models.database import DatabaseManager  # noqa: E402
+from tests.helpers.source_state import read_source_state  # noqa: E402
 
 
-def test_repeated_non_network_failures_set_rss_missing(monkeypatch):
-    """After RSS_MISSING_THRESHOLD non-network failures, rss_missing is set."""
-    nd = NewsDiscovery(timeout=1, delay=0)
+def test_repeated_non_network_failures_set_rss_missing(tmp_path, monkeypatch):
+    """After RSS_MISSING_THRESHOLD non-network failures, rss_missing_at is set.
 
-    recorded_updates = []
-    monkeypatch.setattr(
-        nd, "_update_source_meta", lambda sid, updates: recorded_updates.append(updates)
+    Uses a real temporary SQLite database to exercise typed column logic
+    instead of mocking metadata. This avoids reliance on legacy JSON updates.
+    """
+    db_file = tmp_path / "rss_missing_thresh.db"
+    db_url = f"sqlite:///{db_file}"
+
+    # Seed source row
+    dbm = DatabaseManager(database_url=db_url)
+    src = Source(
+        id="test-source-2",
+        host="example.com",
+        host_norm="example.com",
+        canonical_name="Example",
+        meta={},
     )
+    dbm.session.add(src)
+    dbm.session.commit()
+    dbm.close()
 
-    # Simulate RSS discovery with no network errors but no successful feeds
+    discovery = NewsDiscovery(database_url=db_url, timeout=1, delay=0)
+
+    # Simulate non-network RSS failures
     def fake_rss(*args, **kwargs):
         return ([], {"feeds_tried": 1, "feeds_successful": 0, "network_errors": 0})
 
-    monkeypatch.setattr(nd, "discover_with_rss_feeds", fake_rss)
-    monkeypatch.setattr(nd, "discover_with_newspaper4k", lambda *a, **k: [])
-    monkeypatch.setattr(nd, "discover_with_storysniffer", lambda *a, **k: [])
+    monkeypatch.setattr(discovery, "discover_with_rss_feeds", fake_rss)
+    monkeypatch.setattr(discovery, "discover_with_newspaper4k", lambda *a, **k: [])
+    monkeypatch.setattr(discovery, "discover_with_storysniffer", lambda *a, **k: [])
 
     source_row = pd.Series(
         {
+            "id": "test-source-2",
             "url": "https://example.com",
             "name": "Example",
-            "id": "test-source-2",
-            "metadata": None,
-            "city": None,
-            "county": None,
-            "type_classification": None,
+            "metadata": "{}",
         }
     )
 
-    # Monkeypatch DatabaseManager used in discovery to return a metadata
-    # row with rss_consecutive_failures = threshold - 1 so a single call
-    # will push it over the threshold deterministically.
-    class FakeResult:
-        def __init__(self, val):
-            self._val = val
+    # Execute failures up to threshold
+    for i in range(RSS_MISSING_THRESHOLD):
+        discovery.process_source(source_row, dataset_label=None, operation_id=None)
+        state = read_source_state(DatabaseManager(db_url).engine, "test-source-2")
+        assert state.get("rss_consecutive_failures", 0) == i + 1
 
-        def fetchone(self):
-            return (self._val,)
-
-    class FakeConn:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc, tb):
-            return False
-
-        def execute(self, *args, **kwargs):
-            # Return a JSON string similar to what's stored in the DB
-            return FakeResult(
-                json.dumps({"rss_consecutive_failures": RSS_MISSING_THRESHOLD - 1})
-            )
-
-    class FakeEngine:
-        def connect(self):
-            return FakeConn()
-
-    class FakeDBManager:
-        def __init__(self, url):
-            self.engine = FakeEngine()
-
-        def close(self):
-            pass
-
-        # Support use as a context manager (used by discovery.process_source)
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc_val, exc_tb):
-            try:
-                self.close()
-            except Exception:
-                pass
-            return False
-
-    monkeypatch.setattr("src.crawler.discovery.DatabaseManager", FakeDBManager)
-
-    # Run the process once (our fake DB already starts one short of threshold)
-    nd.process_source(source_row, dataset_label=None, operation_id=None)
-
-    # Ensure we saw an update that sets rss_missing or increments the counter
-    found_missing = any(
-        "rss_missing" in u and u.get("rss_missing") for u in recorded_updates
-    )
-
-    found_count = any(
-        (
-            "rss_consecutive_failures" in u
-            and u.get("rss_consecutive_failures", 0) >= RSS_MISSING_THRESHOLD
-        )
-        for u in recorded_updates
-    )
-
+    # After threshold, missing should be set
+    final_state = read_source_state(DatabaseManager(db_url).engine, "test-source-2")
     assert (
-        found_missing or found_count
-    ), "rss_missing was not set after repeated non-network failures"
+        final_state.get("rss_missing_at") is not None
+    ), "rss_missing_at was not set after repeated non-network failures"
