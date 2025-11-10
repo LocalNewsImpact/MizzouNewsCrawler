@@ -673,9 +673,11 @@ class ComprehensiveExtractionTelemetry:
                 # for required NOT NULL fields. Some classifiers may emit
                 # status/confidence without a final detected_type; coerce
                 # a sensible default to satisfy NOT NULL and keep telemetry.
-                detected_type = detection.get("status") or detection.get(
-                    "detected_type"
-                ) or "unknown"
+                detected_type = (
+                    detection.get("status")
+                    or detection.get("detected_type")
+                    or "unknown"
+                )
                 detection_method = (
                     detection.get("detection_method") or "content_type_detector"
                 )

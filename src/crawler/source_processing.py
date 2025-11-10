@@ -621,14 +621,11 @@ class SourceProcessor:
                         # fallback so we still append a transient record in that
                         # mismatch scenario to avoid losing historical signal.
                         transient_status_codes = {401, 403, 429}
-                        treat_as_transient = (
-                            network_errors > 0
-                            or (
-                                last_transient_status is not None
-                                and (
-                                    last_transient_status in transient_status_codes
-                                    or last_transient_status >= 500
-                                )
+                        treat_as_transient = network_errors > 0 or (
+                            last_transient_status is not None
+                            and (
+                                last_transient_status in transient_status_codes
+                                or last_transient_status >= 500
                             )
                         )
                         if treat_as_transient:
