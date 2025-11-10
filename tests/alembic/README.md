@@ -11,8 +11,8 @@ make test-migrations
 # Or use pytest directly
 python -m pytest tests/alembic/ -v
 
-# Run validation script before deployment
-./scripts/validate-migrations.sh
+# Run pre-deploy validation script before deployment
+./scripts/pre-deploy-validation.sh all --sqlite-only
 ```
 
 ## Test Files
@@ -119,18 +119,14 @@ Tests requiring PostgreSQL are automatically skipped if `TEST_DATABASE_URL` is n
   - Known issues
   - Next steps roadmap
 
-## Validation Script
+### Validation Script
 
-The `scripts/validate-migrations.sh` script performs pre-deployment validation:
-- Validates migration history
-- Detects branch conflicts
-- Tests migrations on temporary database
-- Tests rollback and re-upgrade
-- Checks for common issues
+The unified `scripts/pre-deploy-validation.sh` script performs pre-deployment validation and covers
+the migration validation and downgrade/upgrade checks previously provided by `validate-migrations.sh`.
 
-Run before deployment:
+Run before deployment (migration-focused):
 ```bash
-./scripts/validate-migrations.sh
+./scripts/pre-deploy-validation.sh all --sqlite-only
 ```
 
 ## CI/CD Integration
