@@ -69,14 +69,41 @@ class TestPauseAfterFailures:
                 },
             )
 
-        # Increment counter 3 times
-        count1 = mock_discovery._increment_no_effective_methods(source_id)
+        # Increment counter 3 times - pass source_meta for time-gating
+        # For testing, we'll manually update the timestamp to bypass time gate
+        source_meta = {"frequency": "daily"}
+        from datetime import datetime, timedelta
+
+        count1 = mock_discovery._increment_no_effective_methods(source_id, source_meta)
         assert count1 == 1
 
-        count2 = mock_discovery._increment_no_effective_methods(source_id)
+        # Manually update timestamp to simulate 6+ hours passing (bypass time gate)
+        with db_manager.engine.begin() as conn:
+            past_time = datetime.now() - timedelta(hours=7)
+            safe_execute(
+                conn,
+                """
+                UPDATE sources
+                SET no_effective_methods_last_seen = :past_time
+                WHERE id = :id
+                """,
+                {"id": source_id, "past_time": past_time},
+            )
+
+        count2 = mock_discovery._increment_no_effective_methods(source_id, source_meta)
         assert count2 == 2
 
-        count3 = mock_discovery._increment_no_effective_methods(source_id)
+        # Again, manually update timestamp
+        with db_manager.engine.begin() as conn:
+            past_time = datetime.now() - timedelta(hours=7)
+            safe_execute(
+                conn,
+                """UPDATE sources SET no_effective_methods_last_seen = :past_time
+                WHERE id = :id""",
+                {"id": source_id, "past_time": past_time},
+            )
+
+        count3 = mock_discovery._increment_no_effective_methods(source_id, source_meta)
         assert count3 == 3
 
         # Verify typed columns were updated
@@ -144,6 +171,8 @@ class TestPauseAfterFailures:
 
     def test_pause_at_threshold(self, mock_discovery):
         """Test that source is paused at threshold."""
+        from datetime import datetime, timedelta
+
         source_id = "test-source-3"
         host = "test-site-3.com"
 
@@ -175,16 +204,30 @@ class TestPauseAfterFailures:
                 },
             )
 
-        # Increment to threshold
+        # Increment to threshold - pass source_meta for time-gating
+        source_meta = {"frequency": "daily"}
         count = 0
-        for _ in range(3):
-            count = mock_discovery._increment_no_effective_methods(source_id)
+        for i in range(7):  # Daily sources need 7 failures (adaptive threshold)
+            # Manually update timestamp to bypass time gate for each increment
+            if i > 0:
+                with db_manager.engine.begin() as conn:
+                    past_time = datetime.now() - timedelta(hours=7)
+                    safe_execute(
+                        conn,
+                        """UPDATE sources
+                        SET no_effective_methods_last_seen = :past_time
+                        WHERE id = :id""",
+                        {"id": source_id, "past_time": past_time},
+                    )
+            count = mock_discovery._increment_no_effective_methods(
+                source_id, source_meta
+            )
 
-        # At threshold, pause
-        if count >= 3:
+        # At threshold (7 for daily), pause
+        if count >= 7:
             mock_discovery._pause_source(
                 source_id,
-                "Automatic pause after 3 consecutive failures",
+                "Automatic pause after 7 consecutive failures",
                 host=host,
             )
 
@@ -197,7 +240,7 @@ class TestPauseAfterFailures:
             ).fetchone()
 
             assert row[0] == "paused"
-            assert "3 consecutive failures" in row[1].lower()
+            assert "7 consecutive failures" in row[1].lower()
 
         db_manager.close()
 
@@ -248,7 +291,7 @@ class TestSourceProcessorPauseIntegration:
                     "host": host,
                     "host_norm": host.lower(),
                     "status": "active",
-                    "metadata": json.dumps({}),
+                    "metadata": json.dumps({"frequency": "daily"}),
                     "rss_cf": 0,
                     "rss_tf": json.dumps([]),
                     "nem_cf": 0,
@@ -262,8 +305,12 @@ class TestSourceProcessorPauseIntegration:
                 "url": f"https://{host}",
                 "name": host,
                 "host": host,
+                "metadata": json.dumps({"frequency": "daily"}),
             }
         )
+
+        # Import for timestamp manipulation
+        from datetime import datetime, timedelta
 
         # Mock telemetry to return no historical data and no effective methods
         with (
@@ -273,8 +320,20 @@ class TestSourceProcessorPauseIntegration:
             mock_telemetry.has_historical_data.return_value = False
             mock_telemetry.get_effective_discovery_methods.return_value = []
 
-            # Run processor 3 times
-            for i in range(3):
+            # Run processor 7 times (daily sources need 7 failures)
+            for i in range(7):
+                # Bypass time gate by updating timestamp (except first)
+                if i > 0:
+                    with db_manager.engine.begin() as conn:
+                        past_time = datetime.now() - timedelta(hours=7)
+                        safe_execute(
+                            conn,
+                            """UPDATE sources
+                            SET no_effective_methods_last_seen = :past_time
+                            WHERE id = :id""",
+                            {"id": source_id, "past_time": past_time},
+                        )
+
                 processor = SourceProcessor(
                     discovery=discovery,
                     source_row=source_row,
@@ -293,10 +352,13 @@ class TestSourceProcessorPauseIntegration:
                     DiscoveryMethod.NEWSPAPER4K,
                 ]
 
-                # Simulate failure by calling _record_no_articles
-                processor._record_no_articles()
+                # Set discovery_methods_attempted to simulate methods were tried
+                processor.discovery_methods_attempted = ["rss_feed", "newspaper4k"]
 
-        # Verify source is paused after 3rd attempt (typed counter at threshold)
+                # Simulate failure by calling _record_no_articles (pass articles_new=0)
+                processor._record_no_articles(articles_new=0)
+
+        # Verify source is paused after 7th attempt (daily = 7 failures threshold)
         with db_manager.engine.connect() as conn:
             row = safe_execute(
                 conn,
@@ -306,7 +368,7 @@ class TestSourceProcessorPauseIntegration:
             assert row[0] == "paused"
             assert "automatic pause" in row[1].lower()
         state = read_source_state(db_manager.engine, source_id)
-        assert state.get("no_effective_methods_consecutive") == 3
+        assert state.get("no_effective_methods_consecutive") == 7
 
 
 if __name__ == "__main__":

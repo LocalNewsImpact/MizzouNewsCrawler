@@ -328,12 +328,13 @@ class SourceProcessor:
     def _determine_effective_methods(self) -> list[DiscoveryMethod]:
         # Check if we've hit the pause threshold for this source
         counter = self._get_counter_value()
-        if counter >= self.PAUSE_THRESHOLD:
+        pause_threshold = self._calculate_pause_threshold()
+        if counter >= pause_threshold:
             logger.info(
                 "%s has reached failure threshold (%d/%d), not attempting discovery",
                 self.source_name,
                 counter,
-                self.PAUSE_THRESHOLD,
+                pause_threshold,
             )
             return []
 
