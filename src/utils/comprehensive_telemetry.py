@@ -670,9 +670,17 @@ class ComprehensiveExtractionTelemetry:
 
                 evidence_payload = detection.get("evidence")
                 # Get detected_type and detection_method with defaults
-                # for required NOT NULL fields
-                detected_type = detection.get("status", "unknown")
-                detection_method = "content_type_detector"
+                # for required NOT NULL fields. Some classifiers may emit
+                # status/confidence without a final detected_type; coerce
+                # a sensible default to satisfy NOT NULL and keep telemetry.
+                detected_type = (
+                    detection.get("status")
+                    or detection.get("detected_type")
+                    or "unknown"
+                )
+                detection_method = (
+                    detection.get("detection_method") or "content_type_detector"
+                )
 
                 conn.execute(
                     """

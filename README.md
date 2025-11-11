@@ -2074,12 +2074,19 @@ make test-integration # Integration tests with SQLite
 make test-postgres    # PostgreSQL integration tests
 make test-all-ci      # All suites sequentially
 
-# Or use the script directly
-./scripts/run-local-ci.sh ci          # Full CI suite
-./scripts/run-local-ci.sh unit        # Unit tests
-./scripts/run-local-ci.sh integration # SQLite tests
-./scripts/run-local-ci.sh postgres    # PostgreSQL tests
-./scripts/run-local-ci.sh all         # All suites
+# Or use the unified pre-deploy validation script directly
+# Examples (preferred):
+# Run full CI-style validation (unit + sqlite integration + postgres integration in Docker):
+./scripts/pre-deploy-validation.sh all --docker-ci
+
+# Run unit-only (fast) locally (uses pytest marker filtering):
+PYTEST_K="not integration and not postgres and not slow" ./scripts/pre-deploy-validation.sh all --sqlite-only
+
+# Run integration tests with SQLite (fast, matches CI 'integration' job):
+./scripts/pre-deploy-validation.sh all --sqlite-only
+
+# Run PostgreSQL integration tests (Docker-based, matches CI 'postgres-integration' job):
+./scripts/pre-deploy-validation.sh all --docker-ci --postgres-only
 
 # Benefits:
 # ✅ Matches exact CI environment (PostgreSQL, markers, coverage)

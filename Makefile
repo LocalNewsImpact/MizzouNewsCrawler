@@ -45,32 +45,32 @@ test-ci:
 	@echo "   1. Unit + Integration tests (-m 'not postgres') with coverage"
 	@echo "   2. PostgreSQL integration tests (-m integration)"
 	@echo ""
-	./scripts/run-local-ci.sh ci
+	./scripts/pre-deploy-validation.sh all --docker-ci
 
 test-unit:
 	@echo "⚡ Running unit tests only (fast, no database)"
 	@echo "   Tests marked with: -m 'not integration and not postgres and not slow'"
 	@echo ""
-	./scripts/run-local-ci.sh unit
+	PYTEST_K="not integration and not postgres and not slow" ./scripts/pre-deploy-validation.sh all --sqlite-only
 
 test-integration:
 	@echo "🔧 Running integration tests with SQLite"
 	@echo "   Tests marked with: -m 'not postgres'"
 	@echo ""
-	./scripts/run-local-ci.sh integration
+	./scripts/pre-deploy-validation.sh all --sqlite-only
 
 test-postgres:
 	@echo "🐘 Running PostgreSQL integration tests only"
 	@echo "   Tests marked with: -m integration"
 	@echo "   Requires PostgreSQL at localhost:5432"
 	@echo ""
-	./scripts/run-local-ci.sh postgres
+	./scripts/pre-deploy-validation.sh all --docker-ci --postgres-only
 
 test-all-ci:
 	@echo "🔄 Running ALL test suites sequentially"
 	@echo "   Runs: unit → integration (SQLite) → postgres"
 	@echo ""
-	./scripts/run-local-ci.sh all
+	./scripts/pre-deploy-validation.sh all --docker-ci
 
 coverage:
 	python -m pytest --cov=src --cov-report=term-missing --cov-fail-under=45

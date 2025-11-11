@@ -611,7 +611,33 @@ class SourceProcessor:
                                 self.source_id,
                             )
                     elif feeds_tried > 0 and feeds_successful == 0:
-                        if network_errors > 0:
+                        # Determine whether we should treat this as a transient
+                        # failure. Primary condition is network_errors > 0 (the
+                        # discovery layer classified at least one attempt as
+                        # transient: timeout, connection, 401/403/429, 5xx). In
+                        # production we've observed cases where last_transient_status
+                        # is present (e.g. 429) but network_errors == 0 due to older
+                        # deployed code not incrementing the counter. Provide a
+                        # fallback so we still append a transient record in that
+                        # mismatch scenario to avoid losing historical signal.
+                        transient_status_codes = {401, 403, 429}
+                        treat_as_transient = network_errors > 0 or (
+                            last_transient_status is not None
+                            and (
+                                last_transient_status in transient_status_codes
+                                or last_transient_status >= 500
+                            )
+                        )
+                        if treat_as_transient:
+                            if (
+                                network_errors == 0
+                                and last_transient_status is not None
+                            ):
+                                logger.warning(
+                                    "RSS_PERSIST: Fallback transient classification "
+                                    "applied (status=%s, network_errors=0)",
+                                    last_transient_status,
+                                )
                             # Transient (network) failure case: ensure a record is
                             # appended every attempt and rss_consecutive_failures
                             # is reset atomically. We rely on discovery's
@@ -1311,7 +1337,7 @@ class SourceProcessor:
                             )
                         except Exception:
                             logger.exception(
-                                "Failed to update last_successful_method in sources table"
+                                "Failed to update last_successful_method in sources"
                             )  # noqa: E501
 
                     # Transient failure fallback: if we observed network errors
@@ -1374,7 +1400,7 @@ class SourceProcessor:
                                 )
                         except Exception:
                             logger.exception(
-                                "Failed to update rss_transient_failures for source_id %s",
+                                "Failed to update rss_transient_failures for source %s",
                                 self.source_id,
                             )  # noqa: E501
                 dbm.close()
