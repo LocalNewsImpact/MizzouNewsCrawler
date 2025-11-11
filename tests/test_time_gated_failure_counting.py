@@ -76,9 +76,7 @@ class TestTimeGatedFailureCounting:
         db_manager = DatabaseManager(mock_discovery.database_url)
 
         # Insert source with no previous failures
-        self._insert_test_source(
-            db_manager, source_id, host, frequency="weekly"
-        )
+        self._insert_test_source(db_manager, source_id, host, frequency="weekly")
 
         # Increment should always work for first failure
         count = mock_discovery._increment_no_effective_methods(

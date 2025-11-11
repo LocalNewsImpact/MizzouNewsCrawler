@@ -155,11 +155,9 @@ class TestTimeGatedFailurePersistence:
         # Verify PostgreSQL counter unchanged
         final_state = self._query_source_state(cloud_sql_session, source_id)
         assert final_state["counter"] == 1
-        
+
         # Timestamp should be unchanged (within 1 second tolerance)
-        time_diff = abs(
-            (final_state["last_seen"] - original_timestamp).total_seconds()
-        )
+        time_diff = abs((final_state["last_seen"] - original_timestamp).total_seconds())
         assert time_diff < 1.0
 
     def test_weekly_source_time_gate_persists(self, cloud_sql_session):
@@ -194,9 +192,7 @@ class TestTimeGatedFailurePersistence:
         state = self._query_source_state(cloud_sql_session, source_id)
         assert state["counter"] == 2
 
-    def test_weekly_source_allows_after_7_days_postgres(
-        self, cloud_sql_session
-    ):
+    def test_weekly_source_allows_after_7_days_postgres(self, cloud_sql_session):
         """Test that weekly source allows increment after 7 days in PostgreSQL."""
         source_id = f"test-weekly-allowed-{datetime.utcnow().timestamp()}"
         host = "weekly-allowed.com"
@@ -227,11 +223,9 @@ class TestTimeGatedFailurePersistence:
         # Verify PostgreSQL was updated
         state = self._query_source_state(cloud_sql_session, source_id)
         assert state["counter"] == 3
-        
+
         # Timestamp should be recent (within last minute)
-        age_seconds = (
-            datetime.utcnow() - state["last_seen"]
-        ).total_seconds()
+        age_seconds = (datetime.utcnow() - state["last_seen"]).total_seconds()
         assert age_seconds < 60
 
     def test_monthly_source_requires_30_days_postgres(self, cloud_sql_session):
@@ -343,12 +337,10 @@ class TestTimeGatedFailurePersistence:
         state3 = self._query_source_state(cloud_sql_session, source_id)
         assert state3["counter"] == 3
 
-    def test_different_frequencies_different_gates_postgres(
-        self, cloud_sql_session
-    ):
+    def test_different_frequencies_different_gates_postgres(self, cloud_sql_session):
         """Test that different frequencies have different time gates in PostgreSQL."""
         timestamp = datetime.utcnow().timestamp()
-        
+
         # Create daily, weekly, and monthly sources
         daily_id = f"test-daily-{timestamp}"
         weekly_id = f"test-weekly-{timestamp}"
@@ -488,9 +480,7 @@ class TestTimeGatedFailurePersistence:
         assert state["counter"] == 0
         # Note: reset doesn't clear timestamp, only counter
 
-    def test_concurrent_checks_handled_correctly_postgres(
-        self, cloud_sql_session
-    ):
+    def test_concurrent_checks_handled_correctly_postgres(self, cloud_sql_session):
         """Test that multiple rapid checks don't cause race conditions."""
         source_id = f"test-concurrent-{datetime.utcnow().timestamp()}"
         host = "concurrent.com"

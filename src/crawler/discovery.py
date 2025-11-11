@@ -1194,19 +1194,19 @@ class NewsDiscovery:
                         """,
                         {"id": source_id},
                     ).fetchone()
-                    
+
                     if not row:
                         return 0
-                    
+
                     current = int(row[0] or 0)
                     last_seen = row[1]  # datetime or None
-                    
+
                     # Determine publication frequency for time-gating
                     freq = None
                     if isinstance(source_meta, dict):
                         freq = source_meta.get("frequency")
                     cadence_days = parse_frequency_to_days(freq)
-                    
+
                     # Require at least one publication cycle to pass
                     # before counting another failure
                     now = datetime.utcnow()
@@ -1215,15 +1215,15 @@ class NewsDiscovery:
                         if isinstance(last_seen, str):
                             try:
                                 last_seen = datetime.fromisoformat(
-                                    last_seen.replace('Z', '+00:00')
+                                    last_seen.replace("Z", "+00:00")
                                 )
                             except Exception:
                                 last_seen = None
-                        
+
                         if last_seen:
                             time_since_last = (now - last_seen).total_seconds()
                             required_seconds = cadence_days * 86400  # days to secs
-                            
+
                             if time_since_last < required_seconds:
                                 # Not enough time passed - don't increment
                                 logger.debug(
@@ -1236,7 +1236,7 @@ class NewsDiscovery:
                                     freq or "default",
                                 )
                                 return current
-                    
+
                     # Enough time has passed (or first failure) - increment
                     next_count = current + 1
                     safe_execute(
