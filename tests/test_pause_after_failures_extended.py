@@ -682,10 +682,11 @@ class TestCounterTimestamps:
 
         # With time-gating enabled, counter only increments if enough time passed
         # Since we only waited 0.01s (not 6 hours), counter should stay at 1
-        # But timestamp should update
+        # and timestamp should NOT update (blocked by time gate)
         assert second_timestamp is not None
         assert first_timestamp is not None
-        # Both timestamps will be nearly identical since time gate blocks increment
+        assert second_timestamp == first_timestamp  # No update when blocked
+        assert state.get("no_effective_methods_consecutive") == 1  # Counter unchanged
 
 
 if __name__ == "__main__":

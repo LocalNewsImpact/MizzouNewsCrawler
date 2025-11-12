@@ -79,7 +79,7 @@ class TestPauseAfterFailures:
 
         # Manually update timestamp to simulate 6+ hours passing (bypass time gate)
         with db_manager.engine.begin() as conn:
-            past_time = datetime.now() - timedelta(hours=7)
+            past_time = datetime.utcnow() - timedelta(hours=7)
             safe_execute(
                 conn,
                 """
@@ -95,7 +95,7 @@ class TestPauseAfterFailures:
 
         # Again, manually update timestamp
         with db_manager.engine.begin() as conn:
-            past_time = datetime.now() - timedelta(hours=7)
+            past_time = datetime.utcnow() - timedelta(hours=7)
             safe_execute(
                 conn,
                 """UPDATE sources SET no_effective_methods_last_seen = :past_time
@@ -211,7 +211,7 @@ class TestPauseAfterFailures:
             # Manually update timestamp to bypass time gate for each increment
             if i > 0:
                 with db_manager.engine.begin() as conn:
-                    past_time = datetime.now() - timedelta(hours=7)
+                    past_time = datetime.utcnow() - timedelta(hours=7)
                     safe_execute(
                         conn,
                         """UPDATE sources
@@ -325,7 +325,7 @@ class TestSourceProcessorPauseIntegration:
                 # Bypass time gate by updating timestamp (except first)
                 if i > 0:
                     with db_manager.engine.begin() as conn:
-                        past_time = datetime.now() - timedelta(hours=7)
+                        past_time = datetime.utcnow() - timedelta(hours=7)
                         safe_execute(
                             conn,
                             """UPDATE sources

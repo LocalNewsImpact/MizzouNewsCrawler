@@ -3,6 +3,14 @@ Test suite for time-gated failure counting.
 
 Tests the feature that prevents over-counting failures when sources
 are checked more frequently than their publication frequency.
+
+These are SQLite-based unit tests (using `tmp_path` for a temporary
+SQLite database). They are intended to run in the default CI integration
+job (no pytest marker needed).
+
+This differentiates them from the PostgreSQL integration tests in
+`tests/integration/test_time_gated_failure_persistence.py`, which require
+@pytest.mark.integration and run in the postgres-integration CI job.
 """
 
 import json
@@ -94,7 +102,15 @@ class TestTimeGatedFailureCounting:
         db_manager.close()
 
     def test_daily_source_blocks_rapid_checks(self, mock_discovery):
-        """Daily source should block checks within 6 hours."""
+        """
+        Daily source should block checks within 6 hours (0.25 days).
+
+        According to parse_frequency_to_days(), a "daily" frequency is
+        interpreted as 0.25 days, so the time gate is 0.25 * 24 = 6 hours.
+        This test ensures that a source with "daily" frequency does not
+        increment its failure count if checked again within this 6-hour
+        window.
+        """
         source_id = "test-daily-rapid"
         host = "daily.com"
         db_manager = DatabaseManager(mock_discovery.database_url)
