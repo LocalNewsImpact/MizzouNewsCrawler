@@ -134,9 +134,7 @@ class TestTimeGatedFailurePersistence:
             try:
                 from src.models import Source as SourceCleanup
 
-                cloud_sql_session.query(SourceCleanup).filter_by(
-                    id=source_id
-                ).delete()
+                cloud_sql_session.query(SourceCleanup).filter_by(id=source_id).delete()
                 cloud_sql_session.commit()
             except Exception:
                 cloud_sql_session.rollback()
@@ -199,9 +197,7 @@ class TestTimeGatedFailurePersistence:
             try:
                 from src.models import Source as SourceCleanup
 
-                cloud_sql_session.query(SourceCleanup).filter_by(
-                    id=source_id
-                ).delete()
+                cloud_sql_session.query(SourceCleanup).filter_by(id=source_id).delete()
                 cloud_sql_session.commit()
             except Exception:
                 cloud_sql_session.rollback()
@@ -254,9 +250,7 @@ class TestTimeGatedFailurePersistence:
             try:
                 from src.models import Source as SourceCleanup
 
-                cloud_sql_session.query(SourceCleanup).filter_by(
-                    id=source_id
-                ).delete()
+                cloud_sql_session.query(SourceCleanup).filter_by(id=source_id).delete()
                 cloud_sql_session.commit()
             except Exception:
                 cloud_sql_session.rollback()
@@ -313,9 +307,7 @@ class TestTimeGatedFailurePersistence:
             try:
                 from src.models import Source as SourceCleanup
 
-                cloud_sql_session.query(SourceCleanup).filter_by(
-                    id=source_id
-                ).delete()
+                cloud_sql_session.query(SourceCleanup).filter_by(id=source_id).delete()
                 cloud_sql_session.commit()
             except Exception:
                 cloud_sql_session.rollback()
@@ -367,9 +359,7 @@ class TestTimeGatedFailurePersistence:
             try:
                 from src.models import Source as SourceCleanup
 
-                cloud_sql_session.query(SourceCleanup).filter_by(
-                    id=source_id
-                ).delete()
+                cloud_sql_session.query(SourceCleanup).filter_by(id=source_id).delete()
                 cloud_sql_session.commit()
             except Exception:
                 cloud_sql_session.rollback()
@@ -468,9 +458,7 @@ class TestTimeGatedFailurePersistence:
             try:
                 from src.models import Source as SourceCleanup
 
-                cloud_sql_session.query(SourceCleanup).filter_by(
-                    id=source_id
-                ).delete()
+                cloud_sql_session.query(SourceCleanup).filter_by(id=source_id).delete()
                 cloud_sql_session.commit()
             except Exception:
                 cloud_sql_session.rollback()
@@ -555,15 +543,9 @@ class TestTimeGatedFailurePersistence:
             try:
                 from src.models import Source as SourceCleanup
 
-                cloud_sql_session.query(SourceCleanup).filter_by(
-                    id=daily_id
-                ).delete()
-                cloud_sql_session.query(SourceCleanup).filter_by(
-                    id=weekly_id
-                ).delete()
-                cloud_sql_session.query(SourceCleanup).filter_by(
-                    id=monthly_id
-                ).delete()
+                cloud_sql_session.query(SourceCleanup).filter_by(id=daily_id).delete()
+                cloud_sql_session.query(SourceCleanup).filter_by(id=weekly_id).delete()
+                cloud_sql_session.query(SourceCleanup).filter_by(id=monthly_id).delete()
                 cloud_sql_session.commit()
             except Exception:
                 cloud_sql_session.rollback()
@@ -635,9 +617,7 @@ class TestTimeGatedFailurePersistence:
             try:
                 from src.models import Source as SourceCleanup
 
-                cloud_sql_session.query(SourceCleanup).filter_by(
-                    id=source_id
-                ).delete()
+                cloud_sql_session.query(SourceCleanup).filter_by(id=source_id).delete()
                 cloud_sql_session.commit()
             except Exception:
                 cloud_sql_session.rollback()
@@ -685,9 +665,7 @@ class TestTimeGatedFailurePersistence:
             try:
                 from src.models import Source as SourceCleanup
 
-                cloud_sql_session.query(SourceCleanup).filter_by(
-                    id=source_id
-                ).delete()
+                cloud_sql_session.query(SourceCleanup).filter_by(id=source_id).delete()
                 cloud_sql_session.commit()
             except Exception:
                 cloud_sql_session.rollback()
@@ -743,9 +721,7 @@ class TestTimeGatedFailurePersistence:
             try:
                 from src.models import Source as SourceCleanup
 
-                cloud_sql_session.query(SourceCleanup).filter_by(
-                    id=source_id
-                ).delete()
+                cloud_sql_session.query(SourceCleanup).filter_by(id=source_id).delete()
                 cloud_sql_session.commit()
             except Exception:
                 cloud_sql_session.rollback()
