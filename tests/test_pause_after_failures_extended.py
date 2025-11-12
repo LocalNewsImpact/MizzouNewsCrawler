@@ -426,7 +426,7 @@ class TestTelemetryIntegration:
                     "host": host,
                     "host_norm": host.lower(),
                     "status": "active",
-                    "metadata": json.dumps({}),
+                    "metadata": json.dumps({"frequency": "daily"}),
                     "rss_cf": 0,
                     "rss_tf": json.dumps([]),
                     "nem_cf": 0,
@@ -439,6 +439,7 @@ class TestTelemetryIntegration:
                 "url": f"https://{host}",
                 "name": host,
                 "host": host,
+                "metadata": json.dumps({"frequency": "daily"}),
             }
         )
 
@@ -473,8 +474,11 @@ class TestTelemetryIntegration:
                 DiscoveryMethod.NEWSPAPER4K,
             ]
 
-            # Simulate failure and record it (will increment counter)
-            processor._record_no_articles()
+            # Set discovery_methods_attempted to simulate methods were tried
+            processor.discovery_methods_attempted = ["rss_feed", "newspaper4k"]
+
+            # Simulate failure and record it (pass articles_new=0)
+            processor._record_no_articles(articles_new=0)
 
         # Verify typed counter was incremented
         state = read_source_state(db_manager.engine, source_id)
@@ -557,7 +561,7 @@ class TestTelemetryIntegration:
                     "host": host,
                     "host_norm": host.lower(),
                     "status": "active",
-                    "metadata": json.dumps({}),
+                    "metadata": json.dumps({"frequency": "daily"}),
                     "rss_cf": 0,
                     "rss_tf": json.dumps([]),
                     "nem_cf": 0,
@@ -570,6 +574,7 @@ class TestTelemetryIntegration:
                 "url": f"https://{host}",
                 "name": host,
                 "host": host,
+                "metadata": json.dumps({"frequency": "daily"}),
             }
         )
 
@@ -598,8 +603,11 @@ class TestTelemetryIntegration:
                 DiscoveryMethod.NEWSPAPER4K,
             ]
 
-            # Simulate failure
-            processor._record_no_articles()
+            # Set discovery_methods_attempted to simulate methods were tried
+            processor.discovery_methods_attempted = ["rss_feed", "newspaper4k"]
+
+            # Simulate failure (pass articles_new=0)
+            processor._record_no_articles(articles_new=0)
 
         # Counter should still be incremented (typed)
         state = read_source_state(db_manager.engine, source_id)
@@ -656,27 +664,29 @@ class TestCounterTimestamps:
                 },
             )
 
-        # First increment
-        discovery._increment_no_effective_methods(source_id)
+        # First increment (pass source_meta for time-gating)
+        source_meta = {"frequency": "daily"}
+        discovery._increment_no_effective_methods(source_id, source_meta)
 
         state = read_source_state(db_manager.engine, source_id)
         first_timestamp = state.get("no_effective_methods_last_seen")
 
-        # Second increment (with slight delay to ensure different timestamp)
+        # Second increment with delay to exceed time gate (6 hours for daily)
         import time
 
-        time.sleep(0.01)
-        discovery._increment_no_effective_methods(source_id)
+        time.sleep(0.01)  # Small delay for test
+        discovery._increment_no_effective_methods(source_id, source_meta)
 
         state = read_source_state(db_manager.engine, source_id)
         second_timestamp = state.get("no_effective_methods_last_seen")
 
-        # Timestamps should be different (second should be later)
-        assert (
-            second_timestamp is not None
-            and first_timestamp is not None
-            and second_timestamp > first_timestamp
-        )
+        # With time-gating enabled, counter only increments if enough time passed
+        # Since we only waited 0.01s (not 6 hours), counter should stay at 1
+        # and timestamp should NOT update (blocked by time gate)
+        assert second_timestamp is not None
+        assert first_timestamp is not None
+        assert second_timestamp == first_timestamp  # No update when blocked
+        assert state.get("no_effective_methods_consecutive") == 1  # Counter unchanged
 
 
 if __name__ == "__main__":

@@ -1163,10 +1163,21 @@ class NewsDiscovery:
     def _increment_no_effective_methods(
         self,
         source_id: str | None,
+        source_meta: dict | None = None,
     ) -> int:
         """Increment consecutive 'no effective methods' counter.
 
-        Returns the new count after incrementing.
+        Only increments if sufficient time has passed since last failure
+        based on the source's publication frequency. This prevents
+        over-counting when a source is checked multiple times within
+        its normal publication window.
+
+        Args:
+            source_id: The source identifier
+            source_meta: Source metadata containing frequency info
+
+        Returns the new count after incrementing (or current count if
+        not enough time has passed).
         """
         if not source_id:
             return 0
@@ -1176,15 +1187,58 @@ class NewsDiscovery:
                 with dbm.engine.begin() as conn:
                     row = safe_execute(
                         conn,
-                        (
-                            "SELECT no_effective_methods_consecutive "
-                            "FROM sources WHERE id = :id"
-                        ),
+                        """
+                        SELECT no_effective_methods_consecutive,
+                               no_effective_methods_last_seen
+                        FROM sources WHERE id = :id
+                        """,
                         {"id": source_id},
                     ).fetchone()
-                    current = int(row[0] or 0) if row else 0
+
+                    if not row:
+                        return 0
+
+                    current = int(row[0] or 0)
+                    last_seen = row[1]  # datetime or None
+
+                    # Determine publication frequency for time-gating
+                    freq = None
+                    if isinstance(source_meta, dict):
+                        freq = source_meta.get("frequency")
+                    cadence_days = parse_frequency_to_days(freq)
+
+                    # Require at least one publication cycle to pass
+                    # before counting another failure
+                    now = datetime.utcnow()
+                    if last_seen:
+                        # Coerce to datetime if needed
+                        if isinstance(last_seen, str):
+                            try:
+                                last_seen = datetime.fromisoformat(
+                                    last_seen.replace("Z", "+00:00")
+                                )
+                            except Exception:
+                                last_seen = None
+
+                        if last_seen:
+                            time_since_last = (now - last_seen).total_seconds()
+                            required_seconds = cadence_days * 86400  # days to secs
+
+                            if time_since_last < required_seconds:
+                                # Not enough time passed - don't increment
+                                logger.debug(
+                                    "Skipping failure increment for %s: only "
+                                    "%.1f hours since last failure (need %.1f "
+                                    "hours based on %s frequency)",
+                                    source_id,
+                                    time_since_last / 3600,
+                                    required_seconds / 3600,
+                                    freq or "default",
+                                )
+                                return current
+
+                    # Enough time has passed (or first failure) - increment
                     next_count = current + 1
-                    seen_dt = datetime.utcnow()
                     safe_execute(
                         conn,
                         """
@@ -1195,17 +1249,17 @@ class NewsDiscovery:
                         """,
                         {
                             "cnt": next_count,
-                            "seen": seen_dt,
+                            "seen": now,
                             "id": source_id,
                         },
                     )
-                    # Bridge legacy JSON metadata update for tests asserting this key
+                    # Bridge legacy JSON metadata update for tests
                     try:
                         self._update_source_meta(
                             source_id,
                             {
                                 "no_effective_methods_consecutive": next_count,
-                                "no_effective_methods_last_seen": seen_dt.isoformat(),
+                                "no_effective_methods_last_seen": now.isoformat(),
                             },
                             conn=conn,
                         )

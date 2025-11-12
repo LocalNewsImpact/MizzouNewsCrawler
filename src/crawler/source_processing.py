@@ -24,7 +24,12 @@ logger = logging.getLogger(__name__)
 class SourceProcessor:
     """Coordinated processor for the discovery pipeline per source."""
 
+    # Base threshold for consecutive failures before auto-pause.
+    # This is multiplied by frequency-based factors (see _calculate_pause_threshold).
     PAUSE_THRESHOLD = 3  # Consecutive failures before auto-pause
+
+    # Accelerated threshold for technical/persistent errors (4xx/5xx)
+    TECHNICAL_ERROR_THRESHOLD = 2  # Pause faster for persistent technical issues
 
     discovery: Any
     source_row: pd.Series
@@ -54,10 +59,12 @@ class SourceProcessor:
         except Exception as exc:  # pragma: no cover - defensive
             return self._handle_global_failure(exc)
 
-        if not all_discovered:
-            self._record_no_articles()
-
         stats = self._store_candidates(all_discovered)
+
+        if not all_discovered:
+            # Pass articles_new from stats to check if ANY new articles discovered
+            self._record_no_articles(stats.get("articles_new", 0))
+
         return self._build_result(all_discovered, stats)
 
     # ------------------------------------------------------------------
@@ -250,15 +257,84 @@ class SourceProcessor:
             return 0
         return self.source_meta.get("no_effective_methods_consecutive", 0)
 
+    def _calculate_pause_threshold(self) -> int:
+        """Calculate adaptive pause threshold based on publishing frequency.
+
+        Logic:
+        - Daily publications: 7 consecutive failures (1 week of no content)
+        - Weekly publications: 5 consecutive failures (5 weeks)
+        - Bi-weekly: 5 consecutive failures (10 weeks)
+        - Monthly: 3 consecutive failures (3 months)
+        - Unknown/default: 3 consecutive failures
+
+        Returns:
+            Number of consecutive failures before auto-pause
+        """
+        try:
+            from .scheduling import parse_frequency_to_days
+
+            freq = None
+            if isinstance(self.source_meta, dict):
+                freq = self.source_meta.get("frequency")
+
+            cadence_days = parse_frequency_to_days(freq)
+
+            # Map cadence to failure threshold
+            if cadence_days <= 1:  # Daily or more frequent
+                return 7  # Allow 1 week of failures
+            elif cadence_days <= 7:  # Weekly
+                return 5  # Allow 5 weeks
+            elif cadence_days <= 14:  # Bi-weekly
+                return 5  # Allow ~10 weeks
+            elif cadence_days <= 30:  # Monthly
+                return 3  # Allow 3 months
+            else:  # Less frequent or unknown
+                return 3  # Conservative default
+        except Exception:
+            return self.PAUSE_THRESHOLD  # Fallback to base threshold
+
+    def _has_persistent_technical_errors(self) -> tuple[bool, str | None]:
+        """Check if source has persistent technical/network errors.
+
+        Returns:
+            (has_persistent_errors, error_description)
+        """
+        rss_summary = getattr(self, "rss_summary", {}) or {}
+        network_errors = rss_summary.get("network_errors", 0)
+        last_status = rss_summary.get("last_transient_status")
+
+        # Check if we have HTTP errors (4xx/5xx) indicating technical barriers
+        if network_errors > 0 and last_status:
+            if last_status == 401:
+                return True, "401 Unauthorized (authentication required)"
+            elif last_status == 403:
+                return True, "403 Forbidden (access blocked/bot detection)"
+            elif last_status == 429:
+                return True, "429 Too Many Requests (rate limiting)"
+            elif last_status >= 500:
+                return True, f"{last_status} Server Error (site technical issues)"
+            elif last_status == 408:
+                return True, "408 Timeout (persistent connectivity issues)"
+
+        # Check for consistent network failures without any success
+        feeds_tried = rss_summary.get("feeds_tried", 0)
+        feeds_successful = rss_summary.get("feeds_successful", 0)
+
+        if feeds_tried > 0 and feeds_successful == 0 and network_errors > 0:
+            return True, f"Network failures ({network_errors} errors, 0 successes)"
+
+        return False, None
+
     def _determine_effective_methods(self) -> list[DiscoveryMethod]:
         # Check if we've hit the pause threshold for this source
         counter = self._get_counter_value()
-        if counter >= self.PAUSE_THRESHOLD:
+        pause_threshold = self._calculate_pause_threshold()
+        if counter >= pause_threshold:
             logger.info(
                 "%s has reached failure threshold (%d/%d), not attempting discovery",
                 self.source_name,
                 counter,
-                self.PAUSE_THRESHOLD,
+                pause_threshold,
             )
             return []
 
@@ -1201,7 +1277,7 @@ class SourceProcessor:
     # ------------------------------------------------------------------
     # Result + telemetry helpers
     # ------------------------------------------------------------------
-    def _record_no_articles(self) -> None:
+    def _record_no_articles(self, articles_new: int) -> None:
         telemetry = getattr(self.discovery, "telemetry", None)
         if telemetry and self.operation_id:
             content_error = Exception("No articles discovered from any method")
@@ -1217,55 +1293,132 @@ class SourceProcessor:
             except Exception:
                 pass
 
-        # Track "no effective methods" failures when discovery attempts yield
-        # no articles. This applies to:
-        # 1. New sources with no historical data (cold start)
-        # 2. Sources with historical data but all methods failed (degraded)
-        article_count = self.discovery._get_existing_article_count(self.source_id)
-        # If we had transient network errors this cycle, don't treat it as a
-        # "no effective methods" signal. Network blocks (429/403/5xx) are
-        # reliability issues, not method ineffectiveness. Allow continued
-        # attempts until either transient threshold marks rss_missing or a
-        # non-network content failure pattern emerges.
+        # Track "no effective methods" failures when ALL discovery attempts
+        # yield zero new articles this cycle. This signals systematic failure
+        # (paywall, bot blocking, site structure change, broken methods).
+        #
+        # Key distinction:
+        # - articles_new == 0: No new URLs discovered THIS CYCLE
+        # - article_count == 0: No historical articles (different meaning)
+        #
+        # Adaptive thresholds based on:
+        # 1. Publishing frequency (daily sources get more attempts)
+        # 2. Error type (persistent 4xx/5xx errors trigger faster pause)
+
+        # Check for persistent technical errors that accelerate pause
+        has_tech_errors, error_desc = self._has_persistent_technical_errors()
+
         try:
             network_errors = int((self.rss_summary or {}).get("network_errors", 0))
         except Exception:
             network_errors = 0
 
-        if article_count == 0 and network_errors == 0:
-            # Increment consecutive failure counter
+        # Check if methods were actually attempted
+        methods_attempted = len(self.discovery_methods_attempted) > 0
+
+        # Determine appropriate threshold based on source characteristics
+        if has_tech_errors:
+            # Use accelerated threshold for persistent technical barriers
+            pause_threshold = self.TECHNICAL_ERROR_THRESHOLD
+            threshold_reason = f"technical errors ({error_desc})"
+        else:
+            # Use frequency-based threshold for content failures
+            pause_threshold = self._calculate_pause_threshold()
+            if isinstance(self.source_meta, dict):
+                freq = self.source_meta.get("frequency", "unknown")
+            else:
+                freq = "unknown"
+            threshold_reason = f"frequency-based ({freq})"
+
+        if methods_attempted and articles_new == 0 and network_errors == 0:
+            # Increment consecutive failure counter (with time-gating)
             failure_count = self.discovery._increment_no_effective_methods(
-                self.source_id
+                self.source_id,
+                self.source_meta,
             )
             logger.warning(
-                "No effective methods and zero articles captured from %s "
-                "(failure count: %d/3)",
+                "No articles discovered from %s this cycle despite "
+                "trying methods %s (consecutive failure count: %d/%d, "
+                "threshold: %s)",
                 self.source_name,
+                self.discovery_methods_attempted,
                 failure_count,
+                pause_threshold,
+                threshold_reason,
             )
 
-            # Pause after 3 consecutive failures
-            if failure_count >= 3:
+            # Pause when threshold reached
+            if failure_count >= pause_threshold:
+                pause_reason_parts = [
+                    (
+                        f"Automatic pause after {failure_count} "
+                        f"consecutive cycles with no articles discovered"
+                    )
+                ]
+                if has_tech_errors:
+                    pause_reason_parts.append(
+                        f"Technical errors detected: {error_desc}"
+                    )
+                pause_reason_parts.append(
+                    f"Methods attempted: "
+                    f"{', '.join(self.discovery_methods_attempted)}"
+                )
+
+                self.discovery._pause_source(
+                    self.source_id,
+                    " | ".join(pause_reason_parts),
+                    host=self.source_name,
+                )
+                logger.warning(
+                    "Source %s paused after %d consecutive cycles with "
+                    "zero article discovery (threshold: %d for %s)",
+                    self.source_name,
+                    failure_count,
+                    pause_threshold,
+                    threshold_reason,
+                )
+        elif methods_attempted and articles_new == 0 and has_tech_errors:
+            # Technical errors present - track with accelerated threshold
+            failure_count = self.discovery._increment_no_effective_methods(
+                self.source_id,
+                self.source_meta,
+            )
+            logger.warning(
+                "Technical errors blocking %s: %s (failure count: "
+                "%d/%d, accelerated threshold)",
+                self.source_name,
+                error_desc,
+                failure_count,
+                pause_threshold,
+            )
+
+            if failure_count >= pause_threshold:
                 self.discovery._pause_source(
                     self.source_id,
                     (
-                        "Automatic pause after 3 consecutive 'no effective "
-                        "methods' attempts"
+                        f"Automatic pause after {failure_count} "
+                        f"consecutive technical errors: {error_desc}"
                     ),
                     host=self.source_name,
                 )
                 logger.warning(
-                    "Source %s paused after %d consecutive failures "
-                    "with no captures",
+                    "Source %s paused due to persistent technical "
+                    "errors after %d attempts",
                     self.source_name,
                     failure_count,
                 )
-        elif article_count == 0 and network_errors > 0:
+        elif articles_new == 0 and network_errors > 0:
             logger.info(
                 (
-                    "Network errors encountered for %s with zero articles; "
-                    "skipping no_effective_methods increment"
+                    "Network errors encountered for %s with zero new "
+                    "articles; skipping no_effective_methods increment "
+                    "(transient failure)"
                 ),
+                self.source_name,
+            )
+        elif not methods_attempted:
+            logger.debug(
+                "No discovery methods attempted for %s (likely at pause " "threshold)",
                 self.source_name,
             )
 

@@ -1125,11 +1125,22 @@ class TestEdgeCases:
             assert result["content"] is None
 
     def test_network_timeout_handling(self, extractor):
-        """Test handling of network timeouts."""
-        with patch.object(
-            extractor.session, "get", side_effect=requests.Timeout("Timeout")
+        """Test handling of network timeouts without cached HTML."""
+        with (
+            patch.object(
+                extractor.session, "get", side_effect=requests.Timeout("Timeout")
+            ),
+            patch.object(extractor, "_get_domain_session") as mock_session,
         ):
-            result = extractor._extract_with_beautifulsoup("https://test.com")
+            # Mock domain session to also raise timeout
+            mock_session.return_value.get.side_effect = requests.Timeout("Timeout")
+
+            # Call with no cached HTML - should handle timeout gracefully
+            result = extractor._extract_with_beautifulsoup(
+                "https://test.com", html=None
+            )
+
+            # Should return empty dict when network fails
             assert result == {}
 
     def test_invalid_html_handling(self, extractor):
