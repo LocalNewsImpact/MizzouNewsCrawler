@@ -4,10 +4,12 @@ This test reproduces the production issue where sources with 0 articles
 don't have the no_effective_methods_consecutive counter set.
 """
 
+from datetime import datetime, timedelta
 from unittest.mock import patch
 
 import pandas as pd
 import pytest
+from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
 
 from src.crawler.discovery import NewsDiscovery
@@ -79,12 +81,22 @@ def test_failure_counter_set_when_no_articles_found(cloud_sql_engine):
             operation_id="test-op",
         )
 
+        # Create mock functions that populate discovery_methods_attempted
+        def mock_try_rss():
+            processor.discovery_methods_attempted.append("rss_feed")
+            return ([], {}, False, False)
+
+        def mock_try_newspaper(skip_rss=False, rss_attempted=False):
+            processor.discovery_methods_attempted.append("newspaper4k")
+            return []
+
         # Mock the discovery methods to return empty results
-        with patch.object(processor, "_try_rss", return_value=([], {}, False, False)):
-            with patch.object(processor, "_try_newspaper", return_value=[]):
-                with patch.object(processor, "_try_storysniffer", return_value=[]):
-                    # Process should find nothing
-                    result = processor.process()
+        with patch.object(processor, "_try_rss", side_effect=mock_try_rss):
+            with patch.object(
+                processor, "_try_newspaper", side_effect=mock_try_newspaper
+            ):
+                # Process should find nothing
+                result = processor.process()
 
         # Verify result shows no articles
         assert result.articles_found == 0
@@ -103,6 +115,17 @@ def test_failure_counter_set_when_no_articles_found(cloud_sql_engine):
         print(f"Column counter value: {counter}")
         assert counter == 1, f"Counter should be 1, got {counter}"
 
+        # Simulate 25 hours passing to satisfy daily cadence time-gating
+        past_time = datetime.utcnow() - timedelta(hours=25)
+        session.execute(
+            text(
+                "UPDATE sources SET no_effective_methods_last_seen = :ts "
+                "WHERE id = :id"
+            ),
+            {"ts": past_time, "id": source_id},
+        )
+        session.commit()
+
         # Run again to verify it increments
         processor2 = SourceProcessor(
             discovery=discovery,
@@ -111,10 +134,19 @@ def test_failure_counter_set_when_no_articles_found(cloud_sql_engine):
             operation_id="test-op-2",
         )
 
-        with patch.object(processor2, "_try_rss", return_value=([], {}, False, False)):
-            with patch.object(processor2, "_try_newspaper", return_value=[]):
-                with patch.object(processor2, "_try_storysniffer", return_value=[]):
-                    processor2.process()
+        def mock_try_rss2():
+            processor2.discovery_methods_attempted.append("rss_feed")
+            return ([], {}, False, False)
+
+        def mock_try_newspaper2(skip_rss=False, rss_attempted=False):
+            processor2.discovery_methods_attempted.append("newspaper4k")
+            return []
+
+        with patch.object(processor2, "_try_rss", side_effect=mock_try_rss2):
+            with patch.object(
+                processor2, "_try_newspaper", side_effect=mock_try_newspaper2
+            ):
+                processor2.process()
 
         session.expire_all()
         source = session.query(Source).filter_by(id=source_id).first()
