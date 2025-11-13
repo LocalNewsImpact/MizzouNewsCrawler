@@ -288,7 +288,7 @@ class ContentTypeDetector:
         matches: dict[str, list[str]] = {}
         detected_services: set[str] = set()
         wire_byline_found = False
-        
+
         # Check author field for wire service patterns (STRONG signal)
         author = (metadata or {}).get("byline", "") if metadata else ""
         if author:
@@ -478,13 +478,7 @@ class ContentTypeDetector:
                 if first_appeared_match:
                     pub = first_appeared_match.group(1).strip()
                     # Don't mark as syndicated if the current host is the original publisher
-                    # Map some common affiliates to their domains for a host check
-                    affiliate_domain_map = {
-                        "kansas reflector": ["kansasreflector.com"],
-                        "kansasreflector": ["kansasreflector.com"],
-                        "missouri independent": ["missouriindependent.com", "missouriindependent.org"],
-                        "the missouri independent": ["missouriindependent.com", "missouriindependent.org"],
-                    }
+                    # Host-check: treat the detected publisher as the original source
                     pub_lower = pub.lower()
                     host_is_pub = False
                     if "kansas" in pub_lower and "reflector" in pub_lower:
@@ -502,7 +496,9 @@ class ContentTypeDetector:
                             or pub_lower in url_lower
                         )
                     if not host_is_pub:
-                        content_matches.append(f"States Newsroom (first_appeared: {pub})")
+                        content_matches.append(
+                            f"States Newsroom (first_appeared: {pub})"
+                        )
                         detected_services.add("States Newsroom")
                         wire_byline_found = True
 
@@ -540,15 +536,18 @@ class ContentTypeDetector:
                 (r"told\s+(CNN)", "CNN"),
                 (r"told\s+(States Newsroom)", "States Newsroom"),
                 (r"told\s+(WAVE|Wave|WAVE3)", "WAVE"),
-                (r"told\s+(The Missouri Independent|Missouri Independent)", "The Missouri Independent"),
+                (
+                    r"told\s+(The Missouri Independent|Missouri Independent)",
+                    "The Missouri Independent",
+                ),
                 (r"told\s+(kansas\s*reflector|kansasreflector)", "States Newsroom"),
             ]
-            
+
             for pattern, service_name in told_patterns:
                 if re.search(pattern, content, re.IGNORECASE):
                     content_matches.append(f"{service_name} (attribution)")
                     detected_services.add(service_name)
-            
+
             for pattern, marker_type in copyright_patterns:
                 match = re.search(pattern, closing, re.IGNORECASE)
                 if match:
@@ -587,51 +586,34 @@ class ContentTypeDetector:
                     if service_name == "NPR" and "npr.org" in url_lower:
                         is_own_source = True
                     elif (
-                        service_name == "Associated Press"
-                        and "apnews.com" in url_lower
+                        service_name == "Associated Press" and "apnews.com" in url_lower
                     ):
                         is_own_source = True
-                    elif (
-                        service_name == "Reuters"
-                        and "reuters.com" in url_lower
-                    ):
+                    elif service_name == "Reuters" and "reuters.com" in url_lower:
                         is_own_source = True
-                    elif (
-                        service_name == "CNN" and "cnn.com" in url_lower
-                    ):
+                    elif service_name == "CNN" and "cnn.com" in url_lower:
                         is_own_source = True
-                    elif (
-                        service_name == "Bloomberg"
-                        and "bloomberg.com" in url_lower
-                    ):
+                    elif service_name == "Bloomberg" and "bloomberg.com" in url_lower:
                         is_own_source = True
                     elif (
                         service_name == "States Newsroom"
                         and "statesnewsroom.org" in url_lower
                     ):
                         is_own_source = True
-                    elif (
-                        service_name == "States Newsroom"
-                        and (
-                            "statesnewsroom.org" in url_lower
-                            or "kansasreflector.com" in url_lower
-                            or "missouriindependent.org" in url_lower
-                            or "missouriindependent.com" in url_lower
-                        )
+                    elif service_name == "States Newsroom" and (
+                        "statesnewsroom.org" in url_lower
+                        or "kansasreflector.com" in url_lower
+                        or "missouriindependent.org" in url_lower
+                        or "missouriindependent.com" in url_lower
                     ):
                         is_own_source = True
-                    elif (
-                        service_name == "The Missouri Independent"
-                        and (
-                            "missouriindependent.org" in url_lower
-                            or "missouriindependent.com" in url_lower
-                        )
+                    elif service_name == "The Missouri Independent" and (
+                        "missouriindependent.org" in url_lower
+                        or "missouriindependent.com" in url_lower
                     ):
                         is_own_source = True
-                    elif (
-                        service_name == "WAVE" and (
-                            "wave3.com" in url_lower or "wave3" in url_lower
-                        )
+                    elif service_name == "WAVE" and (
+                        "wave3.com" in url_lower or "wave3" in url_lower
                     ):
                         is_own_source = True
 
