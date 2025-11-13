@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/tmp/scan_wire.py", line 8, in <module>
+    from backend.app.lifecycle import DatabaseManager
+ModuleNotFoundError: No module named 'backend'
+command terminated with exit code 1

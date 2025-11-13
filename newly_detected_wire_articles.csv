@@ -1,0 +1,13 @@
+Querying articles...
+Analyzing 2000 articles...
+id,url,title,author,source,status,reason
+c8eeb993-36e7-4646-a5e4-c7675cf3bc93,"https://www.westplainsdailyquill.net/stories/no-10-texas-looks-to-stay-in-college-football-playoff-hunt-with-next-game-at-no-5-georgia,203060",No. 10 Texas looks to stay in College Football Playoff hunt with next game at No,Mark Rosner,West Plains Daily Quill,labeled,wire_byline
+f2937f4e-b51a-4cd2-9da6-7f65af585d44,https://www.ksdk.com/article/syndication/associatedpress/speaker-johnson-says-house-will-return-to-washington-for-voting-on-shutdown-deal/616-aaa6e2ca-6951-411b-b480-db77e579dab2,"Senate approves bill to end the shutdown, sending it to the House","Mary Clare Jalonick, Lisa Mascaro",KSDK NBC,labeled,wire_byline
+a7a8b2c5-1487-44a1-90dc-a5ba99c66ab6,https://www.ky3.com/2025/11/11/trump-hosts-syrias-president-first-of-its-kind-meeting-white-house,Trump hosts Syria’s president for a first-of-its-kind meeting at the White House,Seung Min Kim,KSPR/KY3,labeled,wire_byline
+7dab0d41-9d3c-45f0-ad1a-992ecb552768,"https://www.westplainsdailyquill.net/stories/ap-sports-summarybrief-at-1231-am-est,202978",AP Sports SummaryBrief at 12:31 a.m. EST,,West Plains Daily Quill,labeled,wire_byline
+12312e7f-7e11-403e-9bea-7754bc031d71,https://www.kfvs12.com/2025/11/09/former-nfl-commissioner-paul-tagliabue-dies-84-reports-say,"Paul Tagliabue, NFL commissioner who led an era of riches and expansion, dies at","Barry Wilner, Rob Maaddi Pro Football",KFVS 12,labeled,wire_byline
+c462e845-cec6-4ec0-bb39-ea913f85042a,"https://www.westplainsdailyquill.net/stories/ap-news-summary-at-735-am-est,202883",AP News Summary at 7:35 a.m. EST,,West Plains Daily Quill,labeled,wire_byline
+d5a3c3b1-d4e7-4025-96b0-f302ac072736,"https://www.westplainsdailyquill.net/stories/taliah-scott-scores-29-bella-fontleroy-adds-26-for-no-16-baylor-women-in-76-63-win-over,202947","Taliah Scott scores 29, Bella Fontleroy adds 26 for No. 16 Baylor women in 76-63",,West Plains Daily Quill,labeled,wire_byline
+
+Found 7 articles that would be newly detected as WIRE
+

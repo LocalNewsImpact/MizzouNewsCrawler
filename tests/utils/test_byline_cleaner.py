@@ -33,6 +33,43 @@ def test_clean_byline_detects_wire_service_returns_metadata():
     assert result["is_wire_content"] is True
 
 
+def test_clean_byline_detects_kansas_reflector():
+    cleaner = BylineCleaner(enable_telemetry=False)
+
+    result = cleaner.clean_byline("Kansas Reflector", return_json=True)
+
+    assert isinstance(result, dict)
+    assert result["authors"] == []
+    # Kansas Reflector is a States Newsroom affiliate; normalize to 'States Newsroom'
+    assert result["wire_services"] == ["States Newsroom"]
+    assert result["primary_wire_service"] == "States Newsroom"
+    assert result["is_wire_content"] is True
+
+
+def test_clean_byline_detects_missouri_independent():
+    cleaner = BylineCleaner(enable_telemetry=False)
+
+    result = cleaner.clean_byline("The Missouri Independent", return_json=True)
+
+    assert isinstance(result, dict)
+    assert result["authors"] == []
+    assert result["wire_services"] == ["The Missouri Independent"]
+    assert result["primary_wire_service"] == "The Missouri Independent"
+    assert result["is_wire_content"] is True
+
+
+def test_clean_byline_detects_wave():
+    cleaner = BylineCleaner(enable_telemetry=False)
+
+    result = cleaner.clean_byline("WAVE", return_json=True)
+
+    assert isinstance(result, dict)
+    assert result["authors"] == []
+    assert result["wire_services"] == ["WAVE"]
+    assert result["primary_wire_service"] == "WAVE"
+    assert result["is_wire_content"] is True
+
+
 def test_clean_byline_extracts_special_contributor():
     cleaner = BylineCleaner(enable_telemetry=False)
 

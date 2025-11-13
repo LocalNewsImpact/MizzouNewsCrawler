@@ -1,0 +1,57 @@
+F1112 07:27:25.930878   61398 cred.go:145] print credential failed with error: Failed to retrieve access token:: failure while executing gcloud, with args [config config-helper --format=json]: exit status 1 (err: ERROR: (gcloud.config.config-helper) There was a problem refreshing your current auth tokens: Reauthentication failed. cannot prompt during non-interactive execution.
+Please run:
+
+  $ gcloud auth login
+
+to obtain new credentials.
+
+If you have already logged in with a different account, run:
+
+  $ gcloud config set account ACCOUNT
+
+to select an already authenticated account to use.
+)
+E1112 07:27:25.933590   61397 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://136.114.158.57/api?timeout=32s\": getting credentials: exec: executable /opt/homebrew/share/google-cloud-sdk/bin/gke-gcloud-auth-plugin failed with exit code 1"
+F1112 07:27:26.938352   61447 cred.go:145] print credential failed with error: Failed to retrieve access token:: failure while executing gcloud, with args [config config-helper --format=json]: exit status 1 (err: ERROR: (gcloud.config.config-helper) There was a problem refreshing your current auth tokens: Reauthentication failed. cannot prompt during non-interactive execution.
+Please run:
+
+  $ gcloud auth login
+
+to obtain new credentials.
+
+If you have already logged in with a different account, run:
+
+  $ gcloud config set account ACCOUNT
+
+to select an already authenticated account to use.
+)
+E1112 07:27:26.939278   61397 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://136.114.158.57/api?timeout=32s\": getting credentials: exec: executable /opt/homebrew/share/google-cloud-sdk/bin/gke-gcloud-auth-plugin failed with exit code 1"
+F1112 07:27:27.820655   61474 cred.go:145] print credential failed with error: Failed to retrieve access token:: failure while executing gcloud, with args [config config-helper --format=json]: exit status 1 (err: ERROR: (gcloud.config.config-helper) There was a problem refreshing your current auth tokens: Reauthentication failed. cannot prompt during non-interactive execution.
+Please run:
+
+  $ gcloud auth login
+
+to obtain new credentials.
+
+If you have already logged in with a different account, run:
+
+  $ gcloud config set account ACCOUNT
+
+to select an already authenticated account to use.
+)
+E1112 07:27:27.821435   61397 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://136.114.158.57/api?timeout=32s\": getting credentials: exec: executable /opt/homebrew/share/google-cloud-sdk/bin/gke-gcloud-auth-plugin failed with exit code 1"
+F1112 07:27:28.720071   61495 cred.go:145] print credential failed with error: Failed to retrieve access token:: failure while executing gcloud, with args [config config-helper --format=json]: exit status 1 (err: ERROR: (gcloud.config.config-helper) There was a problem refreshing your current auth tokens: Reauthentication failed. cannot prompt during non-interactive execution.
+Please run:
+
+  $ gcloud auth login
+
+to obtain new credentials.
+
+If you have already logged in with a different account, run:
+
+  $ gcloud config set account ACCOUNT
+
+to select an already authenticated account to use.
+)
+E1112 07:27:28.720986   61397 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://136.114.158.57/api?timeout=32s\": getting credentials: exec: executable /opt/homebrew/share/google-cloud-sdk/bin/gke-gcloud-auth-plugin failed with exit code 1"
+Unable to connect to the server: getting credentials: exec: executable /opt/homebrew/share/google-cloud-sdk/bin/gke-gcloud-auth-plugin failed with exit code 1
