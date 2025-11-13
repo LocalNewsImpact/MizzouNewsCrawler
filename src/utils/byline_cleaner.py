@@ -175,6 +175,20 @@ class BylineCleaner:
         "hearst",
         "scripps",
         "sinclair",
+        "afp",
+        "agence france-presse",
+        "agence france presse",
+    # 'Kansas Reflector' is a States Newsroom affiliate — treat via
+    # States Newsroom mapping instead of as an independent wire service
+        "the missouri independent",
+        "missouri independent",
+        "missouriindependent",
+        "wave",
+        "wave3",
+        "wave3.com",
+        "states newsroom",
+        "states-newsroom",
+        "statesnewsroom",
     }
 
     # Normalization mapping for wire services to canonical names
@@ -191,6 +205,16 @@ class BylineCleaner:
         "bloomberg": "Bloomberg",
         "npr": "NPR",
         "pbs": "PBS",
+        "states newsroom": "States Newsroom",
+        "states-newsroom": "States Newsroom",
+        "statesnewsroom": "States Newsroom",
+    "kansas reflector": "States Newsroom",
+    "kansasreflector": "States Newsroom",
+        "the missouri independent": "The Missouri Independent",
+        "missouri independent": "The Missouri Independent",
+        "missouriindependent": "The Missouri Independent",
+        "wave": "WAVE",
+        "wave3": "WAVE",
     }
     # Journalism-specific nouns that are never names
     JOURNALISM_NOUNS = {
@@ -393,7 +417,12 @@ class BylineCleaner:
         "gannett",
         "hearst",
         "scripps",
-        "sinclair",
+    "sinclair",
+    "wave",
+    "missouri independent",
+        "states newsroom",
+        "statesnewsroom",
+        "states-newsroom",
     }
 
     # Patterns for common byline formats
@@ -1043,6 +1072,13 @@ class BylineCleaner:
             (r"\bbloomberg\s*$", "Bloomberg"),
             (r"\bcnn\s*$", "CNN NewsSource"),
             (r"\bnpr\s*$", "NPR"),
+            (r"\bstates\s+newsroom\s*$", "States Newsroom"),
+            (r"\bkansas\s+reflector\s*$", "States Newsroom"),
+            (r"\bkansasreflector\s*$", "States Newsroom"),
+            (r"\b(the\s+)?missouri\s+independent\s*$", "The Missouri Independent"),
+            (r"\bmissouriindependent\s*$", "The Missouri Independent"),
+            (r"\bwave\s*$", "WAVE"),
+            (r"\bwave3\s*$", "WAVE"),
         ]
 
         for pattern, service_name in syndicated_suffix_patterns:
@@ -2218,6 +2254,14 @@ class BylineCleaner:
                     wire_service_names.update(["cnn", "cnn newsource"])
                 elif service.lower() == "abc news":
                     wire_service_names.update(["abc"])
+                elif service.lower() == "states newsroom":
+                    # Include common States Newsroom affiliate names (e.g., Kansas Reflector)
+                    wire_service_names.update([
+                        "kansas reflector",
+                        "the kansas reflector",
+                        "kansasreflector",
+                        "states newsroom",
+                    ])
 
             # Filter out wire service names from authors
             filtered_authors = []
