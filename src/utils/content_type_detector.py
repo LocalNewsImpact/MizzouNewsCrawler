@@ -714,11 +714,16 @@ class ContentTypeDetector:
         # Strong URL patterns are sufficient alone
         if strong_url_match:
             pass  # Continue to return result
-        # Section patterns are sufficient for non-major-national sites
+        # Section patterns require additional content evidence
         elif section_url_match and not is_major_national:
-            # National/world sections on local sites = wire content
-            if not detected_services:
-                detected_services.add("Unknown wire service")
+            # National/world sections on local sites suggest wire, but need confirmation
+            if has_strong_evidence:
+                # Have content evidence to support wire detection
+                if not detected_services:
+                    detected_services.add("Unknown wire service")
+            else:
+                # Section URL alone is not enough without content evidence
+                return None
         # Otherwise require strong content/byline evidence
         elif not has_strong_evidence:
             return None
