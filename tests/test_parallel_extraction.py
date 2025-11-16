@@ -132,6 +132,11 @@ def test_parallel_extraction_no_duplicates(cloud_sql_engine):
         processed_by_thread1 = set()
         processed_by_thread2 = set()
 
+        import time
+
+        # Use a barrier to ensure threads start at the same time
+        start_barrier = threading.Barrier(2)
+
         def mock_extraction_worker(processed_set):
             """Mock worker that simulates extraction by selecting candidate links."""
             # Create a new session for this thread from the engine
@@ -139,6 +144,9 @@ def test_parallel_extraction_no_duplicates(cloud_sql_engine):
             worker_session = SessionLocal()
 
             try:
+                # Wait for both threads to be ready before starting
+                start_barrier.wait()
+
                 # This simulates _process_batch selecting candidate links
                 # In the real implementation, this would call
                 # extractor.extract_content()
@@ -152,7 +160,7 @@ def test_parallel_extraction_no_duplicates(cloud_sql_engine):
                         SELECT candidate_link_id FROM articles
                         WHERE candidate_link_id IS NOT NULL
                     )
-                    ORDER BY RANDOM()
+                    ORDER BY cl.discovered_at
                     LIMIT 20
                     FOR UPDATE OF cl SKIP LOCKED
                 """
@@ -160,6 +168,9 @@ def test_parallel_extraction_no_duplicates(cloud_sql_engine):
 
                 result = worker_session.execute(query)
                 rows = result.fetchall()
+
+                # Simulate processing time to keep locks held longer
+                time.sleep(0.1)
 
                 for row in rows:
                     processed_set.add(str(row[0]))  # Add candidate_link_id
