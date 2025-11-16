@@ -5,7 +5,7 @@ sys.path.insert(0, '/app')
 sys.path.insert(0, '/app/backend')
 
 from app.lifecycle import DatabaseManager
-from sqlalchemy import text, or_
+from sqlalchemy import text
 import os
 
 # Import the UPDATED content_type_detector code
@@ -81,9 +81,12 @@ with db.get_session() as session:
             service = 'Unknown'
             if 'author' in detection.evidence:
                 ev = str(detection.evidence['author'])
-                if 'AFP' in ev: service = 'AFP'
-                elif 'Associated Press' in ev: service = 'AP'
-                elif 'Reuters' in ev: service = 'Reuters'
+                if 'AFP' in ev:
+                    service = 'AFP'
+                elif 'Associated Press' in ev:
+                    service = 'AP'
+                elif 'Reuters' in ev:
+                    service = 'Reuters'
             
             results.append({
                 'id': str(article_id),

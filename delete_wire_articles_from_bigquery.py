@@ -20,7 +20,7 @@ def extract_article_ids(csv_path):
     
     print(f"Reading CSV from: {csv_path}")
     
-    with open(csv_path, 'r', encoding='utf-8') as f:
+    with open(csv_path, encoding='utf-8') as f:
         for line in f:
             # Skip progress messages and summary lines
             skip_prefixes = (
@@ -70,7 +70,7 @@ def delete_articles_from_bigquery(article_ids, batch_size=1000):
         
         # Execute query
         query_job = client.query(query)
-        result = query_job.result()  # Wait for completion
+        query_job.result()  # Wait for completion
         
         # BigQuery doesn't return rowcount for DELETE, check via separate query
         check_query = f"""
@@ -87,7 +87,7 @@ def delete_articles_from_bigquery(article_ids, batch_size=1000):
         print(f"  Deleted {deleted_in_batch} articles")
         print(f"  Remaining in batch: {remaining}")
     
-    print(f"\n=== COMPLETE ===")
+    print("\n=== COMPLETE ===")
     print(f"Total articles deleted from BigQuery: {total_deleted}")
     print(f"Total IDs processed: {len(article_ids)}")
     
@@ -107,7 +107,12 @@ def delete_articles_from_bigquery(article_ids, batch_size=1000):
 
 
 if __name__ == '__main__':
-    csv_path = 'production_wire_articles_full_scan.csv'
+    import sys
+    
+    if len(sys.argv) > 1:
+        csv_path = sys.argv[1]
+    else:
+        csv_path = '/tmp/production_wire_scan.csv'
     
     article_ids = extract_article_ids(csv_path)
     

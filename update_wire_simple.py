@@ -25,7 +25,7 @@ def extract_article_ids(csv_path):
     
     print(f"Reading CSV from: {csv_path}")
     
-    with open(csv_path, 'r', encoding='utf-8') as f:
+    with open(csv_path, encoding='utf-8') as f:
         for line in f:
             # Skip progress messages and summary lines
             skip_prefixes = (
@@ -82,7 +82,7 @@ def update_articles(article_ids, batch_size=500):
             total_updated += updated
             print(f"  Updated {updated} articles")
     
-    print(f"\n=== COMPLETE ===")
+    print("\n=== COMPLETE ===")
     print(f"Total updated to WIRE: {total_updated}")
     print(f"Total IDs processed: {len(article_ids)}")
     

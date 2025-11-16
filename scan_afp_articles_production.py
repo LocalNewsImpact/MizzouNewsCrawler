@@ -9,7 +9,7 @@ import os
 
 from backend.app.lifecycle import DatabaseManager
 from src.utils.content_type_detector import ContentTypeDetector
-from sqlalchemy import text
+from sqlalchemy import text as sql_text
 
 
 def main():
@@ -24,7 +24,7 @@ def main():
     with db.get_session() as session:
         # Get all labeled articles that might be wire
         # Focus on articles with wire service patterns
-        query = text("""
+        query = sql_text("""
             SELECT 
                 id,
                 url,
@@ -60,7 +60,7 @@ def main():
         # Test each article
         wire_articles = []
         for i, row in enumerate(articles, 1):
-            article_id, url, title, author, text, content, pub_date, source = row
+            article_id, url, title, author, article_text, content, pub_date, source = row
             
             if i % 100 == 0:
                 print(f"Processed {i}/{len(articles)} articles...")
@@ -90,7 +90,7 @@ def main():
                     "detection_reason": detection_result.reason or "",
                     "detection_evidence": str(detection_result.evidence),
                     "confidence": detection_result.confidence or "",
-                    "text_preview": (text[:200] if text else "")[:200],
+                    "text_preview": (article_text[:200] if article_text else "")[:200],
                 })
         
         print(f"\nFound {len(wire_articles)} articles to reclassify as wire")

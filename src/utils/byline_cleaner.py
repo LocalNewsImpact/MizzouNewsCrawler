@@ -178,8 +178,8 @@ class BylineCleaner:
         "afp",
         "agence france-presse",
         "agence france presse",
-    # 'Kansas Reflector' is a States Newsroom affiliate — treat via
-    # States Newsroom mapping instead of as an independent wire service
+        # 'Kansas Reflector' is a States Newsroom affiliate — treat via
+        # States Newsroom mapping instead of as an independent wire service
         "the missouri independent",
         "missouri independent",
         "missouriindependent",
@@ -208,8 +208,8 @@ class BylineCleaner:
         "states newsroom": "States Newsroom",
         "states-newsroom": "States Newsroom",
         "statesnewsroom": "States Newsroom",
-    "kansas reflector": "States Newsroom",
-    "kansasreflector": "States Newsroom",
+        "kansas reflector": "States Newsroom",
+        "kansasreflector": "States Newsroom",
         "the missouri independent": "The Missouri Independent",
         "missouri independent": "The Missouri Independent",
         "missouriindependent": "The Missouri Independent",
@@ -417,9 +417,9 @@ class BylineCleaner:
         "gannett",
         "hearst",
         "scripps",
-    "sinclair",
-    "wave",
-    "missouri independent",
+        "sinclair",
+        "wave",
+        "missouri independent",
         "states newsroom",
         "statesnewsroom",
         "states-newsroom",
@@ -2256,12 +2256,14 @@ class BylineCleaner:
                     wire_service_names.update(["abc"])
                 elif service.lower() == "states newsroom":
                     # Include common States Newsroom affiliate names (e.g., Kansas Reflector)
-                    wire_service_names.update([
-                        "kansas reflector",
-                        "the kansas reflector",
-                        "kansasreflector",
-                        "states newsroom",
-                    ])
+                    wire_service_names.update(
+                        [
+                            "kansas reflector",
+                            "the kansas reflector",
+                            "kansasreflector",
+                            "states newsroom",
+                        ]
+                    )
 
             # Filter out wire service names from authors
             filtered_authors = []

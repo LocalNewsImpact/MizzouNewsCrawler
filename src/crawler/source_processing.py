@@ -1160,8 +1160,7 @@ class SourceProcessor:
                     if not self._is_likely_article_url(url):
                         articles_out_of_scope += 1
                         logger.debug(
-                            "Skipping non-article URL %s (matched skip pattern)",
-                            url
+                            "Skipping non-article URL %s (matched skip pattern)", url
                         )
                         continue
 
