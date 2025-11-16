@@ -705,7 +705,7 @@ class NewsDiscovery:
         nav_pattern = (
             r'<(?:nav|menu|header|div[^>]*class=["\']'
             r'[^"\']*(?:nav|menu|header)[^"\']*["\'])[^>]*>'
-            r'(.*?)</(?:nav|menu|header|div)>'
+            r"(.*?)</(?:nav|menu|header|div)>"
         )
         nav_sections = re.findall(nav_pattern, html, flags=re.IGNORECASE | re.DOTALL)
 
@@ -746,8 +746,7 @@ class NewsDiscovery:
 
                 # Skip feed/rss URLs
                 if any(
-                    x in path
-                    for x in ("/feed", "/rss", ".xml", "/sitemap", "/search")
+                    x in path for x in ("/feed", "/rss", ".xml", "/sitemap", "/search")
                 ):
                     continue
 
@@ -758,7 +757,7 @@ class NewsDiscovery:
                 # Strategy 1: Check if path or link text fuzzy matches
                 # section keywords
                 path_segments = [seg for seg in path.split("/") if seg]
-                
+
                 # Only consider shallow URLs (1-2 segments) from navigation
                 if len(path_segments) > 2:
                     continue
@@ -767,7 +766,7 @@ class NewsDiscovery:
                 # contains section keywords
                 matches_keyword = False
                 combined_text = f"{path} {link_text}"
-                
+
                 for keyword in section_keywords:
                     if keyword in combined_text:
                         matches_keyword = True

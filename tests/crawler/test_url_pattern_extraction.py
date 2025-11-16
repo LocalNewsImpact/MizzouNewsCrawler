@@ -86,10 +86,12 @@ class TestSectionExtractionFromArticles:
         # Create 20 different section patterns with 2 articles each
         articles = []
         for i in range(20):
-            articles.extend([
-                f"https://example.com/section-{i}/article-1.html",
-                f"https://example.com/section-{i}/article-2.html",
-            ])
+            articles.extend(
+                [
+                    f"https://example.com/section-{i}/article-1.html",
+                    f"https://example.com/section-{i}/article-2.html",
+                ]
+            )
 
         sections = NewsDiscovery._extract_sections_from_article_urls(
             articles,
