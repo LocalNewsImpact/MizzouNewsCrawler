@@ -824,12 +824,21 @@ class TestNewspaperMethod:
 
             mock_article_class.return_value = mock_article
 
-            with patch.object(extractor.session, "get") as mock_get:
-                mock_response = Mock()
-                mock_response.status_code = 200
-                mock_response.text = mock_html_partial
-                mock_get.return_value = mock_response
+            # Mock _get_domain_session to return a mock session
+            mock_session = Mock()
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.text = mock_html_partial
+            mock_response._proxy_used = False
+            mock_response._proxy_url = None
+            mock_response._proxy_authenticated = False
+            mock_response._proxy_status = None
+            mock_response._proxy_error = None
+            mock_session.get.return_value = mock_response
 
+            with patch.object(
+                extractor, "_get_domain_session", return_value=mock_session
+            ):
                 result = extractor._extract_with_newspaper("https://test.com")
 
                 assert result is not None
