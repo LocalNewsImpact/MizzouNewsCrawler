@@ -29,9 +29,9 @@ def test_discover_and_store_sections_method_exists():
         SourceProcessor, "_discover_and_store_sections"
     ), "_discover_and_store_sections method should exist in SourceProcessor"
 
-    assert callable(
-        getattr(SourceProcessor, "_discover_and_store_sections")
-    ), "_discover_and_store_sections should be callable"
+    # Verify it's callable
+    method = SourceProcessor._discover_and_store_sections
+    assert callable(method), "_discover_and_store_sections should be callable"
 
 
 @pytest.mark.integration

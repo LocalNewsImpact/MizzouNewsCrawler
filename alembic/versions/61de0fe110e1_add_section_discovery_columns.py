@@ -53,7 +53,7 @@ def upgrade() -> None:
                     'section_discovery_enabled',
                     sa.Boolean(),
                     nullable=False,
-                    server_default=sa.text('TRUE'),
+                    server_default=sa.text('1'),
                     comment='Enable/disable section discovery for this source'
                 )
             )

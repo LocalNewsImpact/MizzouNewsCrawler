@@ -29,9 +29,10 @@ Added `_discover_section_urls()` static method (118 lines):
 - Normalizes URLs and deduplicates
 - Returns list of up to 10 section URLs
 
-**Supported Patterns**:
+**Supported Patterns** (17 keywords):
 - `/news`, `/local`, `/sports`, `/weather`, `/politics`
 - `/business`, `/entertainment`, `/opinion`, `/lifestyle`, `/community`
+- `/education`, `/crime`, `/county`, `/state`, `/region`, `/investigat*`, `/city`
 
 #### 3. Database Migration
 **File**: `scripts/migrations/add_section_discovery_columns.py`

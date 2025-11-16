@@ -36,6 +36,13 @@ The `_discover_section_urls()` method:
 - `/opinion` - Opinion pieces
 - `/lifestyle` - Lifestyle content
 - `/community` - Community news
+- `/education` - Education coverage
+- `/crime` - Crime reports
+- `/county` - County news
+- `/state` - State news
+- `/region` - Regional coverage
+- `/investigat*` - Investigation stories
+- `/city` - City news
 
 ### Features
 
