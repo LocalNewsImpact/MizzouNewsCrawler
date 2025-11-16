@@ -71,10 +71,9 @@ def test_skip_locked_syntax_is_valid_postgres(cloud_sql_session):
 def test_parallel_extraction_no_duplicates(cloud_sql_session):
     """Test that parallel extractions process different candidate links without duplicates."""
     import threading
-    from types import SimpleNamespace
-    from unittest.mock import MagicMock
 
-    from src.cli.commands.extraction import _process_batch
+    from sqlalchemy import text as sql_text
+
     from src.models.database import DatabaseManager
 
     # Create test sources
@@ -118,6 +117,7 @@ def test_parallel_extraction_no_duplicates(cloud_sql_session):
         candidate_links.extend([cl1, cl2])
 
     cloud_sql_session.add_all(candidate_links)
+    # IMPORTANT: Commit so worker threads can see the data
     cloud_sql_session.commit()
 
     # Track which candidate_link_ids were processed by each thread
@@ -128,7 +128,7 @@ def test_parallel_extraction_no_duplicates(cloud_sql_session):
         """Mock worker that simulates extraction by selecting candidate links."""
         # Create a new session for this thread
         db = DatabaseManager()
-        session = db.session
+        session = db.get_session()
 
         try:
             # This simulates _process_batch selecting candidate links
