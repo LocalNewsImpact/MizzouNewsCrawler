@@ -396,15 +396,12 @@ def handle_extraction_command(args) -> int:
                 "   ⚠️  Limited domain diversity "
                 f"({domain_analysis['unique_domains']} domains)"
             )
-            print(
-                "   Sample domains: " f"{', '.join(domain_analysis['sample_domains'])}"
-            )
+            print(f"   Sample domains: {', '.join(domain_analysis['sample_domains'])}")
         else:
             print("   ✓ Good domain diversity for rotation")
             if domain_analysis["unique_domains"] <= 10:
                 print(
-                    "   Sample domains: "
-                    f"{', '.join(domain_analysis['sample_domains'])}"
+                    f"   Sample domains: {', '.join(domain_analysis['sample_domains'])}"
                 )
     print()
 
@@ -592,8 +589,7 @@ def handle_extraction_command(args) -> int:
                         reason = "single-domain batch"
 
                     print(
-                        f"   ⏸️  {reason.capitalize()} - "
-                        f"waiting {actual_sleep:.0f}s..."
+                        f"   ⏸️  {reason.capitalize()} - waiting {actual_sleep:.0f}s..."
                     )
                     time.sleep(actual_sleep)
             elif unique_domains > 1 or skipped_domains > 0:
