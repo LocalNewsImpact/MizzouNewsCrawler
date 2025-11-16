@@ -59,6 +59,10 @@ class SourceProcessor:
         except Exception as exc:  # pragma: no cover - defensive
             return self._handle_global_failure(exc)
 
+        # Discover and store section URLs after article discovery
+        # (uses both navigation-based and URL pattern extraction strategies)
+        self._discover_and_store_sections(all_discovered)
+
         stats = self._store_candidates(all_discovered)
 
         if not all_discovered:
@@ -450,6 +454,180 @@ class SourceProcessor:
             preferred.value,
         )
         return ordered
+
+    # ------------------------------------------------------------------
+    # Section discovery integration (both strategies)
+    # ------------------------------------------------------------------
+    def _discover_and_store_sections(
+        self,
+        discovered_articles: list[dict[str, Any]],
+    ) -> None:
+        """
+        Discover section URLs using two complementary strategies:
+
+        Strategy 1 (Navigation-based):
+        - Fetch homepage HTML
+        - Extract links from navigation elements
+        - Fuzzy match against common section keywords
+
+        Strategy 2 (URL pattern extraction):
+        - Analyze discovered article URLs
+        - Extract common path segments
+          (e.g., /news/local/ from /news/local/article-123.html)
+        - Track frequency to identify likely section fronts
+
+        Both strategies are combined, deduplicated, and stored in the
+        `sources.discovered_sections` JSON column with metadata.
+
+        Args:
+            discovered_articles: List of article dicts from all discovery methods
+        """
+        # Check if section discovery is enabled for this source
+        try:
+            from src.models.database import DatabaseManager
+
+            with DatabaseManager(self.discovery.database_url).engine.connect() as conn:
+                row = safe_execute(
+                    conn,
+                    "SELECT section_discovery_enabled FROM sources WHERE id = :id",
+                    {"id": self.source_id},
+                ).fetchone()
+
+                if not row or not row[0]:
+                    logger.debug(
+                        "Section discovery disabled for %s, skipping",
+                        self.source_name,
+                    )
+                    return
+        except Exception as e:
+            logger.warning(
+                "Failed to check section_discovery_enabled for %s: %s",
+                self.source_name,
+                e,
+            )
+            return
+
+        logger.info(
+            "Discovering sections for %s using navigation and URL patterns",
+            self.source_name,
+        )
+
+        section_urls: list[str] = []
+
+        # Strategy 1: Navigation-based discovery from homepage HTML
+        try:
+            response = self.discovery.session.get(
+                self.source_url,
+                timeout=self.discovery.timeout,
+                allow_redirects=True,
+            )
+            response.raise_for_status()
+            html = response.text
+
+            nav_sections = self.discovery._discover_section_urls(
+                source_url=self.source_url,
+                html=html,
+            )
+            section_urls.extend(nav_sections)
+            logger.info(
+                "Strategy 1 (navigation-based) found %d section(s) for %s",
+                len(nav_sections),
+                self.source_name,
+            )
+        except Exception as e:
+            logger.warning(
+                "Strategy 1 (navigation-based) failed for %s: %s",
+                self.source_name,
+                e,
+            )
+
+        # Strategy 2: URL pattern extraction from discovered articles
+        try:
+            article_urls = [a["url"] for a in discovered_articles if "url" in a]
+            pattern_sections = self.discovery._extract_sections_from_article_urls(
+                article_urls=article_urls,
+                source_url=self.source_url,
+                min_occurrences=2,
+            )
+            section_urls.extend(pattern_sections)
+            logger.info(
+                "Strategy 2 (URL pattern extraction) found %d section(s) for %s",
+                len(pattern_sections),
+                self.source_name,
+            )
+        except Exception as e:
+            logger.warning(
+                "Strategy 2 (URL pattern extraction) failed for %s: %s",
+                self.source_name,
+                e,
+            )
+
+        # Deduplicate and store
+        if section_urls:
+            unique_sections = list(dict.fromkeys(section_urls))  # Preserve order
+            logger.info(
+                "Discovered %d unique section(s) for %s (combined strategies)",
+                len(unique_sections),
+                self.source_name,
+            )
+
+            # Store in database with metadata
+            try:
+                from src.models.database import DatabaseManager
+
+                section_data = {
+                    "urls": unique_sections,
+                    "discovered_at": datetime.utcnow().isoformat(),
+                    "discovery_method": "adaptive_combined",
+                    "count": len(unique_sections),
+                }
+
+                with DatabaseManager(
+                    self.discovery.database_url
+                ).engine.begin() as conn:
+                    is_pg = (
+                        getattr(conn, "dialect", None)
+                        and getattr(conn.dialect, "name", "") == "postgresql"
+                    )
+                    if is_pg:
+                        update_sql = """
+                            UPDATE sources SET
+                                discovered_sections = :sections::jsonb,
+                                section_last_updated = :updated_at
+                            WHERE id = :id
+                        """
+                    else:
+                        update_sql = """
+                            UPDATE sources SET
+                                discovered_sections = :sections,
+                                section_last_updated = :updated_at
+                            WHERE id = :id
+                        """
+                    safe_execute(
+                        conn,
+                        update_sql,
+                        {
+                            "sections": json.dumps(section_data),
+                            "updated_at": datetime.utcnow(),
+                            "id": self.source_id,
+                        },
+                    )
+                logger.info(
+                    "Stored %d section(s) in database for %s",
+                    len(unique_sections),
+                    self.source_name,
+                )
+            except Exception as e:
+                logger.error(
+                    "Failed to store sections for %s: %s",
+                    self.source_name,
+                    e,
+                )
+        else:
+            logger.info(
+                "No sections discovered for %s (both strategies returned empty)",
+                self.source_name,
+            )
 
     # ------------------------------------------------------------------
     # Discovery method orchestration

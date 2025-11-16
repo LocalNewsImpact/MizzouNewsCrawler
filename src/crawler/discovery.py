@@ -645,6 +645,224 @@ class NewsDiscovery:
         return candidates
 
     @staticmethod
+    def _discover_section_urls(
+        source_url: str,
+        html: str,
+    ) -> list[str]:
+        """
+        Strategy 1: Navigation-based section discovery.
+
+        Extracts section URLs from navigation elements using fuzzy keyword
+        matching. Designed to find shallow URL paths (1-2 segments)
+        commonly used for section fronts.
+
+        Approach:
+        - Parse <nav>, <menu>, and nav-related HTML elements
+        - Fuzzy match link text/URLs against common section keywords
+          (news, local, sports, etc.)
+        - Prioritize short paths that look like section fronts
+
+        Note: This method implements Strategy 1 only. Strategy 2
+        (URL pattern extraction) is in _extract_sections_from_article_urls()
+        and analyzes article URLs to infer section paths. Both strategies
+        are called together in the discovery workflow.
+
+        Args:
+            source_url: Base URL of the news source
+            html: HTML content of the homepage
+
+        Returns:
+            List of discovered section URLs (Strategy 1 results only)
+        """
+        if not html:
+            return []
+
+        import re
+
+        section_urls: list[str] = []
+        seen: set[str] = set()
+
+        parsed_base = urlparse(source_url)
+        base_netloc = parsed_base.netloc.lower()
+
+        # Common section keywords for fuzzy matching (not exact paths!)
+        section_keywords = [
+            "news",
+            "local",
+            "sports",
+            "weather",
+            "politics",
+            "business",
+            "entertainment",
+            "opinion",
+            "lifestyle",
+            "community",
+            "education",
+            "crime",
+            "county",
+            "state",
+            "region",
+            "investigat",  # matches investigation/investigations
+            "city",
+        ]
+
+        # Extract all hrefs from navigation-related elements
+        # Look for nav tags, menu tags, or divs with nav-related classes
+        nav_pattern = (
+            r'<(?:nav|menu|header|div[^>]*class=["\']'
+            r'[^"\']*(?:nav|menu|header)[^"\']*["\'])[^>]*>'
+            r"(.*?)</(?:nav|menu|header|div)>"
+        )
+        nav_sections = re.findall(nav_pattern, html, flags=re.IGNORECASE | re.DOTALL)
+
+        # If no nav sections found, check the entire HTML (less precise)
+        if not nav_sections:
+            # Limit to first 50KB to avoid performance issues
+            nav_sections = [html[:50000]]
+
+        for nav_html in nav_sections:
+            # Extract hrefs with surrounding link text for context
+            link_pattern = r'<a[^>]*href=["\']([^"\']+)["\'][^>]*>([^<]*)</a>'
+            links = re.findall(link_pattern, nav_html, flags=re.I)
+
+            for href, link_text in links:
+                href = href.strip()
+                link_text = link_text.strip().lower()
+
+                if not href:
+                    continue
+
+                # Skip non-http protocols
+                if href.startswith(("mailto:", "tel:", "javascript:", "#")):
+                    continue
+
+                # Convert to absolute URL
+                try:
+                    absolute_url = urljoin(source_url, href)
+                except Exception:
+                    continue
+
+                parsed = urlparse(absolute_url)
+
+                # Only same-domain URLs
+                if parsed.netloc.lower() != base_netloc:
+                    continue
+
+                path = parsed.path.lower().strip("/")
+
+                # Skip feed/rss URLs
+                if any(
+                    x in path for x in ("/feed", "/rss", ".xml", "/sitemap", "/search")
+                ):
+                    continue
+
+                # Skip homepage/root
+                if not path or path == "index.html":
+                    continue
+
+                # Strategy 1: Check if path or link text fuzzy matches
+                # section keywords
+                path_segments = [seg for seg in path.split("/") if seg]
+
+                # Only consider shallow URLs (1-2 segments) from navigation
+                if len(path_segments) > 2:
+                    continue
+
+                # Fuzzy match: check if any path segment or link text
+                # contains section keywords
+                matches_keyword = False
+                combined_text = f"{path} {link_text}"
+
+                for keyword in section_keywords:
+                    if keyword in combined_text:
+                        matches_keyword = True
+                        break
+
+                if not matches_keyword:
+                    continue
+
+                # Normalize: remove query params and fragments, ensure trailing slash
+                normalized_path = "/" + "/".join(path_segments) + "/"
+                normalized_url = f"{parsed.scheme}://{parsed.netloc}{normalized_path}"
+
+                if normalized_url in seen:
+                    continue
+
+                seen.add(normalized_url)
+                section_urls.append(normalized_url)
+
+                # Limit to prevent excessive sections
+                if len(section_urls) >= 20:
+                    break
+
+            if len(section_urls) >= 10:
+                break
+
+        return section_urls
+
+    @staticmethod
+    def _extract_sections_from_article_urls(
+        article_urls: list[str],
+        source_url: str,
+        min_occurrences: int = 2,
+    ) -> list[str]:
+        """
+        Strategy 2: Extract potential section URLs from article URL patterns.
+
+        Example:
+            Input: https://site.com/news/local/article-123.html
+            Output: https://site.com/news/local/
+
+        Args:
+            article_urls: List of discovered article URLs
+            source_url: Base URL of the news source
+            min_occurrences: Minimum times a path must appear to be considered
+
+        Returns:
+            List of inferred section URLs
+        """
+        from collections import Counter
+
+        if not article_urls:
+            return []
+
+        parsed_base = urlparse(source_url)
+        base_netloc = parsed_base.netloc
+
+        # Extract path segments from article URLs
+        path_counter: Counter = Counter()
+
+        for url in article_urls:
+            parsed = urlparse(url)
+
+            # Only same-domain URLs
+            if parsed.netloc.lower() != base_netloc.lower():
+                continue
+
+            path = parsed.path.strip("/")
+            segments = [seg for seg in path.split("/") if seg]
+
+            # Skip if no segments or only one segment (likely homepage)
+            if len(segments) < 2:
+                continue
+
+            # Extract parent paths (1-2 segments deep)
+            # For /news/local/article.html -> track /news/ and /news/local/
+            for depth in range(1, min(3, len(segments))):
+                parent_segments = segments[:depth]
+                parent_path = "/" + "/".join(parent_segments) + "/"
+                path_counter[parent_path] += 1
+
+        # Filter to paths that appear multiple times
+        section_urls = []
+        for path, count in path_counter.most_common():
+            if count >= min_occurrences:
+                section_url = f"{parsed_base.scheme}://{base_netloc}{path}"
+                section_urls.append(section_url)
+
+        return section_urls[:15]  # Limit to top 15 most common
+
+    @staticmethod
     def _normalize_candidate_url(url: str) -> str:
         try:
             return normalize_url(url)

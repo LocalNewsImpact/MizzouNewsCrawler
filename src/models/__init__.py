@@ -460,6 +460,14 @@ class Source(Base):
     last_bot_detection_at = Column(DateTime, index=True)
     bot_detection_metadata = Column(JSON)
 
+    # Section discovery for enhanced news coverage
+    # Stores discovered section URLs with performance metrics
+    discovered_sections = Column(JSON, nullable=True)
+    section_discovery_enabled = Column(
+        Boolean, default=True, nullable=False, server_default=text("1")
+    )
+    section_last_updated = Column(DateTime, nullable=True)
+
     # Backref to candidate links
     # candidate_links = relationship('CandidateLink', backref='source')
 
