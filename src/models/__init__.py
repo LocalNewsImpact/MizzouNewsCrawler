@@ -463,7 +463,9 @@ class Source(Base):
     # Section discovery for enhanced news coverage
     # Stores discovered section URLs with performance metrics
     discovered_sections = Column(JSON, nullable=True)
-    section_discovery_enabled = Column(Boolean, default=True, nullable=False)
+    section_discovery_enabled = Column(
+        Boolean, default=True, nullable=False, server_default=text("TRUE")
+    )
     section_last_updated = Column(DateTime, nullable=True)
 
     # Backref to candidate links
