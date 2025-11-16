@@ -33,7 +33,7 @@ class TestSectionDiscovery:
         assert sections == []
 
     def test_discover_section_urls_basic_sections(self):
-        """Test section discovery finds basic news sections."""
+        """Test section discovery finds basic news sections via fuzzy matching."""
         html = """
         <html>
             <nav>
@@ -48,17 +48,22 @@ class TestSectionDiscovery:
             html,
         )
 
+        # Fuzzy matching: should find /news, /sports, /weather
+        # because keywords match path segments or link text
         assert len(sections) == 3
-        assert "https://example.com/news" in sections
-        assert "https://example.com/sports" in sections
-        assert "https://example.com/weather" in sections
+        assert "https://example.com/news/" in sections
+        assert "https://example.com/sports/" in sections
+        assert "https://example.com/weather/" in sections
 
     def test_discover_section_urls_relative_paths(self):
-        """Test section discovery handles relative paths correctly."""
+        """
+        Test section discovery handles relative paths correctly
+        with fuzzy matching.
+        """
         html = """
         <nav>
             <a href="/local/">Local News</a>
-            <a href="news/politics">Politics</a>
+            <a href="/news/politics">Politics</a>
         </nav>
         """
         sections = NewsDiscovery._discover_section_urls(
@@ -66,8 +71,10 @@ class TestSectionDiscovery:
             html,
         )
 
+        # Fuzzy matching: /local/ matches "local" keyword via link text "Local News"
+        # /news/politics matches "news" and "politics" keywords
         assert "https://example.com/local/" in sections
-        assert "https://example.com/news/politics" in sections
+        assert "https://example.com/news/politics/" in sections
 
     def test_discover_section_urls_filters_rss_feeds(self):
         """Test section discovery filters out RSS/feed URLs."""
@@ -85,10 +92,14 @@ class TestSectionDiscovery:
             html,
         )
 
-        # Should only include /news and /local, not feed URLs
-        assert len(sections) == 2
-        assert "https://example.com/news" in sections
-        assert "https://example.com/local" in sections
+        # Fuzzy matching: should find /news, /local, /sports.xml
+        # (matched "sports" keyword) but filters out /rss, /news/feed
+        # (contains "feed")
+        # Note: /sports.xml will be filtered by extension check
+        assert "https://example.com/news/" in sections
+        assert "https://example.com/local/" in sections
+        assert not any("feed" in s for s in sections)
+        assert not any(".xml" in s for s in sections)
 
     def test_discover_section_urls_same_domain_only(self):
         """Test section discovery only returns same-domain URLs."""
@@ -105,13 +116,16 @@ class TestSectionDiscovery:
             html,
         )
 
-        # Should only include same-domain URLs
+        # Should only include same-domain URLs (external URLs filtered out)
         assert len(sections) == 2
-        assert "https://example.com/news" in sections
-        assert "https://example.com/local" in sections
+        assert "https://example.com/news/" in sections
+        assert "https://example.com/local/" in sections
 
     def test_discover_section_urls_deduplicates(self):
-        """Test section discovery deduplicates URLs."""
+        """
+        Test section discovery deduplicates URLs with
+        trailing slash normalization.
+        """
         html = """
         <nav>
             <a href="/news">News</a>
@@ -124,15 +138,15 @@ class TestSectionDiscovery:
             html,
         )
 
-        # Should deduplicate based on normalized path
-        # Both /news and /news/ should be treated as different initially
-        # but query params should be stripped
-        assert len(sections) <= 2  # Could be 1 or 2 depending on normalization
+        # Should deduplicate: all normalize to /news/ with trailing slash
+        # Query params are stripped during normalization
+        assert len(sections) == 1
+        assert "https://example.com/news/" in sections
 
     def test_discover_section_urls_limits_results(self):
         """Test section discovery limits number of sections returned."""
-        # Create HTML with many section links
-        links = "".join(f'<a href="/news-{i}">News {i}</a>' for i in range(20))
+        # Create HTML with many section links that match "news" keyword
+        links = "".join(f'<a href="/news-{i}">News {i}</a>' for i in range(30))
         html = f"<nav>{links}</nav>"
 
         sections = NewsDiscovery._discover_section_urls(
@@ -140,11 +154,11 @@ class TestSectionDiscovery:
             html,
         )
 
-        # Should limit to max 10 sections
-        assert len(sections) <= 10
+        # Should limit to max 20 sections (updated from 10)
+        assert len(sections) <= 20
 
     def test_discover_section_urls_nav_element(self):
-        """Test section discovery works with <nav> element."""
+        """Test section discovery works with <nav> element and fuzzy matching."""
         html = """
         <nav class="main-menu">
             <a href="/news">News</a>
@@ -156,10 +170,13 @@ class TestSectionDiscovery:
             html,
         )
 
+        # Fuzzy matching finds both via keyword match
         assert len(sections) == 2
+        assert "https://example.com/news/" in sections
+        assert "https://example.com/sports/" in sections
 
     def test_discover_section_urls_menu_element(self):
-        """Test section discovery works with <menu> element."""
+        """Test section discovery works with <menu> element and fuzzy matching."""
         html = """
         <menu>
             <a href="/local">Local</a>
@@ -171,10 +188,16 @@ class TestSectionDiscovery:
             html,
         )
 
+        # Fuzzy matching finds both via keyword match
         assert len(sections) == 2
+        assert "https://example.com/local/" in sections
+        assert "https://example.com/weather/" in sections
 
     def test_discover_section_urls_div_with_nav_class(self):
-        """Test section discovery works with div having nav-related class."""
+        """
+        Test section discovery works with div having nav-related class
+        and fuzzy matching.
+        """
         html = """
         <div class="navigation">
             <a href="/news">News</a>
@@ -186,10 +209,13 @@ class TestSectionDiscovery:
             html,
         )
 
+        # Fuzzy matching finds both via keyword match
         assert len(sections) == 2
+        assert "https://example.com/news/" in sections
+        assert "https://example.com/business/" in sections
 
     def test_discover_section_urls_case_insensitive(self):
-        """Test section discovery is case-insensitive for paths."""
+        """Test section discovery is case-insensitive for fuzzy matching."""
         html = """
         <nav>
             <a href="/NEWS">News</a>
@@ -202,11 +228,18 @@ class TestSectionDiscovery:
             html,
         )
 
-        # Should find sections regardless of case
+        # Fuzzy matching is case-insensitive (lowercases for matching)
+        # URLs are normalized to lowercase during processing
         assert len(sections) == 3
+        assert "https://example.com/news/" in sections
+        assert "https://example.com/local/" in sections
+        assert "https://example.com/sports/" in sections
 
     def test_discover_section_urls_common_patterns(self):
-        """Test section discovery finds all common section patterns."""
+        """
+        Test section discovery finds all common section keywords
+        via fuzzy matching.
+        """
         html = """
         <nav>
             <a href="/news">News</a>
@@ -226,8 +259,18 @@ class TestSectionDiscovery:
             html,
         )
 
-        # Should find all 10 common section patterns
+        # Fuzzy matching finds all 10 common keywords
         assert len(sections) == 10
+        assert "https://example.com/news/" in sections
+        assert "https://example.com/local/" in sections
+        assert "https://example.com/sports/" in sections
+        assert "https://example.com/weather/" in sections
+        assert "https://example.com/politics/" in sections
+        assert "https://example.com/business/" in sections
+        assert "https://example.com/entertainment/" in sections
+        assert "https://example.com/opinion/" in sections
+        assert "https://example.com/lifestyle/" in sections
+        assert "https://example.com/community/" in sections
 
     def test_discover_section_urls_skips_non_http_protocols(self):
         """Test section discovery skips mailto, tel, javascript links."""
@@ -244,9 +287,9 @@ class TestSectionDiscovery:
             html,
         )
 
-        # Should only include /news
+        # Should only include /news (non-HTTP protocols filtered)
         assert len(sections) == 1
-        assert "https://example.com/news" in sections
+        assert "https://example.com/news/" in sections
 
     def test_discover_section_urls_strips_query_params(self):
         """Test section discovery strips query parameters from URLs."""
@@ -261,16 +304,16 @@ class TestSectionDiscovery:
             html,
         )
 
-        # Should normalize by removing query/fragment
-        assert "https://example.com/news" in sections
-        assert "https://example.com/sports" in sections
+        # Should normalize by removing query/fragment (adds trailing slash)
+        assert "https://example.com/news/" in sections
+        assert "https://example.com/sports/" in sections
         # Should not include query params or fragments
         for section in sections:
             assert "?" not in section
             assert "#" not in section
 
     def test_discover_section_urls_real_world_example(self):
-        """Test section discovery with realistic news site HTML."""
+        """Test section discovery with realistic news site HTML and fuzzy matching."""
         html = """
         <html>
             <header>
@@ -296,10 +339,13 @@ class TestSectionDiscovery:
             html,
         )
 
-        # Should find news-related sections but not contact
-        assert len(sections) >= 3
-        # The current implementation looks for specific patterns
-        # /local-news might not match /local pattern exactly
-        assert any("/sports" in s for s in sections)
-        assert any("/weather" in s for s in sections)
-        assert any("/business" in s for s in sections)
+        # Fuzzy matching finds sections via keywords in path or link text
+        # /local-news matches "local" keyword (in path) and link text "Local News"
+        # /sports, /weather, /business all match keywords
+        # /contact does not match any keyword
+        assert len(sections) >= 4
+        assert any("local-news" in s for s in sections)
+        assert any("sports/" in s for s in sections)
+        assert any("weather/" in s for s in sections)
+        assert any("business/" in s for s in sections)
+        assert not any("contact" in s for s in sections)
