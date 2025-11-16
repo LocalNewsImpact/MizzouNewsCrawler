@@ -708,7 +708,8 @@ class ContentTypeDetector:
 
         # Check what types of evidence we have
         has_strong_evidence = wire_byline_found or any(
-            "copyright" in m or "byline" in m for m in matches.get("content", [])
+            "copyright" in m or "byline" in m or "attribution" in m
+            for m in matches.get("content", [])
         )
 
         # Strong URL patterns are sufficient alone
