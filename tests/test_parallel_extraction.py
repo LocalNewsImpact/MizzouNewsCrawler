@@ -81,12 +81,14 @@ def test_parallel_extraction_no_duplicates(cloud_sql_session):
     source1 = Source(
         id=uuid4(),
         host="test1.example.com",
+        host_norm="test1.example.com",
         canonical_name="Test Source 1",
         status="active",
     )
     source2 = Source(
         id=uuid4(),
         host="test2.example.com",
+        host_norm="test2.example.com",
         canonical_name="Test Source 2",
         status="active",
     )
@@ -98,7 +100,7 @@ def test_parallel_extraction_no_duplicates(cloud_sql_session):
     candidate_links = []
     for i in range(30):
         cl1 = CandidateLink(
-            id=uuid4(),
+            id=str(uuid4()),
             url=f"https://test1.example.com/article-{i}",
             source="test1.example.com",
             source_id=source1.id,
@@ -106,7 +108,7 @@ def test_parallel_extraction_no_duplicates(cloud_sql_session):
             discovered_at=datetime.utcnow(),
         )
         cl2 = CandidateLink(
-            id=uuid4(),
+            id=str(uuid4()),
             url=f"https://test2.example.com/article-{i}",
             source="test2.example.com",
             source_id=source2.id,
