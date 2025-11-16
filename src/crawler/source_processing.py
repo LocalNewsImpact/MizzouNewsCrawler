@@ -251,6 +251,43 @@ class SourceProcessor:
             )
             return None
 
+    def _is_likely_article_url(self, url: str) -> bool:
+        """Filter out non-article URLs using skip patterns.
+
+        Returns:
+            True if URL is likely an article, False if it should be skipped
+        """
+        skip_patterns = [
+            "/show",
+            "/podcast",
+            "/category",
+            "/tag",
+            "/author",
+            "/page/",
+            "/search",
+            "/login",
+            "/register",
+            "/contact",
+            "/about",
+            "/privacy",
+            "/terms",
+            "/sitemap",
+            "/posterboard-ads/",
+            "/classifieds/",
+            "/marketplace/",
+            "/deals/",
+            "/coupons/",
+            "/promotions/",
+            "/sponsored/",
+        ]
+
+        url_lower = url.lower()
+        for pattern in skip_patterns:
+            if pattern in url_lower:
+                return False
+
+        return True
+
     def _get_counter_value(self) -> int:
         """Get current value of the no_effective_methods_consecutive counter."""
         if not isinstance(self.source_meta, dict):
@@ -1117,6 +1154,15 @@ class SourceProcessor:
 
                     if normalized_candidate in self.existing_urls:
                         articles_duplicate += 1
+                        continue
+
+                    # Filter out non-article URLs (posterboard-ads, classifieds, etc.)
+                    if not self._is_likely_article_url(url):
+                        articles_out_of_scope += 1
+                        logger.debug(
+                            "Skipping non-article URL %s (matched skip pattern)",
+                            url
+                        )
                         continue
 
                     discovered_publish_date = article_data.get("publish_date")
