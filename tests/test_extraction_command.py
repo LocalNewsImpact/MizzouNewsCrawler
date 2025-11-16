@@ -1,12 +1,19 @@
 """Unit tests for extraction command functionality."""
 
+import json
 import sqlite3
 from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+import pytest
+
 import src.cli.commands.extraction as extraction_module
 from src.cli.commands.extraction import handle_extraction_command
+from src.utils.content_type_detector import (
+    ContentTypeDetector,
+    ContentTypeResult,
+)
 
 
 def _default_driver_stats():
@@ -32,6 +39,9 @@ def mocked_extraction_env():
         patch(
             "src.cli.commands.extraction._analyze_dataset_domains"
         ) as analyze_domains,
+        patch(
+            "src.cli.commands.extraction._get_content_type_detector"
+        ) as detector_getter,
     ):
         session = Mock()
         db = Mock()
@@ -55,6 +65,11 @@ def mocked_extraction_env():
         telemetry = Mock()
         telemetry_class.return_value = telemetry
 
+        # Mock content type detector to return None (no special content type detected)
+        detector = Mock()
+        detector.detect.return_value = None
+        detector_getter.return_value = detector
+
         analyze_domains.return_value = {
             "unique_domains": 0,
             "is_single_domain": False,
@@ -69,6 +84,7 @@ def mocked_extraction_env():
             byline=byline_cleaner,
             telemetry=telemetry,
             cleaning=cleaning,
+            detector=detector,
         )
 
 
@@ -88,8 +104,9 @@ def test_successful_extraction_saves_to_articles_table():
     args = _build_args()
 
     with mocked_extraction_env() as env:
-        mock_result = Mock()
-        mock_result.fetchall.return_value = [
+        # Create mock result that returns candidate links
+        candidate_result = Mock()
+        candidate_result.fetchall.return_value = [
             (
                 "url-123",
                 "https://example.com/article1",
@@ -98,7 +115,29 @@ def test_successful_extraction_saves_to_articles_table():
                 "Example Site",
             )
         ]
-        env.session.execute.return_value = mock_result
+
+        # Mock result for empty queries
+        empty_result = Mock()
+        empty_result.fetchall.return_value = []
+        empty_result.scalar.return_value = None
+
+        # Configure execute to return candidate links once, then empty
+        def execute_side_effect(*args, **kwargs):
+            sql = str(args[0]) if args else ""
+            # Main batch query that fetches candidate links
+            if (
+                "SELECT cl.id, cl.url, cl.source, cl.status" in sql
+                and "ORDER BY RANDOM()" in sql
+            ):
+                if not hasattr(execute_side_effect, "batch_query_called"):
+                    execute_side_effect.batch_query_called = True
+                    return candidate_result
+                else:
+                    return empty_result
+            else:
+                return empty_result
+
+        env.session.execute.side_effect = execute_side_effect
         env.extractor.extract_content.return_value = {
             "title": "Test Article Title",
             "content": "Test article content",
@@ -111,12 +150,11 @@ def test_successful_extraction_saves_to_articles_table():
 
         assert outcome == 0
         execute_calls = env.session.execute.call_args_list
-        assert len(execute_calls) >= 3
+        assert len(execute_calls) >= 2
         assert env.session.commit.called
         env.session.close.assert_called()
-        # Note: cleaning function is only called when articles are successfully
-        # extracted and domains_for_cleaning is populated. With mocked DB,
-        # extraction may not complete the full flow. Skip cleaning assertion.
+        # Cleaning should be called since we successfully extracted articles
+        env.cleaning.assert_called_once()
 
 
 def test_opinion_detection_sets_status():
@@ -125,8 +163,9 @@ def test_opinion_detection_sets_status():
     args = _build_args()
 
     with mocked_extraction_env() as env:
-        mock_result = Mock()
-        mock_result.fetchall.return_value = [
+        # Create mock result that returns candidate links
+        candidate_result = Mock()
+        candidate_result.fetchall.return_value = [
             (
                 "url-456",
                 "https://example.com/opinion/column",
@@ -135,7 +174,29 @@ def test_opinion_detection_sets_status():
                 "Example Site",
             )
         ]
-        env.session.execute.return_value = mock_result
+
+        # Mock result for empty queries
+        empty_result = Mock()
+        empty_result.fetchall.return_value = []
+        empty_result.scalar.return_value = None
+
+        # Configure execute to return candidate links once, then empty
+        def execute_side_effect(*args, **kwargs):
+            sql = str(args[0]) if args else ""
+            # Main batch query that fetches candidate links
+            if (
+                "SELECT cl.id, cl.url, cl.source, cl.status" in sql
+                and "ORDER BY RANDOM()" in sql
+            ):
+                if not hasattr(execute_side_effect, "batch_query_called"):
+                    execute_side_effect.batch_query_called = True
+                    return candidate_result
+                else:
+                    return empty_result
+            else:
+                return empty_result
+
+        env.session.execute.side_effect = execute_side_effect
         env.extractor.extract_content.return_value = {
             "title": "Opinion: Why the parks matter",
             "content": "Opinion content",
@@ -143,13 +204,59 @@ def test_opinion_detection_sets_status():
             "metadata": {},
         }
 
+        # Configure detector to return opinion detection result
+        env.detector.detect.return_value = ContentTypeResult(
+            status="opinion",
+            confidence="high",
+            confidence_score=4 / 6,  # Match test expectation
+            reason="URL pattern match",
+            evidence={"url_pattern": "/opinion/"},
+            detector_version=ContentTypeDetector.VERSION,
+        )
+
         outcome = handle_extraction_command(args)
 
         assert outcome == 0
         execute_calls = env.session.execute.call_args_list
-        assert len(execute_calls) >= 3
-        # Note: With mocked database, INSERT may not occur due to complex
-        # transaction flow. This test verifies command completes without error.
+        assert len(execute_calls) >= 2
+
+        # Locate SQL insert call to verify opinion status was set
+        insert_call = next(
+            (
+                call
+                for call in execute_calls
+                if call.args and call.args[0] is extraction_module.ARTICLE_INSERT_SQL
+            ),
+            None,
+        )
+        assert insert_call is not None, "ARTICLE_INSERT_SQL should have been called"
+        insert_params = insert_call.args[1]
+        assert insert_params["status"] == "opinion"
+        metadata_payload = json.loads(insert_params["metadata"])
+        detection_meta = metadata_payload["content_type_detection"]
+        assert detection_meta["status"] == "opinion"
+        assert detection_meta["version"] == ContentTypeDetector.VERSION
+        assert "detected_at" in detection_meta
+        assert detection_meta["confidence_score"] == pytest.approx(
+            4 / 6,
+            rel=1e-3,
+        )
+        candidate_call = next(
+            call
+            for call in execute_calls
+            if call.args
+            and call.args[0] is extraction_module.CANDIDATE_STATUS_UPDATE_SQL
+        )
+        candidate_params = candidate_call.args[1]
+        assert candidate_params["status"] == "opinion"
+
+        metrics_arg = env.telemetry.record_extraction.call_args_list[-1][0][0]
+        detection_metrics = metrics_arg.content_type_detection
+        assert detection_metrics["status"] == "opinion"
+        assert detection_metrics["confidence_score"] == pytest.approx(
+            4 / 6,
+            rel=1e-3,
+        )
 
 
 def test_extraction_failure_no_content_no_database_changes():

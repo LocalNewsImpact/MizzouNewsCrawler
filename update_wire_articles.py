@@ -31,7 +31,7 @@ def extract_article_ids(csv_path):
     
     print(f"Reading CSV from: {csv_path}")
     
-    with open(csv_path, 'r', encoding='utf-8') as f:
+    with open(csv_path, encoding='utf-8') as f:
         for line_num, line in enumerate(f, 1):
             # Skip progress messages and summary lines
             skip_prefixes = (

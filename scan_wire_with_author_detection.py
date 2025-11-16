@@ -7,7 +7,7 @@ import csv
 import sys
 from backend.app.lifecycle import DatabaseManager
 from src.utils.content_type_detector import ContentTypeDetector
-from sqlalchemy import text
+from sqlalchemy import text as sql_text
 
 
 def main():
@@ -19,7 +19,7 @@ def main():
     
     with db.get_session() as session:
         # Get all labeled articles with potential wire author patterns
-        result = session.execute(text("""
+        result = session.execute(sql_text("""
             SELECT id, url, author, title, content, text
             FROM articles
             WHERE status = 'labeled'
@@ -45,7 +45,7 @@ def main():
             if i % 50 == 0:
                 print(f"Progress: {i}/{len(articles)}")
             
-            article_id, url, author, title, content, text = row
+            article_id, url, author, title, content, text_col = row
             
             # Build metadata with byline
             metadata = {"byline": author} if author else None
@@ -55,7 +55,7 @@ def main():
                 url=url or "",
                 title=title,
                 metadata=metadata,
-                content=content or text or "",
+                content=content or text_col or "",
             )
             
             if detection_result and detection_result.status == "wire":

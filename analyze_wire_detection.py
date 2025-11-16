@@ -4,7 +4,6 @@ with the updated detection logic.
 """
 import re
 import csv
-import os
 from datetime import datetime
 from sqlalchemy import text
 from src.models.database import DatabaseManager

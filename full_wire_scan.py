@@ -123,7 +123,7 @@ def main():
                     'extracted_at': str(a.extracted_at) if a.extracted_at else '',
                 })
     
-    print(f"\nScan complete!", file=sys.stderr)
+    print("\nScan complete!", file=sys.stderr)
     print(f"Total articles scanned: {processed}", file=sys.stderr)
     print(f"Articles to be changed to WIRE: {len(results)}", file=sys.stderr)
     

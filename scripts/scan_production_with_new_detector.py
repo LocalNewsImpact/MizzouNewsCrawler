@@ -150,12 +150,10 @@ def main():
             "a.id, a.url, a.title, a.content, a.author, a.status"
         )
         query = text(
-            (
-                f"SELECT {columns} FROM articles a "
-                "WHERE a.status = :status AND a.content IS NOT NULL "
-                "AND a.content != '' ORDER BY a.publish_date DESC "
-                f"{limit_clause}"
-            )
+            f"SELECT {columns} FROM articles a "
+            "WHERE a.status = :status AND a.content IS NOT NULL "
+            "AND a.content != '' ORDER BY a.publish_date DESC "
+            f"{limit_clause}"
         )
         result = session.execute(query, {"status": args.status})
         rows = list(result)

@@ -109,11 +109,11 @@ def main():
                     "evidence": str(detection_result.evidence),
                 })
         
-        print(f"\n{'=' * 80}")
-        print(f"Detection complete!")
+        print("\n" + ('=' * 80))
+        print("Detection complete!")
         print(f"Total articles scanned: {total}")
         print(f"Articles detected as wire: {detected_count}")
-        print(f"{'=' * 80}\n")
+        print(f"{('=' * 80)}\n")
         
         if not results:
             print("No articles detected as wire. Nothing to export.")

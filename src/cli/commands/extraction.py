@@ -396,15 +396,12 @@ def handle_extraction_command(args) -> int:
                 "   ⚠️  Limited domain diversity "
                 f"({domain_analysis['unique_domains']} domains)"
             )
-            print(
-                "   Sample domains: " f"{', '.join(domain_analysis['sample_domains'])}"
-            )
+            print(f"   Sample domains: {', '.join(domain_analysis['sample_domains'])}")
         else:
             print("   ✓ Good domain diversity for rotation")
             if domain_analysis["unique_domains"] <= 10:
                 print(
-                    "   Sample domains: "
-                    f"{', '.join(domain_analysis['sample_domains'])}"
+                    f"   Sample domains: {', '.join(domain_analysis['sample_domains'])}"
                 )
     print()
 
@@ -592,8 +589,7 @@ def handle_extraction_command(args) -> int:
                         reason = "single-domain batch"
 
                     print(
-                        f"   ⏸️  {reason.capitalize()} - "
-                        f"waiting {actual_sleep:.0f}s..."
+                        f"   ⏸️  {reason.capitalize()} - waiting {actual_sleep:.0f}s..."
                     )
                     time.sleep(actual_sleep)
             elif unique_domains > 1 or skipped_domains > 0:
@@ -725,7 +721,19 @@ def _process_batch(
                 )
             params["source"] = args.source
 
-        result = safe_session_execute(session, q, params)
+        # Add row-level locking for parallel processing (PostgreSQL only)
+        # SKIP LOCKED allows multiple workers to process different rows simultaneously
+        # SQLite doesn't support FOR UPDATE, so skip it for e2e/unit tests
+        try:
+            dialect_name = session.bind.dialect.name if session.bind else None
+        except AttributeError:
+            # Mock session in tests
+            dialect_name = None
+
+        if dialect_name == "postgresql":
+            q += " FOR UPDATE OF cl SKIP LOCKED"
+
+        result = safe_session_execute(session, text(q), params)
         rows = result.fetchall()
         logger.info(
             "🔍 Extraction query returned %d candidate articles (requested: %d)",

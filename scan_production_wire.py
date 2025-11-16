@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """Scan production articles for wire content using updated detector."""
-import csv
 import sys
 import os
 sys.path.insert(0, '/app')
@@ -53,9 +52,12 @@ with db.get_session() as session:
             service = 'Unknown'
             if 'author' in detection.evidence:
                 ev = str(detection.evidence['author'])
-                if 'AFP' in ev: service = 'AFP'
-                elif 'Associated Press' in ev: service = 'AP'
-                elif 'Reuters' in ev: service = 'Reuters'
+                if 'AFP' in ev:
+                    service = 'AFP'
+                elif 'Associated Press' in ev:
+                    service = 'AP'
+                elif 'Reuters' in ev:
+                    service = 'Reuters'
             
             # Output CSV row
             print(f'{article_id},{url},{author},{title[:80] if title else ""},{service}')

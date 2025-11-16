@@ -1,5 +1,67 @@
 # GitHub Copilot Instructions
 
+## Database Query Protocol
+
+### Production Database Access (PostgreSQL via Cloud SQL)
+
+**ALWAYS use the local Python environment to query production - it's already configured:**
+
+```bash
+# Standard query pattern (USE THIS):
+source venv/bin/activate && python -c "
+from src.models.database import DatabaseManager
+from sqlalchemy import text
+
+db = DatabaseManager()
+with db.get_session() as session:
+    result = session.execute(text('YOUR SQL HERE')).fetchall()
+    for row in result:
+        print(row)
+"
+```
+
+**Common queries:**
+
+```python
+# Check unextracted articles for a source
+result = session.execute(text('''
+    SELECT COUNT(*) FROM candidate_links 
+    WHERE source = 'example.com' 
+    AND status = 'article'
+    AND id NOT IN (SELECT candidate_link_id FROM articles WHERE candidate_link_id IS NOT NULL)
+''')).scalar()
+
+# Table counts
+result = session.execute(text('''
+    SELECT 
+        (SELECT COUNT(*) FROM candidate_links) as candidates,
+        (SELECT COUNT(*) FROM articles) as articles,
+        (SELECT COUNT(*) FROM sources) as sources
+''')).fetchone()
+
+# Recent articles by source (last 24h)
+results = session.execute(text('''
+    SELECT cl.source, COUNT(*) as cnt
+    FROM articles a
+    JOIN candidate_links cl ON a.candidate_link_id = cl.id
+    WHERE a.extracted_at >= NOW() - INTERVAL '24 hours'
+    GROUP BY cl.source ORDER BY cnt DESC LIMIT 10
+''')).fetchall()
+```
+
+**Key Schema Reference:**
+
+- `candidate_links`: Discovered URLs (id, url, source, status, discovered_at, candidate_link_id FK)
+- `articles`: Extracted content (id, candidate_link_id FK, url, title, author, text, extracted_at)
+- `sources`: Publishers (id, host, canonical_name, city, county, status)
+- `article_entities`: NER results (article_id FK, entity_text, entity_type, extractor_version)
+- `article_labels`: ML classifications (article_id FK, label, confidence, label_version)
+
+**NEVER:**
+- Don't use kubectl exec for simple queries (auth issues, slow)
+- Don't query local DB (empty, not production data)
+- Don't forget `text()` wrapper for raw SQL in SQLAlchemy
+
 ## Test Development Protocol
 
 When creating new test coverage (unit, integration, or postgres tests), follow this mandatory pre-implementation checklist:

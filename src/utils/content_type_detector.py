@@ -7,6 +7,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 from .confidence import normalize_score, score_to_label
+from .wire_reporters import is_wire_reporter
 
 
 @dataclass(frozen=True)
@@ -24,7 +25,7 @@ class ContentTypeResult:
 class ContentTypeDetector:
     """Detect special content types (obituaries, opinion pieces, wire)."""
 
-    VERSION = "2025-11-12a"  # Added AFP detection + author field checking
+    VERSION = "2025-11-12i"  # Re-added multi-author byline patterns
 
     # Wire service indicators for dateline detection
     _WIRE_SERVICE_PATTERNS = (
@@ -293,33 +294,56 @@ class ContentTypeDetector:
         author = (metadata or {}).get("byline", "") if metadata else ""
         if author:
             author_lower = author.lower().strip()
-            # Common wire service author patterns
-            wire_author_patterns = [
-                (r"^afp\s+afp$", "AFP"),
-                (r"^(by\s+)?afp(\s+staff)?$", "AFP"),
-                (r"^(by\s+)?agence france[- ]presse$", "AFP"),
-                (r"^(by\s+)?ap(\s+staff)?$", "Associated Press"),
-                (r"^(by\s+)?associated press$", "Associated Press"),
-                (r"^(by\s+)?reuters(\s+staff)?$", "Reuters"),
-                (r"^(by\s+)?cnn(\s+(staff|wire))?$", "CNN"),
-                (r"\busa\s+today\b", "USA TODAY"),
-                (r"^(by\s+)?bloomberg$", "Bloomberg"),
-                # Kansas Reflector and Missouri Independent may appear anywhere in the
-                # byline, often prefixed by a date or followed by an author name. Match
-                # them when they appear anywhere, not only at the start or end.
-                (r"\bkansas\s+reflector\b", "States Newsroom"),
-                (r"\bkansasreflector\b", "States Newsroom"),
-                (r"\b(the\s+)?missouri\s+independent\b", "The Missouri Independent"),
-                (r"\b(wave|wave3|wave3\.com|wave3news)\b", "WAVE"),
-                (r"\bstates\s*newsroom\b", "States Newsroom"),
-                (r"\bafp$", "AFP"),  # Name ending with AFP (e.g., "John Smith AFP")
-            ]
-            for pattern, service_name in wire_author_patterns:
-                if re.search(pattern, author_lower, re.IGNORECASE):
-                    matches["author"] = [f"{service_name} (author field)"]
-                    detected_services.add(service_name)
-                    wire_byline_found = True
-                    break
+
+            # First check if byline contains a known wire reporter
+            wire_reporter_check = is_wire_reporter(author)
+            if wire_reporter_check:
+                service_name, confidence = wire_reporter_check
+                matches["author"] = [f"{service_name} (known wire reporter)"]
+                detected_services.add(service_name)
+                wire_byline_found = True
+            else:
+                # Fall back to pattern matching for wire service bylines
+                # Common wire service author patterns
+                wire_author_patterns = [
+                    (r"^afp\s+afp$", "AFP"),
+                    (r"^(by\s+)?afp(\s+staff)?$", "AFP"),
+                    (r"^(by\s+)?agence france[- ]presse$", "AFP"),
+                    (r"^(by\s+)?ap(\s+staff)?$", "Associated Press"),
+                    (r"^(by\s+)?associated press$", "Associated Press"),
+                    (r"^(by\s+)?reuters(\s+staff)?$", "Reuters"),
+                    (r"^(by\s+)?cnn(\s+(staff|wire))?$", "CNN"),
+                    (r"\busa\s+today\b", "USA TODAY"),
+                    (r"^(by\s+)?bloomberg$", "Bloomberg"),
+                    # Kansas Reflector and Missouri Independent may appear anywhere
+                    # in the byline, often prefixed by a date or followed by an
+                    # author name. Match them when they appear anywhere, not only
+                    # at the start or end.
+                    (r"\bkansas\s+reflector\b", "States Newsroom"),
+                    (r"\bkansasreflector\b", "States Newsroom"),
+                    (
+                        r"\b(the\s+)?missouri\s+independent\b",
+                        "The Missouri Independent",
+                    ),
+                    (r"\b(wave|wave3|wave3\.com|wave3news)\b", "WAVE"),
+                    (r"\bstates\s*newsroom\b", "States Newsroom"),
+                    # Name ending with AFP (e.g., "John Smith AFP")
+                    (r"\bafp$", "AFP"),
+                    # Multi-author bylines ending with wire service
+                    # (e.g., "John Smith, Jane Doe, Associated Press")
+                    (r",\s*associated press$", "Associated Press"),
+                    (r",\s*reuters$", "Reuters"),
+                    (r",\s*cnn$", "CNN"),
+                    (r",\s*afp$", "AFP"),
+                    (r",\s*bloomberg$", "Bloomberg"),
+                    (r",\s*npr$", "NPR"),
+                ]
+                for pattern, service_name in wire_author_patterns:
+                    if re.search(pattern, author_lower, re.IGNORECASE):
+                        matches["author"] = [f"{service_name} (author field)"]
+                        detected_services.add(service_name)
+                        wire_byline_found = True
+                        break
 
         # Check URL for STRONG wire service patterns (actual wire service domains)
         url_lower = url.lower()
@@ -358,21 +382,58 @@ class ContentTypeDetector:
         if is_own_source:
             return None
 
-        # Weak URL patterns (syndication markers on local sites)
-        # Only count these if we also have strong content evidence
-        weak_url_patterns = [
+        # URL patterns indicating wire/syndicated content
+        # Split into two categories:
+        # 1. Strong patterns (wire service slug in URL): /ap-, /wire/, etc.
+        # 2. Section patterns (national/world coverage): /nation/, /world/, etc.
+
+        # Major national outlets that have their own correspondents
+        # (section indicators don't necessarily mean wire for these)
+        major_national_outlets = {
+            "nytimes.com",
+            "washingtonpost.com",
+            "usatoday.com",
+            "wsj.com",
+            "latimes.com",
+            "chicagotribune.com",
+            "bostonglobe.com",
+            "sfchronicle.com",
+        }
+
+        is_major_national = any(
+            outlet in url_lower for outlet in major_national_outlets
+        )
+
+        # Strong URL patterns (wire service identifiers in path)
+        strong_url_patterns = [
             "/ap-",
             "/cnn-",
             "/reuters-",
             "/wire/",
-            "/world/",
-            "/national/",
+            "/stacker/",
+            "/repub/",
+            "/theconversation/",
         ]
-        weak_url_match = False
-        for pattern in weak_url_patterns:
+
+        # Section patterns (national/world coverage)
+        # STRONG indicator for local/regional sites
+        # WEAK indicator for major national outlets
+        section_patterns = [
+            "/nation/",
+            "/national/",
+            "/world/",
+            "/nationworld/",
+            "/nation-world/",
+            "/world-nation/",
+        ]
+
+        strong_url_match = False
+        section_url_match = False
+
+        for pattern in strong_url_patterns:
             if pattern in url_lower:
                 url_wire_matches.append(pattern)
-                weak_url_match = True
+                strong_url_match = True
                 # Extract service name from pattern
                 if "ap" in pattern:
                     detected_services.add("Associated Press")
@@ -380,6 +441,17 @@ class ContentTypeDetector:
                     detected_services.add("CNN")
                 elif "reuters" in pattern:
                     detected_services.add("Reuters")
+                elif "stacker" in pattern:
+                    detected_services.add("Stacker")
+                elif "repub" in pattern:
+                    detected_services.add("States Newsroom")
+
+        # Check section patterns
+        for pattern in section_patterns:
+            if pattern in url_lower:
+                url_wire_matches.append(pattern)
+                section_url_match = True
+                # Don't add service name - could be any wire service
 
         if url_wire_matches:
             matches["url"] = url_wire_matches
@@ -478,7 +550,6 @@ class ContentTypeDetector:
                 if first_appeared_match:
                     pub = first_appeared_match.group(1).strip()
                     # Don't mark as syndicated if the current host is the original publisher
-                    # Host-check: treat the detected publisher as the original source
                     pub_lower = pub.lower()
                     host_is_pub = False
                     if "kansas" in pub_lower and "reflector" in pub_lower:
@@ -625,26 +696,36 @@ class ContentTypeDetector:
             if content_matches:
                 matches["content"] = content_matches
 
-        # CONSERVATIVE DECISION LOGIC:
-        # Only mark as wire if we have STRONG evidence:
-        # 1. Wire byline in opening, OR
-        # 2. Copyright/attribution in closing, OR
-        # 3. Weak URL match + strong content evidence
+        # DECISION LOGIC:
+        # Mark as wire if we have strong evidence:
+        # 1. Strong URL pattern (/wire/, /ap-, /stacker/, /repub/, etc.), OR
+        # 2. Section URL pattern (/nation/, /world/) on non-major-national site, OR
+        # 3. Wire byline/author found, OR
+        # 4. Copyright/attribution in content
 
         if not matches:
             return None
 
-        # Require strong evidence
+        # Check what types of evidence we have
         has_strong_evidence = wire_byline_found or any(
             "copyright" in m or "byline" in m for m in matches.get("content", [])
         )
 
-        # Weak URL + weak content = not enough
-        if weak_url_match and not has_strong_evidence:
-            return None
-
-        # Just a dateline or vague mention = not enough
-        if not has_strong_evidence:
+        # Strong URL patterns are sufficient alone
+        if strong_url_match:
+            pass  # Continue to return result
+        # Section patterns require additional content evidence
+        elif section_url_match and not is_major_national:
+            # National/world sections on local sites suggest wire, but need confirmation
+            if has_strong_evidence:
+                # Have content evidence to support wire detection
+                if not detected_services:
+                    detected_services.add("Unknown wire service")
+            else:
+                # Section URL alone is not enough without content evidence
+                return None
+        # Otherwise require strong content/byline evidence
+        elif not has_strong_evidence:
             return None
 
         # Build evidence summary
