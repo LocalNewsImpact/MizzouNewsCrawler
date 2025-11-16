@@ -651,109 +651,108 @@ class NewsDiscovery:
     ) -> list[str]:
         """
         Detect common section pages from navigation elements.
-        
+
         Strategy:
         1. Find <nav>, <menu>, or elements with nav-related classes
         2. Extract links matching patterns: /news, /local, /sports, etc.
         3. Filter to same-domain, non-feed URLs
         4. Return list of candidate section URLs
-        
+
         Args:
             source_url: Base URL of the news source
             html: HTML content of the homepage
-            
+
         Returns:
             List of discovered section URLs
         """
         if not html:
             return []
-        
+
         import re
-        
+
         section_urls: list[str] = []
         seen: set[str] = set()
-        
+
         parsed_base = urlparse(source_url)
         base_netloc = parsed_base.netloc.lower()
-        
+
         # Common section patterns in news sites
         section_patterns = [
-            r'/news\b',
-            r'/local\b',
-            r'/sports\b',
-            r'/weather\b',
-            r'/politics\b',
-            r'/business\b',
-            r'/entertainment\b',
-            r'/opinion\b',
-            r'/lifestyle\b',
-            r'/community\b',
+            r"/news\b",
+            r"/local\b",
+            r"/sports\b",
+            r"/weather\b",
+            r"/politics\b",
+            r"/business\b",
+            r"/entertainment\b",
+            r"/opinion\b",
+            r"/lifestyle\b",
+            r"/community\b",
         ]
-        
+
         # Extract all hrefs from navigation-related elements
         # Look for nav tags, menu tags, or divs with nav-related classes
         nav_pattern = r'<(?:nav|menu|header|div[^>]*class=["\'][^"\']*(?:nav|menu|header)[^"\']*["\'])[^>]*>(.*?)</(?:nav|menu|header|div)>'
         nav_sections = re.findall(nav_pattern, html, flags=re.IGNORECASE | re.DOTALL)
-        
+
         # If no nav sections found, check the entire HTML (less precise)
         if not nav_sections:
             nav_sections = [html]
-        
+
         for nav_html in nav_sections:
             hrefs = re.findall(r'href=["\']([^"\']+)["\']', nav_html, flags=re.I)
-            
+
             for href in hrefs:
                 href = href.strip()
                 if not href:
                     continue
-                
+
                 # Skip non-http protocols
-                if href.startswith(('mailto:', 'tel:', 'javascript:')):
+                if href.startswith(("mailto:", "tel:", "javascript:")):
                     continue
-                
+
                 # Convert to absolute URL
                 try:
                     absolute_url = urljoin(source_url, href)
                 except Exception:
                     continue
-                
+
                 parsed = urlparse(absolute_url)
-                
+
                 # Only same-domain URLs
                 if parsed.netloc.lower() != base_netloc:
                     continue
-                
+
                 path = parsed.path.lower()
-                
+
                 # Skip feed/rss URLs
-                if '/feed' in path or '/rss' in path or path.endswith('.xml'):
+                if "/feed" in path or "/rss" in path or path.endswith(".xml"):
                     continue
-                
+
                 # Check if path matches section patterns
                 matches_section = any(
-                    re.search(pattern, path, flags=re.I) 
-                    for pattern in section_patterns
+                    re.search(pattern, path, flags=re.I) for pattern in section_patterns
                 )
-                
+
                 if not matches_section:
                     continue
-                
+
                 # Normalize: remove query params and fragments
                 normalized_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
-                
+
                 if normalized_url in seen:
                     continue
-                
+
                 seen.add(normalized_url)
                 section_urls.append(normalized_url)
-                
+
                 # Limit to prevent excessive sections
                 if len(section_urls) >= 10:
                     break
-            
+
             if len(section_urls) >= 10:
                 break
-        
+
         return section_urls
 
     @staticmethod

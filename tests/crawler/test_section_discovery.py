@@ -47,7 +47,7 @@ class TestSectionDiscovery:
             "https://example.com",
             html,
         )
-        
+
         assert len(sections) == 3
         assert "https://example.com/news" in sections
         assert "https://example.com/sports" in sections
@@ -65,7 +65,7 @@ class TestSectionDiscovery:
             "https://example.com",
             html,
         )
-        
+
         assert "https://example.com/local/" in sections
         assert "https://example.com/news/politics" in sections
 
@@ -84,7 +84,7 @@ class TestSectionDiscovery:
             "https://example.com",
             html,
         )
-        
+
         # Should only include /news and /local, not feed URLs
         assert len(sections) == 2
         assert "https://example.com/news" in sections
@@ -104,7 +104,7 @@ class TestSectionDiscovery:
             "https://example.com",
             html,
         )
-        
+
         # Should only include same-domain URLs
         assert len(sections) == 2
         assert "https://example.com/news" in sections
@@ -123,7 +123,7 @@ class TestSectionDiscovery:
             "https://example.com",
             html,
         )
-        
+
         # Should deduplicate based on normalized path
         # Both /news and /news/ should be treated as different initially
         # but query params should be stripped
@@ -132,16 +132,14 @@ class TestSectionDiscovery:
     def test_discover_section_urls_limits_results(self):
         """Test section discovery limits number of sections returned."""
         # Create HTML with many section links
-        links = "".join(
-            f'<a href="/news-{i}">News {i}</a>' for i in range(20)
-        )
+        links = "".join(f'<a href="/news-{i}">News {i}</a>' for i in range(20))
         html = f"<nav>{links}</nav>"
-        
+
         sections = NewsDiscovery._discover_section_urls(
             "https://example.com",
             html,
         )
-        
+
         # Should limit to max 10 sections
         assert len(sections) <= 10
 
@@ -157,7 +155,7 @@ class TestSectionDiscovery:
             "https://example.com",
             html,
         )
-        
+
         assert len(sections) == 2
 
     def test_discover_section_urls_menu_element(self):
@@ -172,7 +170,7 @@ class TestSectionDiscovery:
             "https://example.com",
             html,
         )
-        
+
         assert len(sections) == 2
 
     def test_discover_section_urls_div_with_nav_class(self):
@@ -187,7 +185,7 @@ class TestSectionDiscovery:
             "https://example.com",
             html,
         )
-        
+
         assert len(sections) == 2
 
     def test_discover_section_urls_case_insensitive(self):
@@ -203,7 +201,7 @@ class TestSectionDiscovery:
             "https://example.com",
             html,
         )
-        
+
         # Should find sections regardless of case
         assert len(sections) == 3
 
@@ -227,7 +225,7 @@ class TestSectionDiscovery:
             "https://example.com",
             html,
         )
-        
+
         # Should find all 10 common section patterns
         assert len(sections) == 10
 
@@ -245,7 +243,7 @@ class TestSectionDiscovery:
             "https://example.com",
             html,
         )
-        
+
         # Should only include /news
         assert len(sections) == 1
         assert "https://example.com/news" in sections
@@ -262,7 +260,7 @@ class TestSectionDiscovery:
             "https://example.com",
             html,
         )
-        
+
         # Should normalize by removing query/fragment
         assert "https://example.com/news" in sections
         assert "https://example.com/sports" in sections
@@ -297,7 +295,7 @@ class TestSectionDiscovery:
             "https://localnews.example.com",
             html,
         )
-        
+
         # Should find news-related sections but not contact
         assert len(sections) >= 3
         # The current implementation looks for specific patterns

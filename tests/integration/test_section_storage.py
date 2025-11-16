@@ -25,16 +25,18 @@ def db_manager(request):
     """Provide a database manager for testing."""
     # Use environment variable if available, otherwise use in-memory SQLite
     import os
+
     database_url = os.getenv("DATABASE_URL", "sqlite:///:memory:")
-    
+
     db = DatabaseManager(database_url)
-    
+
     # Create tables if they don't exist
     from src.models import Base
+
     Base.metadata.create_all(db.engine)
-    
+
     yield db
-    
+
     # Cleanup is handled by test functions
     db.close()
 
@@ -43,7 +45,7 @@ def test_section_columns_exist(db_manager):
     """Test that section discovery columns exist in sources table."""
     with db_manager.engine.connect() as conn:
         dialect = conn.dialect.name
-        
+
         if dialect == "postgresql":
             result = conn.execute(
                 text(
@@ -64,7 +66,7 @@ def test_section_columns_exist(db_manager):
             # SQLite
             result = conn.execute(text("PRAGMA table_info(sources)"))
             columns = {row[1] for row in result.fetchall()}
-        
+
         assert "discovered_sections" in columns
         assert "section_discovery_enabled" in columns
         assert "section_last_updated" in columns
@@ -88,9 +90,9 @@ def test_store_section_data(db_manager, test_source_id):
                 "host": "example.com",
                 "host_norm": "example.com",
                 "enabled": True,
-            }
+            },
         )
-        
+
         # Store section data
         sections = [
             {
@@ -110,7 +112,7 @@ def test_store_section_data(db_manager, test_source_id):
                 "avg_articles_found": 0.0,
             },
         ]
-        
+
         dialect = conn.dialect.name
         if dialect == "postgresql":
             # PostgreSQL uses JSONB
@@ -127,7 +129,7 @@ def test_store_section_data(db_manager, test_source_id):
                     "sections": json.dumps(sections),
                     "updated": datetime.utcnow(),
                     "id": test_source_id,
-                }
+                },
             )
         else:
             # SQLite stores JSON as TEXT
@@ -144,9 +146,9 @@ def test_store_section_data(db_manager, test_source_id):
                     "sections": json.dumps(sections),
                     "updated": datetime.utcnow().isoformat(),
                     "id": test_source_id,
-                }
+                },
             )
-        
+
         # Verify data was stored
         result = conn.execute(
             text(
@@ -155,28 +157,28 @@ def test_store_section_data(db_manager, test_source_id):
                 FROM sources WHERE id = :id
                 """
             ),
-            {"id": test_source_id}
+            {"id": test_source_id},
         ).fetchone()
-        
+
         assert result is not None
-        
+
         # Parse the JSON data
         stored_sections = result[0]
         if isinstance(stored_sections, str):
             stored_sections = json.loads(stored_sections)
-        
+
         assert len(stored_sections) == 2
         assert stored_sections[0]["url"] == "/news"
         assert stored_sections[0]["success_count"] == 10
         assert stored_sections[1]["url"] == "/local"
         assert stored_sections[1]["failure_count"] == 3
-        
+
         # Verify enabled flag
         assert result[1] is True or result[1] == 1  # SQLite returns int
-        
+
         # Verify timestamp was set
         assert result[2] is not None
-        
+
         # Cleanup
         conn.execute(text("DELETE FROM sources WHERE id = :id"), {"id": test_source_id})
 
@@ -190,7 +192,7 @@ def test_retrieve_section_data(db_manager, test_source_id):
             "success_count": 5,
         }
     ]
-    
+
     with db_manager.engine.begin() as conn:
         # Insert test source with section data
         dialect = conn.dialect.name
@@ -215,7 +217,7 @@ def test_retrieve_section_data(db_manager, test_source_id):
                     "sections": json.dumps(sections),
                     "enabled": True,
                     "updated": datetime.utcnow(),
-                }
+                },
             )
         else:
             conn.execute(
@@ -238,25 +240,25 @@ def test_retrieve_section_data(db_manager, test_source_id):
                     "sections": json.dumps(sections),
                     "enabled": 1,
                     "updated": datetime.utcnow().isoformat(),
-                }
+                },
             )
-        
+
         # Retrieve the data
         result = conn.execute(
             text("SELECT discovered_sections FROM sources WHERE id = :id"),
-            {"id": test_source_id}
+            {"id": test_source_id},
         ).fetchone()
-        
+
         assert result is not None
-        
+
         retrieved_sections = result[0]
         if isinstance(retrieved_sections, str):
             retrieved_sections = json.loads(retrieved_sections)
-        
+
         assert len(retrieved_sections) == 1
         assert retrieved_sections[0]["url"] == "/sports"
         assert retrieved_sections[0]["success_count"] == 5
-        
+
         # Cleanup
         conn.execute(text("DELETE FROM sources WHERE id = :id"), {"id": test_source_id})
 
@@ -265,7 +267,7 @@ def test_section_discovery_enabled_flag(db_manager, test_source_id):
     """Test section_discovery_enabled flag works correctly."""
     with db_manager.engine.begin() as conn:
         dialect = conn.dialect.name
-        
+
         # Test enabled (default)
         if dialect == "postgresql":
             conn.execute(
@@ -279,7 +281,7 @@ def test_section_discovery_enabled_flag(db_manager, test_source_id):
                     "id": test_source_id,
                     "host": "enabled.com",
                     "host_norm": "enabled.com",
-                }
+                },
             )
         else:
             conn.execute(
@@ -293,17 +295,17 @@ def test_section_discovery_enabled_flag(db_manager, test_source_id):
                     "id": test_source_id,
                     "host": "enabled.com",
                     "host_norm": "enabled.com",
-                }
+                },
             )
-        
+
         result = conn.execute(
             text("SELECT section_discovery_enabled FROM sources WHERE id = :id"),
-            {"id": test_source_id}
+            {"id": test_source_id},
         ).fetchone()
-        
+
         # Default should be enabled
         assert result[0] is True or result[0] == 1
-        
+
         # Test disabled
         test_source_id_2 = f"test-section-{uuid.uuid4()}"
         if dialect == "postgresql":
@@ -322,7 +324,7 @@ def test_section_discovery_enabled_flag(db_manager, test_source_id):
                     "host": "disabled.com",
                     "host_norm": "disabled.com",
                     "enabled": False,
-                }
+                },
             )
         else:
             conn.execute(
@@ -340,20 +342,20 @@ def test_section_discovery_enabled_flag(db_manager, test_source_id):
                     "host": "disabled.com",
                     "host_norm": "disabled.com",
                     "enabled": 0,
-                }
+                },
             )
-        
+
         result = conn.execute(
             text("SELECT section_discovery_enabled FROM sources WHERE id = :id"),
-            {"id": test_source_id_2}
+            {"id": test_source_id_2},
         ).fetchone()
-        
+
         assert result[0] is False or result[0] == 0
-        
+
         # Cleanup
         conn.execute(
             text("DELETE FROM sources WHERE id IN (:id1, :id2)"),
-            {"id1": test_source_id, "id2": test_source_id_2}
+            {"id1": test_source_id, "id2": test_source_id_2},
         )
 
 
@@ -372,17 +374,17 @@ def test_null_sections(db_manager, test_source_id):
                 "id": test_source_id,
                 "host": "null-sections.com",
                 "host_norm": "null-sections.com",
-            }
+            },
         )
-        
+
         # Verify NULL is stored correctly
         result = conn.execute(
             text("SELECT discovered_sections FROM sources WHERE id = :id"),
-            {"id": test_source_id}
+            {"id": test_source_id},
         ).fetchone()
-        
+
         assert result[0] is None
-        
+
         # Cleanup
         conn.execute(text("DELETE FROM sources WHERE id = :id"), {"id": test_source_id})
 
@@ -392,7 +394,7 @@ def test_update_sections(db_manager, test_source_id):
     with db_manager.engine.begin() as conn:
         # Create source with initial sections
         initial_sections = [{"url": "/news", "success_count": 1}]
-        
+
         dialect = conn.dialect.name
         if dialect == "postgresql":
             conn.execute(
@@ -407,7 +409,7 @@ def test_update_sections(db_manager, test_source_id):
                     "host": "update-test.com",
                     "host_norm": "update-test.com",
                     "sections": json.dumps(initial_sections),
-                }
+                },
             )
         else:
             conn.execute(
@@ -422,15 +424,15 @@ def test_update_sections(db_manager, test_source_id):
                     "host": "update-test.com",
                     "host_norm": "update-test.com",
                     "sections": json.dumps(initial_sections),
-                }
+                },
             )
-        
+
         # Update sections
         updated_sections = [
             {"url": "/news", "success_count": 2},
             {"url": "/sports", "success_count": 1},
         ]
-        
+
         if dialect == "postgresql":
             conn.execute(
                 text(
@@ -443,7 +445,7 @@ def test_update_sections(db_manager, test_source_id):
                 {
                     "sections": json.dumps(updated_sections),
                     "id": test_source_id,
-                }
+                },
             )
         else:
             conn.execute(
@@ -457,21 +459,21 @@ def test_update_sections(db_manager, test_source_id):
                 {
                     "sections": json.dumps(updated_sections),
                     "id": test_source_id,
-                }
+                },
             )
-        
+
         # Verify update
         result = conn.execute(
             text("SELECT discovered_sections FROM sources WHERE id = :id"),
-            {"id": test_source_id}
+            {"id": test_source_id},
         ).fetchone()
-        
+
         sections = result[0]
         if isinstance(sections, str):
             sections = json.loads(sections)
-        
+
         assert len(sections) == 2
         assert sections[0]["success_count"] == 2
-        
+
         # Cleanup
         conn.execute(text("DELETE FROM sources WHERE id = :id"), {"id": test_source_id})
