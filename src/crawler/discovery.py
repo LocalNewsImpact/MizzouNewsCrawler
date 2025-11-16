@@ -650,23 +650,29 @@ class NewsDiscovery:
         html: str,
     ) -> list[str]:
         """
-        Detect section pages using two strategies:
+        Strategy 1: Navigation-based section discovery.
 
-        Strategy 1 (Navigation-based):
-        - Extract links from <nav>, <menu>, or nav-related elements
-        - Fuzzy match text/URL against common section keywords
-        - Identify shallow URLs (1-2 path segments) in navigation
+        Extracts section URLs from navigation elements using fuzzy keyword
+        matching. Designed to find shallow URL paths (1-2 segments)
+        commonly used for section fronts.
 
-        Strategy 2 (URL pattern extraction):
-        - Analyze discovered article URLs to extract path segments
-        - Example: /news/local/article -> identifies /news/local/ as section
+        Approach:
+        - Parse <nav>, <menu>, and nav-related HTML elements
+        - Fuzzy match link text/URLs against common section keywords
+          (news, local, sports, etc.)
+        - Prioritize short paths that look like section fronts
+
+        Note: This method implements Strategy 1 only. Strategy 2
+        (URL pattern extraction) is in _extract_sections_from_article_urls()
+        and analyzes article URLs to infer section paths. Both strategies
+        are called together in the discovery workflow.
 
         Args:
             source_url: Base URL of the news source
             html: HTML content of the homepage
 
         Returns:
-            List of discovered section URLs
+            List of discovered section URLs (Strategy 1 results only)
         """
         if not html:
             return []
