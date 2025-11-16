@@ -725,7 +725,19 @@ def _process_batch(
                 )
             params["source"] = args.source
 
-        result = safe_session_execute(session, q, params)
+        # Add row-level locking for parallel processing (PostgreSQL only)
+        # SKIP LOCKED allows multiple workers to process different rows simultaneously
+        # SQLite doesn't support FOR UPDATE, so skip it for e2e/unit tests
+        try:
+            dialect_name = session.bind.dialect.name if session.bind else None
+        except AttributeError:
+            # Mock session in tests
+            dialect_name = None
+
+        if dialect_name == "postgresql":
+            q += " FOR UPDATE OF cl SKIP LOCKED"
+
+        result = safe_session_execute(session, text(q), params)
         rows = result.fetchall()
         logger.info(
             "🔍 Extraction query returned %d candidate articles (requested: %d)",
