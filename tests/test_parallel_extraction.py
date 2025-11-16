@@ -128,9 +128,8 @@ def test_parallel_extraction_no_duplicates(cloud_sql_session):
         """Mock worker that simulates extraction by selecting candidate links."""
         # Create a new session for this thread
         db = DatabaseManager()
-        session = db.get_session()
-
-        try:
+        
+        with db.get_session() as session:
             # This simulates _process_batch selecting candidate links
             # In the real implementation, this would call extractor.extract_content()
             # But for this test, we just need to verify row locking works
@@ -156,8 +155,6 @@ def test_parallel_extraction_no_duplicates(cloud_sql_session):
                 processed_set.add(str(row[0]))  # Add candidate_link_id
 
             session.commit()
-        finally:
-            session.close()
 
     # Run two threads concurrently
     thread1 = threading.Thread(
@@ -187,7 +184,8 @@ def test_parallel_extraction_no_duplicates(cloud_sql_session):
         len(processed_by_thread2) > 0
     ), "Thread 2 should have processed some candidate links"
 
-    # Total processed should be reasonable (may be less than 40 due to random ordering and timing)
+    # Total processed should be reasonable (may be less than 40 due to
+    # random ordering and timing)
     total_processed = len(processed_by_thread1) + len(processed_by_thread2)
     assert (
         total_processed <= 40
