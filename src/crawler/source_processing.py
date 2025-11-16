@@ -756,6 +756,7 @@ class SourceProcessor:
     def _try_rss(
         self,
     ) -> tuple[list[dict[str, Any]], dict[str, int], bool, bool]:
+        logger.info("DEBUG_RSS: _try_rss() called for %s", self.source_name)
         articles: list[dict[str, Any]] = []
         summary = {
             "feeds_tried": 0,
@@ -807,7 +808,9 @@ class SourceProcessor:
                 }
 
             self._persist_rss_metadata(articles, summary)
+            logger.info("DEBUG_RSS: _persist_rss_metadata() completed for %s", self.source_name)
         except Exception as rss_error:  # pragma: no cover - side effects
+            logger.error("DEBUG_RSS: Exception in _try_rss for %s: %s", self.source_name, rss_error, exc_info=True)
             self._handle_rss_failure(rss_error)
         # Record count (even if zero) so downstream logic can decide
         # which methods actually yielded articles.
