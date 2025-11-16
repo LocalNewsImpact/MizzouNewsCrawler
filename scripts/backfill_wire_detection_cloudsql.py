@@ -102,8 +102,14 @@ def get_candidates_for_backfill(session, limit: int = None) -> list[tuple]:
     return result.fetchall()
 
 
-def detect_wire_for_article(article_id: int, url: str, title: str,
-                            content: str, author: str) -> tuple[bool, dict]:
+def detect_wire_for_article(
+    article_id: int,
+    url: str,
+    title: str,
+    content: str,
+    author: str,
+    metadata: dict | None = None,
+) -> tuple[bool, dict]:
     """
     Run wire detection on an article.
 
@@ -112,11 +118,12 @@ def detect_wire_for_article(article_id: int, url: str, title: str,
     detector = ContentTypeDetector()
     
     # Run detection
+    # Ensure we pass metadata if provided (contains byline/author info)
     result = detector.detect(
         url=url,
         title=title,
-        metadata=None,
-        content=content
+        metadata=metadata,
+        content=content,
     )
     
     # Check if detected as wire
@@ -174,7 +181,12 @@ def main():
     parser.add_argument(
         "--apply",
         action="store_true",
-        help="Actually apply the changes to the database"
+        help="Actually apply the changes to the database",
+    )
+    parser.add_argument(
+        "--with-byline",
+        action="store_true",
+        help="Include author byline in detection metadata (default: False)",
     )
     parser.add_argument(
         "--limit",
@@ -186,6 +198,7 @@ def main():
     
     # Default to dry-run unless --apply is specified
     dry_run = not args.apply
+    include_byline = args.with_byline
     
     if dry_run:
         logger.info("=" * 80)
@@ -226,8 +239,11 @@ def main():
                 if idx % 100 == 0:
                     logger.info(f"Processed {idx}/{len(candidates)} articles...")
                 
+                # Pass byline into metadata when requested so byline-based
+                # detections (States Newsroom, WAVE, etc.) are considered
+                metadata = {"byline": author} if include_byline and author else None
                 is_wire, detection_info = detect_wire_for_article(
-                    article_id, url, title, content, author
+                    article_id, url, title, content, author, metadata=metadata
                 )
                 
                 if is_wire:
