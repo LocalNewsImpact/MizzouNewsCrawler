@@ -21,9 +21,9 @@ def test_extraction_query_has_skip_locked():
 
     assert "FOR UPDATE" in source, "Query must include FOR UPDATE"
     assert "SKIP LOCKED" in source, "Query must include SKIP LOCKED"
-    assert "FOR UPDATE OF cl SKIP LOCKED" in source, (
-        "Query must lock candidate_links table with SKIP LOCKED"
-    )
+    assert (
+        "FOR UPDATE OF cl SKIP LOCKED" in source
+    ), "Query must lock candidate_links table with SKIP LOCKED"
 
 
 @pytest.mark.integration
@@ -35,9 +35,9 @@ def test_extraction_query_has_dialect_detection():
     source = inspect.getsource(_process_batch)
 
     assert "dialect_name" in source, "Query must detect database dialect"
-    assert 'dialect_name == "postgresql"' in source, (
-        "Query must check for PostgreSQL dialect"
-    )
+    assert (
+        'dialect_name == "postgresql"' in source
+    ), "Query must check for PostgreSQL dialect"
 
 
 @pytest.mark.postgres
@@ -175,20 +175,20 @@ def test_parallel_extraction_no_duplicates(cloud_sql_session):
 
     # Verify no duplicates: each thread should process different candidate links
     duplicates = processed_by_thread1.intersection(processed_by_thread2)
-    assert len(duplicates) == 0, (
-        f"Found {len(duplicates)} duplicate candidate_link_ids processed by both threads"
-    )
+    assert (
+        len(duplicates) == 0
+    ), f"Found {len(duplicates)} duplicate candidate_link_ids processed by both threads"
 
     # Verify both threads processed some links
-    assert len(processed_by_thread1) > 0, (
-        "Thread 1 should have processed some candidate links"
-    )
-    assert len(processed_by_thread2) > 0, (
-        "Thread 2 should have processed some candidate links"
-    )
+    assert (
+        len(processed_by_thread1) > 0
+    ), "Thread 1 should have processed some candidate links"
+    assert (
+        len(processed_by_thread2) > 0
+    ), "Thread 2 should have processed some candidate links"
 
     # Total processed should be reasonable (may be less than 40 due to random ordering and timing)
     total_processed = len(processed_by_thread1) + len(processed_by_thread2)
-    assert total_processed <= 40, (
-        f"Total processed ({total_processed}) should not exceed requested limit (40)"
-    )
+    assert (
+        total_processed <= 40
+    ), f"Total processed ({total_processed}) should not exceed requested limit (40)"
