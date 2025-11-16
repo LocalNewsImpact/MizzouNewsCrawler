@@ -231,31 +231,32 @@ def test_opinion_detection_sets_status():
         )
         assert insert_call is not None, "ARTICLE_INSERT_SQL should have been called"
         insert_params = insert_call.args[1]
-    assert insert_params["status"] == "opinion"
-    metadata_payload = json.loads(insert_params["metadata"])
-    detection_meta = metadata_payload["content_type_detection"]
-    assert detection_meta["status"] == "opinion"
-    assert detection_meta["version"] == ContentTypeDetector.VERSION
-    assert "detected_at" in detection_meta
-    assert detection_meta["confidence_score"] == pytest.approx(
-        4 / 6,
-        rel=1e-3,
-    )
-    candidate_call = next(
-        call
-        for call in execute_calls
-        if call.args and call.args[0] is extraction_module.CANDIDATE_STATUS_UPDATE_SQL
-    )
-    candidate_params = candidate_call.args[1]
-    assert candidate_params["status"] == "opinion"
+        assert insert_params["status"] == "opinion"
+        metadata_payload = json.loads(insert_params["metadata"])
+        detection_meta = metadata_payload["content_type_detection"]
+        assert detection_meta["status"] == "opinion"
+        assert detection_meta["version"] == ContentTypeDetector.VERSION
+        assert "detected_at" in detection_meta
+        assert detection_meta["confidence_score"] == pytest.approx(
+            4 / 6,
+            rel=1e-3,
+        )
+        candidate_call = next(
+            call
+            for call in execute_calls
+            if call.args
+            and call.args[0] is extraction_module.CANDIDATE_STATUS_UPDATE_SQL
+        )
+        candidate_params = candidate_call.args[1]
+        assert candidate_params["status"] == "opinion"
 
-    metrics_arg = env.telemetry.record_extraction.call_args_list[-1][0][0]
-    detection_metrics = metrics_arg.content_type_detection
-    assert detection_metrics["status"] == "opinion"
-    assert detection_metrics["confidence_score"] == pytest.approx(
-        4 / 6,
-        rel=1e-3,
-    )
+        metrics_arg = env.telemetry.record_extraction.call_args_list[-1][0][0]
+        detection_metrics = metrics_arg.content_type_detection
+        assert detection_metrics["status"] == "opinion"
+        assert detection_metrics["confidence_score"] == pytest.approx(
+            4 / 6,
+            rel=1e-3,
+        )
 
 
 def test_extraction_failure_no_content_no_database_changes():
