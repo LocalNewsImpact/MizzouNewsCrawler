@@ -2,13 +2,12 @@
 
 import inspect
 from datetime import datetime
-from unittest.mock import Mock
 from uuid import uuid4
 
 import pytest
 from sqlalchemy import text as sql_text
 
-from src.models import Article, CandidateLink, Source
+from src.models import CandidateLink, Source
 
 
 @pytest.mark.integration
@@ -68,93 +67,155 @@ def test_skip_locked_syntax_is_valid_postgres(cloud_sql_session):
 
 @pytest.mark.postgres
 @pytest.mark.integration
-def test_parallel_extraction_no_duplicates(cloud_sql_session):
-    """Test that parallel extractions process different candidate links without duplicates."""
+def test_parallel_extraction_no_duplicates(cloud_sql_engine):
+    """Test parallel extractions process different candidate links.
+
+    This test uses cloud_sql_engine instead of cloud_sql_session to avoid
+    transaction isolation issues. Each worker thread creates its own session
+    from the engine, and all changes are committed to the database.
+    """
     import threading
 
     from sqlalchemy import text as sql_text
+    from sqlalchemy.orm import sessionmaker
 
-    from src.models.database import DatabaseManager
+    # Create a session for setup
+    SessionLocal = sessionmaker(bind=cloud_sql_engine)
+    setup_session = SessionLocal()
 
-    # Create test sources
-    source1 = Source(
-        id=uuid4(),
-        host="test1.example.com",
-        host_norm="test1.example.com",
-        canonical_name="Test Source 1",
-        status="active",
-    )
-    source2 = Source(
-        id=uuid4(),
-        host="test2.example.com",
-        host_norm="test2.example.com",
-        canonical_name="Test Source 2",
-        status="active",
-    )
-    cloud_sql_session.add(source1)
-    cloud_sql_session.add(source2)
-    cloud_sql_session.flush()
-
-    # Create 60 candidate links (30 per source) with status='article'
-    candidate_links = []
-    for i in range(30):
-        cl1 = CandidateLink(
-            id=str(uuid4()),
-            url=f"https://test1.example.com/article-{i}",
-            source="test1.example.com",
-            source_id=source1.id,
-            status="article",
-            discovered_at=datetime.utcnow(),
+    try:
+        # Create test sources
+        source1 = Source(
+            id=uuid4(),
+            host="test1.example.com",
+            host_norm="test1.example.com",
+            canonical_name="Test Source 1",
+            status="active",
         )
-        cl2 = CandidateLink(
-            id=str(uuid4()),
-            url=f"https://test2.example.com/article-{i}",
-            source="test2.example.com",
-            source_id=source2.id,
-            status="article",
-            discovered_at=datetime.utcnow(),
+        source2 = Source(
+            id=uuid4(),
+            host="test2.example.com",
+            host_norm="test2.example.com",
+            canonical_name="Test Source 2",
+            status="active",
         )
-        candidate_links.extend([cl1, cl2])
+        setup_session.add(source1)
+        setup_session.add(source2)
+        setup_session.flush()
 
-    cloud_sql_session.add_all(candidate_links)
-    # IMPORTANT: Commit so worker threads can see the data
-    cloud_sql_session.commit()
-
-    # Track which candidate_link_ids were processed by each thread
-    processed_by_thread1 = set()
-    processed_by_thread2 = set()
-
-    def mock_extraction_worker(processed_set):
-        """Mock worker that simulates extraction by selecting candidate links."""
-        # Create a new session for this thread
-        db = DatabaseManager()
-        
-        with db.get_session() as session:
-            # This simulates _process_batch selecting candidate links
-            # In the real implementation, this would call extractor.extract_content()
-            # But for this test, we just need to verify row locking works
-            query = sql_text(
-                """
-                SELECT cl.id, cl.url, cl.source, cl.status
-                FROM candidate_links cl
-                WHERE cl.status = 'article'
-                AND cl.id NOT IN (
-                    SELECT candidate_link_id FROM articles
-                    WHERE candidate_link_id IS NOT NULL
-                )
-                ORDER BY RANDOM()
-                LIMIT 20
-                FOR UPDATE OF cl SKIP LOCKED
-            """
+        # Create 60 candidate links (30 per source) with status='article'
+        candidate_links = []
+        for i in range(30):
+            cl1 = CandidateLink(
+                id=str(uuid4()),
+                url=f"https://test1.example.com/article-{i}",
+                source="test1.example.com",
+                source_id=source1.id,
+                status="article",
+                discovered_at=datetime.utcnow(),
             )
+            cl2 = CandidateLink(
+                id=str(uuid4()),
+                url=f"https://test2.example.com/article-{i}",
+                source="test2.example.com",
+                source_id=source2.id,
+                status="article",
+                discovered_at=datetime.utcnow(),
+            )
+            candidate_links.extend([cl1, cl2])
 
-            result = session.execute(query)
-            rows = result.fetchall()
+        setup_session.add_all(candidate_links)
+        # Commit so worker threads can see the data
+        setup_session.commit()
 
-            for row in rows:
-                processed_set.add(str(row[0]))  # Add candidate_link_id
+        # Track which candidate_link_ids were processed by each thread
+        processed_by_thread1 = set()
+        processed_by_thread2 = set()
 
-            session.commit()
+        def mock_extraction_worker(processed_set):
+            """Mock worker that simulates extraction by selecting candidate links."""
+            # Create a new session for this thread from the engine
+            SessionLocal = sessionmaker(bind=cloud_sql_engine)
+            worker_session = SessionLocal()
+
+            try:
+                # This simulates _process_batch selecting candidate links
+                # In the real implementation, this would call
+                # extractor.extract_content()
+                # But for this test, we just need to verify row locking works
+                query = sql_text(
+                    """
+                    SELECT cl.id, cl.url, cl.source, cl.status
+                    FROM candidate_links cl
+                    WHERE cl.status = 'article'
+                    AND cl.id NOT IN (
+                        SELECT candidate_link_id FROM articles
+                        WHERE candidate_link_id IS NOT NULL
+                    )
+                    ORDER BY RANDOM()
+                    LIMIT 20
+                    FOR UPDATE OF cl SKIP LOCKED
+                """
+                )
+
+                result = worker_session.execute(query)
+                rows = result.fetchall()
+
+                for row in rows:
+                    processed_set.add(str(row[0]))  # Add candidate_link_id
+
+                worker_session.commit()
+            finally:
+                worker_session.close()
+
+        # Run two threads concurrently
+        thread1 = threading.Thread(
+            target=mock_extraction_worker, args=(processed_by_thread1,)
+        )
+        thread2 = threading.Thread(
+            target=mock_extraction_worker, args=(processed_by_thread2,)
+        )
+
+        thread1.start()
+        thread2.start()
+
+        thread1.join()
+        thread2.join()
+
+        # Verify no duplicates: each thread should process different candidate
+        # links
+        duplicates = processed_by_thread1.intersection(processed_by_thread2)
+        assert len(duplicates) == 0, (
+            f"Found {len(duplicates)} duplicate candidate_link_ids "
+            f"processed by both threads"
+        )
+
+        # Verify both threads processed some links
+        assert (
+            len(processed_by_thread1) > 0
+        ), "Thread 1 should have processed some candidate links"
+        assert (
+            len(processed_by_thread2) > 0
+        ), "Thread 2 should have processed some candidate links"
+
+        # Total processed should be reasonable (may be less than 40 due to
+        # random ordering and timing)
+        total_processed = len(processed_by_thread1) + len(processed_by_thread2)
+        assert (
+            total_processed <= 40
+        ), f"Processed {total_processed} links, but LIMIT was 20 per thread"
+        assert total_processed > 0, "No links were processed by either thread"
+
+    finally:
+        # Cleanup: delete test data
+        setup_session.query(CandidateLink).filter(
+            CandidateLink.source.in_(["test1.example.com", "test2.example.com"])
+        ).delete(synchronize_session=False)
+        setup_session.query(Source).filter(
+            Source.host.in_(["test1.example.com", "test2.example.com"])
+        ).delete(synchronize_session=False)
+        setup_session.commit()
+        setup_session.close()
 
     # Run two threads concurrently
     thread1 = threading.Thread(
