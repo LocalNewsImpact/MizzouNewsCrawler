@@ -870,96 +870,96 @@ class NewsDiscovery:
     ) -> list[dict[str, Any]]:
         """
         Phase 2: Crawl discovered section URLs to find articles.
-        
+
         When newspaper4k returns 0 articles from the homepage, this fallback:
         1. Loads discovered_sections from the database
         2. Calls newspaper.build() on each section URL
         3. Extracts article links from each section page
         4. Returns aggregated article list
-        
+
         Args:
             source_url: Base URL of the news source
             source_id: Source ID to look up sections
             source_meta: Source metadata dict
-            
+
         Returns:
             List of article dicts discovered from sections
         """
         if not source_id:
             logger.debug("No source_id provided, skipping section fallback")
             return []
-            
+
         # Load discovered sections from database
         try:
             from src.models.database import DatabaseManager
-            
+
             with DatabaseManager(self.database_url).engine.connect() as conn:
                 result = safe_execute(
                     conn,
                     "SELECT discovered_sections FROM sources WHERE id = :id",
                     {"id": source_id},
                 ).fetchone()
-                
+
                 if not result or not result[0]:
                     logger.debug("No discovered_sections for source %s", source_id)
                     return []
-                    
+
                 sections_data = result[0]
-                
+
                 # Parse JSON if it's a string (SQLite)
                 if isinstance(sections_data, str):
                     sections_data = json.loads(sections_data)
-                    
+
                 # Extract URLs from section data
                 section_urls = sections_data.get("urls", [])
-                
+
                 if not section_urls:
                     logger.debug("discovered_sections exists but urls list empty")
                     return []
-                    
+
                 logger.info(
                     "Attempting section fallback for %s with %d sections",
                     source_url,
                     len(section_urls),
                 )
-                
+
         except Exception as e:
             logger.warning("Failed to load discovered_sections: %s", e)
             return []
-        
+
         # Crawl each section URL with newspaper4k
         all_section_articles = []
         existing_urls = self._get_existing_urls()
-        
+
         for section_url in section_urls[:10]:  # Limit to first 10 sections
             try:
                 logger.debug("Crawling section: %s", section_url)
-                
+
                 # Use newspaper.build() on the section URL
                 config = Config()
                 config.fetch_images = False
                 config.memoize_articles = False
                 config.browser_user_agent = self.user_agent
-                
+
                 # Build newspaper source from section URL
                 paper = build(section_url, config=config)
-                
+
                 section_article_count = len(getattr(paper, "articles", []))
                 logger.debug(
                     "Section %s returned %d articles",
                     section_url,
                     section_article_count,
                 )
-                
+
                 # Process articles from this section
                 articles_list = getattr(paper, "articles", [])
                 for article in articles_list[: self.max_articles_per_source]:
                     try:
                         normalized_url = self._normalize_candidate_url(article.url)
-                        
+
                         if normalized_url in existing_urls:
                             continue
-                            
+
                         article_data = {
                             "url": article.url,
                             "source_url": source_url,
@@ -969,25 +969,25 @@ class NewsDiscovery:
                                 "discovered_by": "section_fallback",
                             },
                         }
-                        
+
                         all_section_articles.append(article_data)
                         existing_urls.add(normalized_url)
-                        
+
                     except Exception as e:
                         logger.debug("Error processing section article: %s", e)
                         continue
-                        
+
             except Exception as e:
                 logger.debug("Failed to crawl section %s: %s", section_url, e)
                 continue
-        
+
         logger.info(
             "Section fallback found %d articles across %d sections for %s",
             len(all_section_articles),
             len(section_urls),
             source_url,
         )
-        
+
         return all_section_articles
 
     @staticmethod
@@ -2617,14 +2617,14 @@ class NewsDiscovery:
 
             if article_count == 0:
                 logger.warning("No articles found via newspaper4k for %s", source_url)
-                
+
                 # Phase 2: Try discovered sections as fallback
                 section_articles = self._discover_from_sections(
                     source_url=source_url,
                     source_id=source_id,
                     source_meta=source_meta,
                 )
-                
+
                 if section_articles:
                     logger.info(
                         "Section fallback found %d articles for %s",
@@ -2643,7 +2643,7 @@ class NewsDiscovery:
                         notes="Fallback to section crawling successful",
                     )
                     return discovered_articles
-                
+
                 record_newspaper_effectiveness(
                     DiscoveryMethodStatus.NO_FEED,
                     0,
