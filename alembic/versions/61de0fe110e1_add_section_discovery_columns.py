@@ -25,16 +25,8 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Add section discovery columns to sources table."""
     
-    # Check if columns already exist
-    bind = op.get_bind()
-    inspector = sa.inspect(bind)
-    columns = [col['name'] for col in inspector.get_columns('sources')]
-    
-    if 'section_discovery_enabled' in columns:
-        # Columns already exist, skip
-        return
-    
     # Check if we're using SQLite (for batch mode)
+    bind = op.get_bind()
     is_sqlite = bind.dialect.name == 'sqlite'
     
     if is_sqlite:
