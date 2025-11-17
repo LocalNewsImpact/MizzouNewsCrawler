@@ -585,24 +585,13 @@ class SourceProcessor:
                 with DatabaseManager(
                     self.discovery.database_url
                 ).engine.begin() as conn:
-                    is_pg = (
-                        getattr(conn, "dialect", None)
-                        and getattr(conn.dialect, "name", "") == "postgresql"
-                    )
-                    if is_pg:
-                        update_sql = """
-                            UPDATE sources SET
-                                discovered_sections = :sections::jsonb,
-                                section_last_updated = :updated_at
-                            WHERE id = :id
-                        """
-                    else:
-                        update_sql = """
-                            UPDATE sources SET
-                                discovered_sections = :sections,
-                                section_last_updated = :updated_at
-                            WHERE id = :id
-                        """
+                    # PostgreSQL JSON column accepts string directly
+                    update_sql = """
+                        UPDATE sources SET
+                            discovered_sections = :sections,
+                            section_last_updated = :updated_at
+                        WHERE id = :id
+                    """
                     safe_execute(
                         conn,
                         update_sql,
