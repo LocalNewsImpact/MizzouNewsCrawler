@@ -82,8 +82,13 @@ spec:
           - name: inter-request-max
             value: "{{inputs.parameters.inter-request-max}}"
 
+      # Calculate optimal extraction parallelism first
+      - name: calculate-extraction-workers
+        template: calculate-extraction-workers
+
       - name: extract-content
         template: extraction-step
+        depends: "calculate-extraction-workers"
         # No dependency - starts immediately in parallel with verification
         # Extraction will check for eligible articles and wait if none available
         arguments:
@@ -104,6 +109,8 @@ spec:
             value: "{{inputs.parameters.captcha-backoff-base}}"
           - name: captcha-backoff-max
             value: "{{inputs.parameters.captcha-backoff-max}}"
+        # Dynamic parallelism: spawn N workers based on calculation
+        withParam: "{{tasks.calculate-extraction-workers.outputs.result}}"
   
   # Discovery step template
   - name: discovery-step
@@ -592,3 +599,96 @@ spec:
         value: "true"
       - name: CLOUD_SQL_INSTANCE
         value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+
+  # Calculate optimal extraction workers based on backlog
+  - name: calculate-extraction-workers
+    metadata:
+      labels:
+        stage: calculate-workers
+        workflow-name: "{{workflow.name}}"
+        workflow-uid: "{{workflow.uid}}"
+    container:
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          python - <<'PY'
+          import json
+          import sys
+          from src import config
+          from sqlalchemy import text
+
+          # Use Cloud SQL Connector (no sidecar needed)
+          if getattr(config, 'USE_CLOUD_SQL_CONNECTOR', False) and getattr(config, 'CLOUD_SQL_INSTANCE', None):
+              from src.models.cloud_sql_connector import create_cloud_sql_engine
+              engine = create_cloud_sql_engine(
+                  instance_connection_name=config.CLOUD_SQL_INSTANCE,
+                  user=config.DATABASE_USER,
+                  password=config.DATABASE_PASSWORD,
+                  database=config.DATABASE_NAME,
+              )
+          else:
+              from sqlalchemy import create_engine
+              engine = create_engine(config.DATABASE_URL)
+
+          def get_extraction_backlog():
+              with engine.connect() as conn:
+                  result = conn.execute(text("""
+                      SELECT COUNT(*)
+                      FROM candidate_links cl
+                      WHERE cl.status = 'article'
+                      AND cl.id NOT IN (
+                          SELECT candidate_link_id 
+                          FROM articles 
+                          WHERE candidate_link_id IS NOT NULL
+                      )
+                  """)).scalar()
+                  return result or 0
+
+          def calculate_worker_count(backlog):
+              if backlog < 100:
+                  return 1
+              elif backlog < 500:
+                  return 2
+              elif backlog < 1000:
+                  return 4
+              elif backlog < 2500:
+                  return 6
+              else:
+                  return 10
+
+          backlog = get_extraction_backlog()
+          worker_count = calculate_worker_count(backlog)
+          
+          # Output JSON array [{"id": 1}, {"id": 2}, ...] for Argo withParam
+          workers = [{"id": i+1} for i in range(worker_count)]
+          print(f"Backlog: {backlog} articles → {worker_count} workers", file=sys.stderr)
+          print(json.dumps(workers))
+          PY
+      env:
+      - name: DATABASE_ENGINE
+        value: "postgresql+psycopg2"
+      - name: DATABASE_USER
+        valueFrom:
+          secretKeyRef:
+            name: cloudsql-db-credentials
+            key: username
+      - name: DATABASE_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: cloudsql-db-credentials
+            key: password
+      - name: DATABASE_NAME
+        valueFrom:
+          secretKeyRef:
+            name: cloudsql-db-credentials
+            key: database
+      - name: DATABASE_URL
+        value: "$(DATABASE_ENGINE)://$(DATABASE_USER):$(DATABASE_PASSWORD)@localhost/$(DATABASE_NAME)"
+      - name: USE_CLOUD_SQL_CONNECTOR
+        value: "true"
+      - name: CLOUD_SQL_INSTANCE
+        value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+      envFrom:
+      - secretRef:
+          name: origin-proxy-credentials
