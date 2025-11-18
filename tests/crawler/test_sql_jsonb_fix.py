@@ -31,10 +31,19 @@ class TestJsonbCastFix:
         # "rss_transient_failures = :val::jsonb, "
         # And replaced with:
         # "rss_transient_failures = :val, "
-        assert "::jsonb" not in source, (
-            "Code should not contain ::jsonb cast with bound parameters "
-            "(causes syntax error with pg8000)"
-        )
+        # Check for the specific problematic pattern (not in comments)
+        lines = source.split("\n")
+        for line in lines:
+            # Skip comments
+            if line.strip().startswith("#"):
+                continue
+            # Check for the problematic SQL pattern
+            if "::jsonb" in line and ":val" in line:
+                pytest.fail(
+                    f"Found problematic ::jsonb cast with bound parameter: "
+                    f"{line.strip()}\n"
+                    f"This causes SQL syntax errors with pg8000 driver."
+                )
 
     def test_section_storage_uses_json_dumps_directly(self):
         """Verify section storage passes JSON string directly to JSONB column."""
