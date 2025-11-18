@@ -73,6 +73,7 @@ class TestJsonbIntegration:
         # Create a test source
         source = Source(
             host="test-jsonb-fix.com",
+            host_norm="test-jsonb-fix.com",
             canonical_name="Test JSONB Fix",
             rss_transient_failures=[],
         )
@@ -121,6 +122,7 @@ class TestJsonbIntegration:
         # Create a test source
         source = Source(
             host="test-sections-fix.com",
+            host_norm="test-sections-fix.com",
             canonical_name="Test Sections Fix",
             discovered_sections={},
         )
@@ -177,6 +179,7 @@ class TestJsonbIntegration:
 
         source = Source(
             host="test-complex-json.com",
+            host_norm="test-complex-json.com",
             canonical_name="Test Complex JSON",
             rss_transient_failures=[],
         )
