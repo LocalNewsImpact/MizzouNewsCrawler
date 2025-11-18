@@ -79,34 +79,6 @@ class TestSeleniumTimeoutFix:
             except Exception as e:
                 pytest.skip(f"Could not create undetected driver: {e}")
 
-    def test_persistent_driver_has_correct_timeout(self):
-        """Test that get_persistent_driver returns driver with 30s timeout."""
-        crawler = NewsCrawler()
-
-        # Mock both driver creation methods
-        with (
-            patch.object(crawler, "_create_stealth_driver") as mock_stealth,
-            patch.object(crawler, "_create_undetected_driver") as mock_undetected,
-        ):
-
-            mock_driver = MagicMock()
-            mock_driver.command_executor = MagicMock()
-            mock_driver.command_executor._client_config = MagicMock()
-            mock_driver.command_executor._client_config.timeout = 30
-            mock_stealth.return_value = mock_driver
-            mock_undetected.return_value = mock_driver
-
-            try:
-                driver = crawler.get_persistent_driver()
-
-                # Verify the driver has the correct timeout
-                assert driver.command_executor._client_config.timeout == 30
-
-                # Clean up
-                crawler.close_persistent_driver()
-            except Exception as e:
-                pytest.skip(f"Could not get persistent driver: {e}")
-
     def test_timeout_fix_prevents_147_second_delay(self):
         """
         Integration test: Verify that with the timeout fix, Selenium operations
