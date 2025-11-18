@@ -7,8 +7,9 @@ The fix sets driver.command_executor._client_config.timeout = 30 after driver
 creation to dramatically improve extraction speed (from 147s to ~0.4s).
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from src.crawler import NewsCrawler
 
