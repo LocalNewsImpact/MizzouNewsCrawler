@@ -2089,6 +2089,12 @@ class ContentExtractor:
         # Set timeouts - reduced for faster extraction
         driver.set_page_load_timeout(15)  # Reduced from 30
         driver.implicitly_wait(5)  # Reduced from 10
+        
+        # CRITICAL FIX: Set command executor timeout to prevent 147s delays
+        # Default timeout is 120s, but Selenium waits an additional ~27s
+        # somewhere, resulting in consistent 147s extractions. Setting to 30s
+        # reduces this to ~0.4s.
+        driver.command_executor._client_config.timeout = 30
 
         return driver
 
@@ -2207,6 +2213,12 @@ class ContentExtractor:
         # Set timeouts - reduced for faster extraction
         driver.set_page_load_timeout(15)  # Reduced from 30
         driver.implicitly_wait(5)  # Reduced from 10
+        
+        # CRITICAL FIX: Set command executor timeout to prevent 147s delays
+        # Default timeout is 120s, but Selenium waits an additional ~27s
+        # somewhere, resulting in consistent 147s extractions. Setting to 30s
+        # reduces this to ~0.4s.
+        driver.command_executor._client_config.timeout = 30
 
         return driver
 

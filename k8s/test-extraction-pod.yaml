@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-selenium-fix
+  namespace: production
+  labels:
+    app: test-extraction
+spec:
+  containers:
+  - name: test-container
+    image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:latest
+    command: ["/bin/bash", "-c", "sleep 3600"]
+    envFrom:
+    - secretRef:
+        name: origin-proxy-credentials
+    env:
+    - name: DATABASE_ENGINE
+      value: "postgresql+psycopg2"
+    - name: DATABASE_HOST
+      value: "127.0.0.1"
+    - name: DATABASE_PORT
+      value: "5432"
+    - name: DATABASE_USER
+      valueFrom:
+        secretKeyRef:
+          name: cloudsql-db-credentials
+          key: username
+    - name: DATABASE_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: cloudsql-db-credentials
+          key: password
+    - name: DATABASE_NAME
+      valueFrom:
+        secretKeyRef:
+          name: cloudsql-db-credentials
+          key: database
+    - name: DATABASE_URL
+      value: "$(DATABASE_ENGINE)://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)"
+    - name: SELENIUM_PROXY
+      valueFrom:
+        secretKeyRef:
+          name: origin-proxy-credentials
+          key: selenium-proxy-url
+    resources:
+      requests:
+        memory: "2Gi"
+        cpu: "1000m"
+      limits:
+        memory: "4Gi"
+        cpu: "2000m"
+  - name: cloud-sql-proxy
+    image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.1.0
+    args:
+      - "--port=5432"
+      - "mizzou-news-crawler:us-central1:mizzou-news-db"
+    securityContext:
+      runAsNonRoot: true
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
