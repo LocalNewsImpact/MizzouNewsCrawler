@@ -1977,14 +1977,14 @@ class ContentExtractor:
 
             # Extract content after ensuring page is loaded
             html = driver.page_source
-            
+
             # Stop page load immediately after getting HTML to prevent
             # waiting for slow ads/trackers (fixes 147s timeout issue)
             try:
                 driver.execute_script("window.stop();")
             except Exception:
                 pass  # Ignore if page already finished loading
-            
+
             soup = BeautifulSoup(html, "html.parser")
 
             result = {
@@ -2025,7 +2025,7 @@ class ContentExtractor:
         # Set page load strategy to 'eager' - don't wait for all resources
         # This stops waiting once DOM is interactive, not fully loaded
         # Prevents 147s timeouts waiting for slow ads/trackers
-        options.page_load_strategy = 'eager'
+        options.page_load_strategy = "eager"
 
         # Basic stealth options
         options.add_argument("--no-sandbox")
@@ -2089,7 +2089,7 @@ class ContentExtractor:
         # Set timeouts - reduced for faster extraction
         driver.set_page_load_timeout(15)  # Reduced from 30
         driver.implicitly_wait(5)  # Reduced from 10
-        
+
         # CRITICAL FIX: Set command executor timeout to prevent 147s delays
         # Default timeout is 120s, but Selenium waits an additional ~27s
         # somewhere, resulting in consistent 147s extractions. Setting to 30s
@@ -2106,7 +2106,7 @@ class ContentExtractor:
         # Set page load strategy to 'eager' - don't wait for all resources
         # This stops waiting once DOM is interactive, not fully loaded
         # Prevents 147s timeouts waiting for slow ads/trackers
-        chrome_options.page_load_strategy = 'eager'
+        chrome_options.page_load_strategy = "eager"
 
         chrome_options.add_argument("--headless=new")
         chrome_options.add_argument("--no-sandbox")
@@ -2213,7 +2213,7 @@ class ContentExtractor:
         # Set timeouts - reduced for faster extraction
         driver.set_page_load_timeout(15)  # Reduced from 30
         driver.implicitly_wait(5)  # Reduced from 10
-        
+
         # CRITICAL FIX: Set command executor timeout to prevent 147s delays
         # Default timeout is 120s, but Selenium waits an additional ~27s
         # somewhere, resulting in consistent 147s extractions. Setting to 30s

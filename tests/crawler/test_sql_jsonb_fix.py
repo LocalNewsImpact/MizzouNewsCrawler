@@ -53,12 +53,12 @@ class TestJsonbCastFix:
 
         # Check that discovered_sections update uses json.dumps directly
         # without ::jsonb cast
-        assert "discovered_sections = :sections" in source, (
-            "Section storage should use direct parameter binding"
-        )
-        assert "json.dumps(section_data)" in source, (
-            "Should serialize section data with json.dumps"
-        )
+        assert (
+            "discovered_sections = :sections" in source
+        ), "Section storage should use direct parameter binding"
+        assert (
+            "json.dumps(section_data)" in source
+        ), "Should serialize section data with json.dumps"
 
 
 @pytest.mark.integration
@@ -66,9 +66,7 @@ class TestJsonbCastFix:
 class TestJsonbIntegration:
     """Integration tests for JSONB column updates with PostgreSQL."""
 
-    def test_rss_transient_failures_update_with_postgresql(
-        self, cloud_sql_session
-    ):
+    def test_rss_transient_failures_update_with_postgresql(self, cloud_sql_session):
         """Test that rss_transient_failures can be updated in PostgreSQL."""
         from src.models import Source
 
@@ -107,9 +105,7 @@ class TestJsonbIntegration:
         cloud_sql_session.flush()
 
         # Verify the update worked
-        updated_source = (
-            cloud_sql_session.query(Source).filter_by(id=source_id).first()
-        )
+        updated_source = cloud_sql_session.query(Source).filter_by(id=source_id).first()
         assert updated_source is not None
         assert isinstance(updated_source.rss_transient_failures, list)
         assert len(updated_source.rss_transient_failures) == 1
@@ -118,9 +114,7 @@ class TestJsonbIntegration:
 
         # No cleanup needed - fixture's automatic rollback handles it
 
-    def test_discovered_sections_update_with_postgresql(
-        self, cloud_sql_session
-    ):
+    def test_discovered_sections_update_with_postgresql(self, cloud_sql_session):
         """Test that discovered_sections can be updated in PostgreSQL."""
         from src.models import Source
 
@@ -168,17 +162,12 @@ class TestJsonbIntegration:
         cloud_sql_session.flush()
 
         # Verify the update worked
-        updated_source = (
-            cloud_sql_session.query(Source).filter_by(id=source_id).first()
-        )
+        updated_source = cloud_sql_session.query(Source).filter_by(id=source_id).first()
         assert updated_source is not None
         assert isinstance(updated_source.discovered_sections, dict)
         assert "sections" in updated_source.discovered_sections
         assert len(updated_source.discovered_sections["sections"]) == 1
-        assert (
-            updated_source.discovered_sections["sections"][0]["name"]
-            == "News"
-        )
+        assert updated_source.discovered_sections["sections"][0]["name"] == "News"
 
         # No cleanup needed - fixture's automatic rollback handles it
 
@@ -219,16 +208,10 @@ class TestJsonbIntegration:
         cloud_sql_session.flush()
 
         # Verify nested structure preserved
-        updated_source = (
-            cloud_sql_session.query(Source).filter_by(id=source_id).first()
-        )
-        assert updated_source.rss_transient_failures[0]["metadata"][
-            "retries"
-        ] == 3
+        updated_source = cloud_sql_session.query(Source).filter_by(id=source_id).first()
+        assert updated_source.rss_transient_failures[0]["metadata"]["retries"] == 3
         assert (
-            updated_source.rss_transient_failures[0]["metadata"][
-                "last_error"
-            ]
+            updated_source.rss_transient_failures[0]["metadata"]["last_error"]
             == "Connection timeout"
         )
 
@@ -263,6 +246,4 @@ class TestJsonbCastRemoval:
         source = inspect.getsource(SourceProcessor)
 
         # Should use json.dumps() to serialize before passing to DB
-        assert "json.dumps" in source, (
-            "Should use json.dumps() to serialize JSON data"
-        )
+        assert "json.dumps" in source, "Should use json.dumps() to serialize JSON data"

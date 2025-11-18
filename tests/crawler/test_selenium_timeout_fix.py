@@ -83,11 +83,10 @@ class TestSeleniumTimeoutFix:
         crawler = NewsCrawler()
 
         # Mock both driver creation methods
-        with patch.object(
-            crawler, "_create_stealth_driver"
-        ) as mock_stealth, patch.object(
-            crawler, "_create_undetected_driver"
-        ) as mock_undetected:
+        with (
+            patch.object(crawler, "_create_stealth_driver") as mock_stealth,
+            patch.object(crawler, "_create_undetected_driver") as mock_undetected,
+        ):
 
             mock_driver = MagicMock()
             mock_driver.command_executor = MagicMock()
@@ -180,6 +179,4 @@ class TestSeleniumPageLoadStrategy:
         if hasattr(crawler, "_extract_with_selenium"):
             source = inspect.getsource(crawler._extract_with_selenium)
             assert "window.stop" in source, "window.stop() call missing"
-            assert (
-                "page_source" in source
-            ), "page_source extraction missing from method"
+            assert "page_source" in source, "page_source extraction missing from method"
