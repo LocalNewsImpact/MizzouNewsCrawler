@@ -2,6 +2,10 @@
 # These packages are only needed for the crawler service
 # that handles discovery, extraction, and verification
 
+# FastAPI for work queue service
+fastapi>=0.110.0
+uvicorn[standard]>=0.23.0
+
 # Web scraping and browser automation
 selenium>=4.10.0
 undetected-chromedriver>=3.5.0  # Advanced anti-detection

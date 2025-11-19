@@ -39,11 +39,11 @@ spec:
         app: work-queue
         component: coordinator
     spec:
-      serviceAccountName: mizzou-crawler
+      serviceAccountName: mizzou-app
       containers:
         - name: work-queue
-          image: gcr.io/mizzou-news-crawler/mizzou-crawler:latest
-          imagePullPolicy: Always
+          image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:90de137
+          imagePullPolicy: IfNotPresent
           command:
             - python
             - -m
@@ -59,22 +59,22 @@ spec:
             - name: CLOUD_SQL_INSTANCE
               valueFrom:
                 secretKeyRef:
-                  name: cloudsql-instance
-                  key: instance
+                  name: cloudsql-db-credentials
+                  key: instance-connection-name
             - name: DATABASE_NAME
               valueFrom:
                 secretKeyRef:
-                  name: cloudsql-db
+                  name: cloudsql-db-credentials
                   key: database
             - name: DATABASE_USER
               valueFrom:
                 secretKeyRef:
-                  name: cloudsql-db
+                  name: cloudsql-db-credentials
                   key: username
             - name: DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: cloudsql-db
+                  name: cloudsql-db-credentials
                   key: password
             
             # Work queue configuration
@@ -130,8 +130,8 @@ spec:
             - name: CLOUD_SQL_INSTANCE
               valueFrom:
                 secretKeyRef:
-                  name: cloudsql-instance
-                  key: instance
+                  name: cloudsql-db-credentials
+                  key: instance-connection-name
           resources:
             requests:
               memory: "128Mi"
