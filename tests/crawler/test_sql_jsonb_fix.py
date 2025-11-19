@@ -104,7 +104,7 @@ class TestJsonbIntegration:
             update_sql, {"val": json.dumps(existing), "id": source_id}
         )
         cloud_sql_session.flush()
-        
+
         # Expire the object so SQLAlchemy reloads it from DB
         cloud_sql_session.expire(source)
 
@@ -165,7 +165,7 @@ class TestJsonbIntegration:
             },
         )
         cloud_sql_session.flush()
-        
+
         # Expire the object so SQLAlchemy reloads it from DB
         cloud_sql_session.expire(source)
 
@@ -215,7 +215,7 @@ class TestJsonbIntegration:
             update_sql, {"val": json.dumps(complex_data), "id": source_id}
         )
         cloud_sql_session.flush()
-        
+
         # Expire the object so SQLAlchemy reloads it from DB
         cloud_sql_session.expire(source)
 
