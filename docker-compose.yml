@@ -102,6 +102,38 @@ services:
     profiles:
       - processor  # Only start with: docker-compose --profile processor up
 
+  # Work Queue Service (centralized coordinator)
+  work-queue:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+      args:
+        BASE_IMAGE: mizzou-base:latest
+    container_name: mizzou-work-queue
+    ports:
+      - "8081:8080"  # Map to 8081 to avoid conflict with Adminer
+    environment:
+      DATABASE_URL: postgresql://mizzou_user:mizzou_pass@postgres:5432/mizzou
+      PORT: "8080"  # Override Dockerfile.api's default PORT=8000
+      LOG_LEVEL: INFO
+      DOMAIN_COOLDOWN_SECONDS: "60"
+      MAX_DOMAIN_FAILURES: "3"
+      WORKER_TIMEOUT_SECONDS: "600"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./src:/app/src
+      - ./lookups:/app/lookups
+    command: python -m src.services.work_queue
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    profiles:
+      - work-queue  # Start with: docker-compose --profile work-queue up
+
   # Adminer for database management (optional)
   adminer:
     image: adminer:latest
