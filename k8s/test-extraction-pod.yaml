@@ -14,6 +14,9 @@ spec:
     - secretRef:
         name: origin-proxy-credentials
     env:
+    # Note: Using psycopg2 driver here (instead of pg8000) because it's more
+    # commonly used and provides better debugging output. The ::jsonb fix
+    # applies to both drivers since it's about SQL syntax, not driver-specific.
     - name: DATABASE_ENGINE
       value: "postgresql+psycopg2"
     - name: DATABASE_HOST

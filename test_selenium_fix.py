@@ -18,6 +18,10 @@ print(f'Start time: {datetime.now().strftime("%H:%M:%S")}')
 print()
 
 start = time.time()
+# Note: Using _extract_with_selenium directly to test specific extraction method
+# performance, bypassing fallback logic in extract(). This allows us to measure
+# the exact improvement from the timeout fix without interference from the
+# request-based fallback.
 result = extractor._extract_with_selenium(test_url)
 elapsed = time.time() - start
 

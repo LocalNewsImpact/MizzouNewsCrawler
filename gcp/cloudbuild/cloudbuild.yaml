@@ -231,8 +231,23 @@ steps:
               '(.spec.workflowSpec.templates[] | select(.name == "discovery-step" or .name == "verification-step" or .name == "extraction-step") | .container.image) |= "us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:" + $sha' | \
             kubectl apply -f -
           
-          echo "✅ Argo CronWorkflow updated to use crawler:${SHORT_SHA}"
-          echo "   Next workflow run will use the new image with IfNotPresent policy"
+          # Verify the update succeeded by checking container images
+          EXPECTED_IMAGE="us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:${SHORT_SHA}"
+          echo "🔍 Verifying CronWorkflow update..."
+          
+          UPDATED_IMAGES=$(kubectl get cronworkflow mizzou-news-pipeline -n production -o json | \
+            jq -r '.spec.workflowSpec.templates[] | select(.name == "discovery-step" or .name == "verification-step" or .name == "extraction-step") | .container.image' | sort -u)
+          
+          if echo "$UPDATED_IMAGES" | grep -q "${SHORT_SHA}"; then
+            echo "✅ Argo CronWorkflow updated to use crawler:${SHORT_SHA}"
+            echo "   Next workflow run will use the new image with IfNotPresent policy"
+          else
+            echo "❌ ERROR: CronWorkflow update verification failed!"
+            echo "   Expected image: $EXPECTED_IMAGE"
+            echo "   Found images: $UPDATED_IMAGES"
+            echo "   Template names may have changed - update jq filter"
+            exit 1
+          fi
         else
           echo "ℹ️  Skipping Argo CronWorkflow update - not on main branch"
         fi
