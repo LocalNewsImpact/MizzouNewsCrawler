@@ -374,6 +374,11 @@ spec:
         value: "true"
       - name: CLOUD_SQL_INSTANCE
         value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+      # Work queue coordination
+      - name: USE_WORK_QUEUE
+        value: "true"
+      - name: WORK_QUEUE_URL
+        value: "http://work-queue.production.svc.cluster.local:8080"
       # Proxy configuration
       - name: PROXY_PROVIDER
         value: "decodo"
