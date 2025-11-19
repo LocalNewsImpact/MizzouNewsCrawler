@@ -95,9 +95,11 @@ When creating new test coverage (unit, integration, or postgres tests), follow t
 
 ### 4. CI/CD Configuration
 - **Determine test execution environment**:
+  - **Integration tests run in Docker** (uses PostgreSQL 15 container)
   - `postgres-integration` job: Has PostgreSQL 15 service, runs `-m integration`
   - `integration` job: Uses SQLite in-memory, runs default tests (excludes `-m "not integration"`)
   - Unit tests: Fast, no database dependencies
+  - **Local integration testing**: Use `./scripts/test-local.sh` or similar Docker-based test runner
 - **Apply correct pytest markers**:
   - `@pytest.mark.postgres`: Requires PostgreSQL-specific features (FOR UPDATE SKIP LOCKED, etc.)
   - `@pytest.mark.integration`: Runs in postgres-integration job, excluded from SQLite job

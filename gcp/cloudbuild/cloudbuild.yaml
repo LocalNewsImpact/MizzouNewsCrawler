@@ -210,6 +210,49 @@ steps:
         fi
     waitFor: ['push-processor', 'push-api', 'push-crawler']
 
+  # PHASE 4: Update Argo CronWorkflow to use new crawler image SHA (only on main branch)
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'update-argo-cronworkflow'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        if [ "${BRANCH_NAME}" = "main" ]; then
+          echo "🔄 Updating Argo CronWorkflow to use crawler:${SHORT_SHA}..."
+          
+          # Get GKE credentials
+          gcloud container clusters get-credentials mizzou-cluster \
+            --zone=us-central1-a \
+            --project=${PROJECT_ID}
+          
+          # Get the current cronworkflow and update crawler images
+          kubectl get cronworkflow mizzou-news-pipeline -n production -o json | \
+            jq --arg sha "${SHORT_SHA}" \
+              '(.spec.workflowSpec.templates[] | select(.name == "discovery-step" or .name == "verification-step" or .name == "extraction-step") | .container.image) |= "us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:" + $sha' | \
+            kubectl apply -f -
+          
+          # Verify the update succeeded by checking container images
+          EXPECTED_IMAGE="us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:${SHORT_SHA}"
+          echo "🔍 Verifying CronWorkflow update..."
+          
+          UPDATED_IMAGES=$(kubectl get cronworkflow mizzou-news-pipeline -n production -o json | \
+            jq -r '.spec.workflowSpec.templates[] | select(.name == "discovery-step" or .name == "verification-step" or .name == "extraction-step") | .container.image' | sort -u)
+          
+          if echo "$UPDATED_IMAGES" | grep -q "${SHORT_SHA}"; then
+            echo "✅ Argo CronWorkflow updated to use crawler:${SHORT_SHA}"
+            echo "   Next workflow run will use the new image with IfNotPresent policy"
+          else
+            echo "❌ ERROR: CronWorkflow update verification failed!"
+            echo "   Expected image: $EXPECTED_IMAGE"
+            echo "   Found images: $UPDATED_IMAGES"
+            echo "   Template names may have changed - update jq filter"
+            exit 1
+          fi
+        else
+          echo "ℹ️  Skipping Argo CronWorkflow update - not on main branch"
+        fi
+    waitFor: ['create-release']
+
 options:
   machineType: 'N1_HIGHCPU_8'
   logging: CLOUD_LOGGING_ONLY
