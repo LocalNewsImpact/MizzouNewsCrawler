@@ -97,9 +97,15 @@ class HealthResponse(BaseModel):
 class WorkQueueCoordinator:
     """Coordinates work distribution across multiple workers with domain-aware rate limiting."""
 
-    def __init__(self):
-        """Initialize the coordinator with thread-safe state management."""
-        self.db = DatabaseManager()
+    def __init__(self, db: Optional[DatabaseManager] = None, session=None):
+        """Initialize the coordinator with thread-safe state management.
+        
+        Args:
+            db: Optional DatabaseManager instance (for testing)
+            session: Optional SQLAlchemy session (for testing with transactions)
+        """
+        self.db = db if db is not None else DatabaseManager()
+        self._test_session = session  # For testing with transactional fixtures
         self.lock = Lock()
 
         # Worker state: worker_id -> {domains: Set[str], last_seen: float}
@@ -121,6 +127,18 @@ class WorkQueueCoordinator:
             f"pause={DOMAIN_PAUSE_SECONDS}s, "
             f"worker_timeout={WORKER_TIMEOUT_SECONDS}s"
         )
+
+    def _get_session(self):
+        """Get database session - uses test session if provided, else creates new one.
+        
+        Returns:
+            Database session object
+        """
+        if self._test_session is not None:
+            return self._test_session
+        # For production use, create session via context manager
+        # Caller is responsible for managing the session lifecycle
+        return self.db.get_session().__enter__()
 
     def _cleanup_stale_workers(self) -> None:
         """Remove workers that haven't checked in recently.
@@ -278,96 +296,110 @@ class WorkQueueCoordinator:
         with self.lock:
             self._cleanup_stale_workers()
 
-            with self.db.get_session() as session:
-                # Get available domains from database
-                available_domains = self._get_available_domains(session)
-
-                if not available_domains:
-                    logger.warning("No domains with available work")
-                    return WorkResponse(items=[], worker_domains=[])
-
-                # Assign domains to worker
-                assigned_domains = self._assign_domains_to_worker(
-                    worker_id, available_domains
+            # Use test session if provided, otherwise create new one
+            if self._test_session is not None:
+                return self._request_work_with_session(
+                    self._test_session, worker_id, batch_size, max_articles_per_domain
                 )
-
-                if not assigned_domains:
-                    logger.warning(
-                        f"No available domains for worker {worker_id} "
-                        "(all on cooldown or assigned to others)"
-                    )
-                    return WorkResponse(items=[], worker_domains=[])
-
-                # Update worker state
-                self.worker_domains[worker_id] = {
-                    "domains": assigned_domains,
-                    "last_seen": time.time(),
-                }
-
-                logger.info(
-                    f"Worker {worker_id} assigned {len(assigned_domains)} domains: "
-                    f"{sorted(assigned_domains)}"
-                )
-
-                # Query candidate_links for assigned domains
-                # Use FOR UPDATE SKIP LOCKED for parallel processing safety
-                query = text(
-                    """
-                    SELECT cl.id, cl.url, cl.source, s.canonical_name
-                    FROM candidate_links cl
-                    LEFT JOIN sources s ON cl.source_id = s.id
-                    WHERE cl.status = 'article'
-                    AND cl.source = ANY(:domains)
-                    AND cl.id NOT IN (
-                        SELECT candidate_link_id FROM articles
-                        WHERE candidate_link_id IS NOT NULL
-                    )
-                    ORDER BY cl.source, RANDOM()
-                    LIMIT :limit
-                    FOR UPDATE OF cl SKIP LOCKED
-                """
-                )
-
-                # Build result with max_articles_per_domain limit
-                items = []
-                domain_counts = defaultdict(int)
-
-                result = session.execute(
-                    query, {"domains": list(assigned_domains), "limit": batch_size * 2}
-                )
-
-                for row in result:
-                    domain = row[2]
-                    if domain_counts[domain] >= max_articles_per_domain:
-                        continue
-                    if len(items) >= batch_size:
-                        break
-
-                    items.append(
-                        WorkItem(
-                            id=row[0],
-                            url=row[1],
-                            source=row[2],
-                            canonical_name=row[3] if row[3] else row[2],
-                        )
-                    )
-                    domain_counts[domain] += 1
-
-                # Update domain cooldowns for domains we're returning work from
-                current_time = time.time()
-                for domain in domain_counts.keys():
-                    self.domain_cooldowns[domain] = (
-                        current_time + DOMAIN_COOLDOWN_SECONDS
+            else:
+                with self.db.get_session() as session:
+                    return self._request_work_with_session(
+                        session, worker_id, batch_size, max_articles_per_domain
                     )
 
-                logger.info(
-                    f"Worker {worker_id} received {len(items)} items from "
-                    f"{len(domain_counts)} domains: {dict(domain_counts)}"
-                )
+    def _request_work_with_session(
+        self, session, worker_id: str, batch_size: int, max_articles_per_domain: int
+    ) -> WorkResponse:
+        """Internal method to handle work request with a given session."""
+        # Get available domains from database
+        available_domains = self._get_available_domains(session)
 
-                return WorkResponse(
-                    items=items, worker_domains=sorted(assigned_domains)
+        if not available_domains:
+            logger.warning("No domains with available work")
+            return WorkResponse(items=[], worker_domains=[])
+
+        # Assign domains to worker
+        assigned_domains = self._assign_domains_to_worker(
+            worker_id, available_domains
+        )
+
+        if not assigned_domains:
+            logger.warning(
+                f"No available domains for worker {worker_id} "
+                "(all on cooldown or assigned to others)"
+            )
+            return WorkResponse(items=[], worker_domains=[])
+
+        # Update worker state
+        self.worker_domains[worker_id] = {
+            "domains": assigned_domains,
+            "last_seen": time.time(),
+        }
+
+        logger.info(
+            f"Worker {worker_id} assigned {len(assigned_domains)} domains: "
+            f"{sorted(assigned_domains)}"
+        )
+
+        # Query candidate_links for assigned domains
+        # Use FOR UPDATE SKIP LOCKED for parallel processing safety
+        query = text(
+            """
+            SELECT cl.id, cl.url, cl.source, s.canonical_name
+            FROM candidate_links cl
+            LEFT JOIN sources s ON cl.source_id = s.id
+            WHERE cl.status = 'article'
+            AND cl.source = ANY(:domains)
+            AND cl.id NOT IN (
+                SELECT candidate_link_id FROM articles
+                WHERE candidate_link_id IS NOT NULL
+            )
+            ORDER BY cl.source, RANDOM()
+            LIMIT :limit
+            FOR UPDATE OF cl SKIP LOCKED
+        """
+        )
+
+        # Build result with max_articles_per_domain limit
+        items = []
+        domain_counts = defaultdict(int)
+
+        result = session.execute(
+            query, {"domains": list(assigned_domains), "limit": batch_size * 2}
+        )
+
+        for row in result:
+            domain = row[2]
+            if domain_counts[domain] >= max_articles_per_domain:
+                continue
+            if len(items) >= batch_size:
+                break
+
+            items.append(
+                WorkItem(
+                    id=row[0],
+                    url=row[1],
+                    source=row[2],
+                    canonical_name=row[3] if row[3] else row[2],
                 )
+            )
+            domain_counts[domain] += 1
+
+        # Update domain cooldowns for domains we're returning work from
+        current_time = time.time()
+        for domain in domain_counts.keys():
+            self.domain_cooldowns[domain] = (
+                current_time + DOMAIN_COOLDOWN_SECONDS
+            )
+
+        logger.info(
+            f"Worker {worker_id} received {len(items)} items from "
+            f"{len(domain_counts)} domains: {dict(domain_counts)}"
+        )
+
+        return WorkResponse(
+            items=items, worker_domains=sorted(assigned_domains)
+        )
 
     def report_failure(self, worker_id: str, domain: str) -> None:
         """Report a domain failure (rate limit, bot protection, etc.).
@@ -410,36 +442,36 @@ class WorkQueueCoordinator:
             StatsResponse with current state
         """
         with self.lock:
-            with self.db.get_session() as session:
-                # Get total available articles
-                available_query = text(
-                    """
-                    SELECT COUNT(*) FROM candidate_links
-                    WHERE status = 'article'
-                    AND id NOT IN (
-                        SELECT candidate_link_id FROM articles
-                        WHERE candidate_link_id IS NOT NULL
-                    )
+            session = self._get_session()
+            # Get total available articles
+            available_query = text(
                 """
+                SELECT COUNT(*) FROM candidate_links
+                WHERE status = 'article'
+                AND id NOT IN (
+                    SELECT candidate_link_id FROM articles
+                    WHERE candidate_link_id IS NOT NULL
                 )
-                total_available = session.execute(available_query).scalar()
+            """
+            )
+            total_available = session.execute(available_query).scalar()
 
-                # Get paused articles (approximate - we don't have a paused status)
-                # This would need to be tracked separately in production
-                total_paused = 0
+            # Get paused articles (approximate - we don't have a paused status)
+            # This would need to be tracked separately in production
+            total_paused = 0
 
-                # Get unique domains
-                domain_query = text(
-                    """
-                    SELECT COUNT(DISTINCT source) FROM candidate_links
-                    WHERE status = 'article'
-                    AND id NOT IN (
-                        SELECT candidate_link_id FROM articles
-                        WHERE candidate_link_id IS NOT NULL
-                    )
+            # Get unique domains
+            domain_query = text(
                 """
+                SELECT COUNT(DISTINCT source) FROM candidate_links
+                WHERE status = 'article'
+                AND id NOT IN (
+                    SELECT candidate_link_id FROM articles
+                    WHERE candidate_link_id IS NOT NULL
                 )
-                domains_available = session.execute(domain_query).scalar()
+            """
+            )
+            domains_available = session.execute(domain_query).scalar()
 
             # Calculate domains with active cooldowns
             current_time = time.time()

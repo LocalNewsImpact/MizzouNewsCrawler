@@ -44,8 +44,8 @@ def test_concurrent_workers_no_article_duplicates(cloud_sql_session):
     
     cloud_sql_session.commit()
     
-    # Create coordinator with real database session
-    coordinator = WorkQueueCoordinator()
+    # Create coordinator with test session
+    coordinator = WorkQueueCoordinator(session=cloud_sql_session)
     
     # Simulate 6 workers requesting work
     all_items = []
@@ -90,8 +90,8 @@ def test_rate_limit_prevents_rapid_domain_access(cloud_sql_session):
     
     cloud_sql_session.commit()
     
-    # Create coordinator
-    coordinator = WorkQueueCoordinator()
+    # Create coordinator with test session
+    coordinator = WorkQueueCoordinator(session=cloud_sql_session)
     
     # First request at T=0
     response1 = coordinator.request_work("worker-1", 50, 3)
@@ -178,8 +178,8 @@ def test_domain_partitioning_with_real_database(cloud_sql_session):
     
     cloud_sql_session.commit()
     
-    # Create coordinator
-    coordinator = WorkQueueCoordinator()
+    # Create coordinator with test session
+    coordinator = WorkQueueCoordinator(session=cloud_sql_session)
     
     # Request work from 3 workers
     responses = []
@@ -277,8 +277,8 @@ def test_worker_timeout_cleans_up_stale_assignments(cloud_sql_session):
     
     cloud_sql_session.commit()
     
-    # Create coordinator
-    coordinator = WorkQueueCoordinator()
+    # Create coordinator with test session
+    coordinator = WorkQueueCoordinator(_test_session=cloud_sql_session)
     
     # Worker 1 gets domains
     response1 = coordinator.request_work("worker-1", 50, 3)
@@ -346,8 +346,8 @@ def test_stats_accuracy_with_real_data(cloud_sql_session):
     
     cloud_sql_session.commit()
     
-    # Create coordinator
-    coordinator = WorkQueueCoordinator()
+    # Create coordinator with test session
+    coordinator = WorkQueueCoordinator(_test_session=cloud_sql_session)
     
     # Assign work to 2 workers
     coordinator.request_work("worker-1", 50, 3)
