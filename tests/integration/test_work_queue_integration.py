@@ -278,7 +278,7 @@ def test_worker_timeout_cleans_up_stale_assignments(cloud_sql_session):
     cloud_sql_session.commit()
     
     # Create coordinator with test session
-    coordinator = WorkQueueCoordinator(_test_session=cloud_sql_session)
+    coordinator = WorkQueueCoordinator(session=cloud_sql_session)
     
     # Worker 1 gets domains
     response1 = coordinator.request_work("worker-1", 50, 3)
@@ -322,8 +322,8 @@ def test_empty_database_graceful_handling(cloud_sql_session):
 @pytest.mark.postgres
 def test_stats_accuracy_with_real_data(cloud_sql_session):
     """Stats endpoint returns accurate counts from real database."""
-    # Create 5 sources with 20 articles each
-    for i in range(5):
+    # Create 10 sources with 20 articles each (total 200)
+    for i in range(10):
         source = Source(
             id=str(uuid.uuid4()),
             host=f"stats{i}.com",
@@ -347,7 +347,7 @@ def test_stats_accuracy_with_real_data(cloud_sql_session):
     cloud_sql_session.commit()
     
     # Create coordinator with test session
-    coordinator = WorkQueueCoordinator(_test_session=cloud_sql_session)
+    coordinator = WorkQueueCoordinator(session=cloud_sql_session)
     
     # Assign work to 2 workers
     coordinator.request_work("worker-1", 50, 3)
@@ -357,8 +357,8 @@ def test_stats_accuracy_with_real_data(cloud_sql_session):
     stats = coordinator.get_stats()
     
     # Assert accuracy
-    assert stats.total_available == 100  # 5 sources * 20 articles
-    assert stats.domains_available == 5  # 5 unique sources
+    assert stats.total_available == 200  # 10 sources * 20 articles
+    assert stats.domains_available == 10  # 10 unique sources
     assert len(stats.worker_assignments) == 2
     assert "worker-1" in stats.worker_assignments
     assert "worker-2" in stats.worker_assignments
