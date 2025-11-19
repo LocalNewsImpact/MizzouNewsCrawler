@@ -19,7 +19,7 @@ import time
 from collections import defaultdict
 from datetime import datetime
 from threading import Lock
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Optional
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
@@ -70,8 +70,8 @@ class WorkItem(BaseModel):
 class WorkResponse(BaseModel):
     """Response containing work items for a worker."""
 
-    items: List[WorkItem]
-    worker_domains: List[str] = Field(
+    items: list[WorkItem]
+    worker_domains: list[str] = Field(
         description="Domains currently assigned to this worker"
     )
 
@@ -83,8 +83,8 @@ class StatsResponse(BaseModel):
     total_paused: int
     domains_available: int
     domains_paused: int
-    worker_assignments: Dict[str, List[str]]
-    domain_cooldowns: Dict[str, float]
+    worker_assignments: dict[str, list[str]]
+    domain_cooldowns: dict[str, float]
 
 
 class HealthResponse(BaseModel):
@@ -109,16 +109,16 @@ class WorkQueueCoordinator:
         self.lock = Lock()
 
         # Worker state: worker_id -> {domains: Set[str], last_seen: float}
-        self.worker_domains: Dict[str, Dict[str, Any]] = {}
+        self.worker_domains: dict[str, dict[str, Any]] = {}
 
         # Domain cooldowns: domain -> last_access_time (float)
-        self.domain_cooldowns: Dict[str, float] = {}
+        self.domain_cooldowns: dict[str, float] = {}
 
         # Domain failure tracking: domain -> failure_count
-        self.domain_failure_counts: Dict[str, int] = {}
+        self.domain_failure_counts: dict[str, int] = {}
 
         # Paused domains: domain -> pause_until_time (float)
-        self.paused_domains: Dict[str, float] = {}
+        self.paused_domains: dict[str, float] = {}
 
         logger.info(
             "WorkQueueCoordinator initialized with config: "
@@ -157,7 +157,7 @@ class WorkQueueCoordinator:
             logger.info(f"Removing stale worker: {worker_id}")
             del self.worker_domains[worker_id]
 
-    def _get_available_domains(self, session) -> List[Dict[str, Any]]:
+    def _get_available_domains(self, session) -> list[dict[str, Any]]:
         """Query database for domains with available candidate links.
 
         Args:
@@ -227,8 +227,8 @@ class WorkQueueCoordinator:
         return True
 
     def _assign_domains_to_worker(
-        self, worker_id: str, available_domains: List[Dict[str, Any]]
-    ) -> Set[str]:
+        self, worker_id: str, available_domains: list[dict[str, Any]]
+    ) -> set[str]:
         """Assign domains to a worker, preferring existing assignments.
 
         Args:
@@ -521,7 +521,7 @@ async def request_work(request: WorkRequest) -> WorkResponse:
 
 
 @app.post("/work/report-failure")
-async def report_failure(worker_id: str, domain: str) -> Dict[str, str]:
+async def report_failure(worker_id: str, domain: str) -> dict[str, str]:
     """Report a domain failure.
 
     Args:

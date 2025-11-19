@@ -281,8 +281,7 @@ def test_worker_timeout_cleans_up_stale_assignments(cloud_sql_session):
     coordinator = WorkQueueCoordinator(session=cloud_sql_session)
     
     # Worker 1 gets domains
-    response1 = coordinator.request_work("worker-1", 50, 3)
-    worker1_domains = set(response1.worker_domains)
+    coordinator.request_work("worker-1", 50, 3)
     
     # Simulate worker 1 becoming stale
     coordinator.worker_domains["worker-1"]["last_seen"] = (
