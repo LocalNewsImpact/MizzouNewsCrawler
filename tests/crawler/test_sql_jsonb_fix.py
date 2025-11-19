@@ -104,6 +104,9 @@ class TestJsonbIntegration:
             update_sql, {"val": json.dumps(existing), "id": source_id}
         )
         cloud_sql_session.flush()
+        
+        # Expire the object so SQLAlchemy reloads it from DB
+        cloud_sql_session.expire(source)
 
         # Verify the update worked
         updated_source = cloud_sql_session.query(Source).filter_by(id=source_id).first()
@@ -162,6 +165,9 @@ class TestJsonbIntegration:
             },
         )
         cloud_sql_session.flush()
+        
+        # Expire the object so SQLAlchemy reloads it from DB
+        cloud_sql_session.expire(source)
 
         # Verify the update worked
         updated_source = cloud_sql_session.query(Source).filter_by(id=source_id).first()
@@ -209,6 +215,9 @@ class TestJsonbIntegration:
             update_sql, {"val": json.dumps(complex_data), "id": source_id}
         )
         cloud_sql_session.flush()
+        
+        # Expire the object so SQLAlchemy reloads it from DB
+        cloud_sql_session.expire(source)
 
         # Verify nested structure preserved
         updated_source = cloud_sql_session.query(Source).filter_by(id=source_id).first()
