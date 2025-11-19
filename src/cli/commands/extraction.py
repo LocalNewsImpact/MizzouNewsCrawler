@@ -47,6 +47,13 @@ from src.utils.content_type_detector import ContentTypeDetector
 
 ContentExtractor: type[Any] | None = None
 
+# Work queue service configuration
+WORK_QUEUE_URL = os.getenv(
+    "WORK_QUEUE_URL",
+    "http://work-queue.production.svc.cluster.local:8080"
+)
+USE_WORK_QUEUE = os.getenv("USE_WORK_QUEUE", "false").lower() == "true"
+
 
 class _PlaceholderNotFoundError(Exception):
     """Fallback exception until crawler dependencies are loaded."""
@@ -67,6 +74,81 @@ def _ensure_crawler_dependencies() -> None:
 
 
 logger = logging.getLogger(__name__)
+
+
+def _get_worker_id() -> str:
+    """Get unique worker identifier for work queue coordination.
+    
+    Returns:
+        Worker ID (Kubernetes pod hostname or generated UUID)
+    """
+    # Use Kubernetes pod hostname
+    hostname = os.getenv("HOSTNAME")
+    if hostname:
+        return hostname
+    # Fallback for local testing
+    return f"worker-{uuid.uuid4().hex[:8]}"
+
+
+def _get_work_from_queue(worker_id: str, batch_size: int, max_articles_per_domain: int = 3):
+    """Request work from centralized queue service.
+    
+    Args:
+        worker_id: Unique worker identifier
+        batch_size: Number of articles to request
+        max_articles_per_domain: Maximum articles per domain in this batch
+        
+    Returns:
+        List of work items (dicts with id, url, source, canonical_name)
+        
+    Raises:
+        Exception: If work queue request fails
+    """
+    import requests
+    
+    try:
+        response = requests.post(
+            f"{WORK_QUEUE_URL}/work/request",
+            json={
+                "worker_id": worker_id,
+                "batch_size": batch_size,
+                "max_articles_per_domain": max_articles_per_domain,
+            },
+            timeout=30,
+        )
+        response.raise_for_status()
+        data = response.json()
+        logger.info(
+            "Worker %s assigned %d articles from domains: %s",
+            worker_id,
+            len(data["items"]),
+            data.get("worker_domains", []),
+        )
+        return data["items"]
+    except requests.RequestException as e:
+        logger.error("Failed to get work from queue: %s", e)
+        raise
+
+
+def _report_domain_failure(worker_id: str, domain: str):
+    """Report domain failure (rate limit/bot protection) to queue service.
+    
+    Args:
+        worker_id: Worker reporting the failure
+        domain: Domain that failed
+    """
+    import requests
+    
+    try:
+        response = requests.post(
+            f"{WORK_QUEUE_URL}/work/report-failure",
+            params={"worker_id": worker_id, "domain": domain},
+            timeout=10,
+        )
+        response.raise_for_status()
+        logger.info("Reported domain failure to queue: %s", domain)
+    except requests.RequestException as e:
+        logger.warning("Failed to report domain failure: %s", e)
 
 
 def _to_int(value, default=0):
@@ -677,72 +759,105 @@ def _process_batch(
     max_articles_per_domain = int(os.getenv("MAX_ARTICLES_PER_DOMAIN_PER_BATCH", "3"))
 
     try:
-        # Get articles with domain diversity to avoid rate-limit lockups
-        q = """
-        SELECT cl.id, cl.url, cl.source, cl.status, s.canonical_name
-        FROM candidate_links cl
-        LEFT JOIN sources s ON cl.source_id = s.id
-        WHERE cl.status = 'article'
-        AND cl.id NOT IN (
-            SELECT candidate_link_id FROM articles
-            WHERE candidate_link_id IS NOT NULL
-        )
-        ORDER BY RANDOM()  -- Use random order to mix domains
-        LIMIT :limit_with_buffer
-        """
-
-        # Request more articles than we need to allow for domain skipping
-        buffer_multiplier = 3
-        params = {"limit_with_buffer": per_batch * buffer_multiplier}
-
-        # Add dataset filter if specified (dataset is already resolved to UUID)
-        if getattr(args, "dataset", None):
-            q = q.replace(
-                "WHERE cl.status = 'article'",
-                """WHERE cl.status = 'article'
-                AND cl.dataset_id = :dataset""",
-            )
-            params["dataset"] = args.dataset
-            logger.info("🔍 Extraction query filtering by dataset: %s", args.dataset)
-        # NOTE: Removed cron_enabled filter - was blocking all extractions
-        # All candidate_links with status='article' are fair game
-
-        # Add source filter if specified
-        if getattr(args, "source", None):
-            if "cl.dataset_id" in q:
-                q = q.replace(
-                    "AND cl.dataset_id",
-                    "AND cl.source = :source AND cl.dataset_id",
+        # Get candidate articles - either from work queue service or direct DB query
+        if USE_WORK_QUEUE:
+            # Use centralized work queue for domain-aware coordination
+            worker_id = _get_worker_id()
+            logger.info("📡 Requesting work from queue service as %s", worker_id)
+            
+            try:
+                work_items = _get_work_from_queue(
+                    worker_id=worker_id,
+                    batch_size=per_batch,
+                    max_articles_per_domain=max_articles_per_domain,
                 )
+            except Exception as e:
+                logger.error("Failed to get work from queue service: %s", e)
+                logger.warning("Falling back to direct database query")
+                USE_WORK_QUEUE_FALLBACK = False
+                # Fall through to direct query below
             else:
+                if not work_items:
+                    logger.warning("⚠️  No work available from queue service")
+                    return {"processed": 0}
+                
+                # Convert work items to row format expected by extraction loop
+                rows = [
+                    (item["id"], item["url"], item["source"], "article", item.get("canonical_name"))
+                    for item in work_items
+                ]
+                USE_WORK_QUEUE_FALLBACK = False
+        else:
+            USE_WORK_QUEUE_FALLBACK = True
+        
+        # Direct database query (original logic, used when work queue disabled or failed)
+        if not USE_WORK_QUEUE or USE_WORK_QUEUE_FALLBACK:
+            # Get articles with domain diversity to avoid rate-limit lockups
+            q = """
+            SELECT cl.id, cl.url, cl.source, cl.status, s.canonical_name
+            FROM candidate_links cl
+            LEFT JOIN sources s ON cl.source_id = s.id
+            WHERE cl.status = 'article'
+            AND cl.id NOT IN (
+                SELECT candidate_link_id FROM articles
+                WHERE candidate_link_id IS NOT NULL
+            )
+            ORDER BY RANDOM()  -- Use random order to mix domains
+            LIMIT :limit_with_buffer
+            """
+
+            # Request more articles than we need to allow for domain skipping
+            buffer_multiplier = 3
+            params = {"limit_with_buffer": per_batch * buffer_multiplier}
+
+            # Add dataset filter if specified (dataset is already resolved to UUID)
+            if getattr(args, "dataset", None):
                 q = q.replace(
                     "WHERE cl.status = 'article'",
-                    "WHERE cl.status = 'article' AND cl.source = :source",
+                    """WHERE cl.status = 'article'
+                    AND cl.dataset_id = :dataset""",
                 )
-            params["source"] = args.source
+                params["dataset"] = args.dataset
+                logger.info("🔍 Extraction query filtering by dataset: %s", args.dataset)
+            # NOTE: Removed cron_enabled filter - was blocking all extractions
+            # All candidate_links with status='article' are fair game
 
-        # Add row-level locking for parallel processing (PostgreSQL only)
-        # SKIP LOCKED allows multiple workers to process different rows simultaneously
-        # SQLite doesn't support FOR UPDATE, so skip it for e2e/unit tests
-        try:
-            dialect_name = session.bind.dialect.name if session.bind else None
-        except AttributeError:
-            # Mock session in tests
-            dialect_name = None
+            # Add source filter if specified
+            if getattr(args, "source", None):
+                if "cl.dataset_id" in q:
+                    q = q.replace(
+                        "AND cl.dataset_id",
+                        "AND cl.source = :source AND cl.dataset_id",
+                    )
+                else:
+                    q = q.replace(
+                        "WHERE cl.status = 'article'",
+                        "WHERE cl.status = 'article' AND cl.source = :source",
+                    )
+                params["source"] = args.source
 
-        if dialect_name == "postgresql":
-            q += " FOR UPDATE OF cl SKIP LOCKED"
+            # Add row-level locking for parallel processing (PostgreSQL only)
+            # SKIP LOCKED allows multiple workers to process different rows simultaneously
+            # SQLite doesn't support FOR UPDATE, so skip it for e2e/unit tests
+            try:
+                dialect_name = session.bind.dialect.name if session.bind else None
+            except AttributeError:
+                # Mock session in tests
+                dialect_name = None
 
-        result = safe_session_execute(session, text(q), params)
-        rows = result.fetchall()
-        logger.info(
-            "🔍 Extraction query returned %d candidate articles (requested: %d)",
-            len(rows),
-            params["limit_with_buffer"],
-        )
-        if not rows:
-            logger.warning("⚠️  No articles found matching extraction criteria")
-            return {"processed": 0}
+            if dialect_name == "postgresql":
+                q += " FOR UPDATE OF cl SKIP LOCKED"
+
+            result = safe_session_execute(session, text(q), params)
+            rows = result.fetchall()
+            logger.info(
+                "🔍 Extraction query returned %d candidate articles (requested: %d)",
+                len(rows),
+                params["limit_with_buffer"],
+            )
+            if not rows:
+                logger.warning("⚠️  No articles found matching extraction criteria")
+                return {"processed": 0}
 
         processed = 0
         skipped_domains = set()
@@ -1215,6 +1330,12 @@ def _process_batch(
                 batch_num,
                 skipped_list,
             )
+            
+            # Report failures to work queue service if enabled
+            if USE_WORK_QUEUE:
+                worker_id = _get_worker_id()
+                for domain in skipped_domains:
+                    _report_domain_failure(worker_id, domain)
 
         if domain_failures:
             failure_summary = {
