@@ -49,8 +49,7 @@ ContentExtractor: type[Any] | None = None
 
 # Work queue service configuration
 WORK_QUEUE_URL = os.getenv(
-    "WORK_QUEUE_URL",
-    "http://work-queue.production.svc.cluster.local:8080"
+    "WORK_QUEUE_URL", "http://work-queue.production.svc.cluster.local:8080"
 )
 USE_WORK_QUEUE = os.getenv("USE_WORK_QUEUE", "false").lower() == "true"
 
@@ -78,7 +77,7 @@ logger = logging.getLogger(__name__)
 
 def _get_worker_id() -> str:
     """Get unique worker identifier for work queue coordination.
-    
+
     Returns:
         Worker ID (Kubernetes pod hostname or generated UUID)
     """
@@ -90,22 +89,24 @@ def _get_worker_id() -> str:
     return f"worker-{uuid.uuid4().hex[:8]}"
 
 
-def _get_work_from_queue(worker_id: str, batch_size: int, max_articles_per_domain: int = 3):
+def _get_work_from_queue(
+    worker_id: str, batch_size: int, max_articles_per_domain: int = 3
+):
     """Request work from centralized queue service.
-    
+
     Args:
         worker_id: Unique worker identifier
         batch_size: Number of articles to request
         max_articles_per_domain: Maximum articles per domain in this batch
-        
+
     Returns:
         List of work items (dicts with id, url, source, canonical_name)
-        
+
     Raises:
         Exception: If work queue request fails
     """
     import requests
-    
+
     try:
         response = requests.post(
             f"{WORK_QUEUE_URL}/work/request",
@@ -132,13 +133,13 @@ def _get_work_from_queue(worker_id: str, batch_size: int, max_articles_per_domai
 
 def _report_domain_failure(worker_id: str, domain: str):
     """Report domain failure (rate limit/bot protection) to queue service.
-    
+
     Args:
         worker_id: Worker reporting the failure
         domain: Domain that failed
     """
     import requests
-    
+
     try:
         response = requests.post(
             f"{WORK_QUEUE_URL}/work/report-failure",
@@ -764,7 +765,7 @@ def _process_batch(
             # Use centralized work queue for domain-aware coordination
             worker_id = _get_worker_id()
             logger.info("📡 Requesting work from queue service as %s", worker_id)
-            
+
             try:
                 work_items = _get_work_from_queue(
                     worker_id=worker_id,
@@ -780,16 +781,22 @@ def _process_batch(
                 if not work_items:
                     logger.warning("⚠️  No work available from queue service")
                     return {"processed": 0}
-                
+
                 # Convert work items to row format expected by extraction loop
                 rows = [
-                    (item["id"], item["url"], item["source"], "article", item.get("canonical_name"))
+                    (
+                        item["id"],
+                        item["url"],
+                        item["source"],
+                        "article",
+                        item.get("canonical_name"),
+                    )
                     for item in work_items
                 ]
                 USE_WORK_QUEUE_FALLBACK = False
         else:
             USE_WORK_QUEUE_FALLBACK = True
-        
+
         # Direct database query (original logic, used when work queue disabled or failed)
         if not USE_WORK_QUEUE or USE_WORK_QUEUE_FALLBACK:
             # Get articles with domain diversity to avoid rate-limit lockups
@@ -818,7 +825,9 @@ def _process_batch(
                     AND cl.dataset_id = :dataset""",
                 )
                 params["dataset"] = args.dataset
-                logger.info("🔍 Extraction query filtering by dataset: %s", args.dataset)
+                logger.info(
+                    "🔍 Extraction query filtering by dataset: %s", args.dataset
+                )
             # NOTE: Removed cron_enabled filter - was blocking all extractions
             # All candidate_links with status='article' are fair game
 
@@ -1330,7 +1339,7 @@ def _process_batch(
                 batch_num,
                 skipped_list,
             )
-            
+
             # Report failures to work queue service if enabled
             if USE_WORK_QUEUE:
                 worker_id = _get_worker_id()

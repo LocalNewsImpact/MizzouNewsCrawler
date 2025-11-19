@@ -99,7 +99,7 @@ class WorkQueueCoordinator:
 
     def __init__(self, db: Optional[DatabaseManager] = None, session=None):
         """Initialize the coordinator with thread-safe state management.
-        
+
         Args:
             db: Optional DatabaseManager instance (for testing)
             session: Optional SQLAlchemy session (for testing with transactions)
@@ -130,7 +130,7 @@ class WorkQueueCoordinator:
 
     def _get_session(self):
         """Get database session - uses test session if provided, else creates new one.
-        
+
         Returns:
             Database session object
         """
@@ -258,9 +258,7 @@ class WorkQueueCoordinator:
         assigned_domains = valid_current_domains - assigned_to_others
 
         # Filter by availability (cooldown, paused)
-        assigned_domains = {
-            d for d in assigned_domains if self._is_domain_available(d)
-        }
+        assigned_domains = {d for d in assigned_domains if self._is_domain_available(d)}
 
         # If we need more domains, add unassigned ones
         if len(assigned_domains) < MIN_DOMAINS_PER_WORKER:
@@ -319,9 +317,7 @@ class WorkQueueCoordinator:
             return WorkResponse(items=[], worker_domains=[])
 
         # Assign domains to worker
-        assigned_domains = self._assign_domains_to_worker(
-            worker_id, available_domains
-        )
+        assigned_domains = self._assign_domains_to_worker(worker_id, available_domains)
 
         if not assigned_domains:
             logger.warning(
@@ -388,18 +384,14 @@ class WorkQueueCoordinator:
         # Update domain cooldowns for domains we're returning work from
         current_time = time.time()
         for domain in domain_counts.keys():
-            self.domain_cooldowns[domain] = (
-                current_time + DOMAIN_COOLDOWN_SECONDS
-            )
+            self.domain_cooldowns[domain] = current_time + DOMAIN_COOLDOWN_SECONDS
 
         logger.info(
             f"Worker {worker_id} received {len(items)} items from "
             f"{len(domain_counts)} domains: {dict(domain_counts)}"
         )
 
-        return WorkResponse(
-            items=items, worker_domains=sorted(assigned_domains)
-        )
+        return WorkResponse(items=items, worker_domains=sorted(assigned_domains))
 
     def report_failure(self, worker_id: str, domain: str) -> None:
         """Report a domain failure (rate limit, bot protection, etc.).
@@ -433,7 +425,9 @@ class WorkQueueCoordinator:
                 # Exponential backoff for cooldown
                 extended_cooldown = DOMAIN_COOLDOWN_SECONDS * (2 ** (failure_count - 1))
                 self.domain_cooldowns[domain] = time.time() + extended_cooldown
-                logger.info(f"Domain {domain} cooldown extended to {extended_cooldown}s")
+                logger.info(
+                    f"Domain {domain} cooldown extended to {extended_cooldown}s"
+                )
 
     def get_stats(self) -> StatsResponse:
         """Get current queue statistics.
