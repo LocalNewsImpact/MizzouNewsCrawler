@@ -1,0 +1,149 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: work-queue
+  namespace: production
+  labels:
+    app: work-queue
+    component: coordinator
+spec:
+  type: ClusterIP
+  selector:
+    app: work-queue
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: work-queue
+  namespace: production
+  labels:
+    app: work-queue
+    component: coordinator
+spec:
+  replicas: 1  # Single coordinator instance
+  strategy:
+    type: Recreate  # Ensure only one instance at a time
+  selector:
+    matchLabels:
+      app: work-queue
+  template:
+    metadata:
+      labels:
+        app: work-queue
+        component: coordinator
+    spec:
+      serviceAccountName: mizzou-crawler
+      containers:
+        - name: work-queue
+          image: gcr.io/mizzou-news-crawler/mizzou-crawler:latest
+          imagePullPolicy: Always
+          command:
+            - python
+            - -m
+            - src.services.work_queue
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            # Database configuration
+            - name: USE_CLOUD_SQL_CONNECTOR
+              value: "true"
+            - name: CLOUD_SQL_INSTANCE
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-instance
+                  key: instance
+            - name: DATABASE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db
+                  key: database
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db
+                  key: username
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db
+                  key: password
+            
+            # Work queue configuration
+            - name: PORT
+              value: "8080"
+            - name: DOMAIN_COOLDOWN_SECONDS
+              value: "60"
+            - name: MAX_DOMAIN_FAILURES
+              value: "3"
+            - name: DOMAIN_PAUSE_SECONDS
+              value: "1800"  # 30 minutes
+            - name: WORKER_TIMEOUT_SECONDS
+              value: "600"   # 10 minutes
+            - name: MIN_DOMAINS_PER_WORKER
+              value: "3"
+            - name: MAX_DOMAINS_PER_WORKER
+              value: "5"
+          
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 2
+        
+        # Cloud SQL Proxy sidecar
+        - name: cloud-sql-proxy
+          image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.8.0
+          args:
+            - "--structured-logs"
+            - "--port=5432"
+            - "$(CLOUD_SQL_INSTANCE)"
+          env:
+            - name: CLOUD_SQL_INSTANCE
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-instance
+                  key: instance
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
