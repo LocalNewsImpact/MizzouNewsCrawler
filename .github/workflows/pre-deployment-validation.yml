@@ -183,6 +183,105 @@ jobs:
           
           echo "✅ All requirements files valid"
       
+      - name: Validate K8s deployment configurations
+        run: |
+          echo "=========================================="
+          echo "Validating K8s Deployment Configs"
+          echo "=========================================="
+          
+          python3 << 'EOF'
+          import re
+          import yaml
+          from pathlib import Path
+          
+          errors = []
+          warnings = []
+          
+          # Check work-queue deployment
+          print("\nChecking work-queue-deployment.yaml...")
+          try:
+              with open("k8s/work-queue-deployment.yaml") as f:
+                  docs = list(yaml.safe_load_all(f))
+              
+              for doc in docs:
+                  if not doc or doc.get("kind") != "Deployment":
+                      continue
+                  
+                  spec = doc.get("spec", {}).get("template", {}).get("spec", {})
+                  
+                  # Check serviceAccountName
+                  sa = spec.get("serviceAccountName")
+                  if sa:
+                      # Known valid service accounts in production
+                      valid_sas = ["mizzou-app", "argo-workflow", "default"]
+                      if sa not in valid_sas:
+                          errors.append(f"  ❌ References unknown serviceAccount '{sa}' (valid: {valid_sas})")
+                      else:
+                          print(f"  ✓ Uses valid serviceAccount: {sa}")
+                  
+                  # Check secret references
+                  for container in spec.get("containers", []):
+                      for env in container.get("env", []):
+                          if "secretKeyRef" in env.get("valueFrom", {}):
+                              secret_name = env["valueFrom"]["secretKeyRef"].get("name")
+                              # Known valid secrets in production
+                              valid_secrets = ["cloudsql-db-credentials"]
+                              if secret_name and secret_name not in valid_secrets:
+                                  errors.append(f"  ❌ References unknown secret '{secret_name}' (valid: {valid_secrets})")
+                              else:
+                                  print(f"  ✓ Uses valid secret: {secret_name}")
+                      
+                      # Check image pull policy
+                      image = container.get("image", "")
+                      pull_policy = container.get("imagePullPolicy", "IfNotPresent")
+                      
+                      if re.search(r':[a-f0-9]{7,}$', image) and pull_policy == "Always":
+                          errors.append(f"  ❌ Image '{image}' uses SHA tag but has imagePullPolicy: Always")
+                          errors.append(f"     SHA-tagged images should use 'IfNotPresent' to avoid expensive pulls")
+                      elif image.endswith(":latest"):
+                          warnings.append(f"  ⚠️  Image uses :latest tag: {image}")
+          
+          except Exception as e:
+              errors.append(f"  ❌ Failed to parse work-queue-deployment.yaml: {e}")
+          
+          # Check requirements match imports
+          print("\nChecking Python dependencies...")
+          
+          # Map: Dockerfile -> requirements file -> critical imports
+          checks = {
+              "Dockerfile.crawler": ("requirements-crawler.txt", ["fastapi", "uvicorn", "selenium"]),
+              "Dockerfile.api": ("requirements-api.txt", ["fastapi", "uvicorn"]),
+              "Dockerfile.processor": ("requirements-processor.txt", ["transformers", "torch"]),
+          }
+          
+          for dockerfile, (req_file, critical_imports) in checks.items():
+              try:
+                  with open(req_file) as f:
+                      requirements = f.read().lower()
+                  
+                  for imp in critical_imports:
+                      if imp not in requirements:
+                          errors.append(f"  ❌ {dockerfile} likely needs '{imp}' but it's missing from {req_file}")
+                      else:
+                          print(f"  ✓ {req_file} contains {imp}")
+              except FileNotFoundError:
+                  errors.append(f"  ❌ {req_file} not found")
+          
+          print()
+          if warnings:
+              print("Warnings:")
+              for w in warnings:
+                  print(w)
+          
+          if errors:
+              print("\n❌ VALIDATION FAILED:")
+              for e in errors:
+                  print(e)
+              exit(1)
+          else:
+              print("✅ K8s deployment configurations valid")
+          EOF
+      
       - name: Validate Alembic migrations
         run: |
           echo "=========================================="
