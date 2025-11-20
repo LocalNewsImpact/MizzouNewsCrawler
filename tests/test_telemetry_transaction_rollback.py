@@ -4,15 +4,17 @@ Ensures that database errors trigger a rollback to prevent 'InterfaceError: in f
 """
 
 import unittest
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
+
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+
+from src.telemetry.store import TelemetryStore
 from src.utils.comprehensive_telemetry import (
     ComprehensiveExtractionTelemetry,
     ExtractionMetrics,
 )
+from src.utils.discovery_outcomes import DiscoveryOutcome, DiscoveryResult
 from src.utils.telemetry import OperationTracker
-from src.telemetry.store import TelemetryStore
-from src.utils.discovery_outcomes import DiscoveryResult, DiscoveryOutcome
 
 
 class FakeTelemetryStore(TelemetryStore):

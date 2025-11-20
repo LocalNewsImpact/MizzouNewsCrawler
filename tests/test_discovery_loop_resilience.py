@@ -1,6 +1,8 @@
 import logging
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
+
 from src.crawler.discovery import NewsDiscovery
 
 

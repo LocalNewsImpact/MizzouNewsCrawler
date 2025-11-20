@@ -1,5 +1,7 @@
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
+
 from src.cli.commands.extraction import handle_extraction_command
 
 

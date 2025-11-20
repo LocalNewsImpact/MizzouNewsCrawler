@@ -1,9 +1,11 @@
 import logging
 import threading
+
+import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
-import pytest
-from src.models import CandidateLink, Base
+
+from src.models import Base, CandidateLink
 from src.models.database import DatabaseManager
 
 

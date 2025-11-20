@@ -1,5 +1,6 @@
 import logging
 from unittest.mock import MagicMock, patch
+
 from src.crawler.scheduling import should_schedule_discovery
 
 
