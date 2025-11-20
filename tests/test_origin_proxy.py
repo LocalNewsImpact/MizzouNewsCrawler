@@ -285,3 +285,158 @@ def test_proxy_kiesow_bypassed(monkeypatch):
     assert captured["url"] == "http://proxy.kiesow.net:23432/?url=test"
 
     disable_origin_proxy(s)
+
+
+def test_extract_url_with_object_url_attribute():
+    """Test _extract_url with object that has url attribute."""
+    from src.crawler.origin_proxy import _extract_url
+    
+    class MockRequest:
+        def __init__(self, url):
+            self.url = url
+    
+    # Test with object that has url attribute
+    obj = MockRequest("https://example.com")
+    assert _extract_url(obj) == "https://example.com"
+    
+    # Test with object that has None url
+    obj_none = MockRequest(None)
+    assert _extract_url(obj_none) is None
+
+
+def test_extract_url_with_string():
+    """Test _extract_url with string input."""
+    from src.crawler.origin_proxy import _extract_url
+    
+    assert _extract_url("https://example.com") == "https://example.com"
+
+
+def test_extract_url_with_other_type():
+    """Test _extract_url returns None for unsupported types."""
+    from src.crawler.origin_proxy import _extract_url
+    
+    assert _extract_url(123) is None
+    assert _extract_url([]) is None
+    assert _extract_url({}) is None
+
+
+def test_parse_bypass_hosts_with_env_vars(monkeypatch):
+    """Test _parse_bypass_hosts reads from multiple env vars."""
+    from src.crawler.origin_proxy import _parse_bypass_hosts
+    
+    monkeypatch.setenv("ORIGIN_PROXY_BYPASS", "example.com, test.local")
+    monkeypatch.setenv("NO_PROXY", "internal.net")
+    monkeypatch.setenv("no_proxy", "localhost")
+    
+    hosts = _parse_bypass_hosts()
+    
+    # Should contain all env var entries plus metadata hosts
+    assert "example.com" in hosts
+    assert "test.local" in hosts
+    assert "internal.net" in hosts
+    assert "localhost" in hosts
+    assert "metadata.google.internal" in hosts
+
+
+def test_parse_bypass_hosts_handles_empty_entries(monkeypatch):
+    """Test _parse_bypass_hosts ignores empty entries."""
+    from src.crawler.origin_proxy import _parse_bypass_hosts
+    
+    # Empty strings and whitespace should be ignored
+    monkeypatch.setenv("ORIGIN_PROXY_BYPASS", "  , example.com ,  , test.local ,  ")
+    
+    hosts = _parse_bypass_hosts()
+    
+    assert "example.com" in hosts
+    assert "test.local" in hosts
+    # Empty strings shouldn't be in the set
+    assert "" not in hosts
+    assert "  " not in hosts
+
+
+def test_should_bypass_with_url_parse_exception(monkeypatch):
+    """Test _should_bypass handles urlparse exceptions."""
+    from src.crawler.origin_proxy import _should_bypass
+    
+    # Mock urlparse to raise an exception
+    import src.crawler.origin_proxy as proxy_module
+    original_urlparse = proxy_module.urlparse
+    
+    def mock_urlparse_error(url):
+        raise ValueError("Parse error")
+    
+    monkeypatch.setattr(proxy_module, "urlparse", mock_urlparse_error)
+    
+    # Should return False on exception
+    assert _should_bypass("https://example.com") is False
+    
+    # Restore
+    monkeypatch.setattr(proxy_module, "urlparse", original_urlparse)
+
+
+def test_should_bypass_with_none_hostname():
+    """Test _should_bypass handles URLs with no hostname."""
+    from src.crawler.origin_proxy import _should_bypass
+    
+    # URL without hostname should not bypass
+    assert _should_bypass("file:///path/to/file") is False
+
+
+def test_should_bypass_with_none_url():
+    """Test _should_bypass handles None URL input."""
+    from src.crawler.origin_proxy import _should_bypass
+    
+    # None URL should not bypass
+    assert _should_bypass(None) is False
+    
+    # Object that extracts to None should not bypass
+    class ObjWithNoneUrl:
+        url = None
+    
+    assert _should_bypass(ObjWithNoneUrl()) is False
+
+
+def test_should_bypass_with_domain_suffix(monkeypatch):
+    """Test _should_bypass supports domain suffix matches."""
+    from src.crawler.origin_proxy import _should_bypass
+    
+    monkeypatch.setenv("ORIGIN_PROXY_BYPASS", ".internal,.local")
+    
+    # Should bypass URLs ending with .internal or .local
+    assert _should_bypass("https://api.internal") is True
+    assert _should_bypass("https://test.local") is True
+    assert _should_bypass("https://example.com") is False
+
+
+def test_enable_origin_proxy_already_installed():
+    """Test enable_origin_proxy doesn't double-wrap."""
+    s = requests.Session()
+    
+    # Install once
+    enable_origin_proxy(s)
+    original_request = s.request
+    
+    # Try to install again
+    enable_origin_proxy(s)
+    
+    # Should be the same (not double-wrapped)
+    assert s.request is original_request
+
+
+def test_disable_origin_proxy():
+    """Test disable_origin_proxy removes wrapper."""
+    s = requests.Session()
+    original_request = s.request
+    
+    # Install proxy
+    enable_origin_proxy(s)
+    
+    # Request should be wrapped
+    assert s.request != original_request
+    
+    # Disable proxy
+    disable_origin_proxy(s)
+    
+    # Should be restored or at least disabled
+    assert not getattr(s, "_origin_proxy_installed", False)
+
