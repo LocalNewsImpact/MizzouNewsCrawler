@@ -378,6 +378,8 @@ class ComprehensiveExtractionTelemetry:
                 _do_insert(conn)
             except IntegrityError as ie:
                 logger.warning("Telemetry insert IntegrityError: %s", ie)
+                # Rollback the failed transaction so we can try to recover
+                conn.rollback()
                 try:
                     # Only attempt resync if backing store is Postgres
                     if (
@@ -420,6 +422,7 @@ class ComprehensiveExtractionTelemetry:
                                 "Telemetry insert failed again after sequence resync: %s",
                                 ie2,
                             )
+                            conn.rollback()
                             return
                     else:
                         # Non-Postgres stores can't resync sequence; ignore
@@ -430,6 +433,7 @@ class ComprehensiveExtractionTelemetry:
                         return
                 except Exception:
                     logger.exception("Exception during telemetry resync attempt")
+                    conn.rollback()
                     return
 
             if metrics.http_status_code and metrics.http_error_type:

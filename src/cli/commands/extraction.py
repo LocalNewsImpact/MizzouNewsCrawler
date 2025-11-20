@@ -791,7 +791,7 @@ def _process_batch(
             except Exception as e:
                 logger.error("Failed to get work from queue service: %s", e)
                 logger.warning("Falling back to direct database query")
-                USE_WORK_QUEUE_FALLBACK = False
+                USE_WORK_QUEUE_FALLBACK = True
                 # Fall through to direct query below
             else:
                 if not work_items:

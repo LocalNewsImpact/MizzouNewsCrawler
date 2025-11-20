@@ -801,6 +801,7 @@ class OperationTracker:
                     conn.commit()  # Explicit commit to clear transaction
                     return
                 except DB_ERRORS as exc:
+                    conn.rollback()  # Rollback failed transaction before retry
                     if attempt == retries - 1:
                         # Last attempt - let exception propagate
                         self.logger.error(
@@ -1332,6 +1333,7 @@ class OperationTracker:
                     conn.commit()  # Explicit commit to clear transaction
                     return
                 except DB_ERRORS as exc:
+                    conn.rollback()  # Rollback failed transaction before retry
                     if _is_missing_table_error(exc):
                         self.logger.warning(
                             "Telemetry store missing operations table; skipping update",
@@ -2228,6 +2230,7 @@ class OperationTracker:
                     conn.commit()  # Explicit commit to clear transaction
                     return
                 except DB_ERRORS as exc:
+                    conn.rollback()  # Rollback failed transaction before retry
                     if _is_missing_table_error(exc):
                         self.logger.warning(
                             "Telemetry store missing method effectiveness table; "
