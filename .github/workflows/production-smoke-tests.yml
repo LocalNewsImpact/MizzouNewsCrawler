@@ -1,0 +1,130 @@
+name: Production Smoke Tests
+
+on:
+  # Run after successful deployments
+  workflow_run:
+    workflows: ["Build and Deploy Services"]
+    types:
+      - completed
+    branches:
+      - main
+  
+  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      test_filter:
+        description: 'Test filter (e.g., TestSectionURLExtraction)'
+        required: false
+        default: ''
+
+jobs:
+  smoke-tests:
+    name: E2E Smoke Tests
+    runs-on: ubuntu-latest
+    # Only run if deployment succeeded
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+      
+      - name: Configure kubectl
+        run: |
+          gcloud container clusters get-credentials mizzou-news-gke \
+            --region us-central1 \
+            --project ${{ secrets.GCP_PROJECT_ID }}
+      
+      - name: Wait for deployment to stabilize
+        run: |
+          echo "⏳ Waiting 60 seconds for deployment to stabilize..."
+          sleep 60
+      
+      - name: Run smoke tests
+        id: smoke_tests
+        run: |
+          echo "🧪 Running production smoke tests..."
+          
+          # Get processor pod
+          POD_NAME=$(kubectl get pods -n production -l app=mizzou-processor -o jsonpath='{.items[0].metadata.name}')
+          
+          if [ -z "$POD_NAME" ]; then
+            echo "❌ No processor pod found"
+            exit 1
+          fi
+          
+          echo "Using pod: $POD_NAME"
+          
+          # Build pytest command
+          PYTEST_CMD="pytest tests/e2e/test_production_smoke.py -v --tb=short --color=yes"
+          
+          # Add test filter if provided
+          if [ -n "${{ github.event.inputs.test_filter }}" ]; then
+            PYTEST_CMD="$PYTEST_CMD -k ${{ github.event.inputs.test_filter }}"
+          fi
+          
+          # Run tests
+          kubectl exec -n production "$POD_NAME" -- bash -c "$PYTEST_CMD"
+      
+      - name: Report results
+        if: always()
+        run: |
+          if [ "${{ steps.smoke_tests.outcome }}" == "success" ]; then
+            echo "✅ All smoke tests passed!"
+          else
+            echo "❌ Smoke tests failed!"
+            echo "Check the logs above for details."
+            exit 1
+          fi
+      
+      - name: Notify on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue_body = `## 🚨 Production Smoke Tests Failed
+            
+            The E2E smoke tests failed after deployment to production.
+            
+            **Workflow:** ${context.workflow}
+            **Run:** ${context.runId}
+            **Commit:** ${context.sha}
+            
+            ### Action Required
+            - Check the [workflow run](${context.payload.repository.html_url}/actions/runs/${context.runId}) for details
+            - Verify production services are functioning correctly
+            - Consider rollback if critical functionality is broken
+            
+            ### Quick Checks
+            \`\`\`bash
+            # Check recent extractions
+            kubectl exec -n production deployment/mizzou-processor -- python -c "
+            from src.models.database import DatabaseManager
+            from sqlalchemy import text
+            db = DatabaseManager()
+            with db.get_session() as session:
+                result = session.execute(text('SELECT COUNT(*) FROM articles WHERE extracted_at >= NOW() - INTERVAL \\'1 hour\\')).scalar()
+                print(f'Articles extracted in last hour: {result}')
+            "
+            
+            # Check pod logs
+            kubectl logs -n production -l app=mizzou-processor --tail=100 | grep -i error
+            \`\`\`
+            `;
+            
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Production smoke tests failed - ${new Date().toISOString().split('T')[0]}`,
+              body: issue_body,
+              labels: ['bug', 'production', 'urgent']
+            });

@@ -2112,9 +2112,34 @@ python -m pytest tests/test_telemetry_system.py -v
 
 - [docs/TESTING_STRATEGY.md](docs/TESTING_STRATEGY.md) - **Complete testing guide** (markers, CI matching, debugging)
 - [docs/TESTING_OPERATIONS_DASHBOARD.md](docs/TESTING_OPERATIONS_DASHBOARD.md) - Operations testing guidelines
+- [tests/e2e/README.md](tests/e2e/README.md) - **Production smoke tests** (E2E validation after deployment)
 
 **Git Pre-Push Hook Installed:**
 A git hook automatically runs tests before every push. Use `git push --no-verify` to skip (not recommended).
+
+### Production Smoke Tests
+
+After deploying to production, run end-to-end smoke tests to validate critical workflows:
+
+```bash
+# Run all production smoke tests
+./scripts/run-production-smoke-tests.sh
+
+# Run specific test class
+./scripts/run-production-smoke-tests.sh TestSectionURLExtraction
+
+# Run with verbose output
+./scripts/run-production-smoke-tests.sh --verbose
+```
+
+These tests validate:
+- ✅ Section URL extraction and discovery integration
+- ✅ Complete discovery → verification → extraction pipeline
+- ✅ Telemetry system and hash column handling
+- ✅ ML pipeline (entity extraction, classification)
+- ✅ Data integrity and performance
+
+Tests run automatically via GitHub Actions after successful deployments. See [tests/e2e/README.md](tests/e2e/README.md) for details.
 
 ### Code Quality Tools
 
