@@ -42,7 +42,7 @@ spec:
       serviceAccountName: mizzou-app
       containers:
         - name: work-queue
-          image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:90de137
+          image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:e8ea887
           imagePullPolicy: IfNotPresent
           command:
             - python
