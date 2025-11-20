@@ -625,10 +625,26 @@ def handle_extraction_command(args) -> int:
                 )
             logger.info(f"Batch {batch_num}: {result}")
 
-            # Stop if no articles were processed (queue is empty)
+            # Stop if no articles were processed
             if articles_processed == 0:
-                print("📭 No more articles available to extract")
-                break
+                if USE_WORK_QUEUE:
+                    # In work queue mode, no articles means all domains are
+                    # in cooldown or assigned to other workers. Wait and retry.
+                    retry_delay = int(os.getenv("WORK_QUEUE_RETRY_DELAY", "30"))
+                    print(
+                        f"⏳ No articles available - all domains in cooldown. "
+                        f"Retrying in {retry_delay}s..."
+                    )
+                    logger.info(
+                        "Work queue returned 0 articles - "
+                        "domains in cooldown, will retry"
+                    )
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    # In direct query mode, no articles means database exhausted
+                    print("📭 No more articles available to extract")
+                    break
 
             # Smart batch sleep: pause when we repeatedly hit the same domain.
             # When domains rotate, per-domain rate limiting avoids the need to pause.
@@ -1157,6 +1173,11 @@ def _process_batch(
                     telemetry.record_extraction(metrics)
                     domains_for_cleaning[domain].append(article_id)
                     processed += 1
+                    logger.info(
+                        "✅ Article saved and counted: %s (total processed: %d)",
+                        article_id[:8],
+                        processed,
+                    )
                 else:
                     # Track failure for domain awareness
                     domain_failures[domain] = domain_failures.get(domain, 0) + 1
