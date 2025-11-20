@@ -1288,6 +1288,9 @@ def _process_batch(
                         )
                         skipped_domains.add(domain)
 
+                # Log the full exception traceback so it's not swallowed
+                logger.error("Extraction exception for %s: %s", url, e, exc_info=True)
+
                 metrics.error_message = str(e)
                 metrics.error_type = "exception"
                 metrics.finalize({})

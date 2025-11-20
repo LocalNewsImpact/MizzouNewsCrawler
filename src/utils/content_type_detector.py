@@ -292,6 +292,19 @@ class ContentTypeDetector:
 
         # Check author field for wire service patterns (STRONG signal)
         author = (metadata or {}).get("byline", "") if metadata else ""
+
+        # Handle case where byline is a dictionary (from BylineCleaner)
+        if isinstance(author, dict):
+            # Try to get cleaned authors list first
+            authors_list = author.get("authors", [])
+            if authors_list and isinstance(authors_list, list):
+                author = ", ".join(str(a) for a in authors_list)
+            else:
+                # Fallback to original string
+                author = str(author.get("original", ""))
+        elif isinstance(author, list):
+            author = ", ".join(str(a) for a in author)
+
         if author:
             author_lower = author.lower().strip()
 
