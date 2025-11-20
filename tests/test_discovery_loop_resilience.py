@@ -3,14 +3,17 @@ import pytest
 from unittest.mock import MagicMock, patch
 from src.crawler.discovery import NewsDiscovery
 
+
 class TestDiscoveryLoopResilience:
     """Tests for resilience in discovery loops."""
 
     @pytest.fixture
     def discovery(self):
         """Create a NewsDiscovery instance with mocked dependencies."""
-        with patch("src.crawler.discovery.DatabaseManager"), \
-             patch("src.crawler.discovery.get_proxy_manager"):
+        with (
+            patch("src.crawler.discovery.DatabaseManager"),
+            patch("src.crawler.discovery.get_proxy_manager"),
+        ):
             discovery = NewsDiscovery(max_articles_per_source=10)
             # Mock the database URL to avoid initialization errors
             discovery.database_url = "sqlite:///:memory:"

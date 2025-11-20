@@ -28,12 +28,12 @@ class TestDBRaceConditions:
         and that the application can handle it (e.g. by ignoring duplicates).
         """
         caplog.set_level(logging.DEBUG)
-        
+
         url = "http://example.com/race-condition"
         source = "test-source"
-        
+
         results = []
-        
+
         def insert_link():
             session = sessionmaker(bind=db_manager.engine)()
             try:
@@ -53,13 +53,13 @@ class TestDBRaceConditions:
         # Create two threads trying to insert the same link
         t1 = threading.Thread(target=insert_link)
         t2 = threading.Thread(target=insert_link)
-        
+
         t1.start()
         t2.start()
-        
+
         t1.join()
         t2.join()
-        
+
         # One should succeed, one should fail with IntegrityError
         assert "success" in results
         assert "integrity_error" in results
@@ -71,12 +71,12 @@ class TestDBRaceConditions:
         session in a bad state.
         """
         session = sessionmaker(bind=db_manager.engine)()
-        
+
         # 1. Successful insert
         link1 = CandidateLink(url="http://example.com/1", source="test")
         session.add(link1)
         session.commit()
-        
+
         # 2. Failed insert (duplicate)
         link2 = CandidateLink(url="http://example.com/1", source="test")
         session.add(link2)
@@ -84,12 +84,12 @@ class TestDBRaceConditions:
             session.commit()
         except IntegrityError:
             session.rollback()
-        
+
         # 3. Verify session is usable for next insert
         link3 = CandidateLink(url="http://example.com/2", source="test")
         session.add(link3)
         session.commit()
-        
+
         # Verify data
         count = session.query(CandidateLink).count()
         assert count == 2

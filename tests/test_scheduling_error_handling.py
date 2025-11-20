@@ -45,9 +45,7 @@ class TestSchedulingErrorHandling:
             mock_execute.return_value.fetchone.return_value = None
 
             # Pass malformed metadata that might cause parsing errors
-            source_meta = {
-                "frequency": ["invalid", "type"]
-            }  # List instead of string
+            source_meta = {"frequency": ["invalid", "type"]}  # List instead of string
 
             result = should_schedule_discovery(mock_db, "test-source", source_meta)
 

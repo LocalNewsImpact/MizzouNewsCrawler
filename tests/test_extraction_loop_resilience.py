@@ -43,7 +43,7 @@ def test_extraction_loop_resilience(
     mock_byline_cleaner_instance.clean_byline.return_value = {
         "authors": ["Test Author"],
         "wire_services": [],
-        "is_wire_content": False
+        "is_wire_content": False,
     }
 
     # Mock Telemetry
@@ -71,7 +71,7 @@ def test_extraction_loop_resilience(
             # _analyze_dataset_domains
             mock_result.fetchall.return_value = [
                 ("http://example.com/1",),
-                ("http://example.com/2",)
+                ("http://example.com/2",),
             ]
             return mock_result
 
@@ -104,8 +104,8 @@ def test_extraction_loop_resilience(
             "title": "Success Article",
             "text": "Some content",
             "author": "Test Author",
-            "publish_date": "2023-01-01"
-        }
+            "publish_date": "2023-01-01",
+        },
     ]
 
     # Run the command
@@ -135,9 +135,7 @@ def test_extraction_loop_resilience(
     # Verify we attempted to insert the successful article
     # We can check if safe_session_execute was called with an INSERT statement
     insert_calls = [
-        c for c in mock_execute.call_args_list
-        if "INSERT INTO articles" in str(c[0][1])
+        c for c in mock_execute.call_args_list if "INSERT INTO articles" in str(c[0][1])
     ]
     # We expect at least one insert for the successful article
     assert len(insert_calls) >= 1
-
