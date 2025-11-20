@@ -39,6 +39,8 @@ spec:
         value: "25"
       - name: verified-wait-seconds
         value: "300"
+      - name: log-level
+        value: "INFO"
     dag:
       tasks:
       - name: discover-urls
@@ -53,6 +55,8 @@ spec:
             value: "{{inputs.parameters.max-articles}}"
           - name: days-back
             value: "{{inputs.parameters.days-back}}"
+          - name: log-level
+            value: "{{inputs.parameters.log-level}}"
 
       # Start a parallel wait task that will poll the DB for new candidate
       # links and only succeed when either min-candidates are present or
@@ -81,6 +85,8 @@ spec:
             value: "{{inputs.parameters.inter-request-min}}"
           - name: inter-request-max
             value: "{{inputs.parameters.inter-request-max}}"
+          - name: log-level
+            value: "{{inputs.parameters.log-level}}"
 
       # Calculate optimal extraction parallelism first
       - name: calculate-extraction-workers
@@ -109,6 +115,8 @@ spec:
             value: "{{inputs.parameters.captcha-backoff-base}}"
           - name: captcha-backoff-max
             value: "{{inputs.parameters.captcha-backoff-max}}"
+          - name: log-level
+            value: "{{inputs.parameters.log-level}}"
         # Dynamic parallelism: spawn N workers based on calculation
         withParam: "{{tasks.calculate-extraction-workers.outputs.result}}"
   
@@ -121,6 +129,7 @@ spec:
         value: "10000"  # Default: effectively unlimited
       - name: max-articles
       - name: days-back
+      - name: log-level
     metadata:
       labels:
         stage: discovery
@@ -149,6 +158,8 @@ spec:
         - "{{inputs.parameters.max-articles}}"
         - --days-back
         - "{{inputs.parameters.days-back}}"
+        - --log-level
+        - "{{inputs.parameters.log-level}}"
       envFrom:
       - secretRef:
           name: origin-proxy-credentials
@@ -214,6 +225,7 @@ spec:
       - name: idle-grace-seconds
       - name: inter-request-min
       - name: inter-request-max
+      - name: log-level
     metadata:
       labels:
         stage: verification
@@ -238,6 +250,8 @@ spec:
         - "{{inputs.parameters.batch-size}}"
         - --idle-grace-seconds
         - "{{inputs.parameters.idle-grace-seconds}}"
+        - --log-level
+        - "{{inputs.parameters.log-level}}"
         # No --max-batches: process entire backlog every run
         # Exit when no more URLs with status='discovered' remain
       envFrom:
@@ -313,6 +327,7 @@ spec:
       - name: batch-sleep
       - name: captcha-backoff-base
       - name: captcha-backoff-max
+      - name: log-level
     metadata:
       labels:
         stage: extraction
@@ -336,7 +351,8 @@ spec:
           python -m src.cli.cli_modular extract \
             --dataset "{{inputs.parameters.dataset}}" \
             --limit "{{inputs.parameters.limit}}" \
-            --batches "{{inputs.parameters.batches}}"
+            --batches "{{inputs.parameters.batches}}" \
+            --log-level "{{inputs.parameters.log-level}}"
       envFrom:
       - secretRef:
           name: origin-proxy-credentials

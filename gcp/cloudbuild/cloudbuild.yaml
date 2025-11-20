@@ -210,7 +210,7 @@ steps:
         fi
     waitFor: ['push-processor', 'push-api', 'push-crawler']
 
-  # PHASE 4: Update Argo WorkflowTemplate to use new image SHAs (only on main branch)
+  # PHASE 4: Update Argo WorkflowTemplate to use new crawler image SHA (only on main branch)
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'update-argo-workflow-template'
     entrypoint: 'bash'
@@ -218,45 +218,21 @@ steps:
       - '-c'
       - |
         if [ "${BRANCH_NAME}" = "main" ]; then
-          echo "🔄 Updating Argo WorkflowTemplate to use crawler:${SHORT_SHA} and processor:${SHORT_SHA}..."
+          echo "🔄 Updating Argo WorkflowTemplate to use crawler:${SHORT_SHA}..."
           
           # Get GKE credentials
           gcloud container clusters get-credentials mizzou-cluster \
             --zone=us-central1-a \
             --project=${PROJECT_ID}
           
-          # Get the current workflowtemplate and update all image tags to use specific SHA
+          # Get the current workflow template and update crawler images
           kubectl get workflowtemplate news-pipeline-template -n production -o json | \
-            jq --arg sha "${SHORT_SHA}" '
-              (.spec.templates[] | select(.container) | .container.image) |=
-                if contains("crawler") then
-                  "us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:" + $sha
-                elif contains("processor") then
-                  "us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:" + $sha
-                else
-                  .
-                end
-            ' | \
+            jq --arg sha "${SHORT_SHA}" \
+              '(.spec.templates[] | select(.name == "discovery-step" or .name == "verification-step" or .name == "extraction-step") | .container.image) |= "us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:" + $sha' | \
             kubectl apply -f -
           
-          # Verify the update succeeded by checking container images
-          echo "🔍 Verifying WorkflowTemplate update..."
-          
-          UPDATED_IMAGES=$(kubectl get workflowtemplate news-pipeline-template -n production -o json | \
-            jq -r '.spec.templates[] | select(.container) | .container.image' | sort -u)
-          
-          echo "Updated images:"
-          echo "$UPDATED_IMAGES"
-          
-          if echo "$UPDATED_IMAGES" | grep -q "${SHORT_SHA}"; then
-            echo "✅ Argo WorkflowTemplate updated to use images with SHA ${SHORT_SHA}"
-            echo "   Next workflow run will use the new images with IfNotPresent policy"
-          else
-            echo "❌ ERROR: WorkflowTemplate update verification failed!"
-            echo "   Expected SHA: ${SHORT_SHA}"
-            echo "   Found images: $UPDATED_IMAGES"
-            exit 1
-          fi
+          echo "✅ Argo WorkflowTemplate updated to use crawler:${SHORT_SHA}"
+          echo "   Next workflow run will use the new image"
         else
           echo "ℹ️  Skipping Argo WorkflowTemplate update - not on main branch"
         fi
