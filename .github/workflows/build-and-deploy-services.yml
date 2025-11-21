@@ -1,0 +1,327 @@
+name: Build and Deploy Services
+
+# Automatically build and deploy services when code changes are merged into main
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      services:
+        description: 'Services to build (comma-separated: processor,api,crawler,base,ml-base,migrator, or "all")'
+        required: false
+        default: 'auto'
+        type: string
+
+jobs:
+  detect-changes:
+    name: Detect Changed Services
+    runs-on: ubuntu-latest
+    outputs:
+      processor: ${{ steps.detect.outputs.processor }}
+      api: ${{ steps.detect.outputs.api }}
+      crawler: ${{ steps.detect.outputs.crawler }}
+      base: ${{ steps.detect.outputs.base }}
+      ml-base: ${{ steps.detect.outputs.ml-base }}
+      migrator: ${{ steps.detect.outputs.migrator }}
+      any-changed: ${{ steps.detect.outputs.any-changed }}
+      services-to-build: ${{ steps.services.outputs.list }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history to compare with previous commits
+
+      - name: Detect changed files
+        id: detect
+        run: |
+          # Get list of changed files since last commit (for push) or since workflow dispatch (manual override)
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            # Manual dispatch - use provided input or default to auto
+            SERVICES_INPUT="${{ github.event.inputs.services }}"
+            if [ "$SERVICES_INPUT" != "auto" ]; then
+              echo "Using manually specified services: $SERVICES_INPUT"
+              # Parse comma-separated list
+              for service in $(echo "$SERVICES_INPUT" | tr ',' ' '); do
+                service=$(echo "$service" | xargs)  # trim whitespace
+                echo "${service}=true" >> $GITHUB_OUTPUT
+              done
+              echo "any-changed=true" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+          fi
+
+          # Get the commit range for change detection
+          if [ "${{ github.event_name }}" == "push" ]; then
+            # For push events, compare with the previous commit
+            if [ "${{ github.event.before }}" == "0000000000000000000000000000000000000000" ]; then
+              # Initial push - check all files
+              CHANGED_FILES=$(git ls-tree -r --name-only HEAD)
+            else
+              CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r ${{ github.event.before }} ${{ github.event.after }})
+            fi
+          else
+            # Fallback: compare HEAD with HEAD~1
+            CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+          fi
+
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+          echo ""
+
+          # Initialize all services as false
+          echo "processor=false" >> $GITHUB_OUTPUT
+          echo "api=false" >> $GITHUB_OUTPUT
+          echo "crawler=false" >> $GITHUB_OUTPUT
+          echo "base=false" >> $GITHUB_OUTPUT
+          echo "ml-base=false" >> $GITHUB_OUTPUT
+          echo "migrator=false" >> $GITHUB_OUTPUT
+          echo "any-changed=false" >> $GITHUB_OUTPUT
+
+          # Analyze changes and set flags
+          # Base image: only rebuild for OS/dependency changes, NOT for migrations
+          if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.base|Dockerfile\.ci-base|requirements-base\.txt|requirements-dev\.txt'; then
+            echo "base=true" >> $GITHUB_OUTPUT
+            echo "✅ Base image needs rebuild (Dockerfile.base, requirements-base.txt)"
+          fi
+
+          if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.ml-base|requirements-ml\.txt'; then
+            echo "ml-base=true" >> $GITHUB_OUTPUT
+            echo "✅ ML base image needs rebuild (Dockerfile.ml-base, requirements-ml.txt)"
+          fi
+
+          # Processor: rebuild for code changes or database migrations
+          if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.processor|requirements-processor\.txt|src/|pyproject\.toml|alembic/'; then
+            echo "processor=true" >> $GITHUB_OUTPUT
+            echo "✅ Processor needs rebuild (code/migrations: Dockerfile.processor, src/, alembic/)"
+          fi
+
+          # API: rebuild for code, dependencies, or database migrations
+          if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.api|requirements-api\.txt|src/|pyproject\.toml|backend/|alembic/'; then
+            echo "api=true" >> $GITHUB_OUTPUT
+            echo "✅ API needs rebuild (code/migrations: Dockerfile.api, src/, backend/, alembic/)"
+          fi
+
+          # Crawler: rebuild for code or dependency changes
+          if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.crawler|requirements-crawler\.txt|src/|pyproject\.toml'; then
+            echo "crawler=true" >> $GITHUB_OUTPUT
+            echo "✅ Crawler needs rebuild (Dockerfile.crawler, src/)"
+          fi
+
+          # Migrator: rebuild for migrations or requirements
+          if echo "$CHANGED_FILES" | grep -qE 'Dockerfile\.migrator|requirements-migrator\.txt|alembic/'; then
+            echo "migrator=true" >> $GITHUB_OUTPUT
+            echo "✅ Migrator needs rebuild (alembic migrations or requirements)"
+          fi
+
+          # Check if anything changed
+          if [ -n "$CHANGED_FILES" ]; then
+            echo "any-changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Determine services to build
+        id: services
+        run: |
+          SERVICES=""
+          
+          [ "${{ steps.detect.outputs.base }}" == "true" ] && SERVICES="${SERVICES}base "
+          [ "${{ steps.detect.outputs.ml-base }}" == "true" ] && SERVICES="${SERVICES}ml-base "
+          [ "${{ steps.detect.outputs.processor }}" == "true" ] && SERVICES="${SERVICES}processor "
+          [ "${{ steps.detect.outputs.api }}" == "true" ] && SERVICES="${SERVICES}api "
+          [ "${{ steps.detect.outputs.crawler }}" == "true" ] && SERVICES="${SERVICES}crawler "
+          [ "${{ steps.detect.outputs.migrator }}" == "true" ] && SERVICES="${SERVICES}migrator "
+
+          if [ -z "$SERVICES" ]; then
+            echo "list=none" >> $GITHUB_OUTPUT
+          else
+            # Remove trailing space and convert to comma-separated list
+            SERVICES=$(echo "$SERVICES" | xargs | sed 's/ /,/g')
+            echo "list=$SERVICES" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Log detected changes
+        run: |
+          echo "=== Service Build Detection ==="
+          echo "Event: ${{ github.event_name }}"
+          echo "Base image rebuild: ${{ steps.detect.outputs.base }}"
+          echo "ML base image rebuild: ${{ steps.detect.outputs.ml-base }}"
+          echo "Processor rebuild: ${{ steps.detect.outputs.processor }}"
+          echo "API rebuild: ${{ steps.detect.outputs.api }}"
+          echo "Crawler rebuild: ${{ steps.detect.outputs.crawler }}"
+          echo "Migrator rebuild: ${{ steps.detect.outputs.migrator }}"
+          echo "Services to build: ${{ steps.services.outputs.list }}"
+          echo "================================"
+
+  build-base:
+    name: Build Base Image
+    needs: detect-changes
+    if: needs.detect-changes.outputs.base == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: Submit Cloud Build
+        run: |
+          gcloud builds submit \
+            --config=gcp/cloudbuild/cloudbuild-base.yaml \
+            --project=${{ secrets.GCP_PROJECT }} \
+            --substitutions=BRANCH_NAME="${{ github.ref_name }},COMMIT_SHA=${{ github.sha }}"
+          echo "✅ Base image build submitted"
+
+  build-ml-base:
+    name: Build ML Base Image
+    needs: [detect-changes, build-base]
+    if: needs.detect-changes.outputs.ml-base == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: Submit Cloud Build
+        run: |
+          gcloud builds submit \
+            --config=gcp/cloudbuild/cloudbuild-ml-base.yaml \
+            --project=${{ secrets.GCP_PROJECT }} \
+            --substitutions=BRANCH_NAME="${{ github.ref_name }},COMMIT_SHA=${{ github.sha }}"
+          echo "✅ ML base image build submitted"
+
+  build-processor:
+    name: Build Processor
+    needs: [detect-changes, build-ml-base]
+    if: needs.detect-changes.outputs.processor == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: Submit Cloud Build
+        run: |
+          gcloud builds submit \
+            --config=gcp/cloudbuild/cloudbuild-processor.yaml \
+            --project=${{ secrets.GCP_PROJECT }} \
+            --substitutions=BRANCH_NAME="${{ github.ref_name }},COMMIT_SHA=${{ github.sha }}"
+          echo "✅ Processor build submitted"
+
+  build-api:
+    name: Build API
+    needs: [detect-changes, build-base]
+    if: needs.detect-changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: Submit Cloud Build
+        run: |
+          gcloud builds submit \
+            --config=gcp/cloudbuild/cloudbuild-api.yaml \
+            --project=${{ secrets.GCP_PROJECT }} \
+            --substitutions=BRANCH_NAME="${{ github.ref_name }},COMMIT_SHA=${{ github.sha }}"
+          echo "✅ API build submitted"
+
+  build-crawler:
+    name: Build Crawler
+    needs: [detect-changes, build-base]
+    if: needs.detect-changes.outputs.crawler == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: Submit Cloud Build
+        run: |
+          gcloud builds submit \
+            --config=gcp/cloudbuild/cloudbuild-crawler.yaml \
+            --project=${{ secrets.GCP_PROJECT }} \
+            --substitutions=BRANCH_NAME="${{ github.ref_name }},COMMIT_SHA=${{ github.sha }}"
+          echo "✅ Crawler build submitted"
+
+  build-migrator:
+    name: Build Migrator
+    needs: [detect-changes, build-base]
+    if: needs.detect-changes.outputs.migrator == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: Submit Cloud Build
+        run: |
+          gcloud builds submit \
+            --config=gcp/cloudbuild/cloudbuild-migrator.yaml \
+            --project=${{ secrets.GCP_PROJECT }} \
+            --substitutions=BRANCH_NAME="${{ github.ref_name }},COMMIT_SHA=${{ github.sha }}"
+          echo "✅ Migrator build submitted"
+
+  build-summary:
+    name: Build Summary
+    needs: detect-changes
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Report build plan
+        run: |
+          echo "=== Build and Deploy Plan ==="
+          echo "Services to build: ${{ needs.detect-changes.outputs.services-to-build }}"
+          
+          if [ "${{ needs.detect-changes.outputs.services-to-build }}" == "none" ]; then
+            echo "ℹ️  No service rebuilds detected (documentation/config-only changes)"
+          else
+            echo "✅ Cloud Build jobs submitted for: ${{ needs.detect-changes.outputs.services-to-build }}"
+            echo ""
+            echo "Build dependencies:"
+            echo "  - base: foundation image (optional)"
+            echo "  - ml-base: depends on base"
+            echo "  - processor: depends on ml-base"
+            echo "  - api, crawler, migrator: depend on base"
+          fi
