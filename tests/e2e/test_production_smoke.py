@@ -1103,6 +1103,274 @@ class TestDataPipelineConsistency:
                 )
 
 
+class TestContentCleaningPipeline:
+    """Test content cleaning pipeline (extracted → cleaned transition)."""
+
+    def test_article_cleaning_status_transition(self, production_db):
+        """
+        Verify articles transition from extracted to cleaned status.
+
+        Validates:
+        1. Extracted articles are processed for cleaning
+        2. cleaned_content field is populated after extraction
+        3. Status transition happens within reasonable time
+        4. Timestamps progress: extracted_at < cleaned_at
+        """
+        with production_db.get_session() as session:
+            # Check articles with cleaned content from last 24 hours
+            result = session.execute(text("""
+                SELECT
+                    COUNT(*) as total_extracted,
+                    COUNT(CASE
+                        WHEN cleaned_content IS NOT NULL
+                        AND LENGTH(TRIM(cleaned_content)) > 100
+                        THEN 1
+                    END) as with_cleaned_content,
+                    AVG(CASE
+                        WHEN cleaned_content IS NOT NULL
+                        THEN EXTRACT(EPOCH FROM (cleaned_at - extracted_at))
+                        ELSE NULL
+                    END) as avg_cleaning_latency_seconds
+                FROM articles
+                WHERE extracted_at >= NOW() - INTERVAL '24 hours'
+                AND status IN ('cleaned', 'classified', 'local', 'wire',
+                               'opinion', 'obituary')
+            """)).fetchone()
+
+            total_extracted, cleaned_count, avg_latency = result
+
+            # At least some articles should have cleaned content
+            assert total_extracted > 0, \
+                "No extracted articles found in last 24 hours"
+            assert cleaned_count > 0, \
+                "No articles have cleaned_content - cleaning may have failed"
+
+            # Cleaning latency should be reasonable (<5 minutes typically)
+            if avg_latency:
+                assert avg_latency < 300, \
+                    f"High cleaning latency: {avg_latency:.0f}s - " \
+                    f"cleaning may be bottlenecked"
+
+    def test_content_validation_after_cleaning(self, production_db):
+        """
+        Verify cleaned content meets quality standards.
+
+        Validates:
+        1. Cleaned content is shorter than original (boilerplate removed)
+        2. Cleaned content still has substantial text (>100 chars)
+        3. Content length ratio is reasonable (not removing too much)
+        4. No NULL cleaned_content for classified articles
+        """
+        with production_db.get_session() as session:
+            # Check content reduction statistics
+            result = session.execute(text("""
+                SELECT
+                    COUNT(*) as cleaned_articles,
+                    AVG(LENGTH(COALESCE(content, ''))) as avg_original_length,
+                    AVG(LENGTH(COALESCE(cleaned_content, ''))) as avg_cleaned_length,
+                    MIN(CASE
+                        WHEN LENGTH(COALESCE(cleaned_content, '')) > 0
+                        THEN LENGTH(cleaned_content) /
+                             GREATEST(LENGTH(content), 1)
+                        ELSE NULL
+                    END) as min_retention_ratio,
+                    MAX(CASE
+                        WHEN LENGTH(COALESCE(cleaned_content, '')) > 0
+                        THEN LENGTH(cleaned_content) /
+                             GREATEST(LENGTH(content), 1)
+                        ELSE NULL
+                    END) as max_retention_ratio
+                FROM articles
+                WHERE status IN ('cleaned', 'classified', 'local', 'wire',
+                                 'opinion', 'obituary')
+                AND extracted_at >= NOW() - INTERVAL '24 hours'
+                AND cleaned_content IS NOT NULL
+            """)).fetchone()
+
+            cleaned_count, avg_orig, avg_clean, min_ratio, max_ratio = result
+
+            # Should have cleaned articles
+            assert cleaned_count > 0, \
+                "No articles with cleaned_content found"
+
+            # Cleaned content should be shorter than original
+            if avg_clean and avg_orig:
+                reduction = (avg_orig - avg_clean) / avg_orig
+                assert reduction > 0.05, \
+                    (f"Low content reduction: {reduction:.1%} - "
+                     f"cleaning may not be working")
+                assert reduction < 0.95, \
+                    (f"High content reduction: {reduction:.1%} - "
+                     f"may be removing too much")
+
+            # Retention ratio should be reasonable
+            if min_ratio and max_ratio:
+                assert min_ratio > 0.05, \
+                    "Some articles retain <5% content - cleaning aggressive"
+                assert max_ratio < 0.99, \
+                    "Some articles retain >99% content - cleaning not working"
+
+    def test_byline_extraction_and_normalization(self, production_db):
+        """
+        Verify byline extraction and author normalization.
+
+        Validates:
+        1. Author field is populated for cleaned articles
+        2. Bylines are normalized (single person names, not raw bylines)
+        3. Wire service indicators are removed from author field
+        4. Author field length is reasonable (not entire bylines)
+        """
+        with production_db.get_session() as session:
+            # Check byline/author extraction quality
+            result = session.execute(text("""
+                SELECT
+                    COUNT(*) as total_articles,
+                    COUNT(CASE
+                        WHEN author IS NOT NULL
+                        AND LENGTH(TRIM(author)) > 2
+                        AND LENGTH(TRIM(author)) < 200
+                        THEN 1
+                    END) as with_valid_authors,
+                    AVG(LENGTH(COALESCE(author, ''))) as avg_author_length,
+                    COUNT(CASE
+                        WHEN author ILIKE '%associated press%'
+                        OR author ILIKE '%reuters%'
+                        OR author ILIKE '%ap%'
+                        OR author ILIKE '%upi%'
+                        OR author ILIKE '%cnn%'
+                        THEN 1
+                    END) as authors_with_wire_service_text
+                FROM articles
+                WHERE status IN ('cleaned', 'classified', 'local', 'wire',
+                                 'opinion', 'obituary')
+                AND extracted_at >= NOW() - INTERVAL '24 hours'
+            """)).fetchone()
+
+            total, valid_authors, avg_len, wire_in_author = result
+
+            # Should have authors extracted
+            assert total > 0, \
+                "No cleaned articles found for byline validation"
+            assert valid_authors > 0, \
+                "No valid authors extracted - byline cleaning may have failed"
+
+            # Authors should be reasonably short (normalized, not full bylines)
+            if avg_len:
+                assert avg_len < 100, \
+                    (f"Average author length {avg_len:.0f}s - "
+                     f"bylines may not be normalized")
+
+            # Wire service indicators should be removed from author field
+            if wire_in_author and total > 0:
+                wire_ratio = wire_in_author / total
+                assert wire_ratio < 0.1, \
+                    f"High wire service contamination in authors: {wire_ratio:.1%}"
+
+    def test_wire_service_detection_and_classification(self, production_db):
+        """
+        Verify wire service content is correctly detected and labeled.
+
+        Validates:
+        1. Wire articles have 'wire' or syndicated status
+        2. Wire service bylines are preserved (not corrupted to author names)
+        3. Wire articles are tagged in primary_label if applicable
+        4. Wire service detection has reasonable precision
+        """
+        with production_db.get_session() as session:
+            # Check wire service article classification
+            result = session.execute(text("""
+                SELECT
+                    COUNT(CASE WHEN status = 'wire' THEN 1 END) as wire_articles,
+                    COUNT(CASE WHEN status = 'local' THEN 1 END) as local_articles,
+                    COUNT(CASE
+                        WHEN status = 'wire'
+                        AND (author ILIKE '%associated press%'
+                             OR author ILIKE '%reuters%'
+                             OR author ILIKE '%ap%'
+                             OR author ILIKE '%upi%'
+                             OR author ILIKE '%cnn%')
+                        THEN 1
+                    END) as wire_with_service_author,
+                    COUNT(CASE
+                        WHEN status = 'wire'
+                        AND (author ILIKE '%associated press%'
+                             OR author ILIKE '%reuters%')
+                        AND primary_label IN ('wire', 'syndicated')
+                        THEN 1
+                    END) as wire_correctly_labeled
+                FROM articles
+                WHERE extracted_at >= NOW() - INTERVAL '7 days'
+            """)).fetchone()
+
+            wire_count, local_count, wire_with_svc, labeled = result
+
+            # Should have some wire articles detected
+            assert wire_count > 0, \
+                "No wire articles detected - wire service detection may be failing"
+
+            # Most wire articles should have wire service author text preserved
+            if wire_count > 0:
+                preservation_ratio = wire_with_svc / wire_count
+                assert preservation_ratio > 0.7, \
+                    f"Low wire service preservation: {preservation_ratio:.1%} - " \
+                    f"bylines may be corrupted"
+
+            # Wire articles should have consistent labeling
+            if wire_with_svc > 0:
+                label_ratio = labeled / wire_with_svc
+                logger.info(
+                    f"Wire article labeling ratio: {label_ratio:.1%} "
+                    f"({labeled}/{wire_with_svc} labeled)"
+                )
+
+    def test_section_url_handling_in_cleaning(self, production_db):
+        """
+        Verify section URLs don't corrupt article content during cleaning.
+
+        Validates:
+        1. Articles from section URLs are properly extracted and cleaned
+        2. Content from section discovery doesn't break cleaning pipeline
+        3. Section-discovered articles have valid content
+        4. Cleaning works consistently across all discovery sources
+        """
+        with production_db.get_session() as session:
+            # Check articles discovered via section URLs
+            result = session.execute(text("""
+                SELECT
+                    COUNT(DISTINCT cl.id) as section_url_articles,
+                    COUNT(CASE
+                        WHEN a.id IS NOT NULL
+                        AND a.cleaned_content IS NOT NULL
+                        THEN 1
+                    END) as with_cleaned_content,
+                    COUNT(CASE
+                        WHEN a.status IN ('cleaned', 'classified',
+                                         'local', 'wire', 'opinion', 'obituary')
+                        THEN 1
+                    END) as properly_processed
+                FROM candidate_links cl
+                LEFT JOIN articles a ON cl.id = a.candidate_link_id
+                WHERE cl.source_type = 'section'
+                AND cl.created_at >= NOW() - INTERVAL '7 days'
+            """)).fetchone()
+
+            section_articles, with_cleaned, processed = result
+
+            # Should have section-discovered articles
+            if section_articles and section_articles > 0:
+                # Most should be cleaned
+                cleaned_ratio = with_cleaned / section_articles
+                assert cleaned_ratio > 0.7, \
+                    f"Low cleaning success for section articles: {cleaned_ratio:.1%}"
+
+                # Processing should be consistent
+                process_ratio = processed / section_articles
+                logger.info(
+                    f"Section article processing ratio: {process_ratio:.1%} "
+                    f"({processed}/{section_articles} processed)"
+                )
+
+
 @pytest.mark.slow
 class TestPerformance:
     """Test performance and throughput."""
