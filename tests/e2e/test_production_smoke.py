@@ -36,6 +36,7 @@ def production_db():
     yield db
 
 
+@pytest.mark.e2e
 class TestSectionURLExtraction:
     """Test section URL extraction and discovery integration."""
 
@@ -265,6 +266,7 @@ class TestExtractionPipeline:
                     ), f"Average text length only {avg_length:.0f} chars - may be extracting incomplete content"
 
 
+@pytest.mark.e2e
 class TestTelemetrySystem:
     """Test telemetry and monitoring systems."""
 
@@ -353,6 +355,7 @@ class TestTelemetrySystem:
                 ), "No large hash values found - column may not be working correctly"
 
 
+@pytest.mark.e2e
 class TestDataIntegrity:
     """Test data integrity and consistency."""
 
@@ -420,6 +423,7 @@ class TestDataIntegrity:
             ), f"Found {incomplete} active sources with incomplete metadata"
 
 
+@pytest.mark.e2e
 class TestErrorRecoveryAndResilience:
     """Test error recovery and resilience of critical workflows."""
 
@@ -769,6 +773,7 @@ class TestErrorRecoveryAndResilience:
                 )
 
 
+@pytest.mark.e2e
 class TestDataPipelineConsistency:
     """Test data pipeline state transitions and consistency."""
 
@@ -1253,6 +1258,7 @@ class TestDataPipelineConsistency:
                 )
 
 
+@pytest.mark.e2e
 class TestContentCleaningPipeline:
     """Test content cleaning pipeline (extracted → cleaned transition)."""
 
@@ -1550,6 +1556,7 @@ class TestContentCleaningPipeline:
                 )
 
 
+@pytest.mark.e2e
 class TestMLPipeline:
     """Test ML pipeline (entity extraction, gazetteer, labeling)."""
 
@@ -1951,6 +1958,7 @@ class TestMLPipeline:
 
 
 @pytest.mark.slow
+@pytest.mark.e2e
 class TestPerformance:
     """Test performance and throughput."""
 
