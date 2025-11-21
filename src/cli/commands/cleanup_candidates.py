@@ -36,46 +36,52 @@ def add_cleanup_candidates_parser(subparsers):
 
 def handle_cleanup_candidates_command(args):
     """Handle cleanup-candidates command.
-    
+
     Args:
         args: Parsed command arguments
-        
+
     Returns:
         Exit code (0 for success, 1 for error)
     """
     try:
         days_threshold = args.days
         dry_run = args.dry_run
-        
+
         db = DatabaseManager()
-        
+
         print()
         print("🧹 Candidate Link Cleanup")
         print("=" * 60)
         print(f"Threshold: {days_threshold} days")
         print(f"Dry run: {dry_run}")
         print()
-        
+
         with db.get_session() as session:
             # Find expired candidates
-            expired = session.execute(text(f"""
+            expired = session.execute(
+                text(
+                    f"""
                 SELECT id, source, url, created_at,
                     EXTRACT(EPOCH FROM (NOW() - created_at))/86400 as age_days
                 FROM candidate_links
                 WHERE status = 'article'
                 AND created_at < NOW() - INTERVAL '{days_threshold} days'
                 ORDER BY created_at ASC
-            """)).fetchall()
-            
+            """
+                )
+            ).fetchall()
+
             if not expired:
                 print(f"✓ No candidates older than {days_threshold} days found")
                 return 0
-            
+
             print(f"Found {len(expired)} candidates older than {days_threshold} days:")
             print()
-            
+
             # Show breakdown by source
-            breakdown_query = session.execute(text(f"""
+            breakdown_query = session.execute(
+                text(
+                    f"""
                 SELECT source, COUNT(*) as count,
                     MIN(created_at) as oldest
                 FROM candidate_links
@@ -83,48 +89,62 @@ def handle_cleanup_candidates_command(args):
                 AND created_at < NOW() - INTERVAL '{days_threshold} days'
                 GROUP BY source
                 ORDER BY count DESC
-            """)).fetchall()
-            
+            """
+                )
+            ).fetchall()
+
             for source, count, oldest in breakdown_query:
                 now = session.execute(text("SELECT NOW()")).scalar()
                 age_days = (now - oldest).days
                 print(f"  {source}: {count} (oldest: {age_days}d)")
-            
+
             print()
-            
+
             if dry_run:
                 print("⏭️  Dry run mode - no changes made")
                 return 0
-            
+
             # Mark as paused
-            session.execute(text(f"""
+            session.execute(
+                text(
+                    f"""
                 UPDATE candidate_links
                 SET status = 'paused'
                 WHERE status = 'article'
                 AND created_at < NOW() - INTERVAL '{days_threshold} days'
-            """))
-            
+            """
+                )
+            )
+
             session.commit()
-            
+
             expired_count = len(expired)
             print(f"✅ Marked {expired_count} candidates as paused")
             print()
-            
+
             # Show final status
-            paused_count = session.execute(text("""
+            paused_count = session.execute(
+                text(
+                    """
                 SELECT COUNT(*) FROM candidate_links WHERE status = 'paused'
-            """)).scalar()
-            article_count = session.execute(text("""
+            """
+                )
+            ).scalar()
+            article_count = session.execute(
+                text(
+                    """
                 SELECT COUNT(*) FROM candidate_links WHERE status = 'article'
-            """)).scalar()
-            
+            """
+                )
+            ).scalar()
+
             print("Pipeline status after cleanup:")
             print(f"  paused: {paused_count}")
             print(f"  article (ready for extraction): {article_count}")
             print()
-            
+
             return 0
-            
+
     except Exception as e:
         logger.exception("Cleanup candidates failed: %s", e)
         print(f"❌ Error: {e}")

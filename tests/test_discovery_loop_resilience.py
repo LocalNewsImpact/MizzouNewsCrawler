@@ -74,7 +74,9 @@ class TestDiscoveryLoopResilience:
                         "Crawling section: http://example.com/section2" in caplog.text
                     )
 
-    def test_discover_from_section_urls_article_loop_resilience(self, discovery, caplog):
+    def test_discover_from_section_urls_article_loop_resilience(
+        self, discovery, caplog
+    ):
         """
         Test that the inner loop over articles continues even if processing one
         article fails.

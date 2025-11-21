@@ -138,12 +138,10 @@ def handle_housekeeping_command(args) -> int:
             )
 
             # 4. Check for articles stuck in cleaning
-            report["stuck_cleaning_articles_warned"] = (
-                _check_stuck_cleaning_articles(
-                    session,
-                    args.cleaning_stall_hours,
-                    args.verbose,
-                )
+            report["stuck_cleaning_articles_warned"] = _check_stuck_cleaning_articles(
+                session,
+                args.cleaning_stall_hours,
+                args.verbose,
             )
 
             # 5. Check for candidates stuck in verification
@@ -207,10 +205,12 @@ def _handle_null_text_articles(session, dry_run: bool, verbose: bool) -> int:
     print()
 
     count = session.execute(
-        text("""
+        text(
+            """
         SELECT COUNT(*) FROM articles
         WHERE status = 'extracted' AND text IS NULL
-    """)
+    """
+        )
     ).scalar()
 
     if count == 0:
@@ -222,14 +222,16 @@ def _handle_null_text_articles(session, dry_run: bool, verbose: bool) -> int:
     if verbose:
         # Show sample articles
         samples = session.execute(
-            text("""
+            text(
+                """
             SELECT a.id, a.url, a.created_at, cl.source
             FROM articles a
             JOIN candidate_links cl ON a.candidate_link_id = cl.id
             WHERE a.status = 'extracted' AND a.text IS NULL
             ORDER BY a.created_at ASC
             LIMIT 5
-        """)
+        """
+            )
         ).fetchall()
         for article_id, url, created_at, source in samples:
             age_days = (datetime.now() - created_at).days
@@ -241,7 +243,8 @@ def _handle_null_text_articles(session, dry_run: bool, verbose: bool) -> int:
 
     # Mark as paused with telemetry
     session.execute(
-        text("""
+        text(
+            """
         UPDATE articles
         SET status = 'paused',
             metadata = jsonb_set(
@@ -250,7 +253,8 @@ def _handle_null_text_articles(session, dry_run: bool, verbose: bool) -> int:
                 '"null_text"'
             )
         WHERE status = 'extracted' AND text IS NULL
-    """)
+    """
+        )
     )
     session.commit()
 
@@ -277,11 +281,13 @@ def _handle_expired_candidates(
     print()
 
     count = session.execute(
-        text(f"""
+        text(
+            f"""
         SELECT COUNT(*) FROM candidate_links
         WHERE status = 'article'
         AND created_at < NOW() - INTERVAL '{days_threshold} days'
-    """)
+    """
+        )
     ).scalar()
 
     if count == 0:
@@ -293,7 +299,8 @@ def _handle_expired_candidates(
     if verbose:
         # Show breakdown by source
         breakdown = session.execute(
-            text(f"""
+            text(
+                f"""
             SELECT source, COUNT(*) as cnt,
                 MIN(EXTRACT(EPOCH FROM (NOW() - created_at))/86400)::INT as oldest_days
             FROM candidate_links
@@ -302,7 +309,8 @@ def _handle_expired_candidates(
             GROUP BY source
             ORDER BY cnt DESC
             LIMIT 10
-        """)
+        """
+            )
         ).fetchall()
         for source, cnt, oldest_days in breakdown:
             print(f"     - {source}: {cnt} (oldest {oldest_days}d)")
@@ -313,12 +321,14 @@ def _handle_expired_candidates(
 
     # Mark as paused
     session.execute(
-        text(f"""
+        text(
+            f"""
         UPDATE candidate_links
         SET status = 'paused'
         WHERE status = 'article'
         AND created_at < NOW() - INTERVAL '{days_threshold} days'
-    """)
+    """
+        )
     )
     session.commit()
 
@@ -328,9 +338,7 @@ def _handle_expired_candidates(
     return count
 
 
-def _check_stuck_extraction_articles(
-    session, stall_hours: int, verbose: bool
-) -> int:
+def _check_stuck_extraction_articles(session, stall_hours: int, verbose: bool) -> int:
     """
     Check for articles stuck in 'extracted' status without further progress.
 
@@ -345,11 +353,13 @@ def _check_stuck_extraction_articles(
     print()
 
     count = session.execute(
-        text(f"""
+        text(
+            f"""
         SELECT COUNT(*) FROM articles
         WHERE status = 'extracted'
         AND extracted_at < NOW() - INTERVAL '{stall_hours} hours'
-    """)
+    """
+        )
     ).scalar()
 
     if count == 0:
@@ -361,7 +371,8 @@ def _check_stuck_extraction_articles(
     if verbose:
         # Show sample articles and their age
         samples = session.execute(
-            text(f"""
+            text(
+                f"""
             SELECT a.id, a.url, a.extracted_at, cl.source,
                 EXTRACT(EPOCH FROM (NOW() - a.extracted_at))/3600::INT as hours_stuck
             FROM articles a
@@ -370,13 +381,11 @@ def _check_stuck_extraction_articles(
             AND a.extracted_at < NOW() - INTERVAL '{stall_hours} hours'
             ORDER BY a.extracted_at ASC
             LIMIT 5
-        """)
+        """
+            )
         ).fetchall()
         for article_id, url, extracted_at, source, hours_stuck in samples:
-            print(
-                f"     - {source} ({hours_stuck}h): "
-                f"{url[:50]}..."
-            )
+            print(f"     - {source} ({hours_stuck}h): " f"{url[:50]}...")
 
     print("   → This usually indicates a cleaning pipeline bottleneck")
     print()
@@ -384,9 +393,7 @@ def _check_stuck_extraction_articles(
     return count
 
 
-def _check_stuck_cleaning_articles(
-    session, stall_hours: int, verbose: bool
-) -> int:
+def _check_stuck_cleaning_articles(session, stall_hours: int, verbose: bool) -> int:
     """
     Check for articles stuck in 'cleaned' status without further progress.
 
@@ -400,11 +407,13 @@ def _check_stuck_cleaning_articles(
     print()
 
     count = session.execute(
-        text(f"""
+        text(
+            f"""
         SELECT COUNT(*) FROM articles
         WHERE status = 'cleaned'
         AND extracted_at < NOW() - INTERVAL '{stall_hours} hours'
-    """)
+    """
+        )
     ).scalar()
 
     if count == 0:
@@ -416,7 +425,8 @@ def _check_stuck_cleaning_articles(
     if verbose:
         # Show sample articles and their age
         samples = session.execute(
-            text(f"""
+            text(
+                f"""
             SELECT a.id, a.url, a.extracted_at, cl.source,
                 EXTRACT(EPOCH FROM (NOW() - a.extracted_at))/3600::INT as hours_stuck
             FROM articles a
@@ -425,13 +435,11 @@ def _check_stuck_cleaning_articles(
             AND a.extracted_at < NOW() - INTERVAL '{stall_hours} hours'
             ORDER BY a.extracted_at ASC
             LIMIT 5
-        """)
+        """
+            )
         ).fetchall()
         for article_id, url, extracted_at, source, hours_stuck in samples:
-            print(
-                f"     - {source} ({hours_stuck}h): "
-                f"{url[:50]}..."
-            )
+            print(f"     - {source} ({hours_stuck}h): " f"{url[:50]}...")
 
     print("   → This usually indicates a labeling pipeline bottleneck")
     print()
@@ -455,11 +463,13 @@ def _check_stuck_verification_candidates(
     print()
 
     count = session.execute(
-        text(f"""
+        text(
+            f"""
         SELECT COUNT(*) FROM candidate_links
         WHERE status = 'verified'
         AND fetched_at < NOW() - INTERVAL '{stall_hours} hours'
-    """)
+    """
+        )
     ).scalar()
 
     if count == 0:
@@ -471,7 +481,8 @@ def _check_stuck_verification_candidates(
     if verbose:
         # Show sample candidates and their age
         samples = session.execute(
-            text(f"""
+            text(
+                f"""
             SELECT source, url, fetched_at,
                 EXTRACT(EPOCH FROM (NOW() - fetched_at))/3600::INT as hours_stuck
             FROM candidate_links
@@ -479,13 +490,11 @@ def _check_stuck_verification_candidates(
             AND fetched_at < NOW() - INTERVAL '{stall_hours} hours'
             ORDER BY fetched_at ASC
             LIMIT 5
-        """)
+        """
+            )
         ).fetchall()
         for source, url, fetched_at, hours_stuck in samples:
-            print(
-                f"     - {source} ({hours_stuck}h): "
-                f"{url[:50]}..."
-            )
+            print(f"     - {source} ({hours_stuck}h): " f"{url[:50]}...")
 
     print("   → This usually indicates an extraction queue bottleneck")
     print()
