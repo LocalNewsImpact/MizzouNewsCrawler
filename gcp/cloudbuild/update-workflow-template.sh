@@ -19,7 +19,7 @@ echo "🏷️  SHA: $NEW_SHA"
 echo "🔄 Updating Argo WorkflowTemplate..."
 
 # Use Python to update the workflow template
-python3 << 'PYTHON_EOF'
+python3 << 'PYTHON_EOF' "$SERVICE_TYPE" "$NEW_SHA" "$REGISTRY"
 import subprocess, json, sys, os
 
 service_type = sys.argv[1] if len(sys.argv) > 1 else os.environ.get('SERVICE_TYPE', '')
@@ -82,7 +82,7 @@ try:
 except Exception as e:
     print(f"❌ Error applying workflow: {e}")
     sys.exit(1)
-PYTHON_EOF "$SERVICE_TYPE" "$NEW_SHA" "$REGISTRY"
+PYTHON_EOF
 
 echo "✅ Argo WorkflowTemplate updated successfully"
 echo "   Next workflow run will use ${SERVICE_TYPE}:${NEW_SHA}"
