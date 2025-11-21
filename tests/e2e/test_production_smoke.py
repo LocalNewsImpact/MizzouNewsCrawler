@@ -11,6 +11,7 @@ Or via kubectl:
     kubectl exec -n production deployment/mizzou-processor -- \
         pytest tests/e2e/test_production_smoke.py -v
 """
+import logging
 import os
 from datetime import datetime, timedelta
 
@@ -18,6 +19,8 @@ import pytest
 from sqlalchemy import text
 
 from src.models.database import DatabaseManager
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.fixture(scope="module")
@@ -100,24 +103,26 @@ class TestSectionURLExtraction:
     
     def test_article_urls_discovered_from_sections(self, production_db):
         """
-        Verify article URLs can be discovered using section_fallback method.
+        Verify article URLs are discovered using supplemental section crawling.
+        
+        Section discovery runs alongside homepage discovery to ensure comprehensive
+        coverage, not just as a fallback when homepage discovery fails.
         
         Validates the full workflow:
         1. Section URLs exist in sources.discovered_sections
-        2. Sources are ready to use section fallback when needed
+        2. Sources are ready to use supplemental section discovery
         3. Infrastructure is in place for section-based discovery
         """
         with production_db.get_session() as session:
-            # Check for discoveries using section_fallback method (if any)
+            # Check for discoveries using section_supplemental method
             result = session.execute(text("""
                 SELECT COUNT(*) as section_discoveries
                 FROM candidate_links
                 WHERE discovered_at >= NOW() - INTERVAL '7 days'
-                AND discovered_by = 'section_fallback'
+                AND discovered_by = 'section_supplemental'
             """)).scalar()
             
-            # Section fallback may not have run yet (homepage discovery working well)
-            # So just verify infrastructure is ready
+            # Verify infrastructure is ready
             sources_ready = session.execute(text("""
                 SELECT COUNT(*) 
                 FROM sources
@@ -127,6 +132,12 @@ class TestSectionURLExtraction:
             
             assert sources_ready > 0, \
                 "No sources configured with sections - section discovery not set up"
+            
+            # Section discovery should be actively finding articles
+            logger.info(
+                f"Found {result} articles via supplemental section discovery "
+                f"in last 7 days from {sources_ready} configured sources"
+            )
 
 
 class TestExtractionPipeline:

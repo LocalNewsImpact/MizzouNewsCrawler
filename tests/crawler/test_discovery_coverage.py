@@ -915,7 +915,7 @@ def test_update_source_meta_with_exception():
 # ============================================================================
 
 
-def test_discover_from_sections_no_sections():
+def test_discover_from_section_urls_no_sections():
     """Test section fallback when no sections are discovered."""
     mock_conn = MockConnection(
         fetch_results={
@@ -934,12 +934,12 @@ def test_discover_from_sections_no_sections():
             
             nd = NewsDiscovery(database_url="sqlite:///:memory:")
             
-            result = nd._discover_from_sections("https://example.com", "source-123", {})
+            result = nd._discover_from_section_urls("https://example.com", "source-123", {})
             
             assert result == []
 
 
-def test_discover_from_sections_empty_urls():
+def test_discover_from_section_urls_empty_urls():
     """Test section fallback when sections exist but urls list is empty."""
     mock_conn = MockConnection(
         fetch_results={
@@ -957,12 +957,12 @@ def test_discover_from_sections_empty_urls():
             
             nd = NewsDiscovery(database_url="sqlite:///:memory:")
             
-            result = nd._discover_from_sections("https://example.com", "source-123", {})
+            result = nd._discover_from_section_urls("https://example.com", "source-123", {})
             
             assert result == []
 
 
-def test_discover_from_sections_with_exception():
+def test_discover_from_section_urls_with_exception():
     """Test graceful handling when section fallback fails."""
     with patch("src.models.database.DatabaseManager") as mock_dbm_class:
         with patch("src.crawler.discovery.create_telemetry_system"):
@@ -972,18 +972,18 @@ def test_discover_from_sections_with_exception():
             
             nd = NewsDiscovery(database_url="sqlite:///:memory:")
             
-            result = nd._discover_from_sections("https://example.com", "source-123", {})
+            result = nd._discover_from_section_urls("https://example.com", "source-123", {})
             
             # Should return empty list on error
             assert result == []
 
 
-def test_discover_from_sections_no_source_id():
+def test_discover_from_section_urls_no_source_id():
     """Test section fallback with None source_id."""
     with patch("src.crawler.discovery.create_telemetry_system"):
         nd = NewsDiscovery(database_url="sqlite:///:memory:")
         
-        result = nd._discover_from_sections("https://example.com", None, {})
+        result = nd._discover_from_section_urls("https://example.com", None, {})
         
         # Should return empty list
         assert result == []
