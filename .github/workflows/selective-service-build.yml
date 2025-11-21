@@ -1,0 +1,380 @@
+name: 'Selective Service Build'
+
+# Automatically detect which services changed and trigger builds for only those services
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  detect-changes:
+    name: Detect Service Changes
+    runs-on: ubuntu-latest
+    outputs:
+      # Which services need rebuilding
+      rebuild-base: ${{ steps.changes.outputs.rebuild-base }}
+      rebuild-ml-base: ${{ steps.changes.outputs.rebuild-ml-base }}
+      rebuild-migrator: ${{ steps.changes.outputs.rebuild-migrator }}
+      rebuild-processor: ${{ steps.changes.outputs.rebuild-processor }}
+      rebuild-api: ${{ steps.changes.outputs.rebuild-api }}
+      rebuild-crawler: ${{ steps.changes.outputs.rebuild-crawler }}
+      
+      # Metadata
+      changed-files: ${{ steps.changes.outputs.changed-files }}
+      build-summary: ${{ steps.build-summary.outputs.summary }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 50  # Get enough history to detect meaningful changes
+
+      - name: Detect changed files and determine services
+        id: changes
+        run: |
+          set -e
+          
+          # Get list of changed files since last successful main push (or last 50 commits)
+          if [ "${{ github.event_name }}" = "push" ]; then
+            # On push, compare with previous commit
+            BASE_REF="${{ github.event.before }}"
+            HEAD_REF="${{ github.event.after }}"
+          else
+            BASE_REF="HEAD~1"
+            HEAD_REF="HEAD"
+          fi
+          
+          echo "📊 Detecting changes between $BASE_REF and $HEAD_REF..."
+          
+          # Get all changed files
+          CHANGED_FILES=$(git diff --name-only $BASE_REF $HEAD_REF || git diff --name-only HEAD~1 HEAD)
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+          echo ""
+          
+          # Save for output
+          echo "changed-files<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGED_FILES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          # Initialize all services as false
+          REBUILD_BASE="false"
+          REBUILD_ML_BASE="false"
+          REBUILD_MIGRATOR="false"
+          REBUILD_PROCESSOR="false"
+          REBUILD_API="false"
+          REBUILD_CRAWLER="false"
+          
+          # Service detection mapping
+          # If ANY file matching a service's patterns changed, rebuild that service
+          
+          # BASE IMAGE: Core dependencies (Python, system packages)
+          # NOTE: alembic/ is NOT included here - migrations run via PROCESSOR
+          if echo "$CHANGED_FILES" | grep -qE '(Dockerfile\.base|requirements-base\.txt|src/config\.py|pyproject\.toml|setup\.py)'; then
+            echo "✅ BASE image changes detected"
+            REBUILD_BASE="true"
+          fi
+          
+          # ML-BASE IMAGE: PyTorch, transformers, and ML dependencies
+          if echo "$CHANGED_FILES" | grep -qE '(Dockerfile\.ml-base|requirements-ml\.txt)'; then
+            echo "✅ ML-BASE image changes detected"
+            REBUILD_ML_BASE="true"
+          fi
+          
+          # If BASE changed, downstream services need rebuilding
+          if [ "$REBUILD_BASE" = "true" ]; then
+            echo "🔗 BASE changed → rebuilding dependent services (all)"
+            REBUILD_MIGRATOR="true"
+            REBUILD_PROCESSOR="true"
+            REBUILD_API="true"
+            REBUILD_CRAWLER="true"
+          fi
+          
+          # If ML-BASE changed, dependent services need rebuilding
+          if [ "$REBUILD_ML_BASE" = "true" ]; then
+            echo "🔗 ML-BASE changed → rebuilding dependent services (processor)"
+            REBUILD_PROCESSOR="true"
+          fi
+          
+          # MIGRATOR: Database migrations
+          if echo "$CHANGED_FILES" | grep -qE '(Dockerfile\.migrator|requirements-migrator\.txt|alembic/versions/)'; then
+            echo "✅ MIGRATOR changes detected"
+            REBUILD_MIGRATOR="true"
+          fi
+          
+          # PROCESSOR: ML/entity extraction service + Database migrations
+          # NOTE: alembic/versions/ included here so migrations run via processor lifecycle
+          if echo "$CHANGED_FILES" | grep -qE '(Dockerfile\.processor|requirements-processor\.txt|src/pipeline/|src/ml/|src/services/classification_service\.py|src/cli/commands/analysis\.py|src/cli/commands/entity_extraction\.py|alembic/versions/)'; then
+            echo "✅ PROCESSOR changes detected"
+            REBUILD_PROCESSOR="true"
+          fi
+          
+          # API: REST API service
+          if echo "$CHANGED_FILES" | grep -qE '(Dockerfile\.api|requirements-api\.txt|backend/|src/models/api_backend\.py|src/cli/commands/cleaning\.py|src/cli/commands/reports\.py)'; then
+            echo "✅ API changes detected"
+            REBUILD_API="true"
+          fi
+          
+          # CRAWLER: Discovery, verification, extraction
+          if echo "$CHANGED_FILES" | grep -qE '(Dockerfile\.crawler|requirements-crawler\.txt|src/crawler/|src/services/|src/utils/|src/cli/commands/(discovery|verification|extraction|content_cleaning)\.py)'; then
+            echo "✅ CRAWLER changes detected"
+            REBUILD_CRAWLER="true"
+          fi
+          
+          # Always rebuild migrator on main (migrations must be applied first)
+          REBUILD_MIGRATOR="true"
+          
+          # Output service rebuild flags
+          echo "rebuild-base=$REBUILD_BASE" >> $GITHUB_OUTPUT
+          echo "rebuild-ml-base=$REBUILD_ML_BASE" >> $GITHUB_OUTPUT
+          echo "rebuild-migrator=$REBUILD_MIGRATOR" >> $GITHUB_OUTPUT
+          echo "rebuild-processor=$REBUILD_PROCESSOR" >> $GITHUB_OUTPUT
+          echo "rebuild-api=$REBUILD_API" >> $GITHUB_OUTPUT
+          echo "rebuild-crawler=$REBUILD_CRAWLER" >> $GITHUB_OUTPUT
+          
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "🚀 SERVICE BUILD PLAN"
+          echo "═══════════════════════════════════════════════════════"
+          [ "$REBUILD_BASE" = "true" ] && echo "  ✅ base" || echo "  ⏭️  base (skipped)"
+          [ "$REBUILD_ML_BASE" = "true" ] && echo "  ✅ ml-base" || echo "  ⏭️  ml-base (skipped)"
+          [ "$REBUILD_MIGRATOR" = "true" ] && echo "  ✅ migrator" || echo "  ⏭️  migrator (skipped)"
+          [ "$REBUILD_PROCESSOR" = "true" ] && echo "  ✅ processor" || echo "  ⏭️  processor (skipped)"
+          [ "$REBUILD_API" = "true" ] && echo "  ✅ api" || echo "  ⏭️  api (skipped)"
+          [ "$REBUILD_CRAWLER" = "true" ] && echo "  ✅ crawler" || echo "  ⏭️  crawler (skipped)"
+          echo "═══════════════════════════════════════════════════════"
+
+      - name: Generate build summary
+        id: build-summary
+        run: |
+          BASE="${{ steps.changes.outputs.rebuild-base }}"
+          ML_BASE="${{ steps.changes.outputs.rebuild-ml-base }}"
+          MIGRATOR="${{ steps.changes.outputs.rebuild-migrator }}"
+          PROCESSOR="${{ steps.changes.outputs.rebuild-processor }}"
+          API="${{ steps.changes.outputs.rebuild-api }}"
+          CRAWLER="${{ steps.changes.outputs.rebuild-crawler }}"
+          
+          SERVICES_TO_BUILD=""
+          [ "$BASE" = "true" ] && SERVICES_TO_BUILD="$SERVICES_TO_BUILD base"
+          [ "$ML_BASE" = "true" ] && SERVICES_TO_BUILD="$SERVICES_TO_BUILD ml-base"
+          [ "$MIGRATOR" = "true" ] && SERVICES_TO_BUILD="$SERVICES_TO_BUILD migrator"
+          [ "$PROCESSOR" = "true" ] && SERVICES_TO_BUILD="$SERVICES_TO_BUILD processor"
+          [ "$API" = "true" ] && SERVICES_TO_BUILD="$SERVICES_TO_BUILD api"
+          [ "$CRAWLER" = "true" ] && SERVICES_TO_BUILD="$SERVICES_TO_BUILD crawler"
+          
+          # Count services
+          COUNT=$(echo $SERVICES_TO_BUILD | wc -w)
+          
+          SUMMARY="Building $COUNT services:$SERVICES_TO_BUILD"
+          echo "summary=$SUMMARY" >> $GITHUB_OUTPUT
+          echo "📦 $SUMMARY"
+
+  build-base:
+    name: Build Base Image
+    needs: detect-changes
+    if: needs.detect-changes.outputs.rebuild-base == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          version: '418.0.0'
+          project_id: ${{ secrets.GCP_PROJECT }}
+      
+      - name: Configure Docker credentials
+        run: gcloud auth configure-docker --quiet
+      
+      - name: Trigger base image build
+        run: |
+          echo "🐳 Building base image..."
+          gcloud builds triggers run build-base-manual --branch=main --project=${{ secrets.GCP_PROJECT }}
+
+  build-ml-base:
+    name: Build ML-Base Image
+    needs: [detect-changes, build-base]
+    if: needs.detect-changes.outputs.rebuild-ml-base == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          version: '418.0.0'
+          project_id: ${{ secrets.GCP_PROJECT }}
+      
+      - name: Configure Docker credentials
+        run: gcloud auth configure-docker --quiet
+      
+      - name: Trigger ml-base image build
+        run: |
+          echo "🤖 Building ml-base image..."
+          gcloud builds triggers run build-ml-base-manual --branch=main --project=${{ secrets.GCP_PROJECT }}
+
+  build-migrator:
+    name: Build & Run Migrator
+    needs: [detect-changes, build-base]
+    # Migrator runs after base (or skipped if no changes)
+    if: needs.detect-changes.outputs.rebuild-migrator == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          version: '418.0.0'
+          project_id: ${{ secrets.GCP_PROJECT }}
+      
+      - name: Configure Docker credentials
+        run: gcloud auth configure-docker --quiet
+      
+      - name: Trigger migrator build
+        run: |
+          echo "🗄️  Building and running migrator..."
+          gcloud builds triggers run build-migrator-manual --branch=main --project=${{ secrets.GCP_PROJECT }}
+
+  build-processor:
+    name: Build Processor
+    needs: [detect-changes, build-ml-base, build-migrator]
+    # Processor waits for ml-base (if changed) and migrator
+    if: needs.detect-changes.outputs.rebuild-processor == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          version: '418.0.0'
+          project_id: ${{ secrets.GCP_PROJECT }}
+      
+      - name: Configure Docker credentials
+        run: gcloud auth configure-docker --quiet
+      
+      - name: Trigger processor build
+        run: |
+          echo "⚙️  Building processor..."
+          gcloud builds triggers run build-processor-manual --branch=main --project=${{ secrets.GCP_PROJECT }}
+
+  build-api:
+    name: Build API
+    needs: [detect-changes, build-base, build-migrator]
+    # API waits for base and migrator
+    if: needs.detect-changes.outputs.rebuild-api == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          version: '418.0.0'
+          project_id: ${{ secrets.GCP_PROJECT }}
+      
+      - name: Configure Docker credentials
+        run: gcloud auth configure-docker --quiet
+      
+      - name: Trigger API build
+        run: |
+          echo "🔌 Building API..."
+          gcloud builds triggers run build-api-manual --branch=main --project=${{ secrets.GCP_PROJECT }}
+
+  build-crawler:
+    name: Build Crawler
+    needs: [detect-changes, build-base, build-migrator]
+    # Crawler waits for base and migrator
+    if: needs.detect-changes.outputs.rebuild-crawler == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          version: '418.0.0'
+          project_id: ${{ secrets.GCP_PROJECT }}
+      
+      - name: Configure Docker credentials
+        run: gcloud auth configure-docker --quiet
+      
+      - name: Trigger crawler build
+        run: |
+          echo "🕷️  Building crawler..."
+          gcloud builds triggers run build-crawler-manual --branch=main --project=${{ secrets.GCP_PROJECT }}
+
+  report-build-plan:
+    name: Report Build Plan
+    needs: detect-changes
+    if: always()
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Report to GitHub
+        run: |
+          echo "## 🚀 Selective Service Build Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Build Plan" >> $GITHUB_STEP_SUMMARY
+          echo "${{ needs.detect-changes.outputs.build-summary }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Changed Files" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${{ needs.detect-changes.outputs.changed-files }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Service Rebuild Status" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Rebuild | Reason |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|---------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| base | ${{ needs.detect-changes.outputs.rebuild-base }} | Base image changes |" >> $GITHUB_STEP_SUMMARY
+          echo "| ml-base | ${{ needs.detect-changes.outputs.rebuild-ml-base }} | ML dependencies changed |" >> $GITHUB_STEP_SUMMARY
+          echo "| migrator | ${{ needs.detect-changes.outputs.rebuild-migrator }} | Always rebuild on main + schema changes |" >> $GITHUB_STEP_SUMMARY
+          echo "| processor | ${{ needs.detect-changes.outputs.rebuild-processor }} | ML/entity extraction changes |" >> $GITHUB_STEP_SUMMARY
+          echo "| api | ${{ needs.detect-changes.outputs.rebuild-api }} | API/backend changes |" >> $GITHUB_STEP_SUMMARY
+          echo "| crawler | ${{ needs.detect-changes.outputs.rebuild-crawler }} | Discovery/verification/extraction changes |" >> $GITHUB_STEP_SUMMARY
