@@ -24,7 +24,6 @@ from sqlalchemy import text
 from src.crawler import discovery as discovery_module
 from src.crawler.discovery import NewsDiscovery
 
-
 # ============================================================================
 # Test Helper Functions
 # ============================================================================

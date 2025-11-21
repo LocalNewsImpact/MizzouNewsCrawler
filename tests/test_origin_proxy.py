@@ -356,10 +356,9 @@ def test_parse_bypass_hosts_handles_empty_entries(monkeypatch):
 
 def test_should_bypass_with_url_parse_exception(monkeypatch):
     """Test _should_bypass handles urlparse exceptions."""
-    from src.crawler.origin_proxy import _should_bypass
-
     # Mock urlparse to raise an exception
     import src.crawler.origin_proxy as proxy_module
+    from src.crawler.origin_proxy import _should_bypass
 
     original_urlparse = proxy_module.urlparse
 

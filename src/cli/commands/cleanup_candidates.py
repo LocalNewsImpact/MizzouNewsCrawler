@@ -7,6 +7,7 @@ been attempted and failed transiently multiple times.
 """
 
 import logging
+
 from sqlalchemy import text
 
 from src.models.database import DatabaseManager
