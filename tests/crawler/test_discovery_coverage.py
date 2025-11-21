@@ -9,6 +9,7 @@ overall test coverage above 80%. Tests focus on:
 - Proxy configuration
 - Section fallback discovery
 """
+
 from __future__ import annotations
 
 import json
@@ -23,7 +24,6 @@ from sqlalchemy import text
 from src.crawler import discovery as discovery_module
 from src.crawler.discovery import NewsDiscovery
 
-
 # ============================================================================
 # Test Helper Functions
 # ============================================================================
@@ -34,7 +34,7 @@ def test_safe_struct_time_to_datetime_with_valid_struct_time():
     # Create a valid struct_time-like sequence
     struct_time = (2024, 1, 15, 14, 30, 45, 0, 15, -1)
     result = discovery_module._safe_struct_time_to_datetime(struct_time)
-    
+
     assert result is not None
     assert result.year == 2024
     assert result.month == 1
@@ -48,7 +48,7 @@ def test_safe_struct_time_to_datetime_with_list():
     """Test conversion with list input."""
     time_list = [2024, 3, 20, 9, 15, 30]
     result = discovery_module._safe_struct_time_to_datetime(time_list)
-    
+
     assert result is not None
     assert result.year == 2024
     assert result.month == 3
@@ -95,9 +95,9 @@ def test_coerce_feed_entry_with_string_title():
         "published": "2024-01-15T10:00:00Z",
         "author": "John Doe",
     }
-    
+
     result = discovery_module._coerce_feed_entry(raw_entry)
-    
+
     assert result["url"] == "https://example.com/article"
     assert result["title"] == "Test Article Title"
     assert result["summary"] == "Article summary"
@@ -112,9 +112,9 @@ def test_coerce_feed_entry_with_list_title():
         "title": ["Part 1", "Part 2", "Part 3"],
         "summary": "Summary",
     }
-    
+
     result = discovery_module._coerce_feed_entry(raw_entry)
-    
+
     # List titles should be joined with spaces
     assert result["title"] == "Part 1 Part 2 Part 3"
 
@@ -125,9 +125,9 @@ def test_coerce_feed_entry_with_list_title_empty_elements():
         "link": "https://example.com/article",
         "title": ["Part 1", "", None, "Part 2"],
     }
-    
+
     result = discovery_module._coerce_feed_entry(raw_entry)
-    
+
     # Empty elements should be filtered out
     assert result["title"] == "Part 1 Part 2"
 
@@ -137,9 +137,9 @@ def test_coerce_feed_entry_with_missing_fields():
     raw_entry = {
         "link": "https://example.com/article",
     }
-    
+
     result = discovery_module._coerce_feed_entry(raw_entry)
-    
+
     assert result["url"] == "https://example.com/article"
     assert result["title"] == ""
     assert result["summary"] == ""
@@ -154,9 +154,9 @@ def test_coerce_feed_entry_with_none_title():
         "link": "https://example.com/article",
         "title": None,
     }
-    
+
     result = discovery_module._coerce_feed_entry(raw_entry)
-    
+
     assert result["title"] == ""
 
 
@@ -167,9 +167,9 @@ def test_coerce_feed_entry_with_published_parsed():
         "title": "Test",
         "published_parsed": (2024, 1, 15, 14, 30, 45, 0, 15, -1),
     }
-    
+
     result = discovery_module._coerce_feed_entry(raw_entry)
-    
+
     assert result["publish_date"] is not None
     assert result["publish_date"].year == 2024
     assert result["publish_date"].month == 1
@@ -180,7 +180,7 @@ def test_normalize_candidate_url_success():
     """Test URL normalization with valid URL."""
     url = "https://example.com/article?utm_source=test"
     result = discovery_module.NewsDiscovery._normalize_candidate_url(url)
-    
+
     # Should call normalize_url from utils
     assert result is not None
 
@@ -188,8 +188,10 @@ def test_normalize_candidate_url_success():
 def test_normalize_candidate_url_exception():
     """Test URL normalization when exception occurs."""
     url = "https://example.com/article"
-    
-    with patch("src.crawler.discovery.normalize_url", side_effect=ValueError("Bad URL")):
+
+    with patch(
+        "src.crawler.discovery.normalize_url", side_effect=ValueError("Bad URL")
+    ):
         result = discovery_module.NewsDiscovery._normalize_candidate_url(url)
         # Should return original URL on exception
         assert result == url
@@ -205,7 +207,7 @@ def test_newsDiscovery_init_with_database_url():
     with patch("src.crawler.discovery.DatabaseManager"):
         with patch("src.crawler.discovery.create_telemetry_system"):
             nd = NewsDiscovery(database_url="postgresql://localhost/test")
-            
+
             assert nd.database_url == "postgresql://localhost/test"
             assert nd.timeout == 30
             assert nd.delay == 2.0
@@ -225,7 +227,7 @@ def test_newsDiscovery_init_with_custom_params():
                 max_articles_per_source=100,
                 days_back=14,
             )
-            
+
             assert nd.user_agent == "CustomAgent/1.0"
             assert nd.timeout == 60
             assert nd.delay == 5.0
@@ -239,9 +241,9 @@ def test_newsDiscovery_init_with_cloudscraper():
         with patch("src.crawler.discovery.create_telemetry_system"):
             with patch("src.crawler.discovery.cloudscraper") as mock_cs:
                 mock_cs.create_scraper.return_value = MagicMock()
-                
-                nd = NewsDiscovery(database_url="sqlite:///:memory:")
-                
+
+                NewsDiscovery(database_url="sqlite:///:memory:")
+
                 # Should have called create_scraper
                 mock_cs.create_scraper.assert_called_once()
 
@@ -252,7 +254,7 @@ def test_newsDiscovery_init_without_cloudscraper():
         with patch("src.crawler.discovery.create_telemetry_system"):
             with patch("src.crawler.discovery.cloudscraper", None):
                 nd = NewsDiscovery(database_url="sqlite:///:memory:")
-                
+
                 # Should fall back to requests.Session
                 assert nd.session is not None
 
@@ -263,9 +265,9 @@ def test_newsDiscovery_init_with_storysniffer():
         with patch("src.crawler.discovery.create_telemetry_system"):
             with patch("src.crawler.discovery.StorySniffer") as mock_ss:
                 mock_ss.return_value = MagicMock()
-                
+
                 nd = NewsDiscovery(database_url="sqlite:///:memory:")
-                
+
                 assert nd.storysniffer is not None
 
 
@@ -275,9 +277,9 @@ def test_newsDiscovery_init_storysniffer_exception():
         with patch("src.crawler.discovery.create_telemetry_system"):
             with patch("src.crawler.discovery.StorySniffer") as mock_ss:
                 mock_ss.side_effect = RuntimeError("StorySniffer error")
-                
+
                 nd = NewsDiscovery(database_url="sqlite:///:memory:")
-                
+
                 assert nd.storysniffer is None
 
 
@@ -287,7 +289,7 @@ def test_newsDiscovery_init_without_storysniffer():
         with patch("src.crawler.discovery.create_telemetry_system"):
             with patch("src.crawler.discovery.StorySniffer", None):
                 nd = NewsDiscovery(database_url="sqlite:///:memory:")
-                
+
                 assert nd.storysniffer is None
 
 
@@ -357,16 +359,18 @@ def test_resolve_database_url_from_config():
     }
     # Filter out None values
     env_dict = {k: v for k, v in env_clear.items() if v is not None}
-    
+
     with patch.dict(os.environ, env_dict, clear=False):
         # Remove the env vars we want to clear
         for key in env_clear.keys():
             os.environ.pop(key, None)
-        
+
         with patch("src.config.DATABASE_URL", "postgresql://config/db"):
             result = NewsDiscovery._resolve_database_url(None)
             # Should load from config when no env var is set
-            assert result is not None or result is None  # Depends on actual config state
+            assert (
+                result is not None or result is None
+            )  # Depends on actual config state
 
 
 # ============================================================================
@@ -443,9 +447,9 @@ def test_configure_proxy_routing_with_origin_proxy():
                     mock_manager.active_provider.value = "origin"
                     mock_manager.get_origin_proxy_url.return_value = "http://proxy:8080"
                     mock_pm.return_value = mock_manager
-                    
-                    nd = NewsDiscovery(database_url="sqlite:///:memory:")
-                    
+
+                    NewsDiscovery(database_url="sqlite:///:memory:")
+
                     # Should have called enable_origin_proxy
                     mock_enable.assert_called_once()
 
@@ -456,8 +460,8 @@ def test_configure_proxy_routing_with_env_proxy():
         with patch("src.crawler.discovery.create_telemetry_system"):
             with patch("src.crawler.discovery.enable_origin_proxy") as mock_enable:
                 with patch.dict(os.environ, {"USE_ORIGIN_PROXY": "true"}):
-                    nd = NewsDiscovery(database_url="sqlite:///:memory:")
-                    
+                    NewsDiscovery(database_url="sqlite:///:memory:")
+
                     # Should have called enable_origin_proxy
                     mock_enable.assert_called_once()
 
@@ -471,7 +475,7 @@ def test_configure_proxy_routing_with_proxy_pool():
                 {"PROXY_POOL": "http://proxy1:8080,http://proxy2:8080"},
             ):
                 nd = NewsDiscovery(database_url="sqlite:///:memory:")
-                
+
                 assert len(nd.proxy_pool) == 2
                 assert "http://proxy1:8080" in nd.proxy_pool
                 assert "http://proxy2:8080" in nd.proxy_pool
@@ -489,9 +493,9 @@ def test_configure_proxy_routing_with_provider_proxies():
                     "https": "http://proxy:8080",
                 }
                 mock_pm.return_value = mock_manager
-                
+
                 nd = NewsDiscovery(database_url="sqlite:///:memory:")
-                
+
                 # Should have merged proxies into pool
                 assert len(nd.proxy_pool) > 0
 
@@ -506,9 +510,9 @@ def test_configure_proxy_routing_origin_proxy_failure():
                     mock_manager = MagicMock()
                     mock_manager.active_provider.value = "origin"
                     mock_pm.return_value = mock_manager
-                    
+
                     nd = NewsDiscovery(database_url="sqlite:///:memory:")
-                    
+
                     # Should continue despite error
                     assert nd is not None
 
@@ -523,9 +527,9 @@ def test_create_db_manager():
     with patch("src.crawler.discovery.DatabaseManager") as mock_dbm:
         with patch("src.crawler.discovery.create_telemetry_system"):
             nd = NewsDiscovery(database_url="postgresql://localhost/test")
-            
-            manager = nd._create_db_manager()
-            
+
+            nd._create_db_manager()
+
             # Should create DatabaseManager with URL
             mock_dbm.assert_called_with("postgresql://localhost/test")
 
@@ -537,17 +541,17 @@ def test_create_db_manager():
 
 class MockConnection:
     """Mock database connection for testing."""
-    
+
     def __init__(self, fetch_results: dict[str, Any] | None = None):
         self.fetch_results = fetch_results or {}
         self.executed_statements: list[tuple[Any, dict[str, Any]]] = []
         self._result_row = None
-        
+
     def execute(self, statement, params=None):
         """Mock execute that stores statements and returns mock results."""
         stmt_str = str(statement)
         self.executed_statements.append((stmt_str, params or {}))
-        
+
         # Return appropriate mock result based on query
         if "SELECT" in stmt_str.upper():
             # Return mock result for SELECT queries
@@ -557,7 +561,7 @@ class MockConnection:
             mock_result = MagicMock()
             mock_result.rowcount = 1
             return mock_result
-    
+
     def _make_result(self, data):
         """Create a mock result object."""
         mock_result = MagicMock()
@@ -567,17 +571,17 @@ class MockConnection:
 
 class MockEngine:
     """Mock database engine for testing."""
-    
+
     def __init__(self, connection: MockConnection):
         self.connection = connection
-    
+
     def begin(self):
         """Return a context manager for the connection."""
         return self.connection
-    
+
     def __enter__(self):
         return self.connection
-    
+
     def __exit__(self, *args):
         return False
 
@@ -593,12 +597,12 @@ def test_reset_rss_failure_state():
             mock_dbm.engine.begin.return_value.__enter__.return_value = mock_conn
             mock_dbm.engine.begin.return_value.__exit__.return_value = False
             mock_dbm_class.return_value = mock_dbm
-            
+
             nd = NewsDiscovery(database_url="sqlite:///:memory:")
-            
+
             # Should not raise an exception
             nd._reset_rss_failure_state("source-123")
-            
+
             # Verify DatabaseManager was called
             assert mock_dbm_class.call_count >= 1
 
@@ -608,7 +612,7 @@ def test_reset_rss_failure_state_with_none_source():
     with patch("src.crawler.discovery.DatabaseManager"):
         with patch("src.crawler.discovery.create_telemetry_system"):
             nd = NewsDiscovery(database_url="sqlite:///:memory:")
-            
+
             # Should not raise an exception
             nd._reset_rss_failure_state(None)
 
@@ -620,9 +624,9 @@ def test_reset_rss_failure_state_with_exception():
             mock_dbm = MagicMock()
             mock_dbm.engine.begin.side_effect = RuntimeError("DB error")
             mock_dbm_class.return_value = mock_dbm
-            
+
             nd = NewsDiscovery(database_url="sqlite:///:memory:")
-            
+
             # Should not raise, just log
             nd._reset_rss_failure_state("source-123")
 
@@ -639,12 +643,12 @@ def test_increment_rss_failure():
             mock_dbm.engine.begin.return_value.__enter__.return_value = mock_conn
             mock_dbm.engine.begin.return_value.__exit__.return_value = False
             mock_dbm_class.return_value = mock_dbm
-            
+
             nd = NewsDiscovery(database_url="sqlite:///:memory:")
-            
+
             # Should not raise an exception
             nd._increment_rss_failure("source-123")
-            
+
             # Verify method was called without errors
             assert mock_dbm_class.call_count >= 1
 
@@ -654,7 +658,7 @@ def test_increment_rss_failure_with_none_source():
     with patch("src.crawler.discovery.DatabaseManager"):
         with patch("src.crawler.discovery.create_telemetry_system"):
             nd = NewsDiscovery(database_url="sqlite:///:memory:")
-            
+
             # Should not raise
             nd._increment_rss_failure(None)
 
@@ -672,12 +676,12 @@ def test_track_transient_rss_failure_basic():
             mock_dbm.engine.begin.return_value.__exit__.return_value = False
             mock_dbm.close = MagicMock()
             mock_dbm_class.return_value = mock_dbm
-            
+
             nd = NewsDiscovery(database_url="sqlite:///:memory:")
-            
+
             # Should not raise an exception
             nd._track_transient_rss_failure("source-123", status_code=429)
-            
+
             # Verify method was called without errors
             assert mock_dbm_class.call_count >= 1
 
@@ -689,14 +693,16 @@ def test_track_transient_rss_failure_with_conn():
             "source-123": ([],),
         }
     )
-    
+
     with patch("src.crawler.discovery.DatabaseManager"):
         with patch("src.crawler.discovery.create_telemetry_system"):
             nd = NewsDiscovery(database_url="sqlite:///:memory:")
-            
+
             # Pass connection directly
-            nd._track_transient_rss_failure("source-123", status_code=403, conn=mock_conn)
-            
+            nd._track_transient_rss_failure(
+                "source-123", status_code=403, conn=mock_conn
+            )
+
             # Should have used provided connection
             assert len(mock_conn.executed_statements) > 0
 
@@ -709,7 +715,7 @@ def test_track_transient_rss_failure_threshold_exceeded():
         {"timestamp": (now - timedelta(days=i)).isoformat(), "status": 429}
         for i in range(6)  # More than RSS_TRANSIENT_THRESHOLD (5)
     ]
-    
+
     with patch("src.crawler.discovery.DatabaseManager") as mock_dbm_class:
         with patch("src.crawler.discovery.create_telemetry_system"):
             mock_dbm = MagicMock()
@@ -721,12 +727,12 @@ def test_track_transient_rss_failure_threshold_exceeded():
             mock_dbm.engine.begin.return_value.__exit__.return_value = False
             mock_dbm.close = MagicMock()
             mock_dbm_class.return_value = mock_dbm
-            
+
             nd = NewsDiscovery(database_url="sqlite:///:memory:")
-            
+
             # Should not raise an exception
             nd._track_transient_rss_failure("source-123", status_code=503)
-            
+
             # Verify method was called without errors
             assert mock_dbm_class.call_count >= 1
 
@@ -736,7 +742,7 @@ def test_track_transient_rss_failure_with_none_source():
     with patch("src.crawler.discovery.DatabaseManager"):
         with patch("src.crawler.discovery.create_telemetry_system"):
             nd = NewsDiscovery(database_url="sqlite:///:memory:")
-            
+
             # Should not raise
             nd._track_transient_rss_failure(None)
 
@@ -748,18 +754,18 @@ def test_track_transient_rss_failure_with_string_json():
             mock_dbm = MagicMock()
             mock_conn = MagicMock()
             mock_result = MagicMock()
-            mock_result.fetchone.return_value = ('[]',)  # JSON string
+            mock_result.fetchone.return_value = ("[]",)  # JSON string
             mock_conn.execute = MagicMock(return_value=mock_result)
             mock_dbm.engine.begin.return_value.__enter__.return_value = mock_conn
             mock_dbm.engine.begin.return_value.__exit__.return_value = False
             mock_dbm.close = MagicMock()
             mock_dbm_class.return_value = mock_dbm
-            
+
             nd = NewsDiscovery(database_url="sqlite:///:memory:")
-            
+
             # Should handle string JSON without raising
             nd._track_transient_rss_failure("source-123")
-            
+
             # Verify method was called without errors
             assert mock_dbm_class.call_count >= 1
 
@@ -776,17 +782,17 @@ def test_update_source_meta_with_conn():
             "source-123": ({"existing": "value"},),
         }
     )
-    
+
     with patch("src.crawler.discovery.DatabaseManager"):
         with patch("src.crawler.discovery.create_telemetry_system"):
             nd = NewsDiscovery(database_url="sqlite:///:memory:")
-            
+
             nd._update_source_meta(
                 "source-123",
                 {"new_key": "new_value"},
                 conn=mock_conn,
             )
-            
+
             # Should have executed SELECT and UPDATE
             assert len(mock_conn.executed_statements) >= 2
 
@@ -804,12 +810,12 @@ def test_update_source_meta_without_conn():
             mock_dbm.engine.begin.return_value.__enter__.return_value = mock_conn
             mock_dbm.engine.begin.return_value.__exit__.return_value = False
             mock_dbm_class.return_value = mock_dbm
-            
+
             nd = NewsDiscovery(database_url="sqlite:///:memory:")
-            
+
             # Should not raise an exception
             nd._update_source_meta("source-123", {"new_key": "new_value"})
-            
+
             # Verify DatabaseManager was called
             assert mock_dbm_class.call_count >= 1
 
@@ -819,7 +825,7 @@ def test_update_source_meta_with_none_source():
     with patch("src.crawler.discovery.DatabaseManager"):
         with patch("src.crawler.discovery.create_telemetry_system"):
             nd = NewsDiscovery(database_url="sqlite:///:memory:")
-            
+
             # Should not raise
             nd._update_source_meta(None, {"key": "value"})
 
@@ -831,17 +837,17 @@ def test_update_source_meta_with_string_json():
             "source-123": ('{"existing": "value"}',),  # JSON string
         }
     )
-    
+
     with patch("src.crawler.discovery.DatabaseManager"):
         with patch("src.crawler.discovery.create_telemetry_system"):
             nd = NewsDiscovery(database_url="sqlite:///:memory:")
-            
+
             nd._update_source_meta(
                 "source-123",
                 {"new_key": "new_value"},
                 conn=mock_conn,
             )
-            
+
             # Should have parsed JSON string
             assert len(mock_conn.executed_statements) >= 2
 
@@ -853,28 +859,29 @@ def test_update_source_meta_with_none_existing():
             "source-123": (None,),
         }
     )
-    
+
     with patch("src.crawler.discovery.DatabaseManager"):
         with patch("src.crawler.discovery.create_telemetry_system"):
             nd = NewsDiscovery(database_url="sqlite:///:memory:")
-            
+
             nd._update_source_meta(
                 "source-123",
                 {"new_key": "new_value"},
                 conn=mock_conn,
             )
-            
+
             # Should create new metadata dict
             assert len(mock_conn.executed_statements) >= 2
 
 
 def test_update_source_meta_zero_rows_affected():
     """Test metadata update when UPDATE affects 0 rows."""
+
     class MockConnZeroRows(MockConnection):
         def execute(self, statement, params=None):
             stmt_str = str(statement)
             self.executed_statements.append((stmt_str, params or {}))
-            
+
             if "SELECT" in stmt_str.upper():
                 return self._make_result(({"test": "value"},))
             else:
@@ -882,13 +889,13 @@ def test_update_source_meta_zero_rows_affected():
                 mock_result = MagicMock()
                 mock_result.rowcount = 0
                 return mock_result
-    
+
     mock_conn = MockConnZeroRows()
-    
+
     with patch("src.crawler.discovery.DatabaseManager"):
         with patch("src.crawler.discovery.create_telemetry_system"):
             nd = NewsDiscovery(database_url="sqlite:///:memory:")
-            
+
             # Should log error but not raise
             nd._update_source_meta(
                 "source-123",
@@ -901,11 +908,11 @@ def test_update_source_meta_with_exception():
     """Test graceful handling when metadata update fails."""
     mock_conn = MockConnection()
     mock_conn.execute = MagicMock(side_effect=RuntimeError("DB error"))
-    
+
     with patch("src.crawler.discovery.DatabaseManager"):
         with patch("src.crawler.discovery.create_telemetry_system"):
             nd = NewsDiscovery(database_url="sqlite:///:memory:")
-            
+
             # Should not raise, just log
             nd._update_source_meta("source-123", {"key": "value"}, conn=mock_conn)
 
@@ -915,15 +922,15 @@ def test_update_source_meta_with_exception():
 # ============================================================================
 
 
-def test_discover_from_sections_no_sections():
+def test_discover_from_section_urls_no_sections():
     """Test section fallback when no sections are discovered."""
     mock_conn = MockConnection(
         fetch_results={
             "source-123": (None,),  # No discovered_sections
         }
     )
-    mock_engine = MockEngine(mock_conn)
-    
+    MockEngine(mock_conn)
+
     # Mock the DatabaseManager at the module level where it's imported
     with patch("src.models.database.DatabaseManager") as mock_dbm_class:
         with patch("src.crawler.discovery.create_telemetry_system"):
@@ -931,60 +938,66 @@ def test_discover_from_sections_no_sections():
             mock_dbm.engine.connect.return_value.__enter__.return_value = mock_conn
             mock_dbm.engine.connect.return_value.__exit__.return_value = False
             mock_dbm_class.return_value = mock_dbm
-            
+
             nd = NewsDiscovery(database_url="sqlite:///:memory:")
-            
-            result = nd._discover_from_sections("https://example.com", "source-123", {})
-            
+
+            result = nd._discover_from_section_urls(
+                "https://example.com", "source-123", {}
+            )
+
             assert result == []
 
 
-def test_discover_from_sections_empty_urls():
+def test_discover_from_section_urls_empty_urls():
     """Test section fallback when sections exist but urls list is empty."""
     mock_conn = MockConnection(
         fetch_results={
             "source-123": ({"urls": []},),  # Empty URLs
         }
     )
-    mock_engine = MockEngine(mock_conn)
-    
+    MockEngine(mock_conn)
+
     with patch("src.models.database.DatabaseManager") as mock_dbm_class:
         with patch("src.crawler.discovery.create_telemetry_system"):
             mock_dbm = MagicMock()
             mock_dbm.engine.connect.return_value.__enter__.return_value = mock_conn
             mock_dbm.engine.connect.return_value.__exit__.return_value = False
             mock_dbm_class.return_value = mock_dbm
-            
+
             nd = NewsDiscovery(database_url="sqlite:///:memory:")
-            
-            result = nd._discover_from_sections("https://example.com", "source-123", {})
-            
+
+            result = nd._discover_from_section_urls(
+                "https://example.com", "source-123", {}
+            )
+
             assert result == []
 
 
-def test_discover_from_sections_with_exception():
+def test_discover_from_section_urls_with_exception():
     """Test graceful handling when section fallback fails."""
     with patch("src.models.database.DatabaseManager") as mock_dbm_class:
         with patch("src.crawler.discovery.create_telemetry_system"):
             mock_dbm = MagicMock()
             mock_dbm.engine.connect.side_effect = RuntimeError("DB error")
             mock_dbm_class.return_value = mock_dbm
-            
+
             nd = NewsDiscovery(database_url="sqlite:///:memory:")
-            
-            result = nd._discover_from_sections("https://example.com", "source-123", {})
-            
+
+            result = nd._discover_from_section_urls(
+                "https://example.com", "source-123", {}
+            )
+
             # Should return empty list on error
             assert result == []
 
 
-def test_discover_from_sections_no_source_id():
+def test_discover_from_section_urls_no_source_id():
     """Test section fallback with None source_id."""
     with patch("src.crawler.discovery.create_telemetry_system"):
         nd = NewsDiscovery(database_url="sqlite:///:memory:")
-        
-        result = nd._discover_from_sections("https://example.com", None, {})
-        
+
+        result = nd._discover_from_section_urls("https://example.com", None, {})
+
         # Should return empty list
         assert result == []
 
@@ -997,32 +1010,33 @@ def test_discover_from_sections_no_source_id():
 def test_newspaper_build_worker_success(tmp_path):
     """Test newspaper build worker function success case."""
     output_file = tmp_path / "test_output.pkl"
-    
+
     with patch("src.crawler.discovery.build") as mock_build:
         # Setup mock newspaper object with articles
         mock_article1 = MagicMock()
         mock_article1.url = "https://example.com/article1"
         mock_article2 = MagicMock()
         mock_article2.url = "https://example.com/article2"
-        
+
         mock_paper = MagicMock()
         mock_paper.articles = [mock_article1, mock_article2]
         mock_build.return_value = mock_paper
-        
+
         discovery_module._newspaper_build_worker(
             "https://example.com",
             str(output_file),
             False,
         )
-        
+
         # Should have created output file
         assert output_file.exists()
-        
+
         # Load and verify URLs
         import pickle
+
         with open(output_file, "rb") as f:
             urls = pickle.load(f)
-        
+
         assert len(urls) == 2
         assert "https://example.com/article1" in urls
         assert "https://example.com/article2" in urls
@@ -1031,20 +1045,20 @@ def test_newspaper_build_worker_success(tmp_path):
 def test_newspaper_build_worker_with_proxy(tmp_path):
     """Test newspaper build worker with proxy configuration."""
     output_file = tmp_path / "test_output.pkl"
-    
+
     with patch("src.crawler.discovery.build") as mock_build:
         with patch.dict(os.environ, {}, clear=True):
             mock_paper = MagicMock()
             mock_paper.articles = []
             mock_build.return_value = mock_paper
-            
+
             discovery_module._newspaper_build_worker(
                 "https://example.com",
                 str(output_file),
                 False,
                 proxy="http://proxy:8080",
             )
-            
+
             # Should have set proxy environment variables
             assert os.environ.get("HTTP_PROXY") == "http://proxy:8080"
             assert os.environ.get("HTTPS_PROXY") == "http://proxy:8080"
@@ -1053,24 +1067,25 @@ def test_newspaper_build_worker_with_proxy(tmp_path):
 def test_newspaper_build_worker_build_failure(tmp_path):
     """Test newspaper build worker when build fails."""
     output_file = tmp_path / "test_output.pkl"
-    
+
     with patch("src.crawler.discovery.build") as mock_build:
         mock_build.side_effect = RuntimeError("Build failed")
-        
+
         # Should not raise, just log and write empty list
         discovery_module._newspaper_build_worker(
             "https://example.com",
             str(output_file),
             False,
         )
-        
+
         # Should have created output file with empty list
         assert output_file.exists()
-        
+
         import pickle
+
         with open(output_file, "rb") as f:
             urls = pickle.load(f)
-        
+
         assert urls == []
 
 
@@ -1078,12 +1093,12 @@ def test_newspaper_build_worker_persist_failure(tmp_path):
     """Test newspaper build worker when persist fails."""
     # Use invalid path to cause persist failure
     invalid_path = "/nonexistent/path/output.pkl"
-    
+
     with patch("src.crawler.discovery.build") as mock_build:
         mock_paper = MagicMock()
         mock_paper.articles = []
         mock_build.return_value = mock_paper
-        
+
         # Should not raise even if persist fails
         discovery_module._newspaper_build_worker(
             "https://example.com",
@@ -1095,11 +1110,11 @@ def test_newspaper_build_worker_persist_failure(tmp_path):
 def test_newspaper_build_worker_unexpected_error(tmp_path):
     """Test newspaper build worker with unexpected error."""
     output_file = tmp_path / "test_output.pkl"
-    
+
     with patch("src.crawler.discovery.Config") as mock_config:
         # Cause error during Config setup
         mock_config.side_effect = RuntimeError("Unexpected error")
-        
+
         # Should not raise
         discovery_module._newspaper_build_worker(
             "https://example.com",

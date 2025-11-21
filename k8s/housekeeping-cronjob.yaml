@@ -1,0 +1,87 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mizzou-housekeeping
+  namespace: production
+  labels:
+    app: mizzou-housekeeping
+    component: maintenance
+spec:
+  # Run daily at 2 AM UTC (off-peak, after main processing)
+  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: mizzou-housekeeping
+            component: maintenance
+        spec:
+          serviceAccountName: mizzou-app
+          priorityClassName: batch-low  # Low priority for non-critical work
+          restartPolicy: OnFailure
+          containers:
+          - name: housekeeping
+            image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:v1.2.0
+            env:
+            # Cloud SQL Connector configuration
+            - name: USE_CLOUD_SQL_CONNECTOR
+              value: "true"
+            - name: CLOUD_SQL_INSTANCE
+              value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: username
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: password
+            - name: DATABASE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: database
+            # Logging configuration
+            - name: LOG_LEVEL
+              value: "INFO"
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              echo "🧹 Pipeline Housekeeping Started"
+              echo "Timestamp: $(date -u)"
+              echo ""
+              
+              # Run housekeeping command
+              # --candidate-expiration-days 7: Mark candidates in 'article' status older than 7 days as paused
+              # --extraction-stall-hours 24: Warn about articles stuck in extraction for 24+ hours
+              # --cleaning-stall-hours 24: Warn about articles stuck in cleaning for 24+ hours
+              # --verification-stall-hours 24: Warn about candidates stuck in verification for 24+ hours
+              # --verbose: Show detailed breakdown by source
+              python -m src.cli.cli_modular housekeeping \
+                --candidate-expiration-days 7 \
+                --extraction-stall-hours 24 \
+                --cleaning-stall-hours 24 \
+                --verification-stall-hours 24 \
+                --verbose
+              
+              RESULT=$?
+              echo ""
+              echo "Housekeeping completed with exit code: $RESULT"
+              exit $RESULT
+            resources:
+              requests:
+                cpu: 100m
+                memory: 512Mi
+              limits:
+                cpu: 500m
+                memory: 1Gi
+          # Optional: Add a separate sidecar for cloud-sql-proxy if using older setup
+          # See processor-deployment.yaml for reference

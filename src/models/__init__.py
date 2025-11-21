@@ -139,7 +139,7 @@ class Article(Base):
     )
 
     # Core content
-    url = Column(String, index=True)
+    url = Column(String, index=True, unique=True)  # Unique to prevent duplicates
     title = Column(Text)
     author: Mapped[str | None] = mapped_column(String)
     publish_date: Mapped[datetime | None] = mapped_column(DateTime)

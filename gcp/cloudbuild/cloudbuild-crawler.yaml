@@ -28,24 +28,18 @@ steps:
       - 'mizzou-cluster'
       - '--zone=us-central1-a'
 
-    # Note: Crawler image is used in Argo Workflows, not Kubernetes CronJobs
-  # Workflows pull the :latest tag automatically on each run
-  # The image push above is sufficient for workflows to pick up the new version
-  - name: 'gcr.io/cloud-builders/kubectl'
-    id: 'verify-workflow-exists'
-    env:
-      - 'CLOUDSDK_COMPUTE_ZONE=us-central1-a'
-      - 'CLOUDSDK_CONTAINER_CLUSTER=mizzou-cluster'
-    entrypoint: bash
+  # Update Argo WorkflowTemplate to use new crawler image SHA
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'update-argo-workflow-template'
+    entrypoint: 'bash'
     args:
       - '-c'
       - |
-        echo "ℹ️  Crawler image pushed: ${_REGISTRY}/crawler:${SHORT_SHA}"
-        echo "ℹ️  Argo Workflows will use :latest tag automatically"
-        if kubectl get cronworkflow mizzou-news-pipeline -n production &>/dev/null; then
-          echo "✅ Found Argo CronWorkflow: mizzou-news-pipeline"
+        if [ "${BRANCH_NAME}" = "main" ]; then
+          echo "🔄 Updating Argo WorkflowTemplate with crawler:${SHORT_SHA}..."
+          bash gcp/cloudbuild/update-workflow-template.sh crawler "${SHORT_SHA}" "${_REGISTRY}"
         else
-          echo "⚠️  Argo CronWorkflow not found (may not be deployed yet)"
+          echo "ℹ️  Skipping Argo WorkflowTemplate update - not on main branch (${BRANCH_NAME})"
         fi
     waitFor: ['get-gke-credentials']
 

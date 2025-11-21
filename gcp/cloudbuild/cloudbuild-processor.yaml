@@ -151,6 +151,21 @@ steps:
       - '--namespace=production'
     waitFor: ['force-processor-update']
 
+  # Update Argo WorkflowTemplate to use new processor image SHA
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'update-argo-workflow-template'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        if [ "${BRANCH_NAME}" = "main" ]; then
+          echo "🔄 Updating Argo WorkflowTemplate with processor:${SHORT_SHA}..."
+          bash gcp/cloudbuild/update-workflow-template.sh processor "${SHORT_SHA}" "${_REGISTRY}"
+        else
+          echo "ℹ️  Skipping Argo WorkflowTemplate update - not on main branch (${BRANCH_NAME})"
+        fi
+    waitFor: ['get-gke-credentials']
+
 images:
   - '${_REGISTRY}/processor:${SHORT_SHA}'
   - '${_REGISTRY}/processor:v${_RELEASE_VERSION}'

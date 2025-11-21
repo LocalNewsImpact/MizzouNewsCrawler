@@ -21,9 +21,9 @@ class TestDiscoveryLoopResilience:
             discovery.database_url = "sqlite:///:memory:"
             return discovery
 
-    def test_discover_from_sections_loop_resilience(self, discovery, caplog):
+    def test_discover_from_section_urls_loop_resilience(self, discovery, caplog):
         """
-        Test that _discover_from_sections continues processing subsequent sections
+        Test that _discover_from_section_urls continues processing subsequent sections
         even if one section fails (e.g. newspaper.build raises an exception).
         """
         caplog.set_level(logging.DEBUG)
@@ -54,7 +54,7 @@ class TestDiscoveryLoopResilience:
                     side_effect=[Exception("Network Error"), mock_paper],
                 ) as mock_build:
 
-                    discovery._discover_from_sections(
+                    discovery._discover_from_section_urls(
                         source_url="http://example.com",
                         source_id="test-source-id",
                         source_meta={},
@@ -74,7 +74,9 @@ class TestDiscoveryLoopResilience:
                         "Crawling section: http://example.com/section2" in caplog.text
                     )
 
-    def test_discover_from_sections_article_loop_resilience(self, discovery, caplog):
+    def test_discover_from_section_urls_article_loop_resilience(
+        self, discovery, caplog
+    ):
         """
         Test that the inner loop over articles continues even if processing one
         article fails.
@@ -115,7 +117,7 @@ class TestDiscoveryLoopResilience:
                         ],
                     ):
 
-                        results = discovery._discover_from_sections(
+                        results = discovery._discover_from_section_urls(
                             source_url="http://example.com",
                             source_id="test-source-id",
                             source_meta={},

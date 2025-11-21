@@ -862,16 +862,21 @@ class NewsDiscovery:
 
         return section_urls[:15]  # Limit to top 15 most common
 
-    def _discover_from_sections(
+    def _discover_from_section_urls(
         self,
         source_url: str,
         source_id: str | None,
         source_meta: dict[str, Any] | None,
     ) -> list[dict[str, Any]]:
         """
-        Phase 2: Crawl discovered section URLs to find articles.
+        Supplemental discovery: Crawl section URLs to find additional articles.
 
-        When newspaper4k returns 0 articles from the homepage, this fallback:
+        This is NOT a fallback - it runs in addition to homepage discovery
+        to ensure comprehensive coverage. Many news sites organize articles
+        in section pages (e.g., /news/, /sports/) that may not appear on
+        the homepage.
+
+        Process:
         1. Loads discovered_sections from the database
         2. Calls newspaper.build() on each section URL
         3. Extracts article links from each section page
@@ -883,7 +888,7 @@ class NewsDiscovery:
             source_meta: Source metadata dict
 
         Returns:
-            List of article dicts discovered from sections
+            List of article dicts discovered from section pages
         """
         if not source_id:
             logger.debug("No source_id provided, skipping section fallback")
@@ -918,7 +923,7 @@ class NewsDiscovery:
                     return []
 
                 logger.info(
-                    "Attempting section fallback for %s with %d sections",
+                    "Running supplemental section discovery for %s with %d sections",
                     source_url,
                     len(section_urls),
                 )
@@ -966,7 +971,7 @@ class NewsDiscovery:
                             "discovery_method": "section_crawl",
                             "metadata": {
                                 "section_url": section_url,
-                                "discovered_by": "section_fallback",
+                                "discovered_by": "section_supplemental",
                             },
                         }
 
@@ -982,7 +987,8 @@ class NewsDiscovery:
                 continue
 
         logger.info(
-            "Section fallback found %d articles across %d sections for %s",
+            "Supplemental section discovery found %d articles across %d "
+            "sections for %s",
             len(all_section_articles),
             len(section_urls),
             source_url,
@@ -2613,37 +2619,35 @@ class NewsDiscovery:
             if paper is not None:
                 articles_attr = getattr(paper, "articles", []) or []
             article_count = len(articles_attr)
-            logger.info("Found %d potential articles" % (article_count,))
+            logger.info("Found %d potential articles from homepage" % (article_count,))
 
-            if article_count == 0:
-                logger.warning("No articles found via newspaper4k for %s", source_url)
+            # Get existing URLs to prevent duplicates
+            existing_urls = self._get_existing_urls()
 
-                # Phase 2: Try discovered sections as fallback
-                section_articles = self._discover_from_sections(
-                    source_url=source_url,
-                    source_id=source_id,
-                    source_meta=source_meta,
+            # Phase 2: ALWAYS run supplemental section discovery (not just fallback)
+            # This ensures we don't miss articles that are in section pages
+            # but not homepage
+            section_articles = self._discover_from_section_urls(
+                source_url=source_url,
+                source_id=source_id,
+                source_meta=source_meta,
+            )
+
+            if section_articles:
+                logger.info(
+                    "Supplemental section discovery found %d articles for %s",
+                    len(section_articles),
+                    source_url,
                 )
+                # Add section articles to discovered list (they'll be processed below)
+                discovered_articles.extend(section_articles)
 
-                if section_articles:
-                    logger.info(
-                        "Section fallback found %d articles for %s",
-                        len(section_articles),
-                        source_url,
-                    )
-                    discovered_articles.extend(section_articles)
-                    record_newspaper_effectiveness(
-                        DiscoveryMethodStatus.SUCCESS,
-                        len(section_articles),
-                        status_codes=(
-                            [homepage_status_code]
-                            if homepage_status_code is not None
-                            else None
-                        ),
-                        notes="Fallback to section crawling successful",
-                    )
-                    return discovered_articles
-
+            # If we found no articles from either method, return early
+            if article_count == 0 and not section_articles:
+                logger.warning(
+                    "No articles found via newspaper4k or section discovery for %s",
+                    source_url,
+                )
                 record_newspaper_effectiveness(
                     DiscoveryMethodStatus.NO_FEED,
                     0,
@@ -2653,14 +2657,11 @@ class NewsDiscovery:
                         else None
                     ),
                     notes=(
-                        "newspaper.build returned 0 articles, "
-                        "section fallback also empty"
+                        "newspaper.build and section discovery both "
+                        "returned 0 articles"
                     ),
                 )
                 return discovered_articles
-
-            # Get existing URLs to prevent duplicates
-            existing_urls = self._get_existing_urls()
 
             # Limit processing and don't download full content
             articles_to_process = articles_attr[: min(self.max_articles_per_source, 25)]

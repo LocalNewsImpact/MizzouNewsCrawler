@@ -29,6 +29,8 @@ COMMAND_HANDLER_ATTRS: dict[str, str] = {
     "extract": "handle_extraction_command",
     "extract-entities": "handle_entity_extraction_command",
     "clean-articles": "handle_cleaning_command",
+    "cleanup-candidates": "handle_cleanup_candidates_command",
+    "housekeeping": "handle_housekeeping_command",
     "analyze": "handle_analysis_command",
     "load-sources": "handle_load_sources_command",
     "list-sources": "handle_list_sources_command",
@@ -102,6 +104,8 @@ def _load_command_parser(command: str) -> tuple[Callable, Callable] | None:
         "dump-http-status": "http_status",
         "llm": "llm",
         "pipeline-status": "pipeline_status",
+        "cleanup-candidates": "cleanup_candidates",
+        "housekeeping": "housekeeping",
     }
 
     module_name = command_modules.get(command)
