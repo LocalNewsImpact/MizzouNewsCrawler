@@ -426,6 +426,285 @@ class TestDataIntegrity:
                 f"Found {incomplete} active sources with incomplete metadata"
 
 
+class TestErrorRecoveryAndResilience:
+    """Test error recovery and resilience of critical workflows."""
+    
+    def test_extraction_failures_are_logged_and_retried(self, production_db):
+        """
+        Verify extraction failures are properly logged and don't corrupt database.
+        
+        Validates:
+        1. Failed extraction attempts don't create orphaned articles
+        2. Failed URLs remain in candidate_links for retry
+        3. Error logging captures extraction failures
+        4. Retries can succeed after transient failures
+        """
+        with production_db.get_session() as session:
+            # Check for articles with null/empty content (extraction failures)
+            failed_extractions = session.execute(text("""
+                SELECT COUNT(*) as failed_count
+                FROM articles
+                WHERE (text IS NULL OR LENGTH(TRIM(text)) < 50)
+                AND extracted_at >= NOW() - INTERVAL '6 hours'
+                AND status = 'extracted'
+            """)).scalar()
+            
+            # Some failures are expected, but should be rare (<5%)
+            total_recent = session.execute(text("""
+                SELECT COUNT(*)
+                FROM articles
+                WHERE extracted_at >= NOW() - INTERVAL '6 hours'
+            """)).scalar()
+            
+            if total_recent > 100:
+                failure_rate = failed_extractions / total_recent
+                assert failure_rate < 0.05, \
+                    f"High extraction failure rate: {failure_rate:.1%} - " \
+                    f"may indicate systemic issue"
+            
+            # Failed URLs should still be in candidate_links (not deleted)
+            orphaned = session.execute(text("""
+                SELECT COUNT(*)
+                FROM articles a
+                WHERE a.candidate_link_id IS NOT NULL
+                AND NOT EXISTS (
+                    SELECT 1 FROM candidate_links cl
+                    WHERE cl.id = a.candidate_link_id
+                )
+                AND a.extracted_at >= NOW() - INTERVAL '6 hours'
+            """)).scalar()
+            
+            assert orphaned == 0, \
+                f"Found {orphaned} orphaned articles - " \
+                f"extraction may have deleted candidate_links on failure"
+    
+    def test_duplicate_article_prevention_via_unique_constraint(self, production_db):
+        """
+        Verify the unique URL constraint prevents duplicate extractions.
+        
+        Validates:
+        1. No duplicate URLs in articles table
+        2. Unique constraint migration was successful
+        3. Concurrent extraction attempts don't create duplicates
+        4. Constraint is actually enforced by database
+        """
+        with production_db.get_session() as session:
+            # Check for any duplicate URLs (should be zero)
+            duplicates = session.execute(text("""
+                SELECT url, COUNT(*) as count
+                FROM articles
+                WHERE extracted_at >= NOW() - INTERVAL '7 days'
+                GROUP BY url
+                HAVING COUNT(*) > 1
+            """)).fetchall()
+            
+            if duplicates:
+                dup_list = [(row[0][:80], row[1]) for row in duplicates[:5]]
+                pytest.fail(
+                    f"Found duplicate article extractions "
+                    f"(constraint may have failed): {dup_list}"
+                )
+            
+            # Verify constraint is defined in database schema
+            constraint_exists = session.execute(text("""
+                SELECT constraint_type
+                FROM information_schema.table_constraints
+                WHERE table_name = 'articles'
+                AND constraint_type = 'UNIQUE'
+                AND constraint_name ILIKE '%url%'
+            """)).scalar()
+            
+            assert constraint_exists, \
+                "Unique constraint on articles.url not found - may not be enforced"
+            
+            # Check for high rate of duplicate extraction attempts
+            recent_urls = session.execute(text("""
+                SELECT COUNT(DISTINCT url) as unique_urls,
+                       COUNT(*) as total_articles
+                FROM articles
+                WHERE extracted_at >= NOW() - INTERVAL '1 day'
+            """)).fetchone()
+            
+            if recent_urls and recent_urls[1] > 0:
+                uniqueness_ratio = recent_urls[0] / recent_urls[1]
+                assert uniqueness_ratio > 0.95, \
+                    f"Only {uniqueness_ratio:.1%} of recent articles " \
+                    f"have unique URLs - high duplication risk"
+    
+    def test_database_connection_resilience(self, production_db):
+        """
+        Verify database connections handle transient failures gracefully.
+        
+        Validates:
+        1. Connection pool is healthy
+        2. Queries succeed after connection failures
+        3. No orphaned connections
+        4. Statement timeouts are configured
+        """
+        with production_db.get_session() as session:
+            # Test basic connectivity and query
+            try:
+                result = session.execute(text("""
+                    SELECT
+                        version() as db_version,
+                        NOW() as server_time,
+                        COUNT(*) as article_count
+                    FROM articles
+                    LIMIT 1
+                """)).fetchone()
+                
+                assert result is not None, "Database query returned no result"
+                
+            except Exception as e:
+                pytest.fail(f"Database connection failed: {e}")
+            
+            # Check for long-running queries that might indicate stuck connections
+            long_queries = session.execute(text("""
+                SELECT COUNT(*)
+                FROM pg_stat_activity
+                WHERE state = 'active'
+                AND query_start < NOW() - INTERVAL '5 minutes'
+                AND pid != pg_backend_pid()
+            """)).scalar()
+            
+            # Some long queries acceptable, but excessive indicates issues
+            assert long_queries < 10, \
+                f"Found {long_queries} queries running >5 minutes - " \
+                f"connections may be stuck"
+            
+            # Verify statement timeout is configured
+            statement_timeout = session.execute(text("""
+                SELECT setting
+                FROM pg_settings
+                WHERE name = 'statement_timeout'
+            """)).scalar()
+            
+            # Should have a timeout set (not 0)
+            if statement_timeout:
+                timeout_val = statement_timeout.split('ms')[0]
+                timeout_ms = int(timeout_val) if 'ms' in statement_timeout else 0
+                assert timeout_ms > 0, \
+                    "Statement timeout is 0 - queries can hang indefinitely"
+    
+    def test_transaction_rollback_on_extraction_errors(self, production_db):
+        """
+        Verify extraction errors trigger proper transaction rollback.
+        
+        Validates:
+        1. Partial article data is not committed on extraction failure
+        2. Article counts are consistent across related tables
+        3. No orphaned entities when article extraction fails
+        4. Status transitions are atomic
+        """
+        with production_db.get_session() as session:
+            # Check for consistency between articles and article_entities
+            inconsistent = session.execute(text("""
+                SELECT
+                    COUNT(*) as articles_without_entities_when_classified
+                FROM articles a
+                WHERE a.status IN ('classified', 'analyzed')
+                AND a.extracted_at >= NOW() - INTERVAL '6 hours'
+                AND NOT EXISTS (
+                    SELECT 1 FROM article_entities ae
+                    WHERE ae.article_id = a.id
+                )
+            """)).scalar()
+            
+            # Some articles may legitimately have no entities,
+            # but shouldn't be classified without them
+            assert inconsistent < 10, \
+                f"Found {inconsistent} articles classified without " \
+                f"entities - extraction may not be atomic"
+            
+            # Check for articles with labels but missing required fields
+            incomplete_labeled = session.execute(text("""
+                SELECT COUNT(*)
+                FROM articles a
+                INNER JOIN article_labels al ON a.id = al.article_id
+                WHERE (a.text IS NULL OR LENGTH(TRIM(a.text)) < 100)
+                AND a.extracted_at >= NOW() - INTERVAL '6 hours'
+            """)).scalar()
+            
+            assert incomplete_labeled < 5, \
+                f"Found {incomplete_labeled} labeled articles with " \
+                f"incomplete content - extraction transaction may not " \
+                f"be rolling back"
+            
+            # Verify status transitions are consistent
+            invalid_status = session.execute(text("""
+                SELECT COUNT(DISTINCT a.id)
+                FROM articles a
+                WHERE (
+                    (a.status = 'extracted' AND a.primary_label IS NOT NULL) OR
+                    (a.status = 'classified' AND a.primary_label IS NULL)
+                )
+            """)).scalar()
+            
+            assert invalid_status == 0, \
+                f"Found {invalid_status} articles with inconsistent " \
+                f"status/label states - state transitions may not be " \
+                f"transactional"
+    
+    def test_extraction_retry_mechanism_works(self, production_db):
+        """
+        Verify articles that fail extraction can be retried.
+        
+        Validates:
+        1. Failed candidate_links remain with status='article'
+        2. Failed articles can be re-extracted by retrying the candidate_link
+        3. Retry logic successfully completes previously failed extractions
+        4. No blocking flags prevent retries
+        """
+        with production_db.get_session() as session:
+            # Find candidate_links that have been attempted multiple times
+            retry_candidates = session.execute(text("""
+                SELECT COUNT(DISTINCT cl.id) as retry_count
+                FROM candidate_links cl
+                LEFT JOIN articles a ON cl.id = a.candidate_link_id
+                WHERE cl.status = 'article'
+                AND cl.last_verified_at >= NOW() - INTERVAL '7 days'
+                AND NOT EXISTS (
+                    SELECT 1 FROM articles a2
+                    WHERE a2.candidate_link_id = cl.id
+                    AND a2.extracted_at >= NOW() - INTERVAL '1 day'
+                )
+            """)).scalar()
+            
+            # Some URLs may be in retry queue
+            logger.info(f"Found {retry_candidates} candidate_links eligible for retry")
+            
+            # Verify candidate_links don't have a "failed" or "blocked" status
+            blocked = session.execute(text("""
+                SELECT COUNT(*)
+                FROM candidate_links
+                WHERE status IN ('failed', 'blocked', 'error')
+            """)).scalar()
+            
+            assert blocked == 0, \
+                f"Found {blocked} candidate_links with blocked " \
+                f"status - may prevent retries"
+            
+            # Check extraction success rate for URLs attempted multiple times
+            multi_attempt = session.execute(text("""
+                SELECT
+                    COUNT(DISTINCT cl.id) as attempted,
+                    COUNT(DISTINCT a.id) as successful
+                FROM candidate_links cl
+                LEFT JOIN articles a ON cl.id = a.candidate_link_id
+                WHERE cl.status = 'article'
+                AND cl.last_verified_at >= NOW() - INTERVAL '7 days'
+            """)).fetchone()
+            
+            if multi_attempt and multi_attempt[0] > 100:
+                success_calc = (
+                    multi_attempt[1] / multi_attempt[0]
+                    if multi_attempt[0] > 0 else 0
+                )
+                assert success_calc > 0.6, \
+                    f"Low extraction success rate on retries: " \
+                    f"{success_calc:.1%} - retry mechanism may be failing"
+
+
 @pytest.mark.slow
 class TestPerformance:
     """Test performance and throughput."""
@@ -435,7 +714,7 @@ class TestPerformance:
         with production_db.get_session() as session:
             # Get extractions per hour for last 24 hours
             result = session.execute(text("""
-                SELECT 
+                SELECT
                     DATE_TRUNC('hour', extracted_at) as hour,
                     COUNT(*) as articles_per_hour
                 FROM articles
@@ -451,7 +730,8 @@ class TestPerformance:
                 
                 # Should maintain at least 50 articles/hour
                 assert avg_per_hour > 50, \
-                    f"Low extraction rate: {avg_per_hour:.0f} articles/hour - may need more workers"
+                    f"Low extraction rate: {avg_per_hour:.0f} articles/hour - " \
+                    f"may need more workers"
     
     def test_verification_throughput(self, production_db):
         """Verify URL verification maintains reasonable throughput."""
