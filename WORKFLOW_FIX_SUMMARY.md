@@ -11,21 +11,23 @@
 The GitHub Actions workflow for automated service deployment was broken across three critical areas. All identified issues have been addressed:
 
 1. ✅ **E2E Tests Running Too Early** (PR #204) - Added `wait-for-builds` job to ensure deployments complete before testing
-2. ✅ **Argo Workflow Update Failures** (PR #206) - Fixed Python syntax error in `update-workflow-template.sh`
-3. 🔄 **Service Change Detection Incomplete** - Improved detection logic; pending real deployment testing to validate
+1. ✅ **Argo Workflow Update Failures** (PR #206) - Fixed Python syntax error in `update-workflow-template.sh`
+1. 🔄 **Service Change Detection Incomplete** - Improved detection logic; pending real deployment testing to validate
 
 ---
 
 ## Problem Statement
 
 When code was pushed to the main branch, the GitHub Actions workflow (`build-and-deploy-services.yml`) was supposed to:
+
 1. Detect which services changed (processor, api, crawler, base, ml-base, migrator)
-2. Submit Cloud Build jobs for those services
-3. Wait for builds to complete
-4. Update Argo workflow templates with new image versions
-5. Trigger smoke tests
+1. Submit Cloud Build jobs for those services
+1. Wait for builds to complete
+1. Update Argo workflow templates with new image versions
+1. Trigger smoke tests
 
 **What Was Actually Happening:**
+
 - Smoke tests ran before builds completed, causing them to fail
 - Argo workflow updates failed with "SyntaxError: invalid syntax" in Python step
 - Crawler build silently failed but wasn't caught
@@ -45,12 +47,14 @@ Workflow had no synchronization point between "submit builds" and "run tests". G
 
 **Solution:**  
 Added `wait-for-builds` job that runs after all build jobs complete. It:
+
 - Polls Cloud Build for job status using `gcloud builds log`
 - Detects `CrashLoopBackOff` status to catch deployment failures
 - Uses kubectl rollout status to verify Kubernetes deployment completeness
 - Provides clear feedback on which services are ready
 
 **Files Changed:**
+
 - `.github/workflows/production-smoke-tests.yml` - Added kubectl health checks
 - `.github/workflows/build-and-deploy-services.yml` - Added `wait-for-builds` job and dependency
 
@@ -62,7 +66,8 @@ Added `wait-for-builds` job that runs after all build jobs complete. It:
 
 **Problem:**  
 When Cloud Build jobs completed, the workflow ran `update-workflow-template.sh` to update Argo with new image versions. The script failed with:
-```
+
+```text
 SyntaxError: invalid syntax
   File "<string>", line 1
     PYTHON_EOF "$SERVICE_TYPE" "$NEW_SHA" "$REGISTRY"
@@ -92,9 +97,11 @@ PYTHON_EOF
 ```
 
 **Files Changed:**
+
 - `gcp/cloudbuild/update-workflow-template.sh` - Line 88, fixed here-document syntax
 
 **Specific Change:**
+
 ```bash
 # Before (line 88):
 PYTHON_EOF "$SERVICE_TYPE" "$NEW_SHA" "$REGISTRY"
@@ -106,9 +113,10 @@ python3 << PYTHON_EOF "$SERVICE_TYPE" "$NEW_SHA" "$REGISTRY"
 **Status:** ✅ Merged (PR #206, squash merge as 881913f), now on main
 
 **Impact:** This was the critical blocker preventing production deployments. With this fix, the entire workflow pipeline can function:
+
 1. Cloud Build produces new images
-2. Argo workflow templates are updated automatically
-3. Kubernetes pulls new images and deploys
+1. Argo workflow templates are updated automatically
+1. Kubernetes pulls new images and deploys
 
 ---
 
@@ -116,6 +124,7 @@ python3 << PYTHON_EOF "$SERVICE_TYPE" "$NEW_SHA" "$REGISTRY"
 
 **Problem:**  
 The workflow detects which services changed using git diff. However:
+
 - `git diff-tree` doesn't work reliably with squash merges
 - GitHub Actions provides `event.before` and `event.after`, but the detection script only tried one diff method
 - When all detection methods failed, the workflow would skip all service builds
@@ -127,8 +136,8 @@ Squash merges combine all commits from a branch into a single commit. Some git c
 Improved change detection to use multiple methods:
 
 1. **Method 1: `git diff-tree`** - Standard approach, works for regular commits
-2. **Method 2: `git diff` with three-dot syntax** - Works for squash merges
-3. **Method 3: Fallback to `HEAD~1` comparison** - Safety net if both methods fail
+1. **Method 2: `git diff` with three-dot syntax** - Works for squash merges
+1. **Method 3: Fallback to `HEAD~1` comparison** - Safety net if both methods fail
 
 The workflow now tries all three methods and combines results:
 
@@ -161,6 +170,7 @@ Once changed files are detected, the workflow uses pattern matching:
 | **migrator** | Migration files or code change | `Dockerfile.migrator`, `requirements-migrator.txt`, `alembic/` |
 
 **Key Design Decisions:**
+
 - Base image does NOT rebuild for migrations (migrations run separately as part of API deployment)
 - Each service has minimal trigger patterns to reduce unnecessary builds
 - Fallback detection ensures something always gets detected (or explicit manual override via workflow_dispatch)
@@ -192,6 +202,7 @@ Once changed files are detected, the workflow uses pattern matching:
 ### Argo Workflow (Production)
 
 Manually updated after PR #206 merge:
+
 - **Processor image:** 0cd2dc4 (working)
 - **Crawler image:** 05f0c40 (working, fallback from failed 0cd2dc4 build)
 
@@ -209,7 +220,7 @@ Manually updated after PR #206 merge:
 
 Here's how the complete workflow operates after all fixes:
 
-```
+```text
 User pushes code to main
     ↓
 GitHub Actions Webhook Triggers
@@ -254,7 +265,7 @@ GitHub Actions Webhook Triggers
    - PR ready for review
    - Action: Merge to main and monitor first push
 
-2. **Test End-to-End Workflow**
+1. **Test End-to-End Workflow**
    - Push a test commit to main (small, non-critical change)
    - Monitor GitHub Actions execution
    - Verify: Changes detected → correct services built → Argo updated → tests pass
@@ -263,8 +274,8 @@ GitHub Actions Webhook Triggers
 
 ## References
 
-- **GitHub Actions Documentation**: https://docs.github.com/en/actions
-- **Cloud Build Documentation**: https://cloud.google.com/build/docs
-- **Argo Workflows**: https://argoproj.github.io/argo-workflows/
-- **Kubernetes Documentation**: https://kubernetes.io/docs/
-- **Bash Here-Documents**: https://www.gnu.org/software/bash/manual/html_node/Here-Documents.html
+- **GitHub Actions Documentation**: <https://docs.github.com/en/actions>
+- **Cloud Build Documentation**: <https://cloud.google.com/build/docs>
+- **Argo Workflows**: <https://argoproj.github.io/argo-workflows/>
+- **Kubernetes Documentation**: <https://kubernetes.io/docs/>
+- **Bash Here-Documents**: <https://www.gnu.org/software/bash/manual/html_node/Here-Documents.html>
