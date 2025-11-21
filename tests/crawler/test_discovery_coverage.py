@@ -240,7 +240,7 @@ def test_newsDiscovery_init_with_cloudscraper():
             with patch("src.crawler.discovery.cloudscraper") as mock_cs:
                 mock_cs.create_scraper.return_value = MagicMock()
                 
-                nd = NewsDiscovery(database_url="sqlite:///:memory:")
+                NewsDiscovery(database_url="sqlite:///:memory:")
                 
                 # Should have called create_scraper
                 mock_cs.create_scraper.assert_called_once()
@@ -444,7 +444,7 @@ def test_configure_proxy_routing_with_origin_proxy():
                     mock_manager.get_origin_proxy_url.return_value = "http://proxy:8080"
                     mock_pm.return_value = mock_manager
                     
-                    nd = NewsDiscovery(database_url="sqlite:///:memory:")
+                    NewsDiscovery(database_url="sqlite:///:memory:")
                     
                     # Should have called enable_origin_proxy
                     mock_enable.assert_called_once()
@@ -456,7 +456,7 @@ def test_configure_proxy_routing_with_env_proxy():
         with patch("src.crawler.discovery.create_telemetry_system"):
             with patch("src.crawler.discovery.enable_origin_proxy") as mock_enable:
                 with patch.dict(os.environ, {"USE_ORIGIN_PROXY": "true"}):
-                    nd = NewsDiscovery(database_url="sqlite:///:memory:")
+                    NewsDiscovery(database_url="sqlite:///:memory:")
                     
                     # Should have called enable_origin_proxy
                     mock_enable.assert_called_once()
@@ -524,7 +524,7 @@ def test_create_db_manager():
         with patch("src.crawler.discovery.create_telemetry_system"):
             nd = NewsDiscovery(database_url="postgresql://localhost/test")
             
-            manager = nd._create_db_manager()
+            nd._create_db_manager()
             
             # Should create DatabaseManager with URL
             mock_dbm.assert_called_with("postgresql://localhost/test")
@@ -922,7 +922,6 @@ def test_discover_from_section_urls_no_sections():
             "source-123": (None,),  # No discovered_sections
         }
     )
-    mock_engine = MockEngine(mock_conn)
     
     # Mock the DatabaseManager at the module level where it's imported
     with patch("src.models.database.DatabaseManager") as mock_dbm_class:
@@ -946,7 +945,6 @@ def test_discover_from_section_urls_empty_urls():
             "source-123": ({"urls": []},),  # Empty URLs
         }
     )
-    mock_engine = MockEngine(mock_conn)
     
     with patch("src.models.database.DatabaseManager") as mock_dbm_class:
         with patch("src.crawler.discovery.create_telemetry_system"):
