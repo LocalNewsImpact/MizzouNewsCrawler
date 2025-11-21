@@ -54,12 +54,13 @@ def test_extract_base_url_parses_valid_url():
 
 def test_extract_base_url_handles_exception(monkeypatch):
     """Test extract_base_url handles exception during parsing."""
+
     # Mock urlparse to raise an exception
     def mock_urlparse_with_exception(url):
         raise ValueError("Parse error")
-    
+
     monkeypatch.setattr("src.utils.url_utils.urlparse", mock_urlparse_with_exception)
-    
+
     result = url_utils.extract_base_url("https://example.com")
     assert result is None
 

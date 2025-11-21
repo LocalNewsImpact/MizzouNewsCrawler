@@ -18,18 +18,19 @@ def _create_article(session, **kwargs):
     import uuid
 
     link_id = kwargs.get("candidate_link_id", f"link-{uuid.uuid4()}")
+    unique_url = kwargs.get("url", f"https://example.com/{uuid.uuid4()}")
     candidate_link = CandidateLink(
         id=link_id,
-        url=kwargs.get("url", f"https://example.com/{uuid.uuid4()}"),
+        url=unique_url,
         source="test_source",
     )
     session.add(candidate_link)
     session.commit()
 
     defaults = {
-        "id": kwargs.get("id", "article-1"),
+        "id": kwargs.get("id", f"article-{uuid.uuid4()}"),
         "candidate_link_id": candidate_link.id,
-        "url": kwargs.get("url", "https://example.com/1"),
+        "url": unique_url,
         "status": kwargs.get("status", "cleaned"),
         "content": kwargs.get("content", "Local news story"),
         "text": kwargs.get("text", "Local news story"),
