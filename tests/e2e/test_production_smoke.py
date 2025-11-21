@@ -27,10 +27,9 @@ logger = logging.getLogger(__name__)
 @pytest.fixture(scope="module")
 def production_db():
     """Get production database connection."""
-    # Ensure we're connecting to production Cloud SQL
-    assert (
-        os.getenv("USE_CLOUD_SQL_CONNECTOR") == "true"
-    ), "Tests must run against production database"
+    # Skip if not running against production Cloud SQL
+    if os.getenv("USE_CLOUD_SQL_CONNECTOR") != "true":
+        pytest.skip("E2E tests require production database")
 
     db = DatabaseManager()
     yield db
