@@ -52,21 +52,40 @@ jobs:
           fi
 
           # Get the commit range for change detection
+          # Use multiple methods to ensure we catch all changes (works with squash merges, regular commits, etc.)
+          CHANGED_FILES=""
+          
           if [ "${{ github.event_name }}" == "push" ]; then
-            # For push events, compare with the previous commit
+            # For push events, try multiple methods to detect changes
             if [ "${{ github.event.before }}" == "0000000000000000000000000000000000000000" ]; then
               # Initial push - check all files
               CHANGED_FILES=$(git ls-tree -r --name-only HEAD)
             else
-              CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r ${{ github.event.before }} ${{ github.event.after }})
+              # Method 1: Standard diff-tree (works for regular commits)
+              METHOD1=$(git diff-tree --no-commit-id --name-only -r ${{ github.event.before }} ${{ github.event.after }} 2>/dev/null || true)
+              
+              # Method 2: Direct diff (works for squash merges and edge cases)
+              METHOD2=$(git diff --name-only ${{ github.event.before }}...${{ github.event.after }} 2>/dev/null || true)
+              
+              # Combine results (remove duplicates)
+              CHANGED_FILES=$(printf "%s\n%s" "$METHOD1" "$METHOD2" | grep -v '^$' | sort -u)
+              
+              # If both methods failed, compare with previous commit
+              if [ -z "$CHANGED_FILES" ]; then
+                CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || true)
+              fi
             fi
           else
             # Fallback: compare HEAD with HEAD~1
-            CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+            CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || true)
           fi
 
-          echo "Changed files:"
-          echo "$CHANGED_FILES"
+          echo "📋 Changed files detected:"
+          if [ -n "$CHANGED_FILES" ]; then
+            echo "$CHANGED_FILES" | sed 's/^/  /'
+          else
+            echo "  (none detected)"
+          fi
           echo ""
 
           # Initialize all services as false
