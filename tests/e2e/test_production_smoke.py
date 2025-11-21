@@ -14,7 +14,7 @@ Or via kubectl:
 
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pytest
 from sqlalchemy import text
@@ -198,8 +198,8 @@ class TestExtractionPipeline:
             assert extracted > 0, "No articles extracted in last 24h"
 
             # Verify conversion rates are reasonable
-            verification_rate = verified / discovered if discovered > 0 else 0
-            extraction_rate = extracted / verified if verified > 0 else 0
+            verification_rate = verified / discovered
+            extraction_rate = extracted / verified
 
             assert (
                 verification_rate > 0.3
@@ -1433,7 +1433,7 @@ class TestContentCleaningPipeline:
                 )
 
             # Wire service indicators should be removed from author field
-            if wire_in_author and total > 0:
+            if wire_in_author:
                 wire_ratio = wire_in_author / total
                 assert (
                     wire_ratio < 0.1
