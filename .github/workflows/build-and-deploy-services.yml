@@ -302,26 +302,123 @@ jobs:
             --substitutions=BRANCH_NAME="${{ github.ref_name }},COMMIT_SHA=${{ github.sha }}"
           echo "✅ Migrator build submitted"
 
+  wait-for-builds:
+    name: Wait for Cloud Builds
+    needs: [detect-changes, build-base, build-ml-base, build-processor, build-api, build-crawler, build-migrator]
+    if: needs.detect-changes.outputs.any-changed == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: Wait for builds to complete
+        run: |
+          echo "⏳ Waiting for Cloud Build jobs to complete..."
+          echo ""
+          
+          # Store build IDs from submitted jobs
+          SERVICES="${{ needs.detect-changes.outputs.services-to-build }}"
+          
+          if [ "$SERVICES" == "none" ]; then
+            echo "ℹ️  No service rebuilds - skipping build wait"
+            exit 0
+          fi
+          
+          # Get the 10 most recent builds in the last 10 minutes
+          # Filter by status != SUCCESS to find in-progress builds
+          gcloud builds list \
+            --project=${{ secrets.GCP_PROJECT }} \
+            --limit=50 \
+            --filter="createTime>'-10m' AND (status=QUEUED OR status=WORKING)" \
+            --format="value(id,status,startTime)" > /tmp/builds.txt
+          
+          if [ ! -s /tmp/builds.txt ]; then
+            echo "ℹ️  No in-progress builds found"
+            exit 0
+          fi
+          
+          BUILD_IDS=$(awk '{print $1}' /tmp/builds.txt)
+          TOTAL_BUILDS=$(echo "$BUILD_IDS" | wc -l)
+          echo "Found $TOTAL_BUILDS build(s) in progress"
+          echo ""
+          
+          # Poll builds until completion
+          MAX_WAIT=3600  # 60 minutes timeout
+          ELAPSED=0
+          POLL_INTERVAL=30
+          
+          while [ $ELAPSED -lt $MAX_WAIT ]; do
+            STILL_RUNNING=0
+            
+            for BUILD_ID in $BUILD_IDS; do
+              STATUS=$(gcloud builds describe "$BUILD_ID" \
+                --project=${{ secrets.GCP_PROJECT }} \
+                --format='value(status)')
+              
+              case $STATUS in
+                QUEUED|WORKING)
+                  echo "⏳ Build $BUILD_ID still running (status: $STATUS)"
+                  ((STILL_RUNNING++))
+                  ;;
+                SUCCESS)
+                  echo "✅ Build $BUILD_ID completed successfully"
+                  ;;
+                FAILURE)
+                  echo "❌ Build $BUILD_ID failed"
+                  exit 1
+                  ;;
+                TIMEOUT)
+                  echo "⏱️  Build $BUILD_ID timed out"
+                  exit 1
+                  ;;
+                *)
+                  echo "⚠️  Build $BUILD_ID status: $STATUS"
+                  ;;
+              esac
+            done
+            
+            if [ $STILL_RUNNING -eq 0 ]; then
+              echo ""
+              echo "✅ All builds completed!"
+              exit 0
+            fi
+            
+            echo "  Waiting $POLL_INTERVAL seconds before next check... ($ELAPSED/$MAX_WAIT seconds elapsed)"
+            sleep $POLL_INTERVAL
+            ((ELAPSED += POLL_INTERVAL))
+          done
+          
+          echo "❌ Timeout waiting for builds (exceeded ${MAX_WAIT}s)"
+          exit 1
+
   build-summary:
     name: Build Summary
-    needs: detect-changes
+    needs: [detect-changes, wait-for-builds]
     if: always()
     runs-on: ubuntu-latest
 
     steps:
-      - name: Report build plan
+      - name: Report build status
         run: |
-          echo "=== Build and Deploy Plan ==="
-          echo "Services to build: ${{ needs.detect-changes.outputs.services-to-build }}"
+          echo "=== Build and Deploy Summary ==="
+          echo "Services targeted: ${{ needs.detect-changes.outputs.services-to-build }}"
           
           if [ "${{ needs.detect-changes.outputs.services-to-build }}" == "none" ]; then
             echo "ℹ️  No service rebuilds detected (documentation/config-only changes)"
           else
-            echo "✅ Cloud Build jobs submitted for: ${{ needs.detect-changes.outputs.services-to-build }}"
-            echo ""
-            echo "Build dependencies:"
-            echo "  - base: foundation image (optional)"
-            echo "  - ml-base: depends on base"
-            echo "  - processor: depends on ml-base"
-            echo "  - api, crawler, migrator: depend on base"
+            if [ "${{ needs.wait-for-builds.result }}" == "success" ]; then
+              echo "✅ All Cloud Build jobs completed successfully"
+              echo "🚀 Services are ready for deployment to production"
+            else
+              echo "❌ Build wait job failed"
+              exit 1
+            fi
           fi

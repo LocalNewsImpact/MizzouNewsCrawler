@@ -44,25 +44,83 @@ jobs:
             --region us-central1 \
             --project ${{ secrets.GCP_PROJECT_ID }}
       
-      - name: Wait for deployment to stabilize
+      - name: Wait for deployments to be ready
         run: |
-          echo "⏳ Waiting 60 seconds for deployment to stabilize..."
-          sleep 60
+          echo "⏳ Verifying deployments are healthy and ready..."
+          echo ""
+          
+          TIMEOUT=600  # 10 minutes
+          SERVICES=(mizzou-api mizzou-processor mizzou-crawler)
+          
+          for service in "${SERVICES[@]}"; do
+            echo "Checking $service deployment..."
+            if ! kubectl rollout status deployment/$service -n production --timeout=${TIMEOUT}s; then
+              echo "❌ $service deployment failed to become ready"
+              echo ""
+              echo "Pod status:"
+              kubectl get pods -n production -l app=$service
+              echo ""
+              echo "Recent pod events:"
+              kubectl describe pods -n production -l app=$service | grep -A 20 "Events:"
+              exit 1
+            fi
+            echo "✅ $service is ready"
+          done
+          
+          echo ""
+          echo "⏳ Waiting additional 30 seconds for service stabilization..."
+          sleep 30
+          
+          # Verify no pods are in CrashLoopBackOff
+          echo ""
+          echo "Verifying pod health..."
+          CRASH_PODS=$(kubectl get pods -n production \
+            -o jsonpath='{range .items[*]}{.metadata.name},{.status.containerStatuses[*].state.waiting.reason}{"\n"}{end}' | \
+            grep CrashLoopBackOff | wc -l)
+          
+          if [ "$CRASH_PODS" -gt 0 ]; then
+            echo "❌ Found pods in CrashLoopBackOff state"
+            kubectl get pods -n production -o wide
+            exit 1
+          fi
+          
+          echo "✅ All pods are healthy"
       
       - name: Run smoke tests
         id: smoke_tests
         run: |
           echo "🧪 Running production smoke tests..."
+          echo ""
           
           # Get processor pod
           POD_NAME=$(kubectl get pods -n production -l app=mizzou-processor -o jsonpath='{.items[0].metadata.name}')
           
           if [ -z "$POD_NAME" ]; then
             echo "❌ No processor pod found"
+            kubectl get pods -n production
             exit 1
           fi
           
           echo "Using pod: $POD_NAME"
+          
+          # Verify pod is actually running (not just ready)
+          POD_STATUS=$(kubectl get pod "$POD_NAME" -n production -o jsonpath='{.status.phase}')
+          if [ "$POD_STATUS" != "Running" ]; then
+            echo "❌ Pod is in state: $POD_STATUS (expected Running)"
+            kubectl describe pod "$POD_NAME" -n production
+            exit 1
+          fi
+          
+          # Quick connectivity check
+          echo "Checking pod connectivity..."
+          if ! kubectl exec -n production "$POD_NAME" -- bash -c "echo 'OK'"; then
+            echo "❌ Pod is not responding to commands"
+            exit 1
+          fi
+          echo "✅ Pod is responding"
+          
+          echo ""
+          echo "Running test suite..."
           
           # Build pytest command
           PYTEST_CMD="pytest tests/e2e/test_production_smoke.py -v --tb=short --color=yes"
@@ -72,8 +130,17 @@ jobs:
             PYTEST_CMD="$PYTEST_CMD -k ${{ github.event.inputs.test_filter }}"
           fi
           
-          # Run tests
-          kubectl exec -n production "$POD_NAME" -- bash -c "$PYTEST_CMD"
+          # Run tests with timeout
+          timeout 600 kubectl exec -n production "$POD_NAME" -- bash -c "$PYTEST_CMD"
+          TEST_RESULT=$?
+          
+          if [ $TEST_RESULT -eq 124 ]; then
+            echo "❌ Tests timed out after 10 minutes"
+            exit 1
+          elif [ $TEST_RESULT -ne 0 ]; then
+            echo "❌ Tests failed with exit code $TEST_RESULT"
+            exit 1
+          fi
       
       - name: Report results
         if: always()
