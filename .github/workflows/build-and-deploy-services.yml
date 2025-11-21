@@ -35,12 +35,22 @@ jobs:
       - name: Detect changed files
         id: detect
         run: |
+          # Capture commit range for logging
+          BEFORE="${{ github.event.before }}"
+          AFTER="${{ github.event.after }}"
+          
+          echo "🔍 Change Detection Starting..."
+          echo "Event: ${{ github.event_name }}"
+          echo "Before: $BEFORE"
+          echo "After: $AFTER"
+          echo ""
+          
           # Get list of changed files since last commit (for push) or since workflow dispatch (manual override)
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             # Manual dispatch - use provided input or default to auto
             SERVICES_INPUT="${{ github.event.inputs.services }}"
             if [ "$SERVICES_INPUT" != "auto" ]; then
-              echo "Using manually specified services: $SERVICES_INPUT"
+              echo "✅ Using manually specified services: $SERVICES_INPUT"
               # Parse comma-separated list
               for service in $(echo "$SERVICES_INPUT" | tr ',' ' '); do
                 service=$(echo "$service" | xargs)  # trim whitespace
@@ -52,21 +62,44 @@ jobs:
           fi
 
           # Get the commit range for change detection
+          # Use multiple methods to ensure we catch all changes (works with squash merges, regular commits, etc.)
+          CHANGED_FILES=""
+          
           if [ "${{ github.event_name }}" == "push" ]; then
-            # For push events, compare with the previous commit
-            if [ "${{ github.event.before }}" == "0000000000000000000000000000000000000000" ]; then
+            # For push events, try multiple methods to detect changes
+            if [ "$BEFORE" == "0000000000000000000000000000000000000000" ]; then
               # Initial push - check all files
+              echo "📝 Initial push detected - checking all files"
               CHANGED_FILES=$(git ls-tree -r --name-only HEAD)
             else
-              CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r ${{ github.event.before }} ${{ github.event.after }})
+              # Method 1: Standard diff-tree (works for regular commits)
+              METHOD1=$(git diff-tree --no-commit-id --name-only -r $BEFORE $AFTER 2>/dev/null || true)
+              
+              # Method 2: Direct diff (works for squash merges and edge cases)
+              METHOD2=$(git diff --name-only $BEFORE...$AFTER 2>/dev/null || true)
+              
+              # Combine results (remove duplicates)
+              CHANGED_FILES=$(printf "%s\n%s" "$METHOD1" "$METHOD2" | grep -v '^$' | sort -u)
+              
+              # If both methods failed, compare with previous commit
+              if [ -z "$CHANGED_FILES" ]; then
+                echo "⚠️  Primary methods failed, using HEAD~1 fallback"
+                CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || true)
+              fi
             fi
           else
             # Fallback: compare HEAD with HEAD~1
-            CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+            echo "📝 Non-push event - comparing HEAD~1 with HEAD"
+            CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || true)
           fi
 
-          echo "Changed files:"
-          echo "$CHANGED_FILES"
+          echo "📋 Changed files detected:"
+          if [ -n "$CHANGED_FILES" ]; then
+            echo "$CHANGED_FILES" | wc -l | xargs echo "Total:"
+            echo "$CHANGED_FILES" | sed 's/^/  /'
+          else
+            echo "  (none detected)"
+          fi
           echo ""
 
           # Initialize all services as false
