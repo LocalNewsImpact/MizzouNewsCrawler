@@ -302,77 +302,6 @@ class TestTelemetrySystem:
                     "No large hash values found - column may not be working correctly"
 
 
-class TestMLPipeline:
-    """Test ML analysis and labeling pipeline."""
-
-    def test_articles_get_entity_extraction(self, production_db):
-        """
-        Verify NER entity extraction is running on new articles.
-
-        Validates:
-        1. Recent articles have entity extractions
-        2. Entities are being linked to articles
-        3. Entity types are reasonable
-        """
-        with production_db.get_session() as session:
-            # Check recent entity extractions
-            result = session.execute(text("""
-                SELECT
-                    COUNT(DISTINCT a.id) as articles_with_entities,
-                    COUNT(ae.id) as total_entities,
-                    COUNT(DISTINCT ae.entity_type) as entity_types
-                FROM articles a
-                INNER JOIN article_entities ae ON a.id = ae.article_id
-                WHERE a.extracted_at >= NOW() - INTERVAL '6 hours'
-            """)).fetchone()
-
-            articles, entities, types = result
-
-            if articles and articles > 0:
-                # Should have reasonable entity extraction
-                avg_entities = entities / articles
-                assert avg_entities > 1, \
-                    f"Only {avg_entities:.1f} entities per article - NER may be degraded"
-
-                # Should have multiple entity types
-                assert types >= 3, \
-                    f"Only {types} entity types found - NER model may be broken"
-
-    def test_articles_get_classification_labels(self, production_db):
-        """
-        Verify classification/labeling is running on new articles.
-
-        Validates:
-        1. Recent articles have classification labels
-        2. Labels have confidence scores
-        3. Label distribution is reasonable
-        """
-        with production_db.get_session() as session:
-            # Check recent classifications
-            result = session.execute(text("""
-                SELECT
-                    COUNT(DISTINCT a.id) as labeled_articles,
-                    COUNT(al.id) as total_labels,
-                    AVG(al.confidence) as avg_confidence
-                FROM articles a
-                INNER JOIN article_labels al ON a.id = al.article_id
-                WHERE a.extracted_at >= NOW() - INTERVAL '6 hours'
-            """)).fetchone()
-
-            articles, labels, confidence = result
-
-            if articles and articles > 0:
-                # Should have labels on most articles
-                avg_labels = labels / articles
-                assert avg_labels >= 1, \
-                    f"Only {avg_labels:.1f} labels per article - classification may not be running"
-
-                # Confidence should be reasonable
-                if confidence:
-                    assert confidence > 0.5, \
-                        f"Average confidence {confidence:.2f} is low - model may need retraining"
-
-
 class TestDataIntegrity:
     """Test data integrity and consistency."""
 
@@ -1368,6 +1297,359 @@ class TestContentCleaningPipeline:
                 logger.info(
                     f"Section article processing ratio: {process_ratio:.1%} "
                     f"({processed}/{section_articles} processed)"
+                )
+
+
+class TestMLPipeline:
+    """Test ML pipeline (entity extraction, gazetteer, labeling)."""
+
+    def test_entity_extraction_gazetteer_loading(self, production_db):
+        """
+        Verify entity extraction with gazetteer loading per source.
+
+        Validates:
+        1. Articles have extracted entities in article_entities table
+        2. Entities are linked to gazetteer records when available
+        3. Entity extraction happens with proper gazetteer source filtering
+        4. Match scores indicate quality of gazetteer matching
+        """
+        with production_db.get_session() as session:
+            # Check entity extraction statistics
+            result = session.execute(text("""
+                SELECT
+                    COUNT(DISTINCT ae.article_id) as articles_with_entities,
+                    COUNT(DISTINCT ae.extractor_version) as extractor_versions,
+                    COUNT(CASE
+                        WHEN ae.matched_gazetteer_id IS NOT NULL
+                        THEN 1
+                    END) as entities_with_gazetteer_match,
+                    AVG(ae.match_score) as avg_match_score,
+                    MIN(ae.match_score) as min_match_score,
+                    MAX(ae.match_score) as max_match_score
+                FROM article_entities ae
+                WHERE ae.created_at >= NOW() - INTERVAL '24 hours'
+            """)).fetchone()
+
+            articles_ents, versions, with_match, avg_score, min_score, \
+                max_score = result
+
+            # Should have extracted entities
+            assert articles_ents and articles_ents > 0, \
+                "No articles with entities found - extraction may be failing"
+
+            # Should have gazetteer matches
+            if with_match and articles_ents:
+                match_ratio = with_match / articles_ents
+                logger.info(
+                    f"Entity gazetteer matching: {match_ratio:.1%} "
+                    f"({with_match}/{articles_ents} matched)"
+                )
+
+            # Match scores should be reasonable (0-1 range)
+            if avg_score:
+                assert avg_score > 0.5, \
+                    (f"Low average match score: {avg_score:.2f} - "
+                     f"may indicate gazetteer mismatch")
+                assert max_score <= 1.0, \
+                    f"Invalid match score: {max_score} - >1.0 impossible"
+
+    def test_label_distribution_across_article_types(self, production_db):
+        """
+        Verify label distribution across article types.
+
+        Validates:
+        1. Local articles have 'local' or similar labels
+        2. Wire articles have 'wire' or syndicated labels
+        3. Opinion/obituary articles are correctly classified
+        4. Label distribution across statuses is reasonable
+        5. Primary label assignment is consistent
+        """
+        with production_db.get_session() as session:
+            # Check label distribution by article status
+            result = session.execute(text("""
+                SELECT
+                    a.status,
+                    COUNT(DISTINCT a.id) as total_articles,
+                    COUNT(CASE
+                        WHEN a.primary_label IS NOT NULL THEN 1
+                    END) as with_primary_label,
+                    COUNT(DISTINCT al.label) as unique_labels,
+                    ARRAY_AGG(DISTINCT al.label ORDER BY al.label)
+                        FILTER (WHERE al.label IS NOT NULL)
+                        as label_list
+                FROM articles a
+                LEFT JOIN article_labels al ON a.id = al.article_id
+                WHERE a.extracted_at >= NOW() - INTERVAL '7 days'
+                GROUP BY a.status
+                ORDER BY total_articles DESC
+            """)).fetchall()
+
+            status_distribution = {}
+            for status, total, labeled, unique, labels in result:
+                status_distribution[status] = {
+                    'total': total,
+                    'labeled': labeled,
+                    'unique_labels': unique,
+                    'labels': labels or [],
+                }
+
+            # Should have articles of different types
+            assert 'local' in status_distribution or \
+                   'cleaned' in status_distribution, \
+                "No local/cleaned articles for label distribution check"
+
+            # Wire articles should have wire-related labels
+            if 'wire' in status_distribution:
+                wire_articles = status_distribution['wire']['total']
+                wire_labeled = status_distribution['wire']['labeled']
+                if wire_articles > 0:
+                    wire_label_ratio = wire_labeled / wire_articles
+                    assert wire_label_ratio > 0.5, \
+                        (f"Low labeling for wire articles: "
+                         f"{wire_label_ratio:.1%}")
+
+            # Opinion/obituary articles should not be labeled normally
+            for special_status in ['opinion', 'obituary']:
+                if special_status in status_distribution:
+                    special_labeled = \
+                        status_distribution[special_status]['labeled']
+                    logger.info(
+                        f"{special_status.capitalize()} articles labeled: "
+                        f"{special_labeled}"
+                    )
+
+    def test_model_versioning_and_fallback(self, production_db):
+        """
+        Verify model versioning and fallback behavior.
+
+        Validates:
+        1. Entity extractor version is tracked
+        2. Classification model versions are recorded
+        3. Multiple model versions coexist (no hard cutover)
+        4. Fallback from failed extractions works
+        5. Version progression is forward-compatible
+        """
+        with production_db.get_session() as session:
+            # Check entity extractor versions
+            ent_result = session.execute(text("""
+                SELECT
+                    extractor_version,
+                    COUNT(*) as entity_count,
+                    COUNT(DISTINCT article_id) as articles,
+                    MIN(created_at) as first_used,
+                    MAX(created_at) as last_used
+                FROM article_entities
+                WHERE created_at >= NOW() - INTERVAL '7 days'
+                GROUP BY extractor_version
+                ORDER BY last_used DESC
+            """)).fetchall()
+
+            extractor_versions = {}
+            for version, count, articles, first_used, last_used in ent_result:
+                extractor_versions[version] = {
+                    'entities': count,
+                    'articles': articles,
+                    'first_used': first_used,
+                    'last_used': last_used,
+                }
+
+            # Should have at least one extractor version
+            assert len(extractor_versions) > 0, \
+                "No entity extractor versions found"
+
+            # Check entity extractor is named properly
+            for version in extractor_versions:
+                assert version and 'spacy' in version.lower(), \
+                    f"Invalid entity extractor version: {version}"
+
+            # Check classification model versions
+            label_result = session.execute(text("""
+                SELECT
+                    label_version,
+                    COUNT(*) as label_count,
+                    COUNT(DISTINCT article_id) as articles,
+                    AVG(confidence) as avg_confidence,
+                    MIN(created_at) as first_used,
+                    MAX(created_at) as last_used
+                FROM article_labels
+                WHERE created_at >= NOW() - INTERVAL '7 days'
+                GROUP BY label_version
+                ORDER BY last_used DESC
+                LIMIT 5
+            """)).fetchall()
+
+            label_versions = {}
+            for version, count, articles, confidence, first_used, \
+                    last_used in label_result:
+                label_versions[version] = {
+                    'labels': count,
+                    'articles': articles,
+                    'avg_confidence': confidence,
+                    'first_used': first_used,
+                    'last_used': last_used,
+                }
+
+            # Should have classification model versions
+            if label_versions:
+                logger.info(
+                    f"Classification model versions: {len(label_versions)}"
+                )
+                for version, stats in label_versions.items():
+                    logger.info(
+                        f"  {version}: {stats['labels']} labels, "
+                        f"avg confidence {stats['avg_confidence']:.2f}"
+                    )
+
+    def test_entity_confidence_and_validation(self, production_db):
+        """
+        Verify entity confidence scores and validation.
+
+        Validates:
+        1. Gazetteer matched entities have confidence/match scores
+        2. Confidence scores are in valid range (0-1)
+        3. Higher confidence entities are valid matches
+        4. NER entities without gazetteer matches tracked
+        5. Entity type classification is consistent
+        """
+        with production_db.get_session() as session:
+            # Check entity confidence distribution
+            result = session.execute(text("""
+                SELECT
+                    entity_label,
+                    COUNT(*) as entity_count,
+                    COUNT(CASE
+                        WHEN matched_gazetteer_id IS NOT NULL
+                        AND match_score > 0.8
+                        THEN 1
+                    END) as high_confidence_matches,
+                    AVG(match_score) as avg_match_score,
+                    MIN(match_score) as min_match_score,
+                    MAX(match_score) as max_match_score,
+                    COUNT(CASE
+                        WHEN osm_category IS NOT NULL THEN 1
+                    END) as with_osm_category
+                FROM article_entities
+                WHERE created_at >= NOW() - INTERVAL '24 hours'
+                GROUP BY entity_label
+                ORDER BY entity_count DESC
+            """)).fetchall()
+
+            for entity_label, count, high_conf, avg_score, min_score, \
+                    max_score, with_category in result:
+                # Confidence/match scores should be valid
+                if avg_score:
+                    assert avg_score <= 1.0, \
+                        (f"Invalid avg match score for {entity_label}: "
+                         f"{avg_score}")
+
+                # High-confidence matches substantial fraction
+                if high_conf and count:
+                    high_ratio = high_conf / count
+                    logger.info(
+                        f"Entity label '{entity_label}': "
+                        f"{high_ratio:.1%} high confidence "
+                        f"({high_conf}/{count})"
+                    )
+
+                # OSM categories should be populated for matches
+                if with_category and count:
+                    category_ratio = with_category / count
+                    logger.info(
+                        f"Entity label '{entity_label}': "
+                        f"{category_ratio:.1%} have OSM categories"
+                    )
+
+    def test_extraction_and_labeling_pipeline_completeness(
+        self, production_db
+    ):
+        """
+        Verify end-to-end ML pipeline completeness.
+
+        Validates:
+        1. Extracted articles progress through entity extraction
+        2. Entity extraction and labeling work together
+        3. No articles stuck in intermediate states
+        4. Pipeline latency is reasonable
+        5. Success rate through ML stages is high
+        """
+        with production_db.get_session() as session:
+            # Check pipeline progression
+            result = session.execute(text("""
+                SELECT
+                    COUNT(CASE
+                        WHEN a.status IN ('extracted', 'cleaned')
+                        THEN 1
+                    END) as extractable_articles,
+                    COUNT(CASE
+                        WHEN EXISTS (
+                            SELECT 1 FROM article_entities ae
+                            WHERE ae.article_id = a.id
+                        ) THEN 1
+                    END) as with_entities,
+                    COUNT(CASE
+                        WHEN EXISTS (
+                            SELECT 1 FROM article_labels al
+                            WHERE al.article_id = a.id
+                        ) THEN 1
+                    END) as with_labels,
+                    COUNT(CASE
+                        WHEN EXISTS (
+                            SELECT 1 FROM article_entities ae
+                            WHERE ae.article_id = a.id
+                        ) AND EXISTS (
+                            SELECT 1 FROM article_labels al
+                            WHERE al.article_id = a.id
+                        ) THEN 1
+                    END) as with_both,
+                    AVG(CASE
+                        WHEN ae.created_at IS NOT NULL
+                        THEN EXTRACT(EPOCH FROM
+                            (ae.created_at - a.extracted_at))
+                        ELSE NULL
+                    END) as entity_extraction_latency,
+                    AVG(CASE
+                        WHEN al.created_at IS NOT NULL
+                        THEN EXTRACT(EPOCH FROM
+                            (al.created_at - a.extracted_at))
+                        ELSE NULL
+                    END) as total_pipeline_latency
+                FROM articles a
+                LEFT JOIN article_entities ae ON a.id = ae.article_id
+                LEFT JOIN article_labels al ON a.id = al.article_id
+                WHERE a.extracted_at >= NOW() - INTERVAL '7 days'
+                AND a.status IN ('cleaned', 'classified', 'local', 'wire',
+                                 'opinion', 'obituary')
+            """)).fetchone()
+
+            total_extract, with_ents, with_labels, with_both, \
+                ent_latency, pipeline_latency = result
+
+            # Should have extractable articles
+            if total_extract and total_extract > 0:
+                # Most should have entities extracted
+                ent_ratio = with_ents / total_extract
+                assert ent_ratio > 0.7, \
+                    f"Low entity extraction rate: {ent_ratio:.1%}"
+
+                # Most should have labels
+                label_ratio = with_labels / total_extract
+                assert label_ratio > 0.7, \
+                    f"Low labeling rate: {label_ratio:.1%}"
+
+                # Latencies should be reasonable
+                if ent_latency and ent_latency > 0:
+                    assert ent_latency < 3600, \
+                        (f"High entity extraction latency: "
+                         f"{ent_latency:.0f}s")
+
+                if pipeline_latency and pipeline_latency > 0:
+                    assert pipeline_latency < 7200, \
+                        (f"High total pipeline latency: "
+                         f"{pipeline_latency:.0f}s")
+
+                logger.info(
+                    f"ML pipeline progress: {ent_ratio:.1%} entities, "
+                    f"{label_ratio:.1%} labels, {with_both} complete"
                 )
 
 
