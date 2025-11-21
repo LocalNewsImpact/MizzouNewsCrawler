@@ -68,9 +68,11 @@ Add to post-deployment workflow:
 
 ### TestMLPipeline
 
-- Entity extraction on new articles
-- Classification labeling
-- Label confidence scores
+- **Entity extraction gazetteer loading**: Articles have entities with gazetteer matches and confidence scores
+- **Label distribution**: Labels distributed across local/wire/opinion/obituary article types
+- **Model versioning**: Entity extractor and classification model versions tracked with multi-version support
+- **Entity confidence**: Entity confidence scores in valid range (0-1), high-confidence matches validated
+- **Pipeline completeness**: End-to-end ML pipeline (extraction → entity extraction → labeling) with reasonable latencies
 
 ### TestDataIntegrity
 
@@ -139,6 +141,32 @@ assert preservation_ratio > 0.7, "Wire service bylines not preserved"
 
 # Section URL articles should process normally
 assert cleaned_ratio > 0.7, "Low cleaning success for section articles"
+```
+
+### ML Pipeline Tests
+
+```python
+# Entity extraction with gazetteer matching
+assert articles_ents > 0, "No articles with entities found - extraction may be failing"
+assert avg_score > 0.5, "Low average match score - gazetteer mismatch"
+assert max_score <= 1.0, "Invalid match score >1.0"
+
+# Label distribution across article types
+assert wire_label_ratio > 0.5, "Low labeling for wire articles"
+
+# Model versioning and backward compatibility
+assert len(extractor_versions) > 0, "No entity extractor versions found"
+assert 'spacy' in version.lower(), "Invalid entity extractor version"
+
+# Entity confidence scores in valid range
+assert avg_score <= 1.0, "Invalid match score for entity"
+assert high_confidence_matches > 0, "No high-confidence gazetteer matches"
+
+# End-to-end ML pipeline completion
+assert ent_ratio > 0.7, "Low entity extraction rate (<70%)"
+assert label_ratio > 0.7, "Low labeling rate (<70%)"
+assert ent_latency < 3600, "High entity extraction latency (>1h)"
+assert pipeline_latency < 7200, "High total pipeline latency (>2h)"
 ```
 
 ## Troubleshooting
