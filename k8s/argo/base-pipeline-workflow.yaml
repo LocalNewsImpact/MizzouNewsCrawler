@@ -633,7 +633,7 @@ spec:
     container:
       image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
       imagePullPolicy: IfNotPresent
-      command: ["python", "-c"]
+      command: ["/bin/sh", "-c"]
       args:
         - |
           python - <<'PY'
