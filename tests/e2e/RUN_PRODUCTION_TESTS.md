@@ -78,13 +78,21 @@ Add to post-deployment workflow:
 - No duplicate extractions
 - Source metadata completeness
 
-### TestErrorRecoveryAndResilience (NEW)
+### TestErrorRecoveryAndResilience
 
 - **Extraction failures** are logged and don't corrupt data
 - **Duplicate prevention** via unique URL constraint
 - **Database resilience** with connection pooling and timeouts
 - **Transaction rollback** on extraction errors
 - **Retry mechanism** allows retrying failed extractions
+
+### TestContentCleaningPipeline (NEW)
+
+- **Content cleaning status** articles properly transition extracted → cleaned
+- **Content validation** boilerplate removal works correctly
+- **Byline normalization** author field contains person names not raw bylines
+- **Wire service detection** syndicated content properly labeled and preserved
+- **Section URL handling** section-discovered articles process normally
 
 ### TestPerformance
 
@@ -110,6 +118,27 @@ assert incomplete_labeled < 5, "Labeled articles missing content"
 
 # Extraction can be retried on failure
 assert success_rate > 0.6, "Low retry success rate"
+```
+
+### Content Cleaning Pipeline Tests
+
+```python
+# Cleaned articles should exist and be processed
+assert cleaned_count > 0, "No articles have cleaned_content"
+
+# Boilerplate removal should reduce content size
+assert reduction > 0.05, "Low content reduction - cleaning may not work"
+assert reduction < 0.95, "High reduction - cleaning too aggressive"
+
+# Authors should be normalized names, not full bylines
+assert avg_author_length < 100, "Authors too long - not normalized"
+assert wire_contamination < 0.1, "Wire services in author field"
+
+# Wire articles should be properly labeled
+assert preservation_ratio > 0.7, "Wire service bylines not preserved"
+
+# Section URL articles should process normally
+assert cleaned_ratio > 0.7, "Low cleaning success for section articles"
 ```
 
 ## Troubleshooting
