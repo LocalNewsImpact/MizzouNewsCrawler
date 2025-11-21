@@ -452,6 +452,7 @@ spec:
         workflow-uid: "{{workflow.uid}}"
     container:
       image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
+      imagePullPolicy: IfNotPresent
       command: ["/bin/sh","-c"]
       args:
         - |
@@ -537,6 +538,7 @@ spec:
         workflow-uid: "{{workflow.uid}}"
     container:
       image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
+      imagePullPolicy: IfNotPresent
       command: ["/bin/sh","-c"]
       args:
         - |
@@ -553,7 +555,7 @@ spec:
 
           if getattr(config, 'USE_CLOUD_SQL_CONNECTOR', False) and getattr(config, 'CLOUD_SQL_INSTANCE', None):
               from src.models.cloud_sql_connector import create_cloud_sql_engine
-              engine = create_cloud_sql_engine(
+              engine = create_cloud_sql_connector(
                   instance_connection_name=config.CLOUD_SQL_INSTANCE,
                   user=config.DATABASE_USER,
                   password=config.DATABASE_PASSWORD,
@@ -630,7 +632,8 @@ spec:
         workflow-uid: "{{workflow.uid}}"
     container:
       image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
-      command: ["/bin/sh", "-c"]
+      imagePullPolicy: IfNotPresent
+      command: ["python", "-c"]
       args:
         - |
           python - <<'PY'
