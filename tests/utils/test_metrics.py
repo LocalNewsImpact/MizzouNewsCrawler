@@ -18,9 +18,10 @@ def mock_monitoring_client():
     with patch("src.utils.metrics.monitoring_v3") as mock_monitoring:
         mock_client = Mock()
         mock_monitoring.MetricServiceClient.return_value = mock_client
-        mock_monitoring.TimeSeries = MagicMock
-        mock_monitoring.Point = MagicMock
-        mock_monitoring.TimeInterval = MagicMock
+        # Properly mock the classes as return values
+        mock_monitoring.TimeSeries.return_value = MagicMock()
+        mock_monitoring.Point.return_value = MagicMock()
+        mock_monitoring.TimeInterval.return_value = MagicMock()
         yield mock_client
 
 
