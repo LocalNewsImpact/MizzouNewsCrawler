@@ -49,6 +49,11 @@ if [ -f "$SCRIPT_DIR/dashboards/pipeline-metrics.json" ]; then
     create_dashboard "$SCRIPT_DIR/dashboards/pipeline-metrics.json"
 fi
 
+# Create Business Metrics dashboard
+if [ -f "$SCRIPT_DIR/dashboards/business-metrics.json" ]; then
+    create_dashboard "$SCRIPT_DIR/dashboards/business-metrics.json"
+fi
+
 echo "=== Dashboard Creation Complete ==="
 echo ""
 echo "View dashboards at:"

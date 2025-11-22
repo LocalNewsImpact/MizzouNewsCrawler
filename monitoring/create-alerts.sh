@@ -224,6 +224,152 @@ EOF
 
 create_alert "error-logs" "/tmp/alert-error-logs.yaml"
 
+# Critical Alert: API Error Rate > 5%
+cat > /tmp/alert-api-error-rate.yaml <<'EOF'
+displayName: "CRITICAL: API Error Rate > 5%"
+documentation:
+  content: "API error rate (4xx/5xx) > 5% for 5 minutes. Check API logs and database connectivity."
+  mimeType: "text/markdown"
+conditions:
+  - displayName: "API error rate > 5%"
+    conditionThreshold:
+      filter: |
+        resource.type = "k8s_pod"
+        AND resource.labels.cluster_name = "mizzou-cluster"
+        AND resource.labels.namespace_name = "production"
+        AND resource.labels.pod_name =~ "api-.*"
+        AND metric.type = "custom.googleapis.com/api_error_rate"
+      aggregations:
+        - alignmentPeriod: "60s"
+          perSeriesAligner: "ALIGN_MEAN"
+      comparison: "COMPARISON_GT"
+      thresholdValue: 0.05
+      duration: "300s"
+combiner: "OR"
+enabled: true
+alertStrategy:
+  autoClose: "1800s"
+severity: "CRITICAL"
+EOF
+
+create_alert "api-error-rate" "/tmp/alert-api-error-rate.yaml"
+
+# Warning Alert: API Latency p95 > 1s
+cat > /tmp/alert-api-latency.yaml <<'EOF'
+displayName: "WARNING: API Latency p95 > 1s"
+documentation:
+  content: "API p95 latency > 1 second for 10 minutes. Check database performance and slow queries."
+  mimeType: "text/markdown"
+conditions:
+  - displayName: "API p95 latency > 1s"
+    conditionThreshold:
+      filter: |
+        resource.type = "k8s_pod"
+        AND resource.labels.cluster_name = "mizzou-cluster"
+        AND resource.labels.namespace_name = "production"
+        AND metric.type = "custom.googleapis.com/api_latency_p95"
+      aggregations:
+        - alignmentPeriod: "60s"
+          perSeriesAligner: "ALIGN_MEAN"
+      comparison: "COMPARISON_GT"
+      thresholdValue: 1.0
+      duration: "600s"
+combiner: "OR"
+enabled: true
+alertStrategy:
+  autoClose: "3600s"
+severity: "WARNING"
+EOF
+
+create_alert "api-latency" "/tmp/alert-api-latency.yaml"
+
+# Warning Alert: Crawler Success Rate < 90%
+cat > /tmp/alert-crawler-success.yaml <<'EOF'
+displayName: "WARNING: Crawler Success Rate < 90%"
+documentation:
+  content: "Crawler success rate < 90% for 30 minutes. Check for blocked sources or extraction failures."
+  mimeType: "text/markdown"
+conditions:
+  - displayName: "Crawler success rate < 90%"
+    conditionThreshold:
+      filter: |
+        resource.type = "k8s_pod"
+        AND resource.labels.cluster_name = "mizzou-cluster"
+        AND metric.type = "custom.googleapis.com/pipeline_success_rate"
+        AND metric.label.stage = "extraction"
+      aggregations:
+        - alignmentPeriod: "300s"
+          perSeriesAligner: "ALIGN_MEAN"
+      comparison: "COMPARISON_LT"
+      thresholdValue: 0.9
+      duration: "1800s"
+combiner: "OR"
+enabled: true
+alertStrategy:
+  autoClose: "3600s"
+severity: "WARNING"
+EOF
+
+create_alert "crawler-success" "/tmp/alert-crawler-success.yaml"
+
+# Warning Alert: Queue Depth > 1000 for 30 minutes
+cat > /tmp/alert-queue-backlog.yaml <<'EOF'
+displayName: "WARNING: Queue Backlog > 1000"
+documentation:
+  content: "Queue depth > 1000 for 30 minutes. Processing falling behind. Consider scaling processors."
+  mimeType: "text/markdown"
+conditions:
+  - displayName: "Queue depth > 1000"
+    conditionThreshold:
+      filter: |
+        resource.type = "k8s_pod"
+        AND resource.labels.cluster_name = "mizzou-cluster"
+        AND metric.type = "custom.googleapis.com/queue_depth"
+      aggregations:
+        - alignmentPeriod: "300s"
+          perSeriesAligner: "ALIGN_MEAN"
+          crossSeriesReducer: "REDUCE_SUM"
+      comparison: "COMPARISON_GT"
+      thresholdValue: 1000
+      duration: "1800s"
+combiner: "OR"
+enabled: true
+alertStrategy:
+  autoClose: "3600s"
+severity: "WARNING"
+EOF
+
+create_alert "queue-backlog" "/tmp/alert-queue-backlog.yaml"
+
+# Critical Alert: Disk Usage > 90%
+cat > /tmp/alert-disk-usage.yaml <<'EOF'
+displayName: "CRITICAL: Disk Usage > 90%"
+documentation:
+  content: "Persistent volume disk usage > 90%. Clean up old data or expand volume."
+  mimeType: "text/markdown"
+conditions:
+  - displayName: "Disk usage > 90%"
+    conditionThreshold:
+      filter: |
+        resource.type = "k8s_pod"
+        AND resource.labels.cluster_name = "mizzou-cluster"
+        AND resource.labels.namespace_name = "production"
+        AND metric.type = "kubernetes.io/pod/volume/utilization"
+      aggregations:
+        - alignmentPeriod: "300s"
+          perSeriesAligner: "ALIGN_MEAN"
+      comparison: "COMPARISON_GT"
+      thresholdValue: 0.9
+      duration: "300s"
+combiner: "OR"
+enabled: true
+alertStrategy:
+  autoClose: "1800s"
+severity: "CRITICAL"
+EOF
+
+create_alert "disk-usage" "/tmp/alert-disk-usage.yaml"
+
 # Budget Alert (requires billing account setup)
 echo "=== Budget Alert ==="
 echo "To create budget alerts, run:"

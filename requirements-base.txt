@@ -55,3 +55,8 @@ click>=8.1.0
 python-dotenv>=1.0.0
 pydantic>=2.0.0
 pyyaml>=6.0  # For Kubernetes manifest generation
+
+# Observability and Monitoring
+structlog>=24.0.0  # Structured logging
+google-cloud-logging>=3.10.0  # Cloud Logging integration
+google-cloud-monitoring>=2.20.0  # Cloud Monitoring metrics
