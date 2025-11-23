@@ -10,7 +10,7 @@ def populate_wire_service_patterns():
     Uses the SQLite in-memory database that's configured in tests/conftest.py.
     Each test gets a fresh set of patterns.
     """
-    from src.models import WireService, Base
+    from src.models import Base, WireService
     from src.models.database import DatabaseManager
 
     db = DatabaseManager()
