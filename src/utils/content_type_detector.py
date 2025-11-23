@@ -663,9 +663,35 @@ class ContentTypeDetector:
                                 # Check if callsign matches URL
                                 url_lower = url.lower()
                                 identifier_lower = identifier.lower()
-                                if identifier_lower in url_lower:
+                                
+                                # Check both direct callsign match and domain mapping
+                                is_own_site = identifier_lower in url_lower
+                                if (
+                                    not is_own_site
+                                    and identifier in self._CALLSIGN_DOMAINS
+                                ):
+                                    # Check domain mapping
+                                    is_own_site = any(
+                                        domain in url_lower
+                                        for domain in self._CALLSIGN_DOMAINS[
+                                            identifier
+                                        ]
+                                    )
+
+                                if is_own_site:
                                     continue  # Own content, not wire
-                                # Otherwise fall through - syndicated
+                                else:
+                                    # Syndicated local broadcaster
+                                    content_matches.append(
+                                        f"{identifier} (syndicated)"
+                                    )
+                                    detected_services.add(identifier)
+                                    wire_byline_found = True
+                                    continue  # Skip the generic add below
+                            elif service_name == "Broadcaster":
+                                # Unknown callsign with generic Broadcaster pattern
+                                # Skip to avoid false positives
+                                continue
 
                         content_matches.append(f"{service_name} (byline)")
                         detected_services.add(service_name)
