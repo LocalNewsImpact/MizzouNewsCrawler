@@ -555,7 +555,7 @@ spec:
 
           if getattr(config, 'USE_CLOUD_SQL_CONNECTOR', False) and getattr(config, 'CLOUD_SQL_INSTANCE', None):
               from src.models.cloud_sql_connector import create_cloud_sql_engine
-              engine = create_cloud_sql_connector(
+              engine = create_cloud_sql_engine(
                   instance_connection_name=config.CLOUD_SQL_INSTANCE,
                   user=config.DATABASE_USER,
                   password=config.DATABASE_PASSWORD,
