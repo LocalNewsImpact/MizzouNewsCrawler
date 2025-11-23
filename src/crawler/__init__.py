@@ -2916,8 +2916,7 @@ class ContentExtractor:
             ".post-content",
             ".entry-content",
             ".content",
-                return parsed_value
-            return None
+        ]
 
         for idx, text in enumerate(stripped_strings):
             parsed = try_candidate(text, strategy="direct", block_index=idx)

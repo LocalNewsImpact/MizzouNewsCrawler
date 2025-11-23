@@ -126,7 +126,7 @@ class TestOutOfMarketBroadcasters:
 
     def test_wgbh_boston_detected_as_wire(self, detector):
         """WGBH (Boston PBS) content in Missouri outlet should be wire/syndicated."""
-        result = detector.detect(
+        _ = detector.detect(
             url="https://abc17news.com/national/2025/11/14/pbs-special-report",
             title="PBS Special Report",
             metadata={"byline": "WGBH"},
@@ -143,7 +143,7 @@ class TestOutOfMarketBroadcasters:
 
     def test_wttw_chicago_content(self, detector):
         """WTTW (Chicago PBS) in Missouri outlet could be syndicated."""
-        result = detector.detect(
+        _ = detector.detect(
             url="https://abc17news.com/news/national/chicago-story",
             title="Chicago Investigation",
             metadata={"byline": "WTTW Chicago"},
