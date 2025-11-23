@@ -85,8 +85,9 @@ class ContentTypeDetector:
         (r"\bMcClatchy\b", "McClatchy", True),
     )
 
-    # Common dateline patterns (CITY_NAME, STATE/COUNTRY (WIRE_SERVICE))
-    _DATELINE_PATTERN = re.compile(r"^([A-Z][A-Z\s,\.'-]+)\s*[–—-]\s*", re.MULTILINE)
+    # Note: Dateline patterns are now loaded from wire_services table
+    # Note: Wire URL patterns are now loaded from wire_services table
+    # These legacy constants remain for backward compatibility but are not used
 
     _WIRE_URL_PATTERNS = (
         "cnn.com",
@@ -519,54 +520,39 @@ class ContentTypeDetector:
             outlet in url_lower for outlet in major_national_outlets
         )
 
-        # Strong URL patterns (wire service identifiers in path)
-        strong_url_patterns = [
-            "/ap-",
-            "/cnn-",
-            "/reuters-",
-            "/wire/",
-            "/stacker/",
-            "/repub/",
-            "/theconversation/",
-        ]
-
-        # Section patterns (national/world coverage)
-        # STRONG indicator for local/regional sites
-        # WEAK indicator for major national outlets
-        section_patterns = [
-            "/nation/",
-            "/national/",
-            "/world/",
-            "/nationworld/",
-            "/nation-world/",
-            "/world-nation/",
-        ]
+        # Note: URL patterns (strong and section patterns) are now loaded from wire_services table
+        # These were previously hardcoded but are now managed in the database for flexibility
 
         strong_url_match = False
         section_url_match = False
 
-        for pattern in strong_url_patterns:
-            if pattern in url_lower:
-                url_wire_matches.append(pattern)
-                strong_url_match = True
-                # Extract service name from pattern
-                if "ap" in pattern:
-                    detected_services.add("Associated Press")
-                elif "cnn" in pattern:
-                    detected_services.add("CNN")
-                elif "reuters" in pattern:
-                    detected_services.add("Reuters")
-                elif "stacker" in pattern:
-                    detected_services.add("Stacker")
-                elif "repub" in pattern:
-                    detected_services.add("States Newsroom")
+        # Load URL patterns from database
+        wire_url_patterns = self._get_wire_service_patterns()
 
-        # Check section patterns
-        for pattern in section_patterns:
-            if pattern in url_lower:
+        for pattern, service_name, case_sensitive in wire_url_patterns:
+            # URL patterns should use case-insensitive matching
+            if re.search(pattern, url, re.IGNORECASE if not case_sensitive else 0):
                 url_wire_matches.append(pattern)
-                section_url_match = True
-                # Don't add service name - could be any wire service
+                detected_services.add(service_name)
+
+                # Check if this is a strong pattern (contains wire service name in path)
+                # vs section pattern (/national/, /world/)
+                if any(
+                    indicator in pattern.lower()
+                    for indicator in [
+                        "/ap-",
+                        "/cnn-",
+                        "/reuters-",
+                        "/wire/",
+                        "/stacker/",
+                        "repub",
+                    ]
+                ):
+                    strong_url_match = True
+                elif any(
+                    indicator in pattern.lower() for indicator in ["/nation", "/world"]
+                ):
+                    section_url_match = True
 
         if url_wire_matches:
             matches["url"] = url_wire_matches
