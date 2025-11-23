@@ -879,7 +879,7 @@ class TestBeautifulSoupMethod:
 
     def test_beautifulsoup_network_failure(self, extractor, mock_requests_response):
         """Test BeautifulSoup extraction with network failure.
-        
+
         The 404 NotFoundError is raised but caught by the outer exception handler,
         which logs a warning and returns an empty dict for graceful degradation.
         """
