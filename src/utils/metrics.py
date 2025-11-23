@@ -12,6 +12,7 @@ import time
 from typing import Optional
 
 try:
+    from google.api import distribution_pb2
     from google.api import label_pb2 as ga_label
     from google.api import metric_pb2 as ga_metric
     from google.cloud import monitoring_v3  # type: ignore[attr-defined]
@@ -22,6 +23,7 @@ except ImportError:
     monitoring_v3 = None  # type: ignore
     ga_metric = None  # type: ignore
     ga_label = None  # type: ignore
+    distribution_pb2 = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -214,12 +216,10 @@ class MetricsClient:
 
             # Create a simple distribution with a single value
             # Cloud Monitoring will aggregate these into percentiles
-            distribution = monitoring_v3.Distribution(
-                {
-                    "count": 1,
-                    "mean": value,
-                    "sum_of_squared_deviation": 0.0,
-                }
+            distribution = distribution_pb2.Distribution(
+                count=1,
+                mean=value,
+                sum_of_squared_deviation=0.0,
             )
 
             point = monitoring_v3.Point(
