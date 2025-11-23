@@ -1,0 +1,110 @@
+# Unified Dockerfile for MizzouNewsCrawler
+# Combines API, Crawler, and Processor into a single image to maximize layer sharing.
+#
+# Structure:
+# 1. OS Base (Python + Chrome + System Libs)
+# 2. Python Dependencies (All requirements)
+# 3. ML Models (Pre-downloaded)
+# 4. Application Code
+#
+# Usage:
+#   docker build -t mizzou-unified:latest -f Dockerfile.unified .
+#   docker run -e SERVICE_ROLE=api mizzou-unified
+#   docker run -e SERVICE_ROLE=crawler mizzou-unified
+
+FROM python:3.11-slim AS base
+
+# -----------------------------------------------------------------------------
+# 1. OS Layer: System Dependencies & Chrome
+# -----------------------------------------------------------------------------
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies
+# - gcc/g++/libpq-dev: For building Python packages (psycopg2, etc)
+# - chromium/chromium-driver: For Selenium (Crawler/Processor)
+# - git: For some pip installs or dev tools
+# - procps: For monitoring
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        gcc g++ libpq-dev wget ca-certificates procps git \
+        chromium chromium-driver \
+        fonts-liberation libnss3 libxss1 xdg-utils libxdamage1 libx11-xcb1 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Setup Chromedriver permissions
+RUN mkdir -p /opt/chromedriver-cache /home/appuser/.wdm && \
+    chmod 777 /opt/chromedriver-cache /home/appuser/.wdm && \
+    cp /usr/bin/chromedriver /home/appuser/chromedriver && \
+    chmod 755 /home/appuser/chromedriver
+
+# Create non-root user
+RUN useradd -m -u 1000 appuser
+
+WORKDIR /app
+
+# -----------------------------------------------------------------------------
+# 2. Dependency Layer: Python Packages
+# -----------------------------------------------------------------------------
+# Copy all requirement files to ensure we have everything
+COPY requirements.txt ./
+COPY requirements-base.txt ./
+COPY requirements-ml.txt ./
+COPY requirements-crawler.txt ./
+COPY requirements-api.txt ./
+COPY requirements-processor.txt ./
+
+# Install ALL dependencies from the master requirements.txt
+# This file should be a superset of all others.
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Download Spacy model (shared by all)
+RUN python -m spacy download en_core_web_sm
+
+# -----------------------------------------------------------------------------
+# 3. Model Layer: ML Artifacts
+# -----------------------------------------------------------------------------
+# Pre-download Transformers (BERT) to speed up cold starts
+RUN python -c "from transformers import AutoTokenizer, AutoModel; \
+    model_name='bert-base-uncased'; \
+    AutoTokenizer.from_pretrained(model_name); \
+    AutoModel.from_pretrained(model_name)" || true
+
+# Create directories for models and data
+RUN mkdir -p /app/models /app/data /app/lookups && \
+    chown -R appuser:appuser /app
+
+# Copy ML model (if available locally, otherwise this might fail or need conditional)
+# Assuming models/productionmodel.pt exists in build context
+COPY --chown=appuser:appuser models/productionmodel.pt /app/models/
+
+# -----------------------------------------------------------------------------
+# 4. Code Layer: Application Source
+# -----------------------------------------------------------------------------
+# Copy source code
+COPY --chown=appuser:appuser src/ ./src/
+COPY --chown=appuser:appuser backend/ ./backend/
+COPY --chown=appuser:appuser orchestration/ ./orchestration/
+COPY --chown=appuser:appuser scripts/ ./scripts/
+COPY --chown=appuser:appuser web/ ./web/
+COPY --chown=appuser:appuser alembic/ ./alembic/
+COPY --chown=appuser:appuser alembic.ini ./alembic.ini
+
+# Switch to non-root user
+USER appuser
+
+# Set environment variables
+ENV MODEL_PATH=/app/models \
+    PATH="/home/appuser/.local/bin:${PATH}"
+
+# Expose ports (8000 for API)
+EXPOSE 8000
+
+# Entrypoint script to select service
+COPY --chown=appuser:appuser scripts/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+ENTRYPOINT ["/app/entrypoint.sh"]

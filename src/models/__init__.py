@@ -289,6 +289,120 @@ class Location(Base):
     article = relationship("Article", back_populates="locations")
 
 
+class LocalBroadcasterCallsign(Base):
+    """Local broadcaster callsigns to prevent false wire detection.
+    
+    This table tracks TV/radio station callsigns that are local to
+    a dataset's coverage area. Used by ContentTypeDetector to avoid
+    misclassifying local station datelines (e.g., 'COLUMBIA, Mo. (KMIZ)')
+    as wire service content.
+    """
+
+    __tablename__ = "local_broadcaster_callsigns"
+
+    id = Column(Integer, primary_key=True)
+    callsign = Column(
+        String(10),
+        nullable=False,
+        index=True,
+        comment="FCC callsign (e.g., KMIZ, KOMU)",
+    )
+    source_id = Column(
+        String,
+        ForeignKey("sources.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="Foreign key to sources table (UUID string)",
+    )
+    dataset = Column(
+        String(50),
+        nullable=False,
+        index=True,
+        comment="Dataset identifier (e.g., missouri, lehigh)",
+    )
+    market_name = Column(
+        String(100),
+        nullable=True,
+        comment="Market name (e.g., Columbia-Jefferson City)",
+    )
+    station_type = Column(
+        String(20),
+        nullable=True,
+        comment="TV, Radio, or Digital",
+    )
+    notes = Column(Text, nullable=True, comment="Additional context")
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+    __table_args__ = (
+        UniqueConstraint("callsign", "dataset", name="uix_callsign_dataset"),
+        {"comment": "Local broadcaster callsigns to prevent false wire detection"},
+    )
+
+    # Relationship to sources
+    source = relationship("Source", back_populates="broadcaster_callsigns")
+
+
+class WireService(Base):
+    """Wire service detection patterns.
+    
+    Stores regex patterns for identifying wire service content in articles.
+    Replaces hardcoded patterns with database-driven configuration.
+    """
+
+    __tablename__ = "wire_services"
+
+    id = Column(Integer, primary_key=True)
+    service_name = Column(
+        String(100),
+        nullable=False,
+        index=True,
+        comment="Canonical service name (e.g., Associated Press)",
+    )
+    pattern = Column(
+        String(500),
+        nullable=False,
+        comment="Regex pattern to match service in content",
+    )
+    pattern_type = Column(
+        String(20),
+        nullable=False,
+        index=True,
+        comment="dateline, byline, or attribution",
+    )
+    case_sensitive = Column(
+        Boolean,
+        nullable=False,
+        default=False,
+        comment="Whether pattern matching is case-sensitive",
+    )
+    priority = Column(
+        Integer,
+        nullable=False,
+        default=100,
+        comment="Detection priority (lower = higher priority)",
+    )
+    active = Column(
+        Boolean,
+        nullable=False,
+        default=True,
+        index=True,
+        comment="Whether this pattern is active",
+    )
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(
+        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+    __table_args__ = ({"comment": "Wire service detection patterns"},)
+
+
 class ArticleEntity(Base):
     """Structured entity extraction aligned with gazetteer categories."""
 
@@ -467,6 +581,13 @@ class Source(Base):
         Boolean, default=True, nullable=False, server_default=text("1")
     )
     section_last_updated = Column(DateTime, nullable=True)
+
+    # Relationships
+    broadcaster_callsigns = relationship(
+        "LocalBroadcasterCallsign",
+        back_populates="source",
+        cascade="all, delete-orphan",
+    )
 
     # Backref to candidate links
     # candidate_links = relationship('CandidateLink', backref='source')

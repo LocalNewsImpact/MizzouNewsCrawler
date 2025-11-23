@@ -1,0 +1,37 @@
+name: Validate Service Detection
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/build-and-deploy-services.yml'
+      - 'scripts/test-service-detection.sh'
+
+jobs:
+  test-detection:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Detection Test
+        run: |
+          chmod +x scripts/test-service-detection.sh
+          
+          echo "🧪 Testing detection logic against recent commits..."
+          
+          # Test 1: Simulate a change to requirements-base.txt
+          echo "--- Test Case 1: Base Requirement Change ---"
+          touch requirements-base.txt
+          ./scripts/test-service-detection.sh HEAD HEAD
+          
+          # Test 2: Simulate a change to src/
+          echo "--- Test Case 2: Source Code Change ---"
+          touch src/test_change.py
+          ./scripts/test-service-detection.sh HEAD HEAD
+          
+          # Test 3: Simulate a change to backend/
+          echo "--- Test Case 3: Backend Change ---"
+          touch backend/test_change.py
+          ./scripts/test-service-detection.sh HEAD HEAD

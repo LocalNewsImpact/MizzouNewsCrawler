@@ -25,7 +25,7 @@ spec:
           restartPolicy: OnFailure
           containers:
           - name: housekeeping
-            image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:v1.2.0
+            image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:${PROCESSOR_TAG}
             env:
             # Cloud SQL Connector configuration
             - name: USE_CLOUD_SQL_CONNECTOR

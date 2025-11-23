@@ -1069,6 +1069,39 @@ class ContentExtractor:
             "driver_method": getattr(self, "_driver_method", None),
         }
 
+    def _detect_paywall_soup(self, soup: BeautifulSoup) -> bool:
+        """Detect paywall indicators in BeautifulSoup object."""
+        try:
+            # Check meta tags
+            for meta in soup.find_all("meta"):
+                name = meta.get("name", "").lower()
+                property_attr = meta.get("property", "").lower()
+                content = meta.get("content", "").lower()
+
+                # Check name or property for paywall indicators
+                if "category" in name and "subscriber-only" in content:
+                    return True
+                if "paywall" in name or "paywall" in property_attr:
+                    if "true" in content or "on" in content:
+                        return True
+
+            # Check for common paywall classes/IDs
+            paywall_selectors = [
+                ".paywall", "#paywall",
+                ".subscriber-only",
+                ".subscription-required",
+                ".premium-content",
+                ".locked-content"
+            ]
+
+            for selector in paywall_selectors:
+                if soup.select_one(selector):
+                    return True
+
+            return False
+        except Exception:
+            return False
+
     def extract_article_data(self, html: str, url: str) -> Dict[str, Any]:
         """Extract article metadata and content from HTML.
 
@@ -1084,6 +1117,9 @@ class ContentExtractor:
             logger.error(f"Error parsing HTML for {url}: {e}")
             return {}
 
+        # Detect paywall
+        paywall_detected = self._detect_paywall_soup(soup)
+
         data = {
             "url": url,
             "title": self._extract_title(soup),
@@ -1096,6 +1132,27 @@ class ContentExtractor:
             "extracted_at": datetime.utcnow().isoformat(),
             "content_hash": None,  # Will be calculated later
         }
+
+        # Add paywall detection to metadata
+        if "metadata" not in data:
+            data["metadata"] = {}
+        # If extract_meta_description returns a string, we need to handle it.
+        # Wait, extract_article_data constructs the dict. 
+        # The original code put meta_description in the top level, but extract_content puts it in metadata?
+        # Let's check the original code again.
+        
+        # Original:
+        # "meta_description": self._extract_meta_description(soup),
+        
+        # And extract_content does:
+        # "metadata": { "meta_description": raw.get("meta_description"), ... }
+        
+        # So I don't need to put it in metadata inside extract_article_data, 
+        # but I need to make sure it's passed through.
+        # Actually, extract_article_data returns a flat dict, and _extract_with_beautifulsoup restructures it.
+        
+        # So I should add paywall_detected to the returned dict, and then _extract_with_beautifulsoup should put it in metadata.
+        data["paywall_detected"] = paywall_detected
 
         # Calculate content hash
         if data["content"]:
@@ -1238,6 +1295,24 @@ class ContentExtractor:
                             bs_result or {},
                         )
 
+            except NotFoundError as e:
+                # 404/410 - URL permanently missing, stop all fallback attempts
+                logger.warning(
+                    f"URL not found (404/410) in BeautifulSoup, "
+                    f"stopping extraction: {url}"
+                )
+                if metrics:
+                    metrics.end_method("beautifulsoup", False, str(e), {})
+                raise  # Re-raise to prevent Selenium fallback
+            except RateLimitError as e:
+                # Rate limiting/bot protection, stop all fallback attempts
+                logger.warning(
+                    f"Rate limit/bot protection in BeautifulSoup, "
+                    f"stopping extraction: {url}"
+                )
+                if metrics:
+                    metrics.end_method("beautifulsoup", False, str(e), {})
+                raise  # Re-raise to prevent Selenium fallback
             except Exception as e:
                 logger.info(f"BeautifulSoup extraction failed for {url}: {e}")
                 if metrics:
@@ -1931,6 +2006,9 @@ class ContentExtractor:
                     # Restore original headers
                     session.headers = original_headers
 
+            except (NotFoundError, RateLimitError):
+                # Re-raise these specific errors to stop fallback chain
+                raise
             except Exception as e:
                 logger.warning(f"Failed to fetch page for extraction {url}: {e}")
                 return {}
@@ -2838,63 +2916,6 @@ class ContentExtractor:
             ".post-content",
             ".entry-content",
             ".content",
-            ".story-body",
-            ".article-body",
-            "main",
-        ]
-
-        for selector in content_selectors:
-            content_element = soup.select_one(selector)
-            if content_element:
-                text = content_element.get_text(separator=" ", strip=True)
-                if len(text) > 100:  # Minimum content length
-                    return text
-
-        # Fallback to body
-        body = soup.find("body")
-        if body:
-            text = body.get_text(separator=" ", strip=True)
-            if len(text) > 100:
-                return text
-
-        return None
-
-    def _extract_publish_date_from_text_blocks(
-        self, soup: BeautifulSoup
-    ) -> Optional[str]:
-        """Identify publish date strings near bylines or keyworded text."""
-        stripped_strings = [
-            s.strip()
-            for s in soup.stripped_strings
-            if s and s.strip() and len(s.strip()) <= MAX_TEXT_BLOCK_LENGTH
-        ]
-
-        if not stripped_strings:
-            return None
-
-        seen_candidates: Set[str] = set()
-
-        def try_candidate(
-            value: str,
-            *,
-            strategy: str,
-            block_index: int,
-            neighbor_index: Optional[int] = None,
-        ) -> Optional[str]:
-            candidate = " ".join(value.split())
-            if not candidate or candidate in seen_candidates:
-                return None
-            seen_candidates.add(candidate)
-            parsed_value = self._parse_publish_date_candidate(candidate)
-            if parsed_value:
-                details: Dict[str, Any] = {
-                    "strategy": strategy,
-                    "matched_text": candidate[:160],
-                    "block_index": block_index,
-                }
-                if neighbor_index is not None:
-                    details["neighbor_index"] = neighbor_index
-                self._record_publish_date_details("text_block", details)
                 return parsed_value
             return None
 

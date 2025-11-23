@@ -13,7 +13,7 @@ import pytest
 import requests
 
 import src.crawler as crawler_module
-from src.crawler import ContentExtractor
+from src.crawler import ContentExtractor, NotFoundError
 
 
 @pytest.fixture
@@ -890,9 +890,8 @@ class TestBeautifulSoupMethod:
                 "_get_domain_session",
                 return_value=extractor.session,
             ):
-                result = extractor._extract_with_beautifulsoup("https://test.com")
-
-            assert result == {}
+                with pytest.raises(NotFoundError):
+                    extractor._extract_with_beautifulsoup("https://test.com")
 
 
 class TestSeleniumMethod:
