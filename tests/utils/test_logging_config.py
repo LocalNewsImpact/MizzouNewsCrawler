@@ -1,19 +1,19 @@
 """Tests for structured logging configuration."""
 
-import os
 import logging
-from io import StringIO
+import os
 import sys
+from io import StringIO
 
 import pytest
 
 from src.utils.logging_config import (
-    setup_logging,
-    get_logger,
-    bind_trace_context,
-    unbind_trace_context,
     bind_request_context,
+    bind_trace_context,
+    get_logger,
     is_cloud_environment,
+    setup_logging,
+    unbind_trace_context,
 )
 
 

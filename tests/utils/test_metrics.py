@@ -1,14 +1,14 @@
 """Tests for custom metrics client."""
 
 import os
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
 from src.utils.metrics import (
+    MONITORING_AVAILABLE,
     MetricsClient,
     get_metrics_client,
-    MONITORING_AVAILABLE,
 )
 
 
