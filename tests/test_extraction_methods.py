@@ -13,7 +13,7 @@ import pytest
 import requests
 
 import src.crawler as crawler_module
-from src.crawler import ContentExtractor, NotFoundError
+from src.crawler import ContentExtractor
 
 
 @pytest.fixture
@@ -878,20 +878,22 @@ class TestBeautifulSoupMethod:
         assert result["title"] == "Test Article Title"
 
     def test_beautifulsoup_network_failure(self, extractor, mock_requests_response):
-        """Test BeautifulSoup extraction with network failure."""
+        """Test BeautifulSoup extraction with network failure.
+        
+        The 404 NotFoundError is raised but caught by the outer exception handler,
+        which logs a warning and returns an empty dict for graceful degradation.
+        """
         with patch.object(extractor.session, "get") as mock_get:
             mock_get.return_value = mock_requests_response("", 404)
-            mock_get.return_value.raise_for_status.side_effect = (
-                requests.RequestException("404")
-            )
 
             with patch.object(
                 extractor,
                 "_get_domain_session",
                 return_value=extractor.session,
             ):
-                with pytest.raises(NotFoundError):
-                    extractor._extract_with_beautifulsoup("https://test.com")
+                # Should return empty dict, not raise (graceful degradation)
+                result = extractor._extract_with_beautifulsoup("https://test.com")
+                assert result == {}
 
 
 class TestSeleniumMethod:

@@ -80,7 +80,8 @@ class TestScheduleConfiguration:
         """Ensure Mizzou runs every 6 hours at :00."""
         assert mizzou_cronworkflow["spec"]["schedule"] == "0 */6 * * *"
         assert mizzou_cronworkflow["spec"]["timezone"] == "UTC"
-        assert mizzou_cronworkflow["spec"]["concurrencyPolicy"] == "Forbid"
+        # Mizzou uses Replace to allow new pipelines to replace stalled ones
+        assert mizzou_cronworkflow["spec"]["concurrencyPolicy"] == "Replace"
 
 
 class TestServiceAccount:
