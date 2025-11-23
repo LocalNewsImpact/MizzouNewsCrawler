@@ -281,6 +281,7 @@ class PipelineStageTimer:
 
 # Example usage functions for documentation
 
+
 def example_discovery_integration():
     """Example: Integrate observability into discovery command.
 

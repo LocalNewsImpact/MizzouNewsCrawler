@@ -117,9 +117,7 @@ class MetricsClient:
             series.points = [point]
 
             # Write to Cloud Monitoring
-            self.client.create_time_series(
-                name=self.project_name, time_series=[series]
-            )
+            self.client.create_time_series(name=self.project_name, time_series=[series])
 
             logger.debug(f"Recorded metric {metric_name}={value} labels={labels}")
 
@@ -169,9 +167,7 @@ class MetricsClient:
             series.points = [point]
 
             # Write to Cloud Monitoring
-            self.client.create_time_series(
-                name=self.project_name, time_series=[series]
-            )
+            self.client.create_time_series(name=self.project_name, time_series=[series])
 
             logger.debug(f"Recorded gauge {metric_name}={value} labels={labels}")
 
@@ -232,9 +228,7 @@ class MetricsClient:
             series.points = [point]
 
             # Write to Cloud Monitoring
-            self.client.create_time_series(
-                name=self.project_name, time_series=[series]
-            )
+            self.client.create_time_series(name=self.project_name, time_series=[series])
 
             logger.debug(f"Recorded distribution {metric_name}={value} labels={labels}")
 
@@ -270,9 +264,7 @@ class MetricsClient:
 
         self.record_counter("articles_extracted", count, labels)
 
-    def record_pipeline_success_rate(
-        self, stage: str, success_rate: float
-    ) -> None:
+    def record_pipeline_success_rate(self, stage: str, success_rate: float) -> None:
         """Record pipeline success rate metric.
 
         Args:
@@ -282,9 +274,7 @@ class MetricsClient:
         labels = {"stage": stage}
         self.record_gauge("pipeline_success_rate", success_rate, labels)
 
-    def record_processing_time(
-        self, stage: str, duration_seconds: float
-    ) -> None:
+    def record_processing_time(self, stage: str, duration_seconds: float) -> None:
         """Record processing time metric.
 
         Args:
