@@ -14,15 +14,15 @@ def populate_wire_service_patterns():
     from src.models.database import DatabaseManager
 
     db = DatabaseManager()
-    
+
     # Get engine and create all tables if they don't exist
     engine = db.engine
     Base.metadata.create_all(bind=engine)
-    
+
     with db.get_session() as session:
         # Clear existing patterns
         session.query(WireService).delete()
-        
+
         # Insert test patterns
         patterns = [
             # Dateline patterns (high priority)
@@ -131,7 +131,7 @@ def populate_wire_service_patterns():
 
         for pattern in patterns:
             session.add(pattern)
-        
+
         session.commit()
-    
+
     yield
