@@ -8,7 +8,7 @@ import pytest
 @pytest.fixture
 def populated_wire_services(cloud_sql_session, monkeypatch):
     """Populate wire_services table with test patterns for PostgreSQL tests.
-    
+
     Uses the PostgreSQL cloud_sql_session fixture and patches DatabaseManager
     so ContentTypeDetector uses the same session.
     """
@@ -164,9 +164,7 @@ def populated_wire_services(cloud_sql_session, monkeypatch):
     def mock_db_manager(*args, **kwargs):
         return MockDatabaseManager()
 
-    monkeypatch.setattr(
-        "src.models.database.DatabaseManager", mock_db_manager
-    )
+    monkeypatch.setattr("src.models.database.DatabaseManager", mock_db_manager)
 
     yield
     # Cleanup handled by cloud_sql_session rollback
@@ -175,7 +173,7 @@ def populated_wire_services(cloud_sql_session, monkeypatch):
 @pytest.fixture
 def populated_broadcaster_callsigns(cloud_sql_session, monkeypatch):
     """Populate local_broadcaster_callsigns table for PostgreSQL tests.
-    
+
     Uses the PostgreSQL cloud_sql_session fixture and patches DatabaseManager
     so ContentTypeDetector uses the same session.
     """
@@ -232,9 +230,7 @@ def populated_broadcaster_callsigns(cloud_sql_session, monkeypatch):
     def mock_db_manager(*args, **kwargs):
         return MockDatabaseManager()
 
-    monkeypatch.setattr(
-        "src.models.database.DatabaseManager", mock_db_manager
-    )
+    monkeypatch.setattr("src.models.database.DatabaseManager", mock_db_manager)
 
     yield
     # Cleanup handled by cloud_sql_session rollback

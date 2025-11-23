@@ -663,7 +663,7 @@ class ContentTypeDetector:
                                 # Check if callsign matches URL
                                 url_lower = url.lower()
                                 identifier_lower = identifier.lower()
-                                
+
                                 # Check both direct callsign match and domain mapping
                                 is_own_site = identifier_lower in url_lower
                                 if (
@@ -673,18 +673,14 @@ class ContentTypeDetector:
                                     # Check domain mapping
                                     is_own_site = any(
                                         domain in url_lower
-                                        for domain in self._CALLSIGN_DOMAINS[
-                                            identifier
-                                        ]
+                                        for domain in self._CALLSIGN_DOMAINS[identifier]
                                     )
 
                                 if is_own_site:
                                     continue  # Own content, not wire
                                 else:
                                     # Syndicated local broadcaster
-                                    content_matches.append(
-                                        f"{identifier} (syndicated)"
-                                    )
+                                    content_matches.append(f"{identifier} (syndicated)")
                                     detected_services.add(identifier)
                                     wire_byline_found = True
                                     continue  # Skip the generic add below
