@@ -149,6 +149,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Lifespan context manager for the main FastAPI app.
     
     This combines all startup and shutdown logic:
+    - Structured logging configuration
     - Lifecycle handlers from backend.app.lifecycle module
     - DB writer thread for snapshot ingestion
     - Database table initialization
@@ -157,6 +158,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     global _worker_thread
     
     # === STARTUP ===
+    
+    # 0. Configure structured logging first
+    try:
+        from src.utils.logging_config import setup_logging
+        log_level = os.getenv("LOG_LEVEL", "INFO")
+        setup_logging(level=log_level, service_name="api")
+        logger.info("Structured logging initialized", log_level=log_level)
+    except Exception as exc:
+        # Fall back to basic logging if structured logging fails
+        logger.warning(f"Failed to initialize structured logging: {exc}")
+    
     logger.info("Starting main app initialization...")
     
     # 1. Initialize centralized lifecycle handlers (telemetry, db, http session)
@@ -287,6 +299,67 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Add request logging middleware
+@app.middleware("http")
+async def log_requests(request, call_next):
+    """Middleware to log API requests with context."""
+    import uuid
+    import time
+    
+    # Generate request ID
+    request_id = str(uuid.uuid4())
+    
+    # Bind request context for structured logging
+    try:
+        from src.utils.logging_config import bind_request_context, unbind_trace_context
+        bind_request_context(
+            request_id=request_id,
+            method=request.method,
+            path=request.url.path,
+        )
+    except Exception:
+        pass  # Continue even if context binding fails
+    
+    # Process request
+    start_time = time.time()
+    try:
+        response = await call_next(request)
+        duration_ms = (time.time() - start_time) * 1000
+        
+        # Log request completion
+        logger.info(
+            "request_completed",
+            request_id=request_id,
+            method=request.method,
+            path=request.url.path,
+            status_code=response.status_code,
+            duration_ms=duration_ms,
+        )
+        
+        # Add request ID to response headers
+        response.headers["X-Request-ID"] = request_id
+        
+        return response
+    except Exception as exc:
+        duration_ms = (time.time() - start_time) * 1000
+        logger.error(
+            "request_failed",
+            request_id=request_id,
+            method=request.method,
+            path=request.url.path,
+            duration_ms=duration_ms,
+            error=str(exc),
+            exc_info=True,
+        )
+        raise
+    finally:
+        # Clear request context
+        try:
+            unbind_trace_context()
+        except Exception:
+            pass
 
 
 @app.get("/health")
