@@ -276,23 +276,47 @@ class ContentTypeDetector:
             # This prevents failures in environments without DB access
             return set()
 
-    def _get_wire_service_patterns(self) -> list[tuple]:
+    def _get_wire_service_patterns(
+        self, pattern_type: str | None = None
+    ) -> list[tuple]:
         """Get wire service patterns from database with caching.
 
+        Args:
+            pattern_type: Filter patterns by type ('url', 'content', 'author').
+                         If None, returns all patterns.
+
         Returns:
-            List of tuples: (pattern, service_name, case_sensitive, priority)
+            List of tuples: (pattern, service_name, case_sensitive)
             Sorted by priority (lower = higher priority)
         """
         import time
 
         # Check cache validity
         now = time.time()
-        if (
-            self._wire_patterns_cache is not None
-            and self._wire_patterns_timestamp is not None
-            and (now - self._wire_patterns_timestamp) < self._cache_ttl_seconds
-        ):
-            return self._wire_patterns_cache
+        cache_key = f"patterns_{pattern_type}"
+
+        # Use type-specific cache
+        if pattern_type:
+            if not hasattr(self, "_pattern_cache_by_type"):
+                self._pattern_cache_by_type = {}
+            if not hasattr(self, "_pattern_timestamp_by_type"):
+                self._pattern_timestamp_by_type = {}
+
+            if (
+                cache_key in self._pattern_cache_by_type
+                and cache_key in self._pattern_timestamp_by_type
+                and (now - self._pattern_timestamp_by_type[cache_key])
+                < self._cache_ttl_seconds
+            ):
+                return self._pattern_cache_by_type[cache_key]
+        else:
+            # Use global cache for all patterns
+            if (
+                self._wire_patterns_cache is not None
+                and self._wire_patterns_timestamp is not None
+                and (now - self._wire_patterns_timestamp) < self._cache_ttl_seconds
+            ):
+                return self._wire_patterns_cache
 
         # Load from database
         try:
@@ -301,20 +325,32 @@ class ContentTypeDetector:
 
             db = DatabaseManager()
             with db.get_session() as session:
-                patterns = (
-                    session.query(
-                        WireService.pattern,
-                        WireService.service_name,
-                        WireService.case_sensitive,
-                        WireService.priority,
-                    )
-                    .filter(WireService.active == True)  # noqa: E712
-                    .order_by(WireService.priority, WireService.id)
-                    .all()
-                )
-                self._wire_patterns_cache = [(p[0], p[1], p[2]) for p in patterns]
-                self._wire_patterns_timestamp = now
-                return self._wire_patterns_cache
+                query = session.query(
+                    WireService.pattern,
+                    WireService.service_name,
+                    WireService.case_sensitive,
+                    WireService.priority,
+                ).filter(
+                    WireService.active == True
+                )  # noqa: E712
+
+                # Apply pattern_type filter if specified
+                if pattern_type:
+                    query = query.filter(WireService.pattern_type == pattern_type)
+
+                patterns = query.order_by(WireService.priority, WireService.id).all()
+
+                result = [(p[0], p[1], p[2]) for p in patterns]
+
+                # Store in appropriate cache
+                if pattern_type:
+                    self._pattern_cache_by_type[cache_key] = result
+                    self._pattern_timestamp_by_type[cache_key] = now
+                else:
+                    self._wire_patterns_cache = result
+                    self._wire_patterns_timestamp = now
+
+                return result
         except Exception:
             # Fallback to empty list if database unavailable
             return []
@@ -520,14 +556,14 @@ class ContentTypeDetector:
             outlet in url_lower for outlet in major_national_outlets
         )
 
-        # Note: URL patterns (strong and section patterns) are now loaded from wire_services table
-        # These were previously hardcoded but are now managed in the database for flexibility
+        # Note: URL patterns (strong and section) loaded from wire_services table
+        # Previously hardcoded, now managed in database
 
         strong_url_match = False
         section_url_match = False
 
-        # Load URL patterns from database
-        wire_url_patterns = self._get_wire_service_patterns()
+        # Load URL patterns from database (filter by pattern_type='url')
+        wire_url_patterns = self._get_wire_service_patterns(pattern_type="url")
 
         for pattern, service_name, case_sensitive in wire_url_patterns:
             # URL patterns should use case-insensitive matching
@@ -564,9 +600,11 @@ class ContentTypeDetector:
             # Check first 150 characters for opening dateline/byline
             opening = content[:150] if len(content) > 150 else content
 
-            # Look for explicit wire service bylines and datelines (STRONG evidence)
-            # Load patterns from database
-            wire_byline_patterns = self._get_wire_service_patterns()
+            # Look for explicit wire service bylines and datelines (STRONG)
+            # Load content patterns from database
+            wire_byline_patterns = self._get_wire_service_patterns(
+                pattern_type="content"
+            )
 
             if not wire_byline_patterns:
                 # Fallback if database unavailable - log warning but continue
