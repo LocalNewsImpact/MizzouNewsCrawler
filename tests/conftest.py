@@ -199,3 +199,140 @@ def telemetry_store_with_migrations(tmp_path):
     # Cleanup
     store.shutdown()
     engine.dispose()
+
+
+@pytest.fixture(scope="function", autouse=True)
+def populate_wire_service_patterns():
+    """Populate wire_services table with test patterns for wire detection tests.
+    
+    This fixture automatically runs before each test and populates the wire_services
+    table with dateline and URL patterns needed for content type detection.
+    """
+    from src.models import Base, WireService
+    from src.models.database import DatabaseManager
+
+    db = DatabaseManager()
+    engine = db.engine
+
+    # Create tables if they don't exist (for SQLite in-memory tests)
+    Base.metadata.create_all(bind=engine)
+
+    with db.get_session() as session:
+        # Check if patterns already exist (avoid duplicates in nested tests)
+        existing_count = session.query(WireService).count()
+        if existing_count > 0:
+            return
+
+        # Insert wire service patterns (same as migration 259bc609c6a3)
+        patterns = [
+            # AP dateline patterns
+            WireService(
+                pattern=r"^[A-Z][A-Z\s,\.''\-]+\s*[–—-]\s*\(?AP\)?\s*[–—-]",
+                pattern_type="content",
+                service_name="Associated Press",
+                case_sensitive=False,
+                priority=10,
+                active=True,
+                notes="AP dateline pattern: CITY (AP) —",
+            ),
+            WireService(
+                pattern=r"^[A-Z][A-Z\s,\.''\-]+\s*\(AP\)\s*[–—-]",
+                pattern_type="content",
+                service_name="Associated Press",
+                case_sensitive=False,
+                priority=10,
+                active=True,
+                notes="AP dateline pattern: CITY (AP) —",
+            ),
+            # Reuters dateline patterns
+            WireService(
+                pattern=r"^[A-Z][A-Z\s,\.''\-]+\s*\(Reuters\)\s*[–—-]",
+                pattern_type="content",
+                service_name="Reuters",
+                case_sensitive=False,
+                priority=10,
+                active=True,
+                notes="Reuters dateline pattern: CITY (Reuters) —",
+            ),
+            # CNN dateline patterns
+            WireService(
+                pattern=r"^[A-Z][A-Z\s,\.''\-]+\s*\(?CNN\)?\s*[–—-]",
+                pattern_type="content",
+                service_name="CNN",
+                case_sensitive=False,
+                priority=10,
+                active=True,
+                notes="CNN dateline pattern: CITY (CNN) —",
+            ),
+            WireService(
+                pattern=r"\(CNN\)\s*[–—-]",
+                pattern_type="content",
+                service_name="CNN",
+                case_sensitive=False,
+                priority=15,
+                active=True,
+                notes="CNN inline dateline",
+            ),
+            # AFP dateline patterns
+            WireService(
+                pattern=r"^[A-Z][A-Z\s,\.''\-]+\s*\(AFP\)\s*[–—-]",
+                pattern_type="content",
+                service_name="AFP",
+                case_sensitive=False,
+                priority=10,
+                active=True,
+                notes="AFP dateline pattern: CITY (AFP) —",
+            ),
+            # Strong URL patterns (explicit wire paths)
+            WireService(
+                pattern="/ap-",
+                pattern_type="url",
+                service_name="Associated Press",
+                case_sensitive=False,
+                priority=20,
+                active=True,
+                notes="AP URL segment",
+            ),
+            WireService(
+                pattern="/wire/",
+                pattern_type="url",
+                service_name="Wire Service",
+                case_sensitive=False,
+                priority=20,
+                active=True,
+                notes="Generic wire URL segment",
+            ),
+            WireService(
+                pattern="/stacker/",
+                pattern_type="url",
+                service_name="Stacker",
+                case_sensitive=False,
+                priority=20,
+                active=True,
+                notes="Stacker syndication URL",
+            ),
+            # Section patterns (weaker signals, require additional evidence)
+            WireService(
+                pattern="/national/",
+                pattern_type="url",
+                service_name="National Section",
+                case_sensitive=False,
+                priority=50,
+                active=True,
+                notes="National news section - requires additional evidence",
+            ),
+            WireService(
+                pattern="/world/",
+                pattern_type="url",
+                service_name="World Section",
+                case_sensitive=False,
+                priority=50,
+                active=True,
+                notes="World news section - requires additional evidence",
+            ),
+        ]
+
+        for wire_service in patterns:
+            session.add(wire_service)
+
+        session.commit()
