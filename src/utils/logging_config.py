@@ -15,6 +15,7 @@ import sys
 from typing import Any
 
 import structlog
+from structlog.typing import Processor
 
 
 def is_cloud_environment() -> bool:
@@ -44,7 +45,7 @@ def setup_logging(
     use_json = force_json or is_cloud_environment()
 
     # Configure structlog processors
-    processors = [
+    processors: list[Processor] = [
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_logger_name,
         structlog.stdlib.add_log_level,
