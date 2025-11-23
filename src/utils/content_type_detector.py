@@ -330,9 +330,7 @@ class ContentTypeDetector:
                     WireService.service_name,
                     WireService.case_sensitive,
                     WireService.priority,
-                ).filter(
-                    WireService.active == True
-                )  # noqa: E712
+                ).filter(WireService.active.is_(True))
 
                 # Apply pattern_type filter if specified
                 if pattern_type:
