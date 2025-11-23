@@ -24,6 +24,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+# Initialize logger - will be reconfigured as structlog during startup
 logger = logging.getLogger(__name__)
 
 # Add gazetteer telemetry imports
@@ -160,13 +161,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # === STARTUP ===
     
     # 0. Configure structured logging first
+    global logger
     try:
-        from src.utils.logging_config import setup_logging
+        from src.utils.logging_config import setup_logging, get_logger
         log_level = os.getenv("LOG_LEVEL", "INFO")
         setup_logging(level=log_level, service_name="api")
+        # Replace standard logger with structlog logger
+        logger = get_logger(__name__)
         logger.info("Structured logging initialized", log_level=log_level)
     except Exception as exc:
         # Fall back to basic logging if structured logging fails
+        import logging as _logging
+        logger = _logging.getLogger(__name__)
         logger.warning(f"Failed to initialize structured logging: {exc}")
     
     logger.info("Starting main app initialization...")
