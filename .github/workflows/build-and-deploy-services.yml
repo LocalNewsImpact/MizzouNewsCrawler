@@ -455,3 +455,68 @@ jobs:
               exit 1
             fi
           fi
+
+  deploy:
+    name: Deploy to Production
+    needs: [detect-changes, wait-for-builds]
+    if: needs.wait-for-builds.result == 'success' && needs.detect-changes.outputs.any-changed == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: Get GKE Credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: mizzou-cluster
+          location: us-central1-a
+
+      - name: Install envsubst
+        run: sudo apt-get update && sudo apt-get install -y gettext-base
+
+      - name: Update versions and deploy
+        env:
+          PROCESSOR_CHANGED: ${{ needs.detect-changes.outputs.processor }}
+          API_CHANGED: ${{ needs.detect-changes.outputs.api }}
+          CRAWLER_CHANGED: ${{ needs.detect-changes.outputs.crawler }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          # Make scripts executable
+          chmod +x scripts/apply-manifests.sh
+          
+          VERSIONS_FILE="k8s/versions.env"
+          
+          update_version() {
+              local var_name=$1
+              local new_val=$2
+              local file=$3
+              sed -i "s/export $var_name=.*/export $var_name=$new_val/" "$file"
+          }
+          
+          echo "📝 Updating versions in $VERSIONS_FILE..."
+          
+          if [ "$PROCESSOR_CHANGED" == "true" ]; then
+              update_version "PROCESSOR_TAG" "$COMMIT_SHA" "$VERSIONS_FILE"
+              echo "   Updated PROCESSOR_TAG to $COMMIT_SHA"
+          fi
+          
+          if [ "$CRAWLER_CHANGED" == "true" ]; then
+              update_version "CRAWLER_TAG" "$COMMIT_SHA" "$VERSIONS_FILE"
+              echo "   Updated CRAWLER_TAG to $COMMIT_SHA"
+          fi
+          
+          if [ "$API_CHANGED" == "true" ]; then
+              update_version "API_TAG" "$COMMIT_SHA" "$VERSIONS_FILE"
+              echo "   Updated API_TAG to $COMMIT_SHA"
+          fi
+          
+          echo "🚀 Applying manifests..."
+          ./scripts/apply-manifests.sh

@@ -452,6 +452,7 @@ spec:
         workflow-uid: "{{workflow.uid}}"
     container:
       image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
+      imagePullPolicy: IfNotPresent
       command: ["/bin/sh","-c"]
       args:
         - |
@@ -537,6 +538,7 @@ spec:
         workflow-uid: "{{workflow.uid}}"
     container:
       image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
+      imagePullPolicy: IfNotPresent
       command: ["/bin/sh","-c"]
       args:
         - |
@@ -630,6 +632,7 @@ spec:
         workflow-uid: "{{workflow.uid}}"
     container:
       image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
+      imagePullPolicy: IfNotPresent
       command: ["/bin/sh", "-c"]
       args:
         - |

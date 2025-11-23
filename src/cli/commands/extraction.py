@@ -45,6 +45,13 @@ from src.utils.comprehensive_telemetry import (
 from src.utils.content_cleaner_balanced import BalancedBoundaryContentCleaner
 from src.utils.content_type_detector import ContentTypeDetector
 
+# Domains known to return 403 for paywalled content (not bot blocking)
+# These should be marked as 403/failed but NOT trigger a domain-wide pause
+PAYWALL_DOMAINS = {
+    "mdcp.nwaonline.com",
+    "nwaonline.com",
+}
+
 ContentExtractor: type[Any] | None = None
 
 # Work queue service configuration
@@ -1242,41 +1249,65 @@ def _process_batch(
                 is_bot_protection = "403" in error_str or "Forbidden" in error_str
 
                 if is_rate_limit or is_bot_protection:
-                    logger.warning(
-                        "Rate limit/bot protection exception for %s, "
-                        "skipping remaining URLs",
-                        domain,
+                    # Check if this is a known paywall domain
+                    is_paywall_403 = is_bot_protection and any(
+                        pd in domain for pd in PAYWALL_DOMAINS
                     )
-                    skipped_domains.add(domain)
-                    domain_failures[domain] = max_failures_per_domain
-                    # Cap at max failures once rate limited/blocked
-                    # If this looks like bot protection (HTTP 403), attempt to
-                    # proactively pause candidate links for this host so we
-                    # don't keep retrying and triggering more blocks.
-                    try:
-                        host_val = getattr(metrics, "host", domain)
-                        if host_val:
-                            reason = "Auto-paused: multiple HTTP 403 responses"
-                            host_like = f"%{host_val}%"
+
+                    if is_paywall_403:
+                        logger.warning(
+                            "Paywall (403) detected for %s; marking as 403 and continuing",
+                            url,
+                        )
+                        try:
                             safe_session_execute(
                                 session,
-                                PAUSE_CANDIDATE_LINKS_SQL,
-                                {
-                                    "status": "paused",
-                                    "error": reason,
-                                    "host_like": host_like,
-                                    "host": host_val,
-                                },
+                                CANDIDATE_STATUS_UPDATE_SQL,
+                                {"status": "403", "id": str(url_id)},
                             )
                             session.commit()
-                            logger.warning(
-                                "Auto-paused host %s after exception", host_val
-                            )
-                    except Exception:
-                        # Don't raise from the pause attempt; just log and continue
-                        logger.exception(
-                            "Failed to auto-pause host during exception handling"
+                        except Exception:
+                            logger.exception("Failed to mark URL as 403")
+                            session.rollback()
+
+                        # Do NOT add to skipped_domains, do NOT pause domain
+                        # Just continue to next article (which will likely also be 403'd and marked)
+                    else:
+                        logger.warning(
+                            "Rate limit/bot protection exception for %s, "
+                            "skipping remaining URLs",
+                            domain,
                         )
+                        skipped_domains.add(domain)
+                        domain_failures[domain] = max_failures_per_domain
+                        # Cap at max failures once rate limited/blocked
+                        # If this looks like bot protection (HTTP 403), attempt to
+                        # proactively pause candidate links for this host so we
+                        # don't keep retrying and triggering more blocks.
+                        try:
+                            host_val = getattr(metrics, "host", domain)
+                            if host_val:
+                                reason = "Auto-paused: multiple HTTP 403 responses"
+                                host_like = f"%{host_val}%"
+                                safe_session_execute(
+                                    session,
+                                    PAUSE_CANDIDATE_LINKS_SQL,
+                                    {
+                                        "status": "paused",
+                                        "error": reason,
+                                        "host_like": host_like,
+                                        "host": host_val,
+                                    },
+                                )
+                                session.commit()
+                                logger.warning(
+                                    "Auto-paused host %s after exception", host_val
+                                )
+                        except Exception:
+                            # Don't raise from the pause attempt; just log and continue
+                            logger.exception(
+                                "Failed to auto-pause host during exception handling"
+                            )
                 else:
                     # Track other failures for domain awareness
                     domain_failures[domain] = domain_failures.get(domain, 0) + 1

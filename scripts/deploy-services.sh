@@ -315,6 +315,56 @@ if should_build "processor"; then
     ((STEP_COUNTER++))
 fi
 
+# PHASE 5: Deployment
+if [ $BUILD_FAILURES -eq 0 ]; then
+    echo -e "\n${COLOR_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
+    echo -e "${COLOR_BLUE}Phase 5: Deployment${COLOR_RESET}"
+    echo -e "${COLOR_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
+
+    # Get current commit SHA
+    COMMIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+    VERSIONS_FILE="k8s/versions.env"
+
+    if [ "$COMMIT_SHA" != "unknown" ] && [ -f "$VERSIONS_FILE" ]; then
+        echo "📝 Updating versions in $VERSIONS_FILE..."
+
+        update_version() {
+            local var_name=$1
+            local new_val=$2
+            local file=$3
+            # Portable sed: create temp file, move it back
+            sed "s/export $var_name=.*/export $var_name=$new_val/" "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
+        }
+
+        # Update versions based on what was built
+        if should_build "processor"; then
+            update_version "PROCESSOR_TAG" "$COMMIT_SHA" "$VERSIONS_FILE"
+            echo "   Updated PROCESSOR_TAG to $COMMIT_SHA"
+        fi
+        
+        if should_build "crawler"; then
+            update_version "CRAWLER_TAG" "$COMMIT_SHA" "$VERSIONS_FILE"
+            echo "   Updated CRAWLER_TAG to $COMMIT_SHA"
+        fi
+        
+        if should_build "api"; then
+            update_version "API_TAG" "$COMMIT_SHA" "$VERSIONS_FILE"
+            echo "   Updated API_TAG to $COMMIT_SHA"
+        fi
+
+        # Apply manifests
+        echo "🚀 Applying manifests..."
+        if [ -x "./scripts/apply-manifests.sh" ]; then
+            ./scripts/apply-manifests.sh
+        else
+            echo "❌ scripts/apply-manifests.sh not found or not executable"
+            ((BUILD_FAILURES++))
+        fi
+    else
+        echo "⚠️  Skipping version update (unknown SHA or missing versions.env)"
+    fi
+fi
+
 # Summary
 COMMIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
