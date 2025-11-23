@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 try:
-    from google.cloud import monitoring_v3
+    from google.cloud import monitoring_v3  # type: ignore[attr-defined]
     from google.api import metric_pb2 as ga_metric
     from google.api import label_pb2 as ga_label
 
@@ -43,7 +43,9 @@ class MetricsClient:
             service_name: Service name for metric labeling
             enabled: Whether to emit metrics (disable in tests/local dev)
         """
-        self.project_id = project_id or os.getenv("GCP_PROJECT_ID", "mizzou-news-crawler")
+        self.project_id = (
+            project_id or os.getenv("GCP_PROJECT_ID") or "mizzou-news-crawler"
+        )
         self.service_name = service_name
         self.enabled = enabled and MONITORING_AVAILABLE
 
@@ -68,9 +70,9 @@ class MetricsClient:
         """Get resource labels from environment."""
         return {
             "project_id": self.project_id,
-            "cluster_name": os.getenv("CLUSTER_NAME", "mizzou-cluster"),
-            "namespace_name": os.getenv("NAMESPACE", "production"),
-            "pod_name": os.getenv("HOSTNAME", "unknown"),
+            "cluster_name": os.getenv("CLUSTER_NAME") or "mizzou-cluster",
+            "namespace_name": os.getenv("NAMESPACE") or "production",
+            "pod_name": os.getenv("HOSTNAME") or "unknown",
         }
 
     def record_counter(
