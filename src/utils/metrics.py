@@ -9,8 +9,7 @@ from __future__ import annotations
 import logging
 import os
 import time
-from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Optional
 
 try:
     from google.cloud import monitoring_v3  # type: ignore[attr-defined]
@@ -66,7 +65,7 @@ class MetricsClient:
         # Resource labels for Kubernetes environment
         self.resource_labels = self._get_resource_labels()
 
-    def _get_resource_labels(self) -> Dict[str, str]:
+    def _get_resource_labels(self) -> dict[str, str]:
         """Get resource labels from environment."""
         return {
             "project_id": self.project_id,
@@ -79,7 +78,7 @@ class MetricsClient:
         self,
         metric_name: str,
         value: int,
-        labels: Optional[Dict[str, str]] = None,
+        labels: Optional[dict[str, str]] = None,
     ) -> None:
         """Record a counter metric.
 
@@ -131,7 +130,7 @@ class MetricsClient:
         self,
         metric_name: str,
         value: float,
-        labels: Optional[Dict[str, str]] = None,
+        labels: Optional[dict[str, str]] = None,
     ) -> None:
         """Record a gauge metric (current value).
 
@@ -183,7 +182,7 @@ class MetricsClient:
         self,
         metric_name: str,
         value: float,
-        labels: Optional[Dict[str, str]] = None,
+        labels: Optional[dict[str, str]] = None,
     ) -> None:
         """Record a distribution metric (for percentiles, histograms).
 

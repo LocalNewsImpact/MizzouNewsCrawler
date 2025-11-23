@@ -29,9 +29,9 @@ log_processing_stage("entity_extraction", len(articles), duration)
 from __future__ import annotations
 
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
-from src.utils.logging_config import get_logger, bind_request_context
+from src.utils.logging_config import get_logger
 from src.utils.metrics import get_metrics_client
 
 logger = get_logger(__name__)
@@ -92,7 +92,7 @@ def log_discovery_stage(
 
 def log_extraction_stage(
     url: str,
-    extraction_result: Dict[str, Any],
+    extraction_result: dict[str, Any],
     duration_seconds: float,
     source: str | None = None,
 ) -> None:
@@ -224,7 +224,7 @@ class PipelineStageTimer:
         self.stage = stage
         self.context = context
         self.start_time: float | None = None
-        self.result: Dict[str, Any] = {}
+        self.result: dict[str, Any] = {}
 
     def __enter__(self) -> PipelineStageTimer:
         """Start timing."""
