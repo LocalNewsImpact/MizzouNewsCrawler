@@ -235,19 +235,17 @@ class ContentTypeDetector:
     _OBITUARY_MAX_SCORE = 12
     _OPINION_MAX_SCORE = 6
 
-    def _get_local_broadcaster_callsigns(
-        self, dataset: str = "missouri"
-    ) -> set[str]:
+    def _get_local_broadcaster_callsigns(self, dataset: str = "missouri") -> set[str]:
         """Get local broadcaster callsigns from database with caching.
-        
+
         Args:
             dataset: Dataset identifier to filter callsigns
-            
+
         Returns:
             Set of callsign strings (e.g., {'KMIZ', 'KOMU', 'KRCG'})
         """
         import time
-        
+
         # Check cache validity
         now = time.time()
         if (
@@ -256,12 +254,12 @@ class ContentTypeDetector:
             and (now - self._cache_timestamp) < self._cache_ttl_seconds
         ):
             return self._local_callsigns_cache
-        
+
         # Load from database
         try:
             from src.models import LocalBroadcasterCallsign
             from src.models.database import DatabaseManager
-            
+
             db = DatabaseManager()
             with db.get_session() as session:
                 callsigns = (
@@ -279,13 +277,13 @@ class ContentTypeDetector:
 
     def _get_wire_service_patterns(self) -> list[tuple]:
         """Get wire service patterns from database with caching.
-        
+
         Returns:
             List of tuples: (pattern, service_name, case_sensitive, priority)
             Sorted by priority (lower = higher priority)
         """
         import time
-        
+
         # Check cache validity
         now = time.time()
         if (
@@ -294,12 +292,12 @@ class ContentTypeDetector:
             and (now - self._wire_patterns_timestamp) < self._cache_ttl_seconds
         ):
             return self._wire_patterns_cache
-        
+
         # Load from database
         try:
             from src.models import WireService
             from src.models.database import DatabaseManager
-            
+
             db = DatabaseManager()
             with db.get_session() as session:
                 patterns = (
@@ -307,15 +305,13 @@ class ContentTypeDetector:
                         WireService.pattern,
                         WireService.service_name,
                         WireService.case_sensitive,
-                        WireService.priority
+                        WireService.priority,
                     )
                     .filter(WireService.active == True)  # noqa: E712
                     .order_by(WireService.priority, WireService.id)
                     .all()
                 )
-                self._wire_patterns_cache = [
-                    (p[0], p[1], p[2]) for p in patterns
-                ]
+                self._wire_patterns_cache = [(p[0], p[1], p[2]) for p in patterns]
                 self._wire_patterns_timestamp = now
                 return self._wire_patterns_cache
         except Exception:
@@ -585,7 +581,7 @@ class ContentTypeDetector:
             # Look for explicit wire service bylines and datelines (STRONG evidence)
             # Load patterns from database
             wire_byline_patterns = self._get_wire_service_patterns()
-            
+
             if not wire_byline_patterns:
                 # Fallback if database unavailable - log warning but continue
                 wire_byline_patterns = []
@@ -605,13 +601,13 @@ class ContentTypeDetector:
                         # Generic broadcaster pattern - callsign in group 1
                         identifier = match.group(1)
                         local_callsigns = self._get_local_broadcaster_callsigns()
-                        
+
                         if identifier in local_callsigns:
                             # It's a known local broadcaster
                             # Check if it's on its own site or syndicated
                             url_lower = url.lower()
                             identifier_lower = identifier.lower()
-                            
+
                             # Check both direct callsign match and domain mapping
                             is_own_site = identifier_lower in url_lower
                             if not is_own_site and identifier in self._CALLSIGN_DOMAINS:
@@ -620,7 +616,7 @@ class ContentTypeDetector:
                                     domain in url_lower
                                     for domain in self._CALLSIGN_DOMAINS[identifier]
                                 )
-                            
+
                             if is_own_site:
                                 # Same broadcaster - own content, not wire
                                 continue
@@ -636,7 +632,7 @@ class ContentTypeDetector:
                     else:
                         # Specific wire service pattern (AP, Reuters, etc.)
                         # Extract identifier if present for local broadcaster check
-                        paren_match = re.search(r'\(([A-Z]+)\)', match.group(0))
+                        paren_match = re.search(r"\(([A-Z]+)\)", match.group(0))
                         if paren_match:
                             identifier = paren_match.group(1)
                             # Check if this is actually a local broadcaster misidentified
@@ -648,7 +644,7 @@ class ContentTypeDetector:
                                 if identifier_lower in url_lower:
                                     continue  # Own content, not wire
                                 # Otherwise fall through - syndicated
-                        
+
                         content_matches.append(f"{service_name} (byline)")
                         detected_services.add(service_name)
                         wire_byline_found = True

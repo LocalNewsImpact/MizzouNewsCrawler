@@ -1087,11 +1087,12 @@ class ContentExtractor:
 
             # Check for common paywall classes/IDs
             paywall_selectors = [
-                ".paywall", "#paywall",
+                ".paywall",
+                "#paywall",
                 ".subscriber-only",
                 ".subscription-required",
                 ".premium-content",
-                ".locked-content"
+                ".locked-content",
             ]
 
             for selector in paywall_selectors:
@@ -1137,20 +1138,20 @@ class ContentExtractor:
         if "metadata" not in data:
             data["metadata"] = {}
         # If extract_meta_description returns a string, we need to handle it.
-        # Wait, extract_article_data constructs the dict. 
+        # Wait, extract_article_data constructs the dict.
         # The original code put meta_description in the top level, but extract_content puts it in metadata?
         # Let's check the original code again.
-        
+
         # Original:
         # "meta_description": self._extract_meta_description(soup),
-        
+
         # And extract_content does:
         # "metadata": { "meta_description": raw.get("meta_description"), ... }
-        
-        # So I don't need to put it in metadata inside extract_article_data, 
+
+        # So I don't need to put it in metadata inside extract_article_data,
         # but I need to make sure it's passed through.
         # Actually, extract_article_data returns a flat dict, and _extract_with_beautifulsoup restructures it.
-        
+
         # So I should add paywall_detected to the returned dict, and then _extract_with_beautifulsoup should put it in metadata.
         data["paywall_detected"] = paywall_detected
 

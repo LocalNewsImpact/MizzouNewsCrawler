@@ -50,19 +50,17 @@ def mock_broadcaster_callsigns():
 class TestDatabaseDrivenWirePatterns:
     """Tests for wire service patterns loaded from database."""
 
-    def test_loads_wire_patterns_from_database(
-        self, detector, populated_wire_services
-    ):
+    def test_loads_wire_patterns_from_database(self, detector, populated_wire_services):
         """Verify wire patterns are loaded from wire_services table."""
         # Clear cache to force database query
         detector._wire_patterns_cache = None
         detector._wire_patterns_timestamp = None
-        
+
         patterns = detector._get_wire_service_patterns()
-        
+
         assert isinstance(patterns, list)
         assert len(patterns) > 0, "Should load patterns from database"
-        
+
         # Each pattern is a tuple: (pattern, service_name, case_sensitive)
         for pattern_tuple in patterns:
             assert len(pattern_tuple) == 3
@@ -78,10 +76,10 @@ class TestDatabaseDrivenWirePatterns:
         # Clear cache to force database query
         detector._wire_patterns_cache = None
         detector._wire_patterns_timestamp = None
-        
+
         patterns = detector._get_wire_service_patterns()
         service_names = {p[1] for p in patterns}
-        
+
         # Should include major wire services
         expected_services = {
             "Associated Press",
@@ -89,7 +87,7 @@ class TestDatabaseDrivenWirePatterns:
             "AFP",
             "Bloomberg",
         }
-        
+
         for service in expected_services:
             assert service in service_names, f"{service} should be in patterns"
 
@@ -100,26 +98,24 @@ class TestDatabaseDrivenWirePatterns:
         # Clear cache to force database query
         detector._wire_patterns_cache = None
         detector._wire_patterns_timestamp = None
-        
+
         patterns = detector._get_wire_service_patterns()
-        
+
         # Should have the generic Broadcaster pattern
         broadcaster_patterns = [p for p in patterns if p[1] == "Broadcaster"]
         assert len(broadcaster_patterns) > 0, "Should have Broadcaster pattern"
 
-    def test_wire_patterns_cache_behavior(
-        self, detector, populated_wire_services
-    ):
+    def test_wire_patterns_cache_behavior(self, detector, populated_wire_services):
         """Verify patterns are cached after first load."""
         # Clear cache first
         detector._wire_patterns_cache = None
         detector._wire_patterns_timestamp = None
-        
+
         # First load
         patterns1 = detector._get_wire_service_patterns()
         assert detector._wire_patterns_cache is not None
         assert detector._wire_patterns_timestamp is not None
-        
+
         # Second load should use cache (same instance)
         patterns2 = detector._get_wire_service_patterns()
         assert patterns1 is patterns2, "Should return cached patterns"
@@ -131,14 +127,14 @@ class TestDatabaseDrivenWirePatterns:
         # Clear cache to force database query
         detector._wire_patterns_cache = None
         detector._wire_patterns_timestamp = None
-        
+
         result = detector.detect(
             url="https://example.com/news/story",
             title="President Announces Policy",
             metadata={},
             content="WASHINGTON (AP) — The president announced today...",
         )
-        
+
         assert result is not None
         assert result.status == "wire"
         assert "content" in result.evidence
@@ -151,14 +147,14 @@ class TestDatabaseDrivenWirePatterns:
         # Clear cache to force database query
         detector._wire_patterns_cache = None
         detector._wire_patterns_timestamp = None
-        
+
         result = detector.detect(
             url="https://example.com/world/story",
             title="UK Election Results",
             metadata={},
             content="LONDON (Reuters) — British voters went to the polls...",
         )
-        
+
         assert result is not None
         assert result.status == "wire"
         assert "content" in result.evidence
@@ -175,7 +171,7 @@ class TestDatabaseDrivenWirePatterns:
             metadata={"byline": "John Smith USA TODAY"},
             content="An analysis of recent political developments...",
         )
-        
+
         assert result is not None
         assert result.status == "wire"
 
@@ -192,9 +188,9 @@ class TestLocalBroadcasterCallsigns:
         # Clear cache to force database query
         detector._local_callsigns_cache = None
         detector._cache_timestamp = None
-        
+
         callsigns = detector._get_local_broadcaster_callsigns(dataset="missouri")
-        
+
         assert isinstance(callsigns, set)
         assert len(callsigns) > 0, "Should load callsigns from database"
 
@@ -205,12 +201,12 @@ class TestLocalBroadcasterCallsigns:
         # Clear cache to force database query
         detector._local_callsigns_cache = None
         detector._cache_timestamp = None
-        
+
         callsigns = detector._get_local_broadcaster_callsigns(dataset="missouri")
-        
+
         # Should include Missouri broadcasters
         expected_callsigns = {"KMIZ", "KOMU", "KRCG"}
-        
+
         for callsign in expected_callsigns:
             assert callsign in callsigns, f"{callsign} should be in callsigns"
 
@@ -221,19 +217,18 @@ class TestLocalBroadcasterCallsigns:
         # Clear cache first
         detector._local_callsigns_cache = None
         detector._cache_timestamp = None
-        
+
         # First load
         callsigns1 = detector._get_local_broadcaster_callsigns()
         assert detector._local_callsigns_cache is not None
         assert detector._cache_timestamp is not None
-        
+
         # Second load should use cache (same instance)
         callsigns2 = detector._get_local_broadcaster_callsigns()
         assert callsigns1 is callsigns2, "Should return cached callsigns"
 
     def test_local_broadcaster_on_own_site_not_wire(
-        self, detector, populated_broadcaster_callsigns,
-        populated_wire_services
+        self, detector, populated_broadcaster_callsigns, populated_wire_services
     ):
         """Verify local broadcaster on own site is NOT detected as wire."""
         # Clear caches to force database queries
@@ -241,7 +236,7 @@ class TestLocalBroadcasterCallsigns:
         detector._cache_timestamp = None
         detector._wire_patterns_cache = None
         detector._wire_patterns_timestamp = None
-        
+
         result = detector.detect(
             url="https://abc17news.com/news/local/story",
             title="Water Main Repairs Announced",
@@ -251,13 +246,12 @@ class TestLocalBroadcasterCallsigns:
                 "Department announced repairs."
             ),
         )
-        
+
         # Should NOT be wire (it's their own content)
         assert result is None or result.status != "wire"
 
     def test_local_broadcaster_on_different_site_is_wire(
-        self, detector, populated_broadcaster_callsigns,
-        populated_wire_services
+        self, detector, populated_broadcaster_callsigns, populated_wire_services
     ):
         """Verify local broadcaster on different site IS wire (syndicated)."""
         # Clear caches to force database queries
@@ -265,7 +259,7 @@ class TestLocalBroadcasterCallsigns:
         detector._cache_timestamp = None
         detector._wire_patterns_cache = None
         detector._wire_patterns_timestamp = None
-        
+
         result = detector.detect(
             url="https://komu.com/news/local/story",
             title="Water Main Repairs Announced",
@@ -275,7 +269,7 @@ class TestLocalBroadcasterCallsigns:
                 "Department announced repairs."
             ),
         )
-        
+
         # Should be wire (syndicated from KMIZ to KOMU)
         assert result is not None
         assert result.status == "wire"
@@ -283,8 +277,7 @@ class TestLocalBroadcasterCallsigns:
         assert any("KMIZ" in m for m in result.evidence["content"])
 
     def test_komu_on_own_site_not_wire(
-        self, detector, populated_broadcaster_callsigns,
-        populated_wire_services
+        self, detector, populated_broadcaster_callsigns, populated_wire_services
     ):
         """Verify KOMU on komu.com is NOT wire."""
         # Clear caches to force database queries
@@ -292,7 +285,7 @@ class TestLocalBroadcasterCallsigns:
         detector._cache_timestamp = None
         detector._wire_patterns_cache = None
         detector._wire_patterns_timestamp = None
-        
+
         result = detector.detect(
             url="https://komu.com/news/local/mizzou-story",
             title="Mizzou Announces New Research Facility",
@@ -302,12 +295,11 @@ class TestLocalBroadcasterCallsigns:
                 "announced today..."
             ),
         )
-        
+
         assert result is None or result.status != "wire"
 
     def test_unknown_broadcaster_not_detected_as_wire(
-        self, detector, populated_broadcaster_callsigns,
-        populated_wire_services
+        self, detector, populated_broadcaster_callsigns, populated_wire_services
     ):
         """Verify unknown broadcaster callsigns don't cause false positives."""
         # Clear caches to force database queries
@@ -315,20 +307,19 @@ class TestLocalBroadcasterCallsigns:
         detector._cache_timestamp = None
         detector._wire_patterns_cache = None
         detector._wire_patterns_timestamp = None
-        
+
         result = detector.detect(
             url="https://komu.com/news/story",
             title="Boston News",
             metadata={},
             content="BOSTON, Mass. (WGBH) — Local news from Boston...",
         )
-        
+
         # WGBH is not in Missouri dataset, should not be detected as wire
         assert result is None or result.status != "wire"
 
     def test_broadcaster_dateline_url_matching_uses_domain_mapping(
-        self, detector, populated_broadcaster_callsigns,
-        populated_wire_services
+        self, detector, populated_broadcaster_callsigns, populated_wire_services
     ):
         """Verify domain mapping is used when callsign not directly in URL."""
         # Clear caches to force database queries
@@ -336,7 +327,7 @@ class TestLocalBroadcasterCallsigns:
         detector._cache_timestamp = None
         detector._wire_patterns_cache = None
         detector._wire_patterns_timestamp = None
-        
+
         # KMIZ doesn't appear in abc17news.com, needs domain mapping
         result = detector.detect(
             url="https://abc17news.com/news/local/story",
@@ -344,12 +335,11 @@ class TestLocalBroadcasterCallsigns:
             metadata={},
             content="COLUMBIA, Mo. (KMIZ) — Local news content...",
         )
-        
+
         assert result is None or result.status != "wire"
 
     def test_multiple_broadcasters_correct_matching(
-        self, detector, populated_broadcaster_callsigns,
-        populated_wire_services
+        self, detector, populated_broadcaster_callsigns, populated_wire_services
     ):
         """Verify correct matching when multiple broadcasters in same market."""
         # Clear caches to force database queries
@@ -357,7 +347,7 @@ class TestLocalBroadcasterCallsigns:
         detector._cache_timestamp = None
         detector._wire_patterns_cache = None
         detector._wire_patterns_timestamp = None
-        
+
         # KRCG on krcgtv.com (own site)
         result1 = detector.detect(
             url="https://krcgtv.com/news/local/story",
@@ -366,13 +356,13 @@ class TestLocalBroadcasterCallsigns:
             content="COLUMBIA, Mo. (KRCG) — Local updates...",
         )
         assert result1 is None or result1.status != "wire"
-        
+
         # Clear cache again for second test
         detector._local_callsigns_cache = None
         detector._cache_timestamp = None
         detector._wire_patterns_cache = None
         detector._wire_patterns_timestamp = None
-        
+
         # KRCG on komu.com (syndicated)
         result2 = detector.detect(
             url="https://komu.com/news/local/story",
@@ -395,21 +385,19 @@ class TestDetectorVersionTracking:
         # Version should indicate database-driven changes (2025-11-23b or later)
         assert "2025-11" in detector.VERSION
 
-    def test_detection_result_includes_version(
-        self, detector, populated_wire_services
-    ):
+    def test_detection_result_includes_version(self, detector, populated_wire_services):
         """Verify detection results include detector version."""
         # Clear cache to force database query
         detector._wire_patterns_cache = None
         detector._wire_patterns_timestamp = None
-        
+
         result = detector.detect(
             url="https://example.com/news/story",
             title="Breaking News",
             metadata={},
             content="WASHINGTON (AP) — News today...",
         )
-        
+
         assert result is not None
         assert result.detector_version == detector.VERSION
 
@@ -423,7 +411,7 @@ class TestDatabaseFallbackBehavior:
         # Force cache invalidation
         detector._wire_patterns_cache = None
         detector._wire_patterns_timestamp = None
-        
+
         # This should still work even if DB has issues
         patterns = detector._get_wire_service_patterns()
         assert isinstance(patterns, list)
@@ -434,7 +422,7 @@ class TestDatabaseFallbackBehavior:
         # Force cache invalidation
         detector._local_callsigns_cache = None
         detector._cache_timestamp = None
-        
+
         # This should still work even if DB has issues
         callsigns = detector._get_local_broadcaster_callsigns()
         assert isinstance(callsigns, set)
@@ -452,7 +440,7 @@ class TestIntegrationWithExistingWireDetection:
             metadata={},
             content="LONDON (Reuters) — International developments...",
         )
-        
+
         assert result is not None
         assert result.status == "wire"
 
@@ -464,7 +452,7 @@ class TestIntegrationWithExistingWireDetection:
             metadata={"byline": "AP Staff"},
             content="Major announcement today...",
         )
-        
+
         assert result is not None
         assert result.status == "wire"
 
@@ -476,7 +464,7 @@ class TestIntegrationWithExistingWireDetection:
             metadata={"byline": "AP Staff"},
             content="WASHINGTON (AP) — The president...",
         )
-        
+
         assert result is not None
         assert result.status == "wire"
         # Should have multiple evidence sources
@@ -490,5 +478,5 @@ class TestIntegrationWithExistingWireDetection:
             metadata={"byline": "Jane Smith"},
             content="The Columbia City Council met Tuesday to approve the new budget.",
         )
-        
+
         assert result is None or result.status != "wire"

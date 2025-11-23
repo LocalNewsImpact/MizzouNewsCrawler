@@ -66,7 +66,7 @@ class TestLocalBroadcasterDatelines:
             "Jessica Hafner",
             "Marie Moyer",
         ]
-        
+
         for reporter in local_reporters:
             result = detector.detect(
                 url="https://abc17news.com/news/columbia/2025/11/20/local-event",
@@ -78,9 +78,9 @@ class TestLocalBroadcasterDatelines:
                     f"A local fundraiser raised $45,000 for charity..."
                 ),
             )
-            assert result is None or result.status != "wire", (
-                f"Local reporter {reporter} should not trigger wire detection"
-            )
+            assert (
+                result is None or result.status != "wire"
+            ), f"Local reporter {reporter} should not trigger wire detection"
 
 
 class TestActualWireDatelines:

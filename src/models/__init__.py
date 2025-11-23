@@ -291,7 +291,7 @@ class Location(Base):
 
 class LocalBroadcasterCallsign(Base):
     """Local broadcaster callsigns to prevent false wire detection.
-    
+
     This table tracks TV/radio station callsigns that are local to
     a dataset's coverage area. Used by ContentTypeDetector to avoid
     misclassifying local station datelines (e.g., 'COLUMBIA, Mo. (KMIZ)')
@@ -350,7 +350,7 @@ class LocalBroadcasterCallsign(Base):
 
 class WireService(Base):
     """Wire service detection patterns.
-    
+
     Stores regex patterns for identifying wire service content in articles.
     Replaces hardcoded patterns with database-driven configuration.
     """
