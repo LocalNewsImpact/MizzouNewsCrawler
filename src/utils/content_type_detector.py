@@ -25,7 +25,26 @@ class ContentTypeResult:
 class ContentTypeDetector:
     """Detect special content types (obituaries, opinion pieces, wire)."""
 
-    VERSION = "2025-11-12i"  # Re-added multi-author byline patterns
+    VERSION = "2025-11-23b"  # Database-driven wire patterns + broadcaster URL matching
+
+    # Cache for local broadcaster callsigns (loaded from database)
+    _local_callsigns_cache: set[str] | None = None
+    _cache_timestamp: float | None = None
+    _cache_ttl_seconds = 300  # 5 minutes
+
+    # Cache for wire service patterns (loaded from database)
+    _wire_patterns_cache: list[tuple] | None = None
+    _wire_patterns_timestamp: float | None = None
+
+    # Known callsign to domain mappings (Missouri market)
+    # Used when callsign doesn't appear directly in URL
+    _CALLSIGN_DOMAINS = {
+        "KMIZ": ["abc17news.com"],
+        "KOMU": ["komu.com"],
+        "KRCG": ["krcgtv.com"],
+        "KQFX": ["fox22now.com"],
+        "KJLU": ["zimmerradio.com"],
+    }
 
     # Wire service indicators for dateline detection
     _WIRE_SERVICE_PATTERNS = (
@@ -66,8 +85,9 @@ class ContentTypeDetector:
         (r"\bMcClatchy\b", "McClatchy", True),
     )
 
-    # Common dateline patterns (CITY_NAME, STATE/COUNTRY (WIRE_SERVICE))
-    _DATELINE_PATTERN = re.compile(r"^([A-Z][A-Z\s,\.'-]+)\s*[–—-]\s*", re.MULTILINE)
+    # Note: Dateline patterns are now loaded from wire_services table
+    # Note: Wire URL patterns are now loaded from wire_services table
+    # These legacy constants remain for backward compatibility but are not used
 
     _WIRE_URL_PATTERNS = (
         "cnn.com",
@@ -215,6 +235,123 @@ class ContentTypeDetector:
     _METADATA_CONFIDENCE_WEIGHT = 1
     _OBITUARY_MAX_SCORE = 12
     _OPINION_MAX_SCORE = 6
+
+    def _get_local_broadcaster_callsigns(self, dataset: str = "missouri") -> set[str]:
+        """Get local broadcaster callsigns from database with caching.
+
+        Args:
+            dataset: Dataset identifier to filter callsigns
+
+        Returns:
+            Set of callsign strings (e.g., {'KMIZ', 'KOMU', 'KRCG'})
+        """
+        import time
+
+        # Check cache validity
+        now = time.time()
+        if (
+            self._local_callsigns_cache is not None
+            and self._cache_timestamp is not None
+            and (now - self._cache_timestamp) < self._cache_ttl_seconds
+        ):
+            return self._local_callsigns_cache
+
+        # Load from database
+        try:
+            from src.models import LocalBroadcasterCallsign
+            from src.models.database import DatabaseManager
+
+            db = DatabaseManager()
+            with db.get_session() as session:
+                callsigns = (
+                    session.query(LocalBroadcasterCallsign.callsign)
+                    .filter(LocalBroadcasterCallsign.dataset == dataset)
+                    .all()
+                )
+                self._local_callsigns_cache = {c[0] for c in callsigns}
+                self._cache_timestamp = now
+                return self._local_callsigns_cache
+        except Exception:
+            # Fallback to empty set if database unavailable
+            # This prevents failures in environments without DB access
+            return set()
+
+    def _get_wire_service_patterns(
+        self, pattern_type: str | None = None
+    ) -> list[tuple]:
+        """Get wire service patterns from database with caching.
+
+        Args:
+            pattern_type: Filter patterns by type ('url', 'content', 'author').
+                         If None, returns all patterns.
+
+        Returns:
+            List of tuples: (pattern, service_name, case_sensitive)
+            Sorted by priority (lower = higher priority)
+        """
+        import time
+
+        # Check cache validity
+        now = time.time()
+        cache_key = f"patterns_{pattern_type}"
+
+        # Use type-specific cache
+        if pattern_type:
+            if not hasattr(self, "_pattern_cache_by_type"):
+                self._pattern_cache_by_type = {}
+            if not hasattr(self, "_pattern_timestamp_by_type"):
+                self._pattern_timestamp_by_type = {}
+
+            if (
+                cache_key in self._pattern_cache_by_type
+                and cache_key in self._pattern_timestamp_by_type
+                and (now - self._pattern_timestamp_by_type[cache_key])
+                < self._cache_ttl_seconds
+            ):
+                return self._pattern_cache_by_type[cache_key]
+        else:
+            # Use global cache for all patterns
+            if (
+                self._wire_patterns_cache is not None
+                and self._wire_patterns_timestamp is not None
+                and (now - self._wire_patterns_timestamp) < self._cache_ttl_seconds
+            ):
+                return self._wire_patterns_cache
+
+        # Load from database
+        try:
+            from src.models import WireService
+            from src.models.database import DatabaseManager
+
+            db = DatabaseManager()
+            with db.get_session() as session:
+                query = session.query(
+                    WireService.pattern,
+                    WireService.service_name,
+                    WireService.case_sensitive,
+                    WireService.priority,
+                ).filter(WireService.active.is_(True))
+
+                # Apply pattern_type filter if specified
+                if pattern_type:
+                    query = query.filter(WireService.pattern_type == pattern_type)
+
+                patterns = query.order_by(WireService.priority, WireService.id).all()
+
+                result = [(p[0], p[1], p[2]) for p in patterns]
+
+                # Store in appropriate cache
+                if pattern_type:
+                    self._pattern_cache_by_type[cache_key] = result
+                    self._pattern_timestamp_by_type[cache_key] = now
+                else:
+                    self._wire_patterns_cache = result
+                    self._wire_patterns_timestamp = now
+
+                return result
+        except Exception:
+            # Fallback to empty list if database unavailable
+            return []
 
     def detect(
         self,
@@ -417,54 +554,39 @@ class ContentTypeDetector:
             outlet in url_lower for outlet in major_national_outlets
         )
 
-        # Strong URL patterns (wire service identifiers in path)
-        strong_url_patterns = [
-            "/ap-",
-            "/cnn-",
-            "/reuters-",
-            "/wire/",
-            "/stacker/",
-            "/repub/",
-            "/theconversation/",
-        ]
-
-        # Section patterns (national/world coverage)
-        # STRONG indicator for local/regional sites
-        # WEAK indicator for major national outlets
-        section_patterns = [
-            "/nation/",
-            "/national/",
-            "/world/",
-            "/nationworld/",
-            "/nation-world/",
-            "/world-nation/",
-        ]
+        # Note: URL patterns (strong and section) loaded from wire_services table
+        # Previously hardcoded, now managed in database
 
         strong_url_match = False
         section_url_match = False
 
-        for pattern in strong_url_patterns:
-            if pattern in url_lower:
-                url_wire_matches.append(pattern)
-                strong_url_match = True
-                # Extract service name from pattern
-                if "ap" in pattern:
-                    detected_services.add("Associated Press")
-                elif "cnn" in pattern:
-                    detected_services.add("CNN")
-                elif "reuters" in pattern:
-                    detected_services.add("Reuters")
-                elif "stacker" in pattern:
-                    detected_services.add("Stacker")
-                elif "repub" in pattern:
-                    detected_services.add("States Newsroom")
+        # Load URL patterns from database (filter by pattern_type='url')
+        wire_url_patterns = self._get_wire_service_patterns(pattern_type="url")
 
-        # Check section patterns
-        for pattern in section_patterns:
-            if pattern in url_lower:
+        for pattern, service_name, case_sensitive in wire_url_patterns:
+            # URL patterns should use case-insensitive matching
+            if re.search(pattern, url, re.IGNORECASE if not case_sensitive else 0):
                 url_wire_matches.append(pattern)
-                section_url_match = True
-                # Don't add service name - could be any wire service
+                detected_services.add(service_name)
+
+                # Check if this is a strong pattern (contains wire service name in path)
+                # vs section pattern (/national/, /world/)
+                if any(
+                    indicator in pattern.lower()
+                    for indicator in [
+                        "/ap-",
+                        "/cnn-",
+                        "/reuters-",
+                        "/wire/",
+                        "/stacker/",
+                        "repub",
+                    ]
+                ):
+                    strong_url_match = True
+                elif any(
+                    indicator in pattern.lower() for indicator in ["/nation", "/world"]
+                ):
+                    section_url_match = True
 
         if url_wire_matches:
             matches["url"] = url_wire_matches
@@ -476,65 +598,100 @@ class ContentTypeDetector:
             # Check first 150 characters for opening dateline/byline
             opening = content[:150] if len(content) > 150 else content
 
-            # Look for explicit wire service bylines and datelines (STRONG evidence)
-            # Dateline format: "CITY (AP) —" or "CITY, State (Reuters) —"
-            # Byline format: "By [Service]", "[Service] —"
-            # Also catch: "Person Name USA TODAY" (syndicated when not from USA TODAY)
-            wire_byline_patterns = [
-                # AP datelines (STRONG - very common)
-                (r"^[A-Z][A-Z\s,]+\(AP\)\s*[—–-]", "Associated Press"),
-                (r"^[A-Z][A-Z\s,]+\(Associated Press\)\s*[—–-]", "Associated Press"),
-                # Reuters datelines
-                (r"^[A-Z][A-Z\s,]+\(Reuters\)\s*[—–-]", "Reuters"),
-                (r"^[A-Z][A-Z\s,]+\(CNN\)\s*[—–-]", "CNN"),
-                # AFP datelines
-                (r"^[A-Z][A-Z\s,]+\(AFP\)\s*[—–-]", "AFP"),
-                (r"^[A-Z][A-Z\s,]+\(Agence France-Presse\)\s*[—–-]", "AFP"),
-                # Standard bylines
-                (r"^By (AP|Associated Press|A\.P\.)", "Associated Press"),
-                (r"^(AP|Associated Press|A\.P\.)\s*[—–-]", "Associated Press"),
-                (r"^By (Reuters)", "Reuters"),
-                (r"^(Reuters)\s*[—–-]", "Reuters"),
-                (r"^By (AFP|Agence France-Presse)", "AFP"),
-                (r"^(AFP|Agence France-Presse)\s*[—–-]", "AFP"),
-                (r"^By (CNN)", "CNN"),
-                (r"^(CNN)\s*[—–-]", "CNN"),
-                (r"^By (Bloomberg)", "Bloomberg"),
-                (r"^(Bloomberg)\s*[—–-]", "Bloomberg"),
-                (r"^By (NPR|National Public Radio)", "NPR"),
-                (r"^(NPR)\s*[—–-]", "NPR"),
-                (r"^By (Kansas Reflector|The Kansas Reflector)", "States Newsroom"),
-                (r"^(Kansas Reflector)\s*[—–-]", "States Newsroom"),
-                (
-                    r"^By (The Missouri Independent|Missouri Independent)",
-                    "The Missouri Independent",
-                ),
-                (
-                    r"^(The Missouri Independent)\s*[—–-]",
-                    "The Missouri Independent",
-                ),
-                (r"^By (WAVE|Wave|WAVE3)", "WAVE"),
-                (r"^(WAVE|Wave|WAVE3)\s*[—–-]", "WAVE"),
-                (r"^By (States Newsroom)", "States Newsroom"),
-                (r"^(States Newsroom)\s*[—–-]", "States Newsroom"),
-                # Syndicated bylines: "Person Name USA TODAY" etc.
-                (r"\b(USA TODAY|USA Today)\s*$", "USA TODAY"),
-                (r"\b(Wall Street Journal)\s*$", "Wall Street Journal"),
-                (r"\b(New York Times|The New York Times)\s*$", "The New York Times"),
-                (r"\b(Washington Post|The Washington Post)\s*$", "The Washington Post"),
-                (r"\b(Los Angeles Times)\s*$", "Los Angeles Times"),
-                (r"\b(Associated Press)\s*$", "Associated Press"),
-                (r"\b(Reuters)\s*$", "Reuters"),
-                (r"\b(Bloomberg)\s*$", "Bloomberg"),
-                (r"\b(AFP|Agence France-Presse)\s*$", "AFP"),
-                (r"\b(States Newsroom)\s*$", "States Newsroom"),
-            ]
+            # Look for explicit wire service bylines and datelines (STRONG)
+            # Load content patterns from database
+            wire_byline_patterns = self._get_wire_service_patterns(
+                pattern_type="content"
+            )
 
-            for pattern, service_name in wire_byline_patterns:
-                if re.search(pattern, opening, re.MULTILINE | re.IGNORECASE):
-                    content_matches.append(f"{service_name} (byline)")
-                    detected_services.add(service_name)
-                    wire_byline_found = True
+            if not wire_byline_patterns:
+                # Fallback if database unavailable - log warning but continue
+                wire_byline_patterns = []
+
+            for pattern, service_name, case_sensitive in wire_byline_patterns:
+                flags = 0 if case_sensitive else re.IGNORECASE
+                match = re.search(pattern, opening, re.MULTILINE | flags)
+                if match:
+                    # Extract identifier from dateline parentheses
+                    # For generic pattern: group(1) contains the callsign
+                    # For specific patterns: extract from parentheses
+                    if (
+                        service_name == "Broadcaster"
+                        and match.lastindex
+                        and match.lastindex >= 1
+                    ):
+                        # Generic broadcaster pattern - callsign in group 1
+                        identifier = match.group(1)
+                        local_callsigns = self._get_local_broadcaster_callsigns()
+
+                        if identifier in local_callsigns:
+                            # It's a known local broadcaster
+                            # Check if it's on its own site or syndicated
+                            url_lower = url.lower()
+                            identifier_lower = identifier.lower()
+
+                            # Check both direct callsign match and domain mapping
+                            is_own_site = identifier_lower in url_lower
+                            if not is_own_site and identifier in self._CALLSIGN_DOMAINS:
+                                # Check domain mapping
+                                is_own_site = any(
+                                    domain in url_lower
+                                    for domain in self._CALLSIGN_DOMAINS[identifier]
+                                )
+
+                            if is_own_site:
+                                # Same broadcaster - own content, not wire
+                                continue
+                            else:
+                                # Different site - syndicated content, IS wire
+                                content_matches.append(f"{identifier} (syndicated)")
+                                detected_services.add(identifier)
+                                wire_byline_found = True
+                        else:
+                            # Unknown callsign - could be out-of-market or non-broadcaster
+                            # Skip to avoid false positives
+                            continue
+                    else:
+                        # Specific wire service pattern (AP, Reuters, etc.)
+                        # Extract identifier if present for local broadcaster check
+                        paren_match = re.search(r"\(([A-Z]+)\)", match.group(0))
+                        if paren_match:
+                            identifier = paren_match.group(1)
+                            # Check if this is actually a local broadcaster misidentified
+                            local_callsigns = self._get_local_broadcaster_callsigns()
+                            if identifier in local_callsigns:
+                                # Check if callsign matches URL
+                                url_lower = url.lower()
+                                identifier_lower = identifier.lower()
+
+                                # Check both direct callsign match and domain mapping
+                                is_own_site = identifier_lower in url_lower
+                                if (
+                                    not is_own_site
+                                    and identifier in self._CALLSIGN_DOMAINS
+                                ):
+                                    # Check domain mapping
+                                    is_own_site = any(
+                                        domain in url_lower
+                                        for domain in self._CALLSIGN_DOMAINS[identifier]
+                                    )
+
+                                if is_own_site:
+                                    continue  # Own content, not wire
+                                else:
+                                    # Syndicated local broadcaster
+                                    content_matches.append(f"{identifier} (syndicated)")
+                                    detected_services.add(identifier)
+                                    wire_byline_found = True
+                                    continue  # Skip the generic add below
+                            elif service_name == "Broadcaster":
+                                # Unknown callsign with generic Broadcaster pattern
+                                # Skip to avoid false positives
+                                continue
+
+                        content_matches.append(f"{service_name} (byline)")
+                        detected_services.add(service_name)
+                        wire_byline_found = True
 
             # Check for wire service patterns in opening (less strong)
             if not wire_byline_found:

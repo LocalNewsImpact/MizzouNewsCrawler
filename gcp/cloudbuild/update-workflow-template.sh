@@ -18,13 +18,19 @@ echo "📦 Service: $SERVICE_TYPE"
 echo "🏷️  SHA: $NEW_SHA"
 echo "🔄 Updating Argo WorkflowTemplate..."
 
+# Export variables for Python script
+export SERVICE_TYPE
+export NEW_SHA
+export REGISTRY
+
 # Use Python to update the workflow template
-python3 << 'PYTHON_EOF' "$SERVICE_TYPE" "$NEW_SHA" "$REGISTRY"
+python3 - << 'PYTHON_EOF'
 import subprocess, json, sys, os
 
-service_type = sys.argv[1] if len(sys.argv) > 1 else os.environ.get('SERVICE_TYPE', '')
-new_sha = sys.argv[2] if len(sys.argv) > 2 else os.environ.get('NEW_SHA', '')
-registry = sys.argv[3] if len(sys.argv) > 3 else os.environ.get('REGISTRY', 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler')
+# Prefer environment variables for robustness
+service_type = os.environ.get('SERVICE_TYPE', '')
+new_sha = os.environ.get('NEW_SHA', '')
+registry = os.environ.get('REGISTRY', 'us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler')
 
 if not service_type or not new_sha:
     print("❌ Missing SERVICE_TYPE or NEW_SHA")
@@ -51,14 +57,16 @@ for template in wf['spec']['templates']:
         
         # Update crawler images
         if service_type == 'crawler' and f'{service_type}:' in img:
-            template['container']['image'] = f"{registry}/crawler:{new_sha}"
-            print(f"  ✓ Updated {template['name']}: crawler:{new_sha}")
+            new_image = f"{registry}/crawler:{new_sha}"
+            template['container']['image'] = new_image
+            print(f"  ✓ Updated {template['name']}: {new_image}")
             updated_count += 1
         
         # Update processor images
         elif service_type == 'processor' and f'{service_type}:' in img:
-            template['container']['image'] = f"{registry}/processor:{new_sha}"
-            print(f"  ✓ Updated {template['name']}: processor:{new_sha}")
+            new_image = f"{registry}/processor:{new_sha}"
+            template['container']['image'] = new_image
+            print(f"  ✓ Updated {template['name']}: {new_image}")
             updated_count += 1
 
 if updated_count == 0:

@@ -9,7 +9,7 @@ metadata:
 spec:
   schedule: "0 */6 * * *"  # Every 6 hours (00:00, 06:00, 12:00, 18:00 UTC)
   timezone: "UTC"
-  concurrencyPolicy: "Forbid"  # Don't run concurrent pipelines
+  concurrencyPolicy: "Replace"  # Replace running pipeline with new one
   successfulJobsHistoryLimit: 5
   failedJobsHistoryLimit: 5
   workflowSpec:
