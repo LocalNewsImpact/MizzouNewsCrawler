@@ -204,7 +204,7 @@ def telemetry_store_with_migrations(tmp_path):
 @pytest.fixture(scope="function", autouse=True)
 def populate_wire_service_patterns():
     """Populate wire_services table with test patterns for wire detection tests.
-    
+
     This fixture automatically runs before each test and populates the wire_services
     table with dateline and URL patterns needed for content type detection.
     """
