@@ -11,6 +11,10 @@ from sqlalchemy.orm import sessionmaker
 def wire_detection_test_session():
     """Create an in-memory SQLite session with wire service patterns for testing."""
     from src.models import Base, WireService
+    from src.utils.wire_reporters import clear_wire_reporters_cache, set_wire_reporters_cache
+    
+    # Clear any cached wire reporters
+    clear_wire_reporters_cache()
     
     # Create in-memory SQLite engine
     engine = create_engine("sqlite:///:memory:", echo=False)
@@ -20,7 +24,7 @@ def wire_detection_test_session():
     Session = sessionmaker(bind=engine)
     session = Session()
     
-    # Insert production patterns
+    # Insert wire service patterns (URL and content detection)
     patterns = [
         # Content patterns (byline/content matching)
         WireService(pattern=r"\b(AFP|Agence France-Presse)\b", pattern_type="content", service_name="AFP", case_sensitive=False, priority=20, active=True),
@@ -84,6 +88,32 @@ def wire_detection_test_session():
 
     session.commit()
 
+    # Set known wire reporters cache (from byline_cleaning_telemetry data)
+    # These are bylines flagged as wire service content
+    wire_reporters_cache = {
+        # AFP reporters
+        "afp afp": ("AFP", "high"),
+        "afp": ("AFP", "high"),
+        # AP reporters - common byline patterns  
+        "associated press": ("Associated Press", "high"),
+        "the associated press": ("Associated Press", "high"),
+        "ap": ("Associated Press", "high"),
+        # Reuters reporters
+        "reuters": ("Reuters", "high"),
+        # Stacker
+        "stacker": ("Stacker", "high"),
+        # CNN - top wire source with 2,467 articles
+        "cnn": ("CNN", "high"),
+        "cnn wire": ("CNN", "high"),
+        "cnn newsource": ("CNN Newsource", "high"),
+        # NPR
+        "npr": ("NPR", "high"),
+        # Bloomberg  
+        "bloomberg": ("Bloomberg", "high"),
+        "bloomberg news": ("Bloomberg", "high"),
+    }
+    set_wire_reporters_cache(wire_reporters_cache)
+
     # Mock DatabaseManager to use this session
     @contextmanager
     def mock_get_session():
@@ -102,6 +132,7 @@ def wire_detection_test_session():
     yield session, MockDatabaseManager
     
     # Cleanup
+    clear_wire_reporters_cache()
     session.close()
     engine.dispose()
 
