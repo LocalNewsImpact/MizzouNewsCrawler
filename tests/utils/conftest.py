@@ -3,20 +3,24 @@
 from contextlib import contextmanager
 
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 
 @pytest.fixture
-def populated_wire_services(cloud_sql_session, monkeypatch):
-    """Populate wire_services table with test patterns for PostgreSQL tests.
-
-    Uses production database patterns to ensure test accuracy.
-    """
-    from src.models import WireService
-
-    # Clear existing patterns
-    cloud_sql_session.query(WireService).delete()
-
-    # Insert patterns from production database
+def wire_detection_test_session():
+    """Create an in-memory SQLite session with wire service patterns for testing."""
+    from src.models import Base, WireService
+    
+    # Create in-memory SQLite engine
+    engine = create_engine("sqlite:///:memory:", echo=False)
+    Base.metadata.create_all(engine)
+    
+    # Create session
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    
+    # Insert production patterns
     patterns = [
         # Content patterns (byline/content matching)
         WireService(pattern=r"\b(AFP|Agence France-Presse)\b", pattern_type="content", service_name="AFP", case_sensitive=False, priority=20, active=True),
@@ -76,15 +80,15 @@ def populated_wire_services(cloud_sql_session, monkeypatch):
     ]
 
     for pattern in patterns:
-        cloud_sql_session.add(pattern)
+        session.add(pattern)
 
-    cloud_sql_session.commit()
+    session.commit()
 
-    # Mock DatabaseManager to use cloud_sql_session
+    # Mock DatabaseManager to use this session
     @contextmanager
     def mock_get_session():
         try:
-            yield cloud_sql_session
+            yield session
         finally:
             pass
 
@@ -94,18 +98,16 @@ def populated_wire_services(cloud_sql_session, monkeypatch):
         def get_session(self):
             return mock_get_session()
 
-    # Patch DatabaseManager where it's defined
-    def mock_db_manager(*args, **kwargs):
-        return MockDatabaseManager()
-
-    monkeypatch.setattr("src.models.database.DatabaseManager", mock_db_manager)
-
-    yield
-    # Cleanup handled by cloud_sql_session rollback
+    # Return session and mock manager setup
+    yield session, MockDatabaseManager
+    
+    # Cleanup
+    session.close()
+    engine.dispose()
 
 
 @pytest.fixture
-def populated_broadcaster_callsigns(cloud_sql_session, monkeypatch):
+def populated_wire_services(cloud_sql_session, monkeypatch):
     """Populate local_broadcaster_callsigns table for PostgreSQL tests.
 
     Uses the PostgreSQL cloud_sql_session fixture and patches DatabaseManager

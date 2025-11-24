@@ -8,11 +8,10 @@ from src.utils.content_type_detector import ContentTypeDetector
 
 
 @pytest.mark.integration
-@pytest.mark.postgres
 class TestWireDetectionGroundTruth:
     """Validate wire detection against manually labeled ground truth dataset."""
 
-    def test_ground_truth_validation(self, populated_wire_services):
+    def test_ground_truth_validation(self, wire_detection_test_session, monkeypatch):
         """
         Validate detector against ground truth dataset.
         
@@ -24,6 +23,17 @@ class TestWireDetectionGroundTruth:
         - Wire articles (no X): Should be detected as wire
         - Local articles (X marked): Should NOT be detected as wire (99% accuracy = max 7 false positives)
         """
+        # Setup mocking
+        session, MockDatabaseManager = wire_detection_test_session
+        
+        # Patch DatabaseManager
+        def mock_db_manager(*args, **kwargs):
+            return MockDatabaseManager()
+        
+        monkeypatch.setattr("src.models.database.DatabaseManager", mock_db_manager)
+        
+        # Now create detector (after patching)
+        from src.utils.content_type_detector import ContentTypeDetector
         detector = ContentTypeDetector()
         
         # Load ground truth dataset
