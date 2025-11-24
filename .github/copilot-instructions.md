@@ -4,11 +4,13 @@
 
 ### Production Database Access (PostgreSQL via Cloud SQL)
 
-**ALWAYS use the local Python environment to query production - it's already configured:**
+**URGENT: ALWAYS use `kubectl exec` to query production data. The local environment DOES NOT connect to production.**
+
+To query the production database, you must execute the Python script inside a running pod (API or Processor) in the `production` namespace.
 
 ```bash
 # Standard query pattern (USE THIS):
-source venv/bin/activate && python -c "
+kubectl exec -n production deployment/mizzou-api -- python -c "
 from src.models.database import DatabaseManager
 from sqlalchemy import text
 
@@ -58,8 +60,8 @@ results = session.execute(text('''
 - `article_labels`: ML classifications (article_id FK, label, confidence, label_version)
 
 **NEVER:**
-- Don't use kubectl exec for simple queries (auth issues, slow)
-- Don't query local DB (empty, not production data)
+- **NEVER** assume the local `venv` connects to the production database. It connects to a local SQLite or empty Postgres instance.
+- **NEVER** run queries locally expecting production results.
 - Don't forget `text()` wrapper for raw SQL in SQLAlchemy
 
 ## Test Development Protocol

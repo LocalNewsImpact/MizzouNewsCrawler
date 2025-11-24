@@ -360,6 +360,7 @@ class ContentTypeDetector:
         title: str | None,
         metadata: dict | None,
         content: str | None = None,
+        author: str | None = None,
     ) -> ContentTypeResult | None:
         """Return the detected content type for the article, if any."""
 
@@ -372,6 +373,8 @@ class ContentTypeDetector:
             url=url,
             content=content,
             metadata=normalized_metadata,
+            author=author,
+            title=title,
         )
         if wire_result:
             return wire_result
@@ -399,109 +402,29 @@ class ContentTypeDetector:
         url: str,
         content: str | None,
         metadata: dict | None = None,
+        author: str | None = None,
+        title: str | None = None,
     ) -> ContentTypeResult | None:
         """
-        Detect wire service content by analyzing URL, content, and metadata.
+        Detect wire service content using tiered detection strategy.
 
-        Wire services are often indicated in:
-        1. Author field: "Afp Afp", "By AP", "Reuters Staff"
-        2. First 150 characters (opening dateline: "WASHINGTON (AP) —")
-        3. Last 150 characters (attribution: "©2025 The Associated Press")
-            "statesnewsroom.org": "States Newsroom",
-            "kansasreflector.com": "States Newsroom",
-            "missouriindependent.org": "The Missouri Independent",
-            "missouriindependent.com": "The Missouri Independent",
-            "wave3.com": "WAVE",
+        Detection Tiers (in priority order):
+        1. URL Structure (STRONGEST): Wire service paths, national/world sections
+        2. Byline Analysis (STRONG): Known wire reporters, wire service patterns
+           - CRITICAL: Excludes if byline matches publisher (KMIZ on KMIZ = local)
+        3. Metadata/Copyright (STRONG): Structured attribution, copyright notices
+        4. Content Patterns (WEAK): Dateline patterns, requires additional evidence
 
-        IMPORTANT: This detector is conservative and requires STRONG evidence:
-        - Wire service author field (e.g. "Afp Afp"), OR
-        - URL pattern match from major wire service domain, OR
-        - Explicit wire service byline/dateline in opening (e.g. "By AP")
-
-        It will NOT trigger on:
-        - Just a city dateline (local reporters file from DC too)
-        - Just a mention in closing credits (local articles cite sources)
-        - Weak URL patterns ALONE (requires author/content evidence too)
+        Returns wire detection only with strong evidence. Avoids false positives
+        from local reporters filing from DC or articles that merely cite sources.
         """
         matches: dict[str, list[str]] = {}
         detected_services: set[str] = set()
-        wire_byline_found = False
-
-        # Check author field for wire service patterns (STRONG signal)
-        author = (metadata or {}).get("byline", "") if metadata else ""
-
-        # Handle case where byline is a dictionary (from BylineCleaner)
-        if isinstance(author, dict):
-            # Try to get cleaned authors list first
-            authors_list = author.get("authors", [])
-            if authors_list and isinstance(authors_list, list):
-                author = ", ".join(str(a) for a in authors_list)
-            else:
-                # Fallback to original string
-                author = str(author.get("original", ""))
-        elif isinstance(author, list):
-            author = ", ".join(str(a) for a in author)
-
-        if author:
-            author_lower = author.lower().strip()
-
-            # First check if byline contains a known wire reporter
-            wire_reporter_check = is_wire_reporter(author)
-            if wire_reporter_check:
-                service_name, confidence = wire_reporter_check
-                matches["author"] = [f"{service_name} (known wire reporter)"]
-                detected_services.add(service_name)
-                wire_byline_found = True
-            else:
-                # Fall back to pattern matching for wire service bylines
-                # Common wire service author patterns
-                wire_author_patterns = [
-                    (r"^afp\s+afp$", "AFP"),
-                    (r"^(by\s+)?afp(\s+staff)?$", "AFP"),
-                    (r"^(by\s+)?agence france[- ]presse$", "AFP"),
-                    (r"^(by\s+)?ap(\s+staff)?$", "Associated Press"),
-                    (r"^(by\s+)?associated press$", "Associated Press"),
-                    (r"^(by\s+)?reuters(\s+staff)?$", "Reuters"),
-                    (r"^(by\s+)?cnn(\s+(staff|wire))?$", "CNN"),
-                    (r"\busa\s+today\b", "USA TODAY"),
-                    (r"^(by\s+)?bloomberg$", "Bloomberg"),
-                    # Kansas Reflector and Missouri Independent may appear anywhere
-                    # in the byline, often prefixed by a date or followed by an
-                    # author name. Match them when they appear anywhere, not only
-                    # at the start or end.
-                    (r"\bkansas\s+reflector\b", "States Newsroom"),
-                    (r"\bkansasreflector\b", "States Newsroom"),
-                    (
-                        r"\b(the\s+)?missouri\s+independent\b",
-                        "The Missouri Independent",
-                    ),
-                    (r"\b(wave|wave3|wave3\.com|wave3news)\b", "WAVE"),
-                    (r"\bstates\s*newsroom\b", "States Newsroom"),
-                    # Name ending with AFP (e.g., "John Smith AFP")
-                    (r"\bafp$", "AFP"),
-                    # Multi-author bylines ending with wire service
-                    # (e.g., "John Smith, Jane Doe, Associated Press")
-                    (r",\s*associated press$", "Associated Press"),
-                    (r",\s*reuters$", "Reuters"),
-                    (r",\s*cnn$", "CNN"),
-                    (r",\s*afp$", "AFP"),
-                    (r",\s*bloomberg$", "Bloomberg"),
-                    (r",\s*npr$", "NPR"),
-                ]
-                for pattern, service_name in wire_author_patterns:
-                    if re.search(pattern, author_lower, re.IGNORECASE):
-                        matches["author"] = [f"{service_name} (author field)"]
-                        detected_services.add(service_name)
-                        wire_byline_found = True
-                        break
-
-        # Check URL for STRONG wire service patterns (actual wire service domains)
         url_lower = url.lower()
-        url_wire_matches = []
 
-        # Strong URL patterns (actual wire service domains)
-        # NOTE: Content ON these domains is original, not syndicated
-        # We track these to EXCLUDE them from wire detection
+        # ===================================================================
+        # TIER 0: Exclude wire service's own domains (not syndicated)
+        # ===================================================================
         own_source_domains = {
             "cnn.com": "CNN",
             "apnews.com": "Associated Press",
@@ -521,404 +444,251 @@ class ContentTypeDetector:
             "wave3.com": "WAVE",
         }
 
-        # Check if this content is from the wire service's own domain
-        is_own_source = False
         for domain, service_name in own_source_domains.items():
             if domain in url_lower:
-                is_own_source = True
-                break
+                return None  # Own content, not syndicated
 
-        # If this is from the service's own domain, it's NOT wire/syndicated
-        if is_own_source:
-            return None
+        # ===================================================================
+        # TIER 1: URL Structure Analysis (STRONGEST SIGNAL)
+        # ===================================================================
+        strong_url_signal = False
+        weak_url_signal = False
 
-        # URL patterns indicating wire/syndicated content
-        # Split into two categories:
-        # 1. Strong patterns (wire service slug in URL): /ap-, /wire/, etc.
-        # 2. Section patterns (national/world coverage): /nation/, /world/, etc.
-
-        # Major national outlets that have their own correspondents
-        # (section indicators don't necessarily mean wire for these)
-        major_national_outlets = {
-            "nytimes.com",
-            "washingtonpost.com",
-            "usatoday.com",
-            "wsj.com",
-            "latimes.com",
-            "chicagotribune.com",
-            "bostonglobe.com",
-            "sfchronicle.com",
-        }
-
-        is_major_national = any(
-            outlet in url_lower for outlet in major_national_outlets
-        )
-
-        # Note: URL patterns (strong and section) loaded from wire_services table
-        # Previously hardcoded, now managed in database
-
-        strong_url_match = False
-        section_url_match = False
-
-        # Load URL patterns from database (filter by pattern_type='url')
+        # Load patterns from database
         wire_url_patterns = self._get_wire_service_patterns(pattern_type="url")
 
         for pattern, service_name, case_sensitive in wire_url_patterns:
-            # URL patterns should use case-insensitive matching
-            if re.search(pattern, url, re.IGNORECASE if not case_sensitive else 0):
-                url_wire_matches.append(pattern)
+            flags = 0 if case_sensitive else re.IGNORECASE
+            if re.search(pattern, url, flags):
+                matches.setdefault("url", []).append(pattern)
                 detected_services.add(service_name)
 
-                # Check if this is a strong pattern (contains wire service name in path)
-                # vs section pattern (/national/, /world/)
-                if any(
-                    indicator in pattern.lower()
-                    for indicator in [
-                        "/ap-",
-                        "/cnn-",
-                        "/reuters-",
-                        "/wire/",
-                        "/stacker/",
-                        "repub",
-                    ]
-                ):
-                    strong_url_match = True
+                # Categorize URL pattern strength
+                pattern_lower = pattern.lower()
+                strong_indicators = [
+                    "/ap-", "/cnn-", "/reuters-", "/wire/", "/stacker"
+                ]
+                if any(indicator in pattern_lower for indicator in strong_indicators):
+                    strong_url_signal = True
                 elif any(
-                    indicator in pattern.lower() for indicator in ["/nation", "/world"]
+                    indicator in pattern_lower
+                    for indicator in ["/national", "/world"]
                 ):
-                    section_url_match = True
+                    weak_url_signal = True
+                else:
+                    # Domain patterns or service-name-in-path
+                    strong_url_signal = True
 
-        if url_wire_matches:
-            matches["url"] = url_wire_matches
+        # Strong URL signal alone is sufficient
+        if strong_url_signal:
+            return self._build_wire_result(matches, detected_services, tier="url")
 
-        # Check article content for STRONG wire service indicators
-        if content:
-            content_matches = []
+        # ===================================================================
+        # TIER 2: Byline Analysis (STRONG SIGNAL with Publisher Check)
+        # ===================================================================
+        byline_signal = False
 
-            # Check first 150 characters for opening dateline/byline
-            opening = content[:150] if len(content) > 150 else content
+        # Extract author from various sources
+        author_raw = author or (metadata.get("author") if metadata else None) or (
+            metadata.get("byline") if metadata else None
+        )
 
-            # Look for explicit wire service bylines and datelines (STRONG)
-            # Load content patterns from database
-            wire_byline_patterns = self._get_wire_service_patterns(
-                pattern_type="content"
+        # Handle structured byline metadata
+        if metadata and isinstance(metadata.get("byline"), dict):
+            byline_meta = metadata["byline"]
+            if byline_meta.get("is_wire_content"):
+                byline_signal = True
+                service_names = byline_meta.get("wire_services", []) or []
+                for svc in service_names:
+                    if svc:
+                        detected_services.add(str(svc))
+                matches.setdefault("byline_metadata", []).append("marked_as_wire")
+
+        # Extract author string
+        if isinstance(author_raw, dict):
+            author_str = ", ".join(str(a) for a in author_raw.get("authors", []))
+            if not author_str:
+                author_str = str(author_raw.get("original", ""))
+        elif isinstance(author_raw, list):
+            author_str = ", ".join(str(a) for a in author_raw)
+        else:
+            author_str = str(author_raw) if author_raw else ""
+
+        if author_str:
+            author_lower = author_str.lower().strip()
+
+            # CRITICAL: Check if byline matches publisher
+            # Extract publisher from URL (domain or callsign)
+            publisher_indicators = self._extract_publisher_from_url(url_lower)
+
+            # Check if author contains publisher name
+            byline_matches_publisher = any(
+                indicator in author_lower for indicator in publisher_indicators
             )
 
-            if not wire_byline_patterns:
-                # Fallback if database unavailable - log warning but continue
-                wire_byline_patterns = []
+            if byline_matches_publisher:
+                # Author matches publisher - this is LOCAL content
+                # Example: "KMIZ News" on abc17news.com (KMIZ's site)
+                return None
 
-            for pattern, service_name, case_sensitive in wire_byline_patterns:
-                flags = 0 if case_sensitive else re.IGNORECASE
-                match = re.search(pattern, opening, re.MULTILINE | flags)
-                if match:
-                    # Extract identifier from dateline parentheses
-                    # For generic pattern: group(1) contains the callsign
-                    # For specific patterns: extract from parentheses
-                    if (
-                        service_name == "Broadcaster"
-                        and match.lastindex
-                        and match.lastindex >= 1
-                    ):
-                        # Generic broadcaster pattern - callsign in group 1
-                        identifier = match.group(1)
-                        local_callsigns = self._get_local_broadcaster_callsigns()
-
-                        if identifier in local_callsigns:
-                            # It's a known local broadcaster
-                            # Check if it's on its own site or syndicated
-                            url_lower = url.lower()
-                            identifier_lower = identifier.lower()
-
-                            # Check both direct callsign match and domain mapping
-                            is_own_site = identifier_lower in url_lower
-                            if not is_own_site and identifier in self._CALLSIGN_DOMAINS:
-                                # Check domain mapping
-                                is_own_site = any(
-                                    domain in url_lower
-                                    for domain in self._CALLSIGN_DOMAINS[identifier]
-                                )
-
-                            if is_own_site:
-                                # Same broadcaster - own content, not wire
-                                continue
-                            else:
-                                # Different site - syndicated content, IS wire
-                                content_matches.append(f"{identifier} (syndicated)")
-                                detected_services.add(identifier)
-                                wire_byline_found = True
-                        else:
-                            # Unknown callsign - could be out-of-market or non-broadcaster
-                            # Skip to avoid false positives
-                            continue
-                    else:
-                        # Specific wire service pattern (AP, Reuters, etc.)
-                        # Extract identifier if present for local broadcaster check
-                        paren_match = re.search(r"\(([A-Z]+)\)", match.group(0))
-                        if paren_match:
-                            identifier = paren_match.group(1)
-                            # Check if this is actually a local broadcaster misidentified
-                            local_callsigns = self._get_local_broadcaster_callsigns()
-                            if identifier in local_callsigns:
-                                # Check if callsign matches URL
-                                url_lower = url.lower()
-                                identifier_lower = identifier.lower()
-
-                                # Check both direct callsign match and domain mapping
-                                is_own_site = identifier_lower in url_lower
-                                if (
-                                    not is_own_site
-                                    and identifier in self._CALLSIGN_DOMAINS
-                                ):
-                                    # Check domain mapping
-                                    is_own_site = any(
-                                        domain in url_lower
-                                        for domain in self._CALLSIGN_DOMAINS[identifier]
-                                    )
-
-                                if is_own_site:
-                                    continue  # Own content, not wire
-                                else:
-                                    # Syndicated local broadcaster
-                                    content_matches.append(f"{identifier} (syndicated)")
-                                    detected_services.add(identifier)
-                                    wire_byline_found = True
-                                    continue  # Skip the generic add below
-                            elif service_name == "Broadcaster":
-                                # Unknown callsign with generic Broadcaster pattern
-                                # Skip to avoid false positives
-                                continue
-
-                        content_matches.append(f"{service_name} (byline)")
-                        detected_services.add(service_name)
-                        wire_byline_found = True
-
-            # Check for wire service patterns in opening (less strong)
-            if not wire_byline_found:
-                for (
-                    pattern,
-                    service_name,
-                    case_sensitive,
-                ) in self._WIRE_SERVICE_PATTERNS:
-                    flags = 0 if case_sensitive else re.IGNORECASE
-                    if re.search(pattern, opening, flags):
-                        # Only count if it looks like attribution
-                        # Look for: "According to AP", "AP reports", etc.
-                        context_pattern = rf"(?:By|according to|reports?)\s+{pattern}"
-                        if re.search(context_pattern, opening, flags | re.IGNORECASE):
-                            content_matches.append(f"{service_name} (opening)")
-                            detected_services.add(service_name)
-
-                # Check for 'first appeared in' patterns which often indicate
-                # syndicated content (States Newsroom affiliates).
-                # Example: "This story first appeared in the Kansas Reflector, a States Newsroom affiliate"
-                first_appeared_match = re.search(
-                    r"first appeared in (?:the )?([^,]+?),?\s*(?:a|an)?\s*(?:states\s+newsroom\s+affiliate)",
-                    content,
-                    re.IGNORECASE,
+            # Check against known wire reporters (from telemetry DB)
+            wire_reporter_check = is_wire_reporter(author_str)
+            if wire_reporter_check:
+                service_name, confidence = wire_reporter_check
+                matches.setdefault("byline", []).append(
+                    f"{service_name} (known wire reporter)"
                 )
-                if first_appeared_match:
-                    pub = first_appeared_match.group(1).strip()
-                    # Don't mark as syndicated if the current host is the original publisher
-                    pub_lower = pub.lower()
-                    host_is_pub = False
-                    if "kansas" in pub_lower and "reflector" in pub_lower:
-                        host_is_pub = "kansasreflector.com" in url_lower
-                    elif "missouri" in pub_lower and "independent" in pub_lower:
-                        host_is_pub = (
-                            "missouriindependent.org" in url_lower
-                            or "missouriindependent.com" in url_lower
+                detected_services.add(service_name)
+                byline_signal = True
+            else:
+                # Pattern match against wire service patterns from DB
+                wire_byline_patterns = self._get_wire_service_patterns(
+                    pattern_type="content"
+                )
+                for pattern, service_name, case_sensitive in wire_byline_patterns:
+                    flags = 0 if case_sensitive else re.IGNORECASE
+                    if re.search(pattern, author_str, flags):
+                        matches.setdefault("byline", []).append(
+                            f"{service_name} (pattern)"
                         )
-                    else:
-                        # Generic host check: if the publisher-controlled domain appears in the url
-                        # or the publisher name in url (slug style) appears, consider it own source
-                        host_is_pub = (
-                            pub_lower.replace(" ", "") in url_lower
-                            or pub_lower in url_lower
-                        )
-                    if not host_is_pub:
-                        content_matches.append(
-                            f"States Newsroom (first_appeared: {pub})"
-                        )
-                        detected_services.add("States Newsroom")
-                        wire_byline_found = True
+                        detected_services.add(service_name)
+                        byline_signal = True
+                        break
 
-            # Check last 150 characters for copyright/attribution (STRONG)
+        # Byline signal is strong enough alone
+        if byline_signal:
+            return self._build_wire_result(matches, detected_services, tier="byline")
+
+        # ===================================================================
+        # TIER 3: Metadata/Copyright Analysis (STRONG SIGNAL)
+        # ===================================================================
+        copyright_signal = False
+
+        if content:
+            # Check last 150 chars for copyright
             closing = content[-150:] if len(content) > 150 else content
             copyright_patterns = [
                 (
                     r"©\s*\d{4}\s+(?:The\s+)?"
-                    r"(Associated Press|AP|Reuters|CNN|Bloomberg|NPR|AFP|"
-                    r"Agence France-Presse|States Newsroom|WAVE|"
-                    r"The Missouri Independent)",
-                    "copyright",
+                    r"(Associated Press|AP|Reuters|CNN|Bloomberg|NPR|AFP)"
                 ),
                 (
                     r"Copyright\s+\d{4}\s+(?:The\s+)?"
-                    r"(Associated Press|AP|Reuters|CNN|Bloomberg|NPR|AFP|"
-                    r"Agence France-Presse|States Newsroom|WAVE|"
-                    r"The Missouri Independent)",
-                    "copyright",
-                ),
-                (
-                    r"All rights reserved\.?\s+(?:The\s+)?"
-                    r"(Associated Press|AP|Reuters|CNN|NPR|AFP|Agence France-Presse|"
-                    r"States Newsroom|WAVE|The Missouri Independent)",
-                    "copyright",
+                    r"(Associated Press|AP|Reuters|CNN|Bloomberg|NPR|AFP)"
                 ),
             ]
 
-            # Also check for "told AFP" / "told Reuters" patterns (STRONG)
-            # This is a very common pattern in wire service articles
-            told_patterns = [
-                (r"told\s+(AFP|Agence France-Presse)", "AFP"),
-                (r"told\s+(Reuters)", "Reuters"),
-                (r"told\s+(AP|Associated Press)", "Associated Press"),
-                (r"told\s+(CNN)", "CNN"),
-                (r"told\s+(States Newsroom)", "States Newsroom"),
-                (r"told\s+(WAVE|Wave|WAVE3)", "WAVE"),
-                (
-                    r"told\s+(The Missouri Independent|Missouri Independent)",
-                    "The Missouri Independent",
-                ),
-                (r"told\s+(kansas\s*reflector|kansasreflector)", "States Newsroom"),
-            ]
-
-            for pattern, service_name in told_patterns:
-                if re.search(pattern, content, re.IGNORECASE):
-                    content_matches.append(f"{service_name} (attribution)")
-                    detected_services.add(service_name)
-
-            for pattern, marker_type in copyright_patterns:
+            for pattern in copyright_patterns:
                 match = re.search(pattern, closing, re.IGNORECASE)
                 if match:
-                    service = match.group(1)
-                    # Normalize service name
-                    if service.upper() in ("AP", "ASSOCIATED PRESS"):
-                        service_name = "Associated Press"
-                    elif service.upper() == "REUTERS":
-                        service_name = "Reuters"
-                    elif service.upper() == "CNN":
-                        service_name = "CNN"
-                    elif service.upper() == "BLOOMBERG":
-                        service_name = "Bloomberg"
-                    elif service.upper() == "NPR":
-                        service_name = "NPR"
-                    elif service.upper() in ("AFP", "AGENCE FRANCE-PRESSE"):
-                        service_name = "AFP"
-                    elif service.upper() in ("STATES NEWSROOM", "STATESNEWSROOM"):
-                        service_name = "States Newsroom"
-                    elif service.upper() in ("WAVE", "WAVE3"):
-                        service_name = "WAVE"
-                    elif service.upper() in ("KANSAS REFLECTOR", "KANSASREFLECTOR"):
-                        service_name = "States Newsroom"
-                    elif service.upper() in (
-                        "THE MISSOURI INDEPENDENT",
-                        "MISSOURI INDEPENDENT",
-                    ):
-                        service_name = "The Missouri Independent"
-                    else:
-                        service_name = service
+                    service = self._normalize_service_name(match.group(1))
+                    matches.setdefault("copyright", []).append(service)
+                    detected_services.add(service)
+                    copyright_signal = True
 
-                    # Check if this is from the service's own source
-                    # (e.g., "Copyright NPR" on npr.org is NOT syndicated)
-                    url_lower = url.lower()
-                    is_own_source = False
-                    if service_name == "NPR" and "npr.org" in url_lower:
-                        is_own_source = True
-                    elif (
-                        service_name == "Associated Press" and "apnews.com" in url_lower
-                    ):
-                        is_own_source = True
-                    elif service_name == "Reuters" and "reuters.com" in url_lower:
-                        is_own_source = True
-                    elif service_name == "CNN" and "cnn.com" in url_lower:
-                        is_own_source = True
-                    elif service_name == "Bloomberg" and "bloomberg.com" in url_lower:
-                        is_own_source = True
-                    elif (
-                        service_name == "States Newsroom"
-                        and "statesnewsroom.org" in url_lower
-                    ):
-                        is_own_source = True
-                    elif service_name == "States Newsroom" and (
-                        "statesnewsroom.org" in url_lower
-                        or "kansasreflector.com" in url_lower
-                        or "missouriindependent.org" in url_lower
-                        or "missouriindependent.com" in url_lower
-                    ):
-                        is_own_source = True
-                    elif service_name == "The Missouri Independent" and (
-                        "missouriindependent.org" in url_lower
-                        or "missouriindependent.com" in url_lower
-                    ):
-                        is_own_source = True
-                    elif service_name == "WAVE" and (
-                        "wave3.com" in url_lower or "wave3" in url_lower
-                    ):
-                        is_own_source = True
+        if copyright_signal:
+            return self._build_wire_result(matches, detected_services, tier="copyright")
 
-                    # Only mark as wire if it's NOT from the service's own source
-                    if not is_own_source:
-                        content_matches.append(f"{service_name} ({marker_type})")
-                        detected_services.add(service_name)
+        # ===================================================================
+        # TIER 4: Content Pattern Analysis (WEAK - Requires Additional Evidence)
+        # ===================================================================
+        content_signal = False
 
-            if content_matches:
-                matches["content"] = content_matches
+        if content:
+            content_start = content[:300].lower()
 
-        # DECISION LOGIC:
-        # Mark as wire if we have strong evidence:
-        # 1. Strong URL pattern (/wire/, /ap-, /stacker/, /repub/, etc.), OR
-        # 2. Section URL pattern (/nation/, /world/) on non-major-national site, OR
-        # 3. Wire byline/author found, OR
-        # 4. Copyright/attribution in content
+            # Only check content patterns if we have SOME other signal (weak URL, etc.)
+            if weak_url_signal or title:
+                # NPR transcript pattern
+                if "host:" in content_start:
+                    matches.setdefault("content", []).append("NPR transcript pattern")
+                    detected_services.add("NPR")
+                    content_signal = True
 
-        if not matches:
-            return None
+                # AP dateline
+                if "(ap)" in content_start:
+                    matches.setdefault("content", []).append("AP dateline")
+                    detected_services.add("Associated Press")
+                    content_signal = True
 
-        # Check what types of evidence we have
-        has_strong_evidence = wire_byline_found or any(
-            "copyright" in m or "byline" in m or "attribution" in m
-            for m in matches.get("content", [])
-        )
+                # NWS/Weather patterns (only with title confirmation)
+                if title and any(
+                    kw in title.lower()
+                    for kw in ["weather alert", "dense fog", "nws"]
+                ):
+                    if "national weather service" in content_start:
+                        matches.setdefault("content", []).append("NWS attribution")
+                        detected_services.add("National Weather Service")
+                        content_signal = True
 
-        # Strong URL patterns are sufficient alone
-        if strong_url_match:
-            pass  # Continue to return result
-        # Section patterns require additional content evidence
-        elif section_url_match and not is_major_national:
-            # National/world sections on local sites suggest wire, but need confirmation
-            if has_strong_evidence:
-                # Have content evidence to support wire detection
-                if not detected_services:
-                    detected_services.add("Unknown wire service")
-            else:
-                # Section URL alone is not enough without content evidence
-                return None
-        # Otherwise require strong content/byline evidence
-        elif not has_strong_evidence:
-            return None
+        # Content patterns require additional evidence (weak URL + content)
+        if content_signal and weak_url_signal:
+            return self._build_wire_result(
+                matches, detected_services, tier="content_weak"
+            )
 
-        # Build evidence summary
+        # No strong evidence found
+        return None
+
+    def _extract_publisher_from_url(self, url_lower: str) -> list[str]:
+        """Extract publisher indicators from URL for byline matching."""
+        indicators = []
+
+        # Extract domain
+        domain_match = re.search(r"//([^/]+)", url_lower)
+        if domain_match:
+            domain = domain_match.group(1).replace("www.", "")
+            # e.g., "abc17news" from abc17news.com
+            indicators.append(domain.split(".")[0])
+
+        # Check for known callsigns in URL
+        for callsign, domains in self._CALLSIGN_DOMAINS.items():
+            if any(d in url_lower for d in domains):
+                indicators.append(callsign.lower())
+
+        return indicators
+
+    def _normalize_service_name(self, service: str) -> str:
+        """Normalize wire service names to canonical form."""
+        service_upper = service.upper()
+        if service_upper in ("AP", "ASSOCIATED PRESS"):
+            return "Associated Press"
+        elif service_upper == "REUTERS":
+            return "Reuters"
+        elif service_upper == "CNN":
+            return "CNN"
+        elif service_upper == "BLOOMBERG":
+            return "Bloomberg"
+        elif service_upper == "NPR":
+            return "NPR"
+        elif service_upper in ("AFP", "AGENCE FRANCE-PRESSE"):
+            return "AFP"
+        return service
+
+    def _build_wire_result(
+        self, matches: dict, detected_services: set, tier: str
+    ) -> ContentTypeResult:
+        """Build wire detection result with confidence based on tier."""
         evidence = matches.copy()
         if detected_services:
             evidence["detected_services"] = sorted(detected_services)
+        evidence["detection_tier"] = tier
 
-        # Calculate confidence based on evidence
-        score = 0
-        if "url" in matches:
-            score += 2  # URL patterns are strong indicators
-        if "content" in matches:
-            score += 2  # Content patterns are strong indicators
-
-        # Normalize score (max 4 points)
-        confidence_score = min(score / 4.0, 1.0)
-        confidence = "high" if score >= 3 else "medium"
+        # Tier-based confidence
+        confidence_map = {
+            "url": (1.0, "high"),
+            "byline": (0.9, "high"),
+            "copyright": (0.85, "high"),
+            "content_weak": (0.6, "medium"),
+        }
+        confidence_score, confidence_label = confidence_map.get(
+            tier, (0.5, "medium")
+        )
 
         return ContentTypeResult(
             status="wire",
             confidence_score=confidence_score,
-            confidence=confidence,
+            confidence=confidence_label,
             reason="wire_service_detected",
             evidence=evidence,
             detector_version=self.VERSION,

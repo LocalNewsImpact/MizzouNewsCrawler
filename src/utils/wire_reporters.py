@@ -35,10 +35,10 @@ def _load_wire_reporters() -> dict[str, tuple[str, str]]:
             # Query bylines marked as wire service content
             # Group by final_authors_display to get unique wire reporters
             query = text("""
-                SELECT DISTINCT final_authors_display, 
+                SELECT DISTINCT final_authors_display,
                        COALESCE(human_label, 'Wire Service') as service_name
                 FROM byline_cleaning_telemetry
-                WHERE has_wire_service = true 
+                WHERE has_wire_service = true
                   AND final_authors_display IS NOT NULL
                   AND final_authors_display != ''
             """)
@@ -52,8 +52,13 @@ def _load_wire_reporters() -> dict[str, tuple[str, str]]:
         
         _wire_reporters_cache = reporters
         return reporters
-    except Exception:
-        # Return empty dict if database unavailable
+    except (ImportError, AttributeError, Exception) as e:
+        # Return empty dict if database unavailable or module not found
+        # Log error for debugging but don't crash
+        import logging
+        logging.getLogger(__name__).debug(
+            f"Failed to load wire reporters from database: {e}"
+        )
         _wire_reporters_cache = {}
         return {}
 

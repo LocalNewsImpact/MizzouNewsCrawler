@@ -40,18 +40,18 @@ create_dashboard() {
 }
 
 # Create System Health dashboard
-if [ -f "$SCRIPT_DIR/dashboards/system-health.json" ]; then
-    create_dashboard "$SCRIPT_DIR/dashboards/system-health.json"
+if [ -f "$SCRIPT_DIR/dashboards/system-health-fixed.json" ]; then
+    create_dashboard "$SCRIPT_DIR/dashboards/system-health-fixed.json"
 fi
 
 # Create Pipeline Metrics dashboard
-if [ -f "$SCRIPT_DIR/dashboards/pipeline-metrics.json" ]; then
-    create_dashboard "$SCRIPT_DIR/dashboards/pipeline-metrics.json"
+if [ -f "$SCRIPT_DIR/dashboards/pipeline-metrics-fixed.json" ]; then
+    create_dashboard "$SCRIPT_DIR/dashboards/pipeline-metrics-fixed.json"
 fi
 
-# Create Business Metrics dashboard
-if [ -f "$SCRIPT_DIR/dashboards/business-metrics.json" ]; then
-    create_dashboard "$SCRIPT_DIR/dashboards/business-metrics.json"
+# Create Business Metrics dashboard (if exists)
+if [ -f "$SCRIPT_DIR/dashboards/business-metrics-fixed.json" ]; then
+    create_dashboard "$SCRIPT_DIR/dashboards/business-metrics-fixed.json"
 fi
 
 echo "=== Dashboard Creation Complete ==="
