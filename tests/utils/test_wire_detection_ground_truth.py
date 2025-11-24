@@ -12,7 +12,7 @@ from src.utils.content_type_detector import ContentTypeDetector
 class TestWireDetectionGroundTruth:
     """Validate wire detection against manually labeled ground truth dataset."""
 
-    def test_ground_truth_validation(self):
+    def test_ground_truth_validation(self, populated_wire_services):
         """
         Validate detector against ground truth dataset.
         
