@@ -86,20 +86,42 @@ class TieredWireServiceDetector:
     }
 
     # Tier 1: URL path patterns indicating syndication
+    # NOTE: ALL wire URL patterns are now DISABLED.
+    # Analysis of ground truth data shows that local publishers intentionally
+    # republish wire service content (AP, CNN, Reuters, Stacker) in dedicated
+    # sections. URLs like /ap-, /cnn-, /stacker/ indicate LICENSED SYNDICATED
+    # CONTENT that the outlet has permission to publish, NOT unattributed wire
+    # syndication.
+    #
+    # The business requirement is to treat ALL content on local news sites as
+    # local content, regardless of wire service attribution in URLs or bylines.
     _WIRE_URL_PATH_PATTERNS = [
-        (r"/ap-", "Associated Press"),
-        (r"/cnn-", "CNN"),
-        (r"/reuters-", "Reuters"),
-        (r"/wire/", "Wire Service"),
-        (r"/stacker/", "Stacker"),
+        # All disabled - local outlets license and republish wire content
+        # (r"/ap-", "Associated Press"),
+        # (r"/reuters-", "Reuters"),
+        # (r"/wire/", "Wire Service"),
+    ]
+    
+    # Content partnership exclusions - these sections indicate intentional
+    # republishing by local affiliates, NOT unattributed wire syndication
+    _CONTENT_PARTNERSHIP_PATTERNS = [
+        r"/cnn-",  # CNN content sections (cnn-sports, cnn-spanish, etc.)
+        r"/stacker-",  # Stacker syndicated content sections
+        r"/stacker/",  # Alternative Stacker URL format
     ]
 
     # Tier 1: Geographic scope patterns (require additional evidence)
+    # NOTE: These patterns are NO LONGER USED for wire detection
+    # Local news sites often have /national/ and /world/ sections where they
+    # intentionally publish licensed syndicated content (AFP, AP, etc.)
+    # This is NOT unattributed wire syndication - it's licensed republishing
+    # and should be treated as local content
     _GEOGRAPHIC_SCOPE_PATTERNS = [
-        r"/national/",
-        r"/nation/",
-        r"/world/",
-        r"/international/",
+        # Disabled - too many false positives
+        # r"/national/",
+        # r"/nation/",
+        # r"/world/",
+        # r"/international/",
     ]
 
     # Known local broadcaster callsigns (Missouri market)
@@ -114,22 +136,32 @@ class TieredWireServiceDetector:
     }
 
     # Tier 2: Wire service byline patterns
+    # NOTE: These patterns are significantly relaxed. Wire service bylines
+    # (like "Afp Afp", "Associated Press") on local news sites often indicate
+    # LICENSED SYNDICATED CONTENT that the outlet is intentionally republishing,
+    # not unattributed wire syndication. We now only flag wire content when
+    # it appears on sites without explicit wire service attribution in the URL.
+    #
+    # Key change: Bylines alone are no longer sufficient for wire detection.
+    # They must be combined with strong URL signals (like /ap-, /wire/)
     _WIRE_BYLINE_PATTERNS = [
-        (r"^afp\s+afp$", "AFP"),
-        (r"^(by\s+)?afp(\s+staff)?$", "AFP"),
-        (r"^(by\s+)?agence france[- ]presse$", "AFP"),
-        (r"^(by\s+)?ap(\s+staff)?$", "Associated Press"),
-        (r"^(by\s+)?associated press$", "Associated Press"),
-        (r"^(by\s+)?reuters(\s+staff)?$", "Reuters"),
-        (r"^(by\s+)?cnn(\s+(staff|wire))?$", "CNN"),
-        (r"\busa\s+today\b", "USA TODAY"),
-        (r"^(by\s+)?bloomberg$", "Bloomberg"),
-        (r"\bkansas\s+reflector\b", "States Newsroom"),
-        (r"\b(the\s+)?missouri\s+independent\b", "The Missouri Independent"),
-        (r",\s*associated press$", "Associated Press"),
-        (r",\s*reuters$", "Reuters"),
-        (r",\s*cnn$", "CNN"),
-        (r",\s*afp$", "AFP"),
+        # Disabled - local outlets intentionally republish wire content
+        # These bylines indicate licensed content, not unattributed syndication
+        # (r"^afp\s+afp$", "AFP"),
+        # (r"^(by\s+)?afp(\s+staff)?$", "AFP"),
+        # (r"^(by\s+)?agence france[- ]presse$", "AFP"),
+        # (r"^(by\s+)?ap(\s+staff)?$", "Associated Press"),
+        # (r"^(by\s+)?associated press$", "Associated Press"),
+        # (r"^(by\s+)?reuters(\s+staff)?$", "Reuters"),
+        # (r"^(by\s+)?cnn(\s+(staff|wire))?$", "CNN"),
+        # (r"\busa\s+today\b", "USA TODAY"),
+        # (r"^(by\s+)?bloomberg$", "Bloomberg"),
+        # (r"\bkansas\s+reflector\b", "States Newsroom"),
+        # (r"\b(the\s+)?missouri\s+independent\b", "The Missouri Independent"),
+        # (r",\s*associated press$", "Associated Press"),
+        # (r",\s*reuters$", "Reuters"),
+        # (r",\s*cnn$", "CNN"),
+        # (r",\s*afp$", "AFP"),
     ]
 
     # Tier 3: Dateline patterns (with NWS exclusion)
@@ -249,6 +281,7 @@ class TieredWireServiceDetector:
         - Wire service names in URL paths
         - Geographic scope indicators
         - BUT excludes content on wire service's own domain
+        - BUT excludes content partnership sections (CNN, Stacker)
         """
         url_lower = url.lower()
 
@@ -256,6 +289,13 @@ class TieredWireServiceDetector:
         for domain, service_name in self._WIRE_SERVICE_DOMAINS.items():
             if domain in url_lower:
                 # Content on the service's own domain is original, not wire
+                return None
+
+        # Check for content partnership patterns (EXCLUSION)
+        # These represent intentional republishing, not wire syndication
+        for pattern in self._CONTENT_PARTNERSHIP_PATTERNS:
+            if re.search(pattern, url_lower):
+                # Content in partnership sections should not be flagged as wire
                 return None
 
         # Check for wire service path patterns (STRONG signal)
@@ -290,6 +330,7 @@ class TieredWireServiceDetector:
         Tier 2: Byline Analysis (Strong Signal).
 
         CRITICAL EXCEPTION: If byline matches publisher source, treat as local content.
+        Also excludes wire service bylines on the service's own domain.
         """
         if not metadata:
             return None
@@ -309,6 +350,7 @@ class TieredWireServiceDetector:
             author = ", ".join(str(a) for a in author)
 
         author_lower = author.lower().strip()
+        url_lower = url.lower()
 
         # Check if byline matches local source (EXCLUSION)
         if source:
@@ -317,7 +359,6 @@ class TieredWireServiceDetector:
             for callsign, domains in self._LOCAL_BROADCASTER_CALLSIGNS.items():
                 if callsign.lower() in author_lower:
                     # Check if this is on the broadcaster's own site
-                    url_lower = url.lower()
                     if callsign.lower() in url_lower or any(
                         domain in url_lower for domain in domains
                     ):
@@ -328,6 +369,13 @@ class TieredWireServiceDetector:
         wire_reporter_check = is_wire_reporter(author)
         if wire_reporter_check:
             service_name, confidence = wire_reporter_check
+            
+            # Check if on wire service's own domain
+            for domain, svc_name in self._WIRE_SERVICE_DOMAINS.items():
+                if domain in url_lower and svc_name == service_name:
+                    # On service's own domain - NOT wire
+                    return None
+            
             return DetectionTier(
                 tier=2,
                 name="Byline (Known Wire Reporter)",
@@ -339,6 +387,12 @@ class TieredWireServiceDetector:
         # Check for wire service byline patterns
         for pattern, service_name in self._WIRE_BYLINE_PATTERNS:
             if re.search(pattern, author_lower, re.IGNORECASE):
+                # Check if on wire service's own domain
+                for domain, svc_name in self._WIRE_SERVICE_DOMAINS.items():
+                    if domain in url_lower and svc_name == service_name:
+                        # On service's own domain - NOT wire
+                        return None
+                
                 return DetectionTier(
                     tier=2,
                     name="Byline (Wire Service Pattern)",
