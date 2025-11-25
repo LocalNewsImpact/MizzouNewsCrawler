@@ -452,7 +452,6 @@ class ContentTypeDetector:
         # TIER 1: URL Structure Analysis (STRONGEST SIGNAL)
         # ===================================================================
         strong_url_signal = False
-        weak_url_signal = False
 
         # Load patterns from database
         wire_url_patterns = self._get_wire_service_patterns(pattern_type="url")
@@ -462,27 +461,9 @@ class ContentTypeDetector:
             if re.search(pattern, url, flags):
                 matches.setdefault("url", []).append(pattern)
                 detected_services.add(service_name)
+                strong_url_signal = True
 
-                # Categorize URL pattern strength
-                pattern_lower = pattern.lower()
-                strong_indicators = [
-                    "/ap-",
-                    "/cnn-",
-                    "/reuters-",
-                    "/wire/",
-                    "/stacker",
-                    "/nation/",
-                    "/national/",
-                    "/nation-world/",
-                    "/world/",
-                ]
-                if any(indicator in pattern_lower for indicator in strong_indicators):
-                    strong_url_signal = True
-                else:
-                    # Domain patterns or service-name-in-path
-                    strong_url_signal = True
-
-        # Strong URL signal alone is sufficient
+        # Strong URL signal is sufficient - return immediately
         if strong_url_signal:
             return self._build_wire_result(matches, detected_services, tier="url")
 
@@ -544,7 +525,7 @@ class ContentTypeDetector:
             for pattern, service_name, case_sensitive in wire_author_patterns:
                 flags = 0 if case_sensitive else re.IGNORECASE
                 if re.search(pattern, author_str, flags):
-                    matches.setdefault("byline", []).append(
+                    matches.setdefault("author", []).append(
                         f"{service_name} (author pattern)"
                     )
                     detected_services.add(service_name)
@@ -557,7 +538,7 @@ class ContentTypeDetector:
                 wire_reporter_check = is_wire_reporter(author_str)
                 if wire_reporter_check:
                     service_name, confidence = wire_reporter_check
-                    matches.setdefault("byline", []).append(
+                    matches.setdefault("author", []).append(
                         f"{service_name} (known wire reporter)"
                     )
                     detected_services.add(service_name)
@@ -603,45 +584,99 @@ class ContentTypeDetector:
                         copyright_signal = True
                         break  # Found copyright, no need to check other patterns
 
-        if copyright_signal:
-            return self._build_wire_result(matches, detected_services, tier="copyright")
+        # Don't return yet - continue collecting evidence from all tiers
 
         # ===================================================================
-        # TIER 4: Content Pattern Analysis (WEAK - Requires Additional Evidence)
+        # TIER 3: Metadata/Copyright Analysis (STRONG SIGNAL)
+        # ===================================================================
+        copyright_signal = False
+
+        if content:
+            # Check last 150 chars for copyright
+            closing = content[-150:] if len(content) > 150 else content
+
+            # Build copyright pattern dynamically from database
+            # Get all unique service names for copyright detection
+            wire_services = self._get_wire_service_patterns(pattern_type="author")
+            # Deduplicate service names
+            service_names = sorted(
+                set(svc_name for _, svc_name, _ in wire_services),
+                key=len,
+                reverse=True,  # Match longer names first
+            )
+
+            if service_names:
+                # Build regex alternation: (Service1|Service2|...)
+                services_pattern = "|".join(re.escape(svc) for svc in service_names)
+                copyright_patterns = [
+                    rf"©\s*\d{{4}}\s+(?:The\s+)?({services_pattern})",
+                    rf"Copyright\s+\d{{4}}\s+(?:The\s+)?({services_pattern})",
+                ]
+
+                for pattern in copyright_patterns:
+                    match = re.search(pattern, closing, re.IGNORECASE)
+                    if match:
+                        service = self._normalize_service_name(match.group(1))
+                        matches.setdefault("content", []).append(f"Copyright {service}")
+                        detected_services.add(service)
+                        copyright_signal = True
+                        break  # Found copyright, no need to check other patterns
+
+        # Don't return yet - continue collecting evidence
+
+        # ===================================================================
+        # TIER 4: Content Pattern Analysis (Check datelines, etc.)
         # ===================================================================
         content_signal = False
 
         if content:
-            content_start = content[:300].lower()
+            content_start = content[:300]
+            content_start_lower = content_start.lower()
 
-            # Only check content patterns if we have SOME other signal (weak URL, etc.)
-            if weak_url_signal or title:
-                # NPR transcript pattern
-                if "host:" in content_start:
-                    matches.setdefault("content", []).append("NPR transcript pattern")
-                    detected_services.add("NPR")
-                    content_signal = True
-
-                # AP dateline
-                if "(ap)" in content_start:
-                    matches.setdefault("content", []).append("AP dateline")
-                    detected_services.add("Associated Press")
-                    content_signal = True
-
-                # NWS/Weather patterns (only with title confirmation)
-                if title and any(
-                    kw in title.lower() for kw in ["weather alert", "dense fog", "nws"]
-                ):
-                    if "national weather service" in content_start:
-                        matches.setdefault("content", []).append("NWS attribution")
-                        detected_services.add("National Weather Service")
-                        content_signal = True
-
-        # Content patterns require additional evidence (weak URL + content)
-        if content_signal and weak_url_signal:
-            return self._build_wire_result(
-                matches, detected_services, tier="content_weak"
+            # Load content patterns from database
+            wire_content_patterns = self._get_wire_service_patterns(
+                pattern_type="content"
             )
+
+            for pattern, service_name, case_sensitive in wire_content_patterns:
+                flags = 0 if case_sensitive else re.IGNORECASE
+                if re.search(pattern, content_start, flags):
+                    matches.setdefault("content", []).append(
+                        f"{service_name} (dateline)"
+                    )
+                    detected_services.add(service_name)
+                    content_signal = True
+
+            # Legacy pattern checks
+            # NPR transcript pattern
+            if "host:" in content_start_lower:
+                matches.setdefault("content", []).append("NPR transcript pattern")
+                detected_services.add("NPR")
+                content_signal = True
+
+            # NWS/Weather patterns (only with title confirmation)
+            if title and any(
+                kw in title.lower() for kw in ["weather alert", "dense fog", "nws"]
+            ):
+                if "national weather service" in content_start_lower:
+                    matches.setdefault("content", []).append("NWS attribution")
+                    detected_services.add("National Weather Service")
+                    content_signal = True
+
+        # ===================================================================
+        # DECISION LOGIC: Determine if we have sufficient evidence
+        # ===================================================================
+
+        # Strong signals alone are sufficient
+        if byline_signal:
+            return self._build_wire_result(matches, detected_services, tier="byline")
+
+        if copyright_signal:
+            return self._build_wire_result(matches, detected_services, tier="copyright")
+
+        # Content signal alone (datelines) can be sufficient
+        if content_signal and matches.get("content"):
+            return self._build_wire_result(matches, detected_services, tier="content")
 
         # No strong evidence found
         return None
