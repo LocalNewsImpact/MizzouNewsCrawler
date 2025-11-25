@@ -292,24 +292,24 @@ class ContentTypeDetector:
 
     def _is_wire_services_own_domain(self, url: str) -> bool:
         """Check if URL is from a wire service's own domain (not syndicated).
-        
+
         Queries the sources table to see if the URL's host matches a known
         wire service domain that should be excluded from wire detection.
-        
+
         Args:
             url: The article URL to check
-            
+
         Returns:
             True if this is a wire service's own content, False otherwise
         """
         from urllib.parse import urlparse
-        
+
         try:
             parsed = urlparse(url)
             host = parsed.netloc.lower()
             if not host:
                 return False
-            
+
             # Known wire service domains that should be excluded
             # These are typically set with is_wire_service=true in sources table
             wire_service_indicators = [
@@ -330,32 +330,30 @@ class ContentTypeDetector:
                 "missouriindependent.com",
                 "wave3.com",
             ]
-            
+
             # Quick check against known domains first (fast path)
             for domain in wire_service_indicators:
                 if domain in host:
                     return True
-            
+
             # Fallback: Query sources table for is_wire_service flag
             # This allows dynamic management without code changes
             try:
                 from src.models import Source
                 from src.models.database import DatabaseManager
-                
+
                 db = DatabaseManager()
                 with db.get_session() as session:
-                    source = session.query(Source).filter(
-                        Source.host == host
-                    ).first()
-                    
-                    if source and hasattr(source, 'is_wire_service'):
+                    source = session.query(Source).filter(Source.host == host).first()
+
+                    if source and hasattr(source, "is_wire_service"):
                         return source.is_wire_service or False
-                        
+
             except Exception:
                 pass  # Database unavailable, fall through
-                
+
             return False
-            
+
         except Exception:
             return False
 

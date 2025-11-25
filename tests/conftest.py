@@ -22,6 +22,7 @@ if "DATABASE_URL" not in os.environ:
     # Use file-based SQLite so the same database is shared across
     # all DatabaseManager() instances within a test session
     import tempfile
+
     test_db_path = os.path.join(tempfile.gettempdir(), "test_news_crawler.db")
     os.environ["DATABASE_URL"] = f"sqlite:///{test_db_path}"
 # Clear PostgreSQL env vars that might cause unwanted connections
@@ -58,6 +59,7 @@ def cleanup_test_database():
     # After all tests complete, delete the test database file
     import os
     import tempfile
+
     test_db_path = os.path.join(tempfile.gettempdir(), "test_news_crawler.db")
     if os.path.exists(test_db_path):
         try:
@@ -303,7 +305,6 @@ def populate_wire_service_patterns():
                 active=True,
                 notes="AFP dateline pattern: CITY (AFP) —",
             ),
-            
             # ==================== URL PATTERNS ====================
             # Strong URL patterns (explicit wire paths)
             WireService(
@@ -352,7 +353,6 @@ def populate_wire_service_patterns():
                 active=True,
                 notes="World news section",
             ),
-            
             # ==================== AUTHOR PATTERNS ====================
             # Explicit wire service names (STRONGEST SIGNALS)
             WireService(
