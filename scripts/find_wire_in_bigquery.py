@@ -52,7 +52,7 @@ def find_wire_in_bigquery(
     
     # Read all article IDs from CSV
     articles = []
-    with open(csv_file, 'r') as f:
+    with open(csv_file) as f:
         reader = csv.DictReader(f)
         for row in reader:
             articles.append(row)

@@ -4,8 +4,6 @@ import csv
 import pytest
 from pathlib import Path
 
-from src.utils.content_type_detector import ContentTypeDetector
-
 
 @pytest.mark.integration
 class TestWireDetectionGroundTruth:
@@ -45,7 +43,7 @@ class TestWireDetectionGroundTruth:
         wire_articles = []  # Should detect as wire (no X)
         local_articles = []  # Should NOT detect as wire (X marked)
         
-        with open(ground_truth_path, 'r') as f:
+        with open(ground_truth_path) as f:
             reader = csv.DictReader(f)
             for row in reader:
                 is_local = row['NOT WIRE'].strip().upper() == 'X'
@@ -55,7 +53,7 @@ class TestWireDetectionGroundTruth:
                     wire_articles.append(row)
         
         print(f"\n{'='*80}")
-        print(f"Ground Truth Validation")
+        print("Ground Truth Validation")
         print(f"{'='*80}")
         print(f"Total articles: {len(wire_articles) + len(local_articles)}")
         print(f"Wire articles (should detect): {len(wire_articles)}")
@@ -103,7 +101,7 @@ class TestWireDetectionGroundTruth:
         local_accuracy = (len(local_articles) - len(local_false_positives)) / len(local_articles) * 100
         
         print(f"\n{'='*80}")
-        print(f"Results")
+        print("Results")
         print(f"{'='*80}")
         print(f"\nWire Detection (sample of {wire_sample_size}):")
         print(f"  Correctly detected: {wire_sample_size - len(wire_not_detected)}")
@@ -114,10 +112,10 @@ class TestWireDetectionGroundTruth:
         print(f"  Correctly identified as local: {len(local_articles) - len(local_false_positives)}")
         print(f"  False positives (detected as wire): {len(local_false_positives)}")
         print(f"  Accuracy: {local_accuracy:.2f}%")
-        print(f"  Target: 99.00% (max 7 false positives)")
+        print("  Target: 99.00% (max 7 false positives)")
         
         if local_false_positives:
-            print(f"\nFalse Positive Examples (showing first 10):")
+            print("\nFalse Positive Examples (showing first 10):")
             for i, fp in enumerate(local_false_positives[:10]):
                 print(f"\n  {i+1}. {fp['headline'][:60]}...")
                 print(f"     URL: {fp['url']}")
@@ -126,7 +124,7 @@ class TestWireDetectionGroundTruth:
                     print(f"     Evidence: {fp['evidence']}")
         
         if wire_not_detected:
-            print(f"\nWire Articles Not Detected (showing first 10):")
+            print("\nWire Articles Not Detected (showing first 10):")
             for i, item in enumerate(wire_not_detected[:10]):
                 print(f"\n  {i+1}. {item['headline'][:60]}...")
                 print(f"     URL: {item['url']}")

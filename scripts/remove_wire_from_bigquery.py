@@ -53,7 +53,7 @@ def remove_articles_from_bigquery(
     
     # Read article IDs from CSV
     article_ids = []
-    with open(csv_file, 'r') as f:
+    with open(csv_file) as f:
         reader = csv.DictReader(f)
         for row in reader:
             if row and 'article_id' in row:
