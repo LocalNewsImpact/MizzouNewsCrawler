@@ -573,24 +573,33 @@ class ContentTypeDetector:
         if content:
             # Check last 150 chars for copyright
             closing = content[-150:] if len(content) > 150 else content
-            copyright_patterns = [
-                (
-                    r"©\s*\d{4}\s+(?:The\s+)?"
-                    r"(Associated Press|AP|Reuters|CNN|Bloomberg|NPR|AFP)"
-                ),
-                (
-                    r"Copyright\s+\d{4}\s+(?:The\s+)?"
-                    r"(Associated Press|AP|Reuters|CNN|Bloomberg|NPR|AFP)"
-                ),
-            ]
+            
+            # Build copyright pattern dynamically from database
+            # Get all unique service names for copyright detection
+            wire_services = self._get_wire_service_patterns(pattern_type="author")
+            # Deduplicate service names
+            service_names = sorted(
+                set(svc_name for _, svc_name, _ in wire_services),
+                key=len,
+                reverse=True,  # Match longer names first
+            )
+            
+            if service_names:
+                # Build regex alternation: (Service1|Service2|...)
+                services_pattern = "|".join(re.escape(svc) for svc in service_names)
+                copyright_patterns = [
+                    rf"©\s*\d{{4}}\s+(?:The\s+)?({services_pattern})",
+                    rf"Copyright\s+\d{{4}}\s+(?:The\s+)?({services_pattern})",
+                ]
 
-            for pattern in copyright_patterns:
-                match = re.search(pattern, closing, re.IGNORECASE)
-                if match:
-                    service = self._normalize_service_name(match.group(1))
-                    matches.setdefault("copyright", []).append(service)
-                    detected_services.add(service)
-                    copyright_signal = True
+                for pattern in copyright_patterns:
+                    match = re.search(pattern, closing, re.IGNORECASE)
+                    if match:
+                        service = self._normalize_service_name(match.group(1))
+                        matches.setdefault("copyright", []).append(service)
+                        detected_services.add(service)
+                        copyright_signal = True
+                        break  # Found copyright, no need to check other patterns
 
         if copyright_signal:
             return self._build_wire_result(matches, detected_services, tier="copyright")
