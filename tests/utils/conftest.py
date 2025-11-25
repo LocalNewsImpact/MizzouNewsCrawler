@@ -474,7 +474,7 @@ def wire_detection_test_session():
 
 
 @pytest.fixture
-def populated_wire_services(cloud_sql_session, monkeypatch):
+def populated_broadcaster_callsigns(cloud_sql_session, monkeypatch):
     """Populate local_broadcaster_callsigns table for PostgreSQL tests.
 
     Uses the PostgreSQL cloud_sql_session fixture and patches DatabaseManager
@@ -512,6 +512,91 @@ def populated_wire_services(cloud_sql_session, monkeypatch):
 
     for callsign in callsigns:
         cloud_sql_session.add(callsign)
+
+    cloud_sql_session.commit()
+
+    # Mock DatabaseManager to use cloud_sql_session
+    @contextmanager
+    def mock_get_session():
+        try:
+            yield cloud_sql_session
+        finally:
+            pass
+
+    class MockDatabaseManager:
+        """Mock DatabaseManager that uses the test session."""
+
+        def get_session(self):
+            return mock_get_session()
+
+    # Patch DatabaseManager where it's defined
+    def mock_db_manager(*args, **kwargs):
+        return MockDatabaseManager()
+
+    monkeypatch.setattr("src.models.database.DatabaseManager", mock_db_manager)
+
+    yield
+    # Cleanup handled by cloud_sql_session rollback
+
+
+@pytest.fixture
+def populated_wire_services(cloud_sql_session, monkeypatch):
+    """Populate wire_services table for PostgreSQL integration tests.
+
+    Uses the PostgreSQL cloud_sql_session fixture and patches DatabaseManager
+    so ContentTypeDetector uses the same session.
+    """
+    from src.models import WireService
+
+    # Clear existing patterns
+    cloud_sql_session.query(WireService).delete()
+
+    # Insert test wire service patterns
+    patterns = [
+        # AP patterns
+        WireService(
+            pattern=r"\(AP\)\s*[—–-]",
+            pattern_type="content",
+            service_name="Associated Press",
+            priority=100,
+            case_sensitive=False,
+        ),
+        # Reuters patterns
+        WireService(
+            pattern=r"\(Reuters\)\s*[—–-]",
+            pattern_type="content",
+            service_name="Reuters",
+            priority=100,
+            case_sensitive=False,
+        ),
+        # AFP patterns
+        WireService(
+            pattern=r"\bAfp Afp\b",
+            pattern_type="author",
+            service_name="AFP",
+            priority=80,
+            case_sensitive=False,
+        ),
+        # Bloomberg patterns
+        WireService(
+            pattern=r"\b(Bloomberg|BLOOMBERG)\b",
+            pattern_type="author",
+            service_name="Bloomberg",
+            priority=80,
+            case_sensitive=False,
+        ),
+        # Generic Broadcaster pattern
+        WireService(
+            pattern=r"Broadcaster$",
+            pattern_type="author",
+            service_name="Broadcaster",
+            priority=60,
+            case_sensitive=False,
+        ),
+    ]
+
+    for pattern in patterns:
+        cloud_sql_session.add(pattern)
 
     cloud_sql_session.commit()
 

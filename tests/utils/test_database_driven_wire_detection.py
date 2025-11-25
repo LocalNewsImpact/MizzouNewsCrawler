@@ -143,13 +143,17 @@ class TestDatabaseDrivenWirePatterns:
     def test_detects_reuters_dateline_with_database_patterns(
         self, detector, populated_wire_services
     ):
-        """Verify Reuters dateline detection works with database patterns."""
+        """Verify Reuters dateline detection works with database patterns.
+
+        Note: /world/ URL triggers TIER 1 detection which short-circuits
+        content patterns. Changed URL to /news/ to allow content testing.
+        """
         # Clear cache to force database query
         detector._wire_patterns_cache = None
         detector._wire_patterns_timestamp = None
 
         result = detector.detect(
-            url="https://example.com/world/story",
+            url="https://example.com/news/story",
             title="UK Election Results",
             metadata={},
             content="LONDON (Reuters) — British voters went to the polls...",
