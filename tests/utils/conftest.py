@@ -529,11 +529,10 @@ def populated_broadcaster_callsigns(cloud_sql_session, monkeypatch):
         def get_session(self):
             return mock_get_session()
 
-    # Patch DatabaseManager where it's defined
-    def mock_db_manager(*args, **kwargs):
-        return MockDatabaseManager()
-
-    monkeypatch.setattr("src.models.database.DatabaseManager", mock_db_manager)
+    # Patch DatabaseManager class in src.models.database module
+    # This ensures that `from src.models.database import DatabaseManager`
+    # in ContentTypeDetector methods will use our mock
+    monkeypatch.setattr("src.models.database.DatabaseManager", MockDatabaseManager)
 
     yield
     # Cleanup handled by cloud_sql_session rollback
@@ -593,6 +592,14 @@ def populated_wire_services(cloud_sql_session, monkeypatch):
             priority=60,
             case_sensitive=False,
         ),
+        # USA TODAY pattern (syndicated byline)
+        WireService(
+            pattern=r"\bUSA\s+TODAY\b",
+            pattern_type="author",
+            service_name="USA TODAY",
+            priority=80,
+            case_sensitive=False,
+        ),
     ]
 
     for pattern in patterns:
@@ -614,11 +621,10 @@ def populated_wire_services(cloud_sql_session, monkeypatch):
         def get_session(self):
             return mock_get_session()
 
-    # Patch DatabaseManager where it's defined
-    def mock_db_manager(*args, **kwargs):
-        return MockDatabaseManager()
-
-    monkeypatch.setattr("src.models.database.DatabaseManager", mock_db_manager)
+    # Patch DatabaseManager class in src.models.database module
+    # This ensures that `from src.models.database import DatabaseManager`
+    # in ContentTypeDetector methods will use our mock
+    monkeypatch.setattr("src.models.database.DatabaseManager", MockDatabaseManager)
 
     yield
     # Cleanup handled by cloud_sql_session rollback
