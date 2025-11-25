@@ -1,0 +1,16 @@
+Wire Detection Backfill - 20251125_161735
+Dry run: False
+================================================================================
+
+Total articles to process: 37,737
+
+
+Backfill Complete
+================================================================================
+Total processed: 37,783
+Wire detected: 12,983 (34.36%)
+Database updated: 12,983
+
+Output files:
+  - wire_articles_to_remove_20251125_161735.csv
+  - backfill_log_20251125_161735.txt

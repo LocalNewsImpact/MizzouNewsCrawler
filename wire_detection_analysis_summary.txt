@@ -44,3 +44,39 @@ NEXT STEPS
 Files Generated:
 - wire_detection_sample_1000.csv (full results)
 - wire_detection_analysis_summary.txt (this file)
+
+=================================================
+UPDATE: Additional Patterns Added (Post-Testing)
+=================================================
+
+ISSUES IDENTIFIED FROM CSV REVIEW:
+1. Sportradar: 18 articles marked as LOCAL (should be WIRE)
+2. Nation/world URLs: 67 articles marked as LOCAL (should be WIRE)  
+3. (AP) in byline: 0 found in sample, but pattern added for completeness
+
+NEW PATTERNS ADDED:
+-------------------
+Author Patterns:
+  - Sportradar (sports syndication service)
+  - (AP) in parentheses format
+
+URL Patterns:
+  - /nation/ sections
+  - /national/ sections  
+  - /nation-world/ sections
+  - /world/ sections
+
+CODE CHANGES:
+-------------
+- Reclassified /nation/, /national/, /nation-world/, /world/ as STRONG signals
+  (previously treated as WEAK signals requiring additional content evidence)
+- Added patterns to wire_services table in production database
+- Updated ContentTypeDetector v2025-11-25a
+
+EXPECTED IMPACT:
+----------------
+- Additional wire articles detected: +85
+- New wire detection rate: ~28.3% (up from 19.8%)
+- Total wire articles in sample: 283 of 1000
+
+VALIDATION STATUS: ✅ All patterns tested and working in production pod

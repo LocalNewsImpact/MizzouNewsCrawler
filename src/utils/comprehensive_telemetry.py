@@ -244,7 +244,10 @@ class ExtractionMetrics:
             self.content_length = len(final_result.get("content") or "")
             has_title = bool(final_result.get("title"))
             has_content = bool(final_result.get("content"))
-            self.is_success = has_title and has_content
+            # Match ContentExtractor logic: success if title OR meaningful content
+            # Allows articles with missing author/date to be successful
+            content_long_enough = has_content and self.content_length > 100
+            self.is_success = has_title or content_long_enough
 
 
 class ComprehensiveExtractionTelemetry:

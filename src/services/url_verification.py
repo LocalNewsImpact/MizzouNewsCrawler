@@ -10,6 +10,7 @@ import argparse
 import inspect
 import logging
 import os
+import re
 import sys
 import time
 from collections.abc import Mapping
@@ -348,9 +349,10 @@ class URLVerificationService:
     def verify_url(self, url: str) -> dict:
         """Verify a single URL with pattern matching and StorySniffer.
 
-        Uses a two-stage verification process:
-        1. Fast URL pattern matching to filter obvious non-articles
-        2. StorySniffer ML model for remaining URLs
+        Uses a three-stage verification process:
+        1. Check for wire service URLs (skip extraction entirely)
+        2. Fast URL pattern matching to filter obvious non-articles
+        3. StorySniffer ML model for remaining URLs
 
         Returns:
             Dict with verification results and timing info
@@ -364,7 +366,29 @@ class URLVerificationService:
             "http_status": None,
             "http_attempts": 0,
             "pattern_filtered": False,
+            "wire_filtered": False,
         }
+
+        # Stage 0: Check for wire service URLs (highest priority)
+        from src.utils.content_type_detector import ContentTypeDetector
+
+        detector = ContentTypeDetector()
+        # Quick URL-only wire detection (no content needed)
+        wire_patterns = detector._get_wire_service_patterns(pattern_type="url")
+        
+        for pattern, service_name, case_sensitive in wire_patterns:
+            flags = 0 if case_sensitive else re.IGNORECASE
+            if re.search(pattern, url, flags):
+                # This is a wire service URL - mark immediately
+                result["storysniffer_result"] = False
+                result["wire_filtered"] = True
+                result["wire_service"] = service_name
+                result["verification_time_ms"] = (time.time() - start_time) * 1000
+                self.logger.debug(
+                    f"Filtered wire service URL: {url} ({service_name}) "
+                    f"({result['verification_time_ms']:.1f}ms)"
+                )
+                return result
 
         # Stage 1: Fast URL pattern check
         from src.utils.url_classifier import is_likely_article_url
@@ -518,6 +542,11 @@ class URLVerificationService:
                 else:
                     new_status = "verification_uncertain"
                 error_message = verification_result["error"]
+            elif verification_result.get("wire_filtered"):
+                # Wire service URL detected - mark as wire
+                batch_metrics["verified_non_articles"] += 1
+                new_status = "wire"
+                error_message = None
             elif verification_result.get("storysniffer_result"):
                 batch_metrics["verified_articles"] += 1
                 new_status = "article"
