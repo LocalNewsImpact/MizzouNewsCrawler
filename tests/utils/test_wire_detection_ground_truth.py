@@ -1,8 +1,9 @@
 """Ground truth validation tests for wire service detection."""
 
 import csv
-import pytest
 from pathlib import Path
+
+import pytest
 
 
 @pytest.mark.integration

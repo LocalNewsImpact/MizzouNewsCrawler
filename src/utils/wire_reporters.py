@@ -25,8 +25,9 @@ def _load_wire_reporters() -> dict[str, tuple[str, str]]:
         return _wire_reporters_cache
 
     try:
-        from src.models.database import DatabaseManager
         from sqlalchemy import text
+
+        from src.models.database import DatabaseManager
 
         db = DatabaseManager()
         reporters = {}
