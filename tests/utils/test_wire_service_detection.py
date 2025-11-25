@@ -414,7 +414,7 @@ class TestWireServiceDetection:
 
     def test_standard_democrat_world_ap_detected(self):
         """Test real-world case: Standard Democrat /world/ with AP dateline
-        
+
         Note: /world/ URL pattern triggers TIER 1 detection and returns immediately.
         The detector does not continue to check content patterns after URL match.
         """
