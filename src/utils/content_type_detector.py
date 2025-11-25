@@ -633,6 +633,25 @@ class ContentTypeDetector:
                     detected_services.add(service_name)
                     content_signal = True
 
+            # ===================================================================
+            # BROADCASTER DATELINE DETECTION
+            # ===================================================================
+            # Check for local broadcaster datelines (e.g., "(KMIZ)") and
+            # determine if they are syndicated (wire) or local content
+            broadcaster_result = self._detect_broadcaster_dateline(
+                content_start, url_lower
+            )
+            if broadcaster_result:
+                # Broadcaster dateline matched and determined to be syndicated
+                callsign, is_wire = broadcaster_result
+                if is_wire:
+                    matches.setdefault("content", []).append(
+                        f"{callsign} (syndicated broadcaster)"
+                    )
+                    detected_services.add(callsign)
+                    content_signal = True
+                # If not wire (same broadcaster on own site), continue
+
             # Legacy pattern checks
             # NPR transcript pattern
             if "host:" in content_start_lower:
@@ -701,6 +720,65 @@ class ContentTypeDetector:
         elif service_upper in ("AFP", "AGENCE FRANCE-PRESSE"):
             return "AFP"
         return service
+
+    def _detect_broadcaster_dateline(
+        self, content_start: str, url_lower: str
+    ) -> tuple[str, bool] | None:
+        """Detect broadcaster datelines and determine if syndicated.
+
+        Checks if content contains a broadcaster callsign dateline (e.g., "(KMIZ)")
+        and determines if it's wire/syndicated based on URL ownership.
+
+        Args:
+            content_start: Beginning of article content (first ~300 chars)
+            url_lower: Lowercased article URL
+
+        Returns:
+            Tuple of (callsign, is_wire) if broadcaster detected, else None
+            - callsign: The broadcaster callsign found (e.g., "KMIZ")
+            - is_wire: True if syndicated (different broadcaster's content),
+                      False if local (same broadcaster on own site)
+        """
+        # Match broadcaster dateline pattern: City, State (CALLSIGN) —
+        # Example: "COLUMBIA, Mo. (KMIZ) — The story..."
+        dateline_pattern = r"\([A-Z]{3,5}\)\s*[—–-]"
+        match = re.search(dateline_pattern, content_start)
+
+        if not match:
+            return None
+
+        # Extract callsign from dateline
+        callsign_match = re.search(r"\(([A-Z]{3,5})\)", match.group(0))
+        if not callsign_match:
+            return None
+
+        callsign = callsign_match.group(1)
+
+        # Check if this callsign is in our local broadcasters database
+        local_callsigns = self._get_local_broadcaster_callsigns()
+        if callsign not in local_callsigns:
+            # Unknown broadcaster - not in our local dataset
+            # Don't flag as wire (could be out-of-market broadcaster)
+            return None
+
+        # Determine if URL belongs to this broadcaster
+        url_belongs_to_broadcaster = False
+
+        # Check direct URL match (e.g., "komu" in komu.com)
+        if callsign.lower() in url_lower:
+            url_belongs_to_broadcaster = True
+        # Check domain mapping (e.g., KMIZ -> abc17news.com)
+        elif callsign in self._CALLSIGN_DOMAINS:
+            broadcaster_domains = self._CALLSIGN_DOMAINS[callsign]
+            if any(domain in url_lower for domain in broadcaster_domains):
+                url_belongs_to_broadcaster = True
+
+        # If URL belongs to broadcaster, it's local content (not wire)
+        if url_belongs_to_broadcaster:
+            return (callsign, False)
+
+        # URL belongs to different broadcaster - this is syndicated/wire
+        return (callsign, True)
 
     def _build_wire_result(
         self, matches: dict, detected_services: set, tier: str

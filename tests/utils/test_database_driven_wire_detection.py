@@ -254,7 +254,6 @@ class TestLocalBroadcasterCallsigns:
         # Should NOT be wire (it's their own content)
         assert result is None or result.status != "wire"
 
-    @pytest.mark.skip(reason="Requires unimplemented broadcaster dateline integration")
     def test_local_broadcaster_on_different_site_is_wire(
         self, detector, populated_broadcaster_callsigns, populated_wire_services
     ):
@@ -281,7 +280,6 @@ class TestLocalBroadcasterCallsigns:
         assert "content" in result.evidence
         assert any("KMIZ" in m for m in result.evidence["content"])
 
-    @pytest.mark.skip(reason="Requires unimplemented broadcaster dateline integration")
     def test_komu_on_own_site_not_wire(
         self, detector, populated_broadcaster_callsigns, populated_wire_services
     ):
@@ -304,7 +302,6 @@ class TestLocalBroadcasterCallsigns:
 
         assert result is None or result.status != "wire"
 
-    @pytest.mark.skip(reason="Requires unimplemented broadcaster dateline integration")
     def test_unknown_broadcaster_not_detected_as_wire(
         self, detector, populated_broadcaster_callsigns, populated_wire_services
     ):
@@ -325,7 +322,6 @@ class TestLocalBroadcasterCallsigns:
         # WGBH is not in Missouri dataset, should not be detected as wire
         assert result is None or result.status != "wire"
 
-    @pytest.mark.skip(reason="Requires unimplemented broadcaster dateline integration")
     def test_broadcaster_dateline_url_matching_uses_domain_mapping(
         self, detector, populated_broadcaster_callsigns, populated_wire_services
     ):
@@ -346,7 +342,6 @@ class TestLocalBroadcasterCallsigns:
 
         assert result is None or result.status != "wire"
 
-    @pytest.mark.skip(reason="Requires unimplemented broadcaster dateline integration")
     def test_multiple_broadcasters_correct_matching(
         self, detector, populated_broadcaster_callsigns, populated_wire_services
     ):
