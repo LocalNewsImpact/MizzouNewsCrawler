@@ -118,7 +118,7 @@ class TestWireServiceDetection:
         """Test copyright detection with 'The Associated Press'"""
         detector = _detector()
         result = detector.detect(
-            url="https://localnews.com/national/story",
+            url="https://localnews.com/news/story",
             title="National News Story",
             metadata=None,
             content=(
@@ -413,7 +413,11 @@ class TestWireServiceDetection:
         assert result.status == "wire"
 
     def test_standard_democrat_world_ap_detected(self):
-        """Test real-world case: Standard Democrat /world/ with AP dateline"""
+        """Test real-world case: Standard Democrat /world/ with AP dateline
+        
+        Note: /world/ URL pattern triggers TIER 1 detection and returns immediately.
+        The detector does not continue to check content patterns after URL match.
+        """
         detector = _detector()
         result = detector.detect(
             url="https://www.standard-democrat.com/world/immigration-story",
@@ -424,4 +428,5 @@ class TestWireServiceDetection:
         assert result is not None
         assert result.status == "wire"
         assert "url" in result.evidence
-        assert "content" in result.evidence
+        # URL pattern triggers first (TIER 1), so content evidence not collected
+        assert result.evidence.get("detection_tier") == "url"

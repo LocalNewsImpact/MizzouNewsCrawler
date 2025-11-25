@@ -435,7 +435,7 @@ class TestWireDetectorEdgeCases:
         detector = ContentTypeDetector()
 
         result = detector.detect(
-            url="https://news.com/world/interview",
+            url="https://news.com/local/interview",  # Avoid TIER 0 match
             title="Official Interview",
             metadata={"byline": None},
             content="The official told AFP in an exclusive interview that...",

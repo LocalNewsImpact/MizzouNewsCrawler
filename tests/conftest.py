@@ -238,6 +238,17 @@ def populate_wire_service_patterns():
     # Create tables if they don't exist (for SQLite in-memory tests)
     Base.metadata.create_all(bind=engine)
 
+    # Clear ContentTypeDetector cache FIRST to ensure fresh patterns are loaded
+    # The cache is class-level and persists across test functions
+    from src.utils.content_type_detector import ContentTypeDetector
+
+    ContentTypeDetector._wire_patterns_cache = None
+    ContentTypeDetector._wire_patterns_timestamp = None
+    if hasattr(ContentTypeDetector, "_pattern_cache_by_type"):
+        ContentTypeDetector._pattern_cache_by_type = {}
+    if hasattr(ContentTypeDetector, "_pattern_timestamp_by_type"):
+        ContentTypeDetector._pattern_timestamp_by_type = {}
+
     with db.get_session() as session:
         # Check if patterns already exist (avoid duplicates in nested tests)
         existing_count = session.query(WireService).count()
@@ -304,6 +315,44 @@ def populate_wire_service_patterns():
                 priority=10,
                 active=True,
                 notes="AFP dateline pattern: CITY (AFP) —",
+            ),
+            # Copyright patterns
+            WireService(
+                pattern=r"Copyright.*?(?:The\s+)?Associated Press",
+                pattern_type="content",
+                service_name="Associated Press",
+                case_sensitive=False,
+                priority=15,
+                active=True,
+                notes="AP copyright in closing",
+            ),
+            WireService(
+                pattern=r"©.*?(?:The\s+)?NPR",
+                pattern_type="content",
+                service_name="NPR",
+                case_sensitive=False,
+                priority=15,
+                active=True,
+                notes="NPR copyright in closing",
+            ),
+            WireService(
+                pattern=r"Copyright.*?WAVE",
+                pattern_type="content",
+                service_name="WAVE",
+                case_sensitive=False,
+                priority=15,
+                active=True,
+                notes="WAVE copyright in closing",
+            ),
+            # Attribution patterns
+            WireService(
+                pattern=r"\btold AFP\b",
+                pattern_type="content",
+                service_name="AFP",
+                case_sensitive=False,
+                priority=15,
+                active=True,
+                notes="AFP attribution pattern (told AFP)",
             ),
             # ==================== URL PATTERNS ====================
             # Strong URL patterns (explicit wire paths)
@@ -467,6 +516,43 @@ def populate_wire_service_patterns():
                 pattern=r"\bStacker\b",
                 pattern_type="author",
                 service_name="Stacker",
+                case_sensitive=False,
+                priority=5,
+                active=True,
+                notes="Stacker in byline",
+            ),
+            # Additional author patterns needed by tests
+            WireService(
+                pattern=r"\bAP Staff\b",
+                pattern_type="author",
+                service_name="Associated Press",
+                case_sensitive=False,
+                priority=5,
+                active=True,
+                notes="AP Staff in byline",
+            ),
+            WireService(
+                pattern=r"\bAfp Afp\b",
+                pattern_type="author",
+                service_name="AFP",
+                case_sensitive=False,
+                priority=5,
+                active=True,
+                notes="AFP AFP variant in byline",
+            ),
+            WireService(
+                pattern=r"\bAfp$",
+                pattern_type="author",
+                service_name="AFP",
+                case_sensitive=False,
+                priority=5,
+                active=True,
+                notes="Name ending with AFP",
+            ),
+            WireService(
+                pattern=r"\bWAVE3\b",
+                pattern_type="author",
+                service_name="WAVE",
                 case_sensitive=False,
                 priority=5,
                 active=True,

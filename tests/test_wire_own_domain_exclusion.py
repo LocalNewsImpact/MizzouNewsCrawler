@@ -120,7 +120,7 @@ class TestWireOwnDomainExclusion:
         detector = ContentTypeDetector()
 
         result = detector.detect(
-            url="https://localnews.com/national/politics-story",
+            url="https://localnews.com/politics/politics-story",
             title="National Political Update",
             metadata={"byline": "Associated Press"},
             content="WASHINGTON (AP) — Congress voted today...",
@@ -136,7 +136,7 @@ class TestWireOwnDomainExclusion:
         detector = ContentTypeDetector()
 
         result = detector.detect(
-            url="https://localnewspaper.com/world/international-news",
+            url="https://localnewspaper.com/news/international-news",
             title="International News",
             metadata={"byline": "Reuters"},
             content="LONDON (Reuters) — British officials...",

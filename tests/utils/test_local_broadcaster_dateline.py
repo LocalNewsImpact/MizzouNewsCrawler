@@ -89,7 +89,7 @@ class TestActualWireDatelines:
     def test_ap_dateline_detected(self, detector):
         """AP dateline should still trigger wire detection."""
         result = detector.detect(
-            url="https://abc17news.com/world/2025/11/14/international-news",
+            url="https://abc17news.com/news/2025/11/14/international-news",
             title="International Crisis",
             metadata={"byline": "Associated Press"},
             content="PARIS (AP) — French officials announced today...",
