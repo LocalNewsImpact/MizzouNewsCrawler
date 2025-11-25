@@ -25,7 +25,7 @@ class ContentTypeResult:
 class ContentTypeDetector:
     """Detect special content types (obituaries, opinion pieces, wire)."""
 
-    VERSION = "2025-11-23b"  # Database-driven wire patterns + broadcaster URL matching
+    VERSION = "2025-11-25a"  # Database-driven wire patterns (url/content/author types)
 
     # Cache for local broadcaster callsigns (loaded from database)
     _local_callsigns_cache: set[str] | None = None
@@ -531,29 +531,32 @@ class ContentTypeDetector:
                 # Example: "KMIZ News" on abc17news.com (KMIZ's site)
                 return None
 
-            # Check against known wire reporters (from telemetry DB)
-            wire_reporter_check = is_wire_reporter(author_str)
-            if wire_reporter_check:
-                service_name, confidence = wire_reporter_check
-                matches.setdefault("byline", []).append(
-                    f"{service_name} (known wire reporter)"
-                )
-                detected_services.add(service_name)
-                byline_signal = True
-            else:
-                # Pattern match against wire service patterns from DB
-                wire_byline_patterns = self._get_wire_service_patterns(
-                    pattern_type="content"
-                )
-                for pattern, service_name, case_sensitive in wire_byline_patterns:
-                    flags = 0 if case_sensitive else re.IGNORECASE
-                    if re.search(pattern, author_str, flags):
-                        matches.setdefault("byline", []).append(
-                            f"{service_name} (pattern)"
-                        )
-                        detected_services.add(service_name)
-                        byline_signal = True
-                        break
+            # Check author patterns from database (STRONGEST SIGNAL)
+            # Loads patterns with pattern_type='author' for byline matching
+            wire_author_patterns = self._get_wire_service_patterns(
+                pattern_type="author"
+            )
+            for pattern, service_name, case_sensitive in wire_author_patterns:
+                flags = 0 if case_sensitive else re.IGNORECASE
+                if re.search(pattern, author_str, flags):
+                    matches.setdefault("byline", []).append(
+                        f"{service_name} (author pattern)"
+                    )
+                    detected_services.add(service_name)
+                    byline_signal = True
+                    break
+            
+            # Only check additional patterns if not already detected
+            if not byline_signal:
+                # Check against known wire reporters (from telemetry DB)
+                wire_reporter_check = is_wire_reporter(author_str)
+                if wire_reporter_check:
+                    service_name, confidence = wire_reporter_check
+                    matches.setdefault("byline", []).append(
+                        f"{service_name} (known wire reporter)"
+                    )
+                    detected_services.add(service_name)
+                    byline_signal = True
 
         # Byline signal is strong enough alone
         if byline_signal:
