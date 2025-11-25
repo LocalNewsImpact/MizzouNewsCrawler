@@ -328,6 +328,8 @@ def test_resolve_database_url_pytest_mode():
         {
             "PYTEST_CURRENT_TEST": "test_something",
             "PYTEST_DATABASE_URL": "sqlite:///:memory:",
+            # Clear DATABASE_URL to test PYTEST_DATABASE_URL priority
+            "DATABASE_URL": "",
         },
     ):
         result = NewsDiscovery._resolve_database_url(None)

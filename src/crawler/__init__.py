@@ -911,6 +911,11 @@ class ContentExtractor:
     ) -> Optional[str]:
         """Detect bot protection mechanisms in HTTP response.
 
+        This should primarily be used for non-200 responses (403, 503, etc.)
+        where bot protection is blocking access. For 200 responses, let the
+        content extraction proceed - if there's real bot protection, extraction
+        will fail naturally without false positives.
+
         Returns a string identifying the protection type, or None if not detected.
         """
         if not response or not response.text:
@@ -1721,28 +1726,11 @@ class ContentExtractor:
 
                 # Check if request was successful
                 if response.status_code == 200:
-                    # Check for bot protection even in 200 responses
-                    protection_type = self._detect_bot_protection_in_response(response)
-                    if protection_type:
-                        logger.warning(
-                            f"🚫 Bot protection in 200 response "
-                            f"({protection_type}) by {domain}"
-                        )
-                        # Record bot detection event
-                        self.bot_sensitivity_manager.record_bot_detection(
-                            host=domain,
-                            url=url,
-                            event_type="captcha_detected",
-                            http_status_code=200,
-                            response_indicators={"protection_type": protection_type},
-                        )
-                        # Use CAPTCHA backoff for confirmed bot protection
-                        self._handle_captcha_backoff(domain)
-
-                        # Raise exception to stop batch processing for this domain
-                        raise RateLimitError(
-                            f"Bot protection in 200 response on {domain}: {protection_type}"
-                        )
+                    # Note: Removed aggressive bot protection check in 200 responses
+                    # If page loaded successfully (200), attempt content extraction.
+                    # Real bot protection will result in extraction failure naturally.
+                    # False positives were causing legitimate pages to be incorrectly
+                    # paused after Chromedriver/stealth updates.
 
                     # Reset error count on successful request
                     self._reset_error_count(domain)

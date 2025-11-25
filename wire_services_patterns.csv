@@ -1,0 +1,49 @@
+id,service_name,pattern,pattern_type,case_sensitive,priority,active
+33,AFP,\b(AFP|Agence France-Presse)\b,content,False,20,True
+24,Associated Press,\b(AP|A\.P\.)\b,content,False,20,True
+25,Associated Press,\b(ASSOCIATED PRESS|Associated Press)\b,content,True,20,True
+28,CNN,\b(CNN|C\.N\.N\.)\b,content,False,20,True
+26,Reuters,\bREUTERS\b,content,False,20,True
+27,Reuters,\b(Reuters)\b,content,True,20,True
+49,Stacker,\bStacker\b,content,False,20,True
+29,Bloomberg,\b(Bloomberg|BLOOMBERG)\b,content,False,25,True
+42,Los Angeles Times,\bLos Angeles Times\b,content,True,25,True
+30,NPR,\b(NPR|N\.P\.R\.)\b,content,False,25,True
+31,PBS,\b(PBS|P\.B\.S\.)\b,content,False,25,True
+36,States Newsroom,\b(Kansas\s+Reflector|KansasReflector|kansasreflector)\b,content,False,25,True
+34,States Newsroom,\b(States\s+Newsroom|StatesNewsroom|States-Newsroom)\b,content,False,25,True
+35,The Missouri Independent,\b(The\s+Missouri\s+Independent|Missouri\s+Independent)\b,content,False,25,True
+38,The New York Times,\bThe New York Times\b,content,True,25,True
+39,The Washington Post,\bThe Washington Post\b,content,True,25,True
+40,USA TODAY,\bUSA TODAY\b,content,True,25,True
+41,Wall Street Journal,\bWall Street Journal\b,content,True,25,True
+37,WAVE,\b(WAVE|Wave|WAVE3|wave3)\b,content,False,25,True
+44,Gannett,\bGannett\b,content,True,30,True
+45,McClatchy,\bMcClatchy\b,content,True,30,True
+43,Tribune News Service,\bTribune News Service\b,content,True,30,True
+32,UPI,\b(UPI|U\.P\.I\.)\b,content,False,30,True
+13,Associated Press,/ap-,url,False,20,True
+14,CNN,/cnn-,url,False,20,True
+15,Reuters,/reuters-,url,False,20,True
+47,Stacker,/stacker/,url,False,20,True
+46,Stacker,/stacker-,url,False,20,True
+16,Wire Service,/wire/,url,False,20,True
+3,Associated Press,apnews.com,url,False,25,True
+2,CNN,cnn.com,url,False,25,True
+4,Reuters,reuters.com,url,False,25,True
+48,Stacker,stacker.com,url,False,25,True
+5,Bloomberg,bloomberg.com,url,False,30,True
+12,Los Angeles Times,latimes.com,url,False,30,True
+6,NPR,npr.org,url,False,30,True
+7,PBS,pbs.org,url,False,30,True
+20,States Newsroom,kansasreflector.com,url,False,30,True
+19,States Newsroom,statesnewsroom.org,url,False,30,True
+22,The Missouri Independent,missouriindependent.com,url,False,30,True
+21,The Missouri Independent,missouriindependent.org,url,False,30,True
+8,The New York Times,nytimes.com,url,False,30,True
+9,The Washington Post,washingtonpost.com,url,False,30,True
+10,USA TODAY,usatoday.com,url,False,30,True
+11,Wall Street Journal,wsj.com,url,False,30,True
+23,WAVE,wave3.com,url,False,30,True
+17,National Section,/national/,url,False,50,True
+18,World Section,/world/,url,False,50,True

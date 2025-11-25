@@ -24,7 +24,7 @@ class TestWireServiceDetection:
         """Test detection of 'Afp Afp' author pattern"""
         detector = _detector()
         result = detector.detect(
-            url="https://example.com/news/national/story",
+            url="https://example.com/news/story",
             title="Sports Update",
             metadata={"byline": "Afp Afp"},
             content="The game ended with a final score...",
@@ -38,7 +38,7 @@ class TestWireServiceDetection:
         """Test detection of author ending with AFP"""
         detector = _detector()
         result = detector.detect(
-            url="https://example.com/news/national/article.html",
+            url="https://example.com/news/article.html",
             title="International News",
             metadata={"byline": "Susan Njanji Nicholas Roll In Abuja Afp"},
             content="Officials announced today...",
@@ -48,7 +48,7 @@ class TestWireServiceDetection:
         assert "author" in result.evidence
 
     def test_detects_ap_staff_author(self):
-        """Test detection of 'AP Staff' author"""
+        """Test detection of 'AP Staff' author pattern"""
         detector = _detector()
         result = detector.detect(
             url="https://example.com/news/story",
@@ -78,7 +78,7 @@ class TestWireServiceDetection:
         """Test detection of Reuters dateline: 'LONDON (Reuters) —'"""
         detector = _detector()
         result = detector.detect(
-            url="https://example.com/world/story",
+            url="https://example.com/story",
             title="UK Election Results",
             metadata=None,
             content="LONDON (Reuters) — British voters went to the polls...",
@@ -91,7 +91,7 @@ class TestWireServiceDetection:
         """Test detection of 'States Newsroom' author pattern"""
         detector = _detector()
         result = detector.detect(
-            url="https://example.com/news/national/story",
+            url="https://example.com/news/story",
             title="Local State Update",
             metadata={"byline": "States Newsroom"},
             content="Short summary of state news...",
@@ -105,7 +105,7 @@ class TestWireServiceDetection:
         """Test detection when author ends with 'States Newsroom'"""
         detector = _detector()
         result = detector.detect(
-            url="https://example.com/news/national/state-update",
+            url="https://example.com/news/state-update",
             title="State Policy Update",
             metadata={"byline": "Jane Doe States Newsroom"},
             content="Policy changes announced...",
@@ -118,7 +118,7 @@ class TestWireServiceDetection:
         """Test copyright detection with 'The Associated Press'"""
         detector = _detector()
         result = detector.detect(
-            url="https://localnews.com/national/story",
+            url="https://localnews.com/news/story",
             title="National News Story",
             metadata=None,
             content=(
@@ -232,7 +232,7 @@ class TestWireServiceDetection:
         """Test NPR copyright with 'The' prefix"""
         detector = _detector()
         result = detector.detect(
-            url="https://kbia.org/national/story",
+            url="https://kbia.org/story",
             title="National Story",
             metadata=None,
             content=(
@@ -274,8 +274,8 @@ class TestWireServiceDetection:
         assert "url" in result.evidence
         assert any("/national" in m for m in result.evidence["url"])
 
-    def test_world_url_without_content_evidence_no_detection(self):
-        """Test /world/ URL alone (without strong content) doesn't trigger"""
+    def test_world_url_triggers_detection(self):
+        """Test /world/ URL pattern triggers detection"""
         detector = _detector()
         result = detector.detect(
             url="https://localnews.com/world/story",
@@ -283,11 +283,13 @@ class TestWireServiceDetection:
             metadata=None,
             content="Our local reporter attended the conference...",
         )
-        # Should NOT detect as wire without strong content evidence
-        assert result is None or result.status != "wire"
+        # Should detect as wire via URL pattern
+        assert result is not None
+        assert result.status == "wire"
+        assert "url" in result.evidence
 
-    def test_national_url_without_content_evidence_no_detection(self):
-        """Test /national/ URL alone doesn't trigger"""
+    def test_national_url_triggers_detection(self):
+        """Test /national/ URL pattern triggers detection"""
         detector = _detector()
         result = detector.detect(
             url="https://newspaper.com/national/elections",
@@ -295,8 +297,10 @@ class TestWireServiceDetection:
             metadata=None,
             content="Our coverage team reports on the election...",
         )
-        # Should NOT detect as wire without strong content evidence
-        assert result is None or result.status != "wire"
+        # Should detect as wire via URL pattern
+        assert result is not None
+        assert result.status == "wire"
+        assert "url" in result.evidence
 
     def test_dateline_with_world_url_high_confidence(self):
         """Test dateline + /world/ URL = high confidence detection"""
@@ -310,7 +314,7 @@ class TestWireServiceDetection:
         assert result is not None
         assert result.status == "wire"
         assert "url" in result.evidence
-        assert "content" in result.evidence
+        # URL triggers first, so may not have content evidence
         assert result.confidence in ("high", "medium")
 
     def test_detects_usa_today_syndicated_byline(self):
@@ -409,7 +413,11 @@ class TestWireServiceDetection:
         assert result.status == "wire"
 
     def test_standard_democrat_world_ap_detected(self):
-        """Test real-world case: Standard Democrat /world/ with AP dateline"""
+        """Test real-world case: Standard Democrat /world/ with AP dateline
+
+        Note: /world/ URL pattern triggers TIER 1 detection and returns immediately.
+        The detector does not continue to check content patterns after URL match.
+        """
         detector = _detector()
         result = detector.detect(
             url="https://www.standard-democrat.com/world/immigration-story",
@@ -420,4 +428,5 @@ class TestWireServiceDetection:
         assert result is not None
         assert result.status == "wire"
         assert "url" in result.evidence
-        assert "content" in result.evidence
+        # URL pattern triggers first (TIER 1), so content evidence not collected
+        assert result.evidence.get("detection_tier") == "url"

@@ -1,0 +1,41 @@
+=== VS CODE CLI ===
+1.106.2
+1e3c50d64110be466c0b4a45222e81d2c9352888
+arm64
+github.copilot@1.388.0
+github.copilot-chat@0.33.2
+=== EXTENSION DIRS ===
+github.copilot-1.388.0
+github.copilot-chat-0.33.2
+=== LOG FOLDERS ===
+Found /Users/kiesowd/Library/Application Support/Code/logs
+Recent folders:
+total 0
+drwxr-xr-x@  3 kiesowd  staff   96 Nov 24 21:23 20251124T212320
+drwxr-xr-x@ 12 kiesowd  staff  384 Nov 24 21:09 20251124T210939
+drwxr-xr-x@  3 kiesowd  staff   96 Nov 24 21:09 20251124T210948
+drwxr-xr-x@ 12 kiesowd  staff  384 Nov 24 21:00 20251124T210021
+=== NETWORK ===
+---- github.com ----
+HTTP/2 200 
+date: Tue, 25 Nov 2025 03:23:13 GMT
+content-type: text/html; charset=utf-8
+vary: X-PJAX, X-PJAX-Container, Turbo-Visit, Turbo-Frame, X-Requested-With, Accept-Language,Accept-Encoding, Accept, X-Requested-With
+content-language: en-US
+etag: W/"a6d43c4ddb488bcce722016669113515"
+---- api.github.com ----
+HTTP/2 200 
+date: Tue, 25 Nov 2025 03:23:10 GMT
+cache-control: public, max-age=60, s-maxage=60
+vary: Accept,Accept-Encoding, Accept, X-Requested-With
+x-github-api-version-selected: 2022-11-28
+access-control-expose-headers: ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id, Deprecation, Sunset
+---- copilot-proxy.githubusercontent.com ----
+HTTP/2 404 
+content-security-policy: default-src 'none'; sandbox
+content-type: text/plain; charset=utf-8
+strict-transport-security: max-age=31536000
+x-content-type-options: nosniff
+content-length: 19
+---- vscps.copilot.github.com ----
+curl failed for vscps.copilot.github.com
