@@ -466,15 +466,18 @@ class ContentTypeDetector:
                 # Categorize URL pattern strength
                 pattern_lower = pattern.lower()
                 strong_indicators = [
-                    "/ap-", "/cnn-", "/reuters-", "/wire/", "/stacker"
+                    "/ap-",
+                    "/cnn-",
+                    "/reuters-",
+                    "/wire/",
+                    "/stacker",
+                    "/nation/",
+                    "/national/",
+                    "/nation-world/",
+                    "/world/",
                 ]
                 if any(indicator in pattern_lower for indicator in strong_indicators):
                     strong_url_signal = True
-                elif any(
-                    indicator in pattern_lower
-                    for indicator in ["/national", "/world"]
-                ):
-                    weak_url_signal = True
                 else:
                     # Domain patterns or service-name-in-path
                     strong_url_signal = True
