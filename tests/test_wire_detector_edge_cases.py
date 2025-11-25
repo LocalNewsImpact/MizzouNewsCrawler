@@ -105,7 +105,7 @@ class TestWireDetectorEdgeCases:
         detector = ContentTypeDetector()
 
         result = detector.detect(
-            url="https://localnews.com/national/politics",
+            url="https://localnews.com/story/politics",  # No /national/
             title="President Announces Policy",
             metadata={"byline": None},  # No author
             content="WASHINGTON (AP) — The president announced today...",
@@ -115,10 +115,12 @@ class TestWireDetectorEdgeCases:
         assert result.status == "wire"
         assert "content" in result.evidence
 
-    def test_national_section_url_alone_insufficient(self):
-        """Test that /national/ or /world/ URL alone doesn't trigger detection.
+    def test_national_section_url_triggers_detection(self):
+        """Test that /national/ or /world/ URL patterns trigger wire detection.
 
-        Major news outlets have their own national/world correspondents.
+        After analysis, /national/ and /world/ sections are strong signals for
+        syndicated/wire content, as major outlets label their own content
+        differently.
         """
         detector = ContentTypeDetector()
 
@@ -129,8 +131,10 @@ class TestWireDetectorEdgeCases:
             content="A new policy was announced today affecting the nation...",
         )
 
-        # Should NOT be detected (weak signals only)
-        assert result is None or result.status != "wire"
+        # Should be detected via URL pattern
+        assert result is not None
+        assert result.status == "wire"
+        assert "url" in result.evidence
 
     def test_states_newsroom_in_byline_detected(self):
         """Test States Newsroom detection from byline.
@@ -405,10 +409,11 @@ class TestWireDetectorEdgeCases:
                 result is None or result.status != "wire"
             ), f"Incorrectly flagged {outlet}"
 
-    def test_local_outlet_national_section_with_weak_signals(self):
-        """Test that local outlet national sections need strong evidence.
+    def test_local_outlet_national_section_triggers_detection(self):
+        """Test that local outlet national sections trigger wire detection.
 
-        /national/ URL + weak content should NOT trigger detection.
+        /national/ URL pattern is a strong signal indicating syndicated content.
+        Local outlets typically don't have national bureaus.
         """
         detector = ContentTypeDetector()
 
@@ -419,8 +424,10 @@ class TestWireDetectorEdgeCases:
             content="National developments without specific wire indicators...",
         )
 
-        # Should NOT be detected (weak signals only)
-        assert result is None or result.status != "wire"
+        # Should be detected via URL pattern
+        assert result is not None
+        assert result.status == "wire"
+        assert "url" in result.evidence
 
     def test_told_afp_attribution_pattern(self):
         """Test 'told AFP' attribution pattern in content."""

@@ -274,8 +274,8 @@ class TestWireServiceDetection:
         assert "url" in result.evidence
         assert any("/national" in m for m in result.evidence["url"])
 
-    def test_world_url_without_content_evidence_no_detection(self):
-        """Test /world/ URL alone (without strong content) doesn't trigger"""
+    def test_world_url_triggers_detection(self):
+        """Test /world/ URL pattern triggers detection"""
         detector = _detector()
         result = detector.detect(
             url="https://localnews.com/world/story",
@@ -283,11 +283,13 @@ class TestWireServiceDetection:
             metadata=None,
             content="Our local reporter attended the conference...",
         )
-        # Should NOT detect as wire without strong content evidence
-        assert result is None or result.status != "wire"
+        # Should detect as wire via URL pattern
+        assert result is not None
+        assert result.status == "wire"
+        assert "url" in result.evidence
 
-    def test_national_url_without_content_evidence_no_detection(self):
-        """Test /national/ URL alone doesn't trigger"""
+    def test_national_url_triggers_detection(self):
+        """Test /national/ URL pattern triggers detection"""
         detector = _detector()
         result = detector.detect(
             url="https://newspaper.com/national/elections",
@@ -295,8 +297,10 @@ class TestWireServiceDetection:
             metadata=None,
             content="Our coverage team reports on the election...",
         )
-        # Should NOT detect as wire without strong content evidence
-        assert result is None or result.status != "wire"
+        # Should detect as wire via URL pattern
+        assert result is not None
+        assert result.status == "wire"
+        assert "url" in result.evidence
 
     def test_dateline_with_world_url_high_confidence(self):
         """Test dateline + /world/ URL = high confidence detection"""
@@ -310,7 +314,7 @@ class TestWireServiceDetection:
         assert result is not None
         assert result.status == "wire"
         assert "url" in result.evidence
-        assert "content" in result.evidence
+        # URL triggers first, so may not have content evidence
         assert result.confidence in ("high", "medium")
 
     def test_detects_usa_today_syndicated_byline(self):
