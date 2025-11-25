@@ -46,73 +46,10 @@ class ContentTypeDetector:
         "KJLU": ["zimmerradio.com"],
     }
 
-    # Wire service indicators for dateline detection
-    _WIRE_SERVICE_PATTERNS = (
-        # Format: (pattern, canonical_name, case_sensitive)
-        (r"\b(AP|A\.P\.)\b", "Associated Press", False),
-        (r"\b(ASSOCIATED PRESS|Associated Press)\b", "Associated Press", True),
-        (r"\bREUTERS\b", "Reuters", False),
-        (r"\b(Reuters)\b", "Reuters", True),
-        (r"\b(CNN|C\.N\.N\.)\b", "CNN", False),
-        (r"\b(Bloomberg|BLOOMBERG)\b", "Bloomberg", False),
-        (r"\b(NPR|N\.P\.R\.)\b", "NPR", False),
-        (r"\b(PBS|P\.B\.S\.)\b", "PBS", False),
-        (r"\b(UPI|U\.P\.I\.)\b", "UPI", False),
-        (r"\b(AFP|Agence France-Presse)\b", "AFP", False),
-        (
-            r"\b(States\s+Newsroom|StatesNewsroom|States-Newsroom)\b",
-            "States Newsroom",
-            False,
-        ),
-        (
-            r"\b(The\s+Missouri\s+Independent|Missouri\s+Independent)\b",
-            "The Missouri Independent",
-            False,
-        ),
-        (
-            r"\b(Kansas\s+Reflector|KansasReflector|kansasreflector)\b",
-            "States Newsroom",
-            False,
-        ),
-        (r"\b(WAVE|Wave|WAVE3|wave3)\b", "WAVE", False),
-        (r"\bThe New York Times\b", "The New York Times", True),
-        (r"\bThe Washington Post\b", "The Washington Post", True),
-        (r"\bUSA TODAY\b", "USA TODAY", True),
-        (r"\bWall Street Journal\b", "Wall Street Journal", True),
-        (r"\bLos Angeles Times\b", "Los Angeles Times", True),
-        (r"\bTribune News Service\b", "Tribune News Service", True),
-        (r"\bGannett\b", "Gannett", True),
-        (r"\bMcClatchy\b", "McClatchy", True),
-    )
-
-    # Note: Dateline patterns are now loaded from wire_services table
-    # Note: Wire URL patterns are now loaded from wire_services table
-    # These legacy constants remain for backward compatibility but are not used
-
-    _WIRE_URL_PATTERNS = (
-        "cnn.com",
-        "apnews.com",
-        "reuters.com",
-        "bloomberg.com",
-        "npr.org",
-        "pbs.org",
-        "nytimes.com",
-        "washingtonpost.com",
-        "usatoday.com",
-        "wsj.com",
-        "latimes.com",
-        "/ap-",
-        "/cnn-",
-        "/reuters-",
-        "/wire/",
-        "/national/",
-        "/world/",
-        "statesnewsroom.org",
-        "kansasreflector.com",
-        "missouriindependent.org",
-        "missouriindependent.com",
-        "wave3.com",
-    )
+    # NOTE: Wire service patterns are now loaded dynamically from the
+    # wire_services database table via _get_wire_service_patterns().
+    # No hardcoded patterns should exist in production code - all patterns
+    # are managed via database migrations for flexibility and hot-reloading.
 
     _OBITUARY_TITLE_KEYWORDS = (
         "obituary",
@@ -353,6 +290,75 @@ class ContentTypeDetector:
             # Fallback to empty list if database unavailable
             return []
 
+    def _is_wire_services_own_domain(self, url: str) -> bool:
+        """Check if URL is from a wire service's own domain (not syndicated).
+        
+        Queries the sources table to see if the URL's host matches a known
+        wire service domain that should be excluded from wire detection.
+        
+        Args:
+            url: The article URL to check
+            
+        Returns:
+            True if this is a wire service's own content, False otherwise
+        """
+        from urllib.parse import urlparse
+        
+        try:
+            parsed = urlparse(url)
+            host = parsed.netloc.lower()
+            if not host:
+                return False
+            
+            # Known wire service domains that should be excluded
+            # These are typically set with is_wire_service=true in sources table
+            wire_service_indicators = [
+                "cnn.com",
+                "apnews.com",
+                "reuters.com",
+                "bloomberg.com",
+                "npr.org",
+                "pbs.org",
+                "nytimes.com",
+                "washingtonpost.com",
+                "usatoday.com",
+                "wsj.com",
+                "latimes.com",
+                "statesnewsroom.org",
+                "kansasreflector.com",
+                "missouriindependent.org",
+                "missouriindependent.com",
+                "wave3.com",
+            ]
+            
+            # Quick check against known domains first (fast path)
+            for domain in wire_service_indicators:
+                if domain in host:
+                    return True
+            
+            # Fallback: Query sources table for is_wire_service flag
+            # This allows dynamic management without code changes
+            try:
+                from src.models import Source
+                from src.models.database import DatabaseManager
+                
+                db = DatabaseManager()
+                with db.get_session() as session:
+                    source = session.query(Source).filter(
+                        Source.host == host
+                    ).first()
+                    
+                    if source and hasattr(source, 'is_wire_service'):
+                        return source.is_wire_service or False
+                        
+            except Exception:
+                pass  # Database unavailable, fall through
+                
+            return False
+            
+        except Exception:
+            return False
+
     def detect(
         self,
         *,
@@ -425,28 +431,10 @@ class ContentTypeDetector:
         # ===================================================================
         # TIER 0: Exclude wire service's own domains (not syndicated)
         # ===================================================================
-        own_source_domains = {
-            "cnn.com": "CNN",
-            "apnews.com": "Associated Press",
-            "reuters.com": "Reuters",
-            "bloomberg.com": "Bloomberg",
-            "npr.org": "NPR",
-            "pbs.org": "PBS",
-            "nytimes.com": "The New York Times",
-            "washingtonpost.com": "The Washington Post",
-            "usatoday.com": "USA TODAY",
-            "wsj.com": "Wall Street Journal",
-            "latimes.com": "Los Angeles Times",
-            "statesnewsroom.org": "States Newsroom",
-            "kansasreflector.com": "States Newsroom",
-            "missouriindependent.org": "The Missouri Independent",
-            "missouriindependent.com": "The Missouri Independent",
-            "wave3.com": "WAVE",
-        }
-
-        for domain, service_name in own_source_domains.items():
-            if domain in url_lower:
-                return None  # Own content, not syndicated
+        # Check if this is a wire service's own content (e.g., apnews.com)
+        # rather than syndicated content on a local news site
+        if self._is_wire_services_own_domain(url):
+            return None  # Own content, not syndicated
 
         # ===================================================================
         # TIER 1: URL Structure Analysis (STRONGEST SIGNAL)

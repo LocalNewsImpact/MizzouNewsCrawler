@@ -19,7 +19,11 @@ from src.telemetry.store import TelemetryStore
 if "USE_CLOUD_SQL_CONNECTOR" not in os.environ:
     os.environ["USE_CLOUD_SQL_CONNECTOR"] = "false"
 if "DATABASE_URL" not in os.environ:
-    os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+    # Use file-based SQLite so the same database is shared across
+    # all DatabaseManager() instances within a test session
+    import tempfile
+    test_db_path = os.path.join(tempfile.gettempdir(), "test_news_crawler.db")
+    os.environ["DATABASE_URL"] = f"sqlite:///{test_db_path}"
 # Clear PostgreSQL env vars that might cause unwanted connections
 # Prevents src.config from building PostgreSQL URL when running tests locally
 for key in [
@@ -45,6 +49,21 @@ pytest_plugins = [
     # tests can access cloud_sql_* fixtures without double-registration.
     "tests.plugins.backend_fixtures",
 ]
+
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_test_database():
+    """Clean up file-based SQLite test database after all tests complete."""
+    yield
+    # After all tests complete, delete the test database file
+    import os
+    import tempfile
+    test_db_path = os.path.join(tempfile.gettempdir(), "test_news_crawler.db")
+    if os.path.exists(test_db_path):
+        try:
+            os.remove(test_db_path)
+        except Exception:
+            pass  # Ignore cleanup errors
 
 
 @pytest.fixture
@@ -223,8 +242,9 @@ def populate_wire_service_patterns():
         if existing_count > 0:
             return
 
-        # Insert wire service patterns (same as migration 259bc609c6a3)
+        # Insert wire service patterns (same as migration 259bc609c6a3 + f224b4c09ef3)
         patterns = [
+            # ==================== CONTENT PATTERNS (Datelines) ====================
             # AP dateline patterns
             WireService(
                 pattern=r"^[A-Z][A-Z\s,\.''\-]+\s*[–—-]\s*\(?AP\)?\s*[–—-]",
@@ -283,6 +303,8 @@ def populate_wire_service_patterns():
                 active=True,
                 notes="AFP dateline pattern: CITY (AFP) —",
             ),
+            
+            # ==================== URL PATTERNS ====================
             # Strong URL patterns (explicit wire paths)
             WireService(
                 pattern="/ap-",
@@ -311,7 +333,7 @@ def populate_wire_service_patterns():
                 active=True,
                 notes="Stacker syndication URL",
             ),
-            # Section patterns (weaker signals, require additional evidence)
+            # Section patterns
             WireService(
                 pattern="/national/",
                 pattern_type="url",
@@ -319,7 +341,7 @@ def populate_wire_service_patterns():
                 case_sensitive=False,
                 priority=50,
                 active=True,
-                notes="National news section - requires additional evidence",
+                notes="National news section",
             ),
             WireService(
                 pattern="/world/",
@@ -328,7 +350,127 @@ def populate_wire_service_patterns():
                 case_sensitive=False,
                 priority=50,
                 active=True,
-                notes="World news section - requires additional evidence",
+                notes="World news section",
+            ),
+            
+            # ==================== AUTHOR PATTERNS ====================
+            # Explicit wire service names (STRONGEST SIGNALS)
+            WireService(
+                pattern=r"\bAssociated Press\b",
+                pattern_type="author",
+                service_name="Associated Press",
+                case_sensitive=False,
+                priority=5,
+                active=True,
+                notes="AP full name in byline",
+            ),
+            WireService(
+                pattern=r"\bAP\b",
+                pattern_type="author",
+                service_name="Associated Press",
+                case_sensitive=False,
+                priority=10,
+                active=True,
+                notes="AP abbreviation in byline",
+            ),
+            WireService(
+                pattern=r"\bReuters\b",
+                pattern_type="author",
+                service_name="Reuters",
+                case_sensitive=False,
+                priority=5,
+                active=True,
+                notes="Reuters in byline",
+            ),
+            WireService(
+                pattern=r"\bCNN\b",
+                pattern_type="author",
+                service_name="CNN",
+                case_sensitive=False,
+                priority=5,
+                active=True,
+                notes="CNN in byline",
+            ),
+            WireService(
+                pattern=r"\bAFP\b",
+                pattern_type="author",
+                service_name="AFP",
+                case_sensitive=False,
+                priority=5,
+                active=True,
+                notes="AFP in byline",
+            ),
+            WireService(
+                pattern=r"\bUSA TODAY\b",
+                pattern_type="author",
+                service_name="USA TODAY",
+                case_sensitive=False,
+                priority=5,
+                active=True,
+                notes="USA TODAY in byline",
+            ),
+            WireService(
+                pattern=r"\bStates Newsroom\b",
+                pattern_type="author",
+                service_name="States Newsroom",
+                case_sensitive=False,
+                priority=5,
+                active=True,
+                notes="States Newsroom syndication",
+            ),
+            WireService(
+                pattern=r"\bKansas Reflector\b",
+                pattern_type="author",
+                service_name="States Newsroom",
+                case_sensitive=False,
+                priority=5,
+                active=True,
+                notes="Kansas Reflector (States Newsroom)",
+            ),
+            WireService(
+                pattern=r"\bThe Missouri Independent\b",
+                pattern_type="author",
+                service_name="The Missouri Independent",
+                case_sensitive=False,
+                priority=5,
+                active=True,
+                notes="Missouri Independent in byline",
+            ),
+            WireService(
+                pattern=r"\bMissouri Independent\b",
+                pattern_type="author",
+                service_name="The Missouri Independent",
+                case_sensitive=False,
+                priority=5,
+                active=True,
+                notes="Missouri Independent (short form)",
+            ),
+            WireService(
+                pattern=r"\bWAVE\b",
+                pattern_type="author",
+                service_name="WAVE",
+                case_sensitive=False,
+                priority=5,
+                active=True,
+                notes="WAVE in byline",
+            ),
+            WireService(
+                pattern=r"\bNPR\b",
+                pattern_type="author",
+                service_name="NPR",
+                case_sensitive=False,
+                priority=5,
+                active=True,
+                notes="NPR in byline",
+            ),
+            WireService(
+                pattern=r"\bStacker\b",
+                pattern_type="author",
+                service_name="Stacker",
+                case_sensitive=False,
+                priority=5,
+                active=True,
+                notes="Stacker syndication",
             ),
         ]
 
