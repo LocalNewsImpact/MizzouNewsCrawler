@@ -91,14 +91,15 @@ def verify_wire_detection(
                 'byline': article.author,
             }
             
-            detection_result = detector.detect_wire_service(
+            # Use the main detect method
+            detection_result = detector.detect(
                 url=url,
                 content=article.text or article.content,
                 metadata=metadata,
-                author=article.author,
                 title=article.title,
             )
             
+            # Check if result is wire
             new_is_wire = (
                 detection_result is not None
                 and detection_result.status == 'wire'
