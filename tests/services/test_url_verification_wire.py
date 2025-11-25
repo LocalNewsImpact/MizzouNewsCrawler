@@ -80,13 +80,9 @@ class TestWireServiceURLFiltering:
             "_get_wire_service_patterns"
         ) as mock_patterns:
             # Use a more specific pattern that matches the URL structure
-            mock_patterns.return_value = [
-                (r"/ap/", "Associated Press", False)
-            ]
+            mock_patterns.return_value = [(r"/ap/", "Associated Press", False)]
 
-            result = service.verify_url(
-                "https://newspressnow.com/ap/news/story-123"
-            )
+            result = service.verify_url("https://newspressnow.com/ap/news/story-123")
 
             assert result["wire_filtered"] is True
             assert result["storysniffer_result"] is False
@@ -99,9 +95,7 @@ class TestWireServiceURLFiltering:
             "src.utils.content_type_detector.ContentTypeDetector."
             "_get_wire_service_patterns"
         ) as mock_patterns:
-            mock_patterns.return_value = [
-                (r"/stacker/", "Stacker", False)
-            ]
+            mock_patterns.return_value = [(r"/stacker/", "Stacker", False)]
 
             result = service.verify_url(
                 "https://example.com/stacker/travel/best-beaches"
@@ -116,13 +110,9 @@ class TestWireServiceURLFiltering:
             "src.utils.content_type_detector.ContentTypeDetector."
             "_get_wire_service_patterns"
         ) as mock_patterns:
-            mock_patterns.return_value = [
-                (r"/reuters-", "Reuters", False)
-            ]
+            mock_patterns.return_value = [(r"/reuters-", "Reuters", False)]
 
-            result = service.verify_url(
-                "https://news.com/reuters-world/story"
-            )
+            result = service.verify_url("https://news.com/reuters-world/story")
 
             assert result["wire_filtered"] is True
             assert result["wire_service"] == "Reuters"
@@ -133,13 +123,9 @@ class TestWireServiceURLFiltering:
             "src.utils.content_type_detector.ContentTypeDetector."
             "_get_wire_service_patterns"
         ) as mock_patterns:
-            mock_patterns.return_value = [
-                (r"/national/", "National Section", False)
-            ]
+            mock_patterns.return_value = [(r"/national/", "National Section", False)]
 
-            result = service.verify_url(
-                "https://localnews.com/national/politics/story"
-            )
+            result = service.verify_url("https://localnews.com/national/politics/story")
 
             assert result["wire_filtered"] is True
             assert result["wire_service"] == "National Section"
@@ -150,13 +136,9 @@ class TestWireServiceURLFiltering:
             "src.utils.content_type_detector.ContentTypeDetector."
             "_get_wire_service_patterns"
         ) as mock_patterns:
-            mock_patterns.return_value = [
-                (r"/world/", "Wire Service", False)
-            ]
+            mock_patterns.return_value = [(r"/world/", "Wire Service", False)]
 
-            result = service.verify_url(
-                "https://localnews.com/world/europe/story"
-            )
+            result = service.verify_url("https://localnews.com/world/europe/story")
 
             assert result["wire_filtered"] is True
             assert result["wire_service"] == "Wire Service"
@@ -167,9 +149,7 @@ class TestWireServiceURLFiltering:
             "src.utils.content_type_detector.ContentTypeDetector."
             "_get_wire_service_patterns"
         ) as mock_patterns:
-            mock_patterns.return_value = [
-                (r"/wire/", "Wire Service", False)
-            ]
+            mock_patterns.return_value = [(r"/wire/", "Wire Service", False)]
 
             # Mock StorySniffer to raise error if called
             with patch.object(
@@ -177,9 +157,7 @@ class TestWireServiceURLFiltering:
                 "guess",
                 side_effect=RuntimeError("Should not be called"),
             ):
-                result = service.verify_url(
-                    "https://example.com/wire/story"
-                )
+                result = service.verify_url("https://example.com/wire/story")
 
                 # Should succeed without calling StorySniffer
                 assert result["wire_filtered"] is True
@@ -191,13 +169,9 @@ class TestWireServiceURLFiltering:
             "src.utils.content_type_detector.ContentTypeDetector."
             "_get_wire_service_patterns"
         ) as mock_patterns:
-            mock_patterns.return_value = [
-                (r"/wire/", "Wire Service", False)
-            ]
+            mock_patterns.return_value = [(r"/wire/", "Wire Service", False)]
 
-            result = service.verify_url(
-                "https://example.com/local/news/story"
-            )
+            result = service.verify_url("https://example.com/local/news/story")
 
             # Should not be wire filtered
             assert result.get("wire_filtered", False) is False
@@ -214,9 +188,7 @@ class TestWireServiceURLFiltering:
                 (r"/AP-", "Associated Press", False)  # case_sensitive=False
             ]
 
-            result = service.verify_url(
-                "https://example.com/AP-NEWS/story"
-            )
+            result = service.verify_url("https://example.com/AP-NEWS/story")
 
             assert result["wire_filtered"] is True
 
@@ -232,9 +204,7 @@ class TestWireServiceURLFiltering:
                 (r"/reuters", "Reuters", False),
             ]
 
-            result = service.verify_url(
-                "https://example.com/ap-world/story"
-            )
+            result = service.verify_url("https://example.com/ap-world/story")
 
             assert result["wire_filtered"] is True
             assert result["wire_service"] == "Associated Press"
@@ -249,9 +219,7 @@ class TestWireServiceBatchProcessing:
             "src.utils.content_type_detector.ContentTypeDetector."
             "_get_wire_service_patterns"
         ) as mock_patterns:
-            mock_patterns.return_value = [
-                (r"/stacker/", "Stacker", False)
-            ]
+            mock_patterns.return_value = [(r"/stacker/", "Stacker", False)]
 
             # Mock update_candidate_status to track calls
             update_calls = []
@@ -295,9 +263,7 @@ class TestWireServiceBatchProcessing:
             "src.utils.content_type_detector.ContentTypeDetector."
             "_get_wire_service_patterns"
         ) as mock_patterns:
-            mock_patterns.return_value = [
-                (r"/wire/", "Wire Service", False)
-            ]
+            mock_patterns.return_value = [(r"/wire/", "Wire Service", False)]
 
             with patch.object(
                 service,
@@ -330,13 +296,9 @@ class TestWireDetectionPerformance:
             "src.utils.content_type_detector.ContentTypeDetector."
             "_get_wire_service_patterns"
         ) as mock_patterns:
-            mock_patterns.return_value = [
-                (r"/ap-", "Associated Press", False)
-            ]
+            mock_patterns.return_value = [(r"/ap-", "Associated Press", False)]
 
-            result = service.verify_url(
-                "https://example.com/ap-news/story"
-            )
+            result = service.verify_url("https://example.com/ap-news/story")
 
             # Wire detection should be very fast (< 5ms even in test environment)
             assert result["verification_time_ms"] < 5.0
@@ -345,18 +307,16 @@ class TestWireDetectionPerformance:
     def test_wire_detection_before_http_check(self, service):
         """Test that wire detection happens before HTTP checks."""
         from src.utils.content_type_detector import ContentTypeDetector
-        
+
         with patch.object(
             ContentTypeDetector,
             "_get_wire_service_patterns",
-            return_value=[(r"/wire/", "Wire Service", False)]
+            return_value=[(r"/wire/", "Wire Service", False)],
         ):
             # Enable HTTP precheck
             service.run_http_precheck = True
 
-            result = service.verify_url(
-                "https://example.com/wire/story"
-            )
+            result = service.verify_url("https://example.com/wire/story")
 
             # Should succeed without HTTP check
             assert result["wire_filtered"] is True

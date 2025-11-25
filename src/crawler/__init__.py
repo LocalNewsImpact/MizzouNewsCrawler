@@ -910,7 +910,7 @@ class ContentExtractor:
         self, response: requests.Response
     ) -> Optional[str]:
         """Detect bot protection mechanisms in HTTP response.
-        
+
         This should primarily be used for non-200 responses (403, 503, etc.)
         where bot protection is blocking access. For 200 responses, let the
         content extraction proceed - if there's real bot protection, extraction
@@ -1731,7 +1731,7 @@ class ContentExtractor:
                     # Real bot protection will result in extraction failure naturally.
                     # False positives were causing legitimate pages to be incorrectly
                     # paused after Chromedriver/stealth updates.
-                    
+
                     # Reset error count on successful request
                     self._reset_error_count(domain)
 

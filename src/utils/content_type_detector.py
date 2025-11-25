@@ -492,8 +492,10 @@ class ContentTypeDetector:
         byline_signal = False
 
         # Extract author from various sources
-        author_raw = author or (metadata.get("author") if metadata else None) or (
-            metadata.get("byline") if metadata else None
+        author_raw = (
+            author
+            or (metadata.get("author") if metadata else None)
+            or (metadata.get("byline") if metadata else None)
         )
 
         # Handle structured byline metadata
@@ -548,7 +550,7 @@ class ContentTypeDetector:
                     detected_services.add(service_name)
                     byline_signal = True
                     break
-            
+
             # Only check additional patterns if not already detected
             if not byline_signal:
                 # Check against known wire reporters (from telemetry DB)
@@ -573,7 +575,7 @@ class ContentTypeDetector:
         if content:
             # Check last 150 chars for copyright
             closing = content[-150:] if len(content) > 150 else content
-            
+
             # Build copyright pattern dynamically from database
             # Get all unique service names for copyright detection
             wire_services = self._get_wire_service_patterns(pattern_type="author")
@@ -583,7 +585,7 @@ class ContentTypeDetector:
                 key=len,
                 reverse=True,  # Match longer names first
             )
-            
+
             if service_names:
                 # Build regex alternation: (Service1|Service2|...)
                 services_pattern = "|".join(re.escape(svc) for svc in service_names)
@@ -628,8 +630,7 @@ class ContentTypeDetector:
 
                 # NWS/Weather patterns (only with title confirmation)
                 if title and any(
-                    kw in title.lower()
-                    for kw in ["weather alert", "dense fog", "nws"]
+                    kw in title.lower() for kw in ["weather alert", "dense fog", "nws"]
                 ):
                     if "national weather service" in content_start:
                         matches.setdefault("content", []).append("NWS attribution")
@@ -696,9 +697,7 @@ class ContentTypeDetector:
             "copyright": (0.85, "high"),
             "content_weak": (0.6, "medium"),
         }
-        confidence_score, confidence_label = confidence_map.get(
-            tier, (0.5, "medium")
-        )
+        confidence_score, confidence_label = confidence_map.get(tier, (0.5, "medium"))
 
         return ContentTypeResult(
             status="wire",
