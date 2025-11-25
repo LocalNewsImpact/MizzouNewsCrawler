@@ -24,7 +24,7 @@ class TestWireServiceDetection:
         """Test detection of 'Afp Afp' author pattern"""
         detector = _detector()
         result = detector.detect(
-            url="https://example.com/news/national/story",
+            url="https://example.com/news/story",
             title="Sports Update",
             metadata={"byline": "Afp Afp"},
             content="The game ended with a final score...",
@@ -38,7 +38,7 @@ class TestWireServiceDetection:
         """Test detection of author ending with AFP"""
         detector = _detector()
         result = detector.detect(
-            url="https://example.com/news/national/article.html",
+            url="https://example.com/news/article.html",
             title="International News",
             metadata={"byline": "Susan Njanji Nicholas Roll In Abuja Afp"},
             content="Officials announced today...",
@@ -48,7 +48,7 @@ class TestWireServiceDetection:
         assert "author" in result.evidence
 
     def test_detects_ap_staff_author(self):
-        """Test detection of 'AP Staff' author"""
+        """Test detection of 'AP Staff' author pattern"""
         detector = _detector()
         result = detector.detect(
             url="https://example.com/news/story",
@@ -78,7 +78,7 @@ class TestWireServiceDetection:
         """Test detection of Reuters dateline: 'LONDON (Reuters) —'"""
         detector = _detector()
         result = detector.detect(
-            url="https://example.com/world/story",
+            url="https://example.com/story",
             title="UK Election Results",
             metadata=None,
             content="LONDON (Reuters) — British voters went to the polls...",
@@ -91,7 +91,7 @@ class TestWireServiceDetection:
         """Test detection of 'States Newsroom' author pattern"""
         detector = _detector()
         result = detector.detect(
-            url="https://example.com/news/national/story",
+            url="https://example.com/news/story",
             title="Local State Update",
             metadata={"byline": "States Newsroom"},
             content="Short summary of state news...",
@@ -105,7 +105,7 @@ class TestWireServiceDetection:
         """Test detection when author ends with 'States Newsroom'"""
         detector = _detector()
         result = detector.detect(
-            url="https://example.com/news/national/state-update",
+            url="https://example.com/news/state-update",
             title="State Policy Update",
             metadata={"byline": "Jane Doe States Newsroom"},
             content="Policy changes announced...",
@@ -232,7 +232,7 @@ class TestWireServiceDetection:
         """Test NPR copyright with 'The' prefix"""
         detector = _detector()
         result = detector.detect(
-            url="https://kbia.org/national/story",
+            url="https://kbia.org/story",
             title="National Story",
             metadata=None,
             content=(
