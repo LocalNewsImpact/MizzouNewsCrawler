@@ -189,8 +189,36 @@ docker run --rm \
 
 LINT_EXIT_CODE=${PIPESTATUS[0]}
 if [ $LINT_EXIT_CODE -ne 0 ]; then
-    echo -e "${RED}❌ Linting checks failed${NC}"
-    exit 1
+    echo -e "${YELLOW}⚠️  Linting checks failed - attempting auto-fix...${NC}"
+    
+    # Run auto-fix in container
+    docker run --rm \
+        -v "$(pwd)":/workspace \
+        -w /workspace \
+        us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
+        /bin/bash -c "
+            echo '  → Auto-fixing with ruff...' &&
+            python -m ruff check --fix . &&
+            echo '  → Auto-formatting with black...' &&
+            python -m black src/ tests/ web/ &&
+            echo '  → Auto-sorting imports with isort...' &&
+            python -m isort --profile black src/ tests/ web/
+        " 2>&1 | { grep -v "WARNING: The requested image's platform" || true; }
+    
+    AUTO_FIX_EXIT_CODE=${PIPESTATUS[0]}
+    if [ $AUTO_FIX_EXIT_CODE -eq 0 ]; then
+        echo -e "${GREEN}✅ Auto-fix completed successfully${NC}"
+        echo -e "${YELLOW}📝 Changes have been made to your files. Please review and commit them.${NC}"
+        echo ""
+        echo "Modified files:"
+        git diff --name-only
+        echo ""
+        echo "Run 'git diff' to see the changes, then commit and try pushing again."
+        exit 1  # Still exit with error so user reviews changes
+    else
+        echo -e "${RED}❌ Auto-fix failed - manual intervention required${NC}"
+        exit 1
+    fi
 fi
 echo -e "${GREEN}✅ Step 1/4: Linting checks passed${NC}"
 
