@@ -29,7 +29,10 @@ metadata:
 spec:
   replicas: 1  # Single coordinator instance
   strategy:
-    type: Recreate  # Ensure only one instance at a time
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0  # Keep old pod running until new pod is ready
+      maxSurge: 1        # Allow one extra pod during rollout
   selector:
     matchLabels:
       app: work-queue
