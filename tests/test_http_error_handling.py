@@ -54,36 +54,24 @@ class TestNotFoundErrorHandling:
     """Test 404/410 responses surface structured failures (commit 615f8f9)."""
 
     def test_404_returns_structured_not_found(self, extractor, mock_response):
-        """404 response should return structured metadata instead of raising."""
+        """404 response should raise NotFoundError immediately."""
         with patch.object(extractor, "_get_domain_session") as mock_session:
             mock_sess = Mock()
             mock_sess.get.return_value = mock_response(404, "Not Found")
             mock_session.return_value = mock_sess
 
-            result = extractor._extract_with_newspaper("https://example.com/missing")
-
-        assert result["title"] is None
-        assert result["content"] is None
-        meta = result.get("metadata", {})
-        assert meta.get("http_status") == 404
-        assert meta.get("error") == "http_not_found"
-        assert meta.get("extraction_method") == "newspaper4k"
+            with pytest.raises(NotFoundError, match="URL returned 404"):
+                extractor._extract_with_newspaper("https://example.com/missing")
 
     def test_410_returns_structured_not_found(self, extractor, mock_response):
-        """410 Gone response should return structured metadata instead of raising."""
+        """410 Gone response should raise NotFoundError immediately."""
         with patch.object(extractor, "_get_domain_session") as mock_session:
             mock_sess = Mock()
             mock_sess.get.return_value = mock_response(410, "Gone")
             mock_session.return_value = mock_sess
 
-            result = extractor._extract_with_newspaper("https://example.com/gone")
-
-        assert result["title"] is None
-        assert result["content"] is None
-        meta = result.get("metadata", {})
-        assert meta.get("http_status") == 410
-        assert meta.get("error") == "http_not_found"
-        assert meta.get("extraction_method") == "newspaper4k"
+            with pytest.raises(NotFoundError, match="URL returned 410"):
+                extractor._extract_with_newspaper("https://example.com/gone")
 
     def test_404_not_found_stops_extract_content_fallback(self, extractor):
         """
@@ -582,7 +570,7 @@ class TestMetricsTracking:
     """Test that extraction metrics are properly tracked."""
 
     def test_404_tracks_metrics(self, extractor, mock_response):
-        """Test that 404 error is tracked in metrics."""
+        """Test that 404 error is tracked in metrics before raising NotFoundError."""
         mock_metrics = Mock()
 
         with patch.object(extractor, "_get_domain_session") as mock_session:
@@ -590,25 +578,16 @@ class TestMetricsTracking:
             mock_sess.get.return_value = mock_response(404, "Not Found")
             mock_session.return_value = mock_sess
 
-            result = extractor.extract_content(
-                "https://example.com/missing", metrics=mock_metrics
-            )
+            with pytest.raises(NotFoundError, match="URL returned 404"):
+                extractor.extract_content(
+                    "https://example.com/missing", metrics=mock_metrics
+                )
 
-        assert result is not None
-
-        # Verify metrics were recorded
-        assert mock_metrics.start_method.called
-        assert mock_metrics.end_method.called
-
-        # Ensure newspaper4k was recorded with structured failure metadata
-        matching_calls = [
-            entry
-            for entry in mock_metrics.end_method.call_args_list
-            if entry[0][0] == "newspaper4k"
-        ]
-        assert matching_calls, "Expected newspaper4k metrics to be recorded"
-        meta_arg = matching_calls[-1][0][3]
-        assert meta_arg.get("metadata", {}).get("error") == "http_not_found"
+        # Should track the 404 error before raising
+        mock_metrics.set_http_status.assert_called_with(404)
+        # Should track the newspaper4k method attempt
+        mock_metrics.start_method.assert_called_with("newspaper4k")
+        mock_metrics.end_method.assert_called()
 
     def test_successful_extraction_tracks_metrics(self, extractor, mock_response):
         """Test that successful extraction tracks metrics."""
