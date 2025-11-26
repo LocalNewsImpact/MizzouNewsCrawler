@@ -25,8 +25,9 @@ if [ -n "$1" ]; then
     apply_file "$1"
 else
     echo "Applying all manifests..."
-    # Add files here as they are converted to use variables
-    apply_file k8s/housekeeping-cronjob.yaml
+    # Apply all service deployments with version substitution
+    apply_file k8s/api-deployment.yaml
     apply_file k8s/processor-deployment.yaml
-    # apply_file k8s/crawler-cronjob.yaml
+    apply_file k8s/crawler-cronjob.yaml
+    apply_file k8s/housekeeping-cronjob.yaml
 fi

@@ -22,7 +22,7 @@ spec:
       containers:
       # Main API container
       - name: api
-        image: api
+        image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:${API_TAG}
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000
