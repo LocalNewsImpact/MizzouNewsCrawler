@@ -134,10 +134,10 @@ def test_health_check_responds_during_slow_request():
 @pytest.mark.asyncio
 async def test_async_endpoint_uses_executor():
     """Verify that async endpoints use run_in_executor for blocking operations."""
-    from src.services.work_queue import request_work
-
     # Mock the coordinator to track if we're in the right thread
     import threading
+
+    from src.services.work_queue import request_work
 
     main_thread_id = threading.get_ident()
     executor_thread_id = None
@@ -161,9 +161,7 @@ async def test_async_endpoint_uses_executor():
         await request_work(request)
 
         # Verify coordinator.request_work was called in a different thread
-        assert (
-            executor_thread_id is not None
-        ), "coordinator.request_work was not called"
+        assert executor_thread_id is not None, "coordinator.request_work was not called"
         assert (
             executor_thread_id != main_thread_id
         ), "Blocking call not run in executor (same thread as async code)"
@@ -251,7 +249,7 @@ def test_heartbeat_endpoint_non_blocking():
 
 def test_stats_endpoint_non_blocking():
     """Stats endpoint should respond quickly even under load."""
-    from src.services.work_queue import app, coordinator, StatsResponse
+    from src.services.work_queue import StatsResponse, app, coordinator
 
     # Mock slow get_stats (simulates 1-second query)
     def slow_get_stats():
