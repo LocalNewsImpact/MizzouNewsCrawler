@@ -317,12 +317,28 @@ fi
 
 # PHASE 5: Deployment
 if [ $BUILD_FAILURES -eq 0 ]; then
+# PHASE 5: Deployment
+if [ $BUILD_FAILURES -eq 0 ]; then
     echo -e "\n${COLOR_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
     echo -e "${COLOR_BLUE}Phase 5: Deployment${COLOR_RESET}"
     echo -e "${COLOR_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
 
-    # Get current commit SHA
-    COMMIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+    # Get commit SHA from the most recent build (Cloud Build determines the actual SHA)
+    # Priority: processor > crawler > api (whichever was built)
+    COMMIT_SHA="unknown"
+    if [ -n "${PROCESSOR_BUILD_ID:-}" ]; then
+        COMMIT_SHA=$(gcloud builds describe "$PROCESSOR_BUILD_ID" --format='value(substitutions.SHORT_SHA)' 2>/dev/null || echo "unknown")
+    elif [ -n "${CRAWLER_BUILD_ID:-}" ]; then
+        COMMIT_SHA=$(gcloud builds describe "$CRAWLER_BUILD_ID" --format='value(substitutions.SHORT_SHA)' 2>/dev/null || echo "unknown")
+    elif [ -n "${API_BUILD_ID:-}" ]; then
+        COMMIT_SHA=$(gcloud builds describe "$API_BUILD_ID" --format='value(substitutions.SHORT_SHA)' 2>/dev/null || echo "unknown")
+    fi
+    
+    # Fallback to git if no builds were done (shouldn't happen in normal flow)
+    if [ "$COMMIT_SHA" = "unknown" ]; then
+        COMMIT_SHA=$(git rev-parse --short "origin/${BRANCH}" 2>/dev/null || git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+    fi
+    
     VERSIONS_FILE="k8s/versions.env"
 
     if [ "$COMMIT_SHA" != "unknown" ] && [ -f "$VERSIONS_FILE" ]; then
@@ -366,7 +382,19 @@ if [ $BUILD_FAILURES -eq 0 ]; then
 fi
 
 # Summary
-COMMIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+# Get the actual commit SHA from Cloud Build (same logic as deployment phase)
+COMMIT_SHA="unknown"
+if [ -n "${PROCESSOR_BUILD_ID:-}" ]; then
+    COMMIT_SHA=$(gcloud builds describe "$PROCESSOR_BUILD_ID" --format='value(substitutions.SHORT_SHA)' 2>/dev/null || echo "unknown")
+elif [ -n "${CRAWLER_BUILD_ID:-}" ]; then
+    COMMIT_SHA=$(gcloud builds describe "$CRAWLER_BUILD_ID" --format='value(substitutions.SHORT_SHA)' 2>/dev/null || echo "unknown")
+elif [ -n "${API_BUILD_ID:-}" ]; then
+    COMMIT_SHA=$(gcloud builds describe "$API_BUILD_ID" --format='value(substitutions.SHORT_SHA)' 2>/dev/null || echo "unknown")
+fi
+
+if [ "$COMMIT_SHA" = "unknown" ]; then
+    COMMIT_SHA=$(git rev-parse --short "origin/${BRANCH}" 2>/dev/null || git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+fi
 
 echo -e "\n${COLOR_BLUE}========================================${COLOR_RESET}"
 if [ $BUILD_FAILURES -eq 0 ]; then
