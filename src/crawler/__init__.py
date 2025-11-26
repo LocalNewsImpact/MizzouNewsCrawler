@@ -1688,41 +1688,17 @@ class ContentExtractor:
                             f"Server error ({response.status_code}) on {domain}"
                         )
 
-                # Permanent missing -> cache as dead URL
+                # Permanent missing -> cache as dead URL and raise exception
                 if response.status_code in (404, 410):
                     if ttl:
                         self.dead_urls[url] = time.time() + ttl
                     logger.warning(
                         f"Permanent missing ({response.status_code}) for {url}; caching"
                     )
-                    metadata: Dict[str, Any] = {
-                        "extraction_method": "newspaper4k",
-                        "http_status": response.status_code,
-                        "error": "http_not_found",
-                    }
-                    # Include proxy metadata when available for downstream diagnostics.
-                    for key, value in proxy_metadata.items():
-                        if value is not None:
-                            metadata[key] = value
-
-                    if ttl:
-                        try:
-                            expires_at = datetime.utcfromtimestamp(self.dead_urls[url])
-                            metadata["cache_ttl_expires_at"] = expires_at.isoformat()
-                        except Exception:
-                            metadata["cache_ttl_expires_at"] = (
-                                datetime.utcnow().isoformat()
-                            )
-
-                    return {
-                        "url": url,
-                        "title": None,
-                        "author": None,
-                        "publish_date": None,
-                        "content": None,
-                        "metadata": metadata,
-                        "extracted_at": datetime.utcnow().isoformat(),
-                    }
+                    # Raise NotFoundError to stop all fallback attempts immediately
+                    raise NotFoundError(
+                        f"URL returned {response.status_code}: {url}"
+                    )
 
                 # Check if request was successful
                 if response.status_code == 200:
