@@ -104,23 +104,32 @@ spec:
               memory: "512Mi"
               cpu: "500m"
           
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 20  # 5 + (5 * 20) = 105 seconds max startup time
+          
           livenessProbe:
             httpGet:
               path: /health
               port: 8080
             initialDelaySeconds: 10
             periodSeconds: 30
-            timeoutSeconds: 5
+            timeoutSeconds: 10  # Increased timeout for DB queries under load
             failureThreshold: 3
           
           readinessProbe:
             httpGet:
               path: /health
               port: 8080
-            initialDelaySeconds: 5
+            initialDelaySeconds: 15  # Increased to allow full database initialization
             periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 2
+            timeoutSeconds: 10  # Increased timeout
+            failureThreshold: 3
         
         # Cloud SQL Proxy sidecar
         - name: cloud-sql-proxy

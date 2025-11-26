@@ -64,21 +64,29 @@ spec:
           limits:
             cpu: 500m
             memory: 512Mi
-        livenessProbe:
+        startupProbe:
           httpGet:
-            path: /api/articles
+            path: /health
             port: 8000
-          initialDelaySeconds: 30
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
-        readinessProbe:
-          httpGet:
-            path: /api/articles
-            port: 8000
-          initialDelaySeconds: 10
+          initialDelaySeconds: 5
           periodSeconds: 5
           timeoutSeconds: 3
+          failureThreshold: 20  # 5 + (5 * 20) = 105 seconds max startup time
+        livenessProbe:
+          httpGet:
+            path: /health  # Changed from /api/articles - lighter check
+            port: 8000
+          initialDelaySeconds: 10  # After startup probe succeeds
+          periodSeconds: 30  # Check less frequently
+          timeoutSeconds: 5
+          failureThreshold: 3  # 90 seconds before restart
+        readinessProbe:
+          httpGet:
+            path: /health  # Use lightweight check - /api/articles does expensive COUNT(*)
+            port: 8000
+          initialDelaySeconds: 40  # After database initialization
+          periodSeconds: 10
+          timeoutSeconds: 5
           failureThreshold: 3
 ---
 apiVersion: v1
