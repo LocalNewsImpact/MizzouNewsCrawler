@@ -53,14 +53,14 @@ spec:
             - name: verify-idle-grace-seconds
               value: "600"
             # Extraction parameters
-            # extract-limit: articles per batch (small batches for better coordination)
+            # extract-limit: max 3 articles per request (1 domain, below bot threshold)
             # extract-batches: max batches (extract-limit × batches = total capacity)
-            # Current: 5 × 400 = 2,000 articles per run (same capacity, better dist)
-            # Small batches allow frequent heartbeats and prevent worker timeouts
+            # Current: 3 × 667 = ~2,000 articles per run (same capacity)
+            # Small batches + randomized domains prevent back-to-back extractions
             - name: extract-limit
-              value: "5"
+              value: "3"
             - name: extract-batches
-              value: "400"
+              value: "667"
             # Moderate rate limiting for Mizzou
             - name: inter-request-min
               value: "5.0"

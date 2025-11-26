@@ -40,9 +40,13 @@ MAX_DOMAIN_FAILURES = int(os.getenv("MAX_DOMAIN_FAILURES", "3"))
 DOMAIN_PAUSE_SECONDS = int(os.getenv("DOMAIN_PAUSE_SECONDS", "1800"))  # 30 minutes
 # Worker timeout: 10 minutes is sufficient with heartbeats
 WORKER_TIMEOUT_SECONDS = int(os.getenv("WORKER_TIMEOUT_SECONDS", "600"))
-# One domain per request for better distribution
+# One domain per request for better distribution and bot avoidance
 MIN_DOMAINS_PER_WORKER = int(os.getenv("MIN_DOMAINS_PER_WORKER", "1"))
 MAX_DOMAINS_PER_WORKER = int(os.getenv("MAX_DOMAINS_PER_WORKER", "1"))
+# Max 3 articles per domain per request (below bot thresholds)
+MAX_ARTICLES_PER_DOMAIN_PER_REQUEST = int(
+    os.getenv("MAX_ARTICLES_PER_DOMAIN_PER_REQUEST", "3")
+)
 
 # FastAPI app
 app = FastAPI(title="Work Queue Service", version="1.0.0")
@@ -231,54 +235,40 @@ class WorkQueueCoordinator:
     def _assign_domains_to_worker(
         self, worker_id: str, available_domains: list[dict[str, Any]]
     ) -> set[str]:
-        """Assign domains to a worker, preferring existing assignments.
+        """Assign exactly one domain to a worker, randomized selection.
+
+        Provides single domain per request to avoid back-to-back extractions
+        and stay below bot detection thresholds.
 
         Args:
             worker_id: Worker identifier
             available_domains: List of domains with available work
 
         Returns:
-            Set of domain names assigned to worker
+            Set with single domain name (or empty if none available)
         """
-        # Get current worker domains (sticky assignment)
-        if worker_id in self.worker_domains:
-            current_domains = self.worker_domains[worker_id]["domains"]
-        else:
-            current_domains = set()
-
-        # Filter to available domains that still have work
-        available_domain_names = {d["source"] for d in available_domains}
-        valid_current_domains = current_domains & available_domain_names
-
-        # Filter out domains assigned to other workers or unavailable
+        # Filter out domains assigned to other active workers
         assigned_to_others = set()
         for other_worker_id, state in self.worker_domains.items():
             if other_worker_id != worker_id:
                 assigned_to_others.update(state["domains"])
 
-        # Start with valid current domains that aren't assigned elsewhere
-        assigned_domains = valid_current_domains - assigned_to_others
+        # Get unassigned domains that are available (not paused/cooldown)
+        unassigned_domains = [
+            d["source"]
+            for d in available_domains
+            if d["source"] not in assigned_to_others
+            and self._is_domain_available(d["source"])
+        ]
 
-        # Filter by availability (cooldown, paused)
-        assigned_domains = {d for d in assigned_domains if self._is_domain_available(d)}
+        if not unassigned_domains:
+            return set()
 
-        # If we need more domains, add unassigned ones
-        if len(assigned_domains) < MIN_DOMAINS_PER_WORKER:
-            unassigned_domains = [
-                d["source"]
-                for d in available_domains
-                if d["source"] not in assigned_to_others
-                and d["source"] not in assigned_domains
-                and self._is_domain_available(d["source"])
-            ]
+        # Randomize domain selection to avoid back-to-back extractions
+        import random
 
-            # Add domains up to MAX_DOMAINS_PER_WORKER
-            for domain in unassigned_domains:
-                if len(assigned_domains) >= MAX_DOMAINS_PER_WORKER:
-                    break
-                assigned_domains.add(domain)
-
-        return assigned_domains
+        selected_domain = random.choice(unassigned_domains)
+        return {selected_domain}
 
     def request_work(
         self, worker_id: str, batch_size: int, max_articles_per_domain: int
@@ -339,7 +329,8 @@ class WorkQueueCoordinator:
             f"{sorted(assigned_domains)}"
         )
 
-        # Query candidate_links for assigned domains
+        # Query candidate_links for assigned domain
+        # Single domain with max 3 articles (below bot thresholds)
         # Use FOR UPDATE SKIP LOCKED for parallel processing safety
         query = text(
             """
@@ -352,36 +343,35 @@ class WorkQueueCoordinator:
                 SELECT candidate_link_id FROM articles
                 WHERE candidate_link_id IS NOT NULL
             )
-            ORDER BY cl.source, RANDOM()
+            ORDER BY RANDOM()
             LIMIT :limit
             FOR UPDATE OF cl SKIP LOCKED
         """
         )
 
-        # Build result with max_articles_per_domain limit
-        items = []
-        domain_counts = defaultdict(int)
-
-        result = session.execute(
-            query, {"domains": list(assigned_domains), "limit": batch_size * 2}
+        # Enforce max 3 articles per domain
+        max_articles = min(
+            MAX_ARTICLES_PER_DOMAIN_PER_REQUEST,
+            max_articles_per_domain,
+            batch_size,
         )
 
-        for row in result:
-            domain = row[2]
-            if domain_counts[domain] >= max_articles_per_domain:
-                continue
-            if len(items) >= batch_size:
-                break
+        result = session.execute(
+            query, {"domains": list(assigned_domains), "limit": max_articles}
+        )
 
-            items.append(
-                WorkItem(
-                    id=row[0],
-                    url=row[1],
-                    source=row[2],
-                    canonical_name=row[3] if row[3] else row[2],
-                )
+        items = [
+            WorkItem(
+                id=row[0],
+                url=row[1],
+                source=row[2],
+                canonical_name=row[3] if row[3] else row[2],
             )
-            domain_counts[domain] += 1
+            for row in result
+        ]
+        domain_counts = defaultdict(int)
+        for item in items:
+            domain_counts[item.source] += 1
 
         # Update domain cooldowns for domains we're returning work from
         current_time = time.time()
