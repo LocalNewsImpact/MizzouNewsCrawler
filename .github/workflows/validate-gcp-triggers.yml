@@ -55,11 +55,18 @@ jobs:
             "build-crawler-manual"
           )
           
+          # Get list of all triggers (requires less permissions than describe)
+          echo "Fetching trigger list..."
+          ALL_TRIGGERS=$(gcloud builds triggers list --project="$PROJECT_ID" --format="value(name)")
+          echo "Found triggers:"
+          echo "$ALL_TRIGGERS"
+          echo ""
+          
           MISSING=()
           
           for TRIGGER in "${TRIGGERS[@]}"; do
             echo -n "Checking $TRIGGER... "
-            if gcloud builds triggers describe "$TRIGGER" --project="$PROJECT_ID" &>/dev/null; then
+            if echo "$ALL_TRIGGERS" | grep -q "^${TRIGGER}$"; then
               echo "✅"
             else
               echo "❌ MISSING"
