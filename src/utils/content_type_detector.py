@@ -198,8 +198,11 @@ class ContentTypeDetector:
             from src.models import LocalBroadcasterCallsign
             from src.models.database import DatabaseManager
 
-            db = DatabaseManager()
-            with db.get_session() as session:
+            # Reuse existing db connection if available
+            if not hasattr(self, "_db"):
+                self._db = DatabaseManager()
+
+            with self._db.get_session() as session:
                 callsigns = (
                     session.query(LocalBroadcasterCallsign.callsign)
                     .filter(LocalBroadcasterCallsign.dataset == dataset)
@@ -260,8 +263,11 @@ class ContentTypeDetector:
             from src.models import WireService
             from src.models.database import DatabaseManager
 
-            db = DatabaseManager()
-            with db.get_session() as session:
+            # Reuse existing db connection if available
+            if not hasattr(self, "_db"):
+                self._db = DatabaseManager()
+
+            with self._db.get_session() as session:
                 query = session.query(
                     WireService.pattern,
                     WireService.service_name,
