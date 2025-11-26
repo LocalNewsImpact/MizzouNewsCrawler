@@ -334,8 +334,7 @@ class WorkQueueCoordinator:
         # Query candidate_links for assigned domain
         # Single domain with max 3 articles (below bot thresholds)
         # Use FOR UPDATE SKIP LOCKED for parallel processing safety
-        # Use LEFT JOIN instead of NOT IN for better performance (NOT IN can't use indexes efficiently)
-        query_start = time.time()
+        # LEFT JOIN more efficient than NOT IN for large articles table
         query = text(
             """
             SELECT cl.id, cl.url, cl.source, s.canonical_name
@@ -360,11 +359,6 @@ class WorkQueueCoordinator:
 
         result = session.execute(
             query, {"domains": list(assigned_domains), "limit": max_articles}
-        )
-        query_elapsed = time.time() - query_start
-        logger.info(
-            f"Query execution took {query_elapsed:.3f}s "
-            f"for domains {sorted(assigned_domains)}"
         )
 
         items = [

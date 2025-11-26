@@ -508,3 +508,98 @@ def test_stats_accuracy_with_real_data(cloud_sql_session):
     assert len(stats.worker_assignments) == 2
     assert "worker-1" in stats.worker_assignments
     assert "worker-2" in stats.worker_assignments
+
+
+@pytest.mark.integration
+@pytest.mark.postgres
+def test_query_performance_with_large_extracted_articles_table(cloud_sql_session):
+    """LEFT JOIN query performs well with many extracted articles.
+
+    This test validates that the work queue query using LEFT JOIN correctly
+    identifies unextracted articles even when the articles table is large
+    (simulating production with 40K+ extracted articles).
+
+    Query pattern being tested:
+    - LEFT JOIN articles ON candidate_links.id = articles.candidate_link_id
+    - WHERE articles.candidate_link_id IS NULL (more efficient than NOT IN)
+    """
+    from src.models import Article
+
+    # Create 5 sources
+    sources = []
+    for i in range(5):
+        source = Source(
+            id=str(uuid.uuid4()),
+            host=f"testdomain{i}.com",
+            host_norm=f"testdomain{i}.com",
+            canonical_name=f"Test Domain {i}",
+            status="active",
+        )
+        cloud_sql_session.add(source)
+        sources.append(source)
+
+    cloud_sql_session.commit()
+
+    # Create large number of candidate_links (simulating production scale)
+    # 1000 per source = 5000 total candidate_links
+    candidate_links = []
+    for source in sources:
+        for j in range(1000):
+            link = CandidateLink(
+                id=str(uuid.uuid4()),
+                url=f"https://{source.host}/article-{j}-{uuid.uuid4().hex[:8]}",
+                source=source.host,
+                source_id=source.id,
+                status="article",
+                discovered_by="test",
+            )
+            cloud_sql_session.add(link)
+            candidate_links.append(link)
+
+    cloud_sql_session.commit()
+
+    # Extract 4500 articles (90% extraction rate, simulating production)
+    # Leave 500 unextracted (100 per source)
+    for i, link in enumerate(candidate_links[:4500]):
+        article = Article(
+            id=str(uuid.uuid4()),
+            candidate_link_id=link.id,
+            url=link.url,
+            title=f"Article {i}",
+            text=f"Content {i}",
+            extracted_at=datetime.utcnow(),
+        )
+        cloud_sql_session.add(article)
+
+    cloud_sql_session.commit()
+
+    # Create coordinator
+    coordinator = WorkQueueCoordinator(session=cloud_sql_session)
+
+    # Request work - should find unextracted articles quickly
+    start_time = time.time()
+    response = coordinator.request_work("perf-test-worker", 50, 3)
+    query_time = time.time() - start_time
+
+    # Assert correctness: should return unextracted articles
+    assert len(response.items) > 0, "Should find unextracted articles"
+    assert len(response.items) <= 3, "Should respect max_articles_per_domain limit"
+
+    # Assert performance: query should complete in < 5 seconds
+    # (NOT IN subquery would take 30+ seconds with 4500 articles)
+    assert (
+        query_time < 5.0
+    ), f"Query took {query_time:.2f}s, expected < 5s with LEFT JOIN optimization"
+
+    # Verify returned articles are actually unextracted
+    returned_ids = {item.id for item in response.items}
+    unextracted_ids = {link.id for link in candidate_links[4500:]}
+    assert returned_ids.issubset(
+        unextracted_ids
+    ), "Returned articles should be unextracted"
+
+    # Verify no extracted articles were returned
+    extracted_ids = {link.id for link in candidate_links[:4500]}
+    assert not returned_ids.intersection(
+        extracted_ids
+    ), "Should not return already extracted articles"
