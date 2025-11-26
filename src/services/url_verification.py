@@ -372,23 +372,25 @@ class URLVerificationService:
         # Stage 0: Check for wire service URLs (highest priority)
         from src.utils.content_type_detector import ContentTypeDetector
 
-        detector = ContentTypeDetector()
-        # Quick URL-only wire detection (no content needed)
-        wire_patterns = detector._get_wire_service_patterns(pattern_type="url")
+        # Reuse database session to avoid connection overhead
+        with self.db.get_session() as session:
+            detector = ContentTypeDetector(session=session)
+            # Quick URL-only wire detection (no content needed)
+            wire_patterns = detector._get_wire_service_patterns(pattern_type="url")
 
-        for pattern, service_name, case_sensitive in wire_patterns:
-            flags = 0 if case_sensitive else re.IGNORECASE
-            if re.search(pattern, url, flags):
-                # This is a wire service URL - mark immediately
-                result["storysniffer_result"] = False
-                result["wire_filtered"] = True
-                result["wire_service"] = service_name
-                result["verification_time_ms"] = (time.time() - start_time) * 1000
-                self.logger.debug(
-                    f"Filtered wire service URL: {url} ({service_name}) "
-                    f"({result['verification_time_ms']:.1f}ms)"
-                )
-                return result
+            for pattern, service_name, case_sensitive in wire_patterns:
+                flags = 0 if case_sensitive else re.IGNORECASE
+                if re.search(pattern, url, flags):
+                    # This is a wire service URL - mark immediately
+                    result["storysniffer_result"] = False
+                    result["wire_filtered"] = True
+                    result["wire_service"] = service_name
+                    result["verification_time_ms"] = (time.time() - start_time) * 1000
+                    self.logger.debug(
+                        f"Filtered wire service URL: {url} ({service_name}) "
+                        f"({result['verification_time_ms']:.1f}ms)"
+                    )
+                    return result
 
         # Stage 1: Fast URL pattern check
         from src.utils.url_classifier import is_likely_article_url

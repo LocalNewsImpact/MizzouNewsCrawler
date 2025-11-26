@@ -21,11 +21,31 @@ def mock_dependencies(monkeypatch):
 
     monkeypatch.setattr(uv_module, "storysniffer", fake_storysniffer)
 
-    # Mock DatabaseManager
+    # Mock DatabaseManager with get_session method
+    class FakeDatabaseManager:
+        def get_session(self):
+            """Return a fake session context manager."""
+            from contextlib import contextmanager
+
+            @contextmanager
+            def fake_session():
+                # Return a fake session that ContentTypeDetector can use
+                fake_session_obj = SimpleNamespace(
+                    query=lambda *_: SimpleNamespace(
+                        filter=lambda *_: SimpleNamespace(
+                            all=lambda: [],
+                            order_by=lambda *_: SimpleNamespace(all=lambda: []),
+                        )
+                    )
+                )
+                yield fake_session_obj
+
+            return fake_session()
+
     monkeypatch.setattr(
         uv_module,
         "DatabaseManager",
-        lambda *_, **__: SimpleNamespace(),
+        lambda *_, **__: FakeDatabaseManager(),
     )
 
     # Mock telemetry
