@@ -41,7 +41,8 @@ jobs:
           echo "🔍 Validating GCP Cloud Build triggers..."
           echo ""
           
-          PROJECT_ID="${{ secrets.GCP_PROJECT }}"
+          # Use the project ID that setup-gcloud configured
+          PROJECT_ID=$(gcloud config get-value project)
           echo "Project: $PROJECT_ID"
           echo ""
           
