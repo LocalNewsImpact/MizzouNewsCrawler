@@ -559,6 +559,38 @@ def init_snapshot_tables():
 # are now managed by the lifespan context manager defined above.
 # The worker thread is started during app startup and stopped during shutdown.
 
+# Cache for expensive article count queries (simple in-memory cache with TTL)
+_article_count_cache = {"total": None, "by_reviewer": {}, "timestamp": 0}
+_ARTICLE_COUNT_CACHE_TTL = 300  # 5 minutes
+
+
+def _get_cached_article_count(reviewer: str | None = None) -> int | None:
+    """Get cached article count if available and not expired."""
+    import time
+    
+    now = time.time()
+    cache_age = now - _article_count_cache["timestamp"]
+    
+    if cache_age > _ARTICLE_COUNT_CACHE_TTL:
+        return None
+    
+    if reviewer is None:
+        return _article_count_cache.get("total")
+    else:
+        return _article_count_cache["by_reviewer"].get(reviewer)
+
+
+def _cache_article_count(count: int, reviewer: str | None = None):
+    """Cache article count with current timestamp."""
+    import time
+    
+    _article_count_cache["timestamp"] = time.time()
+    
+    if reviewer is None:
+        _article_count_cache["total"] = count
+    else:
+        _article_count_cache["by_reviewer"][reviewer] = count
+
 
 @app.get("/api/articles")
 def list_articles(limit: int = 20, offset: int = 0, reviewer: str | None = None):
@@ -566,6 +598,9 @@ def list_articles(limit: int = 20, offset: int = 0, reviewer: str | None = None)
 
     Returns articles in a format compatible with the legacy CSV-based frontend.
     Uses article database ID as __idx for review posting.
+    
+    Note: Total count is cached for 5 minutes to avoid expensive COUNT(*) queries
+    on large tables (40K+ articles).
     """
     try:
         from src.models import Article, CandidateLink
@@ -587,8 +622,11 @@ def list_articles(limit: int = 20, offset: int = 0, reviewer: str | None = None)
 
                 query = query.filter(~Article.id.in_(reviewed_subquery))
 
-            # Get total count before pagination
-            total = query.count()
+            # Get total count - use cache if available to avoid expensive COUNT(*)
+            total = _get_cached_article_count(reviewer)
+            if total is None:
+                total = query.count()
+                _cache_article_count(total, reviewer)
 
             # Apply pagination
             articles = (
