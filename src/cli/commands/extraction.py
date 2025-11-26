@@ -112,17 +112,18 @@ def _get_work_from_queue(
     Raises:
         Exception: If work queue request fails after all retries
     """
-    import requests
     import time
+
+    import requests
 
     max_retries = 3
     base_timeout = 60
-    
+
     for attempt in range(max_retries):
         try:
             # Increase timeout on retries (60s, 90s, 120s)
             timeout = base_timeout + (attempt * 30)
-            
+
             response = requests.post(
                 f"{WORK_QUEUE_URL}/work/request",
                 json={
@@ -134,14 +135,14 @@ def _get_work_from_queue(
             )
             response.raise_for_status()
             data = response.json()
-            
+
             if attempt > 0:
                 logger.info(
                     "Work queue request succeeded on attempt %d/%d",
                     attempt + 1,
                     max_retries,
                 )
-            
+
             logger.info(
                 "Worker %s assigned %d articles from domains: %s",
                 worker_id,
@@ -149,10 +150,10 @@ def _get_work_from_queue(
                 data.get("worker_domains", []),
             )
             return data["items"]
-            
+
         except requests.RequestException as e:
-            is_last_attempt = (attempt == max_retries - 1)
-            
+            is_last_attempt = attempt == max_retries - 1
+
             if is_last_attempt:
                 logger.error(
                     "Failed to get work from queue after %d attempts: %s",
@@ -162,7 +163,7 @@ def _get_work_from_queue(
                 raise
             else:
                 # Exponential backoff: 2s, 4s, 8s
-                backoff = 2 ** attempt
+                backoff = 2**attempt
                 logger.warning(
                     "Work queue request failed (attempt %d/%d): %s. "
                     "Retrying in %ds...",

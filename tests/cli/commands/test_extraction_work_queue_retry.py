@@ -1,6 +1,7 @@
 """Tests for work-queue retry logic in extraction command."""
 
 from unittest.mock import Mock, patch
+
 import pytest
 import requests
 
