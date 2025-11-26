@@ -28,6 +28,7 @@ else
     # Apply all service deployments with version substitution
     apply_file k8s/api-deployment.yaml
     apply_file k8s/processor-deployment.yaml
+    apply_file k8s/work-queue-deployment.yaml
     apply_file k8s/crawler-cronjob.yaml
     apply_file k8s/housekeeping-cronjob.yaml
 fi

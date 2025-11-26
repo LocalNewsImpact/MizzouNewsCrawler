@@ -122,7 +122,7 @@ def _get_work_from_queue(
                 "batch_size": batch_size,
                 "max_articles_per_domain": max_articles_per_domain,
             },
-            timeout=30,
+            timeout=60,  # Increased from 30s to allow for slow database queries
         )
         response.raise_for_status()
         data = response.json()
@@ -814,39 +814,29 @@ def _process_batch(
             worker_id = _get_worker_id()
             logger.info("📡 Requesting work from queue service as %s", worker_id)
 
-            try:
-                work_items = _get_work_from_queue(
-                    worker_id=worker_id,
-                    batch_size=per_batch,
-                    max_articles_per_domain=max_articles_per_domain,
+            work_items = _get_work_from_queue(
+                worker_id=worker_id,
+                batch_size=per_batch,
+                max_articles_per_domain=max_articles_per_domain,
+            )
+
+            if not work_items:
+                logger.warning("⚠️  No work available from queue service")
+                return {"processed": 0}
+
+            # Convert work items to row format expected by extraction loop
+            rows = [
+                (
+                    item["id"],
+                    item["url"],
+                    item["source"],
+                    "article",
+                    item.get("canonical_name"),
                 )
-            except Exception as e:
-                logger.error("Failed to get work from queue service: %s", e)
-                logger.warning("Falling back to direct database query")
-                USE_WORK_QUEUE_FALLBACK = True
-                # Fall through to direct query below
-            else:
-                if not work_items:
-                    logger.warning("⚠️  No work available from queue service")
-                    return {"processed": 0}
-
-                # Convert work items to row format expected by extraction loop
-                rows = [
-                    (
-                        item["id"],
-                        item["url"],
-                        item["source"],
-                        "article",
-                        item.get("canonical_name"),
-                    )
-                    for item in work_items
-                ]
-                USE_WORK_QUEUE_FALLBACK = False
+                for item in work_items
+            ]
         else:
-            USE_WORK_QUEUE_FALLBACK = True
-
-        # Direct database query (original logic, used when work queue disabled or failed)
-        if not USE_WORK_QUEUE or USE_WORK_QUEUE_FALLBACK:
+            # Direct database query (original logic, used when work queue disabled)
             # Get articles with domain diversity to avoid rate-limit lockups
             q = """
             SELECT cl.id, cl.url, cl.source, cl.status, s.canonical_name

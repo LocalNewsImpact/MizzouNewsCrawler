@@ -317,8 +317,6 @@ fi
 
 # PHASE 5: Deployment
 if [ $BUILD_FAILURES -eq 0 ]; then
-# PHASE 5: Deployment
-if [ $BUILD_FAILURES -eq 0 ]; then
     echo -e "\n${COLOR_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
     echo -e "${COLOR_BLUE}Phase 5: Deployment${COLOR_RESET}"
     echo -e "${COLOR_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
