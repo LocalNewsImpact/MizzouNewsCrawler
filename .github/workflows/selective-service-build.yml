@@ -234,7 +234,10 @@ jobs:
     name: Build & Run Migrator
     needs: [detect-changes, build-base]
     # Migrator runs after base (or skipped if no changes)
-    if: needs.detect-changes.outputs.rebuild-migrator == 'true'
+    if: |
+      always() &&
+      needs.detect-changes.outputs.rebuild-migrator == 'true' &&
+      (needs.build-base.result == 'success' || needs.build-base.result == 'skipped')
     runs-on: ubuntu-latest
     
     steps:
@@ -264,7 +267,11 @@ jobs:
     name: Build Processor
     needs: [detect-changes, build-ml-base, build-migrator]
     # Processor waits for ml-base (if changed) and migrator
-    if: needs.detect-changes.outputs.rebuild-processor == 'true'
+    if: |
+      always() &&
+      needs.detect-changes.outputs.rebuild-processor == 'true' &&
+      (needs.build-ml-base.result == 'success' || needs.build-ml-base.result == 'skipped') &&
+      (needs.build-migrator.result == 'success' || needs.build-migrator.result == 'skipped')
     runs-on: ubuntu-latest
     
     steps:
@@ -294,7 +301,11 @@ jobs:
     name: Build API
     needs: [detect-changes, build-base, build-migrator]
     # API waits for base and migrator
-    if: needs.detect-changes.outputs.rebuild-api == 'true'
+    if: |
+      always() &&
+      needs.detect-changes.outputs.rebuild-api == 'true' &&
+      (needs.build-base.result == 'success' || needs.build-base.result == 'skipped') &&
+      (needs.build-migrator.result == 'success' || needs.build-migrator.result == 'skipped')
     runs-on: ubuntu-latest
     
     steps:
@@ -324,7 +335,11 @@ jobs:
     name: Build Crawler
     needs: [detect-changes, build-base, build-migrator]
     # Crawler waits for base and migrator
-    if: needs.detect-changes.outputs.rebuild-crawler == 'true'
+    if: |
+      always() &&
+      needs.detect-changes.outputs.rebuild-crawler == 'true' &&
+      (needs.build-base.result == 'success' || needs.build-base.result == 'skipped') &&
+      (needs.build-migrator.result == 'success' || needs.build-migrator.result == 'skipped')
     runs-on: ubuntu-latest
     
     steps:
