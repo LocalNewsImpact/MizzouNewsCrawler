@@ -94,15 +94,17 @@ def test_rate_limit_prevents_rapid_domain_access(cloud_sql_session):
     coordinator = WorkQueueCoordinator(session=cloud_sql_session)
 
     # First request at T=0
-    response1 = coordinator.request_work("worker-1", 50, 3)
-    assert len(response1.items) == 3  # Got 3 articles from domain1
+    response1 = coordinator.request_work("worker-1", 50, 10)
+    # Should get max 3 articles (hardcoded limit)
+    assert len(response1.items) <= 3
+    assert all(item.source == "domain1.com" for item in response1.items)
 
     # Immediate second request (should get 0 articles - domain on cooldown)
-    response2 = coordinator.request_work("worker-1", 50, 3)
+    response2 = coordinator.request_work("worker-1", 50, 10)
     assert len(response2.items) == 0
 
     # Third request (should also get 0)
-    response3 = coordinator.request_work("worker-1", 50, 3)
+    response3 = coordinator.request_work("worker-1", 50, 10)
     assert len(response3.items) == 0
 
 
@@ -153,7 +155,7 @@ def test_failure_tracking_persists_across_requests(cloud_sql_session):
 @pytest.mark.integration
 @pytest.mark.postgres
 def test_domain_partitioning_with_real_database(cloud_sql_session):
-    """Multiple workers get non-overlapping domains from real database."""
+    """Multiple workers get non-overlapping domains (1 each) from real database."""
     # Create 15 sources with 10 articles each
     for i in range(15):
         source = Source(
@@ -184,7 +186,7 @@ def test_domain_partitioning_with_real_database(cloud_sql_session):
     # Request work from 3 workers
     responses = []
     for i in range(3):
-        response = coordinator.request_work(f"worker-{i}", 50, 3)
+        response = coordinator.request_work(f"worker-{i}", 50, 10)
         responses.append(response)
 
     # Collect all domains assigned
@@ -197,9 +199,150 @@ def test_domain_partitioning_with_real_database(cloud_sql_session):
         set(all_domains)
     ), "Domain assigned to multiple workers!"
 
-    # Assert each worker got 3-5 domains
+    # Assert each worker got exactly 1 domain
     for response in responses:
-        assert 3 <= len(response.worker_domains) <= 5
+        assert len(response.worker_domains) == 1
+
+
+@pytest.mark.integration
+@pytest.mark.postgres
+def test_heartbeat_extends_worker_lifetime(cloud_sql_session):
+    """Worker heartbeats prevent premature timeout during long processing."""
+    from src.services.work_queue import WORKER_TIMEOUT_SECONDS
+
+    # Create source with articles
+    source = Source(
+        id=str(uuid.uuid4()),
+        host="heartbeat-test.com",
+        host_norm="heartbeat-test.com",
+        canonical_name="Heartbeat Test",
+        status="active",
+    )
+    cloud_sql_session.add(source)
+
+    for i in range(20):
+        link = CandidateLink(
+            id=str(uuid.uuid4()),
+            url=f"https://heartbeat-test.com/article-{i}",
+            source=source.host,
+            source_id=source.id,
+            status="article",
+            discovered_by="test",
+        )
+        cloud_sql_session.add(link)
+
+    cloud_sql_session.commit()
+
+    # Create coordinator
+    coordinator = WorkQueueCoordinator(session=cloud_sql_session)
+
+    # Worker gets assignment
+    response1 = coordinator.request_work("worker-1", 50, 10)
+    assert len(response1.items) > 0
+
+    # Simulate worker being active for longer than timeout but sending heartbeats
+    old_time = time.time() - WORKER_TIMEOUT_SECONDS - 30
+    coordinator.worker_domains["worker-1"]["last_seen"] = old_time
+
+    # Send heartbeat (simulates worker still processing)
+    coordinator.update_worker_heartbeat("worker-1")
+
+    # Run cleanup
+    coordinator._cleanup_stale_workers()
+
+    # Assert worker NOT removed (heartbeat saved it)
+    assert "worker-1" in coordinator.worker_domains
+
+    # Verify last_seen was updated to recent time
+    assert coordinator.worker_domains["worker-1"]["last_seen"] > old_time
+
+
+@pytest.mark.integration
+@pytest.mark.postgres
+def test_max_3_articles_per_domain_enforced(cloud_sql_session):
+    """Each request returns max 3 articles from single domain."""
+    # Create source with 50 articles
+    source = Source(
+        id=str(uuid.uuid4()),
+        host="three-article-test.com",
+        host_norm="three-article-test.com",
+        canonical_name="Three Article Test",
+        status="active",
+    )
+    cloud_sql_session.add(source)
+
+    for i in range(50):
+        link = CandidateLink(
+            id=str(uuid.uuid4()),
+            url=f"https://three-article-test.com/article-{i}",
+            source=source.host,
+            source_id=source.id,
+            status="article",
+            discovered_by="test",
+        )
+        cloud_sql_session.add(link)
+
+    cloud_sql_session.commit()
+
+    # Create coordinator
+    coordinator = WorkQueueCoordinator(session=cloud_sql_session)
+
+    # Request work with large batch_size
+    response = coordinator.request_work("worker-1", 100, 50)
+
+    # Assert max 3 articles returned
+    assert len(response.items) <= 3
+    assert all(item.source == "three-article-test.com" for item in response.items)
+
+    # Verify only 1 domain assigned
+    assert len(response.worker_domains) == 1
+
+
+@pytest.mark.integration
+@pytest.mark.postgres
+def test_randomized_domain_selection_distribution(cloud_sql_session):
+    """Domain selection shows random distribution across multiple requests."""
+    # Create 10 sources with articles
+    for i in range(10):
+        source = Source(
+            id=str(uuid.uuid4()),
+            host=f"random{i}.com",
+            host_norm=f"random{i}.com",
+            canonical_name=f"Random Test {i}",
+            status="active",
+        )
+        cloud_sql_session.add(source)
+
+        for j in range(10):
+            link = CandidateLink(
+                id=str(uuid.uuid4()),
+                url=f"https://random{i}.com/article-{j}",
+                source=source.host,
+                source_id=source.id,
+                status="article",
+                discovered_by="test",
+            )
+            cloud_sql_session.add(link)
+
+    cloud_sql_session.commit()
+
+    # Create coordinator
+    coordinator = WorkQueueCoordinator(session=cloud_sql_session)
+
+    # Make 10 requests from different workers (clearing cooldowns between)
+    selected_domains = []
+    for i in range(10):
+        # Clear cooldowns to allow domain reuse for testing randomization
+        coordinator.domain_cooldowns.clear()
+        coordinator.worker_domains.clear()
+
+        response = coordinator.request_work(f"worker-{i}", 50, 10)
+        if response.worker_domains:
+            selected_domains.extend(response.worker_domains)
+
+    # Assert variety in selections (should get multiple different domains)
+    unique_domains = set(selected_domains)
+    assert len(unique_domains) > 3, f"Only {len(unique_domains)} unique domains selected, expected more variety"
 
 
 @pytest.mark.integration

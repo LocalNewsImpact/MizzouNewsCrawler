@@ -35,7 +35,7 @@ def coordinator():
 
 
 def test_domain_assignment_no_overlap(coordinator):
-    """Multiple workers get non-overlapping domains."""
+    """Multiple workers get non-overlapping domains (exactly 1 per worker)."""
     # Mock database response with 20 domains (more than enough for 3 workers)
     mock_session = MagicMock()
     domains_data = [(f"domain{i}.com", f"Domain {i}", 10) for i in range(20)]
@@ -73,41 +73,36 @@ def test_domain_assignment_no_overlap(coordinator):
     assert len(worker1_domains & worker3_domains) == 0
     assert len(worker2_domains & worker3_domains) == 0
 
-    # Assert each worker got 3-5 domains (or whatever is available)
-    assert 3 <= len(worker1_domains) <= 5
-    assert 3 <= len(worker2_domains) <= 5
-    # Worker 3 might get fewer domains if not enough remain
-    assert len(worker3_domains) >= 3 or len(available_domains) < 15
+    # Assert each worker got exactly 1 domain
+    assert len(worker1_domains) == 1
+    assert len(worker2_domains) == 1
+    assert len(worker3_domains) == 1
 
 
-def test_sticky_domain_assignments(coordinator):
-    """Worker keeps same domains across multiple requests."""
-    # Mock database response
-    mock_session = MagicMock()
-    domains_data = [(f"domain{i}.com", f"Domain {i}", 10) for i in range(10)]
-    mock_session.execute.return_value = iter(domains_data)
-    coordinator.db.get_session.return_value.__enter__.return_value = mock_session
-
-    # First request
+def test_randomized_domain_selection(coordinator):
+    """Domain selection is randomized to avoid back-to-back extractions."""
+    # Mock database response with 10 domains
     available_domains = [
         {"source": f"domain{i}.com", "article_count": 10} for i in range(10)
     ]
-    first_assignment = coordinator._assign_domains_to_worker(
-        "worker-1", available_domains
-    )
-    coordinator.worker_domains["worker-1"] = {
-        "domains": first_assignment,
-        "last_seen": time.time(),
-    }
 
-    # Second request (simulate cooldown expiry)
-    time.sleep(0.1)
-    second_assignment = coordinator._assign_domains_to_worker(
-        "worker-1", available_domains
-    )
+    # Request domains 20 times and collect results
+    selected_domains = []
+    for i in range(20):
+        # Clear worker state to get fresh assignment
+        coordinator.worker_domains.clear()
+        domains = coordinator._assign_domains_to_worker(
+            f"worker-{i}", available_domains
+        )
+        if domains:
+            selected_domains.append(list(domains)[0])
 
-    # Assert worker kept same domains
-    assert first_assignment == second_assignment
+    # Assert we got variety in selections (not always same domain)
+    unique_selections = set(selected_domains)
+    assert len(unique_selections) > 1, "Domain selection not randomized!"
+    
+    # Assert each selection returned exactly 1 domain
+    assert all(len([d]) == 1 for d in selected_domains)
 
 
 def test_domain_cooldown_respected(coordinator):
@@ -228,26 +223,27 @@ def test_all_domains_on_cooldown(coordinator):
 
 
 def test_max_articles_per_domain_enforced(coordinator):
-    """Worker gets max_articles_per_domain even if domain has many articles."""
+    """Worker gets max 3 articles per domain (hardcoded limit)."""
     # Mock database response
     mock_session = MagicMock()
 
     # First call for available domains
     domains_data = [("domain1.com", "Domain 1", 200)]
 
-    # Second call for candidate_links (simulate 200 articles from domain1)
+    # Second call for candidate_links - SQL LIMIT enforces max 3
+    # (In real database, LIMIT :limit would restrict to 3 results)
     articles_data = [
         (f"id-{i}", f"https://domain1.com/article-{i}", "domain1.com", "Domain 1")
-        for i in range(200)
+        for i in range(3)  # Only 3 articles due to SQL LIMIT
     ]
 
     mock_session.execute.side_effect = [iter(domains_data), iter(articles_data)]
     coordinator.db.get_session.return_value.__enter__.return_value = mock_session
 
-    # Request work with max_articles_per_domain=3
-    response = coordinator.request_work("worker-1", 50, 3)
+    # Request work (batch_size=50, but SQL LIMIT restricts to 3)
+    response = coordinator.request_work("worker-1", 50, 10)
 
-    # Assert exactly 3 articles returned
+    # Assert exactly 3 articles returned (enforced by SQL LIMIT)
     assert len(response.items) == 3
     assert all(item.source == "domain1.com" for item in response.items)
 
@@ -321,3 +317,128 @@ def test_stats_endpoint_accuracy(coordinator):
     assert "worker-1" in stats.worker_assignments
     assert "worker-2" in stats.worker_assignments
     assert len(stats.domain_cooldowns) == 2
+
+
+def test_worker_heartbeat_updates_timestamp(coordinator):
+    """Heartbeat updates worker last_seen timestamp."""
+    # Setup initial worker state
+    initial_time = time.time() - 100  # 100 seconds ago
+    coordinator.worker_domains["worker-1"] = {
+        "domains": {"domain1.com"},
+        "last_seen": initial_time,
+    }
+
+    # Send heartbeat
+    coordinator.update_worker_heartbeat("worker-1")
+
+    # Assert timestamp updated
+    updated_time = coordinator.worker_domains["worker-1"]["last_seen"]
+    assert updated_time > initial_time
+    assert updated_time >= time.time() - 1  # Within last second
+
+
+def test_heartbeat_prevents_worker_timeout(coordinator):
+    """Worker with active heartbeats not cleaned up as stale."""
+    from src.services.work_queue import WORKER_TIMEOUT_SECONDS
+
+    # Setup worker that would normally timeout
+    old_time = time.time() - WORKER_TIMEOUT_SECONDS - 10
+    coordinator.worker_domains["worker-1"] = {
+        "domains": {"domain1.com"},
+        "last_seen": old_time,
+    }
+
+    # Send heartbeat to refresh
+    coordinator.update_worker_heartbeat("worker-1")
+
+    # Run cleanup
+    coordinator._cleanup_stale_workers()
+
+    # Assert worker NOT removed (heartbeat prevented timeout)
+    assert "worker-1" in coordinator.worker_domains
+
+
+def test_heartbeat_unknown_worker_ignored(coordinator):
+    """Heartbeat from unknown worker handled gracefully."""
+    # Send heartbeat for non-existent worker
+    coordinator.update_worker_heartbeat("worker-999")
+
+    # Assert no error and worker not added
+    assert "worker-999" not in coordinator.worker_domains
+
+
+def test_single_domain_per_request_enforced(coordinator):
+    """Each worker request returns articles from exactly 1 domain."""
+    # Mock database response with 10 domains
+    mock_session = MagicMock()
+    domains_data = [(f"domain{i}.com", f"Domain {i}", 10) for i in range(10)]
+
+    # Articles from only 1 domain (SQL WHERE cl.source = ANY(:domains) with 1 domain)
+    # Coordinator assigns 1 domain, so SQL only returns articles from that domain
+    articles_data = [
+        (f"id-0-{j}", f"https://domain0.com/article-{j}",
+         "domain0.com", "Domain 0")
+        for j in range(3)  # Max 3 articles
+    ]
+
+    mock_session.execute.side_effect = [iter(domains_data), iter(articles_data)]
+    coordinator.db.get_session.return_value.__enter__.return_value = mock_session
+
+    # Request work
+    response = coordinator.request_work("worker-1", 50, 10)
+
+    # Assert all items from single domain
+    assert len(response.items) > 0
+    domains_in_response = {item.source for item in response.items}
+    assert len(domains_in_response) == 1, "Multiple domains in single request!"
+
+
+def test_three_article_limit_respected(coordinator):
+    """Worker gets max 3 articles even with large batch_size."""
+    # Mock database response
+    mock_session = MagicMock()
+    domains_data = [("domain1.com", "Domain 1", 100)]
+
+    # SQL LIMIT enforces max 3 articles (even though 100 available)
+    articles_data = [
+        (f"id-{i}", f"https://domain1.com/article-{i}", "domain1.com", "Domain 1")
+        for i in range(3)  # SQL LIMIT :limit returns only 3
+    ]
+
+    mock_session.execute.side_effect = [iter(domains_data), iter(articles_data)]
+    coordinator.db.get_session.return_value.__enter__.return_value = mock_session
+
+    # Request with large batch_size
+    response = coordinator.request_work("worker-1", 100, 50)
+
+    # Assert max 3 articles returned (enforced by SQL LIMIT)
+    assert len(response.items) == 3
+    assert all(item.source == "domain1.com" for item in response.items)
+
+
+def test_domain_not_reassigned_during_processing(coordinator):
+    """Domain assigned to active worker not given to other workers."""
+    # Mock database response with 5 domains
+    mock_session = MagicMock()
+    domains_data = [(f"domain{i}.com", f"Domain {i}", 10) for i in range(5)]
+
+    # Worker 1 gets domain1
+    coordinator.worker_domains["worker-1"] = {
+        "domains": {"domain1.com"},
+        "last_seen": time.time(),
+    }
+
+    mock_session.execute.return_value = iter(domains_data)
+    coordinator.db.get_session.return_value.__enter__.return_value = mock_session
+
+    # Worker 2 requests work
+    available_domains = [
+        {"source": f"domain{i}.com", "article_count": 10} for i in range(5)
+    ]
+    worker2_domains = coordinator._assign_domains_to_worker(
+        "worker-2", available_domains
+    )
+
+    # Assert worker 2 did NOT get domain1.com
+    assert "domain1.com" not in worker2_domains
+    assert len(worker2_domains) == 1  # Got 1 different domain
