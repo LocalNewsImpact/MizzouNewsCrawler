@@ -1021,7 +1021,8 @@ def _process_batch(
                         metadata_value["byline"] = byline_result
 
                     if article_status == "extracted":
-                        detector = _get_content_type_detector()
+                        # Create detector with session to reuse DB connection
+                        detector = ContentTypeDetector(session=session)
                         detection_result = detector.detect(
                             url=url,
                             title=content.get("title"),

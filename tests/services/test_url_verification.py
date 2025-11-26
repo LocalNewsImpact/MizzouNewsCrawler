@@ -17,10 +17,22 @@ def _patch_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
         StorySniffer=lambda: SimpleNamespace(guess=lambda _: True)
     )
     monkeypatch.setattr(url_verification, "storysniffer", fake_storysniffer)
+
+    # Mock database manager with get_session() context manager support
+    class _MockSession:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def execute(self, *args, **kwargs):
+            return SimpleNamespace(fetchall=lambda: [])
+
     monkeypatch.setattr(
         url_verification,
         "DatabaseManager",
-        lambda *_, **__: SimpleNamespace(),
+        lambda *_, **__: SimpleNamespace(get_session=lambda: _MockSession()),
     )
     # Mock create_telemetry_system to avoid database connection in unit tests
     mock_telemetry = SimpleNamespace(

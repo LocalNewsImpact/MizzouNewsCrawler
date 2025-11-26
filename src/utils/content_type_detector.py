@@ -36,6 +36,16 @@ class ContentTypeDetector:
     _wire_patterns_cache: list[tuple] | None = None
     _wire_patterns_timestamp: float | None = None
 
+    def __init__(self, session=None):
+        """Initialize ContentTypeDetector.
+
+        Args:
+            session: Optional SQLAlchemy session to reuse for database queries.
+                    If not provided, creates a new DatabaseManager instance.
+        """
+        self._session = session
+        self._db = None
+
     # Known callsign to domain mappings (Missouri market)
     # Used when callsign doesn't appear directly in URL
     _CALLSIGN_DOMAINS = {
@@ -198,19 +208,29 @@ class ContentTypeDetector:
             from src.models import LocalBroadcasterCallsign
             from src.models.database import DatabaseManager
 
-            # Reuse existing db connection if available
-            if not hasattr(self, "_db"):
-                self._db = DatabaseManager()
-
-            with self._db.get_session() as session:
+            # Use provided session if available, otherwise create DatabaseManager
+            if self._session is not None:
                 callsigns = (
-                    session.query(LocalBroadcasterCallsign.callsign)
+                    self._session.query(LocalBroadcasterCallsign.callsign)
                     .filter(LocalBroadcasterCallsign.dataset == dataset)
                     .all()
                 )
                 self._local_callsigns_cache = {c[0] for c in callsigns}
                 self._cache_timestamp = now
                 return self._local_callsigns_cache
+            else:
+                # Fallback: create DatabaseManager if no session provided
+                if self._db is None:
+                    self._db = DatabaseManager()
+                with self._db.get_session() as session:
+                    callsigns = (
+                        session.query(LocalBroadcasterCallsign.callsign)
+                        .filter(LocalBroadcasterCallsign.dataset == dataset)
+                        .all()
+                    )
+                    self._local_callsigns_cache = {c[0] for c in callsigns}
+                    self._cache_timestamp = now
+                    return self._local_callsigns_cache
         except Exception:
             # Fallback to empty set if database unavailable
             # This prevents failures in environments without DB access
@@ -263,12 +283,10 @@ class ContentTypeDetector:
             from src.models import WireService
             from src.models.database import DatabaseManager
 
-            # Reuse existing db connection if available
-            if not hasattr(self, "_db"):
-                self._db = DatabaseManager()
-
-            with self._db.get_session() as session:
-                query = session.query(
+            # Use provided session if available, otherwise create DatabaseManager
+            if self._session is not None:
+                # Use provided session directly
+                query = self._session.query(
                     WireService.pattern,
                     WireService.service_name,
                     WireService.case_sensitive,
@@ -292,6 +310,38 @@ class ContentTypeDetector:
                     self._wire_patterns_timestamp = now
 
                 return result
+            else:
+                # Fallback: create DatabaseManager if no session provided
+                if self._db is None:
+                    self._db = DatabaseManager()
+
+                with self._db.get_session() as session:
+                    query = session.query(
+                        WireService.pattern,
+                        WireService.service_name,
+                        WireService.case_sensitive,
+                        WireService.priority,
+                    ).filter(WireService.active.is_(True))
+
+                    # Apply pattern_type filter if specified
+                    if pattern_type:
+                        query = query.filter(WireService.pattern_type == pattern_type)
+
+                    patterns = query.order_by(
+                        WireService.priority, WireService.id
+                    ).all()
+
+                    result = [(p[0], p[1], p[2]) for p in patterns]
+
+                    # Store in appropriate cache
+                    if pattern_type:
+                        self._pattern_cache_by_type[cache_key] = result
+                        self._pattern_timestamp_by_type[cache_key] = now
+                    else:
+                        self._wire_patterns_cache = result
+                        self._wire_patterns_timestamp = now
+
+                    return result
         except Exception:
             # Fallback to empty list if database unavailable
             return []

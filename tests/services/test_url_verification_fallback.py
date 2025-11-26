@@ -69,6 +69,21 @@ class _StubDatabaseManager:
         self.engine = None
         self.session = None
 
+    def get_session(self):
+        """Provide session context manager for wire detection checks."""
+
+        class _StubSession:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                pass
+
+            def execute(self, *args, **kwargs):
+                return type("Result", (), {"fetchall": lambda: []})()
+
+        return _StubSession()
+
 
 @pytest.fixture
 def service_factory(monkeypatch: pytest.MonkeyPatch):
