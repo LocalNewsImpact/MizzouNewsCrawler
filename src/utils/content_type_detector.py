@@ -38,7 +38,7 @@ class ContentTypeDetector:
 
     def __init__(self, session=None):
         """Initialize ContentTypeDetector.
-        
+
         Args:
             session: Optional SQLAlchemy session to reuse for database queries.
                     If not provided, creates a new DatabaseManager instance.
