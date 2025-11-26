@@ -54,7 +54,7 @@ jobs:
           
           for TRIGGER in "${TRIGGERS[@]}"; do
             echo -n "Checking $TRIGGER... "
-            if gcloud builds triggers describe "$TRIGGER" --project="${{ secrets.GCP_PROJECT }}" &>/dev/null; then
+            if gcloud builds triggers describe "$TRIGGER" &>/dev/null; then
               echo "✅"
             else
               echo "❌ MISSING"
