@@ -99,7 +99,7 @@ def _get_worker_id() -> str:
 def _get_work_from_queue(
     worker_id: str, batch_size: int, max_articles_per_domain: int = 3
 ):
-    """Request work from centralized queue service.
+    """Request work from centralized queue service with retry logic.
 
     Args:
         worker_id: Unique worker identifier
@@ -110,32 +110,68 @@ def _get_work_from_queue(
         List of work items (dicts with id, url, source, canonical_name)
 
     Raises:
-        Exception: If work queue request fails
+        Exception: If work queue request fails after all retries
     """
     import requests
+    import time
 
-    try:
-        response = requests.post(
-            f"{WORK_QUEUE_URL}/work/request",
-            json={
-                "worker_id": worker_id,
-                "batch_size": batch_size,
-                "max_articles_per_domain": max_articles_per_domain,
-            },
-            timeout=60,  # Increased from 30s to allow for slow database queries
-        )
-        response.raise_for_status()
-        data = response.json()
-        logger.info(
-            "Worker %s assigned %d articles from domains: %s",
-            worker_id,
-            len(data["items"]),
-            data.get("worker_domains", []),
-        )
-        return data["items"]
-    except requests.RequestException as e:
-        logger.error("Failed to get work from queue: %s", e)
-        raise
+    max_retries = 3
+    base_timeout = 60
+    
+    for attempt in range(max_retries):
+        try:
+            # Increase timeout on retries (60s, 90s, 120s)
+            timeout = base_timeout + (attempt * 30)
+            
+            response = requests.post(
+                f"{WORK_QUEUE_URL}/work/request",
+                json={
+                    "worker_id": worker_id,
+                    "batch_size": batch_size,
+                    "max_articles_per_domain": max_articles_per_domain,
+                },
+                timeout=timeout,
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            if attempt > 0:
+                logger.info(
+                    "Work queue request succeeded on attempt %d/%d",
+                    attempt + 1,
+                    max_retries,
+                )
+            
+            logger.info(
+                "Worker %s assigned %d articles from domains: %s",
+                worker_id,
+                len(data["items"]),
+                data.get("worker_domains", []),
+            )
+            return data["items"]
+            
+        except requests.RequestException as e:
+            is_last_attempt = (attempt == max_retries - 1)
+            
+            if is_last_attempt:
+                logger.error(
+                    "Failed to get work from queue after %d attempts: %s",
+                    max_retries,
+                    e,
+                )
+                raise
+            else:
+                # Exponential backoff: 2s, 4s, 8s
+                backoff = 2 ** attempt
+                logger.warning(
+                    "Work queue request failed (attempt %d/%d): %s. "
+                    "Retrying in %ds...",
+                    attempt + 1,
+                    max_retries,
+                    e,
+                    backoff,
+                )
+                time.sleep(backoff)
 
 
 def _send_heartbeat(worker_id: str):
