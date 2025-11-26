@@ -41,6 +41,10 @@ jobs:
           echo "🔍 Validating GCP Cloud Build triggers..."
           echo ""
           
+          PROJECT_ID="${{ secrets.GCP_PROJECT }}"
+          echo "Project: $PROJECT_ID"
+          echo ""
+          
           TRIGGERS=(
             "build-base-manual"
             "build-ml-base-manual"
@@ -54,7 +58,7 @@ jobs:
           
           for TRIGGER in "${TRIGGERS[@]}"; do
             echo -n "Checking $TRIGGER... "
-            if gcloud builds triggers describe "$TRIGGER" &>/dev/null; then
+            if gcloud builds triggers describe "$TRIGGER" --project="$PROJECT_ID" &>/dev/null; then
               echo "✅"
             else
               echo "❌ MISSING"
