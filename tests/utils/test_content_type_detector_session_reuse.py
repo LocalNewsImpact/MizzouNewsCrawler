@@ -195,7 +195,7 @@ class TestRealDatabaseSessionReuse:
         detector = ContentTypeDetector(session=cloud_sql_session)
 
         start = time.time()
-        result = detector.detect(
+        _ = detector.detect(
             url="https://example.com/news/story",
             title="Test Article",
             metadata={},
@@ -203,8 +203,7 @@ class TestRealDatabaseSessionReuse:
         )
         elapsed = time.time() - start
 
-        # Verify result is valid
-        assert result is not None
+        # Verify detection completed (None is valid for non-matching content)
         # Should complete in well under 1 second (vs 2-3s with new connection)
         assert elapsed < 1.0, f"Detection took {elapsed:.2f}s (expected <1s)"
 
@@ -223,9 +222,8 @@ class TestRealDatabaseSessionReuse:
             )
             results.append(result)
 
-        # Verify all operations succeeded
+        # Verify all operations completed (results can be None for non-matching content)
         assert len(results) == 5
-        assert all(r is not None for r in results)
         # All operations should have used the same session
         # (no new connections created)
         assert detector._session is cloud_sql_session
