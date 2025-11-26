@@ -100,7 +100,7 @@ def test_randomized_domain_selection(coordinator):
     # Assert we got variety in selections (not always same domain)
     unique_selections = set(selected_domains)
     assert len(unique_selections) > 1, "Domain selection not randomized!"
-    
+
     # Assert each selection returned exactly 1 domain
     assert all(len([d]) == 1 for d in selected_domains)
 
@@ -376,8 +376,7 @@ def test_single_domain_per_request_enforced(coordinator):
     # Articles from only 1 domain (SQL WHERE cl.source = ANY(:domains) with 1 domain)
     # Coordinator assigns 1 domain, so SQL only returns articles from that domain
     articles_data = [
-        (f"id-0-{j}", f"https://domain0.com/article-{j}",
-         "domain0.com", "Domain 0")
+        (f"id-0-{j}", f"https://domain0.com/article-{j}", "domain0.com", "Domain 0")
         for j in range(3)  # Max 3 articles
     ]
 

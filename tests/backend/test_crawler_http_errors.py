@@ -5,9 +5,10 @@ error scenarios, including immediate NotFoundError on 404/410, RateLimitError
 on 429/403, and fallback behavior on server errors.
 """
 
-import pytest
 from datetime import datetime
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 from src.crawler import ContentExtractor, NotFoundError, RateLimitError
 
@@ -111,8 +112,10 @@ class TestCrawlerHTTPErrorHandling:
         mock_session.get.return_value = mock_response
 
         with patch("cloudscraper.create_scraper", return_value=mock_session):
-            with patch.object(extractor, "_extract_with_beautifulsoup") as mock_bs, \
-                 patch.object(extractor, "_extract_with_selenium") as mock_selenium:
+            with (
+                patch.object(extractor, "_extract_with_beautifulsoup") as mock_bs,
+                patch.object(extractor, "_extract_with_selenium") as mock_selenium,
+            ):
                 with pytest.raises(RateLimitError):
                     extractor.extract_content("https://example.com/article")
 
@@ -160,7 +163,7 @@ class TestCrawlerHTTPErrorHandling:
         with patch("cloudscraper.create_scraper", return_value=mock_session):
             # Should not raise any exception
             result = extractor.extract_content("https://example.com/article")
-            
+
             # Result should be a dict (even if empty/None fields)
             assert result is not None
             assert isinstance(result, dict)
@@ -230,11 +233,10 @@ class TestCrawlerHTTPErrorHandling:
 
     def test_generic_exception_allows_fallback(self, extractor):
         """Generic exceptions (not NotFoundError/RateLimitError) allow fallback."""
-        with patch.object(
-            extractor, "_extract_with_newspaper"
-        ) as mock_newspaper, patch.object(
-            extractor, "_extract_with_beautifulsoup"
-        ) as mock_bs:
+        with (
+            patch.object(extractor, "_extract_with_newspaper") as mock_newspaper,
+            patch.object(extractor, "_extract_with_beautifulsoup") as mock_bs,
+        ):
             # Newspaper fails with generic exception
             mock_newspaper.side_effect = RuntimeError("Parse error")
             # BeautifulSoup succeeds

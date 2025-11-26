@@ -342,7 +342,9 @@ def test_randomized_domain_selection_distribution(cloud_sql_session):
 
     # Assert variety in selections (should get multiple different domains)
     unique_domains = set(selected_domains)
-    assert len(unique_domains) > 3, f"Only {len(unique_domains)} unique domains selected, expected more variety"
+    assert (
+        len(unique_domains) > 3
+    ), f"Only {len(unique_domains)} unique domains selected, expected more variety"
 
 
 @pytest.mark.integration

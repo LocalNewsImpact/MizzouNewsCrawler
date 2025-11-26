@@ -357,12 +357,11 @@ class _ResultWrapper:
         if hasattr(result, "keys"):
             try:
                 import warnings
+
                 # Suppress Cloud SQL connector async warnings during result inspection
                 with warnings.catch_warnings():
                     warnings.filterwarnings(
-                        "ignore",
-                        category=RuntimeWarning,
-                        message=".*connect_async.*"
+                        "ignore", category=RuntimeWarning, message=".*connect_async.*"
                     )
                     self._keys = list(result.keys())
             except Exception:

@@ -1696,9 +1696,7 @@ class ContentExtractor:
                         f"Permanent missing ({response.status_code}) for {url}; caching"
                     )
                     # Raise NotFoundError to stop all fallback attempts immediately
-                    raise NotFoundError(
-                        f"URL returned {response.status_code}: {url}"
-                    )
+                    raise NotFoundError(f"URL returned {response.status_code}: {url}")
 
                 # Check if request was successful
                 if response.status_code == 200:
