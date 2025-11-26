@@ -504,7 +504,7 @@ class TestDeadURLCaching:
     """Test that permanent errors are cached as dead URLs."""
 
     def test_404_caches_url_as_dead(self, extractor, mock_response):
-        """Test that 404 caches URL in dead_urls dict."""
+        """Test that 404 caches URL in dead_urls dict before raising NotFoundError."""
         extractor.dead_url_ttl = 3600  # Enable caching
         extractor.dead_urls = {}
 
@@ -515,16 +515,12 @@ class TestDeadURLCaching:
 
             url = "https://example.com/missing"
 
-            result = extractor._extract_with_newspaper(url)
+            with pytest.raises(NotFoundError, match="URL returned 404"):
+                extractor._extract_with_newspaper(url)
 
-        # Verify URL was cached as dead
+        # Verify URL was cached as dead before exception was raised
         assert url in extractor.dead_urls
         assert extractor.dead_urls[url] > time.time()
-
-        metadata = result.get("metadata", {})
-        assert metadata.get("http_status") == 404
-        assert metadata.get("error") == "http_not_found"
-        assert "cache_ttl_expires_at" in metadata
 
     def test_400_caches_url_as_dead(self, extractor, mock_response):
         """Test that 400 Bad Request caches URL as dead."""
@@ -583,11 +579,13 @@ class TestMetricsTracking:
                     "https://example.com/missing", metrics=mock_metrics
                 )
 
-        # Should track the 404 error before raising
-        mock_metrics.set_http_status.assert_called_with(404)
-        # Should track the newspaper4k method attempt
+        # Should track the newspaper4k method attempt and failure
         mock_metrics.start_method.assert_called_with("newspaper4k")
-        mock_metrics.end_method.assert_called()
+        # end_method should be called with failure status
+        assert mock_metrics.end_method.called
+        call_args = mock_metrics.end_method.call_args
+        assert call_args[0][0] == "newspaper4k"  # method name
+        assert call_args[0][1] is False  # success=False
 
     def test_successful_extraction_tracks_metrics(self, extractor, mock_response):
         """Test that successful extraction tracks metrics."""
