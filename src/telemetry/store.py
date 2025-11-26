@@ -356,7 +356,14 @@ class _ResultWrapper:
         # DDL statements (CREATE TABLE, etc.) don't return rows
         if hasattr(result, "keys"):
             try:
-                self._keys = list(result.keys())
+                import warnings
+
+                # Suppress Cloud SQL connector async warnings during result inspection
+                with warnings.catch_warnings():
+                    warnings.filterwarnings(
+                        "ignore", category=RuntimeWarning, message=".*connect_async.*"
+                    )
+                    self._keys = list(result.keys())
             except Exception:
                 # ResourceClosedError for DDL, or result doesn't return rows
                 self._keys = None

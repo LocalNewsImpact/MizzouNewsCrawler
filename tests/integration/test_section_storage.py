@@ -74,7 +74,8 @@ def test_section_columns_exist(db_manager):
 
 def test_store_section_data(db_manager, test_source_id):
     """Test storing section discovery data in sources table."""
-    # Create a test source
+    # Create a test source with unique host
+    unique_host = f"example-{uuid.uuid4()}.com"
     with db_manager.engine.begin() as conn:
         conn.execute(
             text(
@@ -87,8 +88,8 @@ def test_store_section_data(db_manager, test_source_id):
             ),
             {
                 "id": test_source_id,
-                "host": "example.com",
-                "host_norm": "example.com",
+                "host": unique_host,
+                "host_norm": unique_host,
                 "enabled": True,
             },
         )
@@ -193,6 +194,9 @@ def test_retrieve_section_data(db_manager, test_source_id):
         }
     ]
 
+    # Use unique host to avoid UNIQUE constraint violations
+    unique_host = f"example-{uuid.uuid4()}.com"
+
     with db_manager.engine.begin() as conn:
         # Insert test source with section data
         dialect = conn.dialect.name
@@ -212,8 +216,8 @@ def test_retrieve_section_data(db_manager, test_source_id):
                 ),
                 {
                     "id": test_source_id,
-                    "host": "example.com",
-                    "host_norm": "example.com",
+                    "host": unique_host,
+                    "host_norm": unique_host,
                     "sections": json.dumps(sections),
                     "enabled": True,
                     "updated": datetime.utcnow(),
@@ -235,8 +239,8 @@ def test_retrieve_section_data(db_manager, test_source_id):
                 ),
                 {
                     "id": test_source_id,
-                    "host": "example.com",
-                    "host_norm": "example.com",
+                    "host": unique_host,
+                    "host_norm": unique_host,
                     "sections": json.dumps(sections),
                     "enabled": 1,
                     "updated": datetime.utcnow().isoformat(),
