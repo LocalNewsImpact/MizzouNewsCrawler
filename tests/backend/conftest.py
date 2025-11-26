@@ -68,6 +68,11 @@ def test_client(cloud_sql_session, monkeypatch):
 
     monkeypatch.setattr(main.db_manager, "get_session", mock_get_session)
 
+    # Clear article count cache to avoid stale counts across tests
+    main._article_count_cache["total"] = None
+    main._article_count_cache["by_reviewer"] = {}
+    main._article_count_cache["timestamp"] = 0
+
     client = TestClient(app)
     return client
 

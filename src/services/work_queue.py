@@ -13,11 +13,13 @@ Architecture:
     - Sticky domain assignments (workers keep domains across requests)
 """
 
+import asyncio
 import logging
 import os
 import time
 from collections import defaultdict
 from datetime import datetime
+from functools import partial
 from threading import Lock
 from typing import Any, Optional
 
@@ -101,7 +103,7 @@ class HealthResponse(BaseModel):
 
 
 class WorkQueueCoordinator:
-    """Coordinates work distribution across multiple workers with domain-aware rate limiting."""
+    """Coordinates work distribution with domain-aware rate limiting."""
 
     def __init__(self, db: Optional[DatabaseManager] = None, session=None):
         """Initialize the coordinator with thread-safe state management.
@@ -174,7 +176,7 @@ class WorkQueueCoordinator:
         """
         query = text(
             """
-            SELECT 
+            SELECT
                 cl.source,
                 s.canonical_name,
                 COUNT(*) as article_count
@@ -509,8 +511,16 @@ async def request_work(request: WorkRequest) -> WorkResponse:
         WorkResponse with items and worker_domains
     """
     try:
-        return coordinator.request_work(
-            request.worker_id, request.batch_size, request.max_articles_per_domain
+        # Run blocking coordinator method in thread pool to avoid blocking event loop
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,
+            partial(
+                coordinator.request_work,
+                request.worker_id,
+                request.batch_size,
+                request.max_articles_per_domain,
+            ),
         )
     except Exception as e:
         logger.error(f"Error processing work request: {e}", exc_info=True)
@@ -528,7 +538,9 @@ async def worker_heartbeat(worker_id: str) -> dict[str, str]:
         Success message
     """
     try:
-        coordinator.update_worker_heartbeat(worker_id)
+        # Run in thread pool to avoid blocking event loop
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, coordinator.update_worker_heartbeat, worker_id)
         return {
             "status": "success",
             "message": f"Heartbeat received for {worker_id}",
@@ -550,7 +562,11 @@ async def report_failure(worker_id: str, domain: str) -> dict[str, str]:
         Success message
     """
     try:
-        coordinator.report_failure(worker_id, domain)
+        # Run in thread pool to avoid blocking event loop
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            None, partial(coordinator.report_failure, worker_id, domain)
+        )
         return {"status": "success", "message": f"Failure reported for {domain}"}
     except Exception as e:
         logger.error(f"Error reporting failure: {e}", exc_info=True)
@@ -565,7 +581,9 @@ async def get_stats() -> StatsResponse:
         StatsResponse with current state
     """
     try:
-        return coordinator.get_stats()
+        # Run in thread pool to avoid blocking event loop
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, coordinator.get_stats)
     except Exception as e:
         logger.error(f"Error getting stats: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
