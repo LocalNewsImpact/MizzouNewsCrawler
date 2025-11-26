@@ -53,13 +53,14 @@ spec:
             - name: verify-idle-grace-seconds
               value: "600"
             # Extraction parameters
-            # extract-limit: articles per batch (balance: larger = faster, smaller = safer rate limiting)
-            # extract-batches: max batches (extract-limit × batches = total capacity per run)
-            # Current capacity: 50 × 40 = 2,000 articles per run (sufficient for weekly publications)
+            # extract-limit: articles per batch (small batches for better coordination)
+            # extract-batches: max batches (extract-limit × batches = total capacity)
+            # Current: 5 × 400 = 2,000 articles per run (same capacity, better dist)
+            # Small batches allow frequent heartbeats and prevent worker timeouts
             - name: extract-limit
-              value: "50"
+              value: "5"
             - name: extract-batches
-              value: "40"
+              value: "400"
             # Moderate rate limiting for Mizzou
             - name: inter-request-min
               value: "5.0"

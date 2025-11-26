@@ -38,9 +38,11 @@ logger = logging.getLogger(__name__)
 DOMAIN_COOLDOWN_SECONDS = int(os.getenv("DOMAIN_COOLDOWN_SECONDS", "60"))
 MAX_DOMAIN_FAILURES = int(os.getenv("MAX_DOMAIN_FAILURES", "3"))
 DOMAIN_PAUSE_SECONDS = int(os.getenv("DOMAIN_PAUSE_SECONDS", "1800"))  # 30 minutes
-WORKER_TIMEOUT_SECONDS = int(os.getenv("WORKER_TIMEOUT_SECONDS", "600"))  # 10 minutes
-MIN_DOMAINS_PER_WORKER = int(os.getenv("MIN_DOMAINS_PER_WORKER", "3"))
-MAX_DOMAINS_PER_WORKER = int(os.getenv("MAX_DOMAINS_PER_WORKER", "5"))
+# Worker timeout: 10 minutes is sufficient with heartbeats
+WORKER_TIMEOUT_SECONDS = int(os.getenv("WORKER_TIMEOUT_SECONDS", "600"))
+# One domain per request for better distribution
+MIN_DOMAINS_PER_WORKER = int(os.getenv("MIN_DOMAINS_PER_WORKER", "1"))
+MAX_DOMAINS_PER_WORKER = int(os.getenv("MAX_DOMAINS_PER_WORKER", "1"))
 
 # FastAPI app
 app = FastAPI(title="Work Queue Service", version="1.0.0")
@@ -393,6 +395,17 @@ class WorkQueueCoordinator:
 
         return WorkResponse(items=items, worker_domains=sorted(assigned_domains))
 
+    def update_worker_heartbeat(self, worker_id: str) -> None:
+        """Update worker last_seen timestamp.
+
+        Args:
+            worker_id: Worker sending heartbeat
+        """
+        with self.lock:
+            if worker_id in self.worker_domains:
+                self.worker_domains[worker_id]["last_seen"] = time.time()
+                logger.debug(f"Heartbeat received from worker {worker_id}")
+
     def report_failure(self, worker_id: str, domain: str) -> None:
         """Report a domain failure (rate limit, bot protection, etc.).
 
@@ -511,6 +524,27 @@ async def request_work(request: WorkRequest) -> WorkResponse:
         )
     except Exception as e:
         logger.error(f"Error processing work request: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/work/heartbeat")
+async def worker_heartbeat(worker_id: str) -> dict[str, str]:
+    """Update worker last_seen timestamp to prevent timeout.
+
+    Args:
+        worker_id: Worker sending heartbeat
+
+    Returns:
+        Success message
+    """
+    try:
+        coordinator.update_worker_heartbeat(worker_id)
+        return {
+            "status": "success",
+            "message": f"Heartbeat received for {worker_id}",
+        }
+    except Exception as e:
+        logger.error(f"Error processing heartbeat: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

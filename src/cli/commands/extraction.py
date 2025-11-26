@@ -138,6 +138,26 @@ def _get_work_from_queue(
         raise
 
 
+def _send_heartbeat(worker_id: str):
+    """Send heartbeat to work queue to prevent timeout.
+
+    Args:
+        worker_id: Worker identifier
+    """
+    import requests
+
+    try:
+        response = requests.post(
+            f"{WORK_QUEUE_URL}/work/heartbeat",
+            params={"worker_id": worker_id},
+            timeout=5,
+        )
+        response.raise_for_status()
+        logger.debug("Heartbeat sent to queue")
+    except requests.RequestException as e:
+        logger.debug("Failed to send heartbeat: %s", e)
+
+
 def _report_domain_failure(worker_id: str, domain: str):
     """Report domain failure (rate limit/bot protection) to queue service.
 
@@ -782,6 +802,11 @@ def _process_batch(
     max_failures_per_domain = 2
     max_articles_per_domain = int(os.getenv("MAX_ARTICLES_PER_DOMAIN_PER_BATCH", "3"))
 
+    # Heartbeat tracking for work-queue coordination
+    last_heartbeat = time.time()
+    heartbeat_interval = 300  # Send heartbeat every 5 minutes
+    worker_id = None  # Will be set if using work queue
+
     try:
         # Get candidate articles - either from work queue service or direct DB query
         if USE_WORK_QUEUE:
@@ -895,6 +920,15 @@ def _process_batch(
         skipped_domains = set()
 
         for row in rows:
+            # Send heartbeat to work queue if enough time has passed
+            if (
+                USE_WORK_QUEUE
+                and worker_id
+                and (time.time() - last_heartbeat) > heartbeat_interval
+            ):
+                _send_heartbeat(worker_id)
+                last_heartbeat = time.time()
+
             # Stop if we've processed enough articles
             if processed >= per_batch:
                 break
