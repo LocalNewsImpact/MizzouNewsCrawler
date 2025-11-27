@@ -43,6 +43,17 @@ def upgrade() -> None:
         ).fetchone()
         return result is not None
     
+    def table_exists(table_name: str) -> bool:
+        """Check if a table exists."""
+        result = conn.execute(
+            sa.text(
+                "SELECT 1 FROM information_schema.tables "
+                "WHERE table_schema = 'public' AND table_name = :name"
+            ),
+            {"name": table_name}
+        ).fetchone()
+        return result is not None
+    
     # CRITICAL: Index for work queue main query (status + source filter + LEFT JOIN)
     # This query runs every few seconds and was taking 4-25 seconds
     # Benefits: Filters candidate_links by status='article' AND source='domain'
@@ -109,7 +120,8 @@ def upgrade() -> None:
         )
     
     # background_processes table - self-referential FK for process trees
-    if not index_exists('ix_background_processes_parent_process_id'):
+    if (table_exists('background_processes') and
+            not index_exists('ix_background_processes_parent_process_id')):
         op.create_index(
             'ix_background_processes_parent_process_id',
             'background_processes',
@@ -118,7 +130,9 @@ def upgrade() -> None:
         )
     
     # Content cleaning telemetry tables - high volume, frequent JOINs
-    if not index_exists('ix_content_cleaning_locality_events_telemetry_id'):
+    if (table_exists('content_cleaning_locality_events') and
+            not index_exists(
+                'ix_content_cleaning_locality_events_telemetry_id')):
         op.create_index(
             'ix_content_cleaning_locality_events_telemetry_id',
             'content_cleaning_locality_events',
@@ -126,7 +140,9 @@ def upgrade() -> None:
             unique=False
         )
     
-    if not index_exists('ix_content_cleaning_wire_events_telemetry_id'):
+    if (table_exists('content_cleaning_wire_events') and
+            not index_exists(
+                'ix_content_cleaning_wire_events_telemetry_id')):
         op.create_index(
             'ix_content_cleaning_wire_events_telemetry_id',
             'content_cleaning_wire_events',
@@ -135,7 +151,8 @@ def upgrade() -> None:
         )
     
     # dataset_deltas table - versioning queries
-    if not index_exists('ix_dataset_deltas_dataset_version_id'):
+    if (table_exists('dataset_deltas') and
+            not index_exists('ix_dataset_deltas_dataset_version_id')):
         op.create_index(
             'ix_dataset_deltas_dataset_version_id',
             'dataset_deltas',
