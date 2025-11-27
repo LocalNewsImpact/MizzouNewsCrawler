@@ -8,6 +8,9 @@ on:
       - '.github/workflows/test-chromedriver.yml'
   workflow_dispatch: {}
 
+# Only run on PRs that actually modify the Crawler Dockerfile or this workflow
+# This prevents unnecessary runs on every PR
+
 jobs:
   test-apt-packages:
     name: Test APT Package Installation
