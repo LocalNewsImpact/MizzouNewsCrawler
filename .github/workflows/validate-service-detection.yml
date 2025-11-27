@@ -2,6 +2,7 @@ name: Validate Service Detection
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [ main ]
     paths:
       - '.github/workflows/build-and-deploy-services.yml'
@@ -10,6 +11,7 @@ on:
 jobs:
   test-detection:
     runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
         with:

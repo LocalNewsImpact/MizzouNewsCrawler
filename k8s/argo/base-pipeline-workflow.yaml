@@ -670,16 +670,12 @@ spec:
                   return result or 0
 
           def calculate_worker_count(backlog):
-              if backlog < 100:
+              # Scale workers proportionally: 2 workers per 100 articles
+              # n=100 → 2 workers, n=500 → 10 workers
+              if backlog < 50:
                   return 1
-              elif backlog < 500:
-                  return 2
-              elif backlog < 1000:
-                  return 4
-              elif backlog < 2500:
-                  return 6
-              else:
-                  return 10
+              workers = min(10, max(2, (backlog // 100) * 2))
+              return workers
 
           backlog = get_extraction_backlog()
           worker_count = calculate_worker_count(backlog)

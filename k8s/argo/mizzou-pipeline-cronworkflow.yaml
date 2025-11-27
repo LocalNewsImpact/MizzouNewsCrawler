@@ -51,7 +51,7 @@ spec:
             - name: verify-max-batches
               value: "0"  # Ignored - unlimited batches
             - name: verify-idle-grace-seconds
-              value: "600"
+              value: "3600"  # 1 hour - long enough for discovery to finish
             # Extraction parameters
             # extract-limit: max 3 articles per request (1 domain, below bot threshold)
             # extract-batches: max batches (extract-limit × batches = total capacity)
