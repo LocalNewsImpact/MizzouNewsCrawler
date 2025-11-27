@@ -586,6 +586,22 @@ class ContentTypeDetector:
                     detected_services.add(service_name)
                     byline_signal = True
 
+        # Check for cross-publication author bio (content-based detection)
+        # Example: "Nick Harris is the reporter for the Fort Worth
+        # Star-Telegram" on kansascity.com indicates syndication
+        if content and not byline_signal:
+            cross_pub_result = self._detect_cross_publication_byline(
+                content, url_lower
+            )
+            if cross_pub_result:
+                publication_name, is_syndicated = cross_pub_result
+                if is_syndicated:
+                    matches.setdefault("author", []).append(
+                        f"{publication_name} (cross-publication byline)"
+                    )
+                    detected_services.add(publication_name)
+                    byline_signal = True
+
         # Byline signal is strong enough alone
         if byline_signal:
             return self._build_wire_result(matches, detected_services, tier="byline")
@@ -835,6 +851,82 @@ class ContentTypeDetector:
 
         # URL belongs to different broadcaster - this is syndicated/wire
         return (callsign, True)
+
+    def _detect_cross_publication_byline(
+        self, content: str, url_lower: str
+    ) -> tuple[str, bool] | None:
+        """Detect author bios mentioning different publications.
+
+        Checks if content contains author bio patterns indicating the author
+        works for a different publication (e.g., "reporter for the [Pub]").
+
+        Args:
+            content: Full article content for bio detection
+            url_lower: Lowercased article URL
+
+        Returns:
+            Tuple of (publication_name, is_syndicated) if detected, else None
+            - publication_name: The publication mentioned in the bio
+            - is_syndicated: True if different publication (syndicated),
+                           False if same publication (local content)
+        """
+        # Check last ~500 chars where author bios typically appear
+        bio_section = content[-500:] if len(content) > 500 else content
+
+        # Pattern to match author bio phrases mentioning publications
+        # Examples:
+        # - "is the reporter for the Fort Worth Star-Telegram"
+        # - "covers sports for The Kansas City Star"
+        # - "works as a journalist at The Post-Dispatch"
+        bio_patterns = [
+            r"(?:is|works as)(?: a| an)? .{0,50}?"
+            r"(?:reporter|journalist|editor|writer|correspondent)"
+            r" (?:for|at) (?:the )?([A-Z][A-Za-z\s\-]+(?:Tribune|"
+            r"Star|Times|Post|News|Telegram|Dispatch|Herald|"
+            r"Journal|Chronicle|Examiner|Gazette|Record))",
+            r"(?:covers|reports on) .{0,30} for (?:the )?"
+            r"([A-Z][A-Za-z\s\-]+(?:Tribune|Star|Times|Post|News|"
+            r"Telegram|Dispatch|Herald|Journal|Chronicle|Examiner|"
+            r"Gazette|Record))",
+            r"(?:beat reporter|staff writer) (?:for|at) (?:the )?"
+            r"([A-Z][A-Za-z\s\-]+(?:Tribune|Star|Times|Post|News|"
+            r"Telegram|Dispatch|Herald|Journal|Chronicle|Examiner|"
+            r"Gazette|Record))",
+        ]
+
+        for pattern in bio_patterns:
+            match = re.search(pattern, bio_section, re.IGNORECASE)
+            if match:
+                publication_name = match.group(1).strip()
+
+                # Normalize publication name for URL matching
+                pub_name_lower = publication_name.lower()
+                pub_slug = re.sub(r"[\s\-]+", "", pub_name_lower)
+
+                # Check if URL belongs to this publication
+                # Examples:
+                # - "Kansas City Star" -> "kansascitystar" in URL
+                # - "Fort Worth Star-Telegram" -> "star-telegram" in URL
+                url_belongs_to_pub = False
+
+                if pub_slug in url_lower.replace("-", "").replace("_", ""):
+                    url_belongs_to_pub = True
+                # Also check for partial matches (e.g., "star-telegram")
+                pub_words = pub_name_lower.split()
+                if len(pub_words) >= 2:
+                    # Check last 2 words (e.g., "Star-Telegram")
+                    last_words = "-".join(pub_words[-2:])
+                    if last_words in url_lower:
+                        url_belongs_to_pub = True
+
+                # If URL belongs to publication, it's local (not syndicated)
+                if url_belongs_to_pub:
+                    return (publication_name, False)
+
+                # URL belongs to different publication - syndicated
+                return (publication_name, True)
+
+        return None
 
     def _build_wire_result(
         self, matches: dict, detected_services: set, tier: str
