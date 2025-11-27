@@ -13,6 +13,7 @@ NON_ARTICLE_PATTERNS = [
     r"/galleries/",
     r"/gallery/",
     r"/slideshow",
+    r"/image[_-][0-9a-f\-]+",  # Image files with hex IDs
     # Category and listing pages
     r"/category/",
     r"/tag/",
