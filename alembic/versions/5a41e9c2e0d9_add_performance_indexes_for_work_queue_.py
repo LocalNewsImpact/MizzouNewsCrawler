@@ -27,97 +27,121 @@ def upgrade() -> None:
     3. Foreign key indexes on articles.candidate_link_id (most critical - 25s query!)
     4. Foreign key indexes on other high-traffic tables
     5. Index on articles table for NOT IN subquery optimization
+    
+    Made idempotent: Checks if indexes exist before creating them to allow
+    repeated runs and prevent "already exists" errors.
     """
+    conn = op.get_bind()
+    
+    def index_exists(index_name: str) -> bool:
+        """Check if an index already exists."""
+        result = conn.execute(
+            sa.text(
+                "SELECT 1 FROM pg_indexes WHERE indexname = :name"
+            ),
+            {"name": index_name}
+        ).fetchone()
+        return result is not None
     
     # CRITICAL: Index for work queue main query (status + source filter + LEFT JOIN)
     # This query runs every few seconds and was taking 4-25 seconds
     # Benefits: Filters candidate_links by status='article' AND source='domain'
     # Before: Sequential scan through all candidate_links
     # After: Index seek directly to matching rows
-    op.create_index(
-        'ix_candidate_links_status_source',
-        'candidate_links',
-        ['status', 'source'],
-        unique=False
-    )
+    if not index_exists('ix_candidate_links_status_source'):
+        op.create_index(
+            'ix_candidate_links_status_source',
+            'candidate_links',
+            ['status', 'source'],
+            unique=False
+        )
     
     # Composite covering index for work queue query optimization
     # Includes 'id' to allow index-only scans when checking NOT IN articles
-    op.create_index(
-        'ix_candidate_links_status_source_id',
-        'candidate_links',
-        ['status', 'source', 'id'],
-        unique=False
-    )
+    if not index_exists('ix_candidate_links_status_source_id'):
+        op.create_index(
+            'ix_candidate_links_status_source_id',
+            'candidate_links',
+            ['status', 'source', 'id'],
+            unique=False
+        )
     
     # CRITICAL: Foreign key index on articles.candidate_link_id
     # The domain grouping query does:
     # cl.id NOT IN (SELECT candidate_link_id FROM articles)
     # This was causing a 25 SECOND sequential scan of 43k article rows!
     # With this index, the NOT IN becomes an index seek
-    op.create_index(
-        'ix_articles_candidate_link_id',
-        'articles',
-        ['candidate_link_id'],
-        unique=False
-    )
+    if not index_exists('ix_articles_candidate_link_id'):
+        op.create_index(
+            'ix_articles_candidate_link_id',
+            'articles',
+            ['candidate_link_id'],
+            unique=False
+        )
     
     # Foreign key indexes on other high-traffic tables
     # These prevent sequential scans when doing JOINs
     
     # locations table - JOINs to articles frequently in reporting queries
-    op.create_index(
-        'ix_locations_article_id',
-        'locations',
-        ['article_id'],
-        unique=False
-    )
+    if not index_exists('ix_locations_article_id'):
+        op.create_index(
+            'ix_locations_article_id',
+            'locations',
+            ['article_id'],
+            unique=False
+        )
     
     # ml_results table - JOINs to articles and jobs
-    op.create_index(
-        'ix_ml_results_article_id',
-        'ml_results',
-        ['article_id'],
-        unique=False
-    )
+    if not index_exists('ix_ml_results_article_id'):
+        op.create_index(
+            'ix_ml_results_article_id',
+            'ml_results',
+            ['article_id'],
+            unique=False
+        )
     
-    op.create_index(
-        'ix_ml_results_job_id',
-        'ml_results',
-        ['job_id'],
-        unique=False
-    )
+    if not index_exists('ix_ml_results_job_id'):
+        op.create_index(
+            'ix_ml_results_job_id',
+            'ml_results',
+            ['job_id'],
+            unique=False
+        )
     
     # background_processes table - self-referential FK for process trees
-    op.create_index(
-        'ix_background_processes_parent_process_id',
-        'background_processes',
-        ['parent_process_id'],
-        unique=False
-    )
+    if not index_exists('ix_background_processes_parent_process_id'):
+        op.create_index(
+            'ix_background_processes_parent_process_id',
+            'background_processes',
+            ['parent_process_id'],
+            unique=False
+        )
     
     # Content cleaning telemetry tables - high volume, frequent JOINs
-    op.create_index(
-        'ix_content_cleaning_locality_events_telemetry_id',
-        'content_cleaning_locality_events',
-        ['telemetry_id'],
-        unique=False
-    )
+    if not index_exists('ix_content_cleaning_locality_events_telemetry_id'):
+        op.create_index(
+            'ix_content_cleaning_locality_events_telemetry_id',
+            'content_cleaning_locality_events',
+            ['telemetry_id'],
+            unique=False
+        )
     
-    op.create_index(
-        'ix_content_cleaning_wire_events_telemetry_id',
-        'content_cleaning_wire_events',
-        ['telemetry_id'],
-        unique=False
-    )
+    if not index_exists('ix_content_cleaning_wire_events_telemetry_id'):
+        op.create_index(
+            'ix_content_cleaning_wire_events_telemetry_id',
+            'content_cleaning_wire_events',
+            ['telemetry_id'],
+            unique=False
+        )
     
     # dataset_deltas table - versioning queries
-    op.create_index(
-        'ix_dataset_deltas_dataset_version_id',
-        'dataset_deltas',
-        ['dataset_version_id'],
-        unique=False
-    )
+    if not index_exists('ix_dataset_deltas_dataset_version_id'):
+        op.create_index(
+            'ix_dataset_deltas_dataset_version_id',
+            'dataset_deltas',
+            ['dataset_version_id'],
+            unique=False
+        )
 
 
 def downgrade() -> None:
