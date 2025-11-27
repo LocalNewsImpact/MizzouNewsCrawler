@@ -1,10 +1,22 @@
-name: 'Selective Service Build'
+name: 'Selective Service Build (DISABLED - Use build-and-deploy-services.yml instead)'
+
+# DISABLED: This workflow is redundant with build-and-deploy-services.yml
+# Both workflows trigger on push to main and do the same thing
+# Keeping this file for reference only - it will not run
+on:
+  workflow_dispatch:
+    inputs:
+      force_enable:
+        description: 'Manually enable this workflow (use build-and-deploy-services.yml instead)'
+        required: false
+        default: 'false'
 
 # Automatically detect which services changed and trigger builds for only those services
-on:
-  push:
-    branches:
-      - main
+# ORIGINAL TRIGGER (DISABLED):
+# on:
+#   push:
+#     branches:
+#       - main
 
 permissions:
   contents: read
