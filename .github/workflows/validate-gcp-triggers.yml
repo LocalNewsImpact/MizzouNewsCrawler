@@ -1,16 +1,12 @@
 name: 'Validate GCP Triggers'
 
-# Run on all pushes and PRs to validate GCP Cloud Build triggers are accessible
+# Only run on PRs - no need to run on push since PRs already validate
 on:
-  push:
-    branches:
-      - main
-      - 'feature/**'
-      - 'fix/**'
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches:
       - main
+  workflow_dispatch: {}
 
 permissions:
   contents: read

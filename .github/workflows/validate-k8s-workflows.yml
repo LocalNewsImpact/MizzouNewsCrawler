@@ -6,12 +6,8 @@ on:
     paths:
       - 'k8s/argo/**/*.yaml'
       - 'k8s/**/*.yaml'
-  push:
-    branches:
-      - main
-    paths:
-      - 'k8s/argo/**/*.yaml'
-      - 'k8s/**/*.yaml'
+  workflow_dispatch: {}
+  # Removed push to main - redundant since validation already runs on PR
 
 jobs:
   validate-sql-queries:
