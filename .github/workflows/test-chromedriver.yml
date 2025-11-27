@@ -2,6 +2,7 @@ name: Test ChromeDriver Installation
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'Dockerfile.crawler'
       - '.github/workflows/test-chromedriver.yml'
@@ -11,6 +12,7 @@ jobs:
   test-apt-packages:
     name: Test APT Package Installation
     runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     
     steps:
       - uses: actions/checkout@v4

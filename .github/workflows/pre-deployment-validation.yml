@@ -4,6 +4,7 @@ name: Config Validation (Fast-Fail)
 # No need to run validation again after merge when it already passed on the PR
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches:
       - main  # Only validate PRs to main
   workflow_dispatch:
@@ -13,6 +14,7 @@ jobs:
     name: Config & Syntax Validation
     runs-on: ubuntu-latest
     timeout-minutes: 5  # Should be very fast
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     
     steps:
       - name: Checkout code

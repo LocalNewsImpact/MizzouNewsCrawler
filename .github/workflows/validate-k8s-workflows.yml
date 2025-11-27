@@ -2,6 +2,7 @@ name: Validate K8s Workflows
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'k8s/argo/**/*.yaml'
       - 'k8s/**/*.yaml'
@@ -16,6 +17,7 @@ jobs:
   validate-sql-queries:
     runs-on: ubuntu-latest
     name: Validate SQL in Argo Workflows
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     
     steps:
       - uses: actions/checkout@v4
