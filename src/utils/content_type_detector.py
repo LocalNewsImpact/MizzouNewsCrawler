@@ -590,9 +590,7 @@ class ContentTypeDetector:
         # Example: "Nick Harris is the reporter for the Fort Worth
         # Star-Telegram" on kansascity.com indicates syndication
         if content and not byline_signal:
-            cross_pub_result = self._detect_cross_publication_byline(
-                content, url_lower
-            )
+            cross_pub_result = self._detect_cross_publication_byline(content, url_lower)
             if cross_pub_result:
                 publication_name, is_syndicated = cross_pub_result
                 if is_syndicated:

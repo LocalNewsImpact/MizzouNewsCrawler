@@ -5,6 +5,7 @@ Revises: f224b4c09ef3
 Create Date: 2025-11-27 06:44:25.064440
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -12,37 +13,35 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '5a41e9c2e0d9'
-down_revision: Union[str, Sequence[str], None] = 'f224b4c09ef3'
+revision: str = "5a41e9c2e0d9"
+down_revision: Union[str, Sequence[str], None] = "f224b4c09ef3"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
     """Add performance indexes for critical queries and missing foreign keys.
-    
+
     Key improvements:
     1. Composite index (status, source) for work queue domain filtering
     2. Composite index (status, source, id) covering index for work queue main query
     3. Foreign key indexes on articles.candidate_link_id (most critical - 25s query!)
     4. Foreign key indexes on other high-traffic tables
     5. Index on articles table for NOT IN subquery optimization
-    
+
     Made idempotent: Checks if indexes exist before creating them to allow
     repeated runs and prevent "already exists" errors.
     """
     conn = op.get_bind()
-    
+
     def index_exists(index_name: str) -> bool:
         """Check if an index already exists."""
         result = conn.execute(
-            sa.text(
-                "SELECT 1 FROM pg_indexes WHERE indexname = :name"
-            ),
-            {"name": index_name}
+            sa.text("SELECT 1 FROM pg_indexes WHERE indexname = :name"),
+            {"name": index_name},
         ).fetchone()
         return result is not None
-    
+
     def table_exists(table_name: str) -> bool:
         """Check if a table exists."""
         result = conn.execute(
@@ -50,149 +49,127 @@ def upgrade() -> None:
                 "SELECT 1 FROM information_schema.tables "
                 "WHERE table_schema = 'public' AND table_name = :name"
             ),
-            {"name": table_name}
+            {"name": table_name},
         ).fetchone()
         return result is not None
-    
+
     # CRITICAL: Index for work queue main query (status + source filter + LEFT JOIN)
     # This query runs every few seconds and was taking 4-25 seconds
     # Benefits: Filters candidate_links by status='article' AND source='domain'
     # Before: Sequential scan through all candidate_links
     # After: Index seek directly to matching rows
-    if not index_exists('ix_candidate_links_status_source'):
+    if not index_exists("ix_candidate_links_status_source"):
         op.create_index(
-            'ix_candidate_links_status_source',
-            'candidate_links',
-            ['status', 'source'],
-            unique=False
+            "ix_candidate_links_status_source",
+            "candidate_links",
+            ["status", "source"],
+            unique=False,
         )
-    
+
     # Composite covering index for work queue query optimization
     # Includes 'id' to allow index-only scans when checking NOT IN articles
-    if not index_exists('ix_candidate_links_status_source_id'):
+    if not index_exists("ix_candidate_links_status_source_id"):
         op.create_index(
-            'ix_candidate_links_status_source_id',
-            'candidate_links',
-            ['status', 'source', 'id'],
-            unique=False
+            "ix_candidate_links_status_source_id",
+            "candidate_links",
+            ["status", "source", "id"],
+            unique=False,
         )
-    
+
     # CRITICAL: Foreign key index on articles.candidate_link_id
     # The domain grouping query does:
     # cl.id NOT IN (SELECT candidate_link_id FROM articles)
     # This was causing a 25 SECOND sequential scan of 43k article rows!
     # With this index, the NOT IN becomes an index seek
-    if not index_exists('ix_articles_candidate_link_id'):
+    if not index_exists("ix_articles_candidate_link_id"):
         op.create_index(
-            'ix_articles_candidate_link_id',
-            'articles',
-            ['candidate_link_id'],
-            unique=False
+            "ix_articles_candidate_link_id",
+            "articles",
+            ["candidate_link_id"],
+            unique=False,
         )
-    
+
     # Foreign key indexes on other high-traffic tables
     # These prevent sequential scans when doing JOINs
-    
+
     # locations table - JOINs to articles frequently in reporting queries
-    if not index_exists('ix_locations_article_id'):
+    if not index_exists("ix_locations_article_id"):
         op.create_index(
-            'ix_locations_article_id',
-            'locations',
-            ['article_id'],
-            unique=False
+            "ix_locations_article_id", "locations", ["article_id"], unique=False
         )
-    
+
     # ml_results table - JOINs to articles and jobs
-    if not index_exists('ix_ml_results_article_id'):
+    if not index_exists("ix_ml_results_article_id"):
         op.create_index(
-            'ix_ml_results_article_id',
-            'ml_results',
-            ['article_id'],
-            unique=False
+            "ix_ml_results_article_id", "ml_results", ["article_id"], unique=False
         )
-    
-    if not index_exists('ix_ml_results_job_id'):
-        op.create_index(
-            'ix_ml_results_job_id',
-            'ml_results',
-            ['job_id'],
-            unique=False
-        )
-    
+
+    if not index_exists("ix_ml_results_job_id"):
+        op.create_index("ix_ml_results_job_id", "ml_results", ["job_id"], unique=False)
+
     # background_processes table - self-referential FK for process trees
-    if (table_exists('background_processes') and
-            not index_exists('ix_background_processes_parent_process_id')):
+    if table_exists("background_processes") and not index_exists(
+        "ix_background_processes_parent_process_id"
+    ):
         op.create_index(
-            'ix_background_processes_parent_process_id',
-            'background_processes',
-            ['parent_process_id'],
-            unique=False
+            "ix_background_processes_parent_process_id",
+            "background_processes",
+            ["parent_process_id"],
+            unique=False,
         )
-    
+
     # Content cleaning telemetry tables - high volume, frequent JOINs
-    if (table_exists('content_cleaning_locality_events') and
-            not index_exists(
-                'ix_content_cleaning_locality_events_telemetry_id')):
+    if table_exists("content_cleaning_locality_events") and not index_exists(
+        "ix_content_cleaning_locality_events_telemetry_id"
+    ):
         op.create_index(
-            'ix_content_cleaning_locality_events_telemetry_id',
-            'content_cleaning_locality_events',
-            ['telemetry_id'],
-            unique=False
+            "ix_content_cleaning_locality_events_telemetry_id",
+            "content_cleaning_locality_events",
+            ["telemetry_id"],
+            unique=False,
         )
-    
-    if (table_exists('content_cleaning_wire_events') and
-            not index_exists(
-                'ix_content_cleaning_wire_events_telemetry_id')):
+
+    if table_exists("content_cleaning_wire_events") and not index_exists(
+        "ix_content_cleaning_wire_events_telemetry_id"
+    ):
         op.create_index(
-            'ix_content_cleaning_wire_events_telemetry_id',
-            'content_cleaning_wire_events',
-            ['telemetry_id'],
-            unique=False
+            "ix_content_cleaning_wire_events_telemetry_id",
+            "content_cleaning_wire_events",
+            ["telemetry_id"],
+            unique=False,
         )
-    
+
     # dataset_deltas table - versioning queries
-    if (table_exists('dataset_deltas') and
-            not index_exists('ix_dataset_deltas_dataset_version_id')):
+    if table_exists("dataset_deltas") and not index_exists(
+        "ix_dataset_deltas_dataset_version_id"
+    ):
         op.create_index(
-            'ix_dataset_deltas_dataset_version_id',
-            'dataset_deltas',
-            ['dataset_version_id'],
-            unique=False
+            "ix_dataset_deltas_dataset_version_id",
+            "dataset_deltas",
+            ["dataset_version_id"],
+            unique=False,
         )
 
 
 def downgrade() -> None:
     """Remove performance indexes."""
-    
+
     # Drop in reverse order
+    op.drop_index("ix_dataset_deltas_dataset_version_id", table_name="dataset_deltas")
     op.drop_index(
-        'ix_dataset_deltas_dataset_version_id',
-        table_name='dataset_deltas'
+        "ix_content_cleaning_wire_events_telemetry_id",
+        table_name="content_cleaning_wire_events",
     )
     op.drop_index(
-        'ix_content_cleaning_wire_events_telemetry_id',
-        table_name='content_cleaning_wire_events'
+        "ix_content_cleaning_locality_events_telemetry_id",
+        table_name="content_cleaning_locality_events",
     )
     op.drop_index(
-        'ix_content_cleaning_locality_events_telemetry_id',
-        table_name='content_cleaning_locality_events'
+        "ix_background_processes_parent_process_id", table_name="background_processes"
     )
-    op.drop_index(
-        'ix_background_processes_parent_process_id',
-        table_name='background_processes'
-    )
-    op.drop_index('ix_ml_results_job_id', table_name='ml_results')
-    op.drop_index('ix_ml_results_article_id', table_name='ml_results')
-    op.drop_index('ix_locations_article_id', table_name='locations')
-    op.drop_index(
-        'ix_articles_candidate_link_id',
-        table_name='articles'
-    )
-    op.drop_index(
-        'ix_candidate_links_status_source_id',
-        table_name='candidate_links'
-    )
-    op.drop_index(
-        'ix_candidate_links_status_source',
-        table_name='candidate_links'
-    )
+    op.drop_index("ix_ml_results_job_id", table_name="ml_results")
+    op.drop_index("ix_ml_results_article_id", table_name="ml_results")
+    op.drop_index("ix_locations_article_id", table_name="locations")
+    op.drop_index("ix_articles_candidate_link_id", table_name="articles")
+    op.drop_index("ix_candidate_links_status_source_id", table_name="candidate_links")
+    op.drop_index("ix_candidate_links_status_source", table_name="candidate_links")
