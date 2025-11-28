@@ -183,9 +183,9 @@ class WorkQueueCoordinator:
             FROM candidate_links cl
             LEFT JOIN sources s ON cl.source_id = s.id
             WHERE cl.status = 'article'
-            AND cl.id NOT IN (
-                SELECT candidate_link_id FROM articles
-                WHERE candidate_link_id IS NOT NULL
+            AND NOT EXISTS (
+                SELECT 1 FROM articles a
+                WHERE a.candidate_link_id = cl.id
             )
             GROUP BY cl.source, s.canonical_name
             HAVING COUNT(*) > 0
@@ -444,11 +444,11 @@ class WorkQueueCoordinator:
             # Get total available articles
             available_query = text(
                 """
-                SELECT COUNT(*) FROM candidate_links
-                WHERE status = 'article'
-                AND id NOT IN (
-                    SELECT candidate_link_id FROM articles
-                    WHERE candidate_link_id IS NOT NULL
+                SELECT COUNT(*) FROM candidate_links cl
+                WHERE cl.status = 'article'
+                AND NOT EXISTS (
+                    SELECT 1 FROM articles a
+                    WHERE a.candidate_link_id = cl.id
                 )
             """
             )
@@ -461,11 +461,11 @@ class WorkQueueCoordinator:
             # Get unique domains
             domain_query = text(
                 """
-                SELECT COUNT(DISTINCT source) FROM candidate_links
-                WHERE status = 'article'
-                AND id NOT IN (
-                    SELECT candidate_link_id FROM articles
-                    WHERE candidate_link_id IS NOT NULL
+                SELECT COUNT(DISTINCT source) FROM candidate_links cl
+                WHERE cl.status = 'article'
+                AND NOT EXISTS (
+                    SELECT 1 FROM articles a
+                    WHERE a.candidate_link_id = cl.id
                 )
             """
             )
