@@ -307,10 +307,14 @@ def _check_extraction_status(session, hours, detailed):
     # Status breakdown - optimized with IS NOT NULL for 7x speedup (22s -> 3s)
     if detailed:
         # Enable parallel query for GROUP BY aggregation (16s -> 2s)
-        safe_session_execute(session, text("SET LOCAL max_parallel_workers_per_gather = 4"))
+        safe_session_execute(
+            session, text("SET LOCAL max_parallel_workers_per_gather = 4")
+        )
         safe_session_execute(session, text("SET LOCAL parallel_setup_cost = 1"))
-        safe_session_execute(session, text("SET LOCAL min_parallel_table_scan_size = 0"))
-        
+        safe_session_execute(
+            session, text("SET LOCAL min_parallel_table_scan_size = 0")
+        )
+
         result = safe_session_execute(
             session,
             text(
@@ -541,13 +545,14 @@ def _check_overall_health(session, hours):
 
 def _check_statistics_freshness(session):
     """Check freshness of database statistics.
-    
+
     Stale statistics can cause poor query plans and slow performance.
     This monitors tables with high write volume.
     """
     # Use direct execute for PostgreSQL system tables (not compatible with SQLite)
     result = session.execute(
-        text("""
+        text(
+            """
             SELECT 
                 schemaname || '.' || relname as table_name,
                 n_tup_ins + n_tup_upd + n_tup_del as modifications,
@@ -560,24 +565,25 @@ def _check_statistics_freshness(session):
             WHERE schemaname = 'public'
             AND relname IN ('article_entities', 'candidate_links', 'articles', 'sources')
             ORDER BY modifications DESC
-        """)
+        """
+        )
     )
-    
+
     rows = result.fetchall()
     if not rows:
         print("  ⚠️  No statistics data available")
         return
-    
+
     stale_count = 0
     high_mod_count = 0
-    
+
     print("  High-write tables:")
     for row in rows:
         table_name = row[0]
         modifications = _to_int(row[1], 0)
         hours_since = float(row[5]) if row[5] is not None else None
         size = row[6]
-        
+
         # Determine status
         status = "✓"
         if hours_since is None:
@@ -590,15 +596,15 @@ def _check_statistics_freshness(session):
             status = f"⚡ {hours_since:.0f}h ago"
         else:
             status = f"✓ {hours_since:.0f}h ago"
-        
+
         if modifications > 10000:
             high_mod_count += 1
             mod_str = f"{modifications:,} changes"
         else:
             mod_str = f"{modifications:,} changes"
-        
+
         print(f"    {table_name:20} {size:>10} {mod_str:>15} {status}")
-    
+
     print()
     if stale_count > 0:
         print(f"  ⚠️  {stale_count} table(s) with stale statistics (>24h)")
