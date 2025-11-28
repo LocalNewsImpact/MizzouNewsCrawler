@@ -55,6 +55,7 @@ jobs:
             -w /workspace \
             us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
             /bin/bash -c "
+              git config --global --add safe.directory /workspace &&
               python -m ruff check . &&
               python -m black --check src/ tests/ web/ &&
               python -m isort --check-only --profile black src/ tests/ web/ &&
@@ -109,7 +110,7 @@ jobs:
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
             us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-            python -m mypy src/ --ignore-missing-imports
+            /bin/bash -c "git config --global --add safe.directory /workspace && python -m mypy src/ --ignore-missing-imports"
 
   security:
     name: Security Scan (weekly/manual only)
@@ -140,7 +141,7 @@ jobs:
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
             us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-            /bin/bash -c "python -m bandit -r src/ -ll -f txt || true" && \
+            /bin/bash -c "git config --global --add safe.directory /workspace && python -m bandit -r src/ -ll -f txt || true" && \
           echo "Bandit found issues but not failing build (review recommended)"
 
       - name: Check dependency vulnerabilities with safety
@@ -149,7 +150,7 @@ jobs:
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
             us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-            /bin/bash -c "python -m safety check --json || true" && \
+            /bin/bash -c "git config --global --add safe.directory /workspace && python -m safety check --json || true" && \
           echo "Safety check completed (review recommended)"
         continue-on-error: true
 
@@ -204,7 +205,7 @@ jobs:
             -w /workspace \
             -e DATABASE_URL="$DATABASE_URL" \
             us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-            alembic upgrade head
+            /bin/bash -c "git config --global --add safe.directory /workspace && alembic upgrade head"
 
       - name: Run unit tests in container
         env:
@@ -221,6 +222,7 @@ jobs:
             -e TEST_DATABASE_URL="$TEST_DATABASE_URL" \
             us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
             /bin/bash -c "
+              git config --global --add safe.directory /workspace &&
               python3 scripts/validate_workflow_templates.py &&
               pytest -q --override-ini='addopts=' -p no:pytest-cov tests/unit/test_argo_workflow_template.py tests/unit/test_verification_no_head.py
             "
@@ -277,7 +279,7 @@ jobs:
             -w /workspace \
             -e DATABASE_URL="$DATABASE_URL" \
             us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-            alembic upgrade head
+            /bin/bash -c "git config --global --add safe.directory /workspace && alembic upgrade head"
 
       - name: Quick validator and targeted tests in container
         env:
@@ -296,6 +298,7 @@ jobs:
             -e PYTEST_ADDOPTS="$PYTEST_ADDOPTS" \
             us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
             /bin/bash -c "
+              git config --global --add safe.directory /workspace &&
               python3 scripts/validate_workflow_templates.py &&
               pytest -q -c /dev/null -p no:pytest_cov -p no:pytest_postgresql tests/unit/test_argo_workflow_template.py tests/unit/test_verification_no_head.py
             "
@@ -352,7 +355,7 @@ jobs:
             -w /workspace \
             -e DATABASE_URL="$DATABASE_URL" \
             us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-            alembic upgrade head
+            /bin/bash -c "git config --global --add safe.directory /workspace && alembic upgrade head"
 
       - name: Run origin-proxy tests only in container
         env:
@@ -370,7 +373,7 @@ jobs:
             -e TEST_DATABASE_URL="$TEST_DATABASE_URL" \
             -e PYTEST_ADDOPTS="$PYTEST_ADDOPTS" \
             us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-            /bin/bash -c "pytest --override-ini addopts='' \$PYTEST_ADDOPTS tests/test_origin_proxy.py tests/test_integration_proxy.py"
+            /bin/bash -c "git config --global --add safe.directory /workspace && pytest --override-ini addopts='' \$PYTEST_ADDOPTS tests/test_origin_proxy.py tests/test_integration_proxy.py"
 
   postgres-integration:
     name: Integration Tests (PostgreSQL)
@@ -436,7 +439,7 @@ jobs:
             -e DATABASE_USER="$DATABASE_USER" \
             -e DATABASE_PASSWORD="$DATABASE_PASSWORD" \
             us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-            alembic upgrade head
+            /bin/bash -c "git config --global --add safe.directory /workspace && alembic upgrade head"
 
       - name: Run all integration tests with PostgreSQL in container
         env:
@@ -466,7 +469,7 @@ jobs:
             -e DATABASE_USER="$DATABASE_USER" \
             -e DATABASE_PASSWORD="$DATABASE_PASSWORD" \
             us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-            /bin/bash -c "pytest -v -m integration --tb=short --no-cov"
+            /bin/bash -c "git config --global --add safe.directory /workspace && pytest -v -m integration --tb=short --no-cov"
 
   integration:
     name: Integration & Coverage
@@ -504,7 +507,7 @@ jobs:
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
             us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-            /bin/bash -c "pytest -m 'not postgres' --cov=src --cov-report=xml --cov-report=html --cov-report=term-missing --cov-fail-under=78"
+            /bin/bash -c "git config --global --add safe.directory /workspace && pytest -m 'not postgres' --cov=src --cov-report=xml --cov-report=html --cov-report=term-missing --cov-fail-under=78"
 
       - name: Generate coverage summary
         if: success()
@@ -513,7 +516,7 @@ jobs:
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
             us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-            python tools/generate_coverage_summary.py coverage.xml coverage-summary.md
+            /bin/bash -c "git config --global --add safe.directory /workspace && python tools/generate_coverage_summary.py coverage.xml coverage-summary.md"
 
   quick-checks-integration:
     name: Quick DB Integration (resync migration)
@@ -589,7 +592,7 @@ jobs:
             -e DATABASE_USER="$DATABASE_USER" \
             -e DATABASE_PASSWORD="$DATABASE_PASSWORD" \
             us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-            pytest -vv tests/alembic/test_resync_sequence_postgres.py -c /dev/null 2>&1 | tee ci-logs/resync-test.log
+            /bin/bash -c "git config --global --add safe.directory /workspace && pytest -vv tests/alembic/test_resync_sequence_postgres.py -c /dev/null" 2>&1 | tee ci-logs/resync-test.log
 
       - name: Upload logs on failure
         if: failure()
@@ -658,7 +661,7 @@ jobs:
             -w /workspace \
             -e DATABASE_URL="$DATABASE_URL" \
             us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-            alembic upgrade head
+            /bin/bash -c "git config --global --add safe.directory /workspace && alembic upgrade head"
 
       - name: Run stress tests with RUN_STRESS_TESTS=1 in container
         env:
@@ -676,4 +679,4 @@ jobs:
             -e TEST_DATABASE_URL="$TEST_DATABASE_URL" \
             -e RUN_STRESS_TESTS="$RUN_STRESS_TESTS" \
             us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-            pytest --override-ini addopts="-q" tests/test_versioning_concurrent_stress.py
+            /bin/bash -c "git config --global --add safe.directory /workspace && pytest --override-ini addopts='-q' tests/test_versioning_concurrent_stress.py"
