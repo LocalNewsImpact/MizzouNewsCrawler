@@ -213,7 +213,9 @@ jobs:
   build-ml-base:
     name: Build ML Base Image
     needs: [detect-changes, build-base]
-    if: needs.detect-changes.outputs.ml-base == 'true'
+    if: |
+      needs.detect-changes.outputs.ml-base == 'true' &&
+      (needs.build-base.result == 'success' || needs.build-base.result == 'skipped')
     runs-on: ubuntu-latest
 
     steps:
@@ -238,7 +240,9 @@ jobs:
   build-processor:
     name: Build Processor
     needs: [detect-changes, build-ml-base]
-    if: needs.detect-changes.outputs.processor == 'true'
+    if: |
+      needs.detect-changes.outputs.processor == 'true' &&
+      (needs.build-ml-base.result == 'success' || needs.build-ml-base.result == 'skipped')
     runs-on: ubuntu-latest
 
     steps:
@@ -263,7 +267,9 @@ jobs:
   build-api:
     name: Build API
     needs: [detect-changes, build-base]
-    if: needs.detect-changes.outputs.api == 'true'
+    if: |
+      needs.detect-changes.outputs.api == 'true' &&
+      (needs.build-base.result == 'success' || needs.build-base.result == 'skipped')
     runs-on: ubuntu-latest
 
     steps:
@@ -288,7 +294,9 @@ jobs:
   build-crawler:
     name: Build Crawler
     needs: [detect-changes, build-base]
-    if: needs.detect-changes.outputs.crawler == 'true'
+    if: |
+      needs.detect-changes.outputs.crawler == 'true' &&
+      (needs.build-base.result == 'success' || needs.build-base.result == 'skipped')
     runs-on: ubuntu-latest
 
     steps:
@@ -313,7 +321,9 @@ jobs:
   build-migrator:
     name: Build Migrator
     needs: [detect-changes, build-base]
-    if: needs.detect-changes.outputs.migrator == 'true'
+    if: |
+      needs.detect-changes.outputs.migrator == 'true' &&
+      (needs.build-base.result == 'success' || needs.build-base.result == 'skipped')
     runs-on: ubuntu-latest
 
     steps:
@@ -447,11 +457,12 @@ jobs:
           if [ "${{ needs.detect-changes.outputs.services-to-build }}" == "none" ]; then
             echo "ℹ️  No service rebuilds detected (documentation/config-only changes)"
           else
-            if [ "${{ needs.wait-for-builds.result }}" == "success" ]; then
+            BUILD_RESULT="${{ needs.wait-for-builds.result }}"
+            if [ "$BUILD_RESULT" == "success" ] || [ "$BUILD_RESULT" == "skipped" ]; then
               echo "✅ All Cloud Build jobs completed successfully"
               echo "🚀 Services are ready for deployment to production"
             else
-              echo "❌ Build wait job failed"
+              echo "❌ Build wait job failed (result: $BUILD_RESULT)"
               exit 1
             fi
           fi
