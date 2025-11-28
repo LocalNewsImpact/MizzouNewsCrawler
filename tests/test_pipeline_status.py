@@ -121,6 +121,7 @@ class TestExtractionStatus:
             Mock(scalar=lambda: 123),  # ready for extraction
             Mock(scalar=lambda: 4892),  # total extracted
             Mock(scalar=lambda: 98),  # extracted recent
+            Mock(),  # SET LOCAL parallel_setup_cost = 1
             status_breakdown_result,  # status breakdown (iterable)
         ]
 
