@@ -98,6 +98,19 @@ def handle_pipeline_status_command(args) -> int:
                 print(f"  ⚠️  Could not compute overall health: {error_type}")
             print()
 
+            # Database statistics health (PostgreSQL-only, requires clean transaction)
+            print("━━━ DATABASE STATISTICS HEALTH ━━━")
+            try:
+                # Use a fresh connection for system catalog queries
+                db = DatabaseManager()
+                with db.get_session() as stats_session:
+                    _check_statistics_freshness(stats_session)
+            except Exception as e:
+                error_type = type(e).__name__
+                logger.debug(f"Statistics check error: {e}", exc_info=True)
+                print(f"  ⚠️  Statistics monitoring not available ({error_type})")
+            print()
+
         print("=" * 80)
         return 0
 
@@ -524,3 +537,73 @@ def _check_overall_health(session, hours):
         print("  ⚠️  Pipeline has multiple stalled stages")
     else:
         print("  ❌ Pipeline appears stalled or blocked!")
+
+
+def _check_statistics_freshness(session):
+    """Check freshness of database statistics.
+    
+    Stale statistics can cause poor query plans and slow performance.
+    This monitors tables with high write volume.
+    """
+    # Use direct execute for PostgreSQL system tables (not compatible with SQLite)
+    result = session.execute(
+        text("""
+            SELECT 
+                schemaname || '.' || relname as table_name,
+                n_tup_ins + n_tup_upd + n_tup_del as modifications,
+                last_analyze,
+                last_autoanalyze,
+                GREATEST(last_analyze, last_autoanalyze) as last_stats_update,
+                EXTRACT(epoch FROM now() - GREATEST(last_analyze, last_autoanalyze))/3600 as hours_since_analyze,
+                pg_size_pretty(pg_total_relation_size(schemaname||'.'||relname)) as size
+            FROM pg_stat_user_tables
+            WHERE schemaname = 'public'
+            AND relname IN ('article_entities', 'candidate_links', 'articles', 'sources')
+            ORDER BY modifications DESC
+        """)
+    )
+    
+    rows = result.fetchall()
+    if not rows:
+        print("  ⚠️  No statistics data available")
+        return
+    
+    stale_count = 0
+    high_mod_count = 0
+    
+    print("  High-write tables:")
+    for row in rows:
+        table_name = row[0]
+        modifications = _to_int(row[1], 0)
+        hours_since = float(row[5]) if row[5] is not None else None
+        size = row[6]
+        
+        # Determine status
+        status = "✓"
+        if hours_since is None:
+            status = "⚠️  NEVER"
+            stale_count += 1
+        elif hours_since > 24:
+            status = f"⚠️  {hours_since:.0f}h ago"
+            stale_count += 1
+        elif hours_since > 12:
+            status = f"⚡ {hours_since:.0f}h ago"
+        else:
+            status = f"✓ {hours_since:.0f}h ago"
+        
+        if modifications > 10000:
+            high_mod_count += 1
+            mod_str = f"{modifications:,} changes"
+        else:
+            mod_str = f"{modifications:,} changes"
+        
+        print(f"    {table_name:20} {size:>10} {mod_str:>15} {status}")
+    
+    print()
+    if stale_count > 0:
+        print(f"  ⚠️  {stale_count} table(s) with stale statistics (>24h)")
+        print("  💡 Consider running: ANALYZE <table_name>")
+    elif high_mod_count > 0:
+        print(f"  ✓ Statistics fresh ({high_mod_count} high-activity tables)")
+    else:
+        print("  ✓ All statistics up to date")
