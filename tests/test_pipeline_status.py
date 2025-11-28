@@ -124,7 +124,7 @@ class TestExtractionStatus:
             status_breakdown_result,  # status breakdown (iterable)
         ]
 
-        _check_extraction_status(mock_session, 24, False)
+        _check_extraction_status(mock_session, 24, True)
 
         captured = capsys.readouterr()
         assert "Ready for extraction: 123" in captured.out
