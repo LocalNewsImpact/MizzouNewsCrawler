@@ -1499,6 +1499,59 @@ class ContentExtractor:
             "driver_method": getattr(self, "_driver_method", None),
         }
 
+    def get_driver_telemetry_snapshot(self, domain: str | None = None) -> Dict[str, Any]:
+        """Return a JSON-safe telemetry snapshot for driver and proxy health."""
+
+        snapshot: Dict[str, Any] = {
+            "captured_at": datetime.utcnow().isoformat(),
+            "driver": self.get_driver_stats(),
+            "proxy": None,
+        }
+
+        try:
+            active_provider = self._resolve_active_proxy_provider()
+            proxy_info: Dict[str, Any] = {"active_provider": active_provider.value}
+            proxy_manager = getattr(self, "proxy_manager", None)
+            if proxy_manager is not None:
+                config = proxy_manager.get_active_config()
+                proxy_info.update(
+                    {
+                        "proxy_url": mask_proxy_url(getattr(config, "url", None)),
+                        "success_count": getattr(config, "success_count", None),
+                        "failure_count": getattr(config, "failure_count", None),
+                        "success_rate": getattr(config, "success_rate", None),
+                        "health": getattr(config, "health_status", None),
+                    }
+                )
+            snapshot["proxy"] = proxy_info
+        except Exception as exc:
+            logger.debug("Unable to capture proxy telemetry snapshot: %s", exc)
+
+        if domain:
+            domain_info: Dict[str, Any] = {
+                "name": domain,
+                "error_count": self.domain_error_counts.get(domain),
+                "selenium_failures": self._selenium_failure_counts.get(domain, 0),
+            }
+
+            backoff_until = self.domain_backoff_until.get(domain)
+            if backoff_until:
+                domain_info["backoff_until"] = datetime.utcfromtimestamp(
+                    backoff_until
+                ).isoformat()
+                domain_info["captcha_backoff_active"] = time.time() < backoff_until
+            else:
+                domain_info["captcha_backoff_active"] = False
+
+            if domain in self.domain_request_times:
+                domain_info["last_request_age_sec"] = max(
+                    0.0, time.time() - self.domain_request_times[domain]
+                )
+
+            snapshot["domain"] = domain_info
+
+        return snapshot
+
     def extract_article_data(self, html: str, url: str) -> Dict[str, Any]:
         """Extract article metadata and content from HTML.
 

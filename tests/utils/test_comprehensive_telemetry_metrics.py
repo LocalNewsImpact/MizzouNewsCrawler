@@ -60,6 +60,43 @@ def test_extraction_metrics_tracks_methods(monkeypatch):
     assert metrics.field_extraction["primary"]["metadata"] is True
 
 
+def test_set_driver_metrics_sanitizes_payload():
+    metrics = ct.ExtractionMetrics(
+        operation_id="op-driver",
+        article_id="article-driver",
+        url="https://example.com/story",
+        publisher="Example News",
+    )
+
+    captured = datetime(2026, 1, 1, 3, 4, 5)
+    payload = {
+        "captured_at": captured,
+        "driver": {"driver_reuse_count": 2, "driver_reuse_limit": 5},
+    }
+
+    metrics.set_driver_metrics(payload)
+
+    assert metrics.driver_metrics["captured_at"] == str(captured)
+    assert metrics.driver_metrics["driver"]["driver_reuse_count"] == 2
+
+
+def test_set_driver_metrics_handles_unserializable_payload():
+    metrics = ct.ExtractionMetrics(
+        operation_id="op-driver-raw",
+        article_id="article-driver-raw",
+        url="https://example.com/story",
+        publisher="Example News",
+    )
+
+    class CustomObject:
+        pass
+
+    metrics.set_driver_metrics({"unexpected": CustomObject()})
+
+    assert "raw" in metrics.driver_metrics
+    assert "unexpected" in metrics.driver_metrics["raw"]
+
+
 @pytest.mark.postgres
 @pytest.mark.integration
 def test_record_extraction_emits_content_type_detection(cloud_sql_session):
@@ -626,6 +663,59 @@ def test_comprehensive_telemetry_resolve_numeric_confidence():
         ct.ComprehensiveExtractionTelemetry._resolve_numeric_confidence(
             {"confidence_score": "not_a_number"}
         )
+
+
+def test_get_driver_metrics_summary(tmp_path):
+    db_path = tmp_path / "telemetry-driver.db"
+    telemetry = ct.ComprehensiveExtractionTelemetry(db_path=str(db_path))
+
+    def _insert_sample(article_id: str, reuse: int, limit: int, failures: int):
+        metrics = ct.ExtractionMetrics(
+            operation_id=f"op-{article_id}",
+            article_id=article_id,
+            url=f"https://example.com/{article_id}",
+            publisher="Example",
+        )
+        metrics.set_driver_metrics(
+            {
+                "captured_at": "2026-01-01T00:00:00",
+                "driver": {
+                    "driver_reuse_count": reuse,
+                    "driver_reuse_limit": limit,
+                    "driver_method": "undetected-chromedriver",
+                },
+                "proxy": {"active_provider": "squid"},
+                "domain": {
+                    "name": "example.com",
+                    "selenium_failures": failures,
+                    "captcha_backoff_active": failures > 0,
+                },
+            }
+        )
+        metrics.finalize({"title": "Story", "content": "body"})
+        telemetry.record_extraction(metrics)
+
+    _insert_sample("article-driver-1", reuse=2, limit=5, failures=0)
+    _insert_sample("article-driver-2", reuse=6, limit=6, failures=2)
+
+    summary = telemetry.get_driver_metrics_summary(hours=None)
+
+    assert summary["sample_count"] == 2
+    # Average reuse should reflect (2 + 6) / 2 = 4
+    assert summary["avg_reuse_count"] == 4
+    assert summary["max_reuse_count"] == 6
+    assert summary["reuse_limit_hits"] == 1
+    assert summary["captcha_backoff_events"] == 1
+
+    providers = {entry["provider"]: entry["samples"] for entry in summary["proxy_provider_breakdown"]}
+    assert providers["squid"] == 2
+
+    methods = {entry["method"]: entry["samples"] for entry in summary["driver_method_breakdown"]}
+    assert methods["undetected-chromedriver"] == 2
+
+    top_domains = summary["top_domains_by_selenium_failures"]
+    assert top_domains[0]["domain"] == "example.com"
+    assert top_domains[0]["selenium_failures"] == 2
         is None
     )
 

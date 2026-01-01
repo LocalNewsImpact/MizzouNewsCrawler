@@ -268,6 +268,29 @@ def _to_int(value, default=0):
         return default
 
 
+def _attach_driver_metrics(
+    metrics: ExtractionMetrics,
+    extractor: Any,
+    domain: str | None,
+):
+    """Attach driver/proxy telemetry snapshot to the current metrics object."""
+
+    if not metrics or not extractor:
+        return
+
+    snapshot = None
+    try:
+        snapshot = extractor.get_driver_telemetry_snapshot(domain)
+    except AttributeError:
+        return
+    except Exception:
+        logger.exception("Failed to capture driver telemetry snapshot")
+        return
+
+    if snapshot:
+        metrics.set_driver_metrics(snapshot)
+
+
 _ENTITY_EXTRACTOR: Any = None  # ArticleEntityExtractor lazy loaded
 _CONTENT_TYPE_DETECTOR: ContentTypeDetector | None = None
 
@@ -1307,6 +1330,7 @@ def _process_batch(
                         error_msg = f"Proxy challenge detected: {title[:100]}"
                         metrics.error_message = error_msg
                         metrics.error_type = "proxy_blocked"
+                        _attach_driver_metrics(metrics, extractor, domain)
                         metrics.finalize(content)
                         telemetry.record_extraction(metrics)
                         continue
@@ -1597,6 +1621,7 @@ def _process_batch(
                     text_hash = calculate_content_hash(content_text)
 
                     metrics.set_content_type_detection(detection_payload)
+                    _attach_driver_metrics(metrics, extractor, domain)
                     metrics.finalize(content or {})
 
                     # Diagnostic: optionally dump SQL and parameters before execution
@@ -1769,6 +1794,7 @@ def _process_batch(
                     metrics.error_message = "No title extracted"
                     metrics.error_type = "extraction_failure"
                     metrics.set_content_type_detection(detection_payload)
+                    _attach_driver_metrics(metrics, extractor, domain)
                     metrics.finalize(content or {})
                     telemetry.record_extraction(metrics)
 
@@ -1788,6 +1814,7 @@ def _process_batch(
 
                 metrics.error_message = str(e)
                 metrics.error_type = "not_found"
+                _attach_driver_metrics(metrics, extractor, domain)
                 metrics.finalize({})
                 telemetry.record_extraction(metrics)
                 # Skip counting 404s against aggregate domain failures
@@ -1820,6 +1847,7 @@ def _process_batch(
 
                 metrics.error_message = str(e)
                 metrics.error_type = "proxy_challenge"
+                _attach_driver_metrics(metrics, extractor, domain)
                 metrics.finalize({})
                 telemetry.record_extraction(metrics)
                 continue
@@ -1906,6 +1934,7 @@ def _process_batch(
 
                 metrics.error_message = str(e)
                 metrics.error_type = "exception"
+                _attach_driver_metrics(metrics, extractor, domain)
                 metrics.finalize({})
                 telemetry.record_extraction(metrics)
                 session.rollback()

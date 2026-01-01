@@ -42,6 +42,7 @@ class ExtractionTelemetryV2(Base):
     extracted_fields = Column(Text)
     final_field_attribution = Column(Text)
     alternative_extractions = Column(Text)
+    driver_metrics = Column(Text)
 
     # Results
     content_length = Column(Integer)
