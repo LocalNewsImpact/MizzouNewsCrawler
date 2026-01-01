@@ -6,6 +6,9 @@ metadata:
 spec:
   serviceAccountName: argo-workflow
   entrypoint: pipeline
+  ttlStrategy:
+    secondsAfterSuccess: 43200  # 12 hours to keep logs accessible
+    secondsAfterFailure: 43200  # 12 hours ensures failed runs are cleaned up too
 
   # Define reusable templates for the pipeline
   templates:

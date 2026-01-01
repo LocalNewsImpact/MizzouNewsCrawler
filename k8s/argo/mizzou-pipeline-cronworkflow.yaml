@@ -13,6 +13,9 @@ spec:
   successfulJobsHistoryLimit: 5
   failedJobsHistoryLimit: 5
   workflowSpec:
+    ttlStrategy:
+      secondsAfterSuccess: 43200  # 12 hours
+      secondsAfterFailure: 43200  # 12 hours
     entrypoint: mizzou-pipeline-wrapper
     serviceAccountName: argo-workflow
     # Add workflow-level metadata for log correlation
