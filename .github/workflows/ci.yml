@@ -408,10 +408,24 @@ jobs:
             us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:latest \
             /bin/bash -c "
               set -euo pipefail
-              export DEBIAN_FRONTEND=noninteractive
-              apt-get update >/dev/null && apt-get install -y xvfb >/dev/null
+              if ! command -v Xvfb >/dev/null; then
+                export DEBIAN_FRONTEND=noninteractive
+                mkdir -p /var/lib/apt/lists/partial && chmod -R 755 /var/lib/apt/lists
+                apt-get update >/dev/null && apt-get install -y xvfb >/dev/null
+              fi
+              cat <<'WRAPPER' >/usr/local/bin/run-with-xvfb.sh
+#!/bin/bash
+set -euo pipefail
+DISPLAY_ID=":99"
+XVFB_ARGS="-screen 0 1920x1080x24 -ac +extension GLX +render -noreset"
+Xvfb "$DISPLAY_ID" $XVFB_ARGS &
+XVFB_PID=$!
+trap "kill $XVFB_PID" EXIT
+DISPLAY=$DISPLAY_ID "$@"
+WRAPPER
+              chmod +x /usr/local/bin/run-with-xvfb.sh
               chown -R appuser:appuser /workspace
-              su appuser -c 'export SELENIUM_EXECUTION_MODE=headful && xvfb-run -a pytest -m enable_selenium tests/test_selenium_only_feature.py -vv'
+              su appuser -c 'export SELENIUM_EXECUTION_MODE=headful && /usr/local/bin/run-with-xvfb.sh pytest -m enable_selenium tests/test_selenium_only_feature.py -vv'
             "
 
   postgres-integration:
