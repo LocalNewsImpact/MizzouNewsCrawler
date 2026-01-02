@@ -373,10 +373,65 @@ jobs:
             us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
             /bin/bash -c "set -euo pipefail; git config --global --add safe.directory /workspace && pytest -q --maxfail=1 -o addopts= tests/backend/test_lifecycle.py tests/test_deployment_requirements.py"
 
+  selenium-headful:
+    name: Selenium Headful Regression
+    runs-on: ubuntu-latest
+    needs: [unit]
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Clean Python bytecode cache
+        run: find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Configure Docker for GCP Artifact Registry
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+      - name: Pull crawler image
+        run: docker pull us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:latest
+
+      - name: Run Selenium regression tests (headful-first)
+        env:
+          PYTHONWARNINGS: ignore
+        run: |
+          docker run --rm \
+            --user root \
+            --network host \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:latest \
+            /bin/bash -c "
+              set -euo pipefail
+              if ! command -v Xvfb >/dev/null; then
+                export DEBIAN_FRONTEND=noninteractive
+                mkdir -p /var/lib/apt/lists/partial && chmod -R 755 /var/lib/apt/lists
+                apt-get update >/dev/null && apt-get install -y xvfb >/dev/null
+              fi
+              cat <<'WRAPPER' >/usr/local/bin/run-with-xvfb.sh
+              #!/bin/bash
+              set -euo pipefail
+              DISPLAY_ID=":99"
+              XVFB_ARGS="-screen 0 1920x1080x24 -ac +extension GLX +render -noreset"
+              Xvfb "$DISPLAY_ID" $XVFB_ARGS &
+              XVFB_PID=$!
+              trap "kill $XVFB_PID" EXIT
+              DISPLAY=$DISPLAY_ID "$@"
+              WRAPPER
+              chmod +x /usr/local/bin/run-with-xvfb.sh
+              chown -R appuser:appuser /workspace
+              su appuser -c 'export SELENIUM_EXECUTION_MODE=headful && /usr/local/bin/run-with-xvfb.sh pytest -m enable_selenium tests/test_selenium_only_feature.py -vv'
+            "
+
   postgres-integration:
     name: Integration Tests (PostgreSQL)
     runs-on: ubuntu-latest
-    needs: [unit]
+    needs: [unit, selenium-headful]
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     # Run on PRs to main (removed push condition since we no longer trigger on push)
 
@@ -473,7 +528,7 @@ jobs:
     name: Integration & Coverage
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    needs: [unit]
+    needs: [unit, selenium-headful]
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     # Run on PRs to main (removed push condition since we no longer trigger on push)
     # Note: This job runs coverage on non-PostgreSQL tests
@@ -519,7 +574,7 @@ jobs:
   quick-checks-integration:
     name: Quick DB Integration (resync migration)
     runs-on: ubuntu-latest
-    needs: [unit]
+    needs: [unit, selenium-headful]
     # Only run on manual dispatch to main branch (requires TEST_DATABASE_URL secret)
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
 

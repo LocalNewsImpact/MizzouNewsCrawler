@@ -103,6 +103,9 @@ class ExtractionMetrics:
         self.proxy_status: int | None = None
         self.proxy_error: str | None = None
 
+        # Driver metrics (ChromeDriver lifecycle, proxy provider health)
+        self.driver_metrics: dict[str, Any] | None = None
+
     def start_method(self, method_name: str):
         """Start timing a specific extraction method."""
         self.methods_attempted.append(method_name)
@@ -253,6 +256,28 @@ class ExtractionMetrics:
             # Truncate long error messages
             self.proxy_error = proxy_error[:500]
 
+    def set_driver_metrics(self, payload: dict[str, Any] | None):
+        """Attach driver/proxy telemetry payload for downstream analysis."""
+
+        if payload is None:
+            self.driver_metrics = None
+            return
+
+        def _driver_metrics_encoder(value: Any) -> Any:
+            if isinstance(value, datetime):
+                return str(value)
+            raise TypeError(f"Unsupported driver metrics value: {type(value).__name__}")
+
+        try:
+            # Ensure payload is JSON-serializable by round-tripping through dumps/loads
+            sanitized = json.loads(json.dumps(payload, default=_driver_metrics_encoder))
+        except (TypeError, ValueError) as exc:
+            logger.warning("Failed to sanitize driver metrics payload: %s", exc)
+            self.driver_metrics = {"raw": repr(payload)}
+            return
+
+        self.driver_metrics = sanitized
+
     def finalize(self, final_result: dict[str, Any]):
         """Finalize metrics with the overall extraction result."""
         self.end_time = datetime.utcnow()
@@ -331,7 +356,6 @@ class ComprehensiveExtractionTelemetry:
     # 1. alembic upgrade head (for new deployments)
     # 2. Manual SQL scripts (for existing databases)
     # 3. NOT from application code during normal operation
-
     def record_extraction(self, metrics: ExtractionMetrics):
         """Record detailed extraction metrics."""
 
@@ -359,10 +383,11 @@ class ComprehensiveExtractionTelemetry:
                 method_timings, method_success, method_errors,
                 field_extraction, extracted_fields,
                 final_field_attribution, alternative_extractions,
+                driver_metrics,
                 content_length, is_success, error_message, error_type,
                 created_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     metrics.operation_id,
@@ -399,6 +424,11 @@ class ComprehensiveExtractionTelemetry:
                     json.dumps(metrics.extracted_fields),
                     json.dumps(metrics.final_field_attribution),
                     json.dumps(metrics.alternative_extractions),
+                    (
+                        json.dumps(metrics.driver_metrics)
+                        if metrics.driver_metrics is not None
+                        else None
+                    ),
                     metrics.content_length,
                     is_success,  # Keep as boolean for PostgreSQL compatibility
                     metrics.error_message,
@@ -1393,3 +1423,103 @@ class ComprehensiveExtractionTelemetry:
 
         results.sort(key=lambda item: item["count"], reverse=True)
         return results
+
+    def get_driver_metrics_summary(self, hours: int = 24) -> dict[str, Any]:
+        """Summarize driver/proxy telemetry for recent extraction activity."""
+
+        params: list[Any] = []
+        where_clause = "WHERE driver_metrics IS NOT NULL"
+
+        if hours is not None:
+            cutoff = datetime.utcnow() - timedelta(hours=hours)
+            where_clause += " AND created_at >= ?"
+            params.append(cutoff)
+
+        query = (
+            "SELECT driver_metrics " "FROM extraction_telemetry_v2 " f"{where_clause}"
+        )
+
+        reuse_counts: list[float] = []
+        reuse_limit_hits = 0
+        provider_counts: dict[str, int] = defaultdict(int)
+        driver_methods: dict[str, int] = defaultdict(int)
+        domain_failures: dict[str, float] = defaultdict(float)
+        captcha_backoff_events = 0
+        sample_count = 0
+
+        with self._store.connection() as conn:
+            cursor = conn.execute(query, params)
+            try:
+                rows = cursor.fetchall()
+            finally:
+                cursor.close()
+
+        for (payload_raw,) in rows:
+            payload = self._safe_json_loads(payload_raw, None)
+            if not payload:
+                continue
+
+            sample_count += 1
+            driver = payload.get("driver") or {}
+            reuse_value = driver.get("driver_reuse_count")
+            if isinstance(reuse_value, (int, float)):
+                reuse_counts.append(float(reuse_value))
+
+            reuse_limit = driver.get("driver_reuse_limit")
+            if (
+                isinstance(reuse_limit, (int, float))
+                and isinstance(reuse_value, (int, float))
+                and reuse_value >= reuse_limit
+            ):
+                reuse_limit_hits += 1
+
+            driver_method = driver.get("driver_method") or "unknown"
+            driver_methods[driver_method] += 1
+
+            proxy = payload.get("proxy") or {}
+            provider = proxy.get("active_provider") or "unknown"
+            provider_counts[provider] += 1
+
+            domain = payload.get("domain") or {}
+            domain_name = domain.get("name")
+            failures = domain.get("selenium_failures")
+            if domain_name and isinstance(failures, (int, float)) and failures > 0:
+                domain_failures[domain_name] += float(failures)
+
+            if domain.get("captcha_backoff_active"):
+                captcha_backoff_events += 1
+
+        avg_reuse = sum(reuse_counts) / len(reuse_counts) if reuse_counts else 0.0
+        max_reuse = max(reuse_counts) if reuse_counts else 0.0
+
+        provider_breakdown = [
+            {"provider": provider, "samples": count}
+            for provider, count in sorted(
+                provider_counts.items(), key=lambda item: item[1], reverse=True
+            )
+        ]
+
+        driver_method_breakdown = [
+            {"method": method_name, "samples": count}
+            for method_name, count in sorted(
+                driver_methods.items(), key=lambda item: item[1], reverse=True
+            )
+        ]
+
+        top_domains = [
+            {"domain": domain_name, "selenium_failures": failures}
+            for domain_name, failures in sorted(
+                domain_failures.items(), key=lambda item: item[1], reverse=True
+            )[:5]
+        ]
+
+        return {
+            "sample_count": sample_count,
+            "avg_reuse_count": avg_reuse,
+            "max_reuse_count": max_reuse,
+            "reuse_limit_hits": reuse_limit_hits,
+            "proxy_provider_breakdown": provider_breakdown,
+            "driver_method_breakdown": driver_method_breakdown,
+            "captcha_backoff_events": captcha_backoff_events,
+            "top_domains_by_selenium_failures": top_domains,
+        }

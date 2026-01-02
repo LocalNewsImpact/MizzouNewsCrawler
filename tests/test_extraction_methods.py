@@ -20,7 +20,7 @@ from src.crawler import ContentExtractor
 @pytest.fixture
 def extractor():
     """Create a ContentExtractor instance for testing."""
-    return ContentExtractor(timeout=10)
+    return ContentExtractor(timeout=10, selenium_mode="headless")
 
 
 @pytest.fixture

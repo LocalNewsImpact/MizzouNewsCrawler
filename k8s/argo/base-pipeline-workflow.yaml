@@ -6,6 +6,9 @@ metadata:
 spec:
   serviceAccountName: argo-workflow
   entrypoint: pipeline
+  ttlStrategy:
+    secondsAfterSuccess: 43200  # 12 hours to keep logs accessible
+    secondsAfterFailure: 43200  # 12 hours ensures failed runs are cleaned up too
 
   # Define reusable templates for the pipeline
   templates:
@@ -444,6 +447,10 @@ spec:
             name: squid-proxy-credentials
             key: selenium-proxy-url
             optional: true
+      - name: SELENIUM_USER_DATA_DIR
+        value: "/var/selenium/profile"
+      - name: SELENIUM_PROFILE_READONLY
+        value: "true"
       # Rate limiting
       - name: INTER_REQUEST_MIN
         value: "{{inputs.parameters.inter-request-min}}"
@@ -466,6 +473,10 @@ spec:
       # Bypass proxy for internal services
       - name: NO_PROXY
         value: "localhost,127.0.0.1,metadata.google.internal,huggingface.co,*.huggingface.co"
+      volumeMounts:
+      - name: chrome-profile
+        mountPath: /var/selenium/profile
+        readOnly: true
       resources:
         requests:
           cpu: 250m
@@ -473,6 +484,10 @@ spec:
         limits:
           cpu: 1000m
           memory: 6Gi
+    volumes:
+    - name: chrome-profile
+      secret:
+        secretName: chrome-profile-macos-default
 
   # Wait template: poll DB until a minimum number of candidate links exist
   - name: wait-for-candidates

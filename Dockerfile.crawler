@@ -22,7 +22,8 @@ RUN apt-get clean && \
         libxss1 \
         xdg-utils \
         libxdamage1 \
-        libx11-xcb1 || \
+        libx11-xcb1 \
+        xvfb || \
      apt-get install -y --no-install-recommends --fix-missing \
         chromium \
         chromium-driver \
@@ -31,7 +32,8 @@ RUN apt-get clean && \
         libxss1 \
         xdg-utils \
         libxdamage1 \
-        libx11-xcb1) && \
+        libx11-xcb1 \
+        xvfb) && \
     rm -rf /var/lib/apt/lists/* && \
     # Create cache directories for Selenium/undetected-chromedriver
     mkdir -p /opt/chromedriver-cache /home/appuser/.wdm && \
@@ -75,6 +77,7 @@ COPY --chown=appuser:appuser src/ ./src/
 COPY --chown=appuser:appuser lookups/ ./lookups/
 COPY --chown=appuser:appuser orchestration/ ./orchestration/
 COPY --chown=appuser:appuser sitecustomize.py ./sitecustomize.py
+COPY --chown=appuser:appuser fingerprints/ ./fingerprints/
 
 # Create data directory for SQLite (will be replaced with Cloud SQL)
 RUN mkdir -p /app/data && chown -R appuser:appuser /app/data

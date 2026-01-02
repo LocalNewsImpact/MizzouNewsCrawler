@@ -203,6 +203,21 @@ python -m src.cli.cli_modular list-sources [--county Boone]
 - `ENABLE_ENTITY_EXTRACTION=true` (processor handles gazetteer NER)
 - `ENABLE_WIRE_DETECTION=true` (processor handles wire service detection)
 
+### Extraction Site-Access Testing Protocol
+
+**CRITICAL:** When debugging extraction-path site access (PerimeterX, Akamai, captcha loops, etc.), run HTTP/S tests from an active extraction pod, never from the processor or API deployments. Only extraction pods faithfully reproduce crawler behavior (ChromeDriver, stealth headers, proxy wiring); other services are fine for unit/integration testing but will give misleading results for extraction diagnostics.
+
+1. Locate a running extraction pod (names start with `extraction-`) via `kubectl get pods -n production | grep extraction-`.
+2. Exec into that pod/container and run your `curl`, Python, or Selenium snippet there:
+
+  ```bash
+  kubectl exec -n production extraction-abcdef-12345 -- bash -c "python /app/scripts/debug_request.py"
+  ```
+
+3. Capture the exact response (status, headers, challenge HTML) before switching proxies or adjusting retry budgets.
+
+**Never** run site-access diagnostics from processor or API pods—add any temporary tooling directly to the extraction image if needed.
+
 ## Integration Points & Cross-Component Patterns
 
 ### MediaCloud Wire Detection

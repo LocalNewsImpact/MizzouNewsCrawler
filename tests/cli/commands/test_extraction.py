@@ -166,6 +166,44 @@ def test_handle_extraction_command_handles_exception(monkeypatch):
     assert "closed" in errors
 
 
+def test_attach_driver_metrics_passes_snapshot():
+    class FakeMetrics:
+        def __init__(self):
+            self.payload = None
+
+        def set_driver_metrics(self, payload):
+            self.payload = payload
+
+    class FakeExtractor:
+        def get_driver_telemetry_snapshot(self, domain):
+            return {"driver": {"driver_reuse_count": 1}, "domain": {"name": domain}}
+
+    metrics = FakeMetrics()
+
+    extraction._attach_driver_metrics(metrics, FakeExtractor(), "example.com")
+
+    assert metrics.payload["domain"]["name"] == "example.com"
+    assert metrics.payload["driver"]["driver_reuse_count"] == 1
+
+
+def test_attach_driver_metrics_handles_missing_method():
+    class FakeMetrics:
+        def __init__(self):
+            self.calls = 0
+
+        def set_driver_metrics(self, payload):
+            self.calls += 1
+
+    class IncompatibleExtractor:
+        pass
+
+    metrics = FakeMetrics()
+
+    extraction._attach_driver_metrics(metrics, IncompatibleExtractor(), "example.com")
+
+    assert metrics.calls == 0
+
+
 def test_format_cleaned_authors_normalizes_output():
     assert extraction._format_cleaned_authors([" Alice ", ""]) == "Alice"
     assert extraction._format_cleaned_authors(["Bob", "Carol"]) == "Bob, Carol"

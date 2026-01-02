@@ -181,6 +181,8 @@ jobs:
     name: Build Base Image
     needs: detect-changes
     runs-on: ubuntu-latest
+    outputs:
+      build_id: ${{ steps.trigger.outputs.build_id }}
 
     steps:
       - name: Skip base build (not requested)
@@ -201,11 +203,13 @@ jobs:
         uses: google-github-actions/setup-gcloud@v1
 
       - name: Trigger Cloud Build
+        id: trigger
         if: needs.detect-changes.outputs.base == 'true'
         run: |
           set +e
           BUILD_ID=$(gcloud builds triggers run build-base-manual \
             --branch="${{ github.ref_name }}" \
+            --project="${{ secrets.GCP_PROJECT }}" \
             --format="value(metadata.build.id)" 2>&1)
           EXIT_CODE=$?
           set -e
@@ -215,11 +219,14 @@ jobs:
             exit 1
           fi
           echo "✅ Base image build triggered (build ID: $BUILD_ID)"
+          echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
 
   build-ml-base:
     name: Build ML Base Image
     needs: [detect-changes, build-base]
     runs-on: ubuntu-latest
+    outputs:
+      build_id: ${{ steps.trigger.outputs.build_id }}
 
     steps:
       - name: Skip ml-base build (not requested)
@@ -240,11 +247,13 @@ jobs:
         uses: google-github-actions/setup-gcloud@v1
 
       - name: Trigger Cloud Build
+        id: trigger
         if: needs.detect-changes.outputs.ml_base == 'true'
         run: |
           set +e
           BUILD_ID=$(gcloud builds triggers run build-ml-base-manual \
             --branch="${{ github.ref_name }}" \
+            --project="${{ secrets.GCP_PROJECT }}" \
             --format="value(metadata.build.id)" 2>&1)
           EXIT_CODE=$?
           set -e
@@ -254,11 +263,14 @@ jobs:
             exit 1
           fi
           echo "✅ ML base image build triggered (build ID: $BUILD_ID)"
+          echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
 
   build-processor:
     name: Build Processor
     needs: [detect-changes, build-ml-base]
     runs-on: ubuntu-latest
+    outputs:
+      build_id: ${{ steps.trigger.outputs.build_id }}
 
     steps:
       - name: Skip processor build (not requested)
@@ -279,11 +291,13 @@ jobs:
         uses: google-github-actions/setup-gcloud@v1
 
       - name: Trigger Cloud Build
+        id: trigger
         if: needs.detect-changes.outputs.processor == 'true'
         run: |
           set +e
           BUILD_ID=$(gcloud builds triggers run build-processor-manual \
             --branch="${{ github.ref_name }}" \
+            --project="${{ secrets.GCP_PROJECT }}" \
             --format="value(metadata.build.id)" 2>&1)
           EXIT_CODE=$?
           set -e
@@ -293,11 +307,14 @@ jobs:
             exit 1
           fi
           echo "✅ Processor build triggered (build ID: $BUILD_ID)"
+          echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
 
   build-api:
     name: Build API
     needs: [detect-changes, build-processor]
     runs-on: ubuntu-latest
+    outputs:
+      build_id: ${{ steps.trigger.outputs.build_id }}
 
     steps:
       - name: Skip API build (not requested)
@@ -318,11 +335,13 @@ jobs:
         uses: google-github-actions/setup-gcloud@v1
 
       - name: Trigger Cloud Build
+        id: trigger
         if: needs.detect-changes.outputs.api == 'true'
         run: |
           set +e
           BUILD_ID=$(gcloud builds triggers run build-api-manual \
             --branch="${{ github.ref_name }}" \
+            --project="${{ secrets.GCP_PROJECT }}" \
             --format="value(metadata.build.id)" 2>&1)
           EXIT_CODE=$?
           set -e
@@ -332,11 +351,14 @@ jobs:
             exit 1
           fi
           echo "✅ API build triggered (build ID: $BUILD_ID)"
+          echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
 
   build-crawler:
     name: Build Crawler
     needs: [detect-changes, build-api]
     runs-on: ubuntu-latest
+    outputs:
+      build_id: ${{ steps.trigger.outputs.build_id }}
 
     steps:
       - name: Skip crawler build (not requested)
@@ -357,11 +379,13 @@ jobs:
         uses: google-github-actions/setup-gcloud@v1
 
       - name: Trigger Cloud Build
+        id: trigger
         if: needs.detect-changes.outputs.crawler == 'true'
         run: |
           set +e
           BUILD_ID=$(gcloud builds triggers run build-crawler-manual \
             --branch="${{ github.ref_name }}" \
+            --project="${{ secrets.GCP_PROJECT }}" \
             --format="value(metadata.build.id)" 2>&1)
           EXIT_CODE=$?
           set -e
@@ -371,6 +395,7 @@ jobs:
             exit 1
           fi
           echo "✅ Crawler build triggered (build ID: $BUILD_ID)"
+          echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
 
   wait-for-builds:
     name: Wait for Cloud Builds
@@ -390,6 +415,12 @@ jobs:
         uses: google-github-actions/setup-gcloud@v1
 
       - name: Wait for builds to complete
+        env:
+          BASE_BUILD_ID: ${{ needs.build-base.outputs.build_id }}
+          ML_BASE_BUILD_ID: ${{ needs.build-ml-base.outputs.build_id }}
+          PROCESSOR_BUILD_ID: ${{ needs.build-processor.outputs.build_id }}
+          API_BUILD_ID: ${{ needs.build-api.outputs.build_id }}
+          CRAWLER_BUILD_ID: ${{ needs.build-crawler.outputs.build_id }}
         run: |
           echo "⏳ Waiting for Cloud Build jobs to complete..."
           echo ""
@@ -402,24 +433,36 @@ jobs:
             exit 0
           fi
           
-          # Get the 10 most recent builds in the last 10 minutes
-          # Filter by status != SUCCESS to find in-progress builds
-          gcloud builds list \
-            --project=$GCP_PROJECT \
-            --limit=50 \
-            --filter="createTime>'-10m' AND (status=QUEUED OR status=WORKING)" \
-            --format="value(id,status,startTime)" > /tmp/builds.txt
-          
-          if [ ! -s /tmp/builds.txt ]; then
-            echo "ℹ️  No in-progress builds found"
+          declare -a BUILD_IDS=()
+          declare -a BUILD_NAMES=()
+
+          add_build() {
+            local id="$1"
+            local name="$2"
+            if [ -n "$id" ]; then
+              BUILD_IDS+=("$id")
+              BUILD_NAMES+=("$name")
+            fi
+          }
+
+          add_build "$BASE_BUILD_ID" "base"
+          add_build "$ML_BASE_BUILD_ID" "ml-base"
+          add_build "$PROCESSOR_BUILD_ID" "processor"
+          add_build "$API_BUILD_ID" "api"
+          add_build "$CRAWLER_BUILD_ID" "crawler"
+
+          TOTAL_BUILDS=${#BUILD_IDS[@]}
+          if [ $TOTAL_BUILDS -eq 0 ]; then
+            echo "ℹ️  No Cloud Build jobs were triggered in this workflow run."
             exit 0
           fi
-          
-          BUILD_IDS=$(awk '{print $1}' /tmp/builds.txt)
-          TOTAL_BUILDS=$(echo "$BUILD_IDS" | wc -l)
-          echo "Found $TOTAL_BUILDS build(s) in progress"
+
+          echo "Tracking $TOTAL_BUILDS build(s):"
+          for idx in "${!BUILD_IDS[@]}"; do
+            echo "  - ${BUILD_NAMES[$idx]} (${BUILD_IDS[$idx]})"
+          done
           echo ""
-          
+
           # Poll builds until completion
           MAX_WAIT=3600  # 60 minutes timeout
           ELAPSED=0
@@ -428,36 +471,46 @@ jobs:
           while [ $ELAPSED -lt $MAX_WAIT ]; do
             STILL_RUNNING=0
             
-            for BUILD_ID in $BUILD_IDS; do
+            for idx in "${!BUILD_IDS[@]}"; do
+              BUILD_ID=${BUILD_IDS[$idx]}
+              SERVICE=${BUILD_NAMES[$idx]}
               STATUS=$(gcloud builds describe "$BUILD_ID" \
-                --project=$GCP_PROJECT \
+                --project="${{ secrets.GCP_PROJECT }}" \
                 --format='value(status)')
-              
+
               case $STATUS in
                 QUEUED|WORKING)
-                  echo "⏳ Build $BUILD_ID still running (status: $STATUS)"
+                  echo "⏳ [$SERVICE] Build $BUILD_ID still running (status: $STATUS)"
                   ((STILL_RUNNING++))
                   ;;
                 SUCCESS)
-                  echo "✅ Build $BUILD_ID completed successfully"
+                  echo "✅ [$SERVICE] Build $BUILD_ID completed successfully"
                   ;;
                 FAILURE)
-                  echo "❌ Build $BUILD_ID failed"
+                  echo "❌ [$SERVICE] Build $BUILD_ID failed"
                   exit 1
                   ;;
                 TIMEOUT)
-                  echo "⏱️  Build $BUILD_ID timed out"
+                  echo "⏱️  [$SERVICE] Build $BUILD_ID timed out"
+                  exit 1
+                  ;;
+                CANCELLED)
+                  echo "⚠️  [$SERVICE] Build $BUILD_ID was cancelled"
                   exit 1
                   ;;
                 *)
-                  echo "⚠️  Build $BUILD_ID status: $STATUS"
+                  if [ -z "$STATUS" ]; then
+                    echo "⚠️  [$SERVICE] Build $BUILD_ID status unavailable (possibly expired)"
+                  else
+                    echo "⚠️  [$SERVICE] Build $BUILD_ID status: $STATUS"
+                  fi
                   ;;
               esac
             done
             
             if [ $STILL_RUNNING -eq 0 ]; then
               echo ""
-              echo "✅ All builds completed!"
+              echo "✅ All tracked builds completed!"
               exit 0
             fi
             
@@ -501,7 +554,13 @@ jobs:
     needs: [detect-changes, wait-for-builds]
     if: >-
       github.ref == 'refs/heads/main' &&
-      needs.detect-changes.outputs.services_to_build != 'none' &&
+      (
+        needs.build-base.outputs.build_id != '' ||
+        needs.build-ml-base.outputs.build_id != '' ||
+        needs.build-processor.outputs.build_id != '' ||
+        needs.build-api.outputs.build_id != '' ||
+        needs.build-crawler.outputs.build_id != ''
+      ) &&
       (needs.wait-for-builds.result == 'success' || needs.wait-for-builds.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
@@ -525,15 +584,15 @@ jobs:
       - name: Update versions file
         env:
           SHORT_SHA: ${{ github.sha }}
-          PROCESSOR_CHANGED: ${{ needs.detect-changes.outputs.processor }}
-          API_CHANGED: ${{ needs.detect-changes.outputs.api }}
-          CRAWLER_CHANGED: ${{ needs.detect-changes.outputs.crawler }}
+          PROCESSOR_BUILD_ID: ${{ needs.build-processor.outputs.build_id }}
+          API_BUILD_ID: ${{ needs.build-api.outputs.build_id }}
+          CRAWLER_BUILD_ID: ${{ needs.build-crawler.outputs.build_id }}
         run: |
           SHORT=${SHORT_SHA:0:7}
           ARGS=()
-          if [ "$PROCESSOR_CHANGED" = "true" ]; then ARGS+=(--processor "$SHORT"); fi
-          if [ "$CRAWLER_CHANGED" = "true" ]; then ARGS+=(--crawler "$SHORT"); fi
-          if [ "$API_CHANGED" = "true" ]; then ARGS+=(--api "$SHORT"); fi
+          if [ -n "$PROCESSOR_BUILD_ID" ]; then ARGS+=(--processor "$SHORT"); fi
+          if [ -n "$CRAWLER_BUILD_ID" ]; then ARGS+=(--crawler "$SHORT"); fi
+          if [ -n "$API_BUILD_ID" ]; then ARGS+=(--api "$SHORT"); fi
           if [ ${#ARGS[@]} -eq 0 ]; then
             echo "No services requested a versions update"
             exit 0

@@ -57,6 +57,14 @@ spec:
         value: "5.0"
       - name: BATCH_SLEEP_SECONDS
         value: "0.5"
+      - name: SELENIUM_USER_DATA_DIR
+        value: "/var/selenium/profile"
+      - name: SELENIUM_PROFILE_READONLY
+        value: "true"
+      volumeMounts:
+      - name: chrome-profile
+        mountPath: /var/selenium/profile
+        readOnly: true
     sidecars:
     - name: cloud-sql-proxy
       image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.8.0
@@ -73,3 +81,7 @@ spec:
         limits:
           memory: "1Gi"
           cpu: "500m"
+    volumes:
+    - name: chrome-profile
+      secret:
+        secretName: chrome-profile-macos-default

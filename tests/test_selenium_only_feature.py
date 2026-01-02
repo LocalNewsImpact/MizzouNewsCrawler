@@ -17,7 +17,10 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+import src.crawler as crawler_module  # noqa: E402
 from src.crawler import ContentExtractor  # noqa: E402
+
+pytestmark = pytest.mark.enable_selenium
 
 
 class TestBotProtectionTypeDetection:
@@ -384,6 +387,89 @@ class TestExtractionFlowWithSeleniumOnly:
 
                 # Normal extraction should proceed
                 # (mcmetadata may or may not be called depending on config)
+
+
+class TestHeadfulPrimarySelenium:
+    """Verify headful mode attempts Selenium before HTTP extraction."""
+
+    def test_headful_mode_attempts_selenium_before_http(self, monkeypatch):
+        extractor = ContentExtractor(selenium_mode="headful")
+
+        monkeypatch.setattr(crawler_module, "SELENIUM_AVAILABLE", True)
+        monkeypatch.setattr(crawler_module, "MCMETADATA_AVAILABLE", True)
+
+        with (
+            patch.object(
+                extractor,
+                "_get_domain_extraction_method",
+                return_value=("http", None),
+            ),
+            patch.object(
+                extractor,
+                "_run_selenium_extraction",
+                return_value=(True, False),
+            ) as mock_run,
+            patch.object(extractor, "_extract_with_mcmetadata") as mock_mcmetadata,
+        ):
+            mock_mcmetadata.return_value = {
+                "title": "HTTP Title",
+                "content": "content " * 40,
+                "metadata": {"extraction_method": "mcmetadata"},
+            }
+
+            extractor.extract_content("https://example.com/headful-check")
+
+        mock_run.assert_called_once()
+        mock_mcmetadata.assert_called_once()
+
+    def test_headful_mode_skips_http_when_selenium_succeeds(self, monkeypatch):
+        extractor = ContentExtractor(selenium_mode="headful")
+
+        monkeypatch.setattr(crawler_module, "SELENIUM_AVAILABLE", True)
+        monkeypatch.setattr(crawler_module, "MCMETADATA_AVAILABLE", True)
+        monkeypatch.setattr(crawler_module, "NEWSPAPER_AVAILABLE", True)
+
+        def _successful_selenium(url, result, metrics, reason, missing_fields=None):
+            result["title"] = "Selenium Primary Title"
+            result["author"] = "Reporter"
+            result["publish_date"] = "2025-01-01T00:00:00"
+            result["content"] = "selenium content " * 10
+            metadata = result.setdefault("metadata", {})
+            metadata["extraction_method"] = "selenium"
+            metadata["selenium_reason"] = reason
+            metadata["stealth_method"] = "test"
+            result.setdefault("extraction_methods", {})["content"] = "selenium"
+            return True, True
+
+        with (
+            patch.object(
+                extractor,
+                "_get_domain_extraction_method",
+                return_value=("http", None),
+            ),
+            patch.object(
+                extractor,
+                "_run_selenium_extraction",
+                side_effect=_successful_selenium,
+            ) as mock_run,
+            patch.object(extractor, "_extract_with_mcmetadata") as mock_mcmetadata,
+            patch.object(
+                extractor,
+                "_extract_with_newspaper",
+                return_value={},
+            ) as mock_newspaper,
+            patch.object(
+                extractor,
+                "_extract_with_beautifulsoup",
+                return_value={},
+            ) as mock_bs,
+        ):
+            extractor.extract_content("https://example.com/headful-success")
+
+        mock_run.assert_called_once()
+        mock_mcmetadata.assert_not_called()
+        mock_newspaper.assert_not_called()
+        mock_bs.assert_not_called()
 
 
 class TestBotProtectionAutoMarking:

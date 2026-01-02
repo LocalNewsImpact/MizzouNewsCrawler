@@ -154,6 +154,7 @@ class ExtractionTelemetryV2(Base):
     extracted_fields = Column(Text, nullable=True)  # JSON object
     final_field_attribution = Column(Text, nullable=True)  # JSON object
     alternative_extractions = Column(Text, nullable=True)  # JSON object
+    driver_metrics = Column(Text, nullable=True)  # JSON object
 
     # Content metrics
     content_length = Column(Integer, nullable=True)

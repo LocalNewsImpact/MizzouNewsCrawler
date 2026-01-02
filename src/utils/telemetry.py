@@ -29,7 +29,6 @@ from typing import Any
 import requests
 from sqlalchemy.exc import SQLAlchemyError
 
-from src.models.database import safe_execute
 from src.telemetry.store import TelemetryStore, get_store
 
 DB_ERRORS = (SQLAlchemyError,)
@@ -889,10 +888,11 @@ class OperationTracker:
             LIMIT 10
             """
 
+            exec_params = params or None
             with self._connection() as conn:
-                summary_row = safe_execute(conn, summary_sql, params).fetchone()
-                breakdown_rows = safe_execute(conn, breakdown_sql, params).fetchall()
-                top_rows = safe_execute(conn, top_sources_sql, params).fetchall()
+                summary_row = conn.execute(summary_sql, exec_params).fetchone()
+                breakdown_rows = conn.execute(breakdown_sql, exec_params).fetchall()
+                top_rows = conn.execute(top_sources_sql, exec_params).fetchall()
 
             summary = {
                 "total_sources": 0,
@@ -1810,23 +1810,30 @@ class OperationTracker:
             1, effectiveness.attempt_count
         )
 
-        # Update success rate
+        # Update success rate based on inferred historical successes
+        previous_successes = (
+            previous_attempts * previous_success_rate / 100.0
+            if previous_attempts
+            else 0.0
+        )
+
         if status == DiscoveryMethodStatus.SUCCESS and articles_found > 0:
-            success_estimate = (
-                effectiveness.attempt_count * effectiveness.success_rate / 100
+            success_count = previous_successes + 1
+        elif status == DiscoveryMethodStatus.SKIPPED:
+            success_count = (
+                effectiveness.attempt_count * previous_success_rate / 100.0
+                if effectiveness.attempt_count
+                else 0.0
             )
-            success_count = max(1, success_estimate)
+        else:
+            success_count = previous_successes
+
+        if effectiveness.attempt_count:
             effectiveness.success_rate = (
                 success_count / effectiveness.attempt_count
-            ) * 100
-        elif status == DiscoveryMethodStatus.SKIPPED:
-            effectiveness.success_rate = previous_success_rate
+            ) * 100.0
         else:
-            # Decay success rate if this attempt failed
-            decay_factor = (
-                effectiveness.attempt_count - 1
-            ) / effectiveness.attempt_count
-            effectiveness.success_rate *= decay_factor
+            effectiveness.success_rate = 0.0
 
         # Update recent status codes (keep last 10)
         effectiveness.last_status_codes.extend(status_codes)

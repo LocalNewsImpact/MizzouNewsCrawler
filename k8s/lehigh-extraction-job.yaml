@@ -83,6 +83,11 @@ spec:
               name: squid-proxy-credentials
               key: selenium-proxy-url
               optional: true
+        # Chrome profile secret mount (read-only, copied at runtime)
+        - name: SELENIUM_USER_DATA_DIR
+          value: "/var/selenium/profile"
+        - name: SELENIUM_PROFILE_READONLY
+          value: "true"
         # EXTREME rate limiting for maximum bot protection avoidance
         # Lehigh Valley News has VERY aggressive bot detection - bot sensitivity level 10
         - name: INTER_REQUEST_MIN
@@ -107,6 +112,10 @@ spec:
         # Bypass proxy for internal services
         - name: NO_PROXY
           value: "localhost,127.0.0.1,metadata.google.internal,huggingface.co,*.huggingface.co"
+        volumeMounts:
+        - name: chrome-profile
+          mountPath: /var/selenium/profile
+          readOnly: true
         resources:
           requests:
             cpu: 100m
@@ -114,3 +123,7 @@ spec:
           limits:
             cpu: 500m
             memory: 2Gi
+      volumes:
+      - name: chrome-profile
+        secret:
+          secretName: chrome-profile-macos-default

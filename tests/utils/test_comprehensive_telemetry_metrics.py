@@ -1,5 +1,6 @@
+import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -58,6 +59,43 @@ def test_extraction_metrics_tracks_methods(monkeypatch):
     assert metrics.is_success is True
     assert metrics.content_length == len("Body")
     assert metrics.field_extraction["primary"]["metadata"] is True
+
+
+def test_set_driver_metrics_sanitizes_payload():
+    metrics = ct.ExtractionMetrics(
+        operation_id="op-driver",
+        article_id="article-driver",
+        url="https://example.com/story",
+        publisher="Example News",
+    )
+
+    captured = datetime(2026, 1, 1, 3, 4, 5)
+    payload = {
+        "captured_at": captured,
+        "driver": {"driver_reuse_count": 2, "driver_reuse_limit": 5},
+    }
+
+    metrics.set_driver_metrics(payload)
+
+    assert metrics.driver_metrics["captured_at"] == str(captured)
+    assert metrics.driver_metrics["driver"]["driver_reuse_count"] == 2
+
+
+def test_set_driver_metrics_handles_unserializable_payload():
+    metrics = ct.ExtractionMetrics(
+        operation_id="op-driver-raw",
+        article_id="article-driver-raw",
+        url="https://example.com/story",
+        publisher="Example News",
+    )
+
+    class CustomObject:
+        pass
+
+    metrics.set_driver_metrics({"unexpected": CustomObject()})
+
+    assert "raw" in metrics.driver_metrics
+    assert "unexpected" in metrics.driver_metrics["raw"]
 
 
 @pytest.mark.postgres
@@ -318,6 +356,295 @@ def test_comprehensive_telemetry_aggregates():
 
 
 # ===== Additional Coverage Tests =====
+
+
+def _create_sqlite_tables(store: TelemetryStore) -> None:
+    """Provision minimal telemetry tables for SQLite-backed tests."""
+
+    with store.connection() as conn:
+        conn.execute(
+            """
+            CREATE TABLE extraction_telemetry_v2 (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                operation_id TEXT,
+                article_id TEXT,
+                url TEXT,
+                publisher TEXT,
+                host TEXT,
+                start_time TIMESTAMP,
+                end_time TIMESTAMP,
+                total_duration_ms REAL,
+                http_status_code INTEGER,
+                http_error_type TEXT,
+                response_size_bytes INTEGER,
+                response_time_ms REAL,
+                proxy_used INTEGER,
+                proxy_url TEXT,
+                proxy_authenticated INTEGER,
+                proxy_status INTEGER,
+                proxy_error TEXT,
+                methods_attempted TEXT,
+                successful_method TEXT,
+                method_timings TEXT,
+                method_success TEXT,
+                method_errors TEXT,
+                field_extraction TEXT,
+                extracted_fields TEXT,
+                final_field_attribution TEXT,
+                alternative_extractions TEXT,
+                driver_metrics TEXT,
+                content_length INTEGER,
+                is_success INTEGER,
+                error_message TEXT,
+                error_type TEXT,
+                created_at TIMESTAMP
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE http_error_summary (
+                host TEXT NOT NULL,
+                status_code INTEGER NOT NULL,
+                error_type TEXT,
+                count INTEGER,
+                first_seen TIMESTAMP,
+                last_seen TIMESTAMP,
+                PRIMARY KEY (host, status_code)
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE content_type_detection_telemetry (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                article_id TEXT,
+                operation_id TEXT,
+                url TEXT,
+                publisher TEXT,
+                host TEXT,
+                detected_type TEXT,
+                detection_method TEXT,
+                status TEXT,
+                confidence REAL,
+                confidence_score REAL,
+                reason TEXT,
+                evidence TEXT,
+                version TEXT,
+                detected_at TIMESTAMP,
+                created_at TIMESTAMP
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE sources (
+                host TEXT PRIMARY KEY,
+                bot_protection_type TEXT
+            )
+            """
+        )
+        conn.commit()
+
+
+def _insert_extraction_row(
+    store: TelemetryStore,
+    *,
+    article_id: str,
+    host: str = "news.example",
+    publisher: str = "Example Publisher",
+    methods: list[str] | None = None,
+    method_success: dict | None = None,
+    method_errors: dict | None = None,
+    field_extraction: dict | None = None,
+    driver_metrics: dict | None = None,
+    http_status_code: int | None = None,
+    http_error_type: str | None = None,
+    is_success: bool = True,
+    created_at: datetime | None = None,
+) -> None:
+    """Insert a telemetry row with JSON helpers to keep tests concise."""
+
+    now = created_at or datetime.utcnow()
+    payload = {
+        "operation_id": f"op-{article_id}",
+        "article_id": article_id,
+        "url": f"https://{host}/{article_id}",
+        "publisher": publisher,
+        "host": host,
+        "start_time": now,
+        "end_time": now,
+        "total_duration_ms": 120.0,
+        "http_status_code": http_status_code,
+        "http_error_type": http_error_type,
+        "response_size_bytes": 512,
+        "response_time_ms": 40.0,
+        "proxy_used": 0,
+        "proxy_authenticated": 0,
+        "proxy_status": None,
+        "methods_attempted": json.dumps(methods or []),
+        "successful_method": (methods or [None])[0],
+        "method_timings": json.dumps(dict.fromkeys(methods or [], 50.0)),
+        "method_success": json.dumps(method_success or {}),
+        "method_errors": json.dumps(method_errors or {}),
+        "field_extraction": json.dumps(field_extraction or {}),
+        "extracted_fields": json.dumps({}),
+        "final_field_attribution": json.dumps({}),
+        "alternative_extractions": json.dumps({}),
+        "driver_metrics": json.dumps(driver_metrics) if driver_metrics else None,
+        "content_length": 1000,
+        "is_success": 1 if is_success else 0,
+        "error_message": None,
+        "error_type": None,
+        "created_at": now,
+    }
+
+    with store.connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO extraction_telemetry_v2 (
+                operation_id,
+                article_id,
+                url,
+                publisher,
+                host,
+                start_time,
+                end_time,
+                total_duration_ms,
+                http_status_code,
+                http_error_type,
+                response_size_bytes,
+                response_time_ms,
+                proxy_used,
+                proxy_url,
+                proxy_authenticated,
+                proxy_status,
+                proxy_error,
+                methods_attempted,
+                successful_method,
+                method_timings,
+                method_success,
+                method_errors,
+                field_extraction,
+                extracted_fields,
+                final_field_attribution,
+                alternative_extractions,
+                driver_metrics,
+                content_length,
+                is_success,
+                error_message,
+                error_type,
+                created_at
+            ) VALUES (
+                :operation_id,
+                :article_id,
+                :url,
+                :publisher,
+                :host,
+                :start_time,
+                :end_time,
+                :total_duration_ms,
+                :http_status_code,
+                :http_error_type,
+                :response_size_bytes,
+                :response_time_ms,
+                :proxy_used,
+                NULL,
+                :proxy_authenticated,
+                :proxy_status,
+                NULL,
+                :methods_attempted,
+                :successful_method,
+                :method_timings,
+                :method_success,
+                :method_errors,
+                :field_extraction,
+                :extracted_fields,
+                :final_field_attribution,
+                :alternative_extractions,
+                :driver_metrics,
+                :content_length,
+                :is_success,
+                :error_message,
+                :error_type,
+                :created_at
+            )
+            """,
+            payload,
+        )
+        conn.commit()
+
+
+def _insert_content_type_detection_row(
+    store: TelemetryStore,
+    *,
+    article_id: str,
+    status: str,
+    confidence,
+    confidence_score,
+    reason: str,
+    evidence,
+    created_at: datetime,
+    detected_at: datetime | None = None,
+    host: str = "news.example",
+    publisher: str = "Example Publisher",
+):
+    """Helper for seeding content type detection telemetry rows."""
+
+    with store.connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO content_type_detection_telemetry (
+                article_id,
+                operation_id,
+                url,
+                publisher,
+                host,
+                detected_type,
+                detection_method,
+                status,
+                confidence,
+                confidence_score,
+                reason,
+                evidence,
+                version,
+                detected_at,
+                created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                article_id,
+                f"op-{article_id}",
+                f"https://{host}/{article_id}",
+                publisher,
+                host,
+                status,
+                "detector",
+                status,
+                confidence,
+                confidence_score,
+                reason,
+                json.dumps(evidence) if isinstance(evidence, dict) else evidence,
+                "v1",
+                detected_at,
+                created_at,
+            ),
+        )
+        conn.commit()
+
+
+@pytest.fixture
+def sqlite_telemetry_store(tmp_path):
+    """Create an isolated SQLite telemetry store for analytics tests."""
+
+    db_path = tmp_path / "telemetry.sqlite"
+    store = TelemetryStore(database=f"sqlite:///{db_path}", async_writes=False)
+    _create_sqlite_tables(store)
+    yield store
+    store.shutdown()
 
 
 def test_proxy_status_to_int():
@@ -629,7 +956,98 @@ def test_comprehensive_telemetry_resolve_numeric_confidence():
         is None
     )
 
-    assert ct.ComprehensiveExtractionTelemetry._resolve_numeric_confidence({}) is None
+
+@pytest.mark.postgres
+@pytest.mark.integration
+def test_get_driver_metrics_summary():
+    db_url = os.environ.get(
+        "TEST_DATABASE_URL",
+        os.environ.get(
+            "DATABASE_URL",
+            "postgresql://postgres:postgres@localhost:5432/mizzou_test",
+        ),
+    )
+    if not db_url:
+        pytest.skip("TEST_DATABASE_URL not set")
+
+    telemetry_store = TelemetryStore(database=db_url, async_writes=False)
+
+    def cleanup():
+        with telemetry_store.connection() as conn:
+            conn.execute(
+                "DELETE FROM extraction_telemetry_v2 WHERE article_id LIKE 'article-driver-%'"
+            )
+            conn.commit()
+
+    try:
+        cleanup()
+    except Exception as exc:  # pragma: no cover - depends on local DB availability
+        pytest.skip(f"PostgreSQL telemetry store unavailable: {exc}")
+    telemetry = ct.ComprehensiveExtractionTelemetry(store=telemetry_store)
+
+    def _insert_sample(article_id: str, reuse: int, limit: int, failures: int):
+        metrics = ct.ExtractionMetrics(
+            operation_id=f"op-{article_id}",
+            article_id=article_id,
+            url=f"https://example.com/{article_id}",
+            publisher="Example",
+        )
+        metrics.set_driver_metrics(
+            {
+                "captured_at": "2026-01-01T00:00:00",
+                "driver": {
+                    "driver_reuse_count": reuse,
+                    "driver_reuse_limit": limit,
+                    "driver_method": "undetected-chromedriver",
+                },
+                "proxy": {"active_provider": "squid"},
+                "domain": {
+                    "name": "example.com",
+                    "selenium_failures": failures,
+                    "captcha_backoff_active": failures > 0,
+                },
+            }
+        )
+        metrics.finalize({"title": "Story", "content": "body"})
+        telemetry.record_extraction(metrics)
+
+    try:
+        _insert_sample("article-driver-1", reuse=2, limit=5, failures=0)
+        _insert_sample("article-driver-2", reuse=6, limit=6, failures=2)
+
+        summary = telemetry.get_driver_metrics_summary(hours=None)
+
+        assert summary["sample_count"] == 2
+        # Average reuse should reflect (2 + 6) / 2 = 4
+        assert summary["avg_reuse_count"] == 4
+        assert summary["max_reuse_count"] == 6
+        assert summary["reuse_limit_hits"] == 1
+        assert summary["captcha_backoff_events"] == 1
+
+        providers = {
+            entry["provider"]: entry["samples"]
+            for entry in summary["proxy_provider_breakdown"]
+        }
+        assert providers["squid"] == 2
+
+        methods = {
+            entry["method"]: entry["samples"]
+            for entry in summary["driver_method_breakdown"]
+        }
+        assert methods["undetected-chromedriver"] == 2
+
+        top_domains = summary["top_domains_by_selenium_failures"]
+        assert top_domains[0]["domain"] == "example.com"
+        assert top_domains[0]["selenium_failures"] == 2
+
+        assert (
+            ct.ComprehensiveExtractionTelemetry._resolve_numeric_confidence({}) is None
+        )
+    finally:
+        try:
+            cleanup()
+        except Exception:
+            pass
 
 
 def test_comprehensive_telemetry_coerce_detected_at():
@@ -662,3 +1080,286 @@ def test_comprehensive_telemetry_coerce_detected_at():
 
     # Test other types
     assert ct.ComprehensiveExtractionTelemetry._coerce_detected_at(12345) is None
+
+
+def test_content_type_detection_numeric_confidence(sqlite_telemetry_store, monkeypatch):
+    telemetry = ct.ComprehensiveExtractionTelemetry(store=sqlite_telemetry_store)
+    metrics = ct.ExtractionMetrics(
+        operation_id="op-ct",
+        article_id="article-ct",
+        url="https://example.com/ct",
+        publisher="Example",
+    )
+    metrics.finalize({"title": "T", "content": "Body"})
+
+    telemetry._content_type_strategy = "modern"
+    telemetry._content_type_columns = {"status", "confidence", "confidence_score"}
+    monkeypatch.setattr(
+        telemetry,
+        "_get_column_type",
+        lambda *_args, **_kwargs: "real",
+    )
+
+    detection = {
+        "status": "opinion",
+        "confidence": "high",
+        "reason": "signals",
+        "evidence": {"title": ["Opinion"]},
+        "version": "v1",
+    }
+
+    with sqlite_telemetry_store.connection() as conn:
+        telemetry._insert_content_type_detection(conn, metrics, detection)
+        row = conn.execute(
+            "SELECT status, confidence, detection_method FROM content_type_detection_telemetry"
+        ).fetchone()
+
+    assert row[0] == "opinion"
+    assert row[1] == pytest.approx(0.85)
+    assert row[2] == "content_type_detector"
+
+
+def test_get_content_type_detections_filters_and_handles_bad_evidence(
+    sqlite_telemetry_store,
+):
+    telemetry = ct.ComprehensiveExtractionTelemetry(store=sqlite_telemetry_store)
+    now = datetime.utcnow()
+    _insert_content_type_detection_row(
+        sqlite_telemetry_store,
+        article_id="article-new",
+        status="opinion",
+        confidence=1.0,
+        confidence_score=0.9,
+        reason="fresh",
+        evidence={"signal": ["opinion"]},
+        created_at=now,
+        detected_at=now,
+    )
+    _insert_content_type_detection_row(
+        sqlite_telemetry_store,
+        article_id="article-old",
+        status="news",
+        confidence=1.0,
+        confidence_score=0.9,
+        reason="old",
+        evidence={"signal": ["news"]},
+        created_at=now - timedelta(days=10),
+        detected_at=now - timedelta(days=10),
+    )
+    _insert_content_type_detection_row(
+        sqlite_telemetry_store,
+        article_id="article-bad",
+        status="analysis",
+        confidence=1.0,
+        confidence_score=0.9,
+        reason="bad-json",
+        evidence='{"oops',
+        created_at=now,
+    )
+
+    filtered = telemetry.get_content_type_detections(statuses=["opinion"], days=7)
+    assert len(filtered) == 1
+    assert filtered[0]["article_id"] == "article-new"
+    assert filtered[0]["evidence"] == {"signal": ["opinion"]}
+
+    all_rows = telemetry.get_content_type_detections(limit=10)
+    bad_row = next(row for row in all_rows if row["article_id"] == "article-bad")
+    assert bad_row["evidence"] == '{"oops'
+
+
+def test_get_unblock_proxy_outcomes_handles_all_outcomes(sqlite_telemetry_store):
+    telemetry = ct.ComprehensiveExtractionTelemetry(store=sqlite_telemetry_store)
+    now = datetime.utcnow()
+
+    _insert_extraction_row(
+        sqlite_telemetry_store,
+        article_id="success-1",
+        host="success.example",
+        methods=["primary", "unblock_proxy"],
+        method_success={"unblock_proxy": True},
+        created_at=now,
+    )
+    _insert_extraction_row(
+        sqlite_telemetry_store,
+        article_id="challenge-1",
+        host="challenge.example",
+        methods=["unblock_proxy"],
+        method_success={"unblock_proxy": False},
+        method_errors={"unblock_proxy": "Captcha challenge"},
+        created_at=now,
+    )
+    _insert_extraction_row(
+        sqlite_telemetry_store,
+        article_id="failure-1",
+        host="failure.example",
+        methods=["unblock_proxy"],
+        method_success={"unblock_proxy": False},
+        method_errors={"unblock_proxy": "timeout"},
+        created_at=now,
+    )
+
+    stats = telemetry.get_unblock_proxy_outcomes(hours=24)
+    hosts = {entry["host"]: entry for entry in stats["host_stats"]}
+
+    assert hosts["success.example"]["successes"] == 1
+    assert hosts["challenge.example"]["challenges"] == 1
+    assert hosts["failure.example"]["failures"] == 1
+    assert stats["window_start"] is not None
+
+    protection_summary = {
+        entry["protection_type"]: entry for entry in stats["protection_stats"]
+    }
+    assert protection_summary["unknown"]["attempts"] == 3
+
+
+def test_get_protection_success_stats_joins_sources(sqlite_telemetry_store):
+    telemetry = ct.ComprehensiveExtractionTelemetry(store=sqlite_telemetry_store)
+    now = datetime.utcnow()
+    with sqlite_telemetry_store.connection() as conn:
+        conn.execute(
+            "INSERT INTO sources (host, bot_protection_type) VALUES (?, ?)",
+            ("protect.example", "akamai"),
+        )
+        conn.commit()
+
+    _insert_extraction_row(
+        sqlite_telemetry_store,
+        article_id="protect-success",
+        host="protect.example",
+        methods=["selenium", "unblock_proxy"],
+        method_success={"selenium": True, "unblock_proxy": False},
+        created_at=now,
+    )
+    _insert_extraction_row(
+        sqlite_telemetry_store,
+        article_id="protect-failure",
+        host="protect.example",
+        methods=["unblock_proxy"],
+        method_success={"unblock_proxy": False},
+        is_success=False,
+        created_at=now,
+    )
+
+    summary = telemetry.get_protection_success_stats(hours=None)
+    akamai = next(item for item in summary if item["protection_type"] == "akamai")
+
+    assert akamai["attempts"] == 2
+    assert akamai["successes"] == 1
+    assert akamai["unblock_attempts"] == 2
+    assert akamai["selenium_attempts"] == 1
+    assert akamai["selenium_success_rate"] == 1.0
+
+
+def test_get_field_extraction_stats_filters_method(sqlite_telemetry_store):
+    telemetry = ct.ComprehensiveExtractionTelemetry(store=sqlite_telemetry_store)
+    field_payload = {
+        "primary": {
+            "title": True,
+            "author": False,
+            "content": True,
+            "publish_date": False,
+            "metadata": True,
+        },
+        "fallback": {
+            "title": False,
+            "author": True,
+            "content": False,
+            "publish_date": True,
+            "metadata": False,
+        },
+    }
+    _insert_extraction_row(
+        sqlite_telemetry_store,
+        article_id="fields-1",
+        methods=["primary", "fallback"],
+        field_extraction=field_payload,
+    )
+
+    stats = telemetry.get_field_extraction_stats(method="primary")
+    assert len(stats) == 1
+    primary = stats[0]
+    assert primary["method"] == "primary"
+    assert primary["title_success_rate"] == 1.0
+    assert primary["author_success_rate"] == 0.0
+
+
+def test_get_driver_metrics_summary_with_varied_payloads(sqlite_telemetry_store):
+    telemetry = ct.ComprehensiveExtractionTelemetry(store=sqlite_telemetry_store)
+
+    driver_metrics_a = {
+        "driver": {
+            "driver_reuse_count": 3,
+            "driver_reuse_limit": 5,
+            "driver_method": "stealth",
+        },
+        "proxy": {"active_provider": "brightdata"},
+        "domain": {
+            "name": "blocked.example",
+            "selenium_failures": 2,
+            "captcha_backoff_active": True,
+        },
+    }
+    driver_metrics_b = {
+        "driver": {
+            "driver_reuse_count": 0,
+            "driver_reuse_limit": 1,
+            "driver_method": "requests",
+        },
+        "proxy": {},
+        "domain": {},
+    }
+
+    _insert_extraction_row(
+        sqlite_telemetry_store,
+        article_id="driver-a",
+        driver_metrics=driver_metrics_a,
+    )
+    _insert_extraction_row(
+        sqlite_telemetry_store,
+        article_id="driver-b",
+        driver_metrics=driver_metrics_b,
+    )
+
+    summary = telemetry.get_driver_metrics_summary(hours=None)
+
+    assert summary["sample_count"] == 2
+    assert summary["avg_reuse_count"] == pytest.approx(1.5)
+    assert summary["max_reuse_count"] == 3
+    assert summary["reuse_limit_hits"] == 0
+    providers = {
+        item["provider"]: item["samples"]
+        for item in summary["proxy_provider_breakdown"]
+    }
+    assert providers["brightdata"] == 1
+    methods = {
+        item["method"]: item["samples"] for item in summary["driver_method_breakdown"]
+    }
+    assert methods["stealth"] == 1
+    domains = summary["top_domains_by_selenium_failures"]
+    assert domains[0]["domain"] == "blocked.example"
+
+
+def test_get_error_summary_filters_by_days(sqlite_telemetry_store):
+    telemetry = ct.ComprehensiveExtractionTelemetry(store=sqlite_telemetry_store)
+    now = datetime.utcnow()
+    with sqlite_telemetry_store.connection() as conn:
+        conn.execute(
+            "INSERT INTO http_error_summary VALUES (?, ?, ?, ?, ?, ?)",
+            ("fresh.example", 502, "5xx", 3, now, now),
+        )
+        conn.execute(
+            "INSERT INTO http_error_summary VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                "stale.example",
+                429,
+                "4xx",
+                5,
+                now - timedelta(days=10),
+                now - timedelta(days=10),
+            ),
+        )
+        conn.commit()
+
+    summary = telemetry.get_error_summary(days=7)
+    assert len(summary) == 1
+    assert summary[0]["host"] == "fresh.example"

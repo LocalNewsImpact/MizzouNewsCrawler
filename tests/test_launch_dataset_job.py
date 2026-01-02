@@ -13,6 +13,8 @@ SCRIPTS_DIR = Path(__file__).parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 from launch_dataset_job import (  # noqa: E402
+    CHROME_PROFILE_MOUNT_PATH,
+    CHROME_PROFILE_SECRET_NAME,
     create_job_manifest,
     get_current_processor_image,
     launch_job,
@@ -171,6 +173,37 @@ class TestCreateJobManifest:
         }
 
         assert required_vars.issubset(env_names)
+
+    @patch("launch_dataset_job.get_current_processor_image")
+    def test_includes_chrome_profile_mount(self, mock_get_image):
+        mock_get_image.return_value = "test-image:v1.0.0"
+
+        manifest = create_job_manifest(
+            dataset_slug="test-dataset",
+            batches=1,
+        )
+
+        pod_spec = manifest["spec"]["template"]["spec"]
+        container = pod_spec["containers"][0]
+        env_map = {entry["name"]: entry for entry in container["env"]}
+
+        assert env_map["SELENIUM_USER_DATA_DIR"]["value"] == CHROME_PROFILE_MOUNT_PATH
+        assert env_map["SELENIUM_PROFILE_READONLY"]["value"] == "true"
+
+        volume_mount = next(
+            mount
+            for mount in container["volumeMounts"]
+            if mount["name"] == "chrome-profile"
+        )
+        assert volume_mount["mountPath"] == CHROME_PROFILE_MOUNT_PATH
+        assert volume_mount.get("readOnly") is True
+
+        profile_volume = next(
+            volume
+            for volume in pod_spec["volumes"]
+            if volume["name"] == "chrome-profile"
+        )
+        assert profile_volume["secret"]["secretName"] == CHROME_PROFILE_SECRET_NAME
 
 
 class TestGetCurrentProcessorImage:
