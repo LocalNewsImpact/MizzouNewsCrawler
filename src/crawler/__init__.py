@@ -2055,7 +2055,9 @@ class ContentExtractor:
 
         detection_info = self._last_bot_protection_detection
         # If bot protection was detected in newspaper4k and Selenium also failed, raise RateLimitError
-        if (result.get("_bot_protection_detected") or detection_info) and self._get_missing_fields(result):
+        if (
+            result.get("_bot_protection_detected") or detection_info
+        ) and self._get_missing_fields(result):
             logger.warning(
                 f"Bot protection detected and all fallbacks (including Selenium) failed for {url}"
             )
