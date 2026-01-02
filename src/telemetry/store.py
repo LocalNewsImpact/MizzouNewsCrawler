@@ -187,6 +187,8 @@ class _ConnectionWrapper:
 
     def __init__(self, sqlalchemy_conn: Connection):
         self._conn = sqlalchemy_conn
+        # Preserve raw SQLAlchemy execute for helpers like safe_execute
+        self._orig_execute = sqlalchemy_conn.execute
         self._in_transaction = False
 
     def execute(self, sql: str, parameters: tuple | dict | None = None):

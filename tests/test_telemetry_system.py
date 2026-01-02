@@ -12,11 +12,13 @@ from unittest.mock import Mock, patch
 
 import pytest
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 
-from src.crawler import ContentExtractor
+from src.crawler import ContentExtractor, RateLimitError
 from src.utils.comprehensive_telemetry import (
     ComprehensiveExtractionTelemetry,
     ExtractionMetrics,
+    PROXY_STATUS_SUCCESS,
 )
 
 
@@ -127,6 +129,44 @@ class TestExtractionMetrics:
         assert field_stats["author"] is False
         assert field_stats["publish_date"] is True
         assert field_stats["metadata"] is False
+
+    def test_finalize_marks_success_from_content_only(self):
+        """Finalize should mark success when content is substantial."""
+        metrics = ExtractionMetrics("op-final", "art-final", "https://test", "test")
+        metrics.start_time = datetime.utcnow()
+        metrics.end_time = metrics.start_time
+
+        long_content = "lorem ipsum " * 20  # > 100 characters
+        metrics.finalize({"title": "", "content": long_content})
+
+        assert metrics.is_success is True
+        assert metrics.content_length == len(long_content)
+        assert metrics.extracted_fields["content"] is True
+        assert metrics.extracted_fields["title"] is False
+
+    def test_proxy_and_driver_metrics_sanitization(self):
+        """Proxy + driver metrics should normalize inputs safely."""
+
+        class _Opaque:
+            def __repr__(self):
+                return "<opaque>"
+
+        metrics = ExtractionMetrics("op-proxy", "art-proxy", "https://test", "test")
+        metrics.set_proxy_metrics(
+            proxy_used=True,
+            proxy_url="https://proxy",
+            proxy_authenticated=True,
+            proxy_status="SUCCESS",
+            proxy_error="boom",
+        )
+
+        assert metrics.proxy_status == PROXY_STATUS_SUCCESS
+        assert metrics.proxy_used is True
+        assert metrics.proxy_authenticated is True
+
+        metrics.set_driver_metrics({"started": datetime.utcnow(), "opaque": _Opaque()})
+        assert metrics.driver_metrics is not None
+        assert "raw" in metrics.driver_metrics
 
 
 def create_telemetry_tables(db_path: str) -> None:
@@ -703,10 +743,11 @@ class TestContentExtractorIntegration:
                 "forbidden.com",
             )
 
-            # Extract content (should fail but capture HTTP status)
-            _ = extractor.extract_content(
-                "https://forbidden.com/article", metrics=metrics
-            )
+            # Extract content (should raise but still capture HTTP status)
+            with pytest.raises(RateLimitError):
+                extractor.extract_content(
+                    "https://forbidden.com/article", metrics=metrics
+                )
 
             # Verify HTTP error was captured
             assert metrics.http_status_code == 403
@@ -844,6 +885,42 @@ class TestHTTPErrorExtraction:
                 assert extracted_code == expected
             else:
                 assert expected is None
+
+
+class TestTelemetryEdgeCases:
+    def test_record_extraction_ignores_integrity_error_when_not_postgres(self, caplog):
+        """Non-Postgres stores should log and continue on duplicate errors."""
+
+        class _DummyConn:
+            def __init__(self):
+                self.rollbacks = 0
+
+            def execute(self, *_args, **_kwargs):
+                raise IntegrityError("duplicate key", None, None)
+
+            def rollback(self):
+                self.rollbacks += 1
+
+        class _DummyStore:
+            _is_postgres = False
+
+            def __init__(self, conn):
+                self._conn = conn
+
+            def submit(self, task, *, ensure=None):
+                task(self._conn)
+
+        dummy_conn = _DummyConn()
+        telemetry = ComprehensiveExtractionTelemetry(store=_DummyStore(dummy_conn))
+        metrics = ExtractionMetrics("op-edge", "art-edge", "https://edge", "edge")
+        metrics.start_time = datetime.utcnow()
+        metrics.end_time = metrics.start_time
+
+        with caplog.at_level("WARNING"):
+            telemetry.record_extraction(metrics)
+
+        assert dummy_conn.rollbacks == 1
+        assert "IntegrityError" in caplog.text
 
 
 @pytest.mark.postgres
