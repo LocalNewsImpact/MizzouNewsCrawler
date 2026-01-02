@@ -1473,6 +1473,12 @@ class ContentExtractor:
         to prevent memory leaks from accumulated Chrome renderer processes.
         """
         headless_mode = self._is_headless_selenium_mode()
+        can_use_undetected = UNDETECTED_CHROME_AVAILABLE or self._is_method_overridden(
+            "_create_undetected_driver"
+        )
+        can_use_stealth = SELENIUM_AVAILABLE or self._is_method_overridden(
+            "_create_stealth_driver"
+        )
 
         # Check if driver needs recreation due to reuse limit
         if (
@@ -1489,7 +1495,7 @@ class ContentExtractor:
             logger.info("Creating new persistent ChromeDriver for reuse")
             try:
                 # Try undetected-chromedriver first (most advanced)
-                if UNDETECTED_CHROME_AVAILABLE:
+                if can_use_undetected:
                     try:
                         self._persistent_driver = self._create_undetected_driver(
                             headless=headless_mode
@@ -1500,14 +1506,14 @@ class ContentExtractor:
                             f"undetected-chromedriver failed to initialize: {uc_err}; "
                             "falling back to selenium-stealth"
                         )
-                        if SELENIUM_AVAILABLE:
+                        if can_use_stealth:
                             self._persistent_driver = self._create_stealth_driver(
                                 headless=headless_mode
                             )
                             self._driver_method = "selenium-stealth"
                         else:
                             raise
-                elif SELENIUM_AVAILABLE:
+                elif can_use_stealth:
                     self._persistent_driver = self._create_stealth_driver(
                         headless=headless_mode
                     )
@@ -1556,6 +1562,18 @@ class ContentExtractor:
             "driver_method": getattr(self, "_driver_method", None),
             "selenium_mode": self.selenium_mode,
         }
+
+    def _is_method_overridden(self, method_name: str) -> bool:
+        """Return True when an instance-level patch overrides a class method."""
+
+        instance_method = getattr(self, method_name, None)
+        class_method = getattr(self.__class__, method_name, None)
+        if instance_method is None or class_method is None:
+            return False
+
+        instance_func = getattr(instance_method, "__func__", instance_method)
+        class_func = getattr(class_method, "__func__", class_method)
+        return instance_func is not class_func
 
     def _is_headless_selenium_mode(self) -> bool:
         return self.selenium_mode == "headless"
@@ -2097,6 +2115,7 @@ class ContentExtractor:
         method: str,
         fields_to_copy: Optional[List[str]] = None,
         metrics: Optional[object] = None,
+        allow_overwrite: bool = False,
     ) -> None:
         """Merge source extraction results into target, tracking methods.
 
@@ -2107,6 +2126,8 @@ class ContentExtractor:
             fields_to_copy: If specified, only copy these fields.
                            If None, copy all.
             metrics: Optional ExtractionMetrics for tracking alternatives
+            allow_overwrite: When True, overwrite existing meaningful values
+                             with the new method's results
         """
         if not source:
             return
@@ -2119,25 +2140,30 @@ class ContentExtractor:
 
         for field in fields:
             source_value = source.get(field)
+            if not self._is_field_value_meaningful(field, source_value):
+                continue
 
-            # Only copy if source has a meaningful value and target doesn't
-            if self._is_field_value_meaningful(field, source_value):
-                current_value = target.get(field)
-                if not self._is_field_value_meaningful(field, current_value):
-                    target[field] = source_value
-                    target["extraction_methods"][field] = method
-                    if field == "publish_date":
-                        self._merge_publish_date_fallback_metadata(target, source)
-                    logger.debug(f"Copied {field} from {method} for extraction")
-                elif metrics and hasattr(metrics, "record_alternative_extraction"):
-                    # Record when we found an alternative but didn't use it
-                    metrics.record_alternative_extraction(
-                        method, field, str(source_value), str(current_value)
-                    )
-                    logger.debug(
-                        f"Alternative {field} found by {method} "
-                        f"but not used (current from previous method)"
-                    )
+            current_value = target.get(field)
+            has_current_value = self._is_field_value_meaningful(field, current_value)
+
+            if not has_current_value or allow_overwrite:
+                target[field] = source_value
+                target["extraction_methods"][field] = method
+                if field == "publish_date":
+                    self._merge_publish_date_fallback_metadata(target, source)
+                logger.debug(
+                    f"{'Overwrote' if has_current_value else 'Copied'} {field} from {method}"
+                )
+                continue
+
+            if metrics and hasattr(metrics, "record_alternative_extraction"):
+                metrics.record_alternative_extraction(
+                    method, field, str(source_value), str(current_value)
+                )
+                logger.debug(
+                    f"Alternative {field} found by {method} but not used "
+                    f"(current from previous method)"
+                )
 
     def _apply_cms_metadata_fallback(self, result: Dict[str, Any]) -> None:
         """Fill missing fields using CMS metadata captured during extraction."""
@@ -3049,12 +3075,19 @@ class ContentExtractor:
                 metadata["selenium_reason"] = reason
 
             if selenium_result and selenium_result.get("content"):
+                preferred_fields = list(
+                    dict.fromkeys(
+                        (fields_needed or [])
+                        + ["title", "author", "content", "metadata"]
+                    )
+                )
                 self._merge_extraction_results(
                     result,
                     selenium_result,
                     "selenium",
-                    fields_needed,
-                    metrics,
+                    fields_to_copy=preferred_fields,
+                    metrics=metrics,
+                    allow_overwrite=True,
                 )
                 logger.info("✅ Selenium extraction succeeded for %s", url)
                 if dom in self._selenium_failure_counts:
