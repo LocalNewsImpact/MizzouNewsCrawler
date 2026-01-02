@@ -1871,8 +1871,22 @@ class ContentExtractor:
 
                 import re
 
+                partial_result: Dict[str, Any] = {}
+                status_code = None
+                status_match = re.search(r"Status code (\d+)", error_str)
+                if status_match:
+                    status_code = int(status_match.group(1))
+                    partial_result = {
+                        "metadata": {
+                            "extraction_method": "newspaper4k",
+                            "http_status": status_code,
+                        }
+                    }
+
                 bot_protection_failure = (
-                    "Bot protection" in error_str or "Server error (403)" in error_str
+                    "Bot protection" in error_str
+                    or "Server error (403)" in error_str
+                    or (status_code in {401, 403, 429})
                 )
                 if bot_protection_failure:
                     result["_bot_protection_detected"] = True
@@ -1884,20 +1898,8 @@ class ContentExtractor:
                     if match:
                         result["_bot_protection_type"] = match.group(1).lower()
 
-                partial_result = {}
                 if hasattr(e, "__context__") and hasattr(e.__context__, "response"):
                     pass
-
-                if "Status code" in error_str:
-                    status_match = re.search(r"Status code (\d+)", error_str)
-                    if status_match:
-                        http_status = int(status_match.group(1))
-                        partial_result = {
-                            "metadata": {
-                                "extraction_method": "newspaper4k",
-                                "http_status": http_status,
-                            }
-                        }
 
                 if metrics:
                     metrics.end_method("newspaper4k", False, str(e), partial_result)
