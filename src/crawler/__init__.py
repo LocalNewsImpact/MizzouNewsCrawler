@@ -2038,6 +2038,11 @@ class ContentExtractor:
             if protection_type:
                 metadata["bot_protection_type"] = protection_type
 
+            protection_label = protection_type or "bot_protection"
+            raise RateLimitError(
+                f"Bot protection blocked extraction for {domain} ({protection_label})"
+            )
+
         # Clean up the flags if extraction succeeded
         result.pop("_bot_protection_detected", None)
         result.pop("_bot_protection_type", None)
