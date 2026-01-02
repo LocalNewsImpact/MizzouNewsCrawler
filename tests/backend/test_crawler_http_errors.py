@@ -137,11 +137,10 @@ class TestCrawlerHTTPErrorHandling:
         mock_session.get.return_value = mock_response
 
         with patch("cloudscraper.create_scraper", return_value=mock_session):
-            # extract_content will try all methods and return partial result
-            # It should log bot protection but not raise exception
-            result = extractor.extract_content("https://example.com/article")
-            # Result should be empty or partial since all methods failed
-            assert result is None or result.get("title") is None
+            # When every HTTP-based method encounters bot protection we now raise
+            # so callers can trigger backoff / telemetry updates.
+            with pytest.raises(RateLimitError, match="cloudflare"):
+                extractor.extract_content("https://example.com/article")
 
     def test_200_continues_with_extraction(self, extractor):
         """200 OK should continue with normal extraction."""
