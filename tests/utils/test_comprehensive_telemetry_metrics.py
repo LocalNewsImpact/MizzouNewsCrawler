@@ -663,11 +663,37 @@ def test_comprehensive_telemetry_resolve_numeric_confidence():
         ct.ComprehensiveExtractionTelemetry._resolve_numeric_confidence(
             {"confidence_score": "not_a_number"}
         )
+        is None
+    )
 
 
-def test_get_driver_metrics_summary(tmp_path):
-    db_path = tmp_path / "telemetry-driver.db"
-    telemetry = ct.ComprehensiveExtractionTelemetry(db_path=str(db_path))
+@pytest.mark.postgres
+@pytest.mark.integration
+def test_get_driver_metrics_summary():
+    db_url = os.environ.get(
+        "TEST_DATABASE_URL",
+        os.environ.get(
+            "DATABASE_URL",
+            "postgresql://postgres:postgres@localhost:5432/mizzou_test",
+        ),
+    )
+    if not db_url:
+        pytest.skip("TEST_DATABASE_URL not set")
+
+    telemetry_store = TelemetryStore(database=db_url, async_writes=False)
+
+    def cleanup():
+        with telemetry_store.connection() as conn:
+            conn.execute(
+                "DELETE FROM extraction_telemetry_v2 WHERE article_id LIKE 'article-driver-%'"
+            )
+            conn.commit()
+
+    try:
+        cleanup()
+    except Exception as exc:  # pragma: no cover - depends on local DB availability
+        pytest.skip(f"PostgreSQL telemetry store unavailable: {exc}")
+    telemetry = ct.ComprehensiveExtractionTelemetry(store=telemetry_store)
 
     def _insert_sample(article_id: str, reuse: int, limit: int, failures: int):
         metrics = ct.ExtractionMetrics(
@@ -695,31 +721,44 @@ def test_get_driver_metrics_summary(tmp_path):
         metrics.finalize({"title": "Story", "content": "body"})
         telemetry.record_extraction(metrics)
 
-    _insert_sample("article-driver-1", reuse=2, limit=5, failures=0)
-    _insert_sample("article-driver-2", reuse=6, limit=6, failures=2)
+    try:
+        _insert_sample("article-driver-1", reuse=2, limit=5, failures=0)
+        _insert_sample("article-driver-2", reuse=6, limit=6, failures=2)
 
-    summary = telemetry.get_driver_metrics_summary(hours=None)
+        summary = telemetry.get_driver_metrics_summary(hours=None)
 
-    assert summary["sample_count"] == 2
-    # Average reuse should reflect (2 + 6) / 2 = 4
-    assert summary["avg_reuse_count"] == 4
-    assert summary["max_reuse_count"] == 6
-    assert summary["reuse_limit_hits"] == 1
-    assert summary["captcha_backoff_events"] == 1
+        assert summary["sample_count"] == 2
+        # Average reuse should reflect (2 + 6) / 2 = 4
+        assert summary["avg_reuse_count"] == 4
+        assert summary["max_reuse_count"] == 6
+        assert summary["reuse_limit_hits"] == 1
+        assert summary["captcha_backoff_events"] == 1
 
-    providers = {entry["provider"]: entry["samples"] for entry in summary["proxy_provider_breakdown"]}
-    assert providers["squid"] == 2
+        providers = {
+            entry["provider"]: entry["samples"]
+            for entry in summary["proxy_provider_breakdown"]
+        }
+        assert providers["squid"] == 2
 
-    methods = {entry["method"]: entry["samples"] for entry in summary["driver_method_breakdown"]}
-    assert methods["undetected-chromedriver"] == 2
+        methods = {
+            entry["method"]: entry["samples"]
+            for entry in summary["driver_method_breakdown"]
+        }
+        assert methods["undetected-chromedriver"] == 2
 
-    top_domains = summary["top_domains_by_selenium_failures"]
-    assert top_domains[0]["domain"] == "example.com"
-    assert top_domains[0]["selenium_failures"] == 2
-        is None
-    )
+        top_domains = summary["top_domains_by_selenium_failures"]
+        assert top_domains[0]["domain"] == "example.com"
+        assert top_domains[0]["selenium_failures"] == 2
 
-    assert ct.ComprehensiveExtractionTelemetry._resolve_numeric_confidence({}) is None
+        assert (
+            ct.ComprehensiveExtractionTelemetry._resolve_numeric_confidence({})
+            is None
+        )
+    finally:
+        try:
+            cleanup()
+        except Exception:
+            pass
 
 
 def test_comprehensive_telemetry_coerce_detected_at():

@@ -263,12 +263,19 @@ class ExtractionMetrics:
             self.driver_metrics = None
             return
 
+        def _driver_metrics_encoder(value: Any) -> Any:
+            if isinstance(value, datetime):
+                return str(value)
+            raise TypeError(
+                f"Unsupported driver metrics value: {type(value).__name__}"
+            )
+
         try:
             # Ensure payload is JSON-serializable by round-tripping through dumps/loads
-            sanitized = json.loads(json.dumps(payload, default=str))
+            sanitized = json.loads(json.dumps(payload, default=_driver_metrics_encoder))
         except (TypeError, ValueError) as exc:
             logger.warning("Failed to sanitize driver metrics payload: %s", exc)
-            self.driver_metrics = {"raw": str(payload)}
+            self.driver_metrics = {"raw": repr(payload)}
             return
 
         self.driver_metrics = sanitized
@@ -351,7 +358,6 @@ class ComprehensiveExtractionTelemetry:
     # 1. alembic upgrade head (for new deployments)
     # 2. Manual SQL scripts (for existing databases)
     # 3. NOT from application code during normal operation
-
     def record_extraction(self, metrics: ExtractionMetrics):
         """Record detailed extraction metrics."""
 
@@ -1432,9 +1438,7 @@ class ComprehensiveExtractionTelemetry:
             params.append(cutoff)
 
         query = (
-            "SELECT driver_metrics "
-            "FROM extraction_telemetry_v2 "
-            f"{where_clause}"
+            "SELECT driver_metrics " "FROM extraction_telemetry_v2 " f"{where_clause}"
         )
 
         reuse_counts: list[float] = []
@@ -1481,11 +1485,7 @@ class ComprehensiveExtractionTelemetry:
             domain = payload.get("domain") or {}
             domain_name = domain.get("name")
             failures = domain.get("selenium_failures")
-            if (
-                domain_name
-                and isinstance(failures, (int, float))
-                and failures > 0
-            ):
+            if domain_name and isinstance(failures, (int, float)) and failures > 0:
                 domain_failures[domain_name] += float(failures)
 
             if domain.get("captcha_backoff_active"):

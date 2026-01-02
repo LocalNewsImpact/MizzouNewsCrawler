@@ -27,10 +27,22 @@ from dateutil import parser as dateparser
 from src.utils.bot_sensitivity_manager import BotSensitivityManager
 from src.utils.comprehensive_telemetry import ExtractionMetrics
 
+from .fingerprint_profile import (
+    FingerprintProfile,
+    load_fingerprint_profile,
+    prepare_user_data_dir,
+)
 from .proxy_config import ProxyProvider, get_proxy_manager
 from .utils import mask_proxy_url
 
 UNBLOCK_MIN_HTML_BYTES = 3000
+
+_SELENIUM_DEFAULT_USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
+]
 
 
 class RateLimitError(Exception):
@@ -524,9 +536,23 @@ class ContentExtractor:
         user_agent: str = None,
         timeout: int = 10,
         use_mcmetadata: Optional[bool] = None,
+        selenium_mode: Optional[str] = None,
     ):
         """Initialize ContentExtractor with anti-detection capabilities."""
         self.timeout = timeout  # Reduced from 20 for faster requests
+
+        raw_mode_value = (
+            selenium_mode or os.getenv("SELENIUM_EXECUTION_MODE") or "headful"
+        )
+        normalized_mode = raw_mode_value.strip().lower()
+        if normalized_mode not in {"headful", "headless"}:
+            logger.warning(
+                "Invalid SELENIUM_EXECUTION_MODE '%s'; defaulting to headful",
+                raw_mode_value,
+            )
+            normalized_mode = "headful"
+        self.selenium_mode = normalized_mode
+        logger.info("Selenium execution mode: %s", self.selenium_mode)
 
         # MediaCloud metadata integration (feature-flagged)
         if use_mcmetadata is None:
@@ -785,6 +811,29 @@ class ContentExtractor:
 
         # Initialize bot sensitivity manager for adaptive crawling
         self.bot_sensitivity_manager = BotSensitivityManager()
+
+        self._fingerprint_profile: FingerprintProfile | None = (
+            load_fingerprint_profile()
+        )
+
+        profile_dir_env = os.getenv("SELENIUM_USER_DATA_DIR")
+        self._selenium_profile_directory = os.getenv(
+            "SELENIUM_PROFILE_DIRECTORY", "Default"
+        )
+        readonly_flag = os.getenv("SELENIUM_PROFILE_READONLY", "false").lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        )
+        try:
+            self._selenium_user_data_dir = prepare_user_data_dir(
+                profile_dir_env,
+                readonly=readonly_flag,
+            )
+        except FileNotFoundError as exc:
+            logger.error("SELENIUM_USER_DATA_DIR was set but is invalid: %s", exc)
+            raise
 
         logger.info("ContentExtractor initialized with user agent rotation enabled")
 
@@ -1423,6 +1472,8 @@ class ContentExtractor:
         Automatically recreates the driver after reaching the reuse limit
         to prevent memory leaks from accumulated Chrome renderer processes.
         """
+        headless_mode = self._is_headless_selenium_mode()
+
         # Check if driver needs recreation due to reuse limit
         if (
             self._persistent_driver is not None
@@ -1440,7 +1491,9 @@ class ContentExtractor:
                 # Try undetected-chromedriver first (most advanced)
                 if UNDETECTED_CHROME_AVAILABLE:
                     try:
-                        self._persistent_driver = self._create_undetected_driver()
+                        self._persistent_driver = self._create_undetected_driver(
+                            headless=headless_mode
+                        )
                         self._driver_method = "undetected-chromedriver"
                     except Exception as uc_err:
                         logger.warning(
@@ -1448,12 +1501,16 @@ class ContentExtractor:
                             "falling back to selenium-stealth"
                         )
                         if SELENIUM_AVAILABLE:
-                            self._persistent_driver = self._create_stealth_driver()
+                            self._persistent_driver = self._create_stealth_driver(
+                                headless=headless_mode
+                            )
                             self._driver_method = "selenium-stealth"
                         else:
                             raise
                 elif SELENIUM_AVAILABLE:
-                    self._persistent_driver = self._create_stealth_driver()
+                    self._persistent_driver = self._create_stealth_driver(
+                        headless=headless_mode
+                    )
                     self._driver_method = "selenium-stealth"
                 else:
                     raise Exception("No Selenium implementation available")
@@ -1497,9 +1554,15 @@ class ContentExtractor:
             "driver_reuse_count": self._driver_reuse_count,
             "driver_reuse_limit": self._driver_reuse_limit,
             "driver_method": getattr(self, "_driver_method", None),
+            "selenium_mode": self.selenium_mode,
         }
 
-    def get_driver_telemetry_snapshot(self, domain: str | None = None) -> Dict[str, Any]:
+    def _is_headless_selenium_mode(self) -> bool:
+        return self.selenium_mode == "headless"
+
+    def get_driver_telemetry_snapshot(
+        self, domain: str | None = None
+    ) -> Dict[str, Any]:
         """Return a JSON-safe telemetry snapshot for driver and proxy health."""
 
         snapshot: Dict[str, Any] = {
@@ -1614,22 +1677,6 @@ class ContentExtractor:
         self._latest_wire_hints = None
         self._latest_cms_metadata = None
 
-        # Check if domain requires special extraction method
-        domain = urlparse(url).netloc
-        extraction_method, protection_type = self._get_domain_extraction_method(domain)
-        skip_http_methods = extraction_method in {"selenium", "unblock"}
-
-        if extraction_method == "unblock":
-            logger.info(
-                f"🔓 Domain {domain} uses unblock proxy extraction "
-                f"(protection: {protection_type}) - using Squid proxy"
-            )
-        elif extraction_method == "selenium":
-            logger.info(
-                f"🔒 Domain {domain} uses Selenium extraction "
-                f"(protection: {protection_type}) - skipping HTTP methods"
-            )
-
         # Initialize result structure
         result: Dict[str, Any] = {
             "url": url,
@@ -1643,6 +1690,39 @@ class ContentExtractor:
         }
 
         html_for_methods = html
+
+        # Check if domain requires special extraction method
+        domain = urlparse(url).netloc
+        extraction_method, protection_type = self._get_domain_extraction_method(domain)
+        skip_http_methods = extraction_method in {"selenium", "unblock"}
+
+        selenium_first = self._should_prioritize_selenium(extraction_method)
+        selenium_attempted_primary = False
+
+        if selenium_first and SELENIUM_AVAILABLE:
+            reason = (
+                "domain_required"
+                if extraction_method == "selenium"
+                else "headful_primary"
+            )
+            attempted, success = self._run_selenium_extraction(
+                url, result, metrics, reason
+            )
+            selenium_attempted_primary = attempted
+            if success and not self._get_missing_fields(result):
+                skip_http_methods = True
+            self._apply_cms_metadata_fallback(result)
+
+        if extraction_method == "unblock":
+            logger.info(
+                f"🔓 Domain {domain} uses unblock proxy extraction "
+                f"(protection: {protection_type}) - using Squid proxy"
+            )
+        elif extraction_method == "selenium":
+            logger.info(
+                f"🔒 Domain {domain} uses Selenium extraction "
+                f"(protection: {protection_type}) - skipping HTTP methods"
+            )
 
         # Try mcmetadata first if enabled (skip for selenium_only domains)
         if self.use_mcmetadata and MCMETADATA_AVAILABLE and not skip_http_methods:
@@ -1839,78 +1919,18 @@ class ContentExtractor:
         self._apply_cms_metadata_fallback(result)
         missing_fields = self._get_missing_fields(result)
 
-        # Try Selenium final fallback for remaining missing fields
-        if missing_fields and SELENIUM_AVAILABLE:
-            try:
-                logger.info(
-                    f"Attempting Selenium fallback for missing "
-                    f"fields {missing_fields} on {url}"
-                )
-                if metrics:
-                    metrics.start_method("selenium")
-
-                # Check if domain is in CAPTCHA backoff period
-                # Selenium should respect CAPTCHA backoffs since it will just hit the same CAPTCHA
-                dom = urlparse(url).netloc
-                if self._check_rate_limit(dom):
-                    logger.info(
-                        f"Skipping Selenium for {dom} - domain is in CAPTCHA backoff period"
-                    )
-                    raise RateLimitError(f"Domain {dom} is in backoff period")
-
-                # Only check if Selenium itself has failed repeatedly on this domain
-                selenium_failures = getattr(self, "_selenium_failure_counts", {})
-                if selenium_failures.get(dom, 0) >= 3:
-                    logger.warning(
-                        f"Skipping Selenium for {dom} - already failed {selenium_failures[dom]} times"
-                    )
-                    raise RateLimitError(
-                        f"Selenium repeatedly failed for {dom}; skipping"
-                    )
-
-                selenium_result = self._extract_with_selenium(url)
-
-                if selenium_result and selenium_result.get("content"):
-                    # Only copy still-missing fields
-                    self._merge_extraction_results(
-                        result, selenium_result, "selenium", missing_fields, metrics
-                    )
-                    logger.info(f"✅ Selenium extraction succeeded for {url}")
-
-                    # Reset failure count on success
-                    if dom in self._selenium_failure_counts:
-                        del self._selenium_failure_counts[dom]
-
-                    if metrics:
-                        metrics.end_method("selenium", True, None, selenium_result)
-                else:
-                    # Selenium returned empty result - track as failure
-                    self._selenium_failure_counts[dom] = (
-                        self._selenium_failure_counts.get(dom, 0) + 1
-                    )
-                    logger.warning(
-                        f"❌ Selenium returned empty result for {url} "
-                        f"(failure #{self._selenium_failure_counts[dom]})"
-                    )
-                    if metrics:
-                        metrics.end_method(
-                            "selenium",
-                            False,
-                            "No content extracted",
-                            selenium_result or {},
-                        )
-
-            except Exception as e:
-                # Track Selenium exception as failure
-                self._selenium_failure_counts[dom] = (
-                    self._selenium_failure_counts.get(dom, 0) + 1
-                )
-                logger.info(
-                    f"❌ Selenium extraction failed for {url}: {e} "
-                    f"(failure #{self._selenium_failure_counts[dom]})"
-                )
-                if metrics:
-                    metrics.end_method("selenium", False, str(e), {})
+        # Try Selenium final fallback for remaining missing fields when not already attempted
+        if missing_fields and SELENIUM_AVAILABLE and not selenium_attempted_primary:
+            fallback_reason = (
+                "selenium_secondary" if skip_http_methods else "http_fallback"
+            )
+            self._run_selenium_extraction(
+                url,
+                result,
+                metrics,
+                fallback_reason,
+                missing_fields=missing_fields,
+            )
 
         # If bot protection was detected in newspaper4k and Selenium also failed, raise RateLimitError
         if result.get("_bot_protection_detected") and self._get_missing_fields(result):
@@ -1993,6 +2013,14 @@ class ContentExtractor:
         self._latest_cms_metadata = None
 
         return result_copy
+
+    def _should_prioritize_selenium(self, extraction_method: str) -> bool:
+        """Determine whether Selenium should run before HTTP methods."""
+        if extraction_method == "unblock":
+            return False
+        if extraction_method == "selenium":
+            return True
+        return self.selenium_mode == "headful"
 
     def _get_missing_fields(self, result: Dict[str, Any]) -> List[str]:
         """Identify which fields are missing or empty in extraction result."""
@@ -2924,7 +2952,7 @@ class ContentExtractor:
 
             soup = BeautifulSoup(html, "html.parser")
 
-            result = {
+            result: Dict[str, Any] = {
                 "url": url,
                 "title": self._extract_title(soup),
                 "author": self._extract_author(soup),
@@ -2941,6 +2969,20 @@ class ContentExtractor:
                 "extracted_at": datetime.utcnow().isoformat(),
             }
 
+            metadata = cast(Dict[str, Any], result["metadata"])
+
+            if self._fingerprint_profile:
+                metadata["fingerprint_profile"] = (
+                    self._fingerprint_profile.source_path.name
+                )
+            if self._selenium_user_data_dir:
+                metadata.update(
+                    {
+                        "chrome_user_data_dir": str(self._selenium_user_data_dir),
+                        "chrome_profile_directory": self._selenium_profile_directory,
+                    }
+                )
+
             self._attach_publish_date_fallback_metadata(result)
 
             return result
@@ -2954,8 +2996,165 @@ class ContentExtractor:
                 self.close_persistent_driver()
             return {}
 
-    def _create_undetected_driver(self):
+    def _run_selenium_extraction(
+        self,
+        url: str,
+        result: Dict[str, Any],
+        metrics: Optional[ExtractionMetrics],
+        reason: str,
+        missing_fields: Optional[List[str]] = None,
+    ) -> Tuple[bool, bool]:
+        """Run Selenium extraction and merge results.
+
+        Returns (attempted, success) so callers can avoid duplicate work.
+        """
+        if not SELENIUM_AVAILABLE:
+            return False, False
+
+        fields_needed = missing_fields or self._get_missing_fields(result)
+        if not fields_needed:
+            return False, False
+
+        dom = urlparse(url).netloc
+        logger.info(
+            "Attempting Selenium (%s) for missing fields %s on %s",
+            reason,
+            fields_needed,
+            url,
+        )
+
+        if metrics:
+            metrics.start_method("selenium")
+
+        try:
+            if self._check_rate_limit(dom):
+                logger.info(
+                    "Skipping Selenium for %s - domain is in CAPTCHA backoff period",
+                    dom,
+                )
+                raise RateLimitError(f"Domain {dom} is in backoff period")
+
+            selenium_failures = getattr(self, "_selenium_failure_counts", {})
+            if selenium_failures.get(dom, 0) >= 3:
+                logger.warning(
+                    "Skipping Selenium for %s - already failed %s times",
+                    dom,
+                    selenium_failures[dom],
+                )
+                raise RateLimitError(f"Selenium repeatedly failed for {dom}; skipping")
+
+            selenium_result = self._extract_with_selenium(url)
+            if selenium_result:
+                metadata = selenium_result.setdefault("metadata", {})
+                metadata["selenium_reason"] = reason
+
+            if selenium_result and selenium_result.get("content"):
+                self._merge_extraction_results(
+                    result,
+                    selenium_result,
+                    "selenium",
+                    fields_needed,
+                    metrics,
+                )
+                logger.info("✅ Selenium extraction succeeded for %s", url)
+                if dom in self._selenium_failure_counts:
+                    del self._selenium_failure_counts[dom]
+                if metrics:
+                    metrics.end_method("selenium", True, None, selenium_result)
+                return True, True
+
+            self._selenium_failure_counts[dom] = (
+                self._selenium_failure_counts.get(dom, 0) + 1
+            )
+            logger.warning(
+                "❌ Selenium returned empty result for %s (failure #%s)",
+                url,
+                self._selenium_failure_counts[dom],
+            )
+            if metrics:
+                metrics.end_method(
+                    "selenium",
+                    False,
+                    "No content extracted",
+                    selenium_result or {},
+                )
+            return True, False
+
+        except Exception as exc:
+            self._selenium_failure_counts[dom] = (
+                self._selenium_failure_counts.get(dom, 0) + 1
+            )
+            logger.info(
+                "❌ Selenium extraction failed for %s: %s (failure #%s)",
+                url,
+                exc,
+                self._selenium_failure_counts[dom],
+            )
+            if metrics:
+                metrics.end_method("selenium", False, str(exc), {})
+            return True, False
+
+    def _resolve_selenium_user_agent(self) -> str:
+        if self._fingerprint_profile and self._fingerprint_profile.user_agent:
+            return self._fingerprint_profile.user_agent
+        return random.choice(_SELENIUM_DEFAULT_USER_AGENTS)
+
+    def _resolve_window_size(self) -> tuple[int, int]:
+        if self._fingerprint_profile and self._fingerprint_profile.screen_size:
+            return self._fingerprint_profile.screen_size
+        width = random.randint(1366, 1920)
+        height = random.randint(768, 1080)
+        return width, height
+
+    def _maybe_configure_user_data_dir(self, chrome_options) -> None:
+        if not self._selenium_user_data_dir:
+            return
+        chrome_options.add_argument(f"--user-data-dir={self._selenium_user_data_dir}")
+        if self._selenium_profile_directory:
+            chrome_options.add_argument(
+                f"--profile-directory={self._selenium_profile_directory}"
+            )
+
+    def _apply_fingerprint_profile(self, driver) -> None:
+        profile = self._fingerprint_profile
+        if not profile:
+            return
+
+        payload: dict[str, Any] = {}
+        if profile.user_agent:
+            payload["userAgent"] = profile.user_agent
+        if profile.client_hints:
+            payload.update(profile.client_hints)
+        if payload:
+            try:
+                driver.execute_cdp_cmd("Network.setUserAgentOverride", payload)
+            except Exception as exc:
+                logger.debug("CDP UA override failed: %s", exc)
+
+        if profile.accept_language:
+            try:
+                driver.execute_cdp_cmd(
+                    "Network.setExtraHTTPHeaders",
+                    {"headers": {"Accept-Language": profile.accept_language}},
+                )
+            except Exception as exc:
+                logger.debug("Failed to set Accept-Language header: %s", exc)
+
+        if profile.script:
+            try:
+                driver.execute_cdp_cmd(
+                    "Page.addScriptToEvaluateOnNewDocument",
+                    {"source": profile.script},
+                )
+            except Exception as exc:
+                logger.debug("Fingerprint init script registration failed: %s", exc)
+
+    def _create_undetected_driver(self, *, headless: bool | None = None):
         """Create undetected-chromedriver instance with maximum stealth."""
+        headless_mode = (
+            headless if headless is not None else self._is_headless_selenium_mode()
+        )
+
         # Configure undetected chrome options
         options = uc.ChromeOptions()
 
@@ -2974,29 +3173,20 @@ class ContentExtractor:
         # Don't disable extensions - we use proxy auth extension
         # options.add_argument("--disable-extensions")
         options.add_argument("--disable-plugins")
-        # Add headless argument explicitly for better container compatibility
-        options.add_argument("--headless=new")
+        if headless_mode:
+            options.add_argument("--headless=new")
         # Additional flags for containerized environments
         options.add_argument("--disable-software-rasterizer")
         options.add_argument("--disable-setuid-sandbox")
         options.add_argument("--remote-debugging-port=9222")
         # Note: JavaScript and images enabled for modern news sites
 
-        # Random viewport size (within realistic range)
-        width = random.randint(1366, 1920)
-        height = random.randint(768, 1080)
+        width, height = self._resolve_window_size()
         options.add_argument(f"--window-size={width},{height}")
 
         # CRITICAL: Explicitly set realistic user agent to hide headless indicator
         # UC's auto-handling leaks "HeadlessChrome" in the UA string which PerimeterX detects
-        realistic_ua = random.choice(
-            [
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
-                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            ]
-        )
+        realistic_ua = self._resolve_selenium_user_agent()
         options.add_argument(f"--user-agent={realistic_ua}")
 
         # CRITICAL: Configure proxy with authentication for PerimeterX bypass
@@ -3073,6 +3263,8 @@ class ContentExtractor:
                     f"Could not parse proxy URL: {mask_proxy_url(selenium_proxy)}"
                 )
 
+        self._maybe_configure_user_data_dir(options)
+
         # Read optional binary paths from environment
         # Common envs: CHROME_BIN, GOOGLE_CHROME_BIN, CHROMEDRIVER_PATH
         chrome_bin = os.getenv("CHROME_BIN") or os.getenv("GOOGLE_CHROME_BIN") or None
@@ -3087,8 +3279,7 @@ class ContentExtractor:
             uc_kwargs = {
                 "options": options,
                 "version_main": None,  # Auto-detect
-                # Use --headless=new arg instead for better compatibility
-                "headless": False,
+                "headless": headless_mode,
                 # Changed to False for container stability
                 "use_subprocess": False,
                 "log_level": 3,  # Suppress logs
@@ -3113,6 +3304,8 @@ class ContentExtractor:
         # Set timeouts - reduced for faster extraction
         driver.set_page_load_timeout(15)  # Reduced from 30
         driver.implicitly_wait(5)  # Reduced from 10
+
+        self._apply_fingerprint_profile(driver)
 
         # CRITICAL: Override User-Agent via CDP to hide headless indicator
         # The command-line arg doesn't always take effect, CDP is more reliable
@@ -3178,8 +3371,12 @@ class ContentExtractor:
 
         return driver
 
-    def _create_stealth_driver(self):
+    def _create_stealth_driver(self, *, headless: bool | None = None):
         """Create regular Selenium driver with stealth enhancements."""
+        headless_mode = (
+            headless if headless is not None else self._is_headless_selenium_mode()
+        )
+
         # Configure Chrome options for maximum stealth
         chrome_options = ChromeOptions()
 
@@ -3188,7 +3385,8 @@ class ContentExtractor:
         # Prevents 147s timeouts waiting for slow ads/trackers
         chrome_options.page_load_strategy = "eager"
 
-        chrome_options.add_argument("--headless=new")
+        if headless_mode:
+            chrome_options.add_argument("--headless=new")
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--disable-gpu")
@@ -3202,17 +3400,11 @@ class ContentExtractor:
         chrome_options.add_argument("--disable-backgrounding-occluded-windows")
         chrome_options.add_argument("--disable-renderer-backgrounding")
 
-        # Random realistic viewport
-        width = random.randint(1366, 1920)
-        height = random.randint(768, 1080)
+        width, height = self._resolve_window_size()
         chrome_options.add_argument(f"--window-size={width},{height}")
 
         # Realistic user agent
-        realistic_ua = (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/120.0.0.0 Safari/537.36"
-        )
+        realistic_ua = self._resolve_selenium_user_agent()
         chrome_options.add_argument(f"--user-agent={realistic_ua}")
 
         # Optional proxy for Selenium
@@ -3242,6 +3434,8 @@ class ContentExtractor:
 
         if chrome_bin:
             chrome_options.binary_location = str(chrome_bin)
+
+        self._maybe_configure_user_data_dir(chrome_options)
 
         if driver_path:
             service = ChromeService(executable_path=str(driver_path))
@@ -3293,6 +3487,8 @@ class ContentExtractor:
         # Set timeouts - reduced for faster extraction
         driver.set_page_load_timeout(15)  # Reduced from 30
         driver.implicitly_wait(5)  # Reduced from 10
+
+        self._apply_fingerprint_profile(driver)
 
         # CRITICAL FIX: Set command executor timeout to prevent 147s delays
         # Default timeout is 120s, but Selenium waits an additional ~27s
