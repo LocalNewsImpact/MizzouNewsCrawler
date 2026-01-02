@@ -2052,6 +2052,8 @@ class ContentExtractor:
             return False
         if extraction_method == "selenium":
             return True
+        if self.selenium_mode == "headful":
+            return True
         return self._selenium_primary_strategy == "selenium-first"
 
     def _get_missing_fields(self, result: Dict[str, Any]) -> List[str]:
