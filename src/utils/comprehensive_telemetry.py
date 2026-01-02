@@ -266,9 +266,7 @@ class ExtractionMetrics:
         def _driver_metrics_encoder(value: Any) -> Any:
             if isinstance(value, datetime):
                 return str(value)
-            raise TypeError(
-                f"Unsupported driver metrics value: {type(value).__name__}"
-            )
+            raise TypeError(f"Unsupported driver metrics value: {type(value).__name__}")
 
         try:
             # Ensure payload is JSON-serializable by round-tripping through dumps/loads

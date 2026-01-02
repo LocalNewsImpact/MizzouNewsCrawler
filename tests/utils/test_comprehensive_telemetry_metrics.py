@@ -751,8 +751,7 @@ def test_get_driver_metrics_summary():
         assert top_domains[0]["selenium_failures"] == 2
 
         assert (
-            ct.ComprehensiveExtractionTelemetry._resolve_numeric_confidence({})
-            is None
+            ct.ComprehensiveExtractionTelemetry._resolve_numeric_confidence({}) is None
         )
     finally:
         try:
