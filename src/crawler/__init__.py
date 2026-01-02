@@ -2802,10 +2802,8 @@ class ContentExtractor:
                         logger.warning(
                             f"Permanent missing ({resp.status_code}) for {url}; caching"
                         )
-                        # Raise exception to stop all fallback attempts
-                        raise NotFoundError(
-                            f"URL not found ({resp.status_code}): {url}"
-                        )
+                        # Gracefully stop fallback attempts for true 404/410 responses
+                        return {}
 
                     # Check for rate limiting and server errors
                     if resp.status_code == 429:
