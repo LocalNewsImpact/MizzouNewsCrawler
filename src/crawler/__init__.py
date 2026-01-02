@@ -1179,10 +1179,18 @@ class ContentExtractor:
         self.domain_backoff_until[domain] = current_time + final_delay
 
         # Log the rate limit
-        retry_after = response.headers.get("retry-after") if response else None
-        if retry_after:
+        retry_after_value = None
+        if response is not None:
+            headers = getattr(response, "headers", None)
+            if headers:
+                try:
+                    retry_after_value = headers.get("retry-after")
+                except AttributeError:
+                    retry_after_value = None
+
+        if retry_after_value not in (None, ""):
             try:
-                retry_seconds = int(retry_after)
+                retry_seconds = int(float(retry_after_value))
                 logger.warning(
                     f"Rate limited by {domain}, server says retry "
                     f"after {retry_seconds}s, our backoff: "
@@ -1191,9 +1199,15 @@ class ContentExtractor:
                 # Use server's retry-after if it's longer than our backoff
                 if retry_seconds > final_delay:
                     self.domain_backoff_until[domain] = current_time + retry_seconds
-            except ValueError:
-                pass
-        else:
+            except (ValueError, TypeError):
+                logger.debug(
+                    "Invalid retry-after header %r from %s; using default backoff",
+                    retry_after_value,
+                    domain,
+                )
+                retry_after_value = None
+
+        if retry_after_value in (None, ""):
             logger.warning(
                 f"Rate limited by {domain}, backing off for "
                 f"{final_delay:.0f}s (attempt {error_count})"
@@ -1891,6 +1905,22 @@ class ContentExtractor:
                             bs_result or {},
                         )
 
+            except RateLimitError as e:
+                logger.warning(
+                    "BeautifulSoup fallback hit rate limit for %s: %s", url, e
+                )
+                if metrics:
+                    metrics.end_method("beautifulsoup", False, str(e), {})
+                raise
+            except NotFoundError as e:
+                logger.warning(
+                    "BeautifulSoup fallback encountered missing article for %s: %s",
+                    url,
+                    e,
+                )
+                if metrics:
+                    metrics.end_method("beautifulsoup", False, str(e), {})
+                raise
             except Exception as e:
                 logger.info(f"BeautifulSoup extraction failed for {url}: {e}")
                 if metrics:
@@ -2766,6 +2796,12 @@ class ContentExtractor:
                     # Restore original headers
                     session.headers = original_headers
 
+            except RateLimitError:
+                # Propagate rate limiting up to extract_content so it can halt
+                raise
+            except NotFoundError:
+                # Propagate permanent missing errors to stop fallback cascade
+                raise
             except Exception as e:
                 logger.warning(f"Failed to fetch page for extraction {url}: {e}")
                 return {}
