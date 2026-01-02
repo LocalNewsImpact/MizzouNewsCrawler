@@ -1,0 +1,41 @@
+{
+  "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+  "uaData": {
+    "brands": [
+      {"brand": "Not A Brand", "version": "99"},
+      {"brand": "Google Chrome", "version": "143"},
+      {"brand": "Chromium", "version": "143"}
+    ],
+    "fullVersionList": [
+      {"brand": "Not A Brand", "version": "99.0.0.0"},
+      {"brand": "Google Chrome", "version": "143.0.0.0"},
+      {"brand": "Chromium", "version": "143.0.0.0"}
+    ],
+    "mobile": false,
+    "platform": "macOS",
+    "platformVersion": "15.0.0",
+    "architecture": "arm",
+    "model": "",
+    "bitness": "64"
+  },
+  "navigator": {
+    "platform": "MacIntel",
+    "hardwareConcurrency": 10,
+    "maxTouchPoints": 0,
+    "language": "en-US",
+    "languages": ["en-US", "en"],
+    "deviceMemory": 8
+  },
+  "screen": {
+    "width": 1728,
+    "height": 1117,
+    "availWidth": 1728,
+    "availHeight": 1084,
+    "colorDepth": 30,
+    "pixelDepth": 30
+  },
+  "webgl": {
+    "webglVendor": "Google Inc. (Apple)",
+    "webglRenderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Pro, Unspecified Version)"
+  }
+}
