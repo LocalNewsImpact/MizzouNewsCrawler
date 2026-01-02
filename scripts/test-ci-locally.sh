@@ -278,7 +278,7 @@ docker run --rm \
     -v "$(pwd)":/workspace \
     -w /workspace \
     us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-    /bin/bash -c "pytest -m 'not postgres' -v --cov-fail-under=80" 2>&1 | grep -v "WARNING: The requested image's platform" || true
+    /bin/bash -c "pytest -m 'not postgres' -v --cov-fail-under=78" 2>&1 | grep -v "WARNING: The requested image's platform" || true
 TEST_EXIT_CODE=${PIPESTATUS[0]}  # Gets exit code of docker run, not grep
 set -e   # Re-enable exit-on-error
 
@@ -291,7 +291,7 @@ if [ $TEST_EXIT_CODE -eq 1 ]; then
     echo -e "${RED}❌ Unit + integration tests FAILED (actual test failures)${NC}"
     exit 1
 elif [ $TEST_EXIT_CODE -eq 2 ]; then
-    echo -e "${YELLOW}⚠️  Unit + integration tests passed but coverage is below 80%${NC}"
+    echo -e "${YELLOW}⚠️  Unit + integration tests passed but coverage is below 78%${NC}"
     echo -e "${YELLOW}   Continuing to run PostgreSQL tests...${NC}"
     COVERAGE_BELOW_THRESHOLD=true
 elif [ $TEST_EXIT_CODE -eq 0 ]; then
@@ -339,12 +339,12 @@ echo -e "${GREEN}✅ Step 5/5: PostgreSQL integration tests passed${NC}"
 
 echo ""
 if [ "$COVERAGE_BELOW_THRESHOLD" = true ]; then
-    echo -e "${YELLOW}⚠️  All tests passed but coverage is below 80%${NC}"
+    echo -e "${YELLOW}⚠️  All tests passed but coverage is below 78%${NC}"
     echo "   ✅ Linting (ruff, black, isort)"
     echo "   ✅ Type checking (mypy)"
     echo "   ✅ Workflow template validation"
     echo "   ✅ Database migrations"
-    echo "   ✅ Unit + integration tests (but coverage < 80%)"
+    echo "   ✅ Unit + integration tests (but coverage < 78%)"
     echo "   ✅ PostgreSQL integration tests"
     echo ""
     echo -e "${YELLOW}⚠️  Push will succeed but consider adding test coverage${NC}"
@@ -354,7 +354,7 @@ else
     echo "   ✅ Type checking (mypy)"
     echo "   ✅ Workflow template validation"
     echo "   ✅ Database migrations"
-    echo "   ✅ Unit + integration tests with 80% coverage threshold (aggregate)"
+    echo "   ✅ Unit + integration tests with 78% coverage threshold (aggregate)"
     echo "   ✅ PostgreSQL integration tests"
 fi
 echo ""

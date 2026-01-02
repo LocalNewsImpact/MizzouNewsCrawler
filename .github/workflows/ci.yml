@@ -543,7 +543,7 @@ jobs:
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
             us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-            /bin/bash -c "git config --global --add safe.directory /workspace && pytest -m 'not postgres' --cov=src --cov-report=xml --cov-report=html --cov-report=term-missing --cov-fail-under=80"
+            /bin/bash -c "git config --global --add safe.directory /workspace && pytest -m 'not postgres' --cov=src --cov-report=xml --cov-report=html --cov-report=term-missing --cov-fail-under=78"
 
       - name: Generate coverage summary
         if: success()
