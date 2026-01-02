@@ -588,6 +588,9 @@ class ContentExtractor:
         # CMS metadata extracted from JavaScript data objects (title, author, etc.)
         self._latest_cms_metadata: Dict[str, Any] | None = None
 
+        # Track the most recent bot-protection detection to inform fallbacks
+        self._last_bot_protection_detection: Optional[Dict[str, Any]] | None = None
+
         # Cache for wire author patterns from DB (5 min TTL)
         self._wire_author_patterns_cache: list[tuple[str, str, bool]] = []
         self._wire_author_patterns_timestamp: float = 0.0
@@ -1363,6 +1366,21 @@ class ContentExtractor:
         }
         return protection_type in js_required_protections
 
+    def _record_bot_protection_detection(
+        self,
+        *,
+        protection_type: Optional[str],
+        status_code: Optional[int],
+        source: str,
+    ) -> None:
+        """Persist the latest bot-protection detection for downstream logic."""
+
+        self._last_bot_protection_detection = {
+            "type": protection_type,
+            "status_code": status_code,
+            "source": source,
+        }
+
     def _mark_domain_special_extraction(
         self, domain: str, protection_type: str, method: str = "selenium"
     ) -> None:
@@ -1741,6 +1759,7 @@ class ContentExtractor:
         self._publish_date_details = None
         self._latest_wire_hints = None
         self._latest_cms_metadata = None
+        self._last_bot_protection_detection = None
 
         # Initialize result structure
         result: Dict[str, Any] = {
@@ -1883,20 +1902,31 @@ class ContentExtractor:
                         }
                     }
 
+                detection_info = self._last_bot_protection_detection
+                protection_type = (
+                    detection_info.get("type")
+                    if detection_info and detection_info.get("type")
+                    else None
+                )
                 bot_protection_failure = (
                     "Bot protection" in error_str
                     or "Server error (403)" in error_str
                     or (status_code in {401, 403, 429})
+                    or detection_info is not None
                 )
                 if bot_protection_failure:
                     result["_bot_protection_detected"] = True
-                    match = re.search(
-                        r"Bot protection on [^:]+:\s*([a-z0-9_\-]+)",
-                        error_str,
-                        re.IGNORECASE,
-                    )
-                    if match:
-                        result["_bot_protection_type"] = match.group(1).lower()
+                    if not protection_type:
+                        match = re.search(
+                            r"Bot protection on [^:]+:\s*([a-z0-9_\-]+)",
+                            error_str,
+                            re.IGNORECASE,
+                        )
+                        if match:
+                            protection_type = match.group(1).lower()
+
+                    if protection_type:
+                        result["_bot_protection_type"] = protection_type
 
                 if hasattr(e, "__context__") and hasattr(e.__context__, "response"):
                     pass
@@ -2023,24 +2053,34 @@ class ContentExtractor:
                 missing_fields=missing_fields,
             )
 
+        detection_info = self._last_bot_protection_detection
         # If bot protection was detected in newspaper4k and Selenium also failed, raise RateLimitError
-        if result.get("_bot_protection_detected") and self._get_missing_fields(result):
+        if (result.get("_bot_protection_detected") or detection_info) and self._get_missing_fields(result):
             logger.warning(
                 f"Bot protection detected and all fallbacks (including Selenium) failed for {url}"
             )
             domain = urlparse(url).netloc
             protection_type = result.get("_bot_protection_type")
+            if not protection_type and detection_info:
+                protection_type = detection_info.get("type")
             if protection_type and self._is_js_required_protection(protection_type):
                 self._handle_captcha_backoff(domain)
             else:
                 self._handle_rate_limit_error(domain)
 
+            result["_bot_protection_detected"] = True
+            if protection_type:
+                result["_bot_protection_type"] = protection_type
+
             metadata = result.setdefault("metadata", {})
             metadata["bot_protection_blocked"] = True
             if protection_type:
                 metadata["bot_protection_type"] = protection_type
+            if detection_info and detection_info.get("status_code"):
+                metadata["bot_protection_status"] = detection_info["status_code"]
 
             protection_label = protection_type or "bot_protection"
+            self._last_bot_protection_detection = None
             raise RateLimitError(
                 f"Bot protection blocked extraction for {domain} ({protection_label})"
             )
@@ -2048,6 +2088,7 @@ class ContentExtractor:
         # Clean up the flags if extraction succeeded
         result.pop("_bot_protection_detected", None)
         result.pop("_bot_protection_type", None)
+        self._last_bot_protection_detection = None
 
         if self._latest_wire_hints:
             metadata = result.get("metadata")
@@ -2591,6 +2632,12 @@ class ContentExtractor:
                             f"{protection_type}) by {domain}"
                         )
 
+                        self._record_bot_protection_detection(
+                            protection_type=protection_type,
+                            status_code=response.status_code,
+                            source="newspaper",
+                        )
+
                         # If JS-required protection, mark domain with appropriate extraction method
                         # Strong protections (PerimeterX, DataDome) use 'unblock', others use 'selenium'
                         if self._is_js_required_protection(protection_type):
@@ -2738,6 +2785,12 @@ class ContentExtractor:
                                 http_status,
                                 error_str,
                             )
+                            if http_status in {401, 403, 429}:
+                                self._record_bot_protection_detection(
+                                    protection_type=None,
+                                    status_code=http_status,
+                                    source="newspaper",
+                                )
                     raise download_e
 
         article.parse()
@@ -2821,6 +2874,11 @@ class ContentExtractor:
                         if protection_type:
                             logger.warning(
                                 f"🚫 Bot protection detected ({resp.status_code}, {protection_type}) by {domain} during BeautifulSoup fallback"
+                            )
+                            self._record_bot_protection_detection(
+                                protection_type=protection_type,
+                                status_code=resp.status_code,
+                                source="beautifulsoup",
                             )
                             raise Exception(
                                 f"Bot protection on {domain}: {protection_type} ({resp.status_code}) - will try Selenium"
