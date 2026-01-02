@@ -1153,9 +1153,17 @@ class ContentExtractor:
         self.domain_request_times[domain] = time.time()
 
     def _handle_rate_limit_error(
-        self, domain: str, response: requests.Response = None
+        self,
+        domain: str,
+        response: requests.Response = None,
+        apply_backoff: bool = True,
     ) -> None:
-        """Handle rate limit errors with exponential backoff."""
+        """Handle rate limit errors with exponential backoff.
+
+        When apply_backoff is False we still increment error counters and log the
+        event but we skip writing to domain_backoff_until so that fallback flows
+        (e.g., Selenium) can proceed without being blocked mid-extraction.
+        """
         current_time = time.time()
 
         # Initialize error count if needed
@@ -1175,8 +1183,10 @@ class ContentExtractor:
         jitter = random.uniform(0.8, 1.2)
         final_delay = backoff_delay * jitter
 
-        # Set backoff period
-        self.domain_backoff_until[domain] = current_time + final_delay
+        # Set backoff period when allowed (default). Some fallback paths need to
+        # continue immediately, so honor apply_backoff flag for those scenarios.
+        if apply_backoff:
+            self.domain_backoff_until[domain] = current_time + final_delay
 
         # Log the rate limit
         retry_after_value: Optional[str] = None
@@ -1192,14 +1202,21 @@ class ContentExtractor:
         if retry_after_value:
             try:
                 retry_seconds = int(float(retry_after_value))
-                logger.warning(
-                    f"Rate limited by {domain}, server says retry "
-                    f"after {retry_seconds}s, our backoff: "
-                    f"{final_delay:.0f}s (attempt {error_count})"
-                )
+                if apply_backoff:
+                    logger.warning(
+                        f"Rate limited by {domain}, server says retry "
+                        f"after {retry_seconds}s, our backoff: "
+                        f"{final_delay:.0f}s (attempt {error_count})"
+                    )
+                else:
+                    logger.warning(
+                        f"Rate limited by {domain}, server says retry after "
+                        f"{retry_seconds}s (attempt {error_count}) "
+                        f"but skipping domain backoff to allow fallback"
+                    )
                 used_retry_after = True
                 # Use server's retry-after if it's longer than our backoff
-                if retry_seconds > final_delay:
+                if apply_backoff and retry_seconds > final_delay:
                     self.domain_backoff_until[domain] = current_time + retry_seconds
             except (ValueError, TypeError):
                 logger.debug(
@@ -1209,10 +1226,16 @@ class ContentExtractor:
                 )
 
         if not used_retry_after:
-            logger.warning(
-                f"Rate limited by {domain}, backing off for "
-                f"{final_delay:.0f}s (attempt {error_count})"
-            )
+            if apply_backoff:
+                logger.warning(
+                    f"Rate limited by {domain}, backing off for "
+                    f"{final_delay:.0f}s (attempt {error_count})"
+                )
+            else:
+                logger.warning(
+                    f"Rate limited by {domain}, observed during fallback "
+                    f"(attempt {error_count}); skipping domain backoff"
+                )
 
     def _reset_error_count(self, domain: str) -> None:
         """Reset error count for successful requests."""
@@ -1844,20 +1867,26 @@ class ContentExtractor:
             except Exception as e:
                 logger.info(f"newspaper4k extraction failed for {url}: {e}")
 
-                bot_protection_failure = "Bot protection" in str(
-                    e
-                ) or "Server error (403)" in str(e)
+                error_str = str(e)
+
+                import re
+
+                bot_protection_failure = "Bot protection" in error_str or "Server error (403)" in error_str
                 if bot_protection_failure:
                     result["_bot_protection_detected"] = True
+                    match = re.search(
+                        r"Bot protection on [^:]+:\s*([a-z0-9_\-]+)",
+                        error_str,
+                        re.IGNORECASE,
+                    )
+                    if match:
+                        result["_bot_protection_type"] = match.group(1).lower()
 
                 partial_result = {}
                 if hasattr(e, "__context__") and hasattr(e.__context__, "response"):
                     pass
 
-                error_str = str(e)
                 if "Status code" in error_str:
-                    import re
-
                     status_match = re.search(r"Status code (\d+)", error_str)
                     if status_match:
                         http_status = int(status_match.group(1))
@@ -1995,14 +2024,21 @@ class ContentExtractor:
             logger.warning(
                 f"Bot protection detected and all fallbacks (including Selenium) failed for {url}"
             )
-            # Clean up the flag
-            result.pop("_bot_protection_detected", None)
-            raise RateLimitError(
-                f"Bot protection on {urlparse(url).netloc} - all extraction methods failed"
-            )
+            domain = urlparse(url).netloc
+            protection_type = result.get("_bot_protection_type")
+            if protection_type and self._is_js_required_protection(protection_type):
+                self._handle_captcha_backoff(domain)
+            else:
+                self._handle_rate_limit_error(domain)
 
-        # Clean up the flag if extraction succeeded
+            metadata = result.setdefault("metadata", {})
+            metadata["bot_protection_blocked"] = True
+            if protection_type:
+                metadata["bot_protection_type"] = protection_type
+
+        # Clean up the flags if extraction succeeded
         result.pop("_bot_protection_detected", None)
+        result.pop("_bot_protection_type", None)
 
         if self._latest_wire_hints:
             metadata = result.get("metadata")
@@ -2567,10 +2603,9 @@ class ContentExtractor:
                         )
 
                         # Use CAPTCHA backoff for confirmed bot protection
-                        if self._is_js_required_protection(protection_type):
-                            self._handle_captcha_backoff(domain)
-                        else:
-                            self._handle_rate_limit_error(domain, response)
+                        # Defer domain backoff until we know whether fallbacks
+                        # succeed. We only apply captcha/rate-limit delays if
+                        # every extraction path fails later in the pipeline.
 
                         # Raise regular Exception to allow Selenium fallback
                         # Only raise RateLimitError if ALL methods fail
@@ -2775,9 +2810,18 @@ class ContentExtractor:
                         logger.warning(f"Rate limited (429) by {domain}")
                         raise RateLimitError(f"Rate limited (429) by {domain}")
                     elif resp.status_code in [401, 403, 502, 503, 504]:
+                        protection_type = self._detect_bot_protection_in_response(resp)
+                        if protection_type:
+                            logger.warning(
+                                f"🚫 Bot protection detected ({resp.status_code}, {protection_type}) by {domain} during BeautifulSoup fallback"
+                            )
+                            raise Exception(
+                                f"Bot protection on {domain}: {protection_type} ({resp.status_code}) - will try Selenium"
+                            )
+
                         logger.warning(f"Server error ({resp.status_code}) by {domain}")
-                        raise RateLimitError(
-                            f"Server error ({resp.status_code}) on {domain}"
+                        raise Exception(
+                            f"Server error ({resp.status_code}) on {domain} - will try Selenium"
                         )
 
                     resp.raise_for_status()
