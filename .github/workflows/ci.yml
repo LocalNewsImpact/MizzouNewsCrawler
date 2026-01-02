@@ -422,7 +422,7 @@ Xvfb "$DISPLAY_ID" $XVFB_ARGS &
 XVFB_PID=$!
 trap "kill $XVFB_PID" EXIT
 DISPLAY=$DISPLAY_ID "$@"
-WRAPPER
+              WRAPPER
               chmod +x /usr/local/bin/run-with-xvfb.sh
               chown -R appuser:appuser /workspace
               su appuser -c 'export SELENIUM_EXECUTION_MODE=headful && /usr/local/bin/run-with-xvfb.sh pytest -m enable_selenium tests/test_selenium_only_feature.py -vv'
