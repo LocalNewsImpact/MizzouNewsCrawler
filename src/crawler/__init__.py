@@ -1179,16 +1179,17 @@ class ContentExtractor:
         self.domain_backoff_until[domain] = current_time + final_delay
 
         # Log the rate limit
-        retry_after_value = None
+        retry_after_value: Optional[str] = None
         if response is not None:
             headers = getattr(response, "headers", None)
-            if headers:
-                try:
-                    retry_after_value = headers.get("retry-after")
-                except AttributeError:
-                    retry_after_value = None
+            if headers is not None:
+                getter = getattr(headers, "get", None)
+                raw_value = getter("retry-after") if callable(getter) else None
+                if raw_value is not None:
+                    retry_after_value = str(raw_value).strip()
 
-        if retry_after_value not in (None, ""):
+        used_retry_after = False
+        if retry_after_value:
             try:
                 retry_seconds = int(float(retry_after_value))
                 logger.warning(
@@ -1196,6 +1197,7 @@ class ContentExtractor:
                     f"after {retry_seconds}s, our backoff: "
                     f"{final_delay:.0f}s (attempt {error_count})"
                 )
+                used_retry_after = True
                 # Use server's retry-after if it's longer than our backoff
                 if retry_seconds > final_delay:
                     self.domain_backoff_until[domain] = current_time + retry_seconds
@@ -1205,9 +1207,8 @@ class ContentExtractor:
                     retry_after_value,
                     domain,
                 )
-                retry_after_value = None
 
-        if retry_after_value in (None, ""):
+        if not used_retry_after:
             logger.warning(
                 f"Rate limited by {domain}, backing off for "
                 f"{final_delay:.0f}s (attempt {error_count})"
