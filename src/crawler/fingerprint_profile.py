@@ -272,6 +272,16 @@ def _is_directory_writable(path: Path) -> bool:
     target = path if path.is_dir() else path.parent
 
     try:
+        mode = target.stat().st_mode
+    except OSError:
+        return False
+
+    if mode & 0o222 == 0:
+        # Directory (or parent) has no write bits set; treat as read-only even
+        # if the current user technically bypasses permissions (e.g., root).
+        return False
+
+    try:
         fd, probe_path = tempfile.mkstemp(prefix=".chrome-profile-probe-", dir=target)
     except OSError:
         return False

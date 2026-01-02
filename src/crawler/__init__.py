@@ -554,6 +554,16 @@ class ContentExtractor:
         self.selenium_mode = normalized_mode
         logger.info("Selenium execution mode: %s", self.selenium_mode)
 
+        raw_priority = os.getenv("SELENIUM_PRIMARY_STRATEGY", "http-first")
+        normalized_priority = raw_priority.strip().lower()
+        if normalized_priority not in {"http-first", "selenium-first"}:
+            logger.warning(
+                "Invalid SELENIUM_PRIMARY_STRATEGY '%s'; defaulting to http-first",
+                raw_priority,
+            )
+            normalized_priority = "http-first"
+        self._selenium_primary_strategy = normalized_priority
+
         # MediaCloud metadata integration (feature-flagged)
         if use_mcmetadata is None:
             env_value = os.getenv("ENABLE_MCMETADATA")
@@ -2042,7 +2052,7 @@ class ContentExtractor:
             return False
         if extraction_method == "selenium":
             return True
-        return self.selenium_mode == "headful"
+        return self._selenium_primary_strategy == "selenium-first"
 
     def _get_missing_fields(self, result: Dict[str, Any]) -> List[str]:
         """Identify which fields are missing or empty in extraction result."""
