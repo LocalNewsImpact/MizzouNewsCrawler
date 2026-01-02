@@ -16,9 +16,9 @@ from sqlalchemy.exc import IntegrityError
 
 from src.crawler import ContentExtractor, RateLimitError
 from src.utils.comprehensive_telemetry import (
+    PROXY_STATUS_SUCCESS,
     ComprehensiveExtractionTelemetry,
     ExtractionMetrics,
-    PROXY_STATUS_SUCCESS,
 )
 
 

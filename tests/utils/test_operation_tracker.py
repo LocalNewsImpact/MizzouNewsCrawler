@@ -10,8 +10,8 @@ from src.telemetry.store import TelemetryStore
 from src.utils.discovery_outcomes import DiscoveryOutcome, DiscoveryResult
 from src.utils.telemetry import (
     DiscoveryMethod,
-    FailureType,
     DiscoveryMethodStatus,
+    FailureType,
     OperationMetrics,
     OperationStatus,
     OperationTracker,
@@ -541,7 +541,11 @@ def test_failure_summary_and_report_handles_multiple_types(tracker_factory, capl
 
     breakdown = tracker.identify_common_failures(op_id)
     assert len(breakdown) == 3
-    ssl_pattern = next(item for item in breakdown if item["failure_type"] == FailureType.SSL_ERROR.value)
+    ssl_pattern = next(
+        item
+        for item in breakdown
+        if item["failure_type"] == FailureType.SSL_ERROR.value
+    )
     assert ssl_pattern["avg_response_time"] == pytest.approx(250.0)
     assert 503 in ssl_pattern["http_statuses"]
 
