@@ -93,8 +93,16 @@ spec:
               key: selenium-proxy-url
               name: squid-proxy-credentials
               optional: true
+        - name: SELENIUM_USER_DATA_DIR
+          value: "/var/selenium/profile"
+        - name: SELENIUM_PROFILE_READONLY
+          value: "true"
         - name: NO_PROXY
           value: localhost,127.0.0.1,metadata.google.internal,huggingface.co,*.huggingface.co
+        volumeMounts:
+        - name: chrome-profile
+          mountPath: /var/selenium/profile
+          readOnly: true
         image: PROCESSOR_IMAGE
         name: extraction
         resources:
@@ -104,6 +112,10 @@ spec:
           requests:
             cpu: 250m
             memory: 1Gi
+      volumes:
+      - name: chrome-profile
+        secret:
+          secretName: chrome-profile-macos-default
       restartPolicy: Never
       serviceAccountName: mizzou-app
       priorityClassName: batch-standard

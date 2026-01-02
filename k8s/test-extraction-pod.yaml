@@ -45,6 +45,14 @@ spec:
         secretKeyRef:
           name: squid-proxy-credentials
           key: selenium-proxy-url
+    - name: SELENIUM_USER_DATA_DIR
+      value: "/var/selenium/profile"
+    - name: SELENIUM_PROFILE_READONLY
+      value: "true"
+    volumeMounts:
+    - name: chrome-profile
+      mountPath: /var/selenium/profile
+      readOnly: true
     resources:
       requests:
         memory: "2Gi"
@@ -63,3 +71,7 @@ spec:
       requests:
         memory: "256Mi"
         cpu: "100m"
+  volumes:
+  - name: chrome-profile
+    secret:
+      secretName: chrome-profile-macos-default

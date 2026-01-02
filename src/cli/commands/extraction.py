@@ -536,6 +536,14 @@ def add_extraction_parser(subparsers):
             "row exists and log a mismatch (diagnostic)."
         ),
     )
+    extract_parser.add_argument(
+        "--selenium-mode",
+        choices=("headful", "headless"),
+        help=(
+            "Override SELENIUM_EXECUTION_MODE for this run. "
+            "Defaults to the environment variable or 'headful' when unset."
+        ),
+    )
 
     extract_parser.set_defaults(func=handle_extraction_command)
 
@@ -625,7 +633,30 @@ def handle_extraction_command(args) -> int:
                 )
     print()
 
-    extractor = extractor_cls()
+    extractor_kwargs = {}
+    cli_selenium_mode = getattr(args, "selenium_mode", None)
+    if cli_selenium_mode:
+        extractor_kwargs["selenium_mode"] = cli_selenium_mode
+
+    extractor = extractor_cls(**extractor_kwargs)
+    env_selenium_mode = os.getenv("SELENIUM_EXECUTION_MODE")
+    effective_selenium_mode = getattr(
+        extractor,
+        "selenium_mode",
+        cli_selenium_mode or env_selenium_mode or "headful",
+    )
+    if cli_selenium_mode:
+        selenium_mode_source = "CLI override"
+    elif env_selenium_mode:
+        selenium_mode_source = "environment"
+    else:
+        selenium_mode_source = "default"
+    print("   Selenium mode: " f"{effective_selenium_mode} ({selenium_mode_source})")
+    logger.info(
+        "Extractor initialized with Selenium mode %s (source=%s)",
+        effective_selenium_mode,
+        selenium_mode_source,
+    )
     byline_cleaner = BylineCleaner()
     content_cleaner = BalancedBoundaryContentCleaner(
         enable_telemetry=False  # Don't need telemetry for validation-only cleaning
@@ -946,7 +977,7 @@ def handle_extract_url_command(args) -> int:
             print(f"⚠️  Article already exists for URL: {url} (id={existing.id})")
             return 0
 
-        extractor = ContentExtractor()
+        extractor = ContentExtractor(selenium_mode=getattr(args, "selenium_mode", None))
         byline_cleaner = BylineCleaner()
         content_cleaner = BalancedBoundaryContentCleaner(enable_telemetry=False)
 

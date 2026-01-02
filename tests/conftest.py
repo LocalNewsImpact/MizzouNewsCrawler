@@ -95,6 +95,29 @@ def mock_extraction_method_lookup(request, monkeypatch):
     )
 
 
+@pytest.fixture(autouse=True)
+def disable_real_selenium(request, monkeypatch):
+    """Prevent tests from spawning a real Chrome instance via Selenium.
+
+    Tests that legitimately need Selenium can opt in with
+    @pytest.mark.enable_selenium or by manually monkeypatching the
+    SELENIUM_AVAILABLE flag inside the test body.
+    """
+
+    if "enable_selenium" in request.keywords:
+        return
+
+    import src.crawler as crawler_module
+
+    if "integration" in request.keywords:
+        # Integration tests stub Selenium methods but still need the flag set
+        # so that fallback logic executes the patched routines.
+        monkeypatch.setattr(crawler_module, "SELENIUM_AVAILABLE", True)
+        return
+
+    monkeypatch.setattr(crawler_module, "SELENIUM_AVAILABLE", False)
+
+
 @pytest.fixture
 def clean_app_state():
     """Fixture to ensure FastAPI app.state is clean between tests.

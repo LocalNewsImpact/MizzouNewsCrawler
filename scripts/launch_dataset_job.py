@@ -59,6 +59,8 @@ DEFAULT_CPU_LIMIT = "1000m"
 DEFAULT_MEMORY_REQUEST = "1Gi"
 DEFAULT_MEMORY_LIMIT = "3Gi"
 DEFAULT_TTL_SECONDS = 86400  # 24 hours
+CHROME_PROFILE_SECRET_NAME = "chrome-profile-macos-default"
+CHROME_PROFILE_MOUNT_PATH = "/var/selenium/profile"
 
 
 def get_current_processor_image(
@@ -279,11 +281,26 @@ def create_job_manifest(
                                     },
                                 },
                                 {
+                                    "name": "SELENIUM_USER_DATA_DIR",
+                                    "value": CHROME_PROFILE_MOUNT_PATH,
+                                },
+                                {
+                                    "name": "SELENIUM_PROFILE_READONLY",
+                                    "value": "true",
+                                },
+                                {
                                     "name": "NO_PROXY",
                                     "value": "localhost,127.0.0.1,metadata.google.internal,huggingface.co,*.huggingface.co",
                                 },
                                 # Logging
                                 {"name": "LOG_LEVEL", "value": "INFO"},
+                            ],
+                            "volumeMounts": [
+                                {
+                                    "name": "chrome-profile",
+                                    "mountPath": CHROME_PROFILE_MOUNT_PATH,
+                                    "readOnly": True,
+                                }
                             ],
                             "resources": {
                                 "requests": {
@@ -294,6 +311,14 @@ def create_job_manifest(
                                     "cpu": cpu_limit,
                                     "memory": memory_limit,
                                 },
+                            },
+                        }
+                    ],
+                    "volumes": [
+                        {
+                            "name": "chrome-profile",
+                            "secret": {
+                                "secretName": CHROME_PROFILE_SECRET_NAME,
                             },
                         }
                     ],

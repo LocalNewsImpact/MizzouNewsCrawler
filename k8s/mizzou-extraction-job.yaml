@@ -89,6 +89,11 @@ spec:
               name: squid-proxy-credentials
               key: selenium-proxy-url
               optional: true
+        # Chrome profile secret mount (read-only, copied at runtime)
+        - name: SELENIUM_USER_DATA_DIR
+          value: "/var/selenium/profile"
+        - name: SELENIUM_PROFILE_READONLY
+          value: "true"
         # Moderate rate limiting for Mizzou (faster than Lehigh)
         - name: INTER_REQUEST_MIN
           value: "5.0"   # 5 seconds min
@@ -108,6 +113,10 @@ spec:
         # Bypass proxy for internal services
         - name: NO_PROXY
           value: "localhost,127.0.0.1,metadata.google.internal,huggingface.co,*.huggingface.co"
+        volumeMounts:
+        - name: chrome-profile
+          mountPath: /var/selenium/profile
+          readOnly: true
         resources:
           requests:
             cpu: 250m
@@ -115,3 +124,7 @@ spec:
           limits:
             cpu: 1000m
             memory: 3Gi
+      volumes:
+      - name: chrome-profile
+        secret:
+          secretName: chrome-profile-macos-default

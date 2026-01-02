@@ -6,7 +6,7 @@ import json
 import logging
 import os
 import shutil
-import stat
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
@@ -267,14 +267,18 @@ def _build_fingerprint_script(profile: dict[str, Any]) -> str | None:
 
 
 def _is_directory_writable(path: Path) -> bool:
-    """Best-effort check that works even when running as root inside containers."""
+    """Positively confirm writability by attempting a temporary file write."""
 
-    if os.access(path, os.W_OK):
-        return True
+    target = path if path.is_dir() else path.parent
 
     try:
-        mode = stat.S_IMODE(path.stat().st_mode)
+        fd, probe_path = tempfile.mkstemp(prefix=".chrome-profile-probe-", dir=target)
     except OSError:
         return False
 
-    return bool(mode & (stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH))
+    os.close(fd)
+    try:
+        os.unlink(probe_path)
+    except OSError:  # pragma: no cover - best effort cleanup
+        logger.debug("Failed to cleanup writability probe %s", probe_path)
+    return True

@@ -586,7 +586,6 @@ class ContentExtractor:
             logger.warning(
                 "mcmetadata requested but package not available; disabling integration"
             )
-            self.use_mcmetadata = False
 
         # Persistent driver for reuse across multiple extractions
         self._persistent_driver = None
@@ -1743,7 +1742,7 @@ class ContentExtractor:
             )
 
         # Try mcmetadata first if enabled (skip for selenium_only domains)
-        if self.use_mcmetadata and MCMETADATA_AVAILABLE and not skip_http_methods:
+        if self._mcmetadata_enabled() and not skip_http_methods:
             try:
                 logger.info(f"Attempting mcmetadata extraction for {url}")
                 if metrics:
@@ -1780,7 +1779,7 @@ class ContentExtractor:
         # Skip for selenium_only domains - HTTP requests will fail
         use_newspaper = (
             NEWSPAPER_AVAILABLE
-            and (not self.use_mcmetadata or missing_fields)
+            and (not self._mcmetadata_enabled() or missing_fields)
             and not skip_http_methods
         )
         if use_newspaper:
@@ -2031,6 +2030,11 @@ class ContentExtractor:
         self._latest_cms_metadata = None
 
         return result_copy
+
+    def _mcmetadata_enabled(self) -> bool:
+        """Return True when mcmetadata should run for this extractor."""
+
+        return self.use_mcmetadata and MCMETADATA_AVAILABLE
 
     def _should_prioritize_selenium(self, extraction_method: str) -> bool:
         """Determine whether Selenium should run before HTTP methods."""

@@ -1268,7 +1268,25 @@ python -m src.cli extract --source "Columbia Missourian" --limit 25
 
 # Extract for specific dataset
 python -m src.cli extract --dataset "custom-project-2025" --limit 20 --batches 10
+
+# Force headless Selenium for CI runs
+python -m src.cli extract --selenium-mode headless --limit 10
 ```
+
+**Selenium execution modes:**
+
+- The extractor now runs **headful Chrome first** to maximize success rates against advanced bot protection. This is the default when no override is supplied.
+- Set `SELENIUM_EXECUTION_MODE=headless` in your environment (or `.env`) for CI or Docker jobs that should avoid GPU/GL requirements.
+- Use `--selenium-mode {headful,headless}` per command invocation to override the environment and verify behaviors locally.
+- The CLI prints the effective mode and whether it came from the default, the environment, or an explicit flag so operators can confirm what ran during each batch.
+
+**Fingerprint/profile configuration:**
+
+- `SELENIUM_FINGERPRINT_PATH` (default: `/app/fingerprints/macos-default.json`) points to the JSON fingerprint profile used to spoof navigator, screen, and WebGL properties. Override this if you mount a custom profile bundle for a specific dataset.
+- `SELENIUM_USER_DATA_DIR` should reference the mounted Chrome "User Data" directory (for example, an unpacked copy of `/Users/you/Library/Application Support/Google/Chrome/Profile 1`). The extractor reuses this profile to match the exact cookies, storage, and preferences validated during manual testing.
+- `SELENIUM_PROFILE_DIRECTORY` selects the profile folder inside the user data dir (defaults to `Default`, but use values like `Profile 1` to mirror macOS Chrome naming).
+- Set `SELENIUM_PROFILE_READONLY=true` when the mounted profile comes from a read-only Kubernetes Secret or ConfigMap—the extractor will copy it to a writable scratch directory before launching Chrome so the runtime can update preference files without failing.
+- When these variables are unset, the extractor falls back to randomized fingerprints and ephemeral Chrome profiles (suitable for CI or local smoke tests).
 
 #### Dataset-Specific Job Orchestration (Kubernetes)
 
@@ -2107,6 +2125,23 @@ python -m pytest tests/ --cov=src --cov-report=term-missing
 # Run specific test module
 python -m pytest tests/test_telemetry_system.py -v
 ```
+
+#### Selenium / headful regression testing
+
+- Regular `pytest` runs keep `SELENIUM_AVAILABLE=False` via an autouse fixture so no GUI pops up during unit/integration runs.
+- Opt in to the real browser pipeline with the `enable_selenium` marker:
+
+  ```bash
+  python -m pytest -m enable_selenium tests/test_selenium_only_feature.py -v
+  ```
+
+- CI/CD jobs that need to exercise **headful** Chrome without a visible window can wrap the command in `xvfb-run` (Linux) or the platform's virtual display:
+
+  ```bash
+  xvfb-run -a python -m pytest -m enable_selenium tests/test_selenium_only_feature.py -v
+  ```
+
+- Nightly regression suites should run the same marker set inside the container image that ships undetected-chromedriver to catch stealth regressions before they reach production.
 
 **📚 Documentation:**
 

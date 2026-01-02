@@ -4,7 +4,7 @@ import json
 import sqlite3
 from contextlib import contextmanager
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 import pytest
 
@@ -23,6 +23,7 @@ def _default_driver_stats():
         "driver_creation_count": 0,
         "driver_reuse_limit": 10,
         "driver_method": None,
+        "selenium_mode": "headful",
     }
 
 
@@ -83,6 +84,7 @@ def mocked_extraction_env():
             db=db,
             session=session,
             extractor=extractor,
+            extractor_class=extractor_class,
             byline=byline_cleaner,
             telemetry=telemetry,
             cleaning=cleaning,
@@ -97,6 +99,7 @@ def _build_args():
     args.batches = 1
     args.dataset = None
     args.exhaust_queue = False
+    args.selenium_mode = None
     return args
 
 
@@ -483,3 +486,32 @@ def test_content_extraction_exception_handling():
         assert write_calls == []
         env.session.rollback.assert_called()
         env.cleaning.assert_not_called()
+
+
+def test_cli_passes_selenium_mode_override_to_content_extractor():
+    args = _build_args()
+    args.selenium_mode = "headless"
+
+    with mocked_extraction_env() as env:
+        empty_result = Mock()
+        empty_result.fetchall.return_value = []
+        env.session.execute.return_value = empty_result
+
+        handle_extraction_command(args)
+
+        assert env.extractor_class.call_args
+        assert env.extractor_class.call_args.kwargs["selenium_mode"] == "headless"
+
+
+def test_cli_uses_default_selenium_mode_when_flag_missing():
+    args = _build_args()
+
+    with mocked_extraction_env() as env:
+        empty_result = Mock()
+        empty_result.fetchall.return_value = []
+        env.session.execute.return_value = empty_result
+
+        handle_extraction_command(args)
+
+        assert env.extractor_class.call_args
+        assert "selenium_mode" not in env.extractor_class.call_args.kwargs

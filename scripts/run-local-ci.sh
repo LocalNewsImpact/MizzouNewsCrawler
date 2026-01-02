@@ -145,7 +145,7 @@ run_full_ci() {
         --cov-report=xml \
         --cov-report=html \
         --cov-report=term-missing \
-        --cov-fail-under=78 \
+        --cov-fail-under=80 \
         tests/
     
     echo ""

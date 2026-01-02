@@ -131,7 +131,8 @@ ci-check:
 	fi
 	@echo "✅ Deployment YAML validation passed"
 	@echo "3. Tests with coverage..."
-	python -m pytest --cov=src --cov-report=term-missing --cov-fail-under=78
+	python -m pytest --cov=src --cov-report=term-missing --cov-fail-under=80
+
 	@echo "=== All CI checks passed! ==="
 
 test-parallel:
