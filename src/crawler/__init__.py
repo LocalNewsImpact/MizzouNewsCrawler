@@ -1871,7 +1871,9 @@ class ContentExtractor:
 
                 import re
 
-                bot_protection_failure = "Bot protection" in error_str or "Server error (403)" in error_str
+                bot_protection_failure = (
+                    "Bot protection" in error_str or "Server error (403)" in error_str
+                )
                 if bot_protection_failure:
                     result["_bot_protection_detected"] = True
                     match = re.search(
