@@ -401,15 +401,17 @@ jobs:
           PYTHONWARNINGS: ignore
         run: |
           docker run --rm \
+            --user root \
             --network host \
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
             us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:latest \
             /bin/bash -c "
               set -euo pipefail
+              export DEBIAN_FRONTEND=noninteractive
               apt-get update >/dev/null && apt-get install -y xvfb >/dev/null
-              export SELENIUM_EXECUTION_MODE=headful
-              xvfb-run -a pytest -m enable_selenium tests/test_selenium_only_feature.py -vv
+              chown -R appuser:appuser /workspace
+              su appuser -c 'export SELENIUM_EXECUTION_MODE=headful && xvfb-run -a pytest -m enable_selenium tests/test_selenium_only_feature.py -vv'
             "
 
   postgres-integration:
