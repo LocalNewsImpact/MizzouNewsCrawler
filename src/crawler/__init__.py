@@ -863,7 +863,10 @@ class ContentExtractor:
         self._set_session_headers()
 
     def _set_session_headers(self):
-        """Set randomized headers for the current session."""
+        """Set randomized headers for the current session.
+
+        CRITICAL: ALL traffic must go through Squid proxy. Direct connections are DISABLED.
+        """
         headers = {
             "User-Agent": self.current_user_agent,
             "Accept": random.choice(self.accept_header_pool),
@@ -884,28 +887,13 @@ class ContentExtractor:
 
         self.session.headers.update(headers)
 
-        active_provider = self._resolve_active_proxy_provider()
+        # CRITICAL: ALWAYS use Squid proxy for ALL connections
         squid_proxy_url = os.getenv(
             "SQUID_PROXY_URL", "http://t9880447.eero.online:3128"
         )
-
-        if active_provider == ProxyProvider.SQUID:
-            squid_proxies = {"http": squid_proxy_url, "https": squid_proxy_url}
-            self.session.proxies.update(squid_proxies)
-            logger.info(
-                f"🔀 Squid proxy enabled for HTTP extraction: {squid_proxy_url}"
-            )
-        elif active_provider == ProxyProvider.DIRECT:
-            logger.info("🔀 Direct connection (no proxy)")
-        else:
-            proxies = self.proxy_manager.get_requests_proxies()
-            if proxies:
-                self.session.proxies.update(proxies)
-                logger.info(
-                    f"🔀 {active_provider.value} proxy enabled for HTTP extraction"
-                )
-            else:
-                logger.info("🔀 Direct connection (no proxy)")
+        squid_proxies = {"http": squid_proxy_url, "https": squid_proxy_url}
+        self.session.proxies.update(squid_proxies)
+        logger.info(f"🔀 Squid proxy ENFORCED for ALL connections: {squid_proxy_url}")
 
         logger.debug(
             f"Updated session headers with UA: {self.current_user_agent[:50]}..."
@@ -1004,22 +992,17 @@ class ContentExtractor:
 
             new_session.headers.update(headers)
 
-            # Configure proxy based on active provider
-            # IMPORTANT: Rotate proxy when rotating UA to avoid (same IP + different UA)
-            active_provider = self.proxy_manager.active_provider
+            # CRITICAL: ALWAYS use Squid proxy for ALL connections (domain sessions too)
             squid_proxy_url = os.getenv(
                 "SQUID_PROXY_URL", "http://t9880447.eero.online:3128"
             )
+            squid_proxies = {"http": squid_proxy_url, "https": squid_proxy_url}
+            new_session.proxies.update(squid_proxies)
+            logger.debug(
+                f"🔀 Squid proxy ENFORCED for domain session ({domain}): {squid_proxy_url}"
+            )
 
-            if active_provider == ProxyProvider.SQUID:
-                squid_proxies = {"http": squid_proxy_url, "https": squid_proxy_url}
-                new_session.proxies.update(squid_proxies)
-            elif active_provider != ProxyProvider.DIRECT:
-                proxies = self.proxy_manager.get_requests_proxies()
-                if proxies:
-                    new_session.proxies.update(proxies)
-
-            # Assign sticky proxy per domain when pool provided (legacy)
+            # Legacy proxy selection (DEPRECATED - Squid is now enforced)
             proxy = self._choose_proxy_for_domain(domain)
             if proxy:
                 new_session.proxies.update(
@@ -1035,7 +1018,7 @@ class ContentExtractor:
 
             logger.info(
                 f"🔧 Created {session_type} session for {domain} "
-                f"(proxy: {active_provider.value}, "
+                f"(proxy: squid, "
                 f"UA: {new_user_agent[:50]}...)"
             )
             logger.debug(f"Cleared cookies for domain {domain}")
@@ -1488,31 +1471,16 @@ class ContentExtractor:
             return ("http", None)
 
     def _handle_captcha_backoff(self, domain: str) -> None:
-        """Apply a longer backoff when a CAPTCHA/challenge is detected.
-
-        This reduces wasted Selenium attempts on aggressively protected domains.
-        """
-        current_time = time.time()
-
-        # Track counts similarly to generic errors
-        if domain not in self.domain_error_counts:
-            self.domain_error_counts[domain] = 0
-        self.domain_error_counts[domain] += 1
-        error_count = self.domain_error_counts[domain]
-
-        # Longer base delay for CAPTCHA, with exponential growth
-        base_delay = 15 * 60  # 15 minutes
-        max_delay = 6 * 60 * 60  # 6 hours
-        backoff_delay = min(base_delay * (2 ** (error_count - 1)), max_delay)
-
-        jitter = random.uniform(0.85, 1.25)
-        final_delay = backoff_delay * jitter
-
-        self.domain_backoff_until[domain] = current_time + final_delay
-        logger.warning(
-            f"CAPTCHA detected for {domain}, backing off for {final_delay:.0f}s "
-            f"(attempt {error_count})"
-        )
+        """Apply extended backoff for CAPTCHA/challenge detections."""
+        now = time.time()
+        count = self.domain_error_counts.get(domain, 0) + 1
+        self.domain_error_counts[domain] = count
+        base = int(getattr(self, "captcha_backoff_base", 600))
+        cap = int(getattr(self, "captcha_backoff_max", 5400))
+        delay = min(base * (2 ** (count - 1)), cap)
+        delay *= random.uniform(0.9, 1.3)
+        self.domain_backoff_until[domain] = now + delay
+        logger.warning(f"CAPTCHA backoff for {domain}: {int(delay)}s (attempt {count})")
 
     def _create_error_result(
         self, url: str, error_msg: str, metadata: Dict = None
@@ -2183,7 +2151,9 @@ class ContentExtractor:
     def _should_prioritize_selenium(self, extraction_method: str) -> bool:
         """Determine whether Selenium should run before HTTP methods."""
         if extraction_method == "unblock":
-            return False
+            # CRITICAL: unblock domains (PerimeterX, DataDome, Akamai) MUST try Selenium first
+            # to defeat bot protection. Only fall back to proxy if Selenium fails.
+            return True
         if extraction_method == "selenium":
             return True
         if self.selenium_mode == "headful":
@@ -3132,16 +3102,6 @@ class ContentExtractor:
     def _extract_with_selenium(self, url: str) -> Dict[str, Any]:
         """Extract content using persistent Selenium driver."""
         try:
-            # Respect domain backoff for Selenium, too
-            domain = urlparse(url).netloc
-            if self._check_rate_limit(domain):
-                backoff_time = self.domain_backoff_until[domain] - time.time()
-                logger.info(
-                    f"Domain {domain} is rate limited (Selenium), "
-                    f"skipping for {backoff_time:.0f}s"
-                )
-                return {}
-
             # Get the persistent driver (creates one if needed)
             driver = self.get_persistent_driver()
             stealth_method = getattr(self, "_driver_method", "unknown")
@@ -3149,13 +3109,8 @@ class ContentExtractor:
             logger.debug(f"Using persistent {stealth_method} driver for {url}")
 
             # Navigate with human-like behavior
-            success, reason = self._navigate_with_human_behavior(driver, url)
+            success = self._navigate_with_human_behavior(driver, url)
             if not success:
-                if reason == "captcha":
-                    self._handle_captcha_backoff(domain)
-                elif reason == "timeout":
-                    # Shorter backoff for timeouts to avoid thrashing
-                    self._handle_rate_limit_error(domain)
                 return {}
 
             # Extract content after ensuring page is loaded
@@ -3419,17 +3374,24 @@ class ContentExtractor:
         # CRITICAL: Configure proxy with authentication for PerimeterX bypass
         # PerimeterX blocks GKE datacenter IPs, residential proxy required
         # Use Chrome extension for proxy auth (standard approach)
-        selenium_proxy = os.getenv("SELENIUM_PROXY")
+        # CRITICAL: ALWAYS use Squid proxy - no direct connections allowed
+        selenium_proxy = os.getenv(
+            "SELENIUM_PROXY",
+            os.getenv("SQUID_PROXY_URL", "http://t9880447.eero.online:3128"),
+        )
         proxy_extension_path = None
-        if selenium_proxy:
-            # Parse proxy URL: https://user:pass@host:port
-            import re
 
-            proxy_match = re.match(
-                r"https?://([^:]+):([^@]+)@([^:]+):(\d+)", selenium_proxy
-            )
-            if proxy_match:
-                proxy_user, proxy_pass, proxy_host, proxy_port = proxy_match.groups()
+        # Parse proxy URL: https://user:pass@host:port or http://host:port
+        import re
+
+        proxy_match = re.match(
+            r"https?://(?:([^:]+):([^@]+)@)?([^:]+):(\d+)", selenium_proxy
+        )
+        if proxy_match:
+            proxy_user, proxy_pass, proxy_host, proxy_port = proxy_match.groups()
+
+            # If proxy has authentication, create Chrome extension
+            if proxy_user and proxy_pass:
 
                 # Create Chrome extension for proxy authentication
                 import tempfile
@@ -3486,9 +3448,15 @@ class ContentExtractor:
                     f"Configured proxy extension for {proxy_host}:{proxy_port}"
                 )
             else:
-                logger.warning(
-                    f"Could not parse proxy URL: {mask_proxy_url(selenium_proxy)}"
+                # Proxy without authentication - use --proxy-server argument
+                options.add_argument(f"--proxy-server={selenium_proxy}")
+                logger.debug(
+                    f"Configured Squid proxy via --proxy-server: {selenium_proxy}"
                 )
+        else:
+            logger.error(
+                f"Could not parse proxy URL: {mask_proxy_url(selenium_proxy)} - Selenium connections will FAIL"
+            )
 
         self._maybe_configure_user_data_dir(options)
 
@@ -3634,10 +3602,13 @@ class ContentExtractor:
         realistic_ua = self._resolve_selenium_user_agent()
         chrome_options.add_argument(f"--user-agent={realistic_ua}")
 
-        # Optional proxy for Selenium
-        selenium_proxy = os.getenv("SELENIUM_PROXY")
-        if selenium_proxy:
-            chrome_options.add_argument(f"--proxy-server={selenium_proxy}")
+        # CRITICAL: ALWAYS use Squid proxy for Selenium - no direct connections allowed
+        selenium_proxy = os.getenv(
+            "SELENIUM_PROXY",
+            os.getenv("SQUID_PROXY_URL", "http://t9880447.eero.online:3128"),
+        )
+        chrome_options.add_argument(f"--proxy-server={selenium_proxy}")
+        logger.debug(f"Squid proxy ENFORCED for stealth driver: {selenium_proxy}")
 
         # Exclude automation switches
         chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
@@ -3725,11 +3696,8 @@ class ContentExtractor:
 
         return driver
 
-    def _navigate_with_human_behavior(self, driver, url: str) -> Tuple[bool, str]:
-        """Navigate to URL with minimal delays for faster content extraction.
-
-        Returns tuple (success, reason) where reason is one of: 'ok', 'captcha', 'timeout', 'error'.
-        """
+    def _navigate_with_human_behavior(self, driver, url: str) -> bool:
+        """Navigate to URL with minimal delays for faster content extraction."""
         try:
             # Navigate directly to target URL (no need for about:blank delay)
             domain = urlparse(url).netloc
@@ -3760,13 +3728,13 @@ class ContentExtractor:
                     logger.info(
                         "Subscription modal already closed; continuing extraction"
                     )
-                    return True, "ok"
+                    return True
 
                 # Try closing again if not already attempted
                 if self._try_close_modals(driver, url):
                     logger.info("Successfully closed subscription modal on retry")
                     if not self._detect_subscription_wall(driver):
-                        return True, "ok"
+                        return True
 
                 # Still paywalled: track but DON'T apply aggressive backoff
                 # Subscription walls can be persistent (days/months)
@@ -3775,7 +3743,7 @@ class ContentExtractor:
                     f"Subscription wall blocking content on {url} - "
                     "this may persist for days/months"
                 )
-                return False, "paywall"
+                return False
 
             # Now check for actual CAPTCHA or bot challenges
             if self._detect_captcha_or_challenge(driver):
@@ -3784,22 +3752,28 @@ class ContentExtractor:
                 # Try to bypass the challenge (click buttons, wait for JS)
                 if self._try_bypass_challenge(driver, url):
                     logger.info(f"Successfully bypassed challenge on {url}")
-                    return True, "ok"
+                    return True
 
                 # Try closing modals in case CAPTCHA is in a modal
                 if self._try_close_modals(driver, url):
                     logger.info("Successfully closed CAPTCHA modal")
-                    return True, "ok"
+                    return True
 
-                return False, "captcha"
+                # Still challenged: set CAPTCHA backoff for domain
+                try:
+                    domain = urlparse(url).netloc
+                    # Backoff longer to avoid repeated blocks
+                    if hasattr(self, "_handle_captcha_backoff"):
+                        self._handle_captcha_backoff(domain)
+                except Exception:
+                    pass
+                return False
 
-            return True, "ok"
+            return True
 
         except Exception as e:
             logger.error(f"Navigation failed for {url}: {e}")
-            # Classify timeout vs other errors when possible
-            reason = "timeout" if "Timed out" in str(e) or "timeout" in str(e).lower() else "error"
-            return False, reason
+            return False
 
     def _simulate_human_reading(self, driver):
         """Simulate realistic human reading and browsing behavior."""
