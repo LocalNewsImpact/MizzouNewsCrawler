@@ -203,6 +203,16 @@ spec:
         value: "squid"
       - name: SQUID_PROXY_URL
         value: "http://t9880447.eero.online:3128"
+      - name: SQUID_PROXY_USERNAME
+        valueFrom:
+          secretKeyRef:
+            name: squid-proxy-credentials
+            key: username
+      - name: SQUID_PROXY_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: squid-proxy-credentials
+            key: password
       - name: GOOGLE_CLOUD_PROJECT
         value: "mizzou-news-crawler"
       - name: NO_PROXY
@@ -292,6 +302,16 @@ spec:
         value: "squid"
       - name: SQUID_PROXY_URL
         value: "http://t9880447.eero.online:3128"
+      - name: SQUID_PROXY_USERNAME
+        valueFrom:
+          secretKeyRef:
+            name: squid-proxy-credentials
+            key: username
+      - name: SQUID_PROXY_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: squid-proxy-credentials
+            key: password
       - name: GOOGLE_CLOUD_PROJECT
         value: "mizzou-news-crawler"
       - name: NO_PROXY
@@ -391,6 +411,16 @@ spec:
         value: "squid"
       - name: SQUID_PROXY_URL
         value: "http://t9880447.eero.online:3128"
+      - name: SQUID_PROXY_USERNAME
+        valueFrom:
+          secretKeyRef:
+            name: squid-proxy-credentials
+            key: username
+      - name: SQUID_PROXY_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: squid-proxy-credentials
+            key: password
       - name: GOOGLE_CLOUD_PROJECT
         value: "mizzou-news-crawler"
       # Rate limiting

@@ -507,6 +507,7 @@ class DatabaseManager:
                         )
 
         self.database_url = database_url
+        logger = logging.getLogger(__name__)
 
         # Check if we should use Cloud SQL Python Connector
         use_cloud_sql = self._should_use_cloud_sql_connector()
@@ -515,7 +516,6 @@ class DatabaseManager:
         if "postgresql" not in database_url.lower():
             # Only warn in production contexts, not tests
             if not _is_test_environment():
-                logger = logging.getLogger(__name__)
                 logger.warning(
                     f"DatabaseManager using non-PostgreSQL database: "
                     f"{_mask_database_url(database_url)}. "

@@ -3714,10 +3714,6 @@ class ContentExtractor:
             # Quick wait for page to stabilize
             time.sleep(0.5)  # Reduced from 1.0-2.0 seconds
 
-            # Try to close subscription modals/popups FIRST
-            # Prevents false positives from subscription walls
-            modal_closed = self._try_close_modals(driver, url)
-
             # NEW: Check for actual CAPTCHA or bot challenges BEFORE subscription wall
             # This prevents false positive subscription wall detections on challenge pages
             if self._detect_captcha_or_challenge(driver):
@@ -3735,6 +3731,10 @@ class ContentExtractor:
                     logger.info("Successfully closed CAPTCHA modal")
                     if not self._detect_subscription_wall(driver):
                         return True
+
+            # Try to close subscription modals/popups
+            # Prevents false positives from subscription walls
+            modal_closed = self._try_close_modals(driver, url)
 
             # Check for subscription wall (separate from CAPTCHA)
             if self._detect_subscription_wall(driver):
@@ -4141,6 +4141,9 @@ class ContentExtractor:
                 ("ray id:", "cloudflare"),  # Cloudflare error page
                 ("403 forbidden", "bot"),
                 ("403 forbidden", "blocked"),
+                ("pardon our interruption", ""),  # PerimeterX
+                ("verify you are a human", ""),  # PerimeterX
+                ("press and hold", ""),  # PerimeterX
             ]
 
             for primary, secondary in bot_block_indicators:
