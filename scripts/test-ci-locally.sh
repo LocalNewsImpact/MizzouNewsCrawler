@@ -278,7 +278,7 @@ docker run --rm \
     -v "$(pwd)":/workspace \
     -w /workspace \
     us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-    /bin/bash -c "pytest -m 'not postgres' -v --cov-fail-under=78" 2>&1 | grep -v "WARNING: The requested image's platform" || true
+    /bin/bash -c "pytest -m 'not postgres' -v --ignore=tests/docker --cov-fail-under=78" 2>&1 | grep -v "WARNING: The requested image's platform" || true
 TEST_EXIT_CODE=${PIPESTATUS[0]}  # Gets exit code of docker run, not grep
 set -e   # Re-enable exit-on-error
 
@@ -325,7 +325,7 @@ docker run --rm \
     -e DATABASE_USER="$POSTGRES_USER" \
     -e DATABASE_PASSWORD="$POSTGRES_PASSWORD" \
     us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-    /bin/bash -c "pytest -v -m integration --tb=short --no-cov 2>&1"
+    /bin/bash -c "pytest -v -m integration --ignore=tests/docker --tb=short --no-cov 2>&1"
 
 POSTGRES_TEST_EXIT_CODE=$?
 

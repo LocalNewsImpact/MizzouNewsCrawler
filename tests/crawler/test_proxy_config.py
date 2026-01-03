@@ -165,7 +165,8 @@ class TestProxyManager:
 
         with mock.patch.dict(os.environ, {"PROXY_PROVIDER": "off"}, clear=True):
             manager = ProxyManager()
-            assert manager.active_provider == ProxyProvider.DIRECT
+            # In production, 'off' is forced to SQUID to prevent unproxied traffic
+            assert manager.active_provider == ProxyProvider.SQUID
 
         with mock.patch.dict(
             os.environ,
@@ -229,9 +230,13 @@ class TestProxyManager:
         assert squid.failure_count == 1
 
     def test_get_requests_proxies(self):
+        # In production, 'direct' is forced to SQUID to prevent unproxied traffic
         with mock.patch.dict(os.environ, {"PROXY_PROVIDER": "direct"}, clear=True):
             manager = ProxyManager()
-            assert manager.get_requests_proxies() is None
+            proxies = manager.get_requests_proxies()
+            assert proxies is not None
+            assert "http" in proxies
+            assert "https" in proxies
 
         with mock.patch.dict(
             os.environ,

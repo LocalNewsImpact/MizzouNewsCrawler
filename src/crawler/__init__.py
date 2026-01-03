@@ -863,7 +863,10 @@ class ContentExtractor:
         self._set_session_headers()
 
     def _set_session_headers(self):
-        """Set randomized headers for the current session."""
+        """Set randomized headers for the current session.
+
+        CRITICAL: ALL traffic must go through Squid proxy. Direct connections are DISABLED.
+        """
         headers = {
             "User-Agent": self.current_user_agent,
             "Accept": random.choice(self.accept_header_pool),
@@ -884,28 +887,13 @@ class ContentExtractor:
 
         self.session.headers.update(headers)
 
-        active_provider = self._resolve_active_proxy_provider()
+        # CRITICAL: ALWAYS use Squid proxy for ALL connections
         squid_proxy_url = os.getenv(
             "SQUID_PROXY_URL", "http://t9880447.eero.online:3128"
         )
-
-        if active_provider == ProxyProvider.SQUID:
-            squid_proxies = {"http": squid_proxy_url, "https": squid_proxy_url}
-            self.session.proxies.update(squid_proxies)
-            logger.info(
-                f"🔀 Squid proxy enabled for HTTP extraction: {squid_proxy_url}"
-            )
-        elif active_provider == ProxyProvider.DIRECT:
-            logger.info("🔀 Direct connection (no proxy)")
-        else:
-            proxies = self.proxy_manager.get_requests_proxies()
-            if proxies:
-                self.session.proxies.update(proxies)
-                logger.info(
-                    f"🔀 {active_provider.value} proxy enabled for HTTP extraction"
-                )
-            else:
-                logger.info("🔀 Direct connection (no proxy)")
+        squid_proxies = {"http": squid_proxy_url, "https": squid_proxy_url}
+        self.session.proxies.update(squid_proxies)
+        logger.info(f"🔀 Squid proxy ENFORCED for ALL connections: {squid_proxy_url}")
 
         logger.debug(
             f"Updated session headers with UA: {self.current_user_agent[:50]}..."
@@ -1004,22 +992,17 @@ class ContentExtractor:
 
             new_session.headers.update(headers)
 
-            # Configure proxy based on active provider
-            # IMPORTANT: Rotate proxy when rotating UA to avoid (same IP + different UA)
-            active_provider = self.proxy_manager.active_provider
+            # CRITICAL: ALWAYS use Squid proxy for ALL connections (domain sessions too)
             squid_proxy_url = os.getenv(
                 "SQUID_PROXY_URL", "http://t9880447.eero.online:3128"
             )
+            squid_proxies = {"http": squid_proxy_url, "https": squid_proxy_url}
+            new_session.proxies.update(squid_proxies)
+            logger.debug(
+                f"🔀 Squid proxy ENFORCED for domain session ({domain}): {squid_proxy_url}"
+            )
 
-            if active_provider == ProxyProvider.SQUID:
-                squid_proxies = {"http": squid_proxy_url, "https": squid_proxy_url}
-                new_session.proxies.update(squid_proxies)
-            elif active_provider != ProxyProvider.DIRECT:
-                proxies = self.proxy_manager.get_requests_proxies()
-                if proxies:
-                    new_session.proxies.update(proxies)
-
-            # Assign sticky proxy per domain when pool provided (legacy)
+            # Legacy proxy selection (DEPRECATED - Squid is now enforced)
             proxy = self._choose_proxy_for_domain(domain)
             if proxy:
                 new_session.proxies.update(
@@ -1035,7 +1018,7 @@ class ContentExtractor:
 
             logger.info(
                 f"🔧 Created {session_type} session for {domain} "
-                f"(proxy: {active_provider.value}, "
+                f"(proxy: squid, "
                 f"UA: {new_user_agent[:50]}...)"
             )
             logger.debug(f"Cleared cookies for domain {domain}")
@@ -2168,7 +2151,9 @@ class ContentExtractor:
     def _should_prioritize_selenium(self, extraction_method: str) -> bool:
         """Determine whether Selenium should run before HTTP methods."""
         if extraction_method == "unblock":
-            return False
+            # CRITICAL: unblock domains (PerimeterX, DataDome, Akamai) MUST try Selenium first
+            # to defeat bot protection. Only fall back to proxy if Selenium fails.
+            return True
         if extraction_method == "selenium":
             return True
         if self.selenium_mode == "headful":
@@ -3389,17 +3374,24 @@ class ContentExtractor:
         # CRITICAL: Configure proxy with authentication for PerimeterX bypass
         # PerimeterX blocks GKE datacenter IPs, residential proxy required
         # Use Chrome extension for proxy auth (standard approach)
-        selenium_proxy = os.getenv("SELENIUM_PROXY")
+        # CRITICAL: ALWAYS use Squid proxy - no direct connections allowed
+        selenium_proxy = os.getenv(
+            "SELENIUM_PROXY",
+            os.getenv("SQUID_PROXY_URL", "http://t9880447.eero.online:3128"),
+        )
         proxy_extension_path = None
-        if selenium_proxy:
-            # Parse proxy URL: https://user:pass@host:port
-            import re
 
-            proxy_match = re.match(
-                r"https?://([^:]+):([^@]+)@([^:]+):(\d+)", selenium_proxy
-            )
-            if proxy_match:
-                proxy_user, proxy_pass, proxy_host, proxy_port = proxy_match.groups()
+        # Parse proxy URL: https://user:pass@host:port or http://host:port
+        import re
+
+        proxy_match = re.match(
+            r"https?://(?:([^:]+):([^@]+)@)?([^:]+):(\d+)", selenium_proxy
+        )
+        if proxy_match:
+            proxy_user, proxy_pass, proxy_host, proxy_port = proxy_match.groups()
+
+            # If proxy has authentication, create Chrome extension
+            if proxy_user and proxy_pass:
 
                 # Create Chrome extension for proxy authentication
                 import tempfile
@@ -3456,9 +3448,15 @@ class ContentExtractor:
                     f"Configured proxy extension for {proxy_host}:{proxy_port}"
                 )
             else:
-                logger.warning(
-                    f"Could not parse proxy URL: {mask_proxy_url(selenium_proxy)}"
+                # Proxy without authentication - use --proxy-server argument
+                options.add_argument(f"--proxy-server={selenium_proxy}")
+                logger.debug(
+                    f"Configured Squid proxy via --proxy-server: {selenium_proxy}"
                 )
+        else:
+            logger.error(
+                f"Could not parse proxy URL: {mask_proxy_url(selenium_proxy)} - Selenium connections will FAIL"
+            )
 
         self._maybe_configure_user_data_dir(options)
 
@@ -3604,10 +3602,13 @@ class ContentExtractor:
         realistic_ua = self._resolve_selenium_user_agent()
         chrome_options.add_argument(f"--user-agent={realistic_ua}")
 
-        # Optional proxy for Selenium
-        selenium_proxy = os.getenv("SELENIUM_PROXY")
-        if selenium_proxy:
-            chrome_options.add_argument(f"--proxy-server={selenium_proxy}")
+        # CRITICAL: ALWAYS use Squid proxy for Selenium - no direct connections allowed
+        selenium_proxy = os.getenv(
+            "SELENIUM_PROXY",
+            os.getenv("SQUID_PROXY_URL", "http://t9880447.eero.online:3128"),
+        )
+        chrome_options.add_argument(f"--proxy-server={selenium_proxy}")
+        logger.debug(f"Squid proxy ENFORCED for stealth driver: {selenium_proxy}")
 
         # Exclude automation switches
         chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])

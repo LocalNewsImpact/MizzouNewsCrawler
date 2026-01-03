@@ -297,7 +297,7 @@ def test_http_session_configured_with_squid_proxy():
 @pytest.mark.postgres
 @pytest.mark.integration
 def test_http_session_uses_direct_connection_when_provider_disabled():
-    """HTTP session should fall back to direct connections when requested."""
+    """HTTP session should fall back to SQUID even when 'direct' is requested (Squid-only enforcement)."""
     from backend.app.lifecycle import lifespan
     from src.crawler import proxy_config
 
@@ -307,6 +307,8 @@ def test_http_session_uses_direct_connection_when_provider_disabled():
         try:
             app = FastAPI(lifespan=lifespan)
             with TestClient(app):
-                assert app.state.http_session.proxies == {}
+                # In production, 'direct' is forced to SQUID to prevent unproxied traffic
+                assert app.state.http_session.proxies != {}
+                assert "http" in app.state.http_session.proxies
         finally:
             proxy_config._proxy_manager = original_manager

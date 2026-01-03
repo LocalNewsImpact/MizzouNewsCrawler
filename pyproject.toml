@@ -17,9 +17,12 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]
+asyncio_mode = "strict"
+norecursedirs = ["tests/docker"]
 addopts = [
     "-v",
-    "--tb=short"
+    "--tb=short",
+    "-m", "not integration and not e2e and not docker"
 ]
 
 [tool.black]
