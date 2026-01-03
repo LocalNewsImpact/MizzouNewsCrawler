@@ -155,8 +155,25 @@ class TestWorkQueueService:
             check=True,
         )
 
-        # Wait for postgres health check
-        time.sleep(5)
+        # Initialize schema (api depends on postgres healthy, so this waits automatically)
+        subprocess.run(
+            [
+                "docker-compose",
+                "run",
+                "--rm",
+                "-T",
+                "api",
+                "python",
+                "-c",
+                "from src.models.database import DatabaseManager; "
+                "from src.models import Base; "
+                "db = DatabaseManager(); "
+                "Base.metadata.create_all(db.engine)",
+            ],
+            cwd=str(PROJECT_ROOT),
+            check=True,
+            capture_output=True,
+        )
 
         yield
 
