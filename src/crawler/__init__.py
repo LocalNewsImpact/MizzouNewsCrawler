@@ -1488,16 +1488,31 @@ class ContentExtractor:
             return ("http", None)
 
     def _handle_captcha_backoff(self, domain: str) -> None:
-        """Apply extended backoff for CAPTCHA/challenge detections."""
-        now = time.time()
-        count = self.domain_error_counts.get(domain, 0) + 1
-        self.domain_error_counts[domain] = count
-        base = int(getattr(self, "captcha_backoff_base", 600))
-        cap = int(getattr(self, "captcha_backoff_max", 5400))
-        delay = min(base * (2 ** (count - 1)), cap)
-        delay *= random.uniform(0.9, 1.3)
-        self.domain_backoff_until[domain] = now + delay
-        logger.warning(f"CAPTCHA backoff for {domain}: {int(delay)}s (attempt {count})")
+        """Apply a longer backoff when a CAPTCHA/challenge is detected.
+
+        This reduces wasted Selenium attempts on aggressively protected domains.
+        """
+        current_time = time.time()
+
+        # Track counts similarly to generic errors
+        if domain not in self.domain_error_counts:
+            self.domain_error_counts[domain] = 0
+        self.domain_error_counts[domain] += 1
+        error_count = self.domain_error_counts[domain]
+
+        # Longer base delay for CAPTCHA, with exponential growth
+        base_delay = 15 * 60  # 15 minutes
+        max_delay = 6 * 60 * 60  # 6 hours
+        backoff_delay = min(base_delay * (2 ** (error_count - 1)), max_delay)
+
+        jitter = random.uniform(0.85, 1.25)
+        final_delay = backoff_delay * jitter
+
+        self.domain_backoff_until[domain] = current_time + final_delay
+        logger.warning(
+            f"CAPTCHA detected for {domain}, backing off for {final_delay:.0f}s "
+            f"(attempt {error_count})"
+        )
 
     def _create_error_result(
         self, url: str, error_msg: str, metadata: Dict = None
@@ -3117,6 +3132,16 @@ class ContentExtractor:
     def _extract_with_selenium(self, url: str) -> Dict[str, Any]:
         """Extract content using persistent Selenium driver."""
         try:
+            # Respect domain backoff for Selenium, too
+            domain = urlparse(url).netloc
+            if self._check_rate_limit(domain):
+                backoff_time = self.domain_backoff_until[domain] - time.time()
+                logger.info(
+                    f"Domain {domain} is rate limited (Selenium), "
+                    f"skipping for {backoff_time:.0f}s"
+                )
+                return {}
+
             # Get the persistent driver (creates one if needed)
             driver = self.get_persistent_driver()
             stealth_method = getattr(self, "_driver_method", "unknown")
@@ -3124,8 +3149,13 @@ class ContentExtractor:
             logger.debug(f"Using persistent {stealth_method} driver for {url}")
 
             # Navigate with human-like behavior
-            success = self._navigate_with_human_behavior(driver, url)
+            success, reason = self._navigate_with_human_behavior(driver, url)
             if not success:
+                if reason == "captcha":
+                    self._handle_captcha_backoff(domain)
+                elif reason == "timeout":
+                    # Shorter backoff for timeouts to avoid thrashing
+                    self._handle_rate_limit_error(domain)
                 return {}
 
             # Extract content after ensuring page is loaded
@@ -3695,8 +3725,11 @@ class ContentExtractor:
 
         return driver
 
-    def _navigate_with_human_behavior(self, driver, url: str) -> bool:
-        """Navigate to URL with minimal delays for faster content extraction."""
+    def _navigate_with_human_behavior(self, driver, url: str) -> Tuple[bool, str]:
+        """Navigate to URL with minimal delays for faster content extraction.
+
+        Returns tuple (success, reason) where reason is one of: 'ok', 'captcha', 'timeout', 'error'.
+        """
         try:
             # Navigate directly to target URL (no need for about:blank delay)
             domain = urlparse(url).netloc
@@ -3727,13 +3760,13 @@ class ContentExtractor:
                     logger.info(
                         "Subscription modal already closed; continuing extraction"
                     )
-                    return True
+                    return True, "ok"
 
                 # Try closing again if not already attempted
                 if self._try_close_modals(driver, url):
                     logger.info("Successfully closed subscription modal on retry")
                     if not self._detect_subscription_wall(driver):
-                        return True
+                        return True, "ok"
 
                 # Still paywalled: track but DON'T apply aggressive backoff
                 # Subscription walls can be persistent (days/months)
@@ -3742,7 +3775,7 @@ class ContentExtractor:
                     f"Subscription wall blocking content on {url} - "
                     "this may persist for days/months"
                 )
-                return False
+                return False, "paywall"
 
             # Now check for actual CAPTCHA or bot challenges
             if self._detect_captcha_or_challenge(driver):
@@ -3751,28 +3784,22 @@ class ContentExtractor:
                 # Try to bypass the challenge (click buttons, wait for JS)
                 if self._try_bypass_challenge(driver, url):
                     logger.info(f"Successfully bypassed challenge on {url}")
-                    return True
+                    return True, "ok"
 
                 # Try closing modals in case CAPTCHA is in a modal
                 if self._try_close_modals(driver, url):
                     logger.info("Successfully closed CAPTCHA modal")
-                    return True
+                    return True, "ok"
 
-                # Still challenged: set CAPTCHA backoff for domain
-                try:
-                    domain = urlparse(url).netloc
-                    # Backoff longer to avoid repeated blocks
-                    if hasattr(self, "_handle_captcha_backoff"):
-                        self._handle_captcha_backoff(domain)
-                except Exception:
-                    pass
-                return False
+                return False, "captcha"
 
-            return True
+            return True, "ok"
 
         except Exception as e:
             logger.error(f"Navigation failed for {url}: {e}")
-            return False
+            # Classify timeout vs other errors when possible
+            reason = "timeout" if "Timed out" in str(e) or "timeout" in str(e).lower() else "error"
+            return False, reason
 
     def _simulate_human_reading(self, driver):
         """Simulate realistic human reading and browsing behavior."""
