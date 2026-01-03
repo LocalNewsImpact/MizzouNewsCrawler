@@ -146,7 +146,7 @@ spec:
         factor: 2
         maxDuration: "20m"
     container:
-      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:latest
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:${CRAWLER_TAG}
       imagePullPolicy: IfNotPresent
       command:
         - python
@@ -202,23 +202,7 @@ spec:
       - name: PROXY_PROVIDER
         value: "squid"
       - name: SQUID_PROXY_URL
-        valueFrom:
-          secretKeyRef:
-            name: squid-proxy-credentials
-            key: squid-proxy-url
-            optional: true
-      - name: SQUID_PROXY_USERNAME
-        valueFrom:
-          secretKeyRef:
-            name: squid-proxy-credentials
-            key: username
-            optional: true
-      - name: SQUID_PROXY_PASSWORD
-        valueFrom:
-          secretKeyRef:
-            name: squid-proxy-credentials
-            key: password
-            optional: true
+        value: "http://t9880447.eero.online:3128"
       - name: GOOGLE_CLOUD_PROJECT
         value: "mizzou-news-crawler"
       - name: NO_PROXY
@@ -254,7 +238,7 @@ spec:
         factor: 2
         maxDuration: "20m"
     container:
-      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:latest
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:${CRAWLER_TAG}
       imagePullPolicy: IfNotPresent
       command:
         - python
@@ -307,23 +291,7 @@ spec:
       - name: PROXY_PROVIDER
         value: "squid"
       - name: SQUID_PROXY_URL
-        valueFrom:
-          secretKeyRef:
-            name: squid-proxy-credentials
-            key: squid-proxy-url
-            optional: true
-      - name: SQUID_PROXY_USERNAME
-        valueFrom:
-          secretKeyRef:
-            name: squid-proxy-credentials
-            key: username
-            optional: true
-      - name: SQUID_PROXY_PASSWORD
-        valueFrom:
-          secretKeyRef:
-            name: squid-proxy-credentials
-            key: password
-            optional: true
+        value: "http://t9880447.eero.online:3128"
       - name: GOOGLE_CLOUD_PROJECT
         value: "mizzou-news-crawler"
       - name: NO_PROXY
@@ -367,7 +335,7 @@ spec:
         factor: 2
         maxDuration: "20m"
     container:
-      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:latest
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:${CRAWLER_TAG}
       imagePullPolicy: IfNotPresent
       command: ["/bin/bash", "-c"]
       args:
@@ -422,35 +390,9 @@ spec:
       - name: PROXY_PROVIDER
         value: "squid"
       - name: SQUID_PROXY_URL
-        valueFrom:
-          secretKeyRef:
-            name: squid-proxy-credentials
-            key: squid-proxy-url
-            optional: true
-      - name: SQUID_PROXY_USERNAME
-        valueFrom:
-          secretKeyRef:
-            name: squid-proxy-credentials
-            key: username
-            optional: true
-      - name: SQUID_PROXY_PASSWORD
-        valueFrom:
-          secretKeyRef:
-            name: squid-proxy-credentials
-            key: password
-            optional: true
+        value: "http://t9880447.eero.online:3128"
       - name: GOOGLE_CLOUD_PROJECT
         value: "mizzou-news-crawler"
-      - name: SELENIUM_PROXY
-        valueFrom:
-          secretKeyRef:
-            name: squid-proxy-credentials
-            key: selenium-proxy-url
-            optional: true
-      - name: SELENIUM_USER_DATA_DIR
-        value: "/var/selenium/profile"
-      - name: SELENIUM_PROFILE_READONLY
-        value: "true"
       # Rate limiting
       - name: INTER_REQUEST_MIN
         value: "{{inputs.parameters.inter-request-min}}"
@@ -470,13 +412,11 @@ spec:
       # Selenium driver memory management (prevent renderer process leak)
       - name: SELENIUM_DRIVER_REUSE_LIMIT
         value: "10"
+      - name: SELENIUM_EXECUTION_MODE
+        value: "headless"
       # Bypass proxy for internal services
       - name: NO_PROXY
         value: "localhost,127.0.0.1,metadata.google.internal,huggingface.co,*.huggingface.co"
-      volumeMounts:
-      - name: chrome-profile
-        mountPath: /var/selenium/profile
-        readOnly: true
       resources:
         requests:
           cpu: 250m
@@ -484,11 +424,6 @@ spec:
         limits:
           cpu: 1000m
           memory: 6Gi
-    volumes:
-    - name: chrome-profile
-      secret:
-        secretName: chrome-profile-macos-default
-
   # Wait template: poll DB until a minimum number of candidate links exist
   - name: wait-for-candidates
     inputs:
@@ -501,7 +436,7 @@ spec:
         workflow-name: "{{workflow.name}}"
         workflow-uid: "{{workflow.uid}}"
     container:
-      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:${PROCESSOR_TAG}
       imagePullPolicy: IfNotPresent
       command: ["/bin/sh","-c"]
       args:
@@ -587,7 +522,7 @@ spec:
         workflow-name: "{{workflow.name}}"
         workflow-uid: "{{workflow.uid}}"
     container:
-      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:${PROCESSOR_TAG}
       imagePullPolicy: IfNotPresent
       command: ["/bin/sh","-c"]
       args:
@@ -681,7 +616,7 @@ spec:
         workflow-name: "{{workflow.name}}"
         workflow-uid: "{{workflow.uid}}"
     container:
-      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:${PROCESSOR_TAG}
       imagePullPolicy: IfNotPresent
       command: ["/bin/sh", "-c"]
       args:
@@ -759,6 +694,3 @@ spec:
         value: "true"
       - name: CLOUD_SQL_INSTANCE
         value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
-      envFrom:
-      - secretRef:
-          name: squid-proxy-credentials

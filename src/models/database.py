@@ -462,6 +462,10 @@ def _wrap_engine_connections(engine):
 class DatabaseManager:
     """Manages database connections and operations."""
 
+    # Class-level cache for engines to prevent repeated initialization
+    # and connection pool fragmentation, especially with Cloud SQL.
+    _SHARED_ENGINES: dict[str, Any] = {}
+
     def __init__(self, database_url: str | None = None):
         """
         Initialize DatabaseManager.
@@ -518,17 +522,28 @@ class DatabaseManager:
                     f"Production should use PostgreSQL for compatibility."
                 )
 
-        if use_cloud_sql:
-            self.engine = self._create_cloud_sql_engine()
+        # Use shared engine if available for this URL/mode
+        engine_key = f"{database_url}_{use_cloud_sql}"
+        if engine_key in self._SHARED_ENGINES:
+            self.engine = self._SHARED_ENGINES[engine_key]
         else:
-            # Direct PostgreSQL connection
-            self.engine = create_engine(
-                database_url,
-                connect_args={},
-                echo=False,
-            )
+            if use_cloud_sql:
+                self.engine = self._create_cloud_sql_engine()
+            else:
+                # Direct PostgreSQL connection
+                self.engine = create_engine(
+                    database_url,
+                    connect_args={},
+                    echo=False,
+                )
+            self._SHARED_ENGINES[engine_key] = self.engine
 
-        Base.metadata.create_all(self.engine)
+            # Only run create_all in test environments or if explicitly requested
+            # In production, we use Alembic migrations. create_all is slow with pg8000.
+            if _is_test_environment() or os.getenv("DB_FORCE_CREATE_ALL", "false").lower() == "true":
+                logger.info("Initializing database schema (create_all)")
+                Base.metadata.create_all(self.engine)
+
         Session = sessionmaker(bind=self.engine)
         self.session = Session()
 
