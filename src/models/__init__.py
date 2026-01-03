@@ -638,7 +638,7 @@ class Source(Base):
     discovery_proxy = Column(String(32), nullable=True, index=True)
     # Legacy field - kept for backward compatibility, maps to extraction_method
     selenium_only = Column(
-        Boolean, default=False, nullable=False, server_default=text("FALSE")
+        Boolean, default=False, nullable=False, server_default=text("0")
     )
     bot_protection_detected_at = Column(DateTime, nullable=True)
 
@@ -646,7 +646,7 @@ class Source(Base):
     # Stores discovered section URLs with performance metrics
     discovered_sections = Column(JSON, nullable=True)
     section_discovery_enabled = Column(
-        Boolean, default=True, nullable=False, server_default=text("TRUE")
+        Boolean, default=True, nullable=False, server_default=text("1")
     )
     section_last_updated = Column(DateTime, nullable=True)
 

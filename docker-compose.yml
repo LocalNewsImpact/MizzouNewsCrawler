@@ -67,7 +67,6 @@ services:
       DATABASE_URL: postgresql://mizzou_user:mizzou_pass@postgres:5432/mizzou
       LOG_LEVEL: INFO
       MAX_ARTICLES: "20"
-      DISPLAY: ":99"
     depends_on:
       postgres:
         condition: service_healthy
@@ -75,8 +74,7 @@ services:
       - ./src:/app/src
       - ./lookups:/app/lookups
       - ./data:/app/data
-    # Start XVFB virtual display before running crawler command
-    command: bash -c "Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp & sleep 2 && python -m src.cli.main discover-urls"
+    command: python -m src.cli.main discover-urls
     profiles:
       - crawler  # Only start with: docker-compose --profile crawler up
 

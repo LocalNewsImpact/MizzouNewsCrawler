@@ -88,12 +88,10 @@ USER appuser
 # Set environment variables
 # ChromeDriver copied to /home/appuser for write access (undetected-chromedriver needs to patch it)
 # SELENIUM_DRIVER_REUSE_LIMIT: Max reuses before recreating driver to prevent renderer process leak
-# DISPLAY: Virtual display for headless Chrome via XVFB
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     CHROMEDRIVER_PATH=/home/appuser/chromedriver \
     CHROME_BIN=/usr/bin/chromium \
-    DISPLAY=:99 \
     SELENIUM_DRIVER_REUSE_LIMIT=10
 
 # Default command (can be overridden in Kubernetes)

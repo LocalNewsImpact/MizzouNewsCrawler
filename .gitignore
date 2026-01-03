@@ -158,7 +158,3 @@ test_*.py
 # Temporary test output
 new_detector_*.csv
 new_detector_*.txt
-
-# Local debugging artifacts
-capture-downloads/
-debug/
