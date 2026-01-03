@@ -21,11 +21,16 @@ Critical for production readiness:
 """
 
 import json
+import os
 import subprocess
 import time
+from pathlib import Path
 from typing import Any, Dict, List
 
 import pytest
+
+# Get project root relative to this file (tests/docker/test_work_queue_integration.py -> ../../)
+PROJECT_ROOT = Path(__file__).parent.parent.parent.absolute()
 
 
 def run_docker_command(
@@ -41,17 +46,24 @@ def run_docker_command(
         capture_output=capture_output,
         text=True,
         timeout=timeout,
-        cwd="/Users/kiesowd/VSCode/NewsCrawler/MizzouNewsCrawler-Scripts",
+        cwd=str(PROJECT_ROOT),
     )
     return result
 
 
 def start_work_queue_service() -> subprocess.Popen:
     """Start work queue service in background."""
+    # Ensure clean state by removing any existing container
+    subprocess.run(
+        ["docker-compose", "rm", "-fs", "work-queue"],
+        cwd=str(PROJECT_ROOT),
+        capture_output=True,
+    )
+
     cmd = ["docker-compose", "up", "-d", "work-queue"]
     subprocess.run(
         cmd,
-        cwd="/Users/kiesowd/VSCode/NewsCrawler/MizzouNewsCrawler-Scripts",
+        cwd=str(PROJECT_ROOT),
         check=True,
     )
 
@@ -64,7 +76,7 @@ def start_work_queue_service() -> subprocess.Popen:
                 capture_output=True,
                 text=True,
                 timeout=2,
-                cwd="/Users/kiesowd/VSCode/NewsCrawler/MizzouNewsCrawler-Scripts",
+                cwd=str(PROJECT_ROOT),
             )
             # Check if latest startup is complete (look for most recent "Application startup complete")
             if (
@@ -82,11 +94,11 @@ def start_work_queue_service() -> subprocess.Popen:
 
 
 def stop_work_queue_service():
-    """Stop work queue service."""
-    cmd = ["docker-compose", "stop", "work-queue"]
+    """Stop and remove work queue service container."""
+    cmd = ["docker-compose", "rm", "-fs", "work-queue"]
     subprocess.run(
         cmd,
-        cwd="/Users/kiesowd/VSCode/NewsCrawler/MizzouNewsCrawler-Scripts",
+        cwd=str(PROJECT_ROOT),
     )
 
 
@@ -109,7 +121,7 @@ import urllib.request
 import json
 
 req = urllib.request.Request(
-    'http://localhost:8080/work',
+    'http://localhost:8080/work/request',
     data={repr(request_json.encode())},
     headers={{'Content-Type': 'application/json'}}
 )
@@ -120,7 +132,7 @@ print(response.read().decode())
         capture_output=True,
         text=True,
         timeout=10,
-        cwd="/Users/kiesowd/VSCode/NewsCrawler/MizzouNewsCrawler-Scripts",
+        cwd=str(PROJECT_ROOT),
     )
 
     if result.returncode != 0:
@@ -139,7 +151,7 @@ class TestWorkQueueService:
         # Start postgres
         subprocess.run(
             ["docker-compose", "up", "-d", "postgres"],
-            cwd="/Users/kiesowd/VSCode/NewsCrawler/MizzouNewsCrawler-Scripts",
+            cwd=str(PROJECT_ROOT),
             check=True,
         )
 
@@ -176,7 +188,7 @@ class TestWorkQueueService:
             ],
             capture_output=True,
             timeout=5,
-            cwd="/Users/kiesowd/VSCode/NewsCrawler/MizzouNewsCrawler-Scripts",
+            cwd=str(PROJECT_ROOT),
         )
 
         assert result.returncode == 0, f"Health check failed: {result.stderr}"
@@ -405,7 +417,7 @@ with db.get_session() as session:
             capture_output=True,
             text=True,
             timeout=5,
-            cwd="/Users/kiesowd/VSCode/NewsCrawler/MizzouNewsCrawler-Scripts",
+            cwd=str(PROJECT_ROOT),
         )
 
         assert result.returncode == 0
@@ -428,7 +440,7 @@ class TestWorkQueueFailureHandling:
         """Ensure postgres is running."""
         subprocess.run(
             ["docker-compose", "up", "-d", "postgres"],
-            cwd="/Users/kiesowd/VSCode/NewsCrawler/MizzouNewsCrawler-Scripts",
+            cwd=str(PROJECT_ROOT),
             check=True,
         )
         time.sleep(5)
@@ -511,7 +523,7 @@ with db.get_session() as session:
             capture_output=True,
             text=True,
             timeout=5,
-            cwd="/Users/kiesowd/VSCode/NewsCrawler/MizzouNewsCrawler-Scripts",
+            cwd=str(PROJECT_ROOT),
         )
 
         stats = json.loads(stats_result.stdout)

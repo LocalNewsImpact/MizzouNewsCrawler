@@ -21,11 +21,16 @@ Critical for production readiness:
 """
 
 import json
+import os
 import subprocess
 import time
+from pathlib import Path
 from typing import List
 
 import pytest
+
+# Get project root relative to this file (tests/docker/test_proxy_routing.py -> ../../)
+PROJECT_ROOT = Path(__file__).parent.parent.parent.absolute()
 
 
 def run_docker_command(
@@ -41,7 +46,7 @@ def run_docker_command(
         capture_output=capture_output,
         text=True,
         timeout=timeout,
-        cwd="/Users/kiesowd/VSCode/NewsCrawler/MizzouNewsCrawler-Scripts",
+        cwd=str(PROJECT_ROOT),
     )
     return result
 

@@ -171,18 +171,6 @@ else
     exit 1
 fi
 
-# Step 6.1: Run Docker-based production readiness tests (ON HOST)
-# These tests require access to the Docker daemon, so they run on the host
-# instead of inside the ci-base container to avoid Docker-in-Docker issues.
-echo ""
-echo "🐳 Step 3.5/5: Running Docker-based production readiness tests (on host)..."
-if command -v pytest >/dev/null 2>&1; then
-    pytest -v -m docker --no-cov
-else
-    echo -e "${YELLOW}⚠️  pytest not found on host, skipping Docker tests.${NC}"
-    echo "   (These will still be caught in CI if they fail)"
-fi
-
 # Step 6.5: Run linting and validation checks (like CI lint job)
 echo ""
 echo "🔍 Step 1/4: Running linting checks (ruff, black, isort)..."
@@ -290,7 +278,7 @@ docker run --rm \
     -v "$(pwd)":/workspace \
     -w /workspace \
     us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-    /bin/bash -c "pytest -m 'not postgres' -v --cov-fail-under=78" 2>&1 | grep -v "WARNING: The requested image's platform" || true
+    /bin/bash -c "pytest -m 'not postgres' -v --ignore=tests/docker --cov-fail-under=78" 2>&1 | grep -v "WARNING: The requested image's platform" || true
 TEST_EXIT_CODE=${PIPESTATUS[0]}  # Gets exit code of docker run, not grep
 set -e   # Re-enable exit-on-error
 
@@ -337,7 +325,7 @@ docker run --rm \
     -e DATABASE_USER="$POSTGRES_USER" \
     -e DATABASE_PASSWORD="$POSTGRES_PASSWORD" \
     us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-    /bin/bash -c "pytest -v -m integration --tb=short --no-cov 2>&1"
+    /bin/bash -c "pytest -v -m integration --ignore=tests/docker --tb=short --no-cov 2>&1"
 
 POSTGRES_TEST_EXIT_CODE=$?
 

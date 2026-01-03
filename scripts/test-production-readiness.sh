@@ -29,10 +29,12 @@ echo ""
 echo "🧪 Running production readiness tests..."
 echo ""
 
-pytest tests/docker/test_production_readiness.py \
+pytest tests/docker/ \
     -v \
     --tb=short \
     --color=yes \
+    --no-cov \
+    -m docker \
     "$@"
 
 exit_code=$?
