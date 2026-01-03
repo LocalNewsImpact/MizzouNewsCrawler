@@ -540,7 +540,10 @@ class DatabaseManager:
 
             # Only run create_all in test environments or if explicitly requested
             # In production, we use Alembic migrations. create_all is slow with pg8000.
-            if _is_test_environment() or os.getenv("DB_FORCE_CREATE_ALL", "false").lower() == "true":
+            if (
+                _is_test_environment()
+                or os.getenv("DB_FORCE_CREATE_ALL", "false").lower() == "true"
+            ):
                 logger.info("Initializing database schema (create_all)")
                 Base.metadata.create_all(self.engine)
 

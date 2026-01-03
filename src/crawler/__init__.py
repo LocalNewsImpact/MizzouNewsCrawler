@@ -3725,7 +3725,7 @@ class ContentExtractor:
                     # After bypass, check if we're still on a subscription wall
                     if not self._detect_subscription_wall(driver):
                         return True
-                
+
                 # Try closing modals in case CAPTCHA is in a modal
                 if self._try_close_modals(driver, url):
                     logger.info("Successfully closed CAPTCHA modal")
@@ -4023,14 +4023,19 @@ class ContentExtractor:
                                 actions.pause(random.uniform(0.1, 0.3))
 
                                 # Special handling for PerimeterX "Press and Hold"
-                                if "px-captcha" in selector or "human" in selector.lower():
-                                    logger.info("Detected potential 'Press and Hold' challenge - using long click")
+                                if (
+                                    "px-captcha" in selector
+                                    or "human" in selector.lower()
+                                ):
+                                    logger.info(
+                                        "Detected potential 'Press and Hold' challenge - using long click"
+                                    )
                                     actions.click_and_hold()
                                     actions.pause(random.uniform(4.0, 6.0))
                                     actions.release()
                                 else:
                                     actions.click()
-                                
+
                                 actions.perform()
                                 logger.info(f"Clicked verification element: {selector}")
                             except Exception as click_err:
@@ -4153,7 +4158,10 @@ class ContentExtractor:
 
             # 3. Check for specific CAPTCHA keywords
             # Note: Only CAPTCHA-specific terms, not generic 'challenge'/'verify'
-            if any(k in page_source for k in ["recaptcha", "hcaptcha", "perimeterx", "px-captcha"]):
+            if any(
+                k in page_source
+                for k in ["recaptcha", "hcaptcha", "perimeterx", "px-captcha"]
+            ):
                 logger.info("Detected CAPTCHA keyword in page")
                 return True
 
