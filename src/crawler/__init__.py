@@ -2156,8 +2156,8 @@ class ContentExtractor:
             return True
         if extraction_method == "selenium":
             return True
-        if self.selenium_mode == "headful":
-            return True
+        # REMOVED: Don't prioritize Selenium just because headful mode is enabled
+        # Headful mode should only be used when actually needed (for unblock/selenium domains)
         return self._selenium_primary_strategy == "selenium-first"
 
     def _get_missing_fields(self, result: Dict[str, Any]) -> List[str]:
@@ -3357,7 +3357,10 @@ class ContentExtractor:
         options.add_argument("--disable-plugins")
         if headless_mode:
             options.add_argument("--headless=new")
-        # Additional flags for containerized environments
+        # Additional flags for containerized environments + Xvfb stability
+        options.add_argument("--disable-software-rasterizer")
+        options.add_argument("--disable-setuid-sandbox")
+        options.add_argument("--single-process")  # Prevent renderer subprocess issues
         options.add_argument("--disable-software-rasterizer")
         options.add_argument("--disable-setuid-sandbox")
         options.add_argument("--remote-debugging-port=9222")

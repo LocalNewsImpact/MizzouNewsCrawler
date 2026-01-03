@@ -132,22 +132,23 @@ from src.crawler import ContentExtractor
 
 extractor = ContentExtractor()
 
-# Test PerimeterX domain (should prioritize Selenium)
-fox4kc_priority = extractor._should_prioritize_selenium('https://fox4kc.com/news/article')
-print(f'fox4kc.com prioritize_selenium: {fox4kc_priority}')
+# Test extraction methods directly (not URLs)
+# Unblock domains (PerimeterX/Akamai) should prioritize Selenium
+unblock_priority = extractor._should_prioritize_selenium('unblock')
+print(f'unblock extraction_method prioritize_selenium: {unblock_priority}')
 
-# Test Ozarks First (known PerimeterX site)
-ozarks_priority = extractor._should_prioritize_selenium('https://www.ozarksfirst.com/news/article')
-print(f'ozarksfirst.com prioritize_selenium: {ozarks_priority}')
+# Selenium-only domains should prioritize Selenium
+selenium_priority = extractor._should_prioritize_selenium('selenium')
+print(f'selenium extraction_method prioritize_selenium: {selenium_priority}')
 
-# Test FOX2 Now (known PerimeterX site)
-fox2_priority = extractor._should_prioritize_selenium('https://fox2now.com/news/article')
-print(f'fox2now.com prioritize_selenium: {fox2_priority}')
+# HTTP domains should NOT prioritize Selenium (use HTTP-first)
+http_priority = extractor._should_prioritize_selenium('http')
+print(f'http extraction_method prioritize_selenium: {http_priority}')
 
-# CRITICAL: All PerimeterX domains should return True
-assert fox4kc_priority == True, 'fox4kc.com should prioritize Selenium'
-assert ozarks_priority == True, 'ozarksfirst.com should prioritize Selenium'
-assert fox2_priority == True, 'fox2now.com should prioritize Selenium'
+# CRITICAL: Unblock/selenium domains must return True, HTTP must return False
+assert unblock_priority == True, 'unblock domains should prioritize Selenium'
+assert selenium_priority == True, 'selenium-only domains should prioritize Selenium'
+assert http_priority == False, 'http domains should use HTTP-first strategy'
 
 print('All PerimeterX domains correctly prioritize Selenium')
 """,

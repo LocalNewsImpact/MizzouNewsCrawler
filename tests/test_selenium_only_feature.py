@@ -390,9 +390,15 @@ class TestExtractionFlowWithSeleniumOnly:
 
 
 class TestHeadfulPrimarySelenium:
-    """Verify headful mode attempts Selenium before HTTP extraction."""
+    """Verify headful mode behavior with HTTP and unblock domains.
 
-    def test_headful_mode_attempts_selenium_before_http(self, monkeypatch):
+    Headful mode affects HOW Selenium runs (visible browser), not WHEN.
+    - HTTP domains: HTTP methods first, Selenium as fallback
+    - Unblock domains: Selenium first (PerimeterX/Akamai require it)
+    """
+
+    def test_headful_mode_uses_http_first_for_http_domains(self, monkeypatch):
+        """Headful mode should NOT force Selenium-first for HTTP domains."""
         extractor = ContentExtractor(selenium_mode="headful")
 
         monkeypatch.setattr(crawler_module, "SELENIUM_AVAILABLE", True)
@@ -407,40 +413,38 @@ class TestHeadfulPrimarySelenium:
             patch.object(
                 extractor,
                 "_run_selenium_extraction",
-                return_value=(True, False),
-            ) as mock_run,
-            patch.object(extractor, "_extract_with_mcmetadata") as mock_mcmetadata,
+            ) as mock_selenium,
+            patch.object(
+                extractor,
+                "_extract_with_mcmetadata",
+                return_value=True,
+            ) as mock_mcmetadata,
+            patch.object(
+                extractor,
+                "_get_missing_fields",
+                return_value=[],  # HTTP methods succeeded
+            ),
         ):
-            mock_mcmetadata.return_value = {
-                "title": "HTTP Title",
-                "content": "content " * 40,
-                "metadata": {"extraction_method": "mcmetadata"},
-            }
+            extractor.extract_content("https://example.com/http-domain")
 
-            extractor.extract_content("https://example.com/headful-check")
-
-        mock_run.assert_called_once()
+        # HTTP methods should be tried first
         mock_mcmetadata.assert_called_once()
+        # Selenium should NOT be called when HTTP methods succeed
+        mock_selenium.assert_not_called()
 
     def test_headful_mode_skips_http_when_selenium_succeeds(self, monkeypatch):
+        """Headful mode should still try HTTP methods first for HTTP domains.
+
+        This test verifies that HTTP domains use HTTP extraction methods first,
+        even when in headful mode. Selenium should only be used as a fallback
+        when HTTP methods fail to extract required fields.
+        """
         extractor = ContentExtractor(selenium_mode="headful")
 
         monkeypatch.setattr(crawler_module, "SELENIUM_AVAILABLE", True)
         monkeypatch.setattr(crawler_module, "MCMETADATA_AVAILABLE", True)
         monkeypatch.setattr(crawler_module, "NEWSPAPER_AVAILABLE", True)
 
-        def _successful_selenium(url, result, metrics, reason, missing_fields=None):
-            result["title"] = "Selenium Primary Title"
-            result["author"] = "Reporter"
-            result["publish_date"] = "2025-01-01T00:00:00"
-            result["content"] = "selenium content " * 10
-            metadata = result.setdefault("metadata", {})
-            metadata["extraction_method"] = "selenium"
-            metadata["selenium_reason"] = reason
-            metadata["stealth_method"] = "test"
-            result.setdefault("extraction_methods", {})["content"] = "selenium"
-            return True, True
-
         with (
             patch.object(
                 extractor,
@@ -450,26 +454,34 @@ class TestHeadfulPrimarySelenium:
             patch.object(
                 extractor,
                 "_run_selenium_extraction",
-                side_effect=_successful_selenium,
-            ) as mock_run,
-            patch.object(extractor, "_extract_with_mcmetadata") as mock_mcmetadata,
+            ) as mock_selenium,
+            patch.object(
+                extractor,
+                "_extract_with_mcmetadata",
+                return_value=True,  # mcmetadata succeeds
+            ) as mock_mcmetadata,
             patch.object(
                 extractor,
                 "_extract_with_newspaper",
-                return_value={},
-            ) as mock_newspaper,
+                return_value=True,  # newspaper succeeds
+            ),
             patch.object(
                 extractor,
                 "_extract_with_beautifulsoup",
-                return_value={},
-            ) as mock_bs,
+                return_value=True,  # beautifulsoup succeeds
+            ),
+            patch.object(
+                extractor,
+                "_get_missing_fields",
+                return_value=[],  # No missing fields, HTTP extraction was successful
+            ),
         ):
-            extractor.extract_content("https://example.com/headful-success")
+            extractor.extract_content("https://example.com/http-domain")
 
-        mock_run.assert_called_once()
-        mock_mcmetadata.assert_not_called()
-        mock_newspaper.assert_not_called()
-        mock_bs.assert_not_called()
+        # HTTP domain should use HTTP methods first
+        # Selenium should NOT be called since HTTP extraction succeeded
+        mock_mcmetadata.assert_called_once()
+        mock_selenium.assert_not_called()
 
 
 class TestBotProtectionAutoMarking:
