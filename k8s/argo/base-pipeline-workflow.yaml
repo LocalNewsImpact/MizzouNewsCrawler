@@ -202,7 +202,10 @@ spec:
       - name: PROXY_PROVIDER
         value: "squid"
       - name: SQUID_PROXY_URL
-        value: "http://t9880447.eero.online:3128"
+        valueFrom:
+          secretKeyRef:
+            name: squid-proxy-credentials
+            key: squid-proxy-url
       - name: SQUID_PROXY_USERNAME
         valueFrom:
           secretKeyRef:
@@ -301,7 +304,10 @@ spec:
       - name: PROXY_PROVIDER
         value: "squid"
       - name: SQUID_PROXY_URL
-        value: "http://t9880447.eero.online:3128"
+        valueFrom:
+          secretKeyRef:
+            name: squid-proxy-credentials
+            key: squid-proxy-url
       - name: SQUID_PROXY_USERNAME
         valueFrom:
           secretKeyRef:
@@ -410,7 +416,10 @@ spec:
       - name: PROXY_PROVIDER
         value: "squid"
       - name: SQUID_PROXY_URL
-        value: "http://t9880447.eero.online:3128"
+        valueFrom:
+          secretKeyRef:
+            name: squid-proxy-credentials
+            key: squid-proxy-url
       - name: SQUID_PROXY_USERNAME
         valueFrom:
           secretKeyRef:
