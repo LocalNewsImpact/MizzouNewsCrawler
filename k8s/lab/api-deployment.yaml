@@ -27,6 +27,8 @@ spec:
         - containerPort: 8000
           name: http
         env:
+        - name: PYTHONPATH
+          value: "/app"
         - name: DATABASE_ENGINE
           value: "postgresql+psycopg2"
         - name: DATABASE_HOST

@@ -1175,3 +1175,29 @@ def test_export_to_parquet_emits_snappy_file(tmp_path, monkeypatch):
         assert Path(result).read_text() == "parquet-placeholder"
 
         manager.close()
+
+
+def test_database_manager_engine_caching():
+    """DatabaseManager should cache engines by connection string."""
+    from src.models.database import DatabaseManager
+
+    # Clear cache for clean test
+    DatabaseManager._SHARED_ENGINES.clear()
+
+    with temporary_database() as (db_url1, _):
+        with temporary_database() as (db_url2, _):
+            db1_a = DatabaseManager(database_url=db_url1)
+            db1_b = DatabaseManager(database_url=db_url1)
+            db2 = DatabaseManager(database_url=db_url2)
+
+            # Same URL should share engine
+            assert db1_a.engine is db1_b.engine
+            # Different URL should have different engine
+            assert db1_a.engine is not db2.engine
+
+            # Cache should have exactly 2 engines
+            assert len(DatabaseManager._SHARED_ENGINES) == 2
+
+            db1_a.close()
+            db1_b.close()
+            db2.close()

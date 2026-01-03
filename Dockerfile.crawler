@@ -23,7 +23,8 @@ RUN apt-get clean && \
         xdg-utils \
         libxdamage1 \
         libx11-xcb1 \
-        xvfb || \
+        xvfb \
+        xauth || \
      apt-get install -y --no-install-recommends --fix-missing \
         chromium \
         chromium-driver \
@@ -33,7 +34,8 @@ RUN apt-get clean && \
         xdg-utils \
         libxdamage1 \
         libx11-xcb1 \
-        xvfb) && \
+        xvfb \
+        xauth) && \
     rm -rf /var/lib/apt/lists/* && \
     # Create cache directories for Selenium/undetected-chromedriver
     mkdir -p /opt/chromedriver-cache /home/appuser/.wdm && \
