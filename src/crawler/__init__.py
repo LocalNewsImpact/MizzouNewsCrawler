@@ -3718,6 +3718,24 @@ class ContentExtractor:
             # Prevents false positives from subscription walls
             modal_closed = self._try_close_modals(driver, url)
 
+            # NEW: Check for actual CAPTCHA or bot challenges BEFORE subscription wall
+            # This prevents false positive subscription wall detections on challenge pages
+            if self._detect_captcha_or_challenge(driver):
+                logger.warning(f"CAPTCHA or bot challenge detected on {url}")
+
+                # Try to bypass the challenge (click buttons, wait for JS)
+                if self._try_bypass_challenge(driver, url):
+                    logger.info(f"Successfully bypassed challenge on {url}")
+                    # After bypass, check if we're still on a subscription wall
+                    if not self._detect_subscription_wall(driver):
+                        return True
+                
+                # Try closing modals in case CAPTCHA is in a modal
+                if self._try_close_modals(driver, url):
+                    logger.info("Successfully closed CAPTCHA modal")
+                    if not self._detect_subscription_wall(driver):
+                        return True
+
             # Check for subscription wall (separate from CAPTCHA)
             if self._detect_subscription_wall(driver):
                 logger.warning(
@@ -3743,30 +3761,6 @@ class ContentExtractor:
                     f"Subscription wall blocking content on {url} - "
                     "this may persist for days/months"
                 )
-                return False
-
-            # Now check for actual CAPTCHA or bot challenges
-            if self._detect_captcha_or_challenge(driver):
-                logger.warning(f"CAPTCHA or bot challenge detected on {url}")
-
-                # Try to bypass the challenge (click buttons, wait for JS)
-                if self._try_bypass_challenge(driver, url):
-                    logger.info(f"Successfully bypassed challenge on {url}")
-                    return True
-
-                # Try closing modals in case CAPTCHA is in a modal
-                if self._try_close_modals(driver, url):
-                    logger.info("Successfully closed CAPTCHA modal")
-                    return True
-
-                # Still challenged: set CAPTCHA backoff for domain
-                try:
-                    domain = urlparse(url).netloc
-                    # Backoff longer to avoid repeated blocks
-                    if hasattr(self, "_handle_captcha_backoff"):
-                        self._handle_captcha_backoff(domain)
-                except Exception:
-                    pass
                 return False
 
             return True
@@ -4027,7 +4021,16 @@ class ContentExtractor:
                                     element, offset_x, offset_y
                                 )
                                 actions.pause(random.uniform(0.1, 0.3))
-                                actions.click()
+
+                                # Special handling for PerimeterX "Press and Hold"
+                                if "px-captcha" in selector or "human" in selector.lower():
+                                    logger.info("Detected potential 'Press and Hold' challenge - using long click")
+                                    actions.click_and_hold()
+                                    actions.pause(random.uniform(4.0, 6.0))
+                                    actions.release()
+                                else:
+                                    actions.click()
+                                
                                 actions.perform()
                                 logger.info(f"Clicked verification element: {selector}")
                             except Exception as click_err:
@@ -4115,6 +4118,9 @@ class ContentExtractor:
                 ".cf-challenge-form",  # Cloudflare challenge
                 "#challenge-form",  # Generic challenge form
                 "form[id*='captcha']",  # CAPTCHA forms
+                "#px-captcha",  # PerimeterX
+                "div[id*='px-captcha']",  # PerimeterX div
+                "iframe[src*='captcha']",  # Generic captcha iframe
             ]
 
             for selector in captcha_selectors:
@@ -4144,7 +4150,7 @@ class ContentExtractor:
 
             # 3. Check for specific CAPTCHA keywords
             # Note: Only CAPTCHA-specific terms, not generic 'challenge'/'verify'
-            if "recaptcha" in page_source or "hcaptcha" in page_source:
+            if any(k in page_source for k in ["recaptcha", "hcaptcha", "perimeterx", "px-captcha"]):
                 logger.info("Detected CAPTCHA keyword in page")
                 return True
 
