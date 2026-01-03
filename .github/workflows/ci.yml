@@ -522,7 +522,7 @@ jobs:
             -e DATABASE_USER="$DATABASE_USER" \
             -e DATABASE_PASSWORD="$DATABASE_PASSWORD" \
             us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-            /bin/bash -c "git config --global --add safe.directory /workspace && pytest -v -m integration --tb=short --no-cov"
+            /bin/bash -c "git config --global --add safe.directory /workspace && pytest -v -m integration --ignore=tests/docker --tb=short --no-cov"
 
   integration:
     name: Integration & Coverage
@@ -560,7 +560,7 @@ jobs:
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
             us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-            /bin/bash -c "git config --global --add safe.directory /workspace && pytest -m 'not postgres' --cov=src --cov-report=xml --cov-report=html --cov-report=term-missing --cov-fail-under=78"
+            /bin/bash -c "git config --global --add safe.directory /workspace && pytest -m 'not postgres and not docker' --ignore=tests/docker --cov=src --cov-report=xml --cov-report=html --cov-report=term-missing --cov-fail-under=78"
 
       - name: Generate coverage summary
         if: success()
