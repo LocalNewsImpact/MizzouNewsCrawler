@@ -171,6 +171,18 @@ else
     exit 1
 fi
 
+# Step 6.1: Run Docker-based production readiness tests (ON HOST)
+# These tests require access to the Docker daemon, so they run on the host
+# instead of inside the ci-base container to avoid Docker-in-Docker issues.
+echo ""
+echo "🐳 Step 3.5/5: Running Docker-based production readiness tests (on host)..."
+if command -v pytest >/dev/null 2>&1; then
+    pytest -v -m docker --no-cov
+else
+    echo -e "${YELLOW}⚠️  pytest not found on host, skipping Docker tests.${NC}"
+    echo "   (These will still be caught in CI if they fail)"
+fi
+
 # Step 6.5: Run linting and validation checks (like CI lint job)
 echo ""
 echo "🔍 Step 1/4: Running linting checks (ruff, black, isort)..."

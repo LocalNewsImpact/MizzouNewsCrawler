@@ -16,11 +16,16 @@ Or:
     make test-docker
 """
 
+import os
 import subprocess
 import time
+from pathlib import Path
 from typing import Dict, List
 
 import pytest
+
+# Get project root relative to this file (tests/docker/test_production_readiness.py -> ../../)
+PROJECT_ROOT = Path(__file__).parent.parent.parent.absolute()
 
 
 def run_docker_command(
@@ -38,7 +43,7 @@ def run_docker_command(
         capture_output=capture_output,
         text=True,
         timeout=timeout,
-        cwd="/Users/kiesowd/VSCode/NewsCrawler/MizzouNewsCrawler-Scripts",
+        cwd=str(PROJECT_ROOT),
     )
     return result
 
@@ -481,14 +486,14 @@ def ensure_docker_images_built():
     subprocess.run(
         ["docker-compose", "--profile", "base", "build", "base"],
         check=True,
-        cwd="/Users/kiesowd/VSCode/NewsCrawler/MizzouNewsCrawler-Scripts",
+        cwd="str(PROJECT_ROOT)",
     )
 
     # Build test services
     subprocess.run(
         ["docker-compose", "build", "crawler", "processor"],
         check=True,
-        cwd="/Users/kiesowd/VSCode/NewsCrawler/MizzouNewsCrawler-Scripts",
+        cwd="str(PROJECT_ROOT)",
     )
 
     print("✅ Docker images built\n")

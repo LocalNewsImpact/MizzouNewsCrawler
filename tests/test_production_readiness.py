@@ -17,6 +17,9 @@ from pathlib import Path
 
 import pytest
 
+# Get project root relative to this file (tests/test_production_readiness.py -> ../)
+PROJECT_ROOT = Path(__file__).parent.parent.absolute()
+
 # Detect if running on ARM64 (Apple Silicon)
 IS_ARM64 = platform.machine() in ("arm64", "aarch64")
 SKIP_CHROME_ARM64 = pytest.mark.skipif(
@@ -46,7 +49,7 @@ class TestContainerEntrypoints:
                 "-c",
                 "from src.models import Article, CandidateLink; print('IMPORT_OK')",
             ],
-            cwd=Path(__file__).parent.parent,
+            cwd=str(PROJECT_ROOT),
             capture_output=True,
             text=True,
             timeout=30,
@@ -89,7 +92,7 @@ class TestContainerEntrypoints:
                 "python",
                 "orchestration/continuous_processor.py",
             ],
-            cwd=Path(__file__).parent.parent,
+            cwd=str(PROJECT_ROOT),
             capture_output=True,
             text=True,
         )
@@ -116,7 +119,7 @@ class TestContainerEntrypoints:
                 "-c",
                 "from src.crawler import ContentExtractor; print('EXTRACTOR_OK')",
             ],
-            cwd=Path(__file__).parent.parent,
+            cwd=str(PROJECT_ROOT),
             capture_output=True,
             text=True,
             timeout=30,
@@ -173,7 +176,7 @@ except Exception as e:
     raise
 """,
             ],
-            cwd=Path(__file__).parent.parent,
+            cwd=str(PROJECT_ROOT),
             capture_output=True,
             text=True,
             timeout=60,
@@ -213,7 +216,7 @@ except Exception as e:
     raise
 """,
             ],
-            cwd=Path(__file__).parent.parent,
+            cwd=str(PROJECT_ROOT),
             capture_output=True,
             text=True,
             timeout=60,
@@ -235,7 +238,7 @@ except Exception as e:
                 "-c",
                 "echo $DISPLAY",
             ],
-            cwd=Path(__file__).parent.parent,
+            cwd=str(PROJECT_ROOT),
             capture_output=True,
             text=True,
             timeout=10,
@@ -285,7 +288,7 @@ assert selenium_prioritizes is True, 'selenium-only domains must prioritize Sele
 print('LOGIC_OK')
 """,
             ],
-            cwd=Path(__file__).parent.parent,
+            cwd=str(PROJECT_ROOT),
             capture_output=True,
             text=True,
             timeout=30,
@@ -333,7 +336,7 @@ print(f'standard: {extractor_standard._should_prioritize_selenium("standard")}')
 print('CONFIG_OK')
 """,
             ],
-            cwd=Path(__file__).parent.parent,
+            cwd=str(PROJECT_ROOT),
             capture_output=True,
             text=True,
             timeout=30,
@@ -374,7 +377,7 @@ print(f'EXTRACTED: {result["title"]}')
 print('EXTRACTION_OK')
 """,
             ],
-            cwd=Path(__file__).parent.parent,
+            cwd=str(PROJECT_ROOT),
             capture_output=True,
             text=True,
             timeout=60,
@@ -426,7 +429,7 @@ else:
 assert not challenge_detected, 'Failed to bypass PerimeterX - Selenium not tried?'
 """,
             ],
-            cwd=Path(__file__).parent.parent,
+            cwd=str(PROJECT_ROOT),
             capture_output=True,
             text=True,
             timeout=90,
@@ -461,7 +464,7 @@ with db.get_session() as session:
     print('DB_CONNECTION_OK')
 """,
             ],
-            cwd=Path(__file__).parent.parent,
+            cwd=str(PROJECT_ROOT),
             capture_output=True,
             text=True,
             timeout=30,
@@ -504,7 +507,7 @@ else:
     print('DRIVER_CLOSED_OK')
 """,
             ],
-            cwd=Path(__file__).parent.parent,
+            cwd=str(PROJECT_ROOT),
             capture_output=True,
             text=True,
             timeout=60,
@@ -554,7 +557,7 @@ print('REUSE_COUNT_OK')
 extractor.close_persistent_driver()
 """,
             ],
-            cwd=Path(__file__).parent.parent,
+            cwd=str(PROJECT_ROOT),
             capture_output=True,
             text=True,
             timeout=60,
@@ -602,7 +605,7 @@ print('DRIVER_RECREATION_OK')
 extractor.close_persistent_driver()
 """,
             ],
-            cwd=Path(__file__).parent.parent,
+            cwd=str(PROJECT_ROOT),
             capture_output=True,
             text=True,
             timeout=90,
@@ -640,7 +643,7 @@ print(f'Store type: {type(store).__name__}')
 print('TELEMETRY_INIT_OK')
 """,
             ],
-            cwd=Path(__file__).parent.parent,
+            cwd=str(PROJECT_ROOT),
             capture_output=True,
             text=True,
             timeout=30,
@@ -675,7 +678,7 @@ print(f'Metrics type: {type(metrics).__name__}')
 print('METRICS_INIT_OK')
 """,
             ],
-            cwd=Path(__file__).parent.parent,
+            cwd=str(PROJECT_ROOT),
             capture_output=True,
             text=True,
             timeout=30,
@@ -724,7 +727,7 @@ print(f'Manager initialized: {manager is not None}')
 print('BOT_MANAGER_OK')
 """,
             ],
-            cwd=Path(__file__).parent.parent,
+            cwd=str(PROJECT_ROOT),
             capture_output=True,
             text=True,
             timeout=30,
@@ -759,7 +762,7 @@ print(f'Bot manager exists: {extractor.bot_sensitivity_manager is not None}')
 print('EXTRACTOR_WITH_BOT_MANAGER_OK')
 """,
             ],
-            cwd=Path(__file__).parent.parent,
+            cwd=str(PROJECT_ROOT),
             capture_output=True,
             text=True,
             timeout=30,
@@ -791,7 +794,7 @@ class TestXVFBConfiguration:
                 "-c",
                 "Xvfb :99 -screen 0 1920x1080x24 & sleep 2 && ps aux | grep Xvfb | grep -v grep && echo 'XVFB_RUNNING'",
             ],
-            cwd=Path(__file__).parent.parent,
+            cwd=str(PROJECT_ROOT),
             capture_output=True,
             text=True,
             timeout=15,
@@ -834,7 +837,7 @@ driver.quit()
 "
 """,
             ],
-            cwd=Path(__file__).parent.parent,
+            cwd=str(PROJECT_ROOT),
             capture_output=True,
             text=True,
             timeout=60,
