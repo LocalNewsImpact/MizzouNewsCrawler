@@ -31,8 +31,10 @@ RUN mkdir -p /app/data /app/lookups && chown -R appuser:appuser /app/data /app/l
 USER appuser
 
 # Set environment variables
+# CRITICAL: PYTHONPATH must include /app for src.* imports to work
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app \
     MODEL_PATH=/app/models
 
 # Default command (can be overridden in Kubernetes)

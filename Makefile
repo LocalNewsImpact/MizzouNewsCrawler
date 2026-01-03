@@ -1,4 +1,4 @@
-.PHONY: help coverage lint format security type-check test-full test-migrations test-alembic ci-check test-parallel test-quick test-ci test-unit test-integration test-postgres
+.PHONY: help coverage lint format security type-check test-full test-migrations test-alembic ci-check test-parallel test-quick test-ci test-unit test-integration test-postgres test-production-readiness
 
 .DEFAULT_GOAL := help
 
@@ -8,11 +8,12 @@ help:
 	@echo "=============================================="
 	@echo ""
 	@echo "🧪 Testing (Run before pushing!)"
-	@echo "  make test-ci          - Run full CI suite (Unit + Integration + PostgreSQL)"
-	@echo "  make test-unit        - Run unit tests only (fast)"
-	@echo "  make test-integration - Run integration tests with SQLite"
-	@echo "  make test-postgres    - Run PostgreSQL integration tests"
-	@echo "  make test-all-ci      - Run all test suites sequentially"
+	@echo "  make test-ci                   - Run full CI suite (Unit + Integration + PostgreSQL)"
+	@echo "  make test-production-readiness - 🐳 Run Docker-based production tests (CRITICAL!)"
+	@echo "  make test-unit                 - Run unit tests only (fast)"
+	@echo "  make test-integration          - Run integration tests with SQLite"
+	@echo "  make test-postgres             - Run PostgreSQL integration tests"
+	@echo "  make test-all-ci               - Run all test suites sequentially"
 	@echo ""
 	@echo "🔍 Code Quality"
 	@echo "  make lint             - Check code style (ruff, black, isort, mypy)"
@@ -71,6 +72,26 @@ test-all-ci:
 	@echo "   Runs: unit → integration (SQLite) → postgres"
 	@echo ""
 	./scripts/pre-deploy-validation.sh all --docker-ci
+
+test-production-readiness:
+	@echo "🐳 Running production readiness tests in Docker containers"
+	@echo "   These tests use REAL containers, not mocks"
+	@echo "   WOULD HAVE CAUGHT the January 2, 2026 production failure"
+	@echo ""
+	@echo "Starting Docker containers..."
+	docker-compose up -d postgres
+	@sleep 5
+	@echo ""
+	@echo "Running tests that verify:"
+	@echo "  ✓ Container imports work (PYTHONPATH)"
+	@echo "  ✓ ChromeDriver actually launches"
+	@echo "  ✓ Extraction method logic is correct"
+	@echo "  ✓ End-to-end extraction works"
+	@echo ""
+	python -m pytest tests/test_production_readiness.py -v -m docker --tb=short
+	@echo ""
+	@echo "Stopping containers..."
+	docker-compose down
 
 coverage:
 	python -m pytest --cov=src --cov-report=term-missing --cov-fail-under=45
@@ -154,3 +175,49 @@ test-file:
 		exit 1; \
 	fi
 	python -m pytest $(FILE) $(ARGS) -v --tb=short --no-cov --maxfail=3
+
+# Run Docker-based production readiness tests
+# These verify the code works in production containers with real Chrome/ChromeDriver
+test-docker:
+	@echo "🐳 Running Docker-based production readiness tests"
+	./scripts/test-production-readiness.sh
+
+.PHONY: test-docker-work-queue
+test-docker-work-queue:  ## Run Docker-based work queue integration tests
+	@echo "Running work queue integration tests in Docker..."
+	docker-compose up -d postgres
+	sleep 5
+	python -m pytest tests/docker/test_work_queue_integration.py -v -m docker --tb=short --no-cov
+	docker-compose down
+
+.PHONY: test-docker-proxy
+test-docker-proxy:  ## Run Docker-based proxy routing tests
+	@echo "Running proxy routing tests in Docker..."
+	docker-compose up -d postgres
+	sleep 5
+	python -m pytest tests/docker/test_proxy_routing.py -v -m docker --tb=short --no-cov
+	docker-compose down
+
+.PHONY: test-docker-all
+test-docker-all:  ## Run all Docker-based integration tests
+	@echo "Running all Docker integration tests..."
+	docker-compose up -d postgres
+	sleep 5
+	python -m pytest tests/docker/ -v -m docker --tb=short --no-cov
+	docker-compose down
+
+# Comprehensive pre-deployment validation (includes Docker tests)
+test-production-ready:
+	@echo "🚀 COMPREHENSIVE PRE-DEPLOYMENT VALIDATION"
+	@echo "=========================================="
+	@echo ""
+	@echo "Running full test suite + Docker production readiness tests..."
+	@echo ""
+	make test-ci
+	@echo ""
+	@echo "Now running Docker-based production readiness tests..."
+	@echo ""
+	make test-docker
+	@echo ""
+	@echo "✅ ALL TESTS PASSED - Ready for production deployment!"
+

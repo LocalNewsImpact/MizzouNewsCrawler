@@ -186,14 +186,19 @@ class ProxyManager:
             )
 
     def _get_active_provider(self) -> ProxyProvider:
-        """Determine active provider from PROXY_PROVIDER env var."""
+        """Determine active provider from PROXY_PROVIDER env var.
+
+        CRITICAL: In production, SQUID must ALWAYS be used for all connections.
+        Direct connections are DISABLED - all traffic must go through Squid proxy.
+        """
         provider_name = os.getenv("PROXY_PROVIDER", "squid").lower()
 
         # Map common aliases
         aliases = {
-            "none": ProxyProvider.DIRECT,
-            "off": ProxyProvider.DIRECT,
-            "disabled": ProxyProvider.DIRECT,
+            "none": ProxyProvider.SQUID,  # FORCE SQUID - no direct connections allowed
+            "off": ProxyProvider.SQUID,  # FORCE SQUID - no direct connections allowed
+            "disabled": ProxyProvider.SQUID,  # FORCE SQUID - no direct connections allowed
+            "direct": ProxyProvider.SQUID,  # FORCE SQUID - no direct connections allowed
             "default": ProxyProvider.SQUID,
             "standard": ProxyProvider.STANDARD,
             "http": ProxyProvider.STANDARD,
