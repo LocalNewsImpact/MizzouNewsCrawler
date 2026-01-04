@@ -3455,6 +3455,7 @@ class ContentExtractor:
             "SELENIUM_PROXY",
             os.getenv("SQUID_PROXY_URL", "http://t9880447.eero.online:3128"),
         )
+        logger.info(f"🔀 Selenium proxy URL from env: {selenium_proxy}")
         proxy_extension_path = None
 
         # Parse proxy URL: https://user:pass@host:port or http://host:port
@@ -3526,8 +3527,8 @@ class ContentExtractor:
             else:
                 # Proxy without authentication - use --proxy-server argument
                 options.add_argument(f"--proxy-server={selenium_proxy}")
-                logger.debug(
-                    f"Configured Squid proxy via --proxy-server: {selenium_proxy}"
+                logger.info(
+                    f"🔀 Selenium using Squid proxy via --proxy-server: {selenium_proxy}"
                 )
         else:
             logger.error(
