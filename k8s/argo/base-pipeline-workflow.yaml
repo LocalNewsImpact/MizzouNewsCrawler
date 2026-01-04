@@ -206,16 +206,6 @@ spec:
           secretKeyRef:
             name: squid-proxy-credentials
             key: squid-proxy-url
-      - name: SQUID_PROXY_USERNAME
-        valueFrom:
-          secretKeyRef:
-            name: squid-proxy-credentials
-            key: username
-      - name: SQUID_PROXY_PASSWORD
-        valueFrom:
-          secretKeyRef:
-            name: squid-proxy-credentials
-            key: password
       - name: GOOGLE_CLOUD_PROJECT
         value: "mizzou-news-crawler"
       - name: NO_PROXY
@@ -308,16 +298,6 @@ spec:
           secretKeyRef:
             name: squid-proxy-credentials
             key: squid-proxy-url
-      - name: SQUID_PROXY_USERNAME
-        valueFrom:
-          secretKeyRef:
-            name: squid-proxy-credentials
-            key: username
-      - name: SQUID_PROXY_PASSWORD
-        valueFrom:
-          secretKeyRef:
-            name: squid-proxy-credentials
-            key: password
       - name: GOOGLE_CLOUD_PROJECT
         value: "mizzou-news-crawler"
       - name: NO_PROXY
@@ -420,16 +400,6 @@ spec:
           secretKeyRef:
             name: squid-proxy-credentials
             key: squid-proxy-url
-      - name: SQUID_PROXY_USERNAME
-        valueFrom:
-          secretKeyRef:
-            name: squid-proxy-credentials
-            key: username
-      - name: SQUID_PROXY_PASSWORD
-        valueFrom:
-          secretKeyRef:
-            name: squid-proxy-credentials
-            key: password
       - name: SELENIUM_PROXY
         valueFrom:
           secretKeyRef:
@@ -483,7 +453,7 @@ spec:
         workflow-name: "{{workflow.name}}"
         workflow-uid: "{{workflow.uid}}"
     container:
-      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:de00714
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:b0b4d27
       imagePullPolicy: IfNotPresent
       command: ["/bin/sh","-c"]
       args:
@@ -569,7 +539,7 @@ spec:
         workflow-name: "{{workflow.name}}"
         workflow-uid: "{{workflow.uid}}"
     container:
-      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:de00714
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:b0b4d27
       imagePullPolicy: IfNotPresent
       command: ["/bin/sh","-c"]
       args:
@@ -663,7 +633,7 @@ spec:
         workflow-name: "{{workflow.name}}"
         workflow-uid: "{{workflow.uid}}"
     container:
-      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:de00714
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:b0b4d27
       imagePullPolicy: IfNotPresent
       command: ["/bin/sh", "-c"]
       args:

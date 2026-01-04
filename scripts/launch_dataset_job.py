@@ -238,7 +238,7 @@ def create_job_manifest(
                                     "name": "CLOUD_SQL_INSTANCE",
                                     "value": "mizzou-news-crawler:us-central1:mizzou-db-prod",
                                 },
-                                # Proxy
+                                # Proxy - Squid doesn't need authentication
                                 {"name": "PROXY_PROVIDER", "value": "squid"},
                                 {
                                     "name": "SQUID_PROXY_URL",
@@ -246,26 +246,6 @@ def create_job_manifest(
                                         "secretKeyRef": {
                                             "name": "squid-proxy-credentials",
                                             "key": "squid-proxy-url",
-                                            "optional": True,
-                                        }
-                                    },
-                                },
-                                {
-                                    "name": "SQUID_PROXY_USERNAME",
-                                    "valueFrom": {
-                                        "secretKeyRef": {
-                                            "name": "squid-proxy-credentials",
-                                            "key": "username",
-                                            "optional": True,
-                                        }
-                                    },
-                                },
-                                {
-                                    "name": "SQUID_PROXY_PASSWORD",
-                                    "valueFrom": {
-                                        "secretKeyRef": {
-                                            "name": "squid-proxy-credentials",
-                                            "key": "password",
                                             "optional": True,
                                         }
                                     },

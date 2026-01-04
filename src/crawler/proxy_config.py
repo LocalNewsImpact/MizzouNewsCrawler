@@ -114,14 +114,14 @@ class ProxyManager:
             enabled=True,  # Always available
         )
 
-        # Squid residential proxy (default provider)
+        # Squid residential proxy (default provider) - no authentication needed
         squid_url = os.getenv("SQUID_PROXY_URL", "http://t9880447.eero.online:3128")
         self.configs[ProxyProvider.SQUID] = ProxyConfig(
             provider=ProxyProvider.SQUID,
             enabled=bool(squid_url),
             url=squid_url,
-            username=os.getenv("SQUID_PROXY_USERNAME"),
-            password=os.getenv("SQUID_PROXY_PASSWORD"),
+            username=None,
+            password=None,
         )
 
         # Standard HTTP proxy

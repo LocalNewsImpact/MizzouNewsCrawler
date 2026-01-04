@@ -856,7 +856,9 @@ class ContentExtractor:
             raise
 
         if self._fingerprint_profile:
-            logger.info("ContentExtractor initialized with fingerprint profile (UA rotation disabled)")
+            logger.info(
+                "ContentExtractor initialized with fingerprint profile (UA rotation disabled)"
+            )
         else:
             logger.info("ContentExtractor initialized with user agent rotation enabled")
 
@@ -1071,7 +1073,8 @@ class ContentExtractor:
             "Accept": random.choice(self.accept_header_pool),
             "Accept-Language": (
                 self._fingerprint_profile.accept_language
-                if self._fingerprint_profile and self._fingerprint_profile.accept_language
+                if self._fingerprint_profile
+                and self._fingerprint_profile.accept_language
                 else random.choice(self.accept_language_pool)
             ),
             "Accept-Encoding": random.choice(self.accept_encoding_pool),
