@@ -475,7 +475,7 @@ jobs:
               case $STATUS in
                 QUEUED|WORKING)
                   echo "⏳ [$SERVICE] Build $BUILD_ID still running (status: $STATUS)"
-                  ((STILL_RUNNING++))
+                  STILL_RUNNING=$((STILL_RUNNING + 1))
                   ;;
                 SUCCESS)
                   echo "✅ [$SERVICE] Build $BUILD_ID completed successfully"
@@ -510,7 +510,7 @@ jobs:
             
             echo "  Waiting $POLL_INTERVAL seconds before next check... ($ELAPSED/$MAX_WAIT seconds elapsed)"
             sleep $POLL_INTERVAL
-            ((ELAPSED += POLL_INTERVAL))
+            ELAPSED=$((ELAPSED + POLL_INTERVAL))
           done
           
           echo "❌ Timeout waiting for builds (exceeded ${MAX_WAIT}s)"
