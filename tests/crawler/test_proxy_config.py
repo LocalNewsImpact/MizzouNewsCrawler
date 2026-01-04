@@ -238,20 +238,19 @@ class TestProxyManager:
             assert "http" in proxies
             assert "https" in proxies
 
+        # Squid proxy without authentication
         with mock.patch.dict(
             os.environ,
             {
                 "PROXY_PROVIDER": "squid",
                 "SQUID_PROXY_URL": "http://squid.example:3128",
-                "SQUID_PROXY_USERNAME": "user",
-                "SQUID_PROXY_PASSWORD": "pass",
             },
             clear=True,
         ):
             manager = ProxyManager()
             proxies = manager.get_requests_proxies()
-            assert proxies["http"].startswith("http://user:pass@")
-            assert proxies["https"].startswith("http://user:pass@")
+            assert proxies["http"] == "http://squid.example:3128"
+            assert proxies["https"] == "http://squid.example:3128"
 
         with mock.patch.dict(
             os.environ,

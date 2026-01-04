@@ -267,11 +267,10 @@ def test_http_session_configured_with_squid_proxy():
     from backend.app.lifecycle import lifespan
     from src.crawler import proxy_config
 
+    # Squid proxy doesn't use authentication
     env = {
         "PROXY_PROVIDER": "squid",
         "SQUID_PROXY_URL": "http://squid-proxy.internal:8080",
-        "SQUID_PROXY_USERNAME": "proxy-user",
-        "SQUID_PROXY_PASSWORD": "proxy-pass",
         "USE_ORIGIN_PROXY": "true",
     }
 
@@ -282,14 +281,8 @@ def test_http_session_configured_with_squid_proxy():
             app = FastAPI(lifespan=lifespan)
             with TestClient(app):
                 proxies = app.state.http_session.proxies
-                assert (
-                    proxies["http"]
-                    == "http://proxy-user:proxy-pass@squid-proxy.internal:8080"
-                )
-                assert (
-                    proxies["https"]
-                    == "http://proxy-user:proxy-pass@squid-proxy.internal:8080"
-                )
+                assert proxies["http"] == "http://squid-proxy.internal:8080"
+                assert proxies["https"] == "http://squid-proxy.internal:8080"
         finally:
             proxy_config._proxy_manager = original_manager
 

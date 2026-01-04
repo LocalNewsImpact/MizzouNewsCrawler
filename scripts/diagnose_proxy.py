@@ -35,11 +35,10 @@ def check_environment():
     logger.info("ENVIRONMENT VARIABLES")
     logger.info("=" * 80)
     
+    # Squid proxy doesn't use authentication
     vars_to_check = [
         'PROXY_PROVIDER',
         'SQUID_PROXY_URL',
-        'SQUID_PROXY_USERNAME',
-        'SQUID_PROXY_PASSWORD',
         'PROXY_POOL',
         'NO_PROXY',
         'no_proxy',
@@ -49,12 +48,7 @@ def check_environment():
     for var in vars_to_check:
         value = os.getenv(var)
         if value:
-            # Mask password
-            if 'PASSWORD' in var:
-                display = '*' * len(value) if value else 'not set'
-            else:
-                display = value
-            logger.info(f"  ✓ {var}={display}")
+            logger.info(f"  ✓ {var}={value}")
             found = True
         else:
             logger.info(f"  ✗ {var}=<not set>")
@@ -249,17 +243,10 @@ def main():
     logger.info("RECOMMENDATIONS:")
     
     has_url = bool(os.getenv("SQUID_PROXY_URL"))
-    username = os.getenv("SQUID_PROXY_USERNAME")
-    password = os.getenv("SQUID_PROXY_PASSWORD")
 
     if not has_url:
         logger.info("  1. Set proxy URL: export SQUID_PROXY_URL=http://your-squid-host:3128")
-    if username and not password:
-        logger.warning("  2. ⚠️  Provide SQUID_PROXY_PASSWORD for authenticated Squid proxies")
-    if password and not username:
-        logger.warning("  2. ⚠️  Provide SQUID_PROXY_USERNAME for authenticated Squid proxies")
-
-    if has_url and ((username and password) or (not username and not password)):
+    else:
         logger.info("  ✓ Squid proxy configuration looks good!")
     
     logger.info("\n")

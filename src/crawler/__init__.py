@@ -828,6 +828,14 @@ class ContentExtractor:
             load_fingerprint_profile()
         )
 
+        # If fingerprint profile is loaded, use its UA for consistency
+        if self._fingerprint_profile and self._fingerprint_profile.user_agent:
+            self.current_user_agent = self._fingerprint_profile.user_agent
+            logger.info(
+                f"Using fingerprint profile UA: {self.current_user_agent[:50]}... "
+                "(UA rotation disabled for fingerprint consistency)"
+            )
+
         profile_dir_env = os.getenv("SELENIUM_USER_DATA_DIR")
         self._selenium_profile_directory = os.getenv(
             "SELENIUM_PROFILE_DIRECTORY", "Default"
@@ -847,7 +855,12 @@ class ContentExtractor:
             logger.error("SELENIUM_USER_DATA_DIR was set but is invalid: %s", exc)
             raise
 
-        logger.info("ContentExtractor initialized with user agent rotation enabled")
+        if self._fingerprint_profile:
+            logger.info(
+                "ContentExtractor initialized with fingerprint profile (UA rotation disabled)"
+            )
+        else:
+            logger.info("ContentExtractor initialized with user agent rotation enabled")
 
     def _create_new_session(self):
         """Create a new session with current user agent and clear cookies."""
@@ -927,6 +940,20 @@ class ContentExtractor:
                 f"{backoff_time:.0f} more seconds"
             )
             raise RateLimitError(f"Domain {domain} is rate limited")
+
+        # Skip UA rotation if fingerprint profile is loaded (maintain consistency)
+        if self._fingerprint_profile and self._fingerprint_profile.user_agent:
+            if domain not in self.domain_sessions:
+                # Create new session with fingerprint UA
+                new_session = self._create_session_with_fingerprint_ua()
+                self.domain_sessions[domain] = new_session
+                self.domain_user_agents[domain] = self._fingerprint_profile.user_agent
+                self.request_counts[domain] = 0
+                logger.debug(
+                    f"Created new session for {domain} using fingerprint UA "
+                    f"(rotation disabled)"
+                )
+            return self.domain_sessions[domain]
 
         # Check if we need to rotate user agent for this domain
         should_rotate = False
@@ -1027,6 +1054,52 @@ class ContentExtractor:
         self._apply_rate_limit(domain)
 
         return self.domain_sessions[domain]
+
+    def _create_session_with_fingerprint_ua(self):
+        """Create a new session using fingerprint profile user agent."""
+        if CLOUDSCRAPER_AVAILABLE and cloudscraper is not None:
+            new_session = cloudscraper.create_scraper()
+        else:
+            new_session = requests.Session()
+
+        if self._fingerprint_profile and self._fingerprint_profile.user_agent:
+            user_agent = self._fingerprint_profile.user_agent
+        else:
+            user_agent = self.current_user_agent
+
+        # Set headers with fingerprint UA
+        headers = {
+            "User-Agent": user_agent,
+            "Accept": random.choice(self.accept_header_pool),
+            "Accept-Language": (
+                self._fingerprint_profile.accept_language
+                if self._fingerprint_profile
+                and self._fingerprint_profile.accept_language
+                else random.choice(self.accept_language_pool)
+            ),
+            "Accept-Encoding": random.choice(self.accept_encoding_pool),
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
+            "Cache-Control": "max-age=0",
+        }
+
+        if random.random() > 0.3:
+            headers["DNT"] = "1"
+
+        new_session.headers.update(headers)
+
+        # Apply Squid proxy
+        squid_proxy_url = os.getenv(
+            "SQUID_PROXY_URL", "http://t9880447.eero.online:3128"
+        )
+        squid_proxies = {"http": squid_proxy_url, "https": squid_proxy_url}
+        new_session.proxies.update(squid_proxies)
+
+        return new_session
 
     def _choose_proxy_for_domain(self, domain: str) -> Optional[str]:
         """Pick or return a sticky proxy for a domain if a pool is configured."""

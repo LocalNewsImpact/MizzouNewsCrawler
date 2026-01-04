@@ -124,20 +124,18 @@ class TestArgoWorkflowImageConfiguration:
                 provider_var.get("value") == "squid"
             ), f"{step_name} must enforce Squid proxy provider"
 
-            for env_name, secret_key in (
-                ("SQUID_PROXY_URL", "squid-proxy-url"),
-                ("SQUID_PROXY_USERNAME", "username"),
-                ("SQUID_PROXY_PASSWORD", "password"),
-            ):
-                env_var = next((e for e in env_vars if e["name"] == env_name), None)
-                assert env_var is not None, f"{step_name} missing {env_name}"
-                secret_ref = env_var.get("valueFrom", {}).get("secretKeyRef", {})
-                assert (
-                    secret_ref.get("name") == "squid-proxy-credentials"
-                ), f"{step_name} {env_name} should reference squid-proxy-credentials"
-                assert (
-                    secret_ref.get("key") == secret_key
-                ), f"{step_name} {env_name} should use '{secret_key}' key"
+            # Squid proxy only needs URL (no auth)
+            squid_url_var = next(
+                (e for e in env_vars if e["name"] == "SQUID_PROXY_URL"), None
+            )
+            assert squid_url_var is not None, f"{step_name} missing SQUID_PROXY_URL"
+            secret_ref = squid_url_var.get("valueFrom", {}).get("secretKeyRef", {})
+            assert (
+                secret_ref.get("name") == "squid-proxy-credentials"
+            ), f"{step_name} SQUID_PROXY_URL should reference squid-proxy-credentials"
+            assert (
+                secret_ref.get("key") == "squid-proxy-url"
+            ), f"{step_name} SQUID_PROXY_URL should use 'squid-proxy-url' key"
 
             assert "GOOGLE_CLOUD_PROJECT" in env_var_names, (
                 f"{step_name} missing GOOGLE_CLOUD_PROJECT env var "
@@ -169,19 +167,7 @@ class TestArgoWorkflowImageConfiguration:
                 url_secret.get("key") == "squid-proxy-url"
             ), f"{step_name} SQUID_PROXY_URL should use squid-proxy-url key"
 
-            for env_name, secret_key in (
-                ("SQUID_PROXY_USERNAME", "username"),
-                ("SQUID_PROXY_PASSWORD", "password"),
-            ):
-                env_var = next((e for e in env_vars if e["name"] == env_name), None)
-                assert env_var is not None, f"{step_name} missing {env_name}"
-                secret = env_var.get("valueFrom", {}).get("secretKeyRef", {})
-                assert (
-                    secret.get("name") == "squid-proxy-credentials"
-                ), f"{step_name} {env_name} must reference squid-proxy-credentials"
-                assert (
-                    secret.get("key") == secret_key
-                ), f"{step_name} {env_name} should use '{secret_key}' key"
+            # No username/password needed - Squid doesn't use auth
 
             if step_name == "extraction-step":
                 selenium_var = next(

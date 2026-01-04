@@ -155,6 +155,7 @@ class TestCreateJobManifest:
         env_names = {e["name"] for e in env}
 
         # Check required environment variables
+        # Note: Squid proxy doesn't use authentication
         required_vars = {
             "DATABASE_ENGINE",
             "DATABASE_HOST",
@@ -166,8 +167,6 @@ class TestCreateJobManifest:
             "CLOUD_SQL_INSTANCE",
             "PROXY_PROVIDER",
             "SQUID_PROXY_URL",
-            "SQUID_PROXY_USERNAME",
-            "SQUID_PROXY_PASSWORD",
             "SELENIUM_PROXY",
             "NO_PROXY",
         }

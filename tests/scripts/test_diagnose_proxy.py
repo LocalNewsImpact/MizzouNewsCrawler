@@ -20,11 +20,10 @@ from diagnose_proxy import (  # noqa: E402
 def test_check_environment_with_all_vars(monkeypatch, caplog):
     """Test environment check when all variables are set."""
     caplog.set_level(logging.INFO)
+    # Squid proxy doesn't use authentication
     env_vars = {
         "PROXY_PROVIDER": "squid",
         "SQUID_PROXY_URL": "http://proxy.test:9999",
-        "SQUID_PROXY_USERNAME": "testuser",
-        "SQUID_PROXY_PASSWORD": "testpass",
         "PROXY_POOL": "pool-a",
         "NO_PROXY": "localhost",
         "no_proxy": "127.0.0.1",
@@ -35,9 +34,6 @@ def test_check_environment_with_all_vars(monkeypatch, caplog):
 
     check_environment()
 
-    # Check that password does not appear in logs
-    assert not any("testpass" in record.message for record in caplog.records)
-
 
 def test_check_environment_with_no_vars(monkeypatch, caplog):
     """Test environment check when no variables are set."""
@@ -45,8 +41,6 @@ def test_check_environment_with_no_vars(monkeypatch, caplog):
     for var in [
         "PROXY_PROVIDER",
         "SQUID_PROXY_URL",
-        "SQUID_PROXY_USERNAME",
-        "SQUID_PROXY_PASSWORD",
         "PROXY_POOL",
         "NO_PROXY",
         "no_proxy",

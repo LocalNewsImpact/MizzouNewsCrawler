@@ -65,17 +65,7 @@ spec:
               name: squid-proxy-credentials
               key: squid-proxy-url
               optional: true
-        - name: SQUID_PROXY_USERNAME
-          valueFrom:
-            secretKeyRef:
-              name: squid-proxy-credentials
-              key: username
               optional: true
-        - name: SQUID_PROXY_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: squid-proxy-credentials
-              key: password
               optional: true
         - name: SELENIUM_PROXY
           valueFrom:
