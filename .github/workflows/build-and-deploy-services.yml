@@ -209,7 +209,6 @@ jobs:
           set +e
           BUILD_ID=$(gcloud builds triggers run build-base-manual \
             --branch="${{ github.ref_name }}" \
-            --project="${{ secrets.GCP_PROJECT }}" \
             --format="value(metadata.build.id)" 2>&1)
           EXIT_CODE=$?
           set -e
@@ -253,7 +252,6 @@ jobs:
           set +e
           BUILD_ID=$(gcloud builds triggers run build-ml-base-manual \
             --branch="${{ github.ref_name }}" \
-            --project="${{ secrets.GCP_PROJECT }}" \
             --format="value(metadata.build.id)" 2>&1)
           EXIT_CODE=$?
           set -e
@@ -297,7 +295,6 @@ jobs:
           set +e
           BUILD_ID=$(gcloud builds triggers run build-processor-manual \
             --branch="${{ github.ref_name }}" \
-            --project="${{ secrets.GCP_PROJECT }}" \
             --format="value(metadata.build.id)" 2>&1)
           EXIT_CODE=$?
           set -e
@@ -341,7 +338,6 @@ jobs:
           set +e
           BUILD_ID=$(gcloud builds triggers run build-api-manual \
             --branch="${{ github.ref_name }}" \
-            --project="${{ secrets.GCP_PROJECT }}" \
             --format="value(metadata.build.id)" 2>&1)
           EXIT_CODE=$?
           set -e
@@ -385,7 +381,6 @@ jobs:
           set +e
           BUILD_ID=$(gcloud builds triggers run build-crawler-manual \
             --branch="${{ github.ref_name }}" \
-            --project="${{ secrets.GCP_PROJECT }}" \
             --format="value(metadata.build.id)" 2>&1)
           EXIT_CODE=$?
           set -e
@@ -475,7 +470,6 @@ jobs:
               BUILD_ID=${BUILD_IDS[$idx]}
               SERVICE=${BUILD_NAMES[$idx]}
               STATUS=$(gcloud builds describe "$BUILD_ID" \
-                --project="${{ secrets.GCP_PROJECT }}" \
                 --format='value(status)')
 
               case $STATUS in
@@ -598,10 +592,10 @@ jobs:
             exit 0
           fi
           ./scripts/update-versions-env.sh "${ARGS[@]}"
-          if git diff --quiet k8s/versions.env; then
-            echo "versions.env already up to date"
+          if git diff --quiet k8s/versions.env k8s/argo/base-pipeline-workflow.yaml; then
+            echo "versions.env and Argo workflow already up to date"
             exit 0
           fi
-          git add k8s/versions.env
+          git add k8s/versions.env k8s/argo/base-pipeline-workflow.yaml
           git commit -m "chore: update image tags (${SHORT}) [skip ci]"
           git push origin HEAD

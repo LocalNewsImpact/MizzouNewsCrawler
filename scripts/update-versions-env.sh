@@ -99,13 +99,36 @@ path.write_text("\n".join(lines) + "\n")
 PY
 }
 
+# Function to update image tags in Argo workflow YAML
+update_argo_workflow() {
+    local service=$1
+    local new_sha=$2
+    local argo_file="k8s/argo/base-pipeline-workflow.yaml"
+    
+    if [[ ! -f "$argo_file" ]]; then
+        echo "⚠️  Argo workflow file not found: $argo_file"
+        return
+    fi
+    
+    # Update image tags in Argo workflow (matches pattern: image:.../<service>:<sha>)
+    # Use portable sed syntax (works on both macOS and Linux)
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "s|\(us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/${service}:\)[a-f0-9]\{7\}|\1${new_sha}|g" "$argo_file"
+    else
+        sed -i "s|\(us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/${service}:\)[a-f0-9]\{7\}|\1${new_sha}|g" "$argo_file"
+    fi
+    echo "✅ Updated Argo workflow ${service} image to $new_sha"
+}
+
 if [[ -n "$PROCESSOR_SHA" ]]; then
     update_var "PROCESSOR_TAG" "$PROCESSOR_SHA" "$VERSIONS_FILE"
+    update_argo_workflow "processor" "$PROCESSOR_SHA"
     echo "✅ Updated PROCESSOR_TAG to $PROCESSOR_SHA"
 fi
 
 if [[ -n "$CRAWLER_SHA" ]]; then
     update_var "CRAWLER_TAG" "$CRAWLER_SHA" "$VERSIONS_FILE"
+    update_argo_workflow "crawler" "$CRAWLER_SHA"
     echo "✅ Updated CRAWLER_TAG to $CRAWLER_SHA"
 fi
 
