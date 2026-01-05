@@ -21,7 +21,7 @@ Quick usage (from repository root):
 
 5) To speed repeated runs, mount a persistent Go module cache or pre-build the binary:
    mkdir -p .go_mod_cache .go_build_cache
-   docker run --rm -v "$PWD":/work -v "$PWD/.go_mod_cache":/go/pkg/mod -v "$PWD/.go_build_cache":/root/.cache/go-build -w /work/scripts/utls_client golang:1.20 bash -lc 'export PATH=/usr/local/go/bin:$PATH; go mod download'
+   docker run --rm -v "$PWD":/work -v "$PWD/.go_mod_cache":/go/pkg/mod -v "$PWD/.go_build_cache":/root/.cache/go-build -w /work/scripts/utls_client golang:1.24 bash -lc 'export PATH=/usr/local/go/bin:$PATH; go mod download'
 
 Notes
 - `--probe-only` will only send the ClientHello and read the first server response; it does not attempt a full TLS handshake.

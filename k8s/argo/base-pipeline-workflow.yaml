@@ -348,7 +348,7 @@ spec:
         - |
           echo "✅ Starting extraction immediately without waiting"
           echo "Note: Extract command will check for available articles internally"
-          xvfb-run -a --server-args="-screen 0 1920x1080x24" python -m src.cli.cli_modular extract \
+          /usr/local/bin/xvfb-wrapper.sh python -m src.cli.cli_modular extract \
             --dataset "{{inputs.parameters.dataset}}" \
             --limit "{{inputs.parameters.limit}}" \
             --batches "{{inputs.parameters.batches}}" \

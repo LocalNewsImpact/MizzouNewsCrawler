@@ -17,19 +17,21 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"bytes"
 
+	"crypto/rand"
 	"crypto/ecdh"
 	"crypto/mlkem"
-	"crypto/rand"
 	"golang.org/x/crypto/curve25519"
+
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/hpack"
 
 	utls "github.com/refraction-networking/utls"
 )
 
 var preparedKeyShare *utls.KeySharePrivateKeys
 var forceMLKEM bool
-var forceMLKEMOnly bool
-var probeOutDir string
 
 func parseJA3(s string) (version uint16, ciphers []uint16, exts []int, curves []utls.CurveID, points []uint8, err error) {
 	parts := strings.Split(s, ",")
@@ -82,27 +84,7 @@ func extByID(id int, serverName string, curves []utls.CurveID) utls.TLSExtension
 		grease := []utls.CurveID{utls.CurveID(0x0a0a), utls.CurveID(0x11ec)}
 		var combined []utls.CurveID
 		combined = append(combined, grease...)
-		if forceMLKEMOnly {
-			// Strict ML-KEM only: remove plain X25519 from the supported groups entirely
-			seen := map[utls.CurveID]bool{}
-			for _, g := range combined {
-				seen[g] = true
-			}
-			if !seen[utls.X25519MLKEM768] {
-				combined = append(combined, utls.X25519MLKEM768)
-				seen[utls.X25519MLKEM768] = true
-			}
-			for _, c := range curves {
-				if c == utls.X25519 {
-					// omit plain X25519 in strict mode
-					continue
-				}
-				if !seen[c] {
-					combined = append(combined, c)
-					seen[c] = true
-				}
-			}
-		} else if forceMLKEM {
+		if forceMLKEM {
 			// Bias supported groups toward ML-KEM first (avoid duplicates)
 			seen := map[utls.CurveID]bool{}
 			for _, g := range combined {
@@ -151,100 +133,85 @@ func extByID(id int, serverName string, curves []utls.CurveID) utls.TLSExtension
 		return &utls.GenericExtension{Id: uint16(45), Data: []byte{0x01, 0x01}}
 	case 51:
 		// Build key shares to mimic Chrome: prepend GREASE key shares (0x0a0a, 0x11ec) as 1-byte placeholders,
-		// then include the requested curves (X25519 with a real public, others with 32-byte placeholders).
+		// then include the requested curves (X25519 with a real public, X25519MLKEM768 with ML-KEM+X25519, others with 32-byte placeholders).
 		var keyShares []utls.KeyShare
 		// GREASE groups observed in Chrome
 		keyShares = append(keyShares, utls.KeyShare{Group: utls.CurveID(0x0a0a), Data: []byte{0x00}})
-		keyShares = append(keyShares, utls.KeyShare{Group: utls.CurveID(0x11ec), Data: []byte{0x00}}) // When forcing ML-KEM, add an explicit ML-KEM keyshare early to bias server selection
-		if forceMLKEM {
-			seed := make([]byte, mlkem.SeedSize)
-			if _, err := rand.Read(seed); err == nil {
-				if mlkemKey, err := mlkem.NewDecapsulationKey768(seed); err == nil {
-					if ecdhePriv, err := ecdh.X25519().GenerateKey(rand.Reader); err == nil {
-						encKey := mlkemKey.EncapsulationKey().Bytes()
-						ecdhePub := ecdhePriv.PublicKey().Bytes()
-						log.Println("Generated ML-KEM keyshare (force-mlkem): encKey_len=", len(encKey), "ecdhePub_len=", len(ecdhePub), "total=", len(encKey)+len(ecdhePub))
-						keyShares = append(keyShares, utls.KeyShare{Group: utls.X25519MLKEM768, Data: append(encKey, ecdhePub...)})
-						if preparedKeyShare == nil {
-							preparedKeyShare = &utls.KeySharePrivateKeys{
-								CurveID:    utls.X25519MLKEM768,
-								Ecdhe:      ecdhePriv,
-								Mlkem:      mlkemKey,
-								MlkemEcdhe: ecdhePriv,
-							}
-						} else {
-							preparedKeyShare.CurveID = utls.X25519MLKEM768
-							preparedKeyShare.Ecdhe = ecdhePriv
-							preparedKeyShare.Mlkem = mlkemKey
-							preparedKeyShare.MlkemEcdhe = ecdhePriv
-						}
-						// Persist seed for offline decapsulation reproduction
-						if err := os.WriteFile("/tmp/probe_mlkem_seed.bin", seed, 0600); err == nil {
-							log.Println("Wrote mlkem seed to /tmp/probe_mlkem_seed.bin")
-							// Optionally persist ephemeral private key for reproducibility (debug only)
-							if saveEphemeral {
-								if err := os.WriteFile("/tmp/probe_client_x25519_priv.bin", ecdhePriv.Bytes(), 0600); err == nil {
-									log.Println("Wrote client ephemeral private key to /tmp/probe_client_x25519_priv.bin")
-								}
-							}
-
-						}
-					}
-				}
-			}
-		}
+		keyShares = append(keyShares, utls.KeyShare{Group: utls.CurveID(0x11ec), Data: []byte{0x00}})
 		for _, c := range curves {
 			switch c {
 			case utls.X25519MLKEM768:
-				// Generate ML-KEM decapsulation key and an X25519 ephemeral key for the hybrid share
+				// Generate ML-KEM decapsulation key and X25519 ephemeral keypair
 				seed := make([]byte, mlkem.SeedSize)
-				if _, err := rand.Read(seed); err == nil {
-					if mlkemKey, err := mlkem.NewDecapsulationKey768(seed); err == nil {
-						if ecdhePriv, err := ecdh.X25519().GenerateKey(rand.Reader); err == nil {
-							encKey := mlkemKey.EncapsulationKey().Bytes()
-							ecdhePub := ecdhePriv.PublicKey().Bytes()
-							log.Println("Generated ML-KEM keyshare: encKey_len=", len(encKey), "ecdhePub_len=", len(ecdhePub), "total=", len(encKey)+len(ecdhePub))
-							keyShares = append(keyShares, utls.KeyShare{Group: c, Data: append(encKey, ecdhePub...)})
-							// record private keys so the handshake can decapsulate server key shares
-							if preparedKeyShare == nil {
-								preparedKeyShare = &utls.KeySharePrivateKeys{
-									CurveID:    utls.X25519MLKEM768,
-									Mlkem:      mlkemKey,
-									MlkemEcdhe: ecdhePriv,
-								}
-								// Persist seed alongside probe artifacts for deterministic offline decapsulation
-								if probeOutDir != "" {
-									seedPath := filepath.Join(probeOutDir, "probe_mlkem_seed.bin")
-									if err := os.WriteFile(seedPath, seed, 0600); err == nil {
-										log.Println("Wrote mlkem seed to", seedPath)
-									}
-								}
-								// Persist seed for offline decapsulation reproduction
-								if err := os.WriteFile("/tmp/probe_mlkem_seed.bin", seed, 0600); err == nil {
-									log.Println("Wrote mlkem seed to /tmp/probe_mlkem_seed.bin")
-								}
-							} else {
-								preparedKeyShare.CurveID = utls.X25519MLKEM768
-								preparedKeyShare.Mlkem = mlkemKey
-								preparedKeyShare.MlkemEcdhe = ecdhePriv
-							}
-							// Persist seed for offline decapsulation reproduction
-							if err := os.WriteFile("/tmp/probe_mlkem_seed.bin", seed, 0600); err == nil {
-								log.Println("Wrote mlkem seed to /tmp/probe_mlkem_seed.bin")
-							}
-						}
+				if _, err := rand.Read(seed); err != nil {
+					b := make([]byte, 32)
+					if _, err := rand.Read(b); err != nil {
+						b = []byte{0x00}
 					}
+					keyShares = append(keyShares, utls.KeyShare{Group: c, Data: b})
+					continue
+				}
+				mlkemKey, err := mlkem.NewDecapsulationKey768(seed)
+				if err != nil {
+					b := make([]byte, 32)
+					if _, err := rand.Read(b); err != nil {
+						b = []byte{0x00}
+					}
+					keyShares = append(keyShares, utls.KeyShare{Group: c, Data: b})
+					continue
+				}
+				// X25519 ecdhe key
+				ecdhe := ecdh.X25519()
+				ecdhePriv, err := ecdhe.GenerateKey(rand.Reader)
+				if err != nil {
+					b := make([]byte, 32)
+					if _, err := rand.Read(b); err != nil {
+						b = []byte{0x00}
+					}
+					keyShares = append(keyShares, utls.KeyShare{Group: c, Data: b})
+					continue
+				}
+				encKey := mlkemKey.EncapsulationKey().Bytes()
+				ecdhePub := ecdhePriv.PublicKey().Bytes()
+				log.Println("Generated ML-KEM keyshare: encKey_len=", len(encKey), "ecdhePub_len=", len(ecdhePub), "total=", len(encKey)+len(ecdhePub))
+				keyShares = append(keyShares, utls.KeyShare{Group: c, Data: append(encKey, ecdhePub...)})
+				// record private keys so handshake can decapsulate server key shares
+				if preparedKeyShare == nil {
+					preparedKeyShare = &utls.KeySharePrivateKeys{
+						CurveID:    utls.X25519MLKEM768,
+						Mlkem:      mlkemKey,
+						MlkemEcdhe: ecdhePriv,
+					}
+				} else {
+					preparedKeyShare.CurveID = utls.X25519MLKEM768
+					preparedKeyShare.Mlkem = mlkemKey
+					preparedKeyShare.MlkemEcdhe = ecdhePriv
 				}
 			case utls.X25519:
+				// Optionally skip plain X25519 key share when forcing ML-KEM to bias server selection
 				if forceMLKEM {
 					log.Println("force-mlkem: skipping X25519 key share")
 					continue
 				}
-				pub, err := makeX25519Pub()
+				// Generate an X25519 ephemeral keypair and record the private key so the
+				// handshake can use it for ECDHE decapsulation.
+				ecdhe := ecdh.X25519()
+				ecdhePriv, err := ecdhe.GenerateKey(rand.Reader)
 				if err != nil {
-					keyShares = append(keyShares, utls.KeyShare{Group: c, Data: nil})
+					// Fallback to a random placeholder public value
+					b := make([]byte, 32)
+					if _, err := rand.Read(b); err != nil {
+						b = []byte{0x00}
+					}
+					keyShares = append(keyShares, utls.KeyShare{Group: c, Data: b})
 				} else {
-					keyShares = append(keyShares, utls.KeyShare{Group: c, Data: pub})
+					ecdhePub := ecdhePriv.PublicKey().Bytes()
+					keyShares = append(keyShares, utls.KeyShare{Group: c, Data: ecdhePub})
+					if preparedKeyShare == nil {
+						preparedKeyShare = &utls.KeySharePrivateKeys{CurveID: c, Ecdhe: ecdhePriv}
+					} else {
+						preparedKeyShare.Ecdhe = ecdhePriv
+					}
 				}
 			default:
 				// fallback to 32-byte random placeholder for unknown groups
@@ -403,108 +370,6 @@ func parseServerHelloSummary(resp []byte) string {
 	}
 }
 
-// extractKeyShareFromServerHello parses a raw TLS record sequence and tries to locate a
-// ServerHello and its key_share extension. Returns (found, group, keyExchange, summary, truncated)
-// - found: true if key_share extension present and keyExchange returned
-// - group: group id of key_share (if found, else -1)
-// - keyExchange: raw key_exchange bytes from ServerHello key_share
-// - summary: a short human-readable summary (like parseServerHelloSummary)
-// - truncated: true if the input appears incomplete and more bytes might be needed
-func extractKeyShareFromServerHello(resp []byte) (bool, int, []byte, string, bool) {
-	pos := 0
-	for pos+5 <= len(resp) {
-		recType := int(resp[pos])
-		recLen := int(resp[pos+3])<<8 | int(resp[pos+4])
-		if pos+5+recLen > len(resp) {
-			// truncated record
-			return false, -1, nil, parseServerHelloSummary(resp), true
-		}
-		payload := resp[pos+5 : pos+5+recLen]
-		switch recType {
-		case 0x15:
-			// Alert
-			if len(payload) >= 2 {
-				return false, -1, nil, fmt.Sprintf("Alert level=%d desc=%d", payload[0], payload[1]), false
-			}
-			return false, -1, nil, "Alert (short)", false
-		case 0x16:
-			hsPos := 0
-			for hsPos+4 <= len(payload) {
-				hsType := payload[hsPos]
-				hsLen := int(payload[hsPos+1])<<16 | int(payload[hsPos+2])<<8 | int(payload[hsPos+3])
-				if hsPos+4+hsLen > len(payload) {
-					return false, -1, nil, parseServerHelloSummary(resp), true
-				}
-				if hsType == 0x02 { // ServerHello
-					sh := payload[hsPos+4 : hsPos+4+hsLen]
-					// minimal ServerHello: legacy_version(2) + random(32) + session_id_len(1)
-					if len(sh) < 38 {
-						return false, -1, nil, "ServerHello truncated", true
-					}
-					off := 2 + 32
-					if off+1 > len(sh) {
-						return false, -1, nil, "ServerHello truncated", true
-					}
-					sidLen := int(sh[off])
-					off += 1 + sidLen
-					if off+2 > len(sh) {
-						return false, -1, nil, "ServerHello truncated", true
-					}
-					cipher := int(sh[off])<<8 | int(sh[off+1])
-					off += 2
-					if off+1 > len(sh) {
-						return false, -1, nil, fmt.Sprintf("ServerHello: cipher=0x%04x", cipher), true
-					}
-					off += 1 // compression
-					if off+2 > len(sh) {
-						return false, -1, nil, fmt.Sprintf("ServerHello: cipher=0x%04x", cipher), true
-					}
-					extTotal := int(sh[off])<<8 | int(sh[off+1])
-					off += 2
-					if off+extTotal > len(sh) {
-						return false, -1, nil, "ServerHello truncated", true
-					}
-					endExt := off + extTotal
-					extPos := off
-					for extPos+4 <= endExt {
-						eid := int(sh[extPos])<<8 | int(sh[extPos+1])
-						elen := int(sh[extPos+2])<<8 | int(sh[extPos+3])
-						if extPos+4+elen > endExt {
-							return false, -1, nil, "ServerHello truncated", true
-						}
-						ed := sh[extPos+4 : extPos+4+elen]
-						if eid == 51 {
-							// KeyShare extension (ServerHello contains a single KeyShareEntry)
-							if len(ed) < 4 {
-								return false, -1, nil, "ServerHello key_share truncated", true
-							}
-							grp := int(ed[0])<<8 | int(ed[1])
-							klen := int(ed[2])<<8 | int(ed[3])
-							if 4+klen > len(ed) {
-								return false, grp, nil, "ServerHello key_exchange truncated", true
-							}
-							keyex := ed[4 : 4+klen]
-							summary := fmt.Sprintf("ServerHello cipher=0x%04x selected_key_share=0x%04x", cipher, grp)
-							return true, grp, keyex, summary, false
-						}
-						extPos += 4 + elen
-					}
-					// No key_share present in this ServerHello
-					summary := fmt.Sprintf("ServerHello cipher=0x%04x", cipher)
-					return false, -1, nil, summary, false
-				}
-				hsPos += 4 + hsLen
-			}
-		default:
-			// ignore other record types
-		}
-		pos += 5 + recLen
-	}
-	// If we reach here, the buffer may be incomplete
-	return false, -1, nil, parseServerHelloSummary(resp), true
-}
-
-
 func buildSpecFromJA3(ja3 string, serverName string) (*utls.ClientHelloSpec, error) {
 	_, ciphers, exts, curves, _, err := parseJA3(ja3)
 	if err != nil {
@@ -575,25 +440,14 @@ func main() {
 	flag.StringVar(&rawSpecFile, "raw-spec-file", "", "path to raw ClientHello bin to use as the source spec (debug only)")
 	var rawExtFile string
 	flag.StringVar(&rawExtFile, "raw-ext-file", "", "path to a JSON file containing ordered extension id and raw data pairs (debug only)")
-	// Force ML-KEM advertisement: omit plain X25519 key shares and bias supported_groups to ML-KEM
-	flag.BoolVar(&forceMLKEM, "force-mlkem", false, "force advertise only ML-KEM keyshare (increase chance server selects X25519MLKEM768)")
-	// Strict mode: remove X25519 from supported_groups entirely and only advertise ML-KEM
-	flag.BoolVar(&forceMLKEMOnly, "force-mlkem-only", false, "force strict ML-KEM only: remove X25519 from supported_groups and omit plain X25519 keyshare")
 	// Probe-only mode: send ClientHello and report ServerHello/Alert without attempting full handshake
 	var probeOnly bool
 	var probeTimeoutSec int
+	var probeOutDir string
 	flag.BoolVar(&probeOnly, "probe-only", false, "send ClientHello and report ServerHello/Alert only (no TLS handshake)")
 	flag.IntVar(&probeTimeoutSec, "probe-timeout", 5, "probe socket read timeout in seconds")
 	flag.StringVar(&probeOutDir, "probe-out-dir", "", "directory to write probe artifacts (default /tmp)")
-	// Debug option: persist ephemeral client private keys into probe-out-dir on ML-KEM successes (debug only)
-	var saveEphemeral bool
-	flag.BoolVar(&saveEphemeral, "save-ephemeral", false, "write ephemeral client private keys to probe-out-dir (debug only)")
 	flag.Parse()
-
-	// If strict ML-KEM-only mode requested, also enable the broader force-mlkem
-	if forceMLKEMOnly {
-		forceMLKEM = true
-	}
 
 	if ja3 == "" && applyPreset == "" {
 		log.Fatal("--ja3 required (or use --apply-preset)")
@@ -693,7 +547,7 @@ func main() {
 				if _, err := rand.Read(seed); err == nil {
 					if mlkemKey, err := mlkem.NewDecapsulationKey768(seed); err == nil {
 						if ecdhePriv, err := ecdh.X25519().GenerateKey(rand.Reader); err == nil {
-							encKey := mlkemKey.EncapsulationKey().Bytes()
+								encKey := mlkemKey.EncapsulationKey().Bytes()
 							ecdhePub := ecdhePriv.PublicKey().Bytes()
 							log.Println("Generated ML-KEM keyshare (raw-ext path): encKey_len=", len(encKey), "ecdhePub_len=", len(ecdhePub), "total=", len(encKey)+len(ecdhePub))
 							keyShares = append(keyShares, utls.KeyShare{Group: utls.X25519MLKEM768, Data: append(encKey, ecdhePub...)})
@@ -701,13 +555,6 @@ func main() {
 								CurveID:    utls.X25519MLKEM768,
 								Mlkem:      mlkemKey,
 								MlkemEcdhe: ecdhePriv,
-							}
-							// Persist seed to probe-out-dir for deterministic offline decapsulation if provided
-							if probeOutDir != "" {
-								seedPath := filepath.Join(probeOutDir, "probe_mlkem_seed.bin")
-								if err := os.WriteFile(seedPath, seed, 0600); err == nil {
-									log.Println("Wrote mlkem seed to", seedPath)
-								}
 							}
 						}
 					}
@@ -719,30 +566,6 @@ func main() {
 					}
 				}
 				spec.Extensions = append(spec.Extensions, &utls.KeyShareExtension{KeyShares: keyShares})
-				rawExtIDs[e.Id] = true
-			} else if e.Id == 10 && forceMLKEMOnly {
-				// Override raw supported_groups with a strict ML-KEM-only ordering (omit X25519)
-				grease := []utls.CurveID{utls.CurveID(0x0a0a), utls.CurveID(0x11ec)}
-				var combined []utls.CurveID
-				combined = append(combined, grease...)
-				seen := map[utls.CurveID]bool{}
-				for _, g := range combined {
-					seen[g] = true
-				}
-				if !seen[utls.X25519MLKEM768] {
-					combined = append(combined, utls.X25519MLKEM768)
-					seen[utls.X25519MLKEM768] = true
-				}
-				for _, c := range curves {
-					if c == utls.X25519 {
-						continue
-					}
-					if !seen[c] {
-						combined = append(combined, c)
-						seen[c] = true
-					}
-				}
-				spec.Extensions = append(spec.Extensions, &utls.SupportedCurvesExtension{Curves: combined})
 				rawExtIDs[e.Id] = true
 			} else {
 				spec.Extensions = append(spec.Extensions, &utls.GenericExtension{Id: uint16(e.Id), Data: data})
@@ -986,124 +809,75 @@ func main() {
 								log.Println("probe-only: wrote response to", filepath.Join(probeDir, "probe_response.bin"))
 							}
 							summary := parseServerHelloSummary(resp)
-							log.Println("probe-only result:", summary) // If we prepared an ML-KEM key locally, attempt a simple in-process decapsulation
+							log.Println("probe-only result:", summary)
+							// If we prepared an ML-KEM key locally, attempt an in-process decapsulation
 							if preparedKeyShare != nil && preparedKeyShare.Mlkem != nil {
-								found := false
-								for i := 0; i+4 <= len(resp); i++ {
-									if resp[i] == 0x00 && resp[i+1] == 0x33 {
-										elen := int(resp[i+2])<<8 | int(resp[i+3])
-										if i+4+elen > len(resp) {
-											continue
-										}
-										d := resp[i+4 : i+4+elen]
-										if len(d) < 4 {
-											continue
-										}
-										group := int(d[0])<<8 | int(d[1])
-										klen := int(d[2])<<8 | int(d[3])
-										if 4+klen > len(d) {
-											continue
-										}
-										keyexchange := d[4 : 4+klen]
-										log.Println("probe-only: found key_share ext group=0x", fmt.Sprintf("%x", group), "klen=", klen)
-										if group == int(utls.X25519MLKEM768) {
-											if len(keyexchange) >= mlkem.CiphertextSize768 {
-												ciphertext := keyexchange[:mlkem.CiphertextSize768]
-												secret, err := preparedKeyShare.Mlkem.Decapsulate(ciphertext)
-												if err != nil {
-													log.Println("probe-only: decapsulation failed:", err, "ciphertext_len=", len(ciphertext))
-													if err := os.WriteFile(filepath.Join(probeDir, "probe_ciphertext.bin"), ciphertext, 0644); err == nil {
-														log.Println("probe-only: wrote ciphertext to", filepath.Join(probeDir, "probe_ciphertext.bin"))
-													}
-												} else {
-													log.Println("probe-only: decapsulation success: secret_len=", len(secret))
-													if probeDir == "" {
-														probeDir = "/tmp"
-													}
-													snippet := hex.EncodeToString(secret)
-													if len(snippet) > 64 {
-														snippet = snippet[:64]
-													}
-													if err := os.WriteFile(filepath.Join(probeDir, "probe_decap_secret.hex"), []byte(snippet), 0644); err == nil {
-														log.Println("probe-only: wrote decap secret snippet to", filepath.Join(probeDir, "probe_decap_secret.hex"))
-													}
-												}
+								// Walk ServerHello extensions to find key_share (id 51) and attempt Decapsulate
+								if len(resp) >= 9 && resp[0] == 0x16 && resp[5] == 0x02 {
+									hsStart := 5 + 4
+									if hsStart+2+32 < len(resp) {
+										off := hsStart + 2 + 32
+										if off < len(resp) {
+											if off+1 >= len(resp) {
+												// truncated
 											} else {
-												log.Println("probe-only: key exchange shorter than expected =", len(keyexchange), "expected mlkem.CiphertextSize768+32", mlkem.CiphertextSize768+32)
-											}
-										}
-									}
-								}
-								if !found {
-									// Did not find key_share ext; if ServerHello looks truncated, attempt one additional read
-									if strings.Contains(parseServerHelloSummary(resp), "truncated") {
-										more := make([]byte, 65536)
-										mn, merr := connProbe.Read(more)
-										if mn > 0 {
-											resp = append(resp, more[:mn]...)
-											if err := os.WriteFile(filepath.Join(probeDir, "probe_response.bin"), resp, 0644); err == nil {
-												log.Println("probe-only: appended more response to", filepath.Join(probeDir, "probe_response.bin"))
-											}
-											log.Println("probe-only result:", parseServerHelloSummary(resp))
-											// try to find key_share ext again
-											for i := 0; i+4 <= len(resp); i++ {
-												if resp[i] == 0x00 && resp[i+1] == 0x33 {
-													elen := int(resp[i+2])<<8 | int(resp[i+3])
-													if i+4+elen > len(resp) {
-														continue
-													}
-													d := resp[i+4 : i+4+elen]
-													if len(d) < 4 {
-														continue
-													}
-													group := int(d[0])<<8 | int(d[1])
-													klen := int(d[2])<<8 | int(d[3])
-													if 4+klen > len(d) {
-														continue
-													}
-													keyexchange := d[4 : 4+klen]
-													log.Println("probe-only: found key_share ext group=0x", fmt.Sprintf("%x", group), "klen=", klen)
-													if group == int(utls.X25519MLKEM768) {
-														if len(keyexchange) >= mlkem.CiphertextSize768 {
-															ciphertext := keyexchange[:mlkem.CiphertextSize768]
-															secret, err := preparedKeyShare.Mlkem.Decapsulate(ciphertext)
-															if err != nil {
-																log.Println("probe-only: decapsulation failed:", err, "ciphertext_len=", len(ciphertext))
-																if err := os.WriteFile(filepath.Join(probeDir, "probe_ciphertext.bin"), ciphertext, 0644); err == nil {
-																	log.Println("probe-only: wrote ciphertext to", filepath.Join(probeDir, "probe_ciphertext.bin"))
+												sidlen := int(resp[off])
+												off += 1 + sidlen
+												if off+2 <= len(resp) {
+													// skip cipher and compress fields
+													off += 2 + 1
+													if off+2 <= len(resp) {
+														extTotal := int(resp[off])<<8 | int(resp[off+1])
+														off += 2
+														endExt := off + extTotal
+														for off+4 <= endExt && off+4 <= len(resp) {
+															eid := int(resp[off])<<8 | int(resp[off+1])
+															elen := int(resp[off+2])<<8 | int(resp[off+3])
+															if eid == 51 && off+4+elen <= len(resp) {
+																d := resp[off+4 : off+4+elen]
+																if len(d) >= 4 {
+																	group := int(d[0])<<8 | int(d[1])
+																	klen := int(d[2])<<8 | int(d[3])
+																	if 4+klen <= len(d) {
+																		keyexchange := d[4 : 4+klen]
+																		log.Println("probe-only: found key_share ext group=0x", fmt.Sprintf("%x", group), "klen=", klen)
+																		if group == int(utls.X25519MLKEM768) {
+																			if len(keyexchange) >= mlkem.CiphertextSize768 {
+																			ciphertext := keyexchange[:mlkem.CiphertextSize768]
+																			// attempt decapsulation
+																			secret, err := preparedKeyShare.Mlkem.Decapsulate(ciphertext)
+																			if err != nil {
+																				log.Println("probe-only: decapsulation failed:", err, "ciphertext_len=", len(ciphertext))
+																				// write ciphertext to file for offline repro
+																				if err := os.WriteFile(filepath.Join(probeDir, "probe_ciphertext.bin"), ciphertext, 0644); err == nil {
+																					log.Println("probe-only: wrote ciphertext to", filepath.Join(probeDir, "probe_ciphertext.bin"))
+																				}
+																			} else {
+																				log.Println("probe-only: decapsulation success: secret_len=", len(secret))
+																				if probeDir == "" {
+																				probeDir = "/tmp"
+																				}
+																				// write a short hex snippet of the secret for debugging
+																				snippet := hex.EncodeToString(secret)
+																				if len(snippet) > 64 {
+																					snippet = snippet[:64]
+																				}
+																				if err := os.WriteFile(filepath.Join(probeDir, "probe_decap_secret.hex"), []byte(snippet), 0644); err == nil {
+																					log.Println("probe-only: wrote decap secret snippet to", filepath.Join(probeDir, "probe_decap_secret.hex"))
+																				}
+																			}
+																		}
+																		off += 4 + elen
+																	}
 																}
-															} else {
-																log.Println("probe-only: decapsulation success: secret_len=", len(secret))
-																if probeDir == "" {
-																	probeDir = "/tmp"
 																}
-																snippet := hex.EncodeToString(secret)
-																if len(snippet) > 64 {
-																	snippet = snippet[:64]
-																}
-																if err := os.WriteFile(filepath.Join(probeDir, "probe_decap_secret.hex"), []byte(snippet), 0644); err == nil {
-																	log.Println("probe-only: wrote decap secret snippet to", filepath.Join(probeDir, "probe_decap_secret.hex"))
-																}
-														}
-													} else {
-														log.Println("probe-only: key exchange shorter than expected =", len(keyexchange), "expected mlkem.CiphertextSize768+32", mlkem.CiphertextSize768+32)
-													}
-													}
+														off += 4 + elen
+															}
 												}
 											}
-									} else if merr != nil {
-										if ne, ok := merr.(net.Error); ok && ne.Timeout() {
-											log.Println("probe-only: continuation read timeout")
-										} else {
-											log.Println("probe-only: continuation read error:", merr)
-										}
-									}
-								} else {
-									log.Println("probe-only: did not find key_share ext in ServerHello (or it was truncated)")
-								}
-								}
-							}
-						}
+											}
+											}
+											}
 						if err != nil {
 							if ne, ok := err.(net.Error); ok && ne.Timeout() {
 								log.Println("probe-only: read timeout")
@@ -1121,28 +895,150 @@ func main() {
 		}
 
 		// If prepared ML-KEM keys were generated, attach them to HandshakeState so the
-		// handshake implementation can access the private keys when the server selects
-		// X25519MLKEM768 (group 0x11ec).
+		// TLS 1.3 handshake logic can decapsulate server key shares.
 		if preparedKeyShare != nil {
-			if uconn.HandshakeState.Hello != nil {
-				if uconn.HandshakeState.State13.KeyShareKeys == nil {
-					uconn.HandshakeState.State13.KeyShareKeys = preparedKeyShare
-				} else {
-					uconn.HandshakeState.State13.KeyShareKeys.Ecdhe = preparedKeyShare.Ecdhe
-					uconn.HandshakeState.State13.KeyShareKeys.Mlkem = preparedKeyShare.Mlkem
-					uconn.HandshakeState.State13.KeyShareKeys.MlkemEcdhe = preparedKeyShare.MlkemEcdhe
-				}
-				log.Println("Applied prepared ML-KEM KeySharePrivateKeys to HandshakeState")
+			if uconn.HandshakeState.State13.KeyShareKeys == nil {
+				uconn.HandshakeState.State13.KeyShareKeys = preparedKeyShare
 			} else {
-				log.Println("preparedKeyShare exists but uconn.HandshakeState.Hello is nil; cannot attach ML-KEM keys")
+				uconn.HandshakeState.State13.KeyShareKeys.Mlkem = preparedKeyShare.Mlkem
+				uconn.HandshakeState.State13.KeyShareKeys.MlkemEcdhe = preparedKeyShare.MlkemEcdhe
+			}
+			if debug {
+				log.Println("Applied prepared ML-KEM KeySharePrivateKeys to HandshakeState")
 			}
 		}
-
 		if err := uconn.Handshake(); err != nil {
+			log.Println("handshake failed:", err)
+			// attempt to read any pending bytes from the underlying connection for analysis
+			if uc := uconn.GetUnderlyingConn(); uc != nil {
+				uc.SetReadDeadline(time.Now().Add(2 * time.Second))
+				buf := make([]byte, 65536)
+				n, rerr := uc.Read(buf)
+				if n > 0 {
+					_ = os.WriteFile(filepath.Join(probeOutDir, "handshake_response.bin"), buf[:n], 0644)
+					log.Println("Wrote handshake_response.bin (len=", n, ") to probe-out-dir")
+				}
+				if rerr != nil {
+					log.Println("underlying conn read after handshake failed:", rerr)
+				}
+			}
 			log.Fatal("handshake failed:", err)
 		}
 
-		// Now use net/http over the connection (very small manual request)
+		// After TLS handshake, perform an HTTP request. For HTTP/2 we use a manual
+		// framers path so we can control SETTINGS ordering and values to match
+		// Chrome-like fingerprints; otherwise fall back to net/http.
+		cs := uconn.ConnectionState()
+		if cs.NegotiatedProtocol == "h2" {
+			// Manual HTTP/2 client (minimal): write preface, SETTINGS in Chrome order,
+			// wait for server SETTINGS and ACK, then send HEADERS for a GET and read DATA.
+			parsed, err := url.Parse(targetURL)
+			if err != nil {
+				log.Fatal(err)
+			}
+			host := parsed.Host
+			path := parsed.Path
+			if path == "" {
+				path = "/"
+			}
+			// Write client preface
+			if _, err := uconn.Write([]byte(http2.ClientPreface)); err != nil {
+				log.Fatal("failed to write client preface:", err)
+			}
+			fr := http2.NewFramer(uconn, uconn)
+			// Chrome-like SETTINGS order: 1(header table size)=65536, 2(enable push)=0,
+			// 4(initial window size)=6291456, 6(max header list size)=262144
+			if err := fr.WriteSettings(
+				http2.Setting{ID: http2.SettingHeaderTableSize, Val: 65536},
+				http2.Setting{ID: http2.SettingEnablePush, Val: 0},
+				http2.Setting{ID: http2.SettingInitialWindowSize, Val: 6291456},
+				http2.Setting{ID: http2.SettingMaxHeaderListSize, Val: 262144},
+			); err != nil {
+				log.Fatal("failed to write SETTINGS:", err)
+			}
+			// Wait for server SETTINGS and respond with ACK
+			for {
+				f, err := fr.ReadFrame()
+				if err != nil {
+					log.Fatal("error reading frame:", err)
+				}
+				switch f.(type) {
+				case *http2.SettingsFrame:
+					if err := fr.WriteSettingsAck(); err != nil {
+						log.Fatal("failed to write SETTINGS ACK:", err)
+					}
+					break
+				default:
+					// ignore other frames (e.g., WINDOW_UPDATE)
+				}
+				// break once we see a SettingsFrame (ACK sent)
+				if _, ok := f.(*http2.SettingsFrame); ok {
+					break
+				}
+			}
+
+			// Encode headers using HPACK
+			var hbuf bytes.Buffer
+			enc := hpack.NewEncoder(&hbuf)
+			enc.WriteField(hpack.HeaderField{Name: ":method", Value: "GET"})
+			enc.WriteField(hpack.HeaderField{Name: ":path", Value: path})
+			enc.WriteField(hpack.HeaderField{Name: ":scheme", Value: parsed.Scheme})
+			enc.WriteField(hpack.HeaderField{Name: ":authority", Value: host})
+			enc.WriteField(hpack.HeaderField{Name: "user-agent", Value: "Mozilla/5.0 (X11; Linux x86_64) Chrome/143.0.0.0 Safari/537.36"})
+			enc.WriteField(hpack.HeaderField{Name: "accept", Value: "*/*"})
+
+			// Send headers on stream 1
+			if err := fr.WriteHeaders(http2.HeadersFrameParam{StreamID: 1, BlockFragment: hbuf.Bytes(), EndStream: true, EndHeaders: true}); err != nil {
+				log.Fatal("failed to write headers:", err)
+			}
+
+			// Read response frames and collect DATA on stream 1
+			var respBody bytes.Buffer
+			var status string
+			for {
+				f, err := fr.ReadFrame()
+				if err != nil {
+					log.Fatal("read frame error:", err)
+				}
+				switch sf := f.(type) {
+				case *http2.HeadersFrame:
+					// Decode header block to find :status
+						dec := hpack.NewDecoder(4096, nil)
+					var headers []hpack.HeaderField
+					dec.SetEmitFunc(func(f hpack.HeaderField) {
+						headers = append(headers, f)
+					})
+					if _, err := dec.Write(sf.HeaderBlockFragment()); err != nil {
+						log.Fatal("hpack decode error:", err)
+					}
+					for _, hf := range headers {
+						if hf.Name == ":status" {
+							status = hf.Value
+						}
+					}
+				case *http2.DataFrame:
+					if sf.Header().StreamID == 1 {
+						respBody.Write(sf.Data())
+						if sf.StreamEnded() {
+							// Done
+							fmt.Println(respBody.String())
+							fmt.Println("status:", status)
+							goto http2Done
+						}
+					}
+				case *http2.GoAwayFrame:
+					// server is closing connection; keep reading
+					log.Println("server GOAWAY: code=", sf.ErrCode)
+				}
+			}
+	http2Done:
+			// print local computed JA3 from the spec
+			h := md5.Sum([]byte(ja3))
+			fmt.Println("local ja3_md5:", hex.EncodeToString(h[:]))
+			return
+		}
+
+		// Fallback: plain HTTP/1.1 write/read
 		req, _ := http.NewRequest("GET", targetURL, nil)
 		req.Header.Set("User-Agent", "utls-client/1.0")
 		req.Header.Set("Accept", "*/*")

@@ -11,6 +11,12 @@ FROM ${BASE_IMAGE} AS base-crawler
 # Install system dependencies for browser automation (Selenium)
 # Using Debian APT packages for both Chromium and ChromeDriver ensures version compatibility
 # chromium-driver package is maintained to match chromium version in Debian repos
+#
+# WebGL Support: libegl1-mesa, libgl1-mesa-dri, libgles2-mesa enable software rendering
+# This is CRITICAL for bypassing bot detection - WebGL "Not Supported" is a major red flag
+#
+# Audio Support: libasound2, libpulse0 enable AudioContext API fingerprinting
+# Many bot detectors check for audio processing capabilities
 RUN apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get update && \
@@ -24,7 +30,18 @@ RUN apt-get clean && \
         libxdamage1 \
         libx11-xcb1 \
         xvfb \
-        xauth || \
+        xauth \
+        # WebGL/Mesa software rendering (critical for bot detection bypass)
+        libegl1-mesa \
+        libgl1-mesa-dri \
+        libgles2-mesa \
+        libgbm1 \
+        # Audio libraries for AudioContext fingerprinting
+        libasound2 \
+        libpulse0 \
+        # Additional font packages for realistic rendering
+        fonts-noto-color-emoji \
+        fonts-freefont-ttf || \
      apt-get install -y --no-install-recommends --fix-missing \
         chromium \
         chromium-driver \
@@ -35,7 +52,15 @@ RUN apt-get clean && \
         libxdamage1 \
         libx11-xcb1 \
         xvfb \
-        xauth) && \
+        xauth \
+        libegl1-mesa \
+        libgl1-mesa-dri \
+        libgles2-mesa \
+        libgbm1 \
+        libasound2 \
+        libpulse0 \
+        fonts-noto-color-emoji \
+        fonts-freefont-ttf) && \
     rm -rf /var/lib/apt/lists/* && \
     # Create cache directories for Selenium/undetected-chromedriver
     mkdir -p /opt/chromedriver-cache /home/appuser/.wdm && \
@@ -45,6 +70,9 @@ RUN apt-get clean && \
     cp /usr/bin/chromedriver /home/appuser/chromedriver && \
     chown appuser:appuser /home/appuser/chromedriver && \
     chmod 755 /home/appuser/chromedriver && \
+    # Install mcookie for XAUTHORITY generation (part of util-linux)
+    apt-get update && apt-get install -y --no-install-recommends uuid-runtime && \
+    rm -rf /var/lib/apt/lists/* && \
     # Verify installation and version match
     echo "Chromium version: $(chromium --version)" && \
     echo "ChromeDriver version: $(chromedriver --version)"
@@ -81,6 +109,10 @@ COPY --chown=appuser:appuser orchestration/ ./orchestration/
 COPY --chown=appuser:appuser sitecustomize.py ./sitecustomize.py
 COPY --chown=appuser:appuser fingerprints/ ./fingerprints/
 
+# Copy xvfb wrapper script for proper X11 auth handling
+COPY --chown=appuser:appuser scripts/xvfb-wrapper.sh /usr/local/bin/xvfb-wrapper.sh
+RUN chmod +x /usr/local/bin/xvfb-wrapper.sh
+
 # Create data directory for SQLite (will be replaced with Cloud SQL)
 RUN mkdir -p /app/data && chown -R appuser:appuser /app/data
 
@@ -91,12 +123,17 @@ USER appuser
 # ChromeDriver copied to /home/appuser for write access (undetected-chromedriver needs to patch it)
 # SELENIUM_DRIVER_REUSE_LIMIT: Max reuses before recreating driver to prevent renderer process leak
 # DISPLAY: Virtual display for headless Chrome via XVFB
+# LIBGL_ALWAYS_SOFTWARE: Force Mesa software rendering for WebGL support
+# GALLIUM_DRIVER: Use llvmpipe for software rendering
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     CHROMEDRIVER_PATH=/home/appuser/chromedriver \
     CHROME_BIN=/usr/bin/chromium \
     DISPLAY=:99 \
-    SELENIUM_DRIVER_REUSE_LIMIT=10
+    SELENIUM_DRIVER_REUSE_LIMIT=10 \
+    LIBGL_ALWAYS_SOFTWARE=1 \
+    GALLIUM_DRIVER=llvmpipe \
+    MESA_GL_VERSION_OVERRIDE=4.5
 
 # Default command (can be overridden in Kubernetes)
 # NOTE: --dataset parameter ensures candidate_links get proper dataset_id assignment

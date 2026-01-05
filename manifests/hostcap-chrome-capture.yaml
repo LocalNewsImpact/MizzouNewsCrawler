@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: hostcap-chrome-capture
+  namespace: production
+spec:
+  hostNetwork: true
+  nodeName: gke-mizzou-cluster-standard-pool-d9a48e54-w8vp
+  restartPolicy: Never
+  terminationGracePeriodSeconds: 0
+  containers:
+    - name: tcpdump
+      image: nicolaka/netshoot:latest
+      imagePullPolicy: IfNotPresent
+      command:
+        - sh
+        - -c
+        - |
+          echo "Starting 30s tcpdump for chrome handshake to 34.145.9.240:443"
+          timeout 30 tcpdump -i any -s0 -w /tmp/hostcap.pcap tcp and host 34.145.9.240 and port 443 || true
+          ls -l /tmp/hostcap.pcap || true
+      securityContext:
+        capabilities:
+          add: ["NET_ADMIN", "NET_RAW"]

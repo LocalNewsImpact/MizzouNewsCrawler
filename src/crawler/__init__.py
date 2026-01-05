@@ -3433,9 +3433,9 @@ class ContentExtractor:
         # Additional flags for containerized environments + Xvfb stability
         options.add_argument("--disable-software-rasterizer")
         options.add_argument("--disable-setuid-sandbox")
-        options.add_argument("--single-process")  # Prevent renderer subprocess issues
-        options.add_argument("--disable-software-rasterizer")
-        options.add_argument("--disable-setuid-sandbox")
+        # NOTE: --single-process removed - causes "Trace/breakpoint trap" crash in K8s
+        # The flag was intended to prevent renderer subprocess issues but actually
+        # crashes Chromium 143+ in containerized environments (discovered 2026-01-04)
         options.add_argument("--remote-debugging-port=9222")
         # Note: JavaScript and images enabled for modern news sites
 
