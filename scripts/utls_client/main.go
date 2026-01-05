@@ -30,6 +30,7 @@ var preparedKeyShare *utls.KeySharePrivateKeys
 var forceMLKEM bool
 var forceMLKEMOnly bool
 var probeOutDir string
+var saveEphemeral bool
 
 func parseJA3(s string) (version uint16, ciphers []uint16, exts []int, curves []utls.CurveID, points []uint8, err error) {
 	parts := strings.Split(s, ",")
@@ -181,6 +182,13 @@ func extByID(id int, serverName string, curves []utls.CurveID) utls.TLSExtension
 						// Persist seed for offline decapsulation reproduction
 						if err := os.WriteFile("/tmp/probe_mlkem_seed.bin", seed, 0600); err == nil {
 							log.Println("Wrote mlkem seed to /tmp/probe_mlkem_seed.bin")
+								// Optionally persist ephemeral private key for reproducibility (debug only)
+								if saveEphemeral {
+									if err := os.WriteFile("/tmp/probe_client_x25519_priv.bin", ecdhePriv.Bytes(), 0600); err == nil {
+										log.Println("Wrote client ephemeral private key to /tmp/probe_client_x25519_priv.bin")
+									}
+								}
+
 							// Optionally persist ephemeral private key for reproducibility (debug only)
 							if saveEphemeral {
 								if err := os.WriteFile("/tmp/probe_client_x25519_priv.bin", ecdhePriv.Bytes(), 0600); err == nil {
@@ -222,6 +230,13 @@ func extByID(id int, serverName string, curves []utls.CurveID) utls.TLSExtension
 								// Persist seed for offline decapsulation reproduction
 								if err := os.WriteFile("/tmp/probe_mlkem_seed.bin", seed, 0600); err == nil {
 									log.Println("Wrote mlkem seed to /tmp/probe_mlkem_seed.bin")
+								// Optionally persist ephemeral private key for reproducibility (debug only)
+								if saveEphemeral {
+									if err := os.WriteFile("/tmp/probe_client_x25519_priv.bin", ecdhePriv.Bytes(), 0600); err == nil {
+										log.Println("Wrote client ephemeral private key to /tmp/probe_client_x25519_priv.bin")
+									}
+								}
+
 								}
 							} else {
 								preparedKeyShare.CurveID = utls.X25519MLKEM768

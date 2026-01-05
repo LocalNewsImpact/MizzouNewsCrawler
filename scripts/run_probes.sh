@@ -26,7 +26,7 @@ EOF
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -e) INCLUDE_ECH=1; shift ;;
-    -o) OUTDIR="$2"; shift 2 ;;
+  -k) SAVE_EPHEMERAL=1; shift ;;
     -x) EXTFILE="$2"; shift 2 ;;
     --ja3) JA3="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
@@ -70,7 +70,7 @@ for host in "${HOSTS[@]}"; do
     -v "$PWD/.go_build_cache":/root/.cache/go-build \
     -v "$PWD/$hostdir":/tmp \
     -w /work/scripts/utls_client \
-		golang:1.24 bash -lc "set -ex; export PATH=/usr/local/go/bin:\$PATH; go mod download; go build -o /tmp/utls-client .; /tmp/utls-client --ja3 '$JA3' --raw-ext-file /work/$EXTFILE --server $host --url https://$host/ --no-spec=false --debug --probe-only --probe-timeout $PROBE_TIMEOUT --probe-out-dir /tmp $( [ $INCLUDE_ECH -eq 1 ] && echo --include-ech ) 2>&1 | tee /work/$hostdir/probe.log"
+		golang:1.24 bash -lc "set -ex; export PATH=/usr/local/go/bin:\$PATH; go mod download; go build -o /tmp/utls-client .; /tmp/utls-client --ja3 '$JA3' --raw-ext-file /work/$EXTFILE --server $host --url https://$host/ --no-spec=false --debug --probe-only --probe-timeout $PROBE_TIMEOUT --probe-out-dir /tmp $( [ $INCLUDE_ECH -eq 1 ] && echo --include-ech ) $( [ ${SAVE_EPHEMERAL:-0} -eq 1 ] && echo --save-ephemeral ) 2>&1 | tee /work/$hostdir/probe.log"
   # extract short summary
   if grep -q "probe-only result:" "$hostdir/probe.log"; then
     grep "probe-only result:" "$hostdir/probe.log" | tail -1 > "$hostdir/summary.txt"
