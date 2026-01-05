@@ -182,6 +182,13 @@ func extByID(id int, serverName string, curves []utls.CurveID) utls.TLSExtension
 						// Persist seed for offline decapsulation reproduction
 						if err := os.WriteFile("/tmp/probe_mlkem_seed.bin", seed, 0600); err == nil {
 							log.Println("Wrote mlkem seed to /tmp/probe_mlkem_seed.bin")
+							// Optionally persist ephemeral private key for reproducibility (debug only)
+							if saveEphemeral {
+								if err := os.WriteFile("/tmp/probe_client_x25519_priv.bin", ecdhePriv.Bytes(), 0600); err == nil {
+									log.Println("Wrote client ephemeral private key to /tmp/probe_client_x25519_priv.bin")
+								}
+							}
+
 								// Optionally persist ephemeral private key for reproducibility (debug only)
 								if saveEphemeral {
 									if err := os.WriteFile("/tmp/probe_client_x25519_priv.bin", ecdhePriv.Bytes(), 0600); err == nil {
@@ -230,6 +237,13 @@ func extByID(id int, serverName string, curves []utls.CurveID) utls.TLSExtension
 								// Persist seed for offline decapsulation reproduction
 								if err := os.WriteFile("/tmp/probe_mlkem_seed.bin", seed, 0600); err == nil {
 									log.Println("Wrote mlkem seed to /tmp/probe_mlkem_seed.bin")
+							// Optionally persist ephemeral private key for reproducibility (debug only)
+							if saveEphemeral {
+								if err := os.WriteFile("/tmp/probe_client_x25519_priv.bin", ecdhePriv.Bytes(), 0600); err == nil {
+									log.Println("Wrote client ephemeral private key to /tmp/probe_client_x25519_priv.bin")
+								}
+							}
+
 								// Optionally persist ephemeral private key for reproducibility (debug only)
 								if saveEphemeral {
 									if err := os.WriteFile("/tmp/probe_client_x25519_priv.bin", ecdhePriv.Bytes(), 0600); err == nil {
@@ -246,6 +260,13 @@ func extByID(id int, serverName string, curves []utls.CurveID) utls.TLSExtension
 							// Persist seed for offline decapsulation reproduction
 							if err := os.WriteFile("/tmp/probe_mlkem_seed.bin", seed, 0600); err == nil {
 								log.Println("Wrote mlkem seed to /tmp/probe_mlkem_seed.bin")
+							// Optionally persist ephemeral private key for reproducibility (debug only)
+							if saveEphemeral {
+								if err := os.WriteFile("/tmp/probe_client_x25519_priv.bin", ecdhePriv.Bytes(), 0600); err == nil {
+									log.Println("Wrote client ephemeral private key to /tmp/probe_client_x25519_priv.bin")
+								}
+							}
+
 							}
 						}
 					}
