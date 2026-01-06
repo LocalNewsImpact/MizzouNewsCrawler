@@ -182,6 +182,12 @@ func extByID(id int, serverName string, curves []utls.CurveID) utls.TLSExtension
 						// Persist seed for offline decapsulation reproduction
 						if err := os.WriteFile("/tmp/probe_mlkem_seed.bin", seed, 0600); err == nil {
 							log.Println("Wrote mlkem seed to /tmp/probe_mlkem_seed.bin")
+					if saveEphemeral {
+						privPath := filepath.Join(probeOutDir, "probe_client_x25519_priv.bin")
+						if err := os.WriteFile(privPath, ecdhePriv.Bytes(), 0600); err == nil {
+							log.Println("Wrote client ephemeral private key to", privPath)
+						}
+					}
 							// Optionally persist ephemeral private key for reproducibility (debug only)
 							if saveEphemeral {
 								if err := os.WriteFile("/tmp/probe_client_x25519_priv.bin", ecdhePriv.Bytes(), 0600); err == nil {
@@ -232,6 +238,12 @@ func extByID(id int, serverName string, curves []utls.CurveID) utls.TLSExtension
 									seedPath := filepath.Join(probeOutDir, "probe_mlkem_seed.bin")
 									if err := os.WriteFile(seedPath, seed, 0600); err == nil {
 										log.Println("Wrote mlkem seed to", seedPath)
+					if saveEphemeral {
+						privPath := filepath.Join(probeOutDir, "probe_client_x25519_priv.bin")
+						if err := os.WriteFile(privPath, ecdhePriv.Bytes(), 0600); err == nil {
+							log.Println("Wrote client ephemeral private key to", privPath)
+						}
+					}
 									}
 								}
 								// Persist seed for offline decapsulation reproduction
@@ -596,6 +608,8 @@ func main() {
 	flag.StringVar(&extsFlag, "exts", "", "optional: comma/dash-separated extension IDs to use instead of JA3 extensions")
 	flag.StringVar(&targetURL, "url", "https://tools.scrapfly.io/api/fp/ja3", "URL to GET after handshake")
 	flag.StringVar(&server, "server", "", "server name for SNI (default from URL)")
+	var port string
+	flag.StringVar(&port, "port", "443", "tcp port to connect to (default 443)")
 	flag.BoolVar(&debug, "debug", false, "print debug info")
 	// Default to noSpec=true so running the binary with no flags uses a builtin Hello preset
 	flag.BoolVar(&noSpec, "no-spec", true, "use a built-in Hello preset instead of applying a custom ClientHelloSpec")
@@ -743,6 +757,12 @@ func main() {
 								seedPath := filepath.Join(probeOutDir, "probe_mlkem_seed.bin")
 								if err := os.WriteFile(seedPath, seed, 0600); err == nil {
 									log.Println("Wrote mlkem seed to", seedPath)
+					if saveEphemeral {
+						privPath := filepath.Join(probeOutDir, "probe_client_x25519_priv.bin")
+						if err := os.WriteFile(privPath, ecdhePriv.Bytes(), 0600); err == nil {
+							log.Println("Wrote client ephemeral private key to", privPath)
+						}
+					}
 								}
 							}
 						}
@@ -852,7 +872,7 @@ func main() {
 	}
 
 	// Dial and use uTLS with custom ClientHelloSpec
-	addr := host + ":443"
+	addr := net.JoinHostPort(host, port)
 	dialer := &net.Dialer{Timeout: 10 * time.Second}
 	conn, err := dialer.Dial("tcp", addr)
 	if err != nil {
@@ -1003,7 +1023,7 @@ func main() {
 				toSend := uconn.HandshakeState.Hello.Raw
 				wrapped := wrapTLSRecordIfNeeded(toSend)
 				dialer := &net.Dialer{Timeout: time.Duration(probeTimeoutSec) * time.Second}
-				connProbe, err := dialer.Dial("tcp", host+":443")
+				connProbe, err := dialer.Dial("tcp", net.JoinHostPort(host, port))
 				if err != nil {
 					log.Println("probe-only: dial error:", err)
 				} else {
