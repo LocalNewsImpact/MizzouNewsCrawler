@@ -3712,7 +3712,7 @@ class ContentExtractor:
                     pass
 
             if getattr(driver, "_supports_user_agent_metadata", True) is True:
-                ok, exc = _try_network(full_payload)
+                ok, net_exc = _try_network(full_payload)
                 if ok:
                     # Also set extra HTTP headers (sec-ch-ua*, Accept-Language) if available
                     try:
@@ -3746,17 +3746,17 @@ class ContentExtractor:
                                 "Network.setExtraHTTPHeaders",
                                 {"headers": extra_headers},
                             )
-                    except Exception as exc:
+                    except Exception as e:
                         logger.debug(
                             "Network.setExtraHTTPHeaders after full payload failed: %s",
-                            exc,
+                            e,
                         )
                     return
                 else:
                     # If the failure indicates 'Invalid parameters', mark the driver so
                     # we don't try the full payload again on subsequent calls.
                     try:
-                        if exc and "invalid parameters" in str(exc).lower():
+                        if net_exc and "invalid parameters" in str(net_exc).lower():
                             try:
                                 driver._supports_user_agent_metadata = False
                                 logger.debug(
@@ -3785,10 +3785,10 @@ class ContentExtractor:
                     continue
                 reduced_payload[k] = v
 
-        ok, exc = _try_network(reduced_payload)
+        ok, net_exc = _try_network(reduced_payload)
         if ok:
             try:
-                extra_headers: dict[str, str] = {}
+                extra_headers = {}
                 ua_meta = (
                     client_hints.get("userAgentMetadata") if client_hints else None
                 )
@@ -3811,9 +3811,9 @@ class ContentExtractor:
                     driver.execute_cdp_cmd(
                         "Network.setExtraHTTPHeaders", {"headers": extra_headers}
                     )
-            except Exception as exc:
+            except Exception as e:
                 logger.debug(
-                    "Network.setExtraHTTPHeaders after reduced payload failed: %s", exc
+                    "Network.setExtraHTTPHeaders after reduced payload failed: %s", e
                 )
             return
 
@@ -3824,7 +3824,7 @@ class ContentExtractor:
                 emu_payload["platform"] = client_hints["platform"]
             driver.execute_cdp_cmd("Emulation.setUserAgentOverride", emu_payload)
             try:
-                extra_headers: dict[str, str] = {}
+                extra_headers = {}
                 if client_hints and client_hints.get("acceptLanguage"):
                     extra_headers["Accept-Language"] = client_hints["acceptLanguage"]
                 ua_meta = (
@@ -3847,22 +3847,22 @@ class ContentExtractor:
                     driver.execute_cdp_cmd(
                         "Network.setExtraHTTPHeaders", {"headers": extra_headers}
                     )
-            except Exception as exc:
+            except Exception as e:
                 logger.debug(
                     "Network.setExtraHTTPHeaders after emulation fallback failed: %s",
-                    exc,
+                    e,
                 )
             return
-        except Exception as exc:
-            logger.debug("Emulation.setUserAgentOverride failed: %s", exc)
+        except Exception as e:
+            logger.debug("Emulation.setUserAgentOverride failed: %s", e)
 
         # 4) Final best-effort: set only the User-Agent
         try:
             driver.execute_cdp_cmd(
                 "Network.setUserAgentOverride", {"userAgent": user_agent}
             )
-        except Exception as exc:
-            logger.debug("Final CDP UA override failed (non-fatal): %s", exc)
+        except Exception as e:
+            logger.debug("Final CDP UA override failed (non-fatal): %s", e)
 
     def _create_undetected_driver(self, *, headless: bool | None = None):
         """Create undetected-chromedriver instance with maximum stealth."""
@@ -4258,6 +4258,9 @@ class ContentExtractor:
             domain = urlparse(url).netloc
             # Ensure single Selenium navigation per domain and perform FIRST-CONTACT via browser
             lock = self._get_domain_lock(domain)
+
+            # Determine headless mode (used for retry wait heuristics)
+            headless_mode = self._is_headless_selenium_mode()
 
             # Robust navigation: retry a few times with increasing timeouts so slow JS/verification
             # pages can complete and we avoid falling back to unblock proxy prematurely.
