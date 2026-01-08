@@ -5,7 +5,10 @@ import shutil
 import time
 from urllib.parse import urlparse
 
-import undetected_chromedriver as uc
+try:
+    import undetected_chromedriver as uc
+except Exception:  # pragma: no cover - optional dependency for local diagnostics
+    uc = None
 
 TARGET_URL = os.environ.get("SELENIUM_TEST_URL", "https://fox4kc.com/")
 COOKIE_FILE = os.environ.get(

@@ -17,7 +17,10 @@ import os
 import argparse
 import traceback
 
-import undetected_chromedriver as uc
+try:
+    import undetected_chromedriver as uc
+except Exception:  # pragma: no cover - optional dependency for diagnostics
+    uc = None
 
 
 DEFAULT_TARGET = os.environ.get("SELENIUM_TEST_URL", "https://httpbin.org/headers")
