@@ -60,6 +60,8 @@ DEFAULT_MEMORY_REQUEST = "1Gi"
 DEFAULT_MEMORY_LIMIT = "3Gi"
 DEFAULT_TTL_SECONDS = 86400  # 24 hours
 CHROME_PROFILE_SECRET_NAME = "chrome-profile-macos-default"
+# PVC to persistently store Chrome profile (preferred for large profiles)
+CHROME_PROFILE_PVC_NAME = "chrome-profile-macos-default-pvc"
 CHROME_PROFILE_MOUNT_PATH = "/var/selenium/profile"
 
 
@@ -297,8 +299,8 @@ def create_job_manifest(
                     "volumes": [
                         {
                             "name": "chrome-profile",
-                            "secret": {
-                                "secretName": CHROME_PROFILE_SECRET_NAME,
+                            "persistentVolumeClaim": {
+                                "claimName": CHROME_PROFILE_PVC_NAME,
                             },
                         }
                     ],

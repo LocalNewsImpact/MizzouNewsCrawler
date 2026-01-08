@@ -16,7 +16,7 @@ spec:
         - |
           set -e
           echo "Starting Chromium to fetch target (timeout 30s)..."
-          timeout 30 xvfb-run -a --server-args='-screen 0 1280x1024x24' /usr/bin/chromium \
+          timeout 30 xvfb-run -a --server-args='-screen 0 1280x1024x24' /usr/bin/google-chrome \
             --no-sandbox \
             --user-agent 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.169 Safari/537.36' \
             --incognito \

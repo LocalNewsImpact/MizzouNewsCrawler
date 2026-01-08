@@ -106,8 +106,8 @@ spec:
             memory: 1Gi
       volumes:
       - name: chrome-profile
-        secret:
-          secretName: chrome-profile-macos-default
+        persistentVolumeClaim:
+          claimName: chrome-profile-macos-default-pvc
       restartPolicy: Never
       serviceAccountName: mizzou-app
       priorityClassName: batch-standard

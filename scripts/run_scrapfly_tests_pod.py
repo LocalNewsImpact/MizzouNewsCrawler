@@ -56,17 +56,43 @@ if PROXY:
 options.add_experimental_option('excludeSwitches', ['enable-automation'])
 options.add_experimental_option('useAutomationExtension', False)
 
-service = Service(CHROMEDRIVER)
+def create_driver(chromedriver_path: str = CHROMEDRIVER, chrome_bin: str = CHROME_BIN, proxy: str | None = PROXY):
+    """Factory to create a Selenium Chrome WebDriver instance.
 
-driver = webdriver.Chrome(service=service, options=options)
+    This is separated from module import so tests can import this module
+    without attempting to start a browser.
+    """
+    options = Options()
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--disable-blink-features=AutomationControlled')
+    options.add_argument('--window-size=1920,1080')
+    options.add_argument('--start-maximized')
+    # real UA
+    options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36')
+    if proxy:
+        options.add_argument(f'--proxy-server={proxy}')
+    options.add_experimental_option('excludeSwitches', ['enable-automation'])
+    options.add_experimental_option('useAutomationExtension', False)
 
-# Inject anti-detection script
-# - Normalize timezone to America/Chicago
-# - Stub WebRTC to prevent ICE candidate leaks
-# - Normalize navigator properties (plugins, languages, platform, memory, hardwareConcurrency)
-# - Minimal canvas safety wrapper
-driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
-    'source': """
+    # Optionally set binary location if provided
+    try:
+        if chrome_bin:
+            options.binary_location = chrome_bin
+    except Exception:
+        pass
+
+    service = Service(chromedriver_path)
+
+    # Instantiate the Chrome webdriver (may raise if not available)
+    driver = webdriver.Chrome(service=service, options=options)
+    return driver
+
+
+def _inject_anti_detection(driver):
+    """Inject anti-detection scripts and default client hints into the driver session."""
+    # Inject anti-detection script
+    script = """
 (function() {
     // Timezone normalization
     try {
@@ -183,83 +209,100 @@ driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
         Object.defineProperty(navigator, 'userAgentData', { get: () => uaData, configurable: true });
     } catch (e) {}
 
-})();
-    """
-})
+"""
+    driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {'source': script})
 
-# Set client hints headers to match userAgentData
-try:
-    driver.execute_cdp_cmd('Network.setExtraHTTPHeaders', {'headers': {
-        'sec-ch-ua': '"Chromium";v="143", "Not A(Brand";v="24", "Google Chrome";v="143"',
-        'sec-ch-ua-platform': '"Windows"',
-        'sec-ch-ua-mobile': '?0'
-    }})
-except Exception:
-    pass
-
-results = []
-
-for name, url in TESTS:
-    print(f'Running test: {name} -> {url}')
-    item = {'name': name, 'url': url, 'status': 'started'}
+    # Set client hints headers to match userAgentData
     try:
-        driver.get(url)
-        # Wait for document.readyState == complete
+        driver.execute_cdp_cmd('Network.setExtraHTTPHeaders', {'headers': {
+            'sec-ch-ua': '"Chromium";v="143", "Not A(Brand";v="24", "Google Chrome";v="143"',
+            'sec-ch-ua-platform': '"Windows"',
+            'sec-ch-ua-mobile': '?0'
+        }})
+    except Exception:
+        pass
+
+
+def run_scrapfly_tests(driver, tests=TESTS, out_dir=OUT_DIR):
+    results = []
+
+    for name, url in tests:
+        print(f'Running test: {name} -> {url}')
+        item = {'name': name, 'url': url, 'status': 'started'}
         try:
-            WebDriverWait(driver, 20).until(lambda d: d.execute_script('return document.readyState') == 'complete')
+            driver.get(url)
+            # Wait for document.readyState == complete
+            try:
+                WebDriverWait(driver, 20).until(lambda d: d.execute_script('return document.readyState') == 'complete')
+            except Exception:
+                pass
+
+            # Click any obvious run/test buttons if present
+            try:
+                buttons = driver.find_elements(By.TAG_NAME, 'button')
+                for b in buttons:
+                    txt = (b.text or '').strip().lower()
+                    if any(k in txt for k in ['run', 'test', 'start']):
+                        try:
+                            print('Clicking button:', txt[:30])
+                            b.click()
+                            time.sleep(1)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
+            # Wait a few seconds for client-side tests to complete
+            time.sleep(8)
+
+            # Save screenshot, HTML, and body text
+            slug = name.replace('/', '_')
+            ss = os.path.join(out_dir, f'{slug}.png')
+            htmlp = os.path.join(out_dir, f'{slug}.html')
+            txtp = os.path.join(out_dir, f'{slug}.txt')
+
+            driver.save_screenshot(ss)
+            with open(htmlp, 'w', encoding='utf-8') as f:
+                f.write(driver.page_source)
+            try:
+                body_text = driver.find_element(By.TAG_NAME, 'body').text
+            except Exception:
+                body_text = driver.execute_script('return document.body ? document.body.innerText : ""') or ''
+            with open(txtp, 'w', encoding='utf-8') as f:
+                f.write(body_text)
+
+            # Basic heuristics for blocked detection
+            blocked_keywords = ['access to this page has been denied', 'press & hold', 'blocked', 'denied']
+            is_blocked = any(k in body_text.lower() for k in blocked_keywords)
+
+            item.update({'status':'ok', 'screenshot':ss, 'html':htmlp, 'text':txtp, 'blocked':is_blocked})
+        except Exception as exc:
+            print('Error running test', name, exc)
+            item.update({'status':'error', 'error': str(exc)})
+        results.append(item)
+
+    # Write results JSON
+    res_path = os.path.join(out_dir, 'scrapfly_results.json')
+    with open(res_path, 'w', encoding='utf-8') as f:
+        json.dump(results, f, indent=2)
+
+    print('Completed tests, artifacts in', out_dir)
+    print('Results written to', res_path)
+
+    return results
+
+
+def main():
+    driver = create_driver()
+    try:
+        _inject_anti_detection(driver)
+        run_scrapfly_tests(driver)
+    finally:
+        try:
+            driver.quit()
         except Exception:
             pass
 
-        # Click any obvious run/test buttons if present
-        try:
-            buttons = driver.find_elements(By.TAG_NAME, 'button')
-            for b in buttons:
-                txt = (b.text or '').strip().lower()
-                if any(k in txt for k in ['run', 'test', 'start']):
-                    try:
-                        print('Clicking button:', txt[:30])
-                        b.click()
-                        time.sleep(1)
-                    except Exception:
-                        pass
-        except Exception:
-            pass
 
-        # Wait a few seconds for client-side tests to complete
-        time.sleep(8)
-
-        # Save screenshot, HTML, and body text
-        slug = name.replace('/', '_')
-        ss = os.path.join(OUT_DIR, f'{slug}.png')
-        htmlp = os.path.join(OUT_DIR, f'{slug}.html')
-        txtp = os.path.join(OUT_DIR, f'{slug}.txt')
-
-        driver.save_screenshot(ss)
-        with open(htmlp, 'w', encoding='utf-8') as f:
-            f.write(driver.page_source)
-        try:
-            body_text = driver.find_element(By.TAG_NAME, 'body').text
-        except Exception:
-            body_text = driver.execute_script('return document.body ? document.body.innerText : ""') or ''
-        with open(txtp, 'w', encoding='utf-8') as f:
-            f.write(body_text)
-
-        # Basic heuristics for blocked detection
-        blocked_keywords = ['access to this page has been denied', 'press & hold', 'blocked', 'denied']
-        is_blocked = any(k in body_text.lower() for k in blocked_keywords)
-
-        item.update({'status':'ok', 'screenshot':ss, 'html':htmlp, 'text':txtp, 'blocked':is_blocked})
-    except Exception as exc:
-        print('Error running test', name, exc)
-        item.update({'status':'error', 'error': str(exc)})
-    results.append(item)
-
-# Write results JSON
-res_path = os.path.join(OUT_DIR, 'scrapfly_results.json')
-with open(res_path, 'w', encoding='utf-8') as f:
-    json.dump(results, f, indent=2)
-
-print('Completed tests, artifacts in', OUT_DIR)
-print('Results written to', res_path)
-
-driver.quit()
+if __name__ == '__main__':  # pragma: no cover
+    main()

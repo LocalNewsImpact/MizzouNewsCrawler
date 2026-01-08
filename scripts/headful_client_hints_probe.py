@@ -112,17 +112,32 @@ def main():
         except Exception as e:
             print("Failed to add script injection:", e)
 
-    payload = {
-        "userAgent": args.user_agent,
+def make_payload(user_agent: str, platform: str = "Win32", accept_language: str = "en-US") -> dict:
+    brands = [{"brand": "Google Chrome", "version": "143"}]
+    full_version_list = [{"brand": "Google Chrome", "version": "143.0.0.0"}]
+    return {
+        "userAgent": user_agent,
         "userAgentMetadata": {
-            "brands": [{"brand": "Google Chrome", "version": "143"}],
-            "fullVersionList": [{"brand": "Google Chrome", "version": "143.0.0.0"}],
+            "brands": brands,
+            "fullVersionList": full_version_list,
             "mobile": False,
-            "platform": "Win32",
+            "platform": platform,
         },
-        "platform": "Win32",
-        "acceptLanguage": "en-US",
+        "platform": platform,
+        "acceptLanguage": accept_language,
     }
+
+
+def align_payload_platform(payload: dict, inject_platform: str) -> dict:
+    if not payload or not inject_platform:
+        return payload
+    payload["platform"] = inject_platform
+    if payload.get("userAgentMetadata") is not None:
+        payload["userAgentMetadata"]["platform"] = inject_platform
+    return payload
+
+
+    payload = make_payload(args.user_agent)
 
     # If the user requests injection with a specific platform, align the
     # outgoing payload platform and userAgentMetadata.platform with the

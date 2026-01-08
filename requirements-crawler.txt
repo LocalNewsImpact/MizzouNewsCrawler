@@ -36,6 +36,7 @@ storysniffer>=1.0.9  # News article classification (skops-based models)
 
 # Anti-bot bypass
 cloudscraper>=1.2.71  # Bypass Cloudflare protection
+tls-client>=0.13.0  # Optional: emulate Chrome TLS/HTTP2 fingerprints when available
 
 # Secret management for secure credential retrieval
 google-cloud-secret-manager>=2.16.0

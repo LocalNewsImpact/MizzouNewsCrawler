@@ -115,4 +115,5 @@ spec:
       volumes:
       - name: chrome-profile
         secret:
-          secretName: chrome-profile-macos-default
+          persistentVolumeClaim:
+            claimName: chrome-profile-macos-default-pvc

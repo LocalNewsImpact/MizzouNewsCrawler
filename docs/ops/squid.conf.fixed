@@ -1,0 +1,82 @@
+# HTTP port configuration
+http_port 192.168.4.35:3128
+
+# DNS configuration
+dns_nameservers 8.8.8.8 8.8.4.4
+
+# Access Control Lists for your GKE cluster
+acl localnet src 192.168.4.0/24
+acl localhost src 127.0.0.1/32
+# local machine on which Squid runs
+acl myhost src 192.168.4.35/32
+
+# Your specific GKE network ranges
+acl gke_pods src 10.104.0.0/14
+acl gke_services src 34.118.224.0/20
+acl gke_nodes src 10.128.0.0/16
+acl gke_static src 34.36.44.7/32
+acl gke_external_ip src 34.72.245.87/32
+
+# Google Cloud Platform IP ranges
+acl gcp_compute src 34.0.0.0/8
+acl gcp_compute src 35.0.0.0/8
+acl gcp_compute src 104.196.0.0/14
+acl gcp_compute src 107.167.160.0/19
+acl gcp_compute src 107.178.192.0/18
+acl gcp_compute src 146.148.0.0/17
+acl gcp_compute src 130.211.0.0/22
+
+# PerimeterX px-cloud allowlist
+acl PX_CLOUD dstdomain .px-cloud.net
+acl PX_CLOUD_PORTS port 80 443
+
+# Standard port definitions
+acl SSL_ports port 443
+acl Safe_ports port 80
+acl Safe_ports port 443
+acl Safe_ports port 21
+acl Safe_ports port 1025-65535
+acl CONNECT method CONNECT
+
+# Access rules - ALLOW your networks
+http_access allow localhost
+http_access allow localnet
+http_access allow gke_pods
+http_access allow gke_services
+http_access allow gke_nodes
+http_access allow gke_static
+http_access allow gcp_compute
+http_access allow gke_external_ip
+
+# Allow PerimeterX px-cloud for GKE ranges (required for client-side verification)
+# Scope these rules to the GKE ranges to reduce blast radius.
+http_access allow gke_pods PX_CLOUD PX_CLOUD_PORTS
+http_access allow gke_services PX_CLOUD PX_CLOUD_PORTS
+http_access allow gke_nodes PX_CLOUD PX_CLOUD_PORTS
+
+# Security rules
+http_access deny CONNECT !SSL_ports
+http_access deny !Safe_ports
+http_access deny all
+
+# Performance and caching
+cache_mem 512 MB
+maximum_object_size_in_memory 1 MB
+cache_dir ufs D:/Squid/cache 2000 16 256
+
+# Logging
+access_log stdio:D:/Squid/logs/access.log squid
+cache_log D:/Squid/logs/cache.log
+
+# Network optimizations for web crawling
+request_timeout 60 seconds
+connect_timeout 30 seconds
+read_timeout 30 seconds
+client_lifetime 1 hour
+
+# Allow large responses for web scraping
+reply_body_max_size 50 MB
+
+# Disable unnecessary features
+icp_port 0
+htcp_port 0
