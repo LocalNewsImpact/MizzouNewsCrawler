@@ -155,15 +155,15 @@ jobs:
             pip install --no-cache-dir undetected-chromedriver
             python3 scripts/diagnose_user_agent_metadata.py > /tmp/diag.json || true
             python3 - <<PY
-import json,sys
-r=json.load(open("/tmp/diag.json"))
-for e in r:
-    if e.get("test")=="full_payload":
-        if not e.get("ok"):
-            print("❌ full_payload not accepted")
-            sys.exit(1)
-print("✅ full_payload accepted")
-PY
+            import json,sys
+            r=json.load(open("/tmp/diag.json"))
+            for e in r:
+                if e.get("test")=="full_payload":
+                    if not e.get("ok"):
+                        print("❌ full_payload not accepted")
+                        sys.exit(1)
+            print("✅ full_payload accepted")
+            PY
           '
 
       
