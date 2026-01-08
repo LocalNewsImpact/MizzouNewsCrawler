@@ -440,10 +440,13 @@ class BylineCleaningTelemetry:
             # Telemetry disabled or not supported
             pass
         except Exception as exc:  # pragma: no cover - telemetry best effort
-            # Get just the exception type and first line of message
-            exc_msg = str(exc).split("\n")[0][:80]
+            # Get full traceback for debugging intermittent failures
+            import traceback
+
             exc_name = type(exc).__name__
-            print(f"Warning: Failed telemetry: {exc_name}: {exc_msg}")
+            exc_msg = str(exc)
+            tb = traceback.format_exc()
+            print(f"Warning: Failed telemetry: {exc_name}: {exc_msg}\n{tb}")
             # Don't fail the cleaning process due to telemetry issues
 
     def flush(self) -> None:
