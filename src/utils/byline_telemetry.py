@@ -63,8 +63,26 @@ class BylineCleaningTelemetry:
         return self._store
 
     def _ensure_tables(self) -> None:
+        """Ensure telemetry tables exist without triggering recursion.
+
+        Important: avoid calling the public ``store`` property here because it
+        will call ``_ensure_tables`` again when ``_tables_initialized`` is False,
+        leading to infinite recursion. Instead, use the existing ``_store`` if
+        present or acquire a temporary store directly via ``get_store``.
+        """
         try:
-            store = self.store
+            # Prefer using the already-initialized store to avoid re-entrancy
+            if self._store is not None:
+                store = self._store
+            else:
+                # Avoid using the property (self.store) which would call _ensure_tables
+                from src.models.database import DatabaseManager
+
+                db = DatabaseManager()
+                try:
+                    store = get_store(self._database_url, engine=db.engine)
+                except Exception:
+                    store = get_store(self._database_url)
         except RuntimeError:
             # Telemetry disabled or not supported (e.g., PostgreSQL)
             return
@@ -140,7 +158,6 @@ class BylineCleaningTelemetry:
             )
 
             conn.commit()
-
     def start_cleaning_session(
         self,
         raw_byline: str,
