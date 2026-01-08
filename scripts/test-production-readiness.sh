@@ -9,6 +9,16 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$PROJECT_ROOT"
 
+# Skip on unsupported local architectures (e.g., Apple Silicon arm64).
+# Chrome and ChromeDriver packages used in these Dockerfiles are only
+# available for amd64; CI will run these tests on amd64 runners.
+ARCH=$(uname -m)
+if [ "$ARCH" != "x86_64" ] && [ "$ARCH" != "amd64" ]; then
+    echo "⚠️  Skipping Docker-based production readiness tests on $ARCH (local machine)."
+    echo "    Run these tests on an amd64 machine or let CI run them."
+    exit 0
+fi
+
 echo "🐳 Docker-Based Production Readiness Tests"
 echo "=========================================="
 echo ""
