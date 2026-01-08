@@ -20,6 +20,8 @@ if [ "$ARCH" != "x86_64" ] && [ "$ARCH" != "amd64" ]; then
         # Quick heuristic: if any local image contains 'mizzou', proceed
         if docker image ls --format '{{.Repository}}:{{.Tag}}' | grep -E 'mizzou' >/dev/null 2>&1; then
             echo "⚠️  Found local mizzou images; proceeding to run tests on $ARCH (may require qemu/emulation)."
+            # If images are present on non-amd64 hosts, skip trying to rebuild
+            SKIP_BUILD=1
         else
             echo "⚠️  Skipping Docker-based production readiness tests on $ARCH (local machine)."
             echo "    Run these tests on an amd64 machine or let CI run them."
@@ -41,8 +43,8 @@ echo ""
 
 # Build Docker images (skip if NO_DOCKER_BUILD=1)
 echo "🔨 Building Docker images..."
-if [ "${NO_DOCKER_BUILD:-}" = "1" ]; then
-    echo "⚠️  Skipping docker-compose build because NO_DOCKER_BUILD=1"
+if [ "${NO_DOCKER_BUILD:-}" = "1" ] || [ "${SKIP_BUILD:-}" = "1" ]; then
+    echo "⚠️  Skipping docker-compose build because NO_DOCKER_BUILD=1 or SKIP_BUILD=1"
 else
     docker-compose --profile base build base
     docker-compose build crawler processor
