@@ -1704,7 +1704,9 @@ class ContentExtractor:
         cookie_file = os.environ.get(
             "SELENIUM_IMPORT_COOKIES_FILE", "/tmp/selenium_import_cookies.json"
         )
-        wait_for_file = os.environ.get("SELENIUM_WAIT_FOR_COOKIES", "false").lower() in (
+        wait_for_file = os.environ.get(
+            "SELENIUM_WAIT_FOR_COOKIES", "false"
+        ).lower() in (
             "1",
             "true",
             "yes",
@@ -1803,28 +1805,38 @@ class ContentExtractor:
                         cookie_payload["secure"] = True
                     if c.get("httpOnly"):
                         cookie_payload["httpOnly"] = True
-                    if isinstance(c.get("expires"), (int, float)) and c.get("expires") > 0:
+                    if (
+                        isinstance(c.get("expires"), (int, float))
+                        and c.get("expires") > 0
+                    ):
                         cookie_payload["expiry"] = int(c.get("expires"))
 
                     try:
                         driver.add_cookie(cookie_payload)
                         imported += 1
                     except Exception as e:
-                        logger.debug("driver.add_cookie failed for %s: %s", c.get("name"), e)
+                        logger.debug(
+                            "driver.add_cookie failed for %s: %s", c.get("name"), e
+                        )
 
             # Record count of imported cookies (names omitted for privacy)
             try:
-                rec_path = f"/tmp/selenium_{domain.replace('.', '_')}_cookies_imported.json"
+                rec_path = (
+                    f"/tmp/selenium_{domain.replace('.', '_')}_cookies_imported.json"
+                )
                 with open(rec_path, "w") as rf:
                     json.dump({"imported": imported, "source": cookie_file}, rf)
             except Exception:
                 pass
 
-            logger.info("Imported %d cookies for %s from %s", imported, domain, cookie_file)
+            logger.info(
+                "Imported %d cookies for %s from %s", imported, domain, cookie_file
+            )
             return imported > 0
         except Exception as e:
             logger.warning("Exception while importing cookies: %s", e)
             return False
+
     def get_driver_stats(self) -> Dict[str, Any]:
         """Get statistics about driver usage."""
         return {
@@ -2238,7 +2250,9 @@ class ContentExtractor:
                 )
                 logger.warning(msg)
                 if metrics:
-                    metrics.end_method("unblock_proxy", False, "selenium_failed_no_fallback", {})
+                    metrics.end_method(
+                        "unblock_proxy", False, "selenium_failed_no_fallback", {}
+                    )
                 raise ProxyChallengeError(
                     f"Proxy challenge/block detected for {url}: selenium_failed_no_fallback"
                 )
@@ -3255,8 +3269,13 @@ class ContentExtractor:
                 html = ""
                 try:
                     import tls_client  # optional dependency; provides chrome-like TLS fingerprints
-                    logger.info("Using tls_client for unblock extraction (Chrome-like TLS fingerprint)")
-                    session = tls_client.Session(client_identifier="chrome_143", random_tls_extension_order=False)
+
+                    logger.info(
+                        "Using tls_client for unblock extraction (Chrome-like TLS fingerprint)"
+                    )
+                    session = tls_client.Session(
+                        client_identifier="chrome_143", random_tls_extension_order=False
+                    )
                     tls_resp = session.get(
                         url,
                         headers=headers,
@@ -3265,8 +3284,13 @@ class ContentExtractor:
                         verify=False,
                     )
                     response = tls_resp
-                except Exception as exc:  # pragma: no cover - optional dependency/fallback
-                    logger.info("tls_client not available or failed: %s; falling back to requests", exc)
+                except (
+                    Exception
+                ) as exc:  # pragma: no cover - optional dependency/fallback
+                    logger.info(
+                        "tls_client not available or failed: %s; falling back to requests",
+                        exc,
+                    )
 
                 if response is None:
                     response = requests.get(
@@ -3281,7 +3305,9 @@ class ContentExtractor:
                 try:
                     html = response.text
                 except Exception:
-                    html = getattr(response, "content", b"").decode("utf-8", errors="replace")
+                    html = getattr(response, "content", b"").decode(
+                        "utf-8", errors="replace"
+                    )
                 status_code = getattr(response, "status_code", None)
                 html_len = len(html)
 
@@ -3636,7 +3662,11 @@ class ContentExtractor:
                 driver.execute_cdp_cmd("Network.setUserAgentOverride", payload)
                 return True, None
             except Exception as exc:
-                logger.debug("Network.setUserAgentOverride failed for keys %s: %s", list(payload.keys()), exc)
+                logger.debug(
+                    "Network.setUserAgentOverride failed for keys %s: %s",
+                    list(payload.keys()),
+                    exc,
+                )
                 return False, exc
 
         # 1) Try full payload (may include userAgentMetadata)
@@ -3659,7 +3689,7 @@ class ContentExtractor:
                     try:
                         import re
 
-                        m = re.search(r'Chrome/(\d+)\.', prod)
+                        m = re.search(r"Chrome/(\d+)\.", prod)
                         if m:
                             major = int(m.group(1))
                             # Chrome 143 was observed to reject any userAgentMetadata
@@ -3689,21 +3719,38 @@ class ContentExtractor:
                         extra_headers: dict[str, str] = {}
                         if client_hints:
                             if client_hints.get("acceptLanguage"):
-                                extra_headers["Accept-Language"] = client_hints["acceptLanguage"]
-                            ua_meta = client_hints.get("userAgentMetadata") if client_hints else None
+                                extra_headers["Accept-Language"] = client_hints[
+                                    "acceptLanguage"
+                                ]
+                            ua_meta = (
+                                client_hints.get("userAgentMetadata")
+                                if client_hints
+                                else None
+                            )
                             if ua_meta:
                                 brands = ua_meta.get("brands", []) or []
                                 if brands:
                                     extra_headers["sec-ch-ua"] = ", ".join(
-                                        f'"{b.get("brand")}";v="{b.get("version")}"' for b in brands
+                                        f'"{b.get("brand")}";v="{b.get("version")}"'
+                                        for b in brands
                                     )
-                                extra_headers["sec-ch-ua-mobile"] = "?1" if ua_meta.get("mobile") else "?0"
+                                extra_headers["sec-ch-ua-mobile"] = (
+                                    "?1" if ua_meta.get("mobile") else "?0"
+                                )
                                 if client_hints.get("platform"):
-                                    extra_headers["sec-ch-ua-platform"] = f'"{client_hints["platform"]}"'
+                                    extra_headers["sec-ch-ua-platform"] = (
+                                        f'"{client_hints["platform"]}"'
+                                    )
                         if extra_headers:
-                            driver.execute_cdp_cmd("Network.setExtraHTTPHeaders", {"headers": extra_headers})
+                            driver.execute_cdp_cmd(
+                                "Network.setExtraHTTPHeaders",
+                                {"headers": extra_headers},
+                            )
                     except Exception as exc:
-                        logger.debug("Network.setExtraHTTPHeaders after full payload failed: %s", exc)
+                        logger.debug(
+                            "Network.setExtraHTTPHeaders after full payload failed: %s",
+                            exc,
+                        )
                     return
                 else:
                     # If the failure indicates 'Invalid parameters', mark the driver so
@@ -3712,7 +3759,9 @@ class ContentExtractor:
                         if exc and "invalid parameters" in str(exc).lower():
                             try:
                                 driver._supports_user_agent_metadata = False
-                                logger.debug("Marked driver as not supporting userAgentMetadata")
+                                logger.debug(
+                                    "Marked driver as not supporting userAgentMetadata"
+                                )
                             except Exception:
                                 pass
                             # Also log Browser.getVersion for easier debugging
@@ -3724,7 +3773,9 @@ class ContentExtractor:
                     except Exception:
                         pass
         else:
-            logger.debug("Skipping full Network.setUserAgentOverride because driver flagged no support for userAgentMetadata")
+            logger.debug(
+                "Skipping full Network.setUserAgentOverride because driver flagged no support for userAgentMetadata"
+            )
 
         # 2) Retry without userAgentMetadata (some CDP implementations reject it)
         reduced_payload = {"userAgent": user_agent}
@@ -3738,22 +3789,32 @@ class ContentExtractor:
         if ok:
             try:
                 extra_headers: dict[str, str] = {}
-                ua_meta = client_hints.get("userAgentMetadata") if client_hints else None
+                ua_meta = (
+                    client_hints.get("userAgentMetadata") if client_hints else None
+                )
                 if ua_meta:
                     brands = ua_meta.get("brands", []) or []
                     if brands:
                         extra_headers["sec-ch-ua"] = ", ".join(
                             f'"{b.get("brand")}";v="{b.get("version")}"' for b in brands
                         )
-                    extra_headers["sec-ch-ua-mobile"] = "?1" if ua_meta.get("mobile") else "?0"
+                    extra_headers["sec-ch-ua-mobile"] = (
+                        "?1" if ua_meta.get("mobile") else "?0"
+                    )
                 if client_hints and client_hints.get("platform"):
-                    extra_headers["sec-ch-ua-platform"] = f'"{client_hints["platform"]}"'
+                    extra_headers["sec-ch-ua-platform"] = (
+                        f'"{client_hints["platform"]}"'
+                    )
                 if client_hints and client_hints.get("acceptLanguage"):
                     extra_headers["Accept-Language"] = client_hints["acceptLanguage"]
                 if extra_headers:
-                    driver.execute_cdp_cmd("Network.setExtraHTTPHeaders", {"headers": extra_headers})
+                    driver.execute_cdp_cmd(
+                        "Network.setExtraHTTPHeaders", {"headers": extra_headers}
+                    )
             except Exception as exc:
-                logger.debug("Network.setExtraHTTPHeaders after reduced payload failed: %s", exc)
+                logger.debug(
+                    "Network.setExtraHTTPHeaders after reduced payload failed: %s", exc
+                )
             return
 
         # 3) Try Emulation.setUserAgentOverride as another alternative
@@ -3766,27 +3827,40 @@ class ContentExtractor:
                 extra_headers: dict[str, str] = {}
                 if client_hints and client_hints.get("acceptLanguage"):
                     extra_headers["Accept-Language"] = client_hints["acceptLanguage"]
-                ua_meta = client_hints.get("userAgentMetadata") if client_hints else None
+                ua_meta = (
+                    client_hints.get("userAgentMetadata") if client_hints else None
+                )
                 if ua_meta:
                     brands = ua_meta.get("brands", []) or []
                     if brands:
                         extra_headers["sec-ch-ua"] = ", ".join(
                             f'"{b.get("brand")}";v="{b.get("version")}"' for b in brands
                         )
-                    extra_headers["sec-ch-ua-mobile"] = "?1" if ua_meta.get("mobile") else "?0"
+                    extra_headers["sec-ch-ua-mobile"] = (
+                        "?1" if ua_meta.get("mobile") else "?0"
+                    )
                 if client_hints and client_hints.get("platform"):
-                    extra_headers["sec-ch-ua-platform"] = f'"{client_hints["platform"]}"'
+                    extra_headers["sec-ch-ua-platform"] = (
+                        f'"{client_hints["platform"]}"'
+                    )
                 if extra_headers:
-                    driver.execute_cdp_cmd("Network.setExtraHTTPHeaders", {"headers": extra_headers})
+                    driver.execute_cdp_cmd(
+                        "Network.setExtraHTTPHeaders", {"headers": extra_headers}
+                    )
             except Exception as exc:
-                logger.debug("Network.setExtraHTTPHeaders after emulation fallback failed: %s", exc)
+                logger.debug(
+                    "Network.setExtraHTTPHeaders after emulation fallback failed: %s",
+                    exc,
+                )
             return
         except Exception as exc:
             logger.debug("Emulation.setUserAgentOverride failed: %s", exc)
 
         # 4) Final best-effort: set only the User-Agent
         try:
-            driver.execute_cdp_cmd("Network.setUserAgentOverride", {"userAgent": user_agent})
+            driver.execute_cdp_cmd(
+                "Network.setUserAgentOverride", {"userAgent": user_agent}
+            )
         except Exception as exc:
             logger.debug("Final CDP UA override failed (non-fatal): %s", exc)
 
@@ -4209,7 +4283,9 @@ class ContentExtractor:
                     try:
                         imported = self._maybe_import_selenium_cookies(driver, domain)
                         if imported:
-                            logger.info("Imported cookies for %s before navigation", domain)
+                            logger.info(
+                                "Imported cookies for %s before navigation", domain
+                            )
                     except Exception as e_c:
                         logger.debug("Cookie import step failed: %s", e_c)
 
@@ -4236,12 +4312,16 @@ class ContentExtractor:
 
                     # Capture diagnostics: screenshot, browser logs, UA
                     try:
-                        import base64, json
+                        import base64
+                        import json
+
                         ts = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
                         safe_domain = domain.replace(".", "_")
                         try:
                             b64 = driver.get_screenshot_as_base64()
-                            sshot_path = f"/tmp/selenium_{safe_domain}_{ts}_attempt{attempt}.png"
+                            sshot_path = (
+                                f"/tmp/selenium_{safe_domain}_{ts}_attempt{attempt}.png"
+                            )
                             with open(sshot_path, "wb") as f:
                                 f.write(base64.b64decode(b64))
                             logger.info("Wrote screenshot to %s", sshot_path)
@@ -4272,7 +4352,9 @@ class ContentExtractor:
                                     json.dump(perf_logs, f)
                                 logger.info("Wrote performance logs to %s", perf_path)
                             except Exception as e_p:
-                                logger.debug("Failed to capture performance logs: %s", e_p)
+                                logger.debug(
+                                    "Failed to capture performance logs: %s", e_p
+                                )
 
                             try:
                                 cookies = driver.get_cookies()
@@ -4312,17 +4394,23 @@ class ContentExtractor:
                                     json.dump(nav, f)
                                 logger.info("Wrote navigator snapshot to %s", nav_path)
                             except Exception as e_n:
-                                logger.debug("Failed to capture navigator snapshot: %s", e_n)
+                                logger.debug(
+                                    "Failed to capture navigator snapshot: %s", e_n
+                                )
 
                         except Exception as e_u:
                             logger.debug("Failed to capture UA: %s", e_u)
 
                     except Exception:
-                        logger.debug("Diagnostics capture failed for attempt %d", attempt)
+                        logger.debug(
+                            "Diagnostics capture failed for attempt %d", attempt
+                        )
 
                     # If this was the last attempt, log and let function return False below
                     if attempt == max_attempts:
-                        logger.error("All Selenium navigation attempts failed for %s", url)
+                        logger.error(
+                            "All Selenium navigation attempts failed for %s", url
+                        )
 
             if not success:
                 # If Selenium couldn't navigate successfully, do not fall back to HTTP session
@@ -4355,7 +4443,10 @@ class ContentExtractor:
                         if not self._detect_subscription_wall(driver):
                             return True
             except Exception as driver_exc:
-                logger.warning("Driver operation raised exception during detection: %s; attempting one driver reset and retry", driver_exc)
+                logger.warning(
+                    "Driver operation raised exception during detection: %s; attempting one driver reset and retry",
+                    driver_exc,
+                )
                 try:
                     self.close_persistent_driver()
                     driver = self.get_persistent_driver()
@@ -4381,7 +4472,9 @@ class ContentExtractor:
                                 if not self._detect_subscription_wall(driver):
                                     return True
                     except Exception as e2:
-                        logger.error("Retry detection after driver reset also failed: %s", e2)
+                        logger.error(
+                            "Retry detection after driver reset also failed: %s", e2
+                        )
                         return False
 
                     return True

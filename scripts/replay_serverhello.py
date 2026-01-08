@@ -10,7 +10,6 @@ from the given file and then close the connection (one-shot). Use --loop to serv
 import argparse
 import socket
 import sys
-import time
 
 
 def main():

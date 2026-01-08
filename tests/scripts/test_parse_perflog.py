@@ -1,5 +1,6 @@
 import json
 import tempfile
+
 from scripts.parse_perflog import parse_perflog
 
 
@@ -18,7 +19,10 @@ def test_parse_perflog_minimal():
                 "requestId": "r1",
                 "request": {
                     "url": "https://example.com/article",
-                    "headers": {"User-Agent": "TestUA/1.0", "Cookie": "_px=ABC123; other=1"},
+                    "headers": {
+                        "User-Agent": "TestUA/1.0",
+                        "Cookie": "_px=ABC123; other=1",
+                    },
                 },
                 "type": "Document",
                 "timestamp": 1.0,

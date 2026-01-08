@@ -6,13 +6,11 @@ Designed to be run inside the extraction pod with Xvfb active.
 import os
 import time
 import json
-from urllib.parse import urlparse
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 
 OUT_DIR = '/tmp/scrapfly_artifacts'
 os.makedirs(OUT_DIR, exist_ok=True)

@@ -1,5 +1,6 @@
+from unittest.mock import Mock, patch
+
 import pytest
-from unittest.mock import patch, Mock
 
 from src.crawler import ContentExtractor, ProxyChallengeError
 
@@ -24,7 +25,9 @@ def test_unblock_domain_no_http_fallback_after_selenium(
     extractor = ContentExtractor()
 
     # Ensure _extract_with_unblock_proxy is not called when Selenium already failed
-    mock_unblock.side_effect = AssertionError("_extract_with_unblock_proxy should not be called")
+    mock_unblock.side_effect = AssertionError(
+        "_extract_with_unblock_proxy should not be called"
+    )
 
     with pytest.raises(ProxyChallengeError) as exc_info:
         extractor.extract_content("https://example.com/test-article")

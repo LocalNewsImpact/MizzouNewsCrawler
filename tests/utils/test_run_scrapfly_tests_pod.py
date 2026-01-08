@@ -33,7 +33,9 @@ def test_create_driver_calls_chrome(monkeypatch):
     name = "scripts.run_scrapfly_tests_pod"
     module = importlib.import_module(name)
 
-    drv = module.create_driver(chromedriver_path="/tmp/nonexistent", chrome_bin=None, proxy=None)
+    drv = module.create_driver(
+        chromedriver_path="/tmp/nonexistent", chrome_bin=None, proxy=None
+    )
     assert drv == "fake-driver"
     # Ensure the fake was called with service and options
     assert "service" in called["kwargs"] or len(called["args"]) >= 1

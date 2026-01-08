@@ -71,7 +71,7 @@ def main():
     imported = 0
     if os.path.exists(COOKIE_FILE):
         try:
-            with open(COOKIE_FILE, "r") as f:
+            with open(COOKIE_FILE) as f:
                 cookies = json.load(f)
             # enable network domain
             try:

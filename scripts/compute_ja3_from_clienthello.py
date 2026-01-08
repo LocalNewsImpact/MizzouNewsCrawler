@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Compute JA3 string and MD5 from a ClientHello binary (handshake bytes or record bytes).
 """
-import sys, json, binascii
+import sys
+import json
 from parse_clienthello_simple import parse_clienthello_bytes
 import hashlib
 
@@ -13,11 +14,13 @@ p = sys.argv[1]
 try:
     b = open(p, 'rb').read()
 except Exception as e:
-    print('error reading file', e); sys.exit(1)
+    print('error reading file', e)
+    sys.exit(1)
 try:
     info = parse_clienthello_bytes(b)
 except Exception as e:
-    print('parse error', e); sys.exit(1)
+    print('parse error', e)
+    sys.exit(1)
 
 # version as decimal
 ver = int(info.get('version', '0x0303'), 16)

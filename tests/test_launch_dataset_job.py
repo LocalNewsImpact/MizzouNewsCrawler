@@ -14,8 +14,8 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 from launch_dataset_job import (  # noqa: E402
     CHROME_PROFILE_MOUNT_PATH,
-    CHROME_PROFILE_SECRET_NAME,
     CHROME_PROFILE_PVC_NAME,
+    CHROME_PROFILE_SECRET_NAME,
     create_job_manifest,
     get_current_processor_image,
     launch_job,
@@ -203,7 +203,10 @@ class TestCreateJobManifest:
             for volume in pod_spec["volumes"]
             if volume["name"] == "chrome-profile"
         )
-        assert profile_volume["persistentVolumeClaim"]["claimName"] == CHROME_PROFILE_PVC_NAME
+        assert (
+            profile_volume["persistentVolumeClaim"]["claimName"]
+            == CHROME_PROFILE_PVC_NAME
+        )
 
 
 class TestGetCurrentProcessorImage:

@@ -112,31 +112,7 @@ def main():
         except Exception as e:
             print("Failed to add script injection:", e)
 
-def make_payload(user_agent: str, platform: str = "Win32", accept_language: str = "en-US") -> dict:
-    brands = [{"brand": "Google Chrome", "version": "143"}]
-    full_version_list = [{"brand": "Google Chrome", "version": "143.0.0.0"}]
-    return {
-        "userAgent": user_agent,
-        "userAgentMetadata": {
-            "brands": brands,
-            "fullVersionList": full_version_list,
-            "mobile": False,
-            "platform": platform,
-        },
-        "platform": platform,
-        "acceptLanguage": accept_language,
-    }
-
-
-def align_payload_platform(payload: dict, inject_platform: str) -> dict:
-    if not payload or not inject_platform:
-        return payload
-    payload["platform"] = inject_platform
-    if payload.get("userAgentMetadata") is not None:
-        payload["userAgentMetadata"]["platform"] = inject_platform
-    return payload
-
-
+    # Build the UA/client-hints payload and attempt overrides with fallbacks
     payload = make_payload(args.user_agent)
 
     # If the user requests injection with a specific platform, align the
@@ -145,9 +121,7 @@ def align_payload_platform(payload: dict, inject_platform: str) -> dict:
     # navigator.platform/userAgentData overrides.
     try:
         if args.inject_user_agentdata and getattr(args, "inject_platform", None):
-            payload["platform"] = args.inject_platform
-            if payload.get("userAgentMetadata"):
-                payload["userAgentMetadata"]["platform"] = args.inject_platform
+            payload = align_payload_platform(payload, args.inject_platform)
             print(f"Aligned payload.platform and userAgentMetadata.platform to {args.inject_platform}")
     except Exception:
         pass
@@ -309,6 +283,30 @@ def align_payload_platform(payload: dict, inject_platform: str) -> dict:
         driver.quit()
     except Exception:
         pass
+
+def make_payload(user_agent: str, platform: str = "Win32", accept_language: str = "en-US") -> dict:
+    brands = [{"brand": "Google Chrome", "version": "143"}]
+    full_version_list = [{"brand": "Google Chrome", "version": "143.0.0.0"}]
+    return {
+        "userAgent": user_agent,
+        "userAgentMetadata": {
+            "brands": brands,
+            "fullVersionList": full_version_list,
+            "mobile": False,
+            "platform": platform,
+        },
+        "platform": platform,
+        "acceptLanguage": accept_language,
+    }
+
+
+def align_payload_platform(payload: dict, inject_platform: str) -> dict:
+    if not payload or not inject_platform:
+        return payload
+    payload["platform"] = inject_platform
+    if payload.get("userAgentMetadata") is not None:
+        payload["userAgentMetadata"]["platform"] = inject_platform
+    return payload
 
 
 if __name__ == "__main__":

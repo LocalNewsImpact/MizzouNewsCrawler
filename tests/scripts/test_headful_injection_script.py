@@ -2,11 +2,15 @@ import scripts.headful_client_hints_probe as probe
 
 
 def test_build_injection_script_contains_platform_and_brands():
-    script = probe.build_injection_script(platform="MacIntel", brands=[{"brand": "Google Chrome", "version": "143"}], full_version="143.0.0.0")
+    script = probe.build_injection_script(
+        platform="MacIntel",
+        brands=[{"brand": "Google Chrome", "version": "143"}],
+        full_version="143.0.0.0",
+    )
     assert "MacIntel" in script
     assert '"Google Chrome"' in script
-    assert 'fullVersionList' in script
-    assert 'getHighEntropyValues' in script
+    assert "fullVersionList" in script
+    assert "getHighEntropyValues" in script
 
 
 def test_make_payload_and_align():

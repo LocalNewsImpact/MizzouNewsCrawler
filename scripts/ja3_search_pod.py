@@ -20,7 +20,7 @@ PROGRESS_EVERY = 50
 attempts = 0
 found = None
 
-print("Starting JA3 search (max attempts={})".format(MAX_ATTEMPTS))
+print(f"Starting JA3 search (max attempts={MAX_ATTEMPTS})")
 start_time = time.time()
 for client in CLIENTS:
     print(f"\n== client: {client} ==")

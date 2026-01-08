@@ -24,7 +24,11 @@ def test_set_user_agent_override_includes_client_hints():
         user_agent="UA-from-profile",
         client_hints={
             "platform": "Win32",
-            "userAgentMetadata": {"platform": "Win32", "brands": [{"brand": "Google Chrome", "version": "143"}], "mobile": False},
+            "userAgentMetadata": {
+                "platform": "Win32",
+                "brands": [{"brand": "Google Chrome", "version": "143"}],
+                "mobile": False,
+            },
         },
         accept_language="en-US",
         languages=["en-US"],
@@ -63,7 +67,11 @@ def test_set_user_agent_override_fallback_on_invalid_userAgentMetadata():
         user_agent="UA-from-profile",
         client_hints={
             "platform": "Win32",
-            "userAgentMetadata": {"platform": "Win32", "brands": [{"brand": "Google Chrome", "version": "143"}], "mobile": False},
+            "userAgentMetadata": {
+                "platform": "Win32",
+                "brands": [{"brand": "Google Chrome", "version": "143"}],
+                "mobile": False,
+            },
             "acceptLanguage": "en-US",
         },
         accept_language="en-US",
@@ -91,8 +99,9 @@ def test_set_user_agent_override_fallback_on_invalid_userAgentMetadata():
         any(c == "Emulation.setUserAgentOverride" for c in cmds)
         or any(c == "Network.setExtraHTTPHeaders" for c in cmds)
         or any(
-            c == "Network.setUserAgentOverride" and "userAgentMetadata" not in obj["params"]
-            for obj, c in zip(fake.calls, cmds)
+            c == "Network.setUserAgentOverride"
+            and "userAgentMetadata" not in obj["params"]
+            for obj, c in zip(fake.calls, cmds, strict=False)
         )
     ), f"Expected fallback calls, got: {fake.calls}"
 
@@ -105,7 +114,11 @@ def test_set_user_agent_override_marks_and_skips_full_payload_on_subsequent_call
         user_agent="UA-from-profile",
         client_hints={
             "platform": "Win32",
-            "userAgentMetadata": {"platform": "Win32", "brands": [{"brand": "Google Chrome", "version": "143"}], "mobile": False},
+            "userAgentMetadata": {
+                "platform": "Win32",
+                "brands": [{"brand": "Google Chrome", "version": "143"}],
+                "mobile": False,
+            },
             "acceptLanguage": "en-US",
         },
         accept_language="en-US",
@@ -144,7 +157,11 @@ def test_set_user_agent_override_skips_full_payload_on_chrome_143():
         user_agent="UA-from-profile",
         client_hints={
             "platform": "Win32",
-            "userAgentMetadata": {"platform": "Win32", "brands": [{"brand": "Google Chrome", "version": "143"}], "mobile": False},
+            "userAgentMetadata": {
+                "platform": "Win32",
+                "brands": [{"brand": "Google Chrome", "version": "143"}],
+                "mobile": False,
+            },
             "acceptLanguage": "en-US",
         },
         accept_language="en-US",
@@ -165,4 +182,6 @@ def test_set_user_agent_override_skips_full_payload_on_chrome_143():
     extractor._set_user_agent_override(fake, "Windows UA string")
 
     # No call should include userAgentMetadata because version proactively disabled it
-    assert not any("userAgentMetadata" in c.get("params", {}) for c in fake.calls), fake.calls
+    assert not any(
+        "userAgentMetadata" in c.get("params", {}) for c in fake.calls
+    ), fake.calls

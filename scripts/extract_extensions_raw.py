@@ -3,7 +3,8 @@
 
 Usage: scripts/extract_extensions_raw.py <clienthello.bin> <out.json>
 """
-import sys, json, binascii
+import sys
+import json
 
 if len(sys.argv) < 3:
     print(__doc__)

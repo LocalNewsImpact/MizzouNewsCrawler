@@ -28,21 +28,23 @@ def test_selenium_cookie_import_safe():
 
 def test_many_scripts_import_safe():
     modules = [
-        'scripts.run_scrapfly_tests_pod',
-        'scripts.test_headful_pod',
-        'scripts.test_headful_url_pod',
-        'scripts.test_antidetect_pod',
-        'scripts.test_press_hold_pod',
-        'scripts.test_press_hold_v2_pod',
-        'scripts.test_fingerprint_pod',
-        'scripts.test_webrtc_stub_check',
-        'scripts.test_perimeterx_pod',
-        'scripts.test_webgl_pod',
+        "scripts.run_scrapfly_tests_pod",
+        "scripts.test_headful_pod",
+        "scripts.test_headful_url_pod",
+        "scripts.test_antidetect_pod",
+        "scripts.test_press_hold_pod",
+        "scripts.test_press_hold_v2_pod",
+        "scripts.test_fingerprint_pod",
+        "scripts.test_webrtc_stub_check",
+        "scripts.test_perimeterx_pod",
+        "scripts.test_webgl_pod",
     ]
 
     for name in modules:
         if name in sys.modules:
             del sys.modules[name]
         mod = importlib.import_module(name)
-        assert hasattr(mod, 'main'), f"{name} should expose main()"
-        assert not hasattr(mod, 'driver'), f"{name} should not create a driver at import time"
+        assert hasattr(mod, "main"), f"{name} should expose main()"
+        assert not hasattr(
+            mod, "driver"
+        ), f"{name} should not create a driver at import time"

@@ -6,7 +6,6 @@ Usage: scripts/parse_clienthello_simple.py <file> [file...]
 Outputs JSON with version, cipher_suites, extensions (id, len, hex preview), and key_shares if present.
 """
 import sys
-import struct
 import json
 
 EXT_NAMES = {
@@ -26,7 +25,6 @@ EXT_NAMES = {
     45: "psk_key_exchange_modes",
     51: "key_share",
     57: "client_cert_type",
-    16: "alpn",
 }
 
 
@@ -68,14 +66,14 @@ def parse_clienthello_bytes(b):
     version = (b[off] << 8) | b[off+1]
     off += 2
     # random
-    rnd = b[off:off+32]
+    _rnd = b[off:off+32]
     off += 32
     # session id
     if off >= len(b):
         raise ValueError("no session id len")
     sid_len = b[off]
     off += 1
-    sid = b[off:off+sid_len]
+    _sid = b[off:off+sid_len]
     off += sid_len
     # cipher suites
     if off + 2 > len(b):
@@ -93,7 +91,7 @@ def parse_clienthello_bytes(b):
         raise ValueError("no comp len")
     comp_len = b[off]
     off += 1
-    comp = b[off:off+comp_len]
+    _comp = b[off:off+comp_len]
     off += comp_len
     # extensions
     exts = []
@@ -117,7 +115,7 @@ def parse_clienthello_bytes(b):
             if ext_type == 51:
                 ks = []
                 if len(ext_data) >= 2:
-                    list_len = u16(ext_data, 0)
+                    _list_len = u16(ext_data, 0)
                     pos = 2
                     while pos + 4 <= len(ext_data):
                         group = u16(ext_data, pos)
@@ -133,7 +131,7 @@ def parse_clienthello_bytes(b):
                 curves = []
                 pos = 0
                 if len(ext_data) >= 2:
-                    list_len = u16(ext_data, 0)
+                    _list_len = u16(ext_data, 0)
                     pos = 2
                     while pos + 2 <= len(ext_data):
                         curves.append(u16(ext_data, pos))
@@ -143,9 +141,9 @@ def parse_clienthello_bytes(b):
                 # Supported Points (elliptic point formats)
                 pts = []
                 if len(ext_data) >= 1:
-                    l = ext_data[0]
+                    n_points = ext_data[0]
                     pos = 1
-                    for i in range(l):
+                    for i in range(n_points):
                         if pos + i < len(ext_data):
                             pts.append(ext_data[pos + i])
                 ext["points"] = pts

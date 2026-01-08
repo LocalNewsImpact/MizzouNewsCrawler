@@ -6,7 +6,6 @@ Heuristic JA3 search script
 import itertools
 import json
 import sys
-import time
 from tls_client import Session
 
 TARGET = "1a35fa7b8bc1f11a7ed5e4f1cda22c86"
@@ -20,7 +19,7 @@ TOP_K = 6
 attempts = 0
 found = None
 
-print("Starting heuristic JA3 search (max attempts={})".format(MAX_ATTEMPTS))
+print(f"Starting heuristic JA3 search (max attempts={MAX_ATTEMPTS})")
 for client in CLIENTS:
     print(f"\n== client: {client} ==")
     s_base = Session(client_identifier=client, random_tls_extension_order=False)

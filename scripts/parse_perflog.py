@@ -24,7 +24,7 @@ PX_RE = re.compile(r"(pxhd|pxvid|pxcts|_px[^\s=;:,\"']*)[=:\"']?([A-Za-z0-9_-]{6
 
 
 def parse_perflog(path, domain_filter=None):
-    with open(path, "r") as f:
+    with open(path) as f:
         data = json.load(f)
 
     # Map requestId -> record
