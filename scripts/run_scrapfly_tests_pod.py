@@ -39,7 +39,7 @@ TESTS = [
 ]
 
 PROXY = os.environ.get('SELENIUM_PROXY')
-CHROME_BIN = os.environ.get('CHROME_BIN', '/usr/bin/chromium')
+CHROME_BIN = os.environ.get('CHROME_BIN', '/usr/bin/google-chrome')
 CHROMEDRIVER = os.environ.get('CHROMEDRIVER_PATH', '/home/appuser/chromedriver')
 
 # Selenium options (HEADFUL)

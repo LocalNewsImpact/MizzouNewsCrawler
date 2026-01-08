@@ -20,61 +20,33 @@ FROM ${BASE_IMAGE} AS base-crawler
 RUN apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get update && \
-    (apt-get install -y --no-install-recommends \
-        chromium \
-        chromium-driver \
-        fonts-liberation \
-        libnss3 \
-        libxss1 \
-        xdg-utils \
-        libxdamage1 \
-        libx11-xcb1 \
-        xvfb \
-        xauth \
-        # WebGL/Mesa software rendering (critical for bot detection bypass)
-        libegl1-mesa \
-        libgl1-mesa-dri \
-        libgles2-mesa \
-        libgbm1 \
-        # Audio libraries for AudioContext fingerprinting
-        libasound2 \
-        libpulse0 \
-        # Additional font packages for realistic rendering
-        fonts-noto-color-emoji \
-        fonts-freefont-ttf || \
-     apt-get install -y --no-install-recommends --fix-missing \
-        chromium \
-        chromium-driver \
-        fonts-liberation \
-        libnss3 \
-        libxss1 \
-        xdg-utils \
-        libxdamage1 \
-        libx11-xcb1 \
-        xvfb \
-        xauth \
-        libegl1-mesa \
-        libgl1-mesa-dri \
-        libgles2-mesa \
-        libgbm1 \
-        libasound2 \
-        libpulse0 \
-        fonts-noto-color-emoji \
-        fonts-freefont-ttf) && \
+    apt-get install -y --no-install-recommends \
+        wget ca-certificates gnupg unzip curl \
+        fonts-liberation libnss3 libxss1 xdg-utils libxdamage1 libx11-xcb1 xvfb xauth \
+        libegl1-mesa libgl1-mesa-dri libgles2-mesa libgbm1 libasound2 libpulse0 \
+        fonts-noto-color-emoji fonts-freefont-ttf && \
+    # Add Google Chrome apt repo and install google-chrome-stable
+    wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - && \
+    sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list' && \
+    apt-get update && apt-get install -y --no-install-recommends google-chrome-stable && \
+    # Download matching ChromeDriver for the installed Chrome major version
+    CHROME_VERSION=$(google-chrome --version | awk '{print $3}') && \
+    CHROME_MAJOR=$(echo "$CHROME_VERSION" | cut -d. -f1) && \
+    CHROMEDRIVER_VERSION=$(curl -sS https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_MAJOR}) && \
+    echo "Installing chromedriver version $CHROMEDRIVER_VERSION for Chrome $CHROME_VERSION" && \
+    wget -q -O /tmp/chromedriver_linux64.zip https://chromedriver.storage.googleapis.com/${CHROMEDRIVER_VERSION}/chromedriver_linux64.zip && \
+    unzip /tmp/chromedriver_linux64.zip -d /usr/local/bin && chmod +x /usr/local/bin/chromedriver && \
+    mkdir -p /home/appuser && cp /usr/local/bin/chromedriver /home/appuser/chromedriver && chown appuser:appuser /home/appuser/chromedriver && chmod 755 /home/appuser/chromedriver && \
+    ln -sf /home/appuser/chromedriver /usr/bin/chromedriver && \
     rm -rf /var/lib/apt/lists/* && \
     # Create cache directories for Selenium/undetected-chromedriver
     mkdir -p /opt/chromedriver-cache /home/appuser/.wdm && \
     chmod 777 /opt/chromedriver-cache /home/appuser/.wdm && \
-    # Copy chromedriver to writable location for undetected-chromedriver patching
-    # undetected-chromedriver needs write access to patch the binary
-    cp /usr/bin/chromedriver /home/appuser/chromedriver && \
-    chown appuser:appuser /home/appuser/chromedriver && \
-    chmod 755 /home/appuser/chromedriver && \
     # Install mcookie for XAUTHORITY generation (part of util-linux)
     apt-get update && apt-get install -y --no-install-recommends uuid-runtime && \
     rm -rf /var/lib/apt/lists/* && \
     # Verify installation and version match
-    echo "Chromium version: $(chromium --version)" && \
+    echo "Google Chrome version: $(google-chrome --version)" && \
     echo "ChromeDriver version: $(chromedriver --version)"
 
 WORKDIR /app
@@ -128,7 +100,7 @@ USER appuser
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     CHROMEDRIVER_PATH=/home/appuser/chromedriver \
-    CHROME_BIN=/usr/bin/chromium \
+    CHROME_BIN=/usr/bin/google-chrome \
     DISPLAY=:99 \
     SELENIUM_DRIVER_REUSE_LIMIT=10 \
     LIBGL_ALWAYS_SOFTWARE=1 \

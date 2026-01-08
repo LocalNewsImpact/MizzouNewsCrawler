@@ -139,7 +139,7 @@ docker run -it test-crawler:chromedriver-fix /bin/bash
 $ whoami  # Should be: appuser
 $ ls -la /app/bin/chromedriver
 $ chromedriver --version
-$ chromium --version
+$ google-chrome --version
 $ echo $CHROMEDRIVER_PATH
 $ echo $CHROME_BIN
 $ python3 -c "import os; print('CHROMEDRIVER_PATH:', os.environ.get('CHROMEDRIVER_PATH'))"

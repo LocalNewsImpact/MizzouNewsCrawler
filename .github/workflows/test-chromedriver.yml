@@ -20,15 +20,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Install Chromium and ChromeDriver from APT
+      - name: Install Google Chrome and matching ChromeDriver
         run: |
           sudo apt-get update
-          sudo apt-get install -y chromium chromium-driver
+          sudo apt-get install -y wget ca-certificates gnupg unzip curl
+          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+          sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list'
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+          CHROME_VERSION=$(google-chrome --version | awk '{print $3}')
+          CHROME_MAJOR=$(echo $CHROME_VERSION | cut -d. -f1)
+          DRIVER_VERSION=$(curl -sS https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_MAJOR})
+          wget -q -O /tmp/chromedriver.zip https://chromedriver.storage.googleapis.com/${DRIVER_VERSION}/chromedriver_linux64.zip
+          unzip /tmp/chromedriver.zip -d /usr/local/bin
+          chmod +x /usr/local/bin/chromedriver
+          sudo ln -sf /usr/local/bin/chromedriver /usr/bin/chromedriver
       
       - name: Verify versions match
         run: |
-          echo "=== Chromium ==="
-          chromium --version
+          echo "=== Google Chrome ==="
+          google-chrome --version
           
           echo ""
           echo "=== ChromeDriver ==="
@@ -88,23 +99,23 @@ jobs:
           cat > /tmp/Dockerfile.chromedriver-test <<'EOF'
           FROM python:3.11-slim
           
-          # Install Chromium and ChromeDriver from APT (matching what Dockerfile.crawler does)
+          # Install Google Chrome and matching ChromeDriver (for CI diagnostic)
           RUN apt-get clean && \
               rm -rf /var/lib/apt/lists/* && \
               apt-get update && \
-              apt-get install -y --no-install-recommends \
-                  chromium \
-                  chromium-driver \
-                  fonts-liberation \
-                  libnss3 \
-                  libxss1 \
-                  xdg-utils \
-                  libxdamage1 \
-                  libx11-xcb1 && \
+              apt-get install -y --no-install-recommends wget ca-certificates gnupg unzip curl fonts-liberation libnss3 libxss1 xdg-utils libxdamage1 libx11-xcb1 && \
+              wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - && \
+              sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list' && \
+              apt-get update && apt-get install -y --no-install-recommends google-chrome-stable && \
+              CHROME_VERSION=$(google-chrome --version | awk '{print $3}') && \
+              CHROME_MAJOR=$(echo $CHROME_VERSION | cut -d. -f1) && \
+              CHROMEDRIVER_VERSION=$(curl -sS https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_MAJOR}) && \
+              wget -q -O /tmp/chromedriver_linux64.zip https://chromedriver.storage.googleapis.com/${CHROMEDRIVER_VERSION}/chromedriver_linux64.zip && \
+              unzip /tmp/chromedriver_linux64.zip -d /usr/local/bin && chmod +x /usr/local/bin/chromedriver && ln -sf /usr/local/bin/chromedriver /usr/bin/chromedriver && \
               rm -rf /var/lib/apt/lists/* && \
               mkdir -p /opt/chromedriver-cache /home/appuser/.wdm && \
               chmod 777 /opt/chromedriver-cache /home/appuser/.wdm && \
-              echo "Chromium version: $(chromium --version)" && \
+              echo "Google Chrome version: $(google-chrome --version)" && \
               echo "ChromeDriver version: $(chromedriver --version)"
           
           CMD ["/bin/bash"]
@@ -115,21 +126,21 @@ jobs:
       - name: Verify versions in container
         run: |
           docker run --rm chromedriver-test:ci bash -c '
-            echo "=== Chromium ==="
-            chromium --version
-            
+            echo "=== Google Chrome ==="
+            google-chrome --version
+
             echo ""
             echo "=== ChromeDriver ==="
             chromedriver --version
-            
+
             echo ""
             echo "=== Compatibility Check ==="
-            CHROME_MAJOR=$(chromium --version | grep -oP "\d+" | head -1)
-            DRIVER_MAJOR=$(chromedriver --version | grep -oP "\d+" | head -1)
-            
+            CHROME_MAJOR=$(google-chrome --version | grep -oP "\\d+" | head -1)
+            DRIVER_MAJOR=$(chromedriver --version | grep -oP "\\d+" | head -1)
+
             echo "Chrome major: $CHROME_MAJOR"
             echo "Driver major: $DRIVER_MAJOR"
-            
+
             if [ "$CHROME_MAJOR" = "$DRIVER_MAJOR" ]; then
               echo "✅ PASS: Versions match exactly!"
             else
@@ -137,6 +148,24 @@ jobs:
               exit 1
             fi
           '
+
+      - name: Run UA metadata diagnostic in container
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE":/workspace -w /workspace chromedriver-test:ci bash -lc '
+            pip install --no-cache-dir undetected-chromedriver
+            python3 scripts/diagnose_user_agent_metadata.py > /tmp/diag.json || true
+            python3 - <<PY
+import json,sys
+r=json.load(open("/tmp/diag.json"))
+for e in r:
+    if e.get("test")=="full_payload":
+        if not e.get("ok"):
+            print("❌ full_payload not accepted")
+            sys.exit(1)
+print("✅ full_payload accepted")
+PY
+          '
+
       
       - name: Test Selenium initialization
         run: |
