@@ -26,17 +26,14 @@ RUN apt-get clean && \
         libegl1-mesa libgl1-mesa-dri libgles2-mesa libgbm1 libasound2 libpulse0 \
         fonts-noto-color-emoji fonts-freefont-ttf && \
     # Add Google Chrome apt repo and install google-chrome-stable
-    wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - && \
-    sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list' && \
+    wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google-chrome-archive-keyring.gpg && \
+    sh -c 'echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome-archive-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list' && \
     apt-get update && apt-get install -y --no-install-recommends google-chrome-stable && \
-    # Download matching ChromeDriver for the installed Chrome major version
-    CHROME_VERSION=$(google-chrome --version | awk '{print $3}') && \
-    CHROME_MAJOR=$(echo "$CHROME_VERSION" | cut -d. -f1) && \
-    CHROMEDRIVER_VERSION=$(curl -sS https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_MAJOR}) && \
-    echo "Installing chromedriver version $CHROMEDRIVER_VERSION for Chrome $CHROME_VERSION" && \
-    wget -q -O /tmp/chromedriver_linux64.zip https://chromedriver.storage.googleapis.com/${CHROMEDRIVER_VERSION}/chromedriver_linux64.zip && \
-    unzip /tmp/chromedriver_linux64.zip -d /usr/local/bin && chmod +x /usr/local/bin/chromedriver && \
-    mkdir -p /home/appuser && cp /usr/local/bin/chromedriver /home/appuser/chromedriver && chown appuser:appuser /home/appuser/chromedriver && chmod 755 /home/appuser/chromedriver && \
+    # Install chromedriver using chromedriver-autoinstaller (fetches compatible version)
+    pip install --no-cache-dir chromedriver-autoinstaller && \
+    CHROMEDRIVER_PATH=$(python -c "import chromedriver_autoinstaller as c; print(c.install())") && \
+    echo "Installing chromedriver from $CHROMEDRIVER_PATH" && \
+    mkdir -p /home/appuser && cp "$CHROMEDRIVER_PATH" /home/appuser/chromedriver && chown appuser:appuser /home/appuser/chromedriver && chmod 755 /home/appuser/chromedriver && \
     ln -sf /home/appuser/chromedriver /usr/bin/chromedriver && \
     rm -rf /var/lib/apt/lists/* && \
     # Create cache directories for Selenium/undetected-chromedriver
