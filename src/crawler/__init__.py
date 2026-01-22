@@ -1687,6 +1687,7 @@ class ContentExtractor:
             supported: Whether AMP is supported
         """
         from sqlalchemy import text
+
         from src.models.database import DatabaseManager
 
         try:
@@ -1729,6 +1730,7 @@ class ContentExtractor:
 
         try:
             from sqlalchemy import text
+
             from src.models.database import DatabaseManager
 
             db = DatabaseManager()

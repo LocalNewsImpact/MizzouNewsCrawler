@@ -5,12 +5,12 @@ Tests the actual behavior with mocked HTTP responses that simulate
 real PerimeterX scenarios.
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
-from datetime import datetime
-
 import sys
+from datetime import datetime
 from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 src_path = Path(__file__).parent.parent / "src"
 sys.path.insert(0, str(src_path))

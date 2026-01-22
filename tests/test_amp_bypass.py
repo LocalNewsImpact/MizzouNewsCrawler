@@ -4,13 +4,13 @@ Unit tests for AMP bypass functionality in ContentExtractor.
 Tests the automatic AMP URL detection and conversion for PerimeterX-protected sites.
 """
 
-import pytest
-from unittest.mock import Mock, MagicMock, patch, call
-from urllib.parse import urlparse
-
 # Import the ContentExtractor
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock, Mock, call, patch
+from urllib.parse import urlparse
+
+import pytest
 
 src_path = Path(__file__).parent.parent / "src"
 sys.path.insert(0, str(src_path))
