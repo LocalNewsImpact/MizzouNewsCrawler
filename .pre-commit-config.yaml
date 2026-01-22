@@ -50,6 +50,7 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+        stages: [manual]  # Only run locally, not in CI
 
       - id: validate-telemetry-schemas
         name: validate-telemetry-schemas

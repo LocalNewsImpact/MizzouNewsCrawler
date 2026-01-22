@@ -69,7 +69,7 @@ jobs:
               CHROMEDRIVER_PATH=$(python3 - <<PY
                 import chromedriver_autoinstaller as c
                 print(c.install())
-                PY
+PY
                 )
               if [ -z "$CHROMEDRIVER_PATH" ]; then
                 echo "ERROR: chromedriver-autoinstaller failed"
