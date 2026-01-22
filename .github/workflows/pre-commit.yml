@@ -30,6 +30,6 @@ jobs:
           pip install pre-commit
 
       - name: Run pre-commit hooks
-        uses: pre-commit/action@v3.4.0
+        uses: pre-commit/action@v3.0.1
         with:
           extra_args: --show-diff-on-failure

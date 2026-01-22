@@ -66,11 +66,11 @@ jobs:
             else
               echo "Chromedriver release not found on storage; falling back to chromedriver-autoinstaller (last resort)"
               python3 -m pip install --quiet chromedriver-autoinstaller || true
-              CHROMEDRIVER_PATH=$(python3 - <<'PY'
-import chromedriver_autoinstaller as c
-print(c.install())
-PY
-)
+              CHROMEDRIVER_PATH=$(python3 - <<PY
+                import chromedriver_autoinstaller as c
+                print(c.install())
+                PY
+                )
               if [ -z "$CHROMEDRIVER_PATH" ]; then
                 echo "ERROR: chromedriver-autoinstaller failed"
                 exit 3
@@ -228,36 +228,36 @@ PY
           docker run --rm -v "$GITHUB_WORKSPACE":/workspace -w /workspace chromedriver-test:ci bash -lc '
             pip install --no-cache-dir undetected-chromedriver
             python3 scripts/diagnose_user_agent_metadata.py > /tmp/diag.json || true
-            python3 - <<'PY'
-import json,sys
-r=json.load(open("/tmp/diag.json"))
+            python3 - <<PY
+            import json,sys
+            r=json.load(open("/tmp/diag.json"))
 
-# Prefer full_payload acceptance, but accept graceful fallbacks for newer Chrome
-def passed(test_name):
-    for e in r:
-        if e.get("test")==test_name:
-            return e.get("ok")
-    return False
+            # Prefer full_payload acceptance, but accept graceful fallbacks for newer Chrome
+            def passed(test_name):
+                for e in r:
+                    if e.get("test")==test_name:
+                        return e.get("ok")
+                return False
 
-if passed("full_payload_exact"):
-    print("✅ full_payload_exact accepted")
-    sys.exit(0)
+            if passed("full_payload_exact"):
+                print("✅ full_payload_exact accepted")
+                sys.exit(0)
 
-if passed("full_payload"):
-    print("✅ full_payload accepted")
-    sys.exit(0)
+            if passed("full_payload"):
+                print("✅ full_payload accepted")
+                sys.exit(0)
 
-if passed("top_platform_only"):
-    print("⚠️ full_payload rejected; top_platform_only accepted — continuing")
-    sys.exit(0)
+            if passed("top_platform_only"):
+                print("⚠️ full_payload rejected; top_platform_only accepted — continuing")
+                sys.exit(0)
 
-if passed("base_user_agent"):
-    print("⚠️ full_payload rejected; base_user_agent accepted — continuing")
-    sys.exit(0)
+            if passed("base_user_agent"):
+                print("⚠️ full_payload rejected; base_user_agent accepted — continuing")
+                sys.exit(0)
 
-print("❌ UA metadata checks failed (full_payload and fallbacks not accepted)")
-sys.exit(1)
-PY
+            print("❌ UA metadata checks failed (full_payload and fallbacks not accepted)")
+            sys.exit(1)
+            PY
           '
 
 
