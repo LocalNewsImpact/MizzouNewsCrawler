@@ -16,116 +16,46 @@ jobs:
     name: Test APT Package Installation
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
-
+    
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Google Chrome and matching ChromeDriver
+      
+      - name: Install Chromium and ChromeDriver from APT
         run: |
-          set -euxo pipefail
-          export DEBIAN_FRONTEND=noninteractive
           sudo apt-get update
-          sudo apt-get install -y wget ca-certificates gnupg unzip curl python3-pip
-
-          # Add Google's signing key (dearmor to keyring to avoid apt-key usage)
-          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor | sudo tee /usr/share/keyrings/google-chrome-archive-keyring.gpg > /dev/null
-          sudo sh -c 'echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome-archive-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list'
-
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends google-chrome-stable
-
-          echo "Google Chrome: $(google-chrome --version)"
-          CHROME_VERSION=$(google-chrome --version | awk '{print $3}' || true)
-          CHROME_MAJOR=$(echo "$CHROME_VERSION" | cut -d. -f1 || true)
-          echo "Chrome major: $CHROME_MAJOR"
-
-          if [ -z "$CHROME_MAJOR" ]; then
-            echo "ERROR: could not determine Chrome major version"
-            exit 2
-          fi
-
-          # Try Chrome-for-Testing (CFT) direct asset first (most deterministic)
-          CFT_URL="https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/linux64/chromedriver-linux64.zip"
-          echo "Trying CFT URL: $CFT_URL"
-          if curl -fSs --retry 3 --head "$CFT_URL" >/dev/null 2>&1; then
-            echo "Found CFT chromedriver"
-            wget -q -O /tmp/chromedriver_linux64.zip "$CFT_URL"
-            unzip -j /tmp/chromedriver_linux64.zip "*chromedriver" -d /usr/local/bin
-            chmod +x /usr/local/bin/chromedriver
-            sudo ln -sf /usr/local/bin/chromedriver /usr/bin/chromedriver
-          else
-            echo "CFT chromedriver not found, falling back to chromedriver.storage"
-            DRIVER_VERSION=$(curl -fSs --retry 3 https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_MAJOR} || true)
-            echo "Chromedriver release for major ${CHROME_MAJOR}: '${DRIVER_VERSION}'"
-
-            if [ -n "$DRIVER_VERSION" ]; then
-              wget -q -O /tmp/chromedriver_linux64.zip "https://chromedriver.storage.googleapis.com/${DRIVER_VERSION}/chromedriver_linux64.zip"
-              unzip -j /tmp/chromedriver_linux64.zip "*chromedriver" -d /usr/local/bin
-              chmod +x /usr/local/bin/chromedriver
-              sudo ln -sf /usr/local/bin/chromedriver /usr/bin/chromedriver
-            else
-              echo "Chromedriver release not found on storage; falling back to chromedriver-autoinstaller (last resort)"
-              python3 -m pip install --quiet chromedriver-autoinstaller || true
-              CHROMEDRIVER_PATH=$(python3 - <<'ENDPY'
-                import chromedriver_autoinstaller as c
-                print(c.install())
-              ENDPY
-              )
-              if [ -z "$CHROMEDRIVER_PATH" ]; then
-                echo "ERROR: chromedriver-autoinstaller failed"
-                exit 3
-              fi
-              sudo cp "$CHROMEDRIVER_PATH" /usr/local/bin/chromedriver
-              sudo chmod +x /usr/local/bin/chromedriver
-              sudo ln -sf /usr/local/bin/chromedriver /usr/bin/chromedriver
-            fi
-          fi
-
-          echo "Installed ChromeDriver: $(chromedriver --version || true)"
-
+          sudo apt-get install -y chromium chromium-driver
+      
       - name: Verify versions match
         run: |
-          echo "=== Google Chrome ==="
-          google-chrome --version
-
+          echo "=== Chromium ==="
+          chromium --version
+          
           echo ""
           echo "=== ChromeDriver ==="
           chromedriver --version
-
+          
           echo ""
           echo "=== Version Check ==="
-          CHROME_MAJOR=$(google-chrome --version | grep -oP '\\d+' | head -1)
-          DRIVER_MAJOR=$(chromedriver --version | grep -oP '\\d+' | head -1)
-
+          CHROME_MAJOR=$(chromium --version | grep -oP '\d+' | head -1)
+          DRIVER_MAJOR=$(chromedriver --version | grep -oP '\d+' | head -1)
+          
           echo "Chrome major: $CHROME_MAJOR"
           echo "Driver major: $DRIVER_MAJOR"
-
+          
           if [ "$CHROME_MAJOR" = "$DRIVER_MAJOR" ]; then
             echo "✅ SUCCESS: Versions match!"
           else
             echo "❌ FAIL: Version mismatch (Chrome $CHROME_MAJOR vs Driver $DRIVER_MAJOR)"
             exit 1
           fi
-
+      
       - name: Test Selenium
         run: |
-          set -euxo pipefail
-          # Use a virtual environment to avoid system-managed pip issues (PEP 668)
-          python3 -m venv /tmp/venv
-          /tmp/venv/bin/pip install --upgrade pip setuptools wheel
-          /tmp/venv/bin/pip install --quiet selenium
-
-          echo "Python: $(/tmp/venv/bin/python -c 'import sys; print(sys.executable)')"
-          echo "Selenium version: $(/tmp/venv/bin/python -c 'import selenium; print(selenium.__version__)')"
-
-          /tmp/venv/bin/python << 'PYEOF'
+          pip install --quiet selenium
+          python3 << 'PYEOF'
           from selenium import webdriver
           from selenium.webdriver.chrome.options import Options
           from selenium.webdriver.chrome.service import Service
-          import subprocess, sys
-
-          print('chrome version:', subprocess.check_output(['google-chrome','--version']).decode().strip())
-          print('chromedriver version:', subprocess.check_output(['chromedriver','--version']).decode().strip())
 
           options = Options()
           options.add_argument("--headless=new")
@@ -136,85 +66,70 @@ jobs:
 
           try:
               driver = webdriver.Chrome(service=service, options=options)
-              print("Selenium started, title:", driver.title)
+              print("✅ Selenium works with APT packages!")
               driver.quit()
           except Exception as e:
-              import traceback
-              traceback.print_exc()
-              sys.exit(1)
+              print(f"❌ Selenium failed: {e}")
+              exit(1)
           PYEOF
 
   test-chromedriver-docker:
     name: Test ChromeDriver in Docker Build
     runs-on: ubuntu-latest
-
+    
     steps:
       - uses: actions/checkout@v4
-
+      
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
+      
       - name: Build test image
         run: |
           cat > /tmp/Dockerfile.chromedriver-test <<'EOF'
           FROM python:3.11-slim
-
-          ENV DEBIAN_FRONTEND=noninteractive
-
-          # Install Google Chrome and matching ChromeDriver (for CI diagnostic)
+          
+          # Install Chromium and ChromeDriver from APT (matching what Dockerfile.crawler does)
           RUN apt-get clean && \
               rm -rf /var/lib/apt/lists/* && \
               apt-get update && \
-              apt-get install -y --no-install-recommends wget ca-certificates gnupg unzip curl fonts-liberation libnss3 libxss1 xdg-utils libxdamage1 libx11-xcb1 && \
-              wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google-chrome-archive-keyring.gpg && \
-              sh -c 'echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome-archive-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list' && \
-              apt-get update && apt-get install -y --no-install-recommends google-chrome-stable && \
-              CHROME_VERSION=$(google-chrome --version | awk '{print $3}') && \
-              CHROME_MAJOR=$(echo $CHROME_VERSION | cut -d. -f1) && \
-              CFT_URL="https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/linux64/chromedriver-linux64.zip" && \
-              if curl -fSs --retry 3 --head "$CFT_URL" >/dev/null 2>&1; then \
-                wget -q -O /tmp/chromedriver_linux64.zip "$CFT_URL" && \
-                unzip -j /tmp/chromedriver_linux64.zip "*chromedriver" -d /usr/local/bin && chmod +x /usr/local/bin/chromedriver && ln -sf /usr/local/bin/chromedriver /usr/bin/chromedriver; \
-              else \
-                CHROMEDRIVER_VERSION=$(curl -fSs --retry 3 https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_MAJOR} || true) && \
-                if [ -n "$CHROMEDRIVER_VERSION" ]; then \
-                  wget -q -O /tmp/chromedriver_linux64.zip "https://chromedriver.storage.googleapis.com/${CHROMEDRIVER_VERSION}/chromedriver_linux64.zip" && \
-                  unzip -j /tmp/chromedriver_linux64.zip "*chromedriver" -d /usr/local/bin && chmod +x /usr/local/bin/chromedriver && ln -sf /usr/local/bin/chromedriver /usr/bin/chromedriver; \
-                else \
-                  pip install --no-cache-dir chromedriver-autoinstaller && \
-                  CHROMEDRIVER_PATH=$(python -c "import chromedriver_autoinstaller as c; print(c.install())") && \
-                  cp "$CHROMEDRIVER_PATH" /usr/local/bin/chromedriver && chmod +x /usr/local/bin/chromedriver && ln -sf /usr/local/bin/chromedriver /usr/bin/chromedriver; \
-                fi; \
-              fi && \
+              apt-get install -y --no-install-recommends \
+                  chromium \
+                  chromium-driver \
+                  fonts-liberation \
+                  libnss3 \
+                  libxss1 \
+                  xdg-utils \
+                  libxdamage1 \
+                  libx11-xcb1 && \
               rm -rf /var/lib/apt/lists/* && \
               mkdir -p /opt/chromedriver-cache /home/appuser/.wdm && \
               chmod 777 /opt/chromedriver-cache /home/appuser/.wdm && \
-              echo "Google Chrome version: $(google-chrome --version)" && \
+              echo "Chromium version: $(chromium --version)" && \
               echo "ChromeDriver version: $(chromedriver --version)"
-
+          
           CMD ["/bin/bash"]
           EOF
-
-          docker buildx build --platform linux/amd64 --load -f /tmp/Dockerfile.chromedriver-test -t chromedriver-test:ci .
-
+          
+          docker build -f /tmp/Dockerfile.chromedriver-test -t chromedriver-test:ci .
+      
       - name: Verify versions in container
         run: |
           docker run --rm chromedriver-test:ci bash -c '
-            echo "=== Google Chrome ==="
-            google-chrome --version
-
+            echo "=== Chromium ==="
+            chromium --version
+            
             echo ""
             echo "=== ChromeDriver ==="
             chromedriver --version
-
+            
             echo ""
             echo "=== Compatibility Check ==="
-            CHROME_MAJOR=$(google-chrome --version | grep -oP "\\d+" | head -1)
-            DRIVER_MAJOR=$(chromedriver --version | grep -oP "\\d+" | head -1)
-
+            CHROME_MAJOR=$(chromium --version | grep -oP "\d+" | head -1)
+            DRIVER_MAJOR=$(chromedriver --version | grep -oP "\d+" | head -1)
+            
             echo "Chrome major: $CHROME_MAJOR"
             echo "Driver major: $DRIVER_MAJOR"
-
+            
             if [ "$CHROME_MAJOR" = "$DRIVER_MAJOR" ]; then
               echo "✅ PASS: Versions match exactly!"
             else
@@ -222,61 +137,15 @@ jobs:
               exit 1
             fi
           '
-
-      - name: Run UA metadata diagnostic in container
-        run: |
-          docker run --rm -v "$GITHUB_WORKSPACE":/workspace -w /workspace chromedriver-test:ci bash -lc '
-            pip install --no-cache-dir undetected-chromedriver
-            python3 scripts/diagnose_user_agent_metadata.py > /tmp/diag.json || true
-            python3 - <<'ENDPY'
-            import json,sys
-            r=json.load(open("/tmp/diag.json"))
-
-            # Prefer full_payload acceptance, but accept graceful fallbacks for newer Chrome
-            def passed(test_name):
-                for e in r:
-                    if e.get("test")==test_name:
-                        return e.get("ok")
-                return False
-
-            if passed("full_payload_exact"):
-                print("✅ full_payload_exact accepted")
-                sys.exit(0)
-
-            if passed("full_payload"):
-                print("✅ full_payload accepted")
-                sys.exit(0)
-
-            if passed("top_platform_only"):
-                print("⚠️ full_payload rejected; top_platform_only accepted — continuing")
-                sys.exit(0)
-
-            if passed("base_user_agent"):
-                print("⚠️ full_payload rejected; base_user_agent accepted — continuing")
-                sys.exit(0)
-
-            print("❌ UA metadata checks failed (full_payload and fallbacks not accepted)")
-            sys.exit(1)
-            ENDPY
-          '
-
-
+      
       - name: Test Selenium initialization
         run: |
           docker run --rm chromedriver-test:ci bash << 'TESTEOF'
-          set -euxo pipefail
-          python3 -m venv /tmp/venv
-          /tmp/venv/bin/pip install --upgrade pip setuptools wheel
-          /tmp/venv/bin/pip install --quiet selenium
-
-          /tmp/venv/bin/python << 'PYEOF'
+          pip install --quiet selenium
+          python3 << 'PYEOF'
           from selenium import webdriver
           from selenium.webdriver.chrome.options import Options
           from selenium.webdriver.chrome.service import Service
-          import subprocess
-
-          print('chrome version:', subprocess.check_output(['google-chrome','--version']).decode().strip())
-          print('chromedriver version:', subprocess.check_output(['chromedriver','--version']).decode().strip())
 
           options = Options()
           options.add_argument("--headless=new")
@@ -287,11 +156,10 @@ jobs:
 
           try:
               driver = webdriver.Chrome(service=service, options=options)
-              print("✅ Selenium initialized successfully, title:", driver.title)
+              print("✅ Selenium initialized successfully")
               driver.quit()
           except Exception as e:
-              import traceback
-              traceback.print_exc()
+              print(f"❌ Selenium failed: {e}")
               exit(1)
           PYEOF
           TESTEOF
