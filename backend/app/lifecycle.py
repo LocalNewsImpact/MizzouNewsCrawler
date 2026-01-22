@@ -99,9 +99,9 @@ def _configure_http_session_proxies(session: requests.Session) -> None:
 
 async def startup_resources(app: FastAPI) -> None:
     """Initialize shared resources for the FastAPI app.
-    
+
     This function can be called from a lifespan context manager or directly.
-    
+
     Args:
         app: The FastAPI application instance
     """
@@ -188,9 +188,9 @@ async def startup_resources(app: FastAPI) -> None:
 
 async def shutdown_resources(app: FastAPI) -> None:
     """Clean up shared resources gracefully.
-    
+
     This function can be called from a lifespan context manager or directly.
-    
+
     Args:
         app: The FastAPI application instance
     """

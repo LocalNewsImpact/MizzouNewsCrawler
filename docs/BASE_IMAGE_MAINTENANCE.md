@@ -474,7 +474,7 @@ ERROR: Cannot install package-a and package-b because these package versions hav
    ```bash
    # Review requirements-base.txt
    vim requirements-base.txt
-   
+
    # Loosen version constraints
    # Bad: package==1.2.3
    # Good: package>=1.2.0,<2.0.0
@@ -538,7 +538,7 @@ Base image takes 20+ minutes to build
    # Copy requirements first (changes rarely)
    COPY requirements-base.txt .
    RUN pip install -r requirements-base.txt
-   
+
    # Copy code last (changes frequently)
    COPY src/ ./src/
    ```

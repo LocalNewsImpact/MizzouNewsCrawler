@@ -21,7 +21,7 @@ on:
   workflow_dispatch: {}
 ```
 
-**Impact:** 
+**Impact:**
 - Smoke proxy tests now only run on pushes to `main` branch or PRs targeting `main`
 - Will NOT run on feature branches like `feature/gcp-kubernetes-deployment`
 - Still allows manual triggering via `workflow_dispatch`

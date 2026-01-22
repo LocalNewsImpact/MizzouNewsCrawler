@@ -1,7 +1,7 @@
 # Bot Blocking Deployment - Initial Status Report
 
-**Time:** 16:10 UTC (10 minutes post-deployment)  
-**Deployment:** processor:5f8ff4b  
+**Time:** 16:10 UTC (10 minutes post-deployment)
+**Deployment:** processor:5f8ff4b
 **Status:** ⚠️ PARTIAL SUCCESS - Detection Working, Still Blocked
 
 ---
@@ -12,7 +12,7 @@
 
 **Error:**
 ```
-Readiness probe errored and resulted in unknown state: 
+Readiness probe errored and resulted in unknown state:
 command timed out: "python -c import sys; sys.exit(0)" timed out after 5s
 ```
 
@@ -85,7 +85,7 @@ Total articles extracted: 0
 1. **New Code Deployed:**
    - 13 modern User-Agents (Chrome 127-129, Firefox 130-131)
    - Bot protection detection method active
-   
+
 2. **Detection Logic Working:**
    - Successfully identifying CAPTCHA challenges
    - Applying 10-90 minute backoffs correctly
@@ -250,7 +250,7 @@ readinessProbe:
 
 **Query every 15 minutes:**
 ```sql
-SELECT 
+SELECT
   created_at,
   host,
   http_status_code,
@@ -271,8 +271,8 @@ LIMIT 20;
 
 **Group domains by protection:**
 ```sql
-SELECT 
-  CASE 
+SELECT
+  CASE
     WHEN error_message ILIKE '%px-captcha%' THEN 'PerimeterX'
     WHEN error_message ILIKE '%cloudflare%' THEN 'Cloudflare'
     WHEN http_status_code = 403 THEN '403 Block'
@@ -345,6 +345,6 @@ The improvements laid the foundation. Now we need to add **browser automation** 
 
 ---
 
-**Report Time:** October 10, 2025 16:15 UTC  
-**Next Update:** 18:00 UTC (after backoffs expire)  
+**Report Time:** October 10, 2025 16:15 UTC
+**Next Update:** 18:00 UTC (after backoffs expire)
 **Status:** ⚠️ Investigating - Not a failure, need additional strategy

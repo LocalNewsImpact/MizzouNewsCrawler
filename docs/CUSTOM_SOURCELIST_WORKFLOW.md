@@ -5,7 +5,7 @@
 This workflow allows you to process articles from a **separate source list** that is completely **isolated from Missouri records**. It provides a full pipeline including:
 
 - ✅ Gazetteer creation
-- ✅ Content extraction  
+- ✅ Content extraction
 - ✅ Byline cleaning
 - ✅ Wire/opinion detection
 - ✅ ML classification
@@ -106,7 +106,7 @@ python scripts/custom_sourcelist_workflow.py export \
 
 **Output columns:**
 - Title
-- Author  
+- Author
 - URL
 - Publish Date
 - Article Body (full text)
@@ -158,7 +158,7 @@ db = DatabaseManager()
 session = db.get_session().__enter__()
 
 result = session.execute(text('''
-    SELECT 
+    SELECT
         COALESCE(c.dataset_id, 'none') as dataset,
         COUNT(*) as count
     FROM articles a
@@ -233,7 +233,7 @@ CREATE TABLE datasets (
     is_public BOOLEAN DEFAULT FALSE
 );
 
--- Source table  
+-- Source table
 CREATE TABLE sources (
     id TEXT PRIMARY KEY,
     host TEXT NOT NULL,
@@ -287,7 +287,7 @@ JOIN candidate_links c ON a.candidate_link_id = c.id
 WHERE c.dataset_id = (SELECT id FROM datasets WHERE slug = 'special-project-2025');
 
 -- Count articles by status
-SELECT a.status, COUNT(*) 
+SELECT a.status, COUNT(*)
 FROM articles a
 JOIN candidate_links c ON a.candidate_link_id = c.id
 WHERE c.dataset_id = (SELECT id FROM datasets WHERE slug = 'special-project-2025')
@@ -295,7 +295,7 @@ GROUP BY a.status;
 
 -- Find wire service articles
 SELECT a.title, a.wire
-FROM articles a  
+FROM articles a
 JOIN candidate_links c ON a.candidate_link_id = c.id
 WHERE c.dataset_id = (SELECT id FROM datasets WHERE slug = 'special-project-2025')
   AND a.wire IS NOT NULL;
@@ -342,8 +342,8 @@ db = DatabaseManager()
 session = db.get_session().__enter__()
 
 result = session.execute(text('''
-    SELECT status, COUNT(*) 
-    FROM candidate_links 
+    SELECT status, COUNT(*)
+    FROM candidate_links
     WHERE dataset_id = (SELECT id FROM datasets WHERE slug = 'special-project-2025')
     GROUP BY status
 ''')).fetchall()
@@ -443,7 +443,7 @@ spec:
 ### Extraction Speed
 
 - **Single article**: ~2-5 seconds
-- **Batch of 10**: ~30 seconds  
+- **Batch of 10**: ~30 seconds
 - **100 articles**: ~5-10 minutes
 
 ### Database Size

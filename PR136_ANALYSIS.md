@@ -197,7 +197,7 @@ discovery = NewsDiscovery(database_url="postgresql://test:test@localhost:5432/te
 
 ### Test File: `tests/test_telemetry_database_resolution.py`
 
-**Total Tests**: 17  
+**Total Tests**: 17
 **Status**: All passing ✅
 
 #### Coverage Matrix
@@ -231,7 +231,7 @@ discovery = NewsDiscovery(database_url="postgresql://test:test@localhost:5432/te
 1. **Database URL Exposure**: ❌ Not a concern
    - URLs already in environment variables
    - Not logged or exposed by changes
-   
+
 2. **Exception Handling**: ✅ Appropriate
    - Broad exception handler in `_resolve_database_url` is safe
    - Only returns fallback value, doesn't expose error details
@@ -259,7 +259,7 @@ discovery = NewsDiscovery(database_url="postgresql://test:test@localhost:5432/te
    - **Cost**: Module already imported in most cases
    - **Impact**: ❌ Not measurable
 
-3. **Database Connections**: 
+3. **Database Connections**:
    - **Before**: Two connections (discovery + telemetry with different DBs)
    - **After**: One connection pool (shared via DatabaseManager)
    - **Impact**: ✅ **Improvement** (reduced connection overhead)
@@ -276,7 +276,7 @@ Performance impact is **neutral to positive**. No performance concerns.
 
 ### Compatible Scenarios
 
-1. **Explicit URL**: 
+1. **Explicit URL**:
    ```python
    NewsDiscovery(database_url="sqlite:///data/test.db")
    ```
@@ -367,6 +367,6 @@ The fix properly addresses the issue, is well-tested, and poses minimal risk to 
 - [x] Backward compatibility verified
 - [x] Risk assessment complete
 
-**Reviewed by**: GitHub Copilot  
-**Date**: 2024-11-02  
+**Reviewed by**: GitHub Copilot
+**Date**: 2024-11-02
 **Status**: ✅ **APPROVED FOR DEPLOYMENT**

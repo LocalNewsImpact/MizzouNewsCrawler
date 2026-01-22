@@ -91,15 +91,15 @@ const BylineReviewInterface = () => {
         const newItems = [...pendingItems];
         newItems.splice(currentIndex, 1);
         setPendingItems(newItems);
-        
+
         // Adjust index if needed
         if (currentIndex >= newItems.length && newItems.length > 0) {
           setCurrentIndex(newItems.length - 1);
         }
-        
+
         // Clear notes for next item
         setReviewNotes('');
-        
+
         // Refresh stats
         fetchStats();
       } else {
@@ -222,16 +222,16 @@ const BylineReviewInterface = () => {
               Byline Review ({currentIndex + 1} of {pendingItems.length})
             </Typography>
             <Stack direction="row" spacing={1}>
-              <Button 
-                size="small" 
-                onClick={goToPrevious} 
+              <Button
+                size="small"
+                onClick={goToPrevious}
                 disabled={currentIndex === 0}
               >
                 Previous
               </Button>
-              <Button 
-                size="small" 
-                onClick={goToNext} 
+              <Button
+                size="small"
+                onClick={goToNext}
                 disabled={currentIndex === pendingItems.length - 1}
               >
                 Next
@@ -247,10 +247,10 @@ const BylineReviewInterface = () => {
               <Typography variant="subtitle2" gutterBottom>
                 Original Byline:
               </Typography>
-              <Box sx={{ 
-                p: 2, 
-                bgcolor: 'grey.100', 
-                borderRadius: 1, 
+              <Box sx={{
+                p: 2,
+                bgcolor: 'grey.100',
+                borderRadius: 1,
                 fontFamily: 'monospace',
                 fontSize: '0.9rem'
               }}>
@@ -262,10 +262,10 @@ const BylineReviewInterface = () => {
               <Typography variant="subtitle2" gutterBottom>
                 Cleaned Result:
               </Typography>
-              <Box sx={{ 
-                p: 2, 
-                bgcolor: 'success.50', 
-                borderRadius: 1, 
+              <Box sx={{
+                p: 2,
+                bgcolor: 'success.50',
+                borderRadius: 1,
                 fontFamily: 'monospace',
                 fontSize: '0.9rem'
               }}>
@@ -277,31 +277,31 @@ const BylineReviewInterface = () => {
           {/* Metadata */}
           <Box sx={{ mt: 3 }}>
             <Stack direction="row" spacing={2} flexWrap="wrap">
-              <Chip 
+              <Chip
                 icon={<Source />}
                 label={`Source: ${currentItem.source_name}`}
                 size="small"
               />
-              <Chip 
+              <Chip
                 icon={<Speed />}
                 label={`Confidence: ${currentItem.confidence_score.toFixed(2)}`}
                 size="small"
                 color={currentItem.confidence_score > 0.5 ? 'success' : 'warning'}
               />
-              <Chip 
+              <Chip
                 icon={<Schedule />}
                 label={`${currentItem.processing_time_ms.toFixed(1)}ms`}
                 size="small"
               />
               {currentItem.has_wire_service && (
-                <Chip 
+                <Chip
                   label="Wire Service"
                   size="small"
                   color="info"
                 />
               )}
               {currentItem.source_name_removed && (
-                <Chip 
+                <Chip
                   label="Source Removed"
                   size="small"
                   variant="outlined"

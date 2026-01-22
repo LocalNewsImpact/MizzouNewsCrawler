@@ -5,7 +5,7 @@
 steps:
   # PHASE 1: Build and push migrator FIRST, then run migrations
   # This ensures migrations run before wasting time building other images
-  
+
   # Build and push migrator image
   - name: 'gcr.io/cloud-builders/docker'
     id: 'build-migrator'
@@ -36,12 +36,12 @@ steps:
       - |
         if [ "${BRANCH_NAME}" = "main" ]; then
           echo "🔄 Running database migrations..."
-          
+
           # Get GKE credentials
           gcloud container clusters get-credentials mizzou-cluster \
             --zone=us-central1-a \
             --project=${PROJECT_ID}
-          
+
           # Create migration job
           cat > /tmp/migration-job.yaml <<EOF
         apiVersion: batch/v1
@@ -101,10 +101,10 @@ steps:
                 securityContext:
                   runAsNonRoot: true
         EOF
-          
+
           # Apply the job
           kubectl apply -f /tmp/migration-job.yaml
-          
+
           # Wait for migration to complete (timeout 5 minutes)
           echo "⏳ Waiting for migration to complete..."
           kubectl wait --for=condition=complete --timeout=300s job/migration-${SHORT_SHA} -n production || {
@@ -112,7 +112,7 @@ steps:
             kubectl logs job/migration-${SHORT_SHA} -n production || true
             exit 1
           }
-          
+
           echo "✅ Database migrations completed successfully"
           kubectl logs job/migration-${SHORT_SHA} -n production
         else
@@ -121,7 +121,7 @@ steps:
     waitFor: ['push-migrator']
 
   # PHASE 2: Build application services (in parallel, after migrations succeed)
-  
+
   # Build Processor
   - name: 'gcr.io/cloud-builders/docker'
     id: 'build-processor'
@@ -219,15 +219,15 @@ steps:
       - |
         if [ "${BRANCH_NAME}" = "main" ]; then
           echo "🔄 Updating Argo WorkflowTemplate to use crawler:${SHORT_SHA}..."
-          
+
           # Get GKE credentials
           gcloud container clusters get-credentials mizzou-cluster \
             --zone=us-central1-a \
             --project=${PROJECT_ID}
-          
+
           # Reuse helper script to patch workflow template images
           bash gcp/cloudbuild/update-workflow-template.sh crawler "${SHORT_SHA}"
-          
+
           echo "✅ Argo WorkflowTemplate updated to use crawler:${SHORT_SHA}"
           echo "   Next workflow run will use the new image"
         else

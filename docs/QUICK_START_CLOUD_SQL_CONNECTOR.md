@@ -64,10 +64,10 @@ kubectl get jobs -n production -w  # Should show "Complete"
 
 ## Benefits
 
-✅ **Jobs complete automatically** - No more hanging jobs  
-✅ **Resource savings** - ~89-445Mi memory, ~75-125m CPU per pod  
-✅ **Simpler config** - No sidecar containers  
-✅ **Production-grade** - Google-recommended approach  
+✅ **Jobs complete automatically** - No more hanging jobs
+✅ **Resource savings** - ~89-445Mi memory, ~75-125m CPU per pod
+✅ **Simpler config** - No sidecar containers
+✅ **Production-grade** - Google-recommended approach
 
 ## Troubleshooting
 

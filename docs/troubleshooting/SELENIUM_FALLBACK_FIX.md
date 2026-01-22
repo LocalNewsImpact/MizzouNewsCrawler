@@ -1,8 +1,8 @@
 # Selenium Fallback Fix - CRITICAL BUG RESOLVED
 
-**Date:** October 10, 2025  
-**Issue:** Selenium fallback not being deployed despite PerimeterX CAPTCHA blocking  
-**Root Cause:** Rate limit checks preventing Selenium from running  
+**Date:** October 10, 2025
+**Issue:** Selenium fallback not being deployed despite PerimeterX CAPTCHA blocking
+**Root Cause:** Rate limit checks preventing Selenium from running
 **Status:** ✅ FIXED
 
 ---
@@ -90,7 +90,7 @@ self._selenium_failure_counts = {}  # Track Selenium failures per domain
 if selenium_result and selenium_result.get("content"):
     # ... merge results ...
     logger.info(f"✅ Selenium extraction succeeded for {url}")
-    
+
     # Reset failure count on success
     if dom in self._selenium_failure_counts:
         del self._selenium_failure_counts[dom]
@@ -139,10 +139,10 @@ except Exception as e:
 
 ### Benefits
 
-✅ **Selenium can now bypass CAPTCHA** even when requests are rate-limited  
-✅ **Separate failure tracking** prevents premature Selenium disabling  
-✅ **Smart retry logic** stops trying after 3 consecutive Selenium failures  
-✅ **Clear logging** shows Selenium success/failure with emojis (✅/❌)  
+✅ **Selenium can now bypass CAPTCHA** even when requests are rate-limited
+✅ **Separate failure tracking** prevents premature Selenium disabling
+✅ **Smart retry logic** stops trying after 3 consecutive Selenium failures
+✅ **Clear logging** shows Selenium success/failure with emojis (✅/❌)
 
 ---
 
@@ -247,7 +247,7 @@ kubectl logs -n production -l app=mizzou-processor --tail=100 -f | grep -i selen
 
 **Phase 1 (30 minutes):**
 ```sql
-SELECT 
+SELECT
   COUNT(*) as total_extractions,
   SUM(CASE WHEN is_success THEN 1 ELSE 0 END) as successes,
   ROUND(100.0 * SUM(CASE WHEN is_success THEN 1 ELSE 0 END) / COUNT(*), 2) as success_rate,
@@ -261,7 +261,7 @@ AND primary_method IS NOT NULL;
 
 **Phase 2 (2 hours):**
 ```sql
-SELECT 
+SELECT
   host,
   COUNT(*) as attempts,
   SUM(CASE WHEN is_success THEN 1 ELSE 0 END) as successes,
@@ -281,25 +281,25 @@ ORDER BY success_rate DESC;
 ## Success Criteria
 
 ### Immediate Success Indicators
-✅ Build completes successfully  
-✅ New pod deployed (image contains fix)  
-✅ Logs show "✅ Selenium extraction succeeded" for some URLs  
-✅ **NO MORE** "Domain X is rate limited; skip Selenium" messages  
+✅ Build completes successfully
+✅ New pod deployed (image contains fix)
+✅ Logs show "✅ Selenium extraction succeeded" for some URLs
+✅ **NO MORE** "Domain X is rate limited; skip Selenium" messages
 
 ### Phase 1 Success (30 min - 2 hours)
-✅ Extraction success rate **>10%** (up from 0%)  
-✅ At least **some** extractions using `primary_method = 'selenium'`  
-✅ PerimeterX domains showing successful extractions  
+✅ Extraction success rate **>10%** (up from 0%)
+✅ At least **some** extractions using `primary_method = 'selenium'`
+✅ PerimeterX domains showing successful extractions
 
 ### Phase 2 Success (24 hours)
-✅ Extraction success rate **>25%**  
-✅ Multiple domains successfully using Selenium fallback  
-✅ Selenium failure counts tracked correctly (resets on success)  
+✅ Extraction success rate **>25%**
+✅ Multiple domains successfully using Selenium fallback
+✅ Selenium failure counts tracked correctly (resets on success)
 
 ### Phase 3 Success (1 week)
-✅ Extraction success rate **>50%**  
-✅ Clear pattern: simpler domains work with requests, CAPTCHA domains use Selenium  
-✅ System intelligently avoids domains where Selenium fails 3+ times  
+✅ Extraction success rate **>50%**
+✅ Clear pattern: simpler domains work with requests, CAPTCHA domains use Selenium
+✅ System intelligently avoids domains where Selenium fails 3+ times
 
 ---
 
@@ -336,10 +336,10 @@ kubectl scale deployment mizzou-processor -n production --replicas=0
 
 ### Lessons Learned
 
-✅ **Test full extraction flow** including all fallback paths  
-✅ **Test with real CAPTCHA sites** in staging environment  
-✅ **Trace through rate limit/backoff logic** in code review  
-✅ **Monitor Selenium usage** separately from requests usage  
+✅ **Test full extraction flow** including all fallback paths
+✅ **Test with real CAPTCHA sites** in staging environment
+✅ **Trace through rate limit/backoff logic** in code review
+✅ **Monitor Selenium usage** separately from requests usage
 
 ---
 

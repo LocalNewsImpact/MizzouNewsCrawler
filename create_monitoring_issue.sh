@@ -47,9 +47,9 @@ title = f"Production Monitoring Report - {datetime.now().strftime('%Y-%m-%d')}"
 # Generate body
 body = f"""## Production Monitoring Report
 
-**Duration:** 30 minutes  
-**Start Time:** {data.get('start_time', 'N/A')}  
-**Total Checks:** {len(checks)}  
+**Duration:** 30 minutes
+**Start Time:** {data.get('start_time', 'N/A')}
+**Total Checks:** {len(checks)}
 **Issues Detected:** {len(issues)}
 
 ### Executive Summary
@@ -70,16 +70,16 @@ else:
     for issue_type, type_issues in sorted(issue_types.items()):
         body += f"| {issue_type.title()} | {len(type_issues)} |\n"
     body += "\n"
-    
+
     # Detail each issue type
     for issue_type, type_issues in sorted(issue_types.items()):
         body += f"### {issue_type.title()} Issues\n\n"
-        
+
         # Group identical issues
         grouped = defaultdict(list)
         for issue in type_issues:
             grouped[issue['message']].append(issue['time'])
-        
+
         for message, times in grouped.items():
             body += f"- **{message}**\n"
             body += f"  - Occurrences: {len(times)}\n"
@@ -95,13 +95,13 @@ else:
 if checks:
     last_check = checks[-1]
     body += "### Final System State\n\n"
-    
+
     workflows = last_check.get("workflows", {})
     pods = last_check.get("pods", {})
-    
+
     body += f"**Workflows:**\n"
     body += f"- Running: {workflows.get('running', 'N/A')}\n\n"
-    
+
     body += f"**Pods:**\n"
     body += f"- Processor: {pods.get('processor_count', 'N/A')}\n"
     body += f"- API: {pods.get('api_count', 'N/A')}\n\n"
@@ -118,19 +118,19 @@ else:
     workflow_issues = len([i for i in issues if i['type'] == 'workflow'])
     pod_issues = len([i for i in issues if i['type'] == 'pod'])
     resource_issues = len([i for i in issues if i['type'] == 'resource'])
-    
+
     if workflow_issues > 0:
         body += f"- 🔴 **Workflow Issues ({workflow_issues}):**\n"
         body += "  - Investigate Argo workflow failures\n"
         body += "  - Check workflow logs: `argo logs -n production <workflow-name>`\n"
         body += "  - Review workflow definition for potential issues\n\n"
-    
+
     if pod_issues > 0:
         body += f"- 🟡 **Pod Issues ({pod_issues}):**\n"
         body += "  - Check pod logs: `kubectl logs -n production <pod-name>`\n"
         body += "  - Review restart policies and resource limits\n"
         body += "  - Consider pod anti-affinity rules if restarts are frequent\n\n"
-    
+
     if resource_issues > 0:
         body += f"- 🟠 **Resource Issues ({resource_issues}):**\n"
         body += "  - Review resource requests and limits\n"
@@ -193,13 +193,13 @@ echo ""
 
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo "🚀 Creating GitHub issue..."
-    
+
     gh issue create \
         --title "$TITLE" \
         --body "$BODY" \
         --label "$LABELS" \
         --repo LocalNewsImpact/MizzouNewsCrawler
-    
+
     if [ $? -eq 0 ]; then
         echo "✅ GitHub issue created successfully!"
     else

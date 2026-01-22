@@ -22,13 +22,13 @@ def upgrade() -> None:
     """Upgrade schema."""
     # Fix hash columns that can exceed 32-bit integer range
     # Python's hash() returns values that can be larger than INTEGER (max 2,147,483,647)
-    
+
     # content_cleaning_segments.segment_text_hash: Integer -> BigInteger
     op.alter_column('content_cleaning_segments', 'segment_text_hash',
                     type_=sa.BigInteger(),
                     existing_type=sa.Integer(),
                     existing_nullable=True)
-    
+
     # content_cleaning_wire_events.pattern_text_hash: Integer -> BigInteger
     op.alter_column('content_cleaning_wire_events', 'pattern_text_hash',
                     type_=sa.BigInteger(),
@@ -43,7 +43,7 @@ def downgrade() -> None:
                     type_=sa.Integer(),
                     existing_type=sa.BigInteger(),
                     existing_nullable=True)
-    
+
     op.alter_column('content_cleaning_segments', 'segment_text_hash',
                     type_=sa.Integer(),
                     existing_type=sa.BigInteger(),

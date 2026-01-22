@@ -294,5 +294,5 @@ For issues or questions:
 
 ---
 
-**Last Updated**: November 22, 2025  
+**Last Updated**: November 22, 2025
 **Maintained By**: MizzouNewsCrawler DevOps Team

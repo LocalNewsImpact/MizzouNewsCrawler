@@ -21,9 +21,9 @@ print(f"Backfill file: {len(df)} sources")
 # Get existing sources from production
 print("Fetching existing sources from production...")
 result = subprocess.run(
-    ['kubectl', 'exec', '-n', 'production', 'deployment/mizzou-api', '--', 
+    ['kubectl', 'exec', '-n', 'production', 'deployment/mizzou-api', '--',
      'python', '-m', 'src.cli.cli_modular', 'list-sources', '--format', 'json'],
-    capture_output=True, 
+    capture_output=True,
     text=True
 )
 
@@ -53,7 +53,7 @@ if len(new_sources) > 0:
     print("\nNew sources to add:")
     for _, row in new_sources.iterrows():
         print(f"  + {row['name']:40s} ({row['host']})")
-    
+
     # Save to CSV for load-sources command (match expected format)
     output_file = '/Users/kiesowd/VSCode/NewsCrawler/MizzouNewsCrawler-Scripts/sources/mo_backfill_new_sources.csv'
     new_sources_for_import = new_sources[['name', 'city', 'county', 'url_news', 'host']].copy()
@@ -64,7 +64,7 @@ if len(new_sources) > 0:
     # Reorder columns to match expected format
     new_sources_for_import = new_sources_for_import[['host_id', 'name', 'city', 'county', 'url_news']]
     new_sources_for_import.to_csv(output_file, index=False)
-    
+
     print(f"\nSaved {len(new_sources)} new sources to:")
     print(f"  {output_file}")
     print("\nTo add these sources to the database, run:")

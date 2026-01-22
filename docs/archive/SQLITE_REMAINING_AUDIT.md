@@ -1,6 +1,6 @@
 # SQLite Code Remaining in Codebase - Comprehensive Audit
 
-**Date**: October 11, 2025  
+**Date**: October 11, 2025
 **Status**: 🔴 **MIGRATION INCOMPLETE**
 
 ## Executive Summary
@@ -11,7 +11,7 @@ The Cloud SQL migration is **NOT complete**. While main query paths were migrate
 
 Fixed 4 critical methods in `src/utils/content_cleaner_balanced.py`:
 - `_clear_wire_classification()` - line 1319
-- `_get_article_authors()` - line 1339  
+- `_get_article_authors()` - line 1339
 - `_get_article_source_context()` - line 1641
 - `_mark_article_as_wire()` - line 1879
 
@@ -22,7 +22,7 @@ All converted from `cursor.execute()` → `session.execute(sql_text())`
 ## 🔴 ACTIVE FILES STILL USING SQLITE
 
 ### 1. **src/cli/commands/content_cleaning.py** - CRITICAL
-**Status**: 🔴 **ACTIVE** - CLI commands used in production  
+**Status**: 🔴 **ACTIVE** - CLI commands used in production
 **SQLite Usage**: 5 locations
 - Line 184: `sqlite3.connect(db_path)` in helper function
 - Line 428: `sqlite3.connect(db_path)` in helper function
@@ -30,23 +30,23 @@ All converted from `cursor.execute()` → `session.execute(sql_text())`
 - Line 647: `sqlite3.connect("mizzou.db")` in helper function
 - Line 716: `sqlite3.connect("mizzou.db")` in helper function
 
-**Impact**: These are CLI utility functions. May fail if called on Cloud SQL.  
+**Impact**: These are CLI utility functions. May fail if called on Cloud SQL.
 **Priority**: 🔴 **HIGH** - Active CLI commands
 
 ---
 
 ### 2. **src/pipeline/io_utils.py** - CRITICAL
-**Status**: 🔴 **ACTIVE** - I/O utilities used across pipeline  
+**Status**: 🔴 **ACTIVE** - I/O utilities used across pipeline
 **SQLite Usage**: 1 location
 - Line 231: `sqlite3.connect(db_path)`
 
-**Impact**: Pipeline operations may fail on Cloud SQL.  
+**Impact**: Pipeline operations may fail on Cloud SQL.
 **Priority**: 🔴 **HIGH** - Core pipeline infrastructure
 
 ---
 
 ### 3. **src/utils/telemetry.py** - CRITICAL
-**Status**: 🔴 **ACTIVE** - Telemetry system (1691 lines)  
+**Status**: 🔴 **ACTIVE** - Telemetry system (1691 lines)
 **SQLite Usage**: Entire file uses SQLite
 - Line 19: `import sqlite3`
 - Line 255: `def _apply_schema(conn: sqlite3.Connection, ...)`
@@ -55,7 +55,7 @@ All converted from `cursor.execute()` → `session.execute(sql_text())`
 - Line 1546: `def writer(conn: sqlite3.Connection)`
 - Line 1690: `def writer(conn: sqlite3.Connection)`
 
-**Impact**: All telemetry writes use SQLite. Telemetry probably failing on Cloud SQL.  
+**Impact**: All telemetry writes use SQLite. Telemetry probably failing on Cloud SQL.
 **Priority**: 🔴 **HIGH** - Important for observability
 
 **Note**: There's already a `src/telemetry/store.py` that wraps SQLAlchemy connections with SQLite-compatible API. This file may need similar treatment.
@@ -63,18 +63,18 @@ All converted from `cursor.execute()` → `session.execute(sql_text())`
 ---
 
 ### 4. **src/utils/extraction_telemetry.py**
-**Status**: 🔴 **ACTIVE** - Extraction-specific telemetry  
-**SQLite Usage**: 
+**Status**: 🔴 **ACTIVE** - Extraction-specific telemetry
+**SQLite Usage**:
 - Line 6: `import sqlite3`
 - Line 182: `def writer(conn: sqlite3.Connection)`
 
-**Impact**: Extraction telemetry may be failing silently.  
+**Impact**: Extraction telemetry may be failing silently.
 **Priority**: 🟡 **MEDIUM** - Extraction works without it, but we lose observability
 
 ---
 
 ### 5. **src/utils/content_cleaning_telemetry.py**
-**Status**: 🔴 **ACTIVE** - Cleaning-specific telemetry  
+**Status**: 🔴 **ACTIVE** - Cleaning-specific telemetry
 **SQLite Usage**:
 - Line 9: `import sqlite3`
 - Line 279: `def writer(conn: sqlite3.Connection)`
@@ -83,28 +83,28 @@ All converted from `cursor.execute()` → `session.execute(sql_text())`
 - Line 630: `conn: sqlite3.Connection`
 - Line 766: `def _ensure_tables_exist(self, conn: sqlite3.Connection)`
 
-**Impact**: Cleaning telemetry may be failing silently.  
+**Impact**: Cleaning telemetry may be failing silently.
 **Priority**: 🟡 **MEDIUM** - Cleaning works without it, but we lose observability
 
 ---
 
 ### 6. **src/utils/byline_cleaner.py**
-**Status**: 🔴 **ACTIVE** - Byline cleaning utilities  
+**Status**: 🔴 **ACTIVE** - Byline cleaning utilities
 **SQLite Usage**:
 - Line 1740: `import sqlite3`
 - Line 1745: `conn = sqlite3.connect(db_path)`
 
-**Impact**: Byline cleaning operations may fail.  
+**Impact**: Byline cleaning operations may fail.
 **Priority**: 🟡 **MEDIUM** - Part of content cleaning pipeline
 
 ---
 
 ### 7. **src/models/database.py**
-**Status**: 🔴 **ACTIVE** - Core database module  
+**Status**: 🔴 **ACTIVE** - Core database module
 **SQLite Usage**:
 - Line 256: `import sqlite3 as _sqlite`
 
-**Impact**: Imported but may not be used. Need to verify.  
+**Impact**: Imported but may not be used. Need to verify.
 **Priority**: 🟢 **LOW** - Likely just for type hints or fallback
 
 ---
@@ -150,7 +150,7 @@ These are old content cleaner implementations, likely superseded by `content_cle
 ## 🔵 MAINTENANCE SCRIPTS (Non-Production)
 
 ### src/scripts/maintenance/clean_authors.py
-**Status**: 🔵 **MAINTENANCE SCRIPT** - Not used in production pipeline  
+**Status**: 🔵 **MAINTENANCE SCRIPT** - Not used in production pipeline
 **SQLite Usage**:
 - Line 7: `import sqlite3`
 - Line 17: `def get_database_connection(db_path: str) -> sqlite3.Connection`

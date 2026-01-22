@@ -106,7 +106,7 @@ VALUES (
     'Pennsylvania'
 );
 
--- Lehigh Valley source  
+-- Lehigh Valley source
 INSERT INTO sources (id, host, canonical_name, city, county)
 VALUES (
     'b9033f21-1110-4be7-aa93-15ff48bce725',
@@ -232,7 +232,7 @@ from sqlalchemy import text
 db = DatabaseManager()
 with db.get_session() as session:
     result = session.execute(text('''
-        SELECT 
+        SELECT
             COALESCE(d.slug, 'no-dataset') as dataset,
             COUNT(*) as articles
         FROM articles a
@@ -241,7 +241,7 @@ with db.get_session() as session:
         GROUP BY c.dataset_id, d.slug
         ORDER BY articles DESC
     ''')).fetchall()
-    
+
     for row in result:
         print(f'{row[0]}: {row[1]} articles')
 "

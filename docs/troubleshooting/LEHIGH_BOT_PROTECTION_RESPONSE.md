@@ -1,17 +1,17 @@
 # Lehigh Valley News Bot Protection Response
 
 ## Incident Summary
-**Date:** October 12, 2025  
-**Issue:** Lehigh extraction job hit CAPTCHA/bot protection after only 16 articles  
-**Root Cause:** Lehigh Valley News has extremely aggressive bot detection  
+**Date:** October 12, 2025
+**Issue:** Lehigh extraction job hit CAPTCHA/bot protection after only 16 articles
+**Root Cause:** Lehigh Valley News has extremely aggressive bot detection
 
 ## Actions Taken
 
 ### 1. Bot Sensitivity Updated
-- **Source:** www.lehighvalleynews.com  
-- **Previous Sensitivity:** 5 (moderate/default)  
-- **New Sensitivity:** 10 (maximum caution)  
-- **Bot Encounters:** Incremented to 1  
+- **Source:** www.lehighvalleynews.com
+- **Previous Sensitivity:** 5 (moderate/default)
+- **New Sensitivity:** 10 (maximum caution)
+- **Bot Encounters:** Incremented to 1
 
 ### 2. Rate Limiting Configuration (EXTREME)
 
@@ -45,7 +45,7 @@ With the new ultra-conservative settings:
 
 Identified JSON formatting error in bot_detection_events recording:
 ```python
-# Error: {'protection_type': 'bot_protection'} 
+# Error: {'protection_type': 'bot_protection'}
 # PostgreSQL requires proper JSON format, not Python dict string
 ```
 

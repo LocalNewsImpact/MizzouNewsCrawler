@@ -18,13 +18,13 @@ from src.models.database import DatabaseManager
 def load_article_ids_from_csv(csv_path: str) -> set[str]:
     """Load article IDs from the CSV file."""
     article_ids = set()
-    
+
     with open(csv_path) as f:
         reader = csv.DictReader(f)
         for row in reader:
             article_id = row['article_id']
             article_ids.add(article_id)
-    
+
     print(f"Loaded {len(article_ids)} article IDs from CSV")
     return article_ids
 
@@ -32,7 +32,7 @@ def load_article_ids_from_csv(csv_path: str) -> set[str]:
 def update_postgres_status(article_ids: set[str], dry_run: bool = True) -> int:
     """Update article status to 'wire' in PostgreSQL."""
     db = DatabaseManager()
-    
+
     with db.get_session() as session:
         # First, verify these are all currently 'labeled'
         result = session.execute(text("""
@@ -41,15 +41,15 @@ def update_postgres_status(article_ids: set[str], dry_run: bool = True) -> int:
             WHERE id = ANY(:ids)
             GROUP BY status
         """), {"ids": list(article_ids)}).fetchall()
-        
+
         print("\nCurrent status breakdown:")
         for row in result:
             print(f"  {row[0]}: {row[1]}")
-        
+
         if dry_run:
             print("\n[DRY RUN] Would update these articles to status='wire'")
             return 0
-        
+
         # Update to wire
         result = session.execute(text("""
             UPDATE articles
@@ -59,10 +59,10 @@ def update_postgres_status(article_ids: set[str], dry_run: bool = True) -> int:
             AND status = 'labeled' AND wire_check_status = 'complete'
             RETURNING id
         """), {"ids": list(article_ids)})
-        
+
         updated_count = result.rowcount
         session.commit()
-        
+
         print(f"\n✓ Updated {updated_count} articles to status='wire' in PostgreSQL")
         return updated_count
 
@@ -70,47 +70,47 @@ def update_postgres_status(article_ids: set[str], dry_run: bool = True) -> int:
 def delete_from_bigquery(article_ids: set[str], dry_run: bool = True) -> int:
     """Delete articles from BigQuery."""
     client = bigquery.Client()
-    
+
     # Split into batches of 1000 for BigQuery query limits
     batch_size = 1000
     article_id_list = list(article_ids)
     total_deleted = 0
-    
+
     for i in range(0, len(article_id_list), batch_size):
         batch = article_id_list[i:i + batch_size]
-        
+
         # Create parameterized query
         id_params = ','.join([f"'{aid}'" for aid in batch])
-        
+
         # Check what would be deleted
         count_query = f"""
             SELECT COUNT(*) as cnt
             FROM `mizzou-news-375903.mizzou_articles.articles`
             WHERE article_id IN ({id_params})
         """
-        
+
         count_result = client.query(count_query).result()
         batch_count = list(count_result)[0]['cnt']
-        
+
         print(f"\nBatch {i//batch_size + 1}: {batch_count} articles found in BigQuery")
-        
+
         if dry_run:
             print(f"[DRY RUN] Would delete {batch_count} articles from BigQuery")
             total_deleted += batch_count
             continue
-        
+
         # Execute delete
         delete_query = f"""
             DELETE FROM `mizzou-news-375903.mizzou_articles.articles`
             WHERE article_id IN ({id_params})
         """
-        
+
         job = client.query(delete_query)
         job.result()  # Wait for completion
-        
+
         print(f"✓ Deleted {batch_count} articles from BigQuery")
         total_deleted += batch_count
-    
+
     return total_deleted
 
 
@@ -119,14 +119,14 @@ def main():
         print("Usage: python apply_wire_backfill.py <csv_file> [--execute]")
         print("\nBy default, runs in DRY RUN mode. Use --execute to apply changes.")
         sys.exit(1)
-    
+
     csv_path = sys.argv[1]
     dry_run = '--execute' not in sys.argv
-    
+
     if not Path(csv_path).exists():
         print(f"Error: CSV file not found: {csv_path}")
         sys.exit(1)
-    
+
     if dry_run:
         print("=" * 80)
         print("DRY RUN MODE - No changes will be made")
@@ -136,26 +136,26 @@ def main():
         print("=" * 80)
         print("EXECUTE MODE - Changes will be applied!")
         print("=" * 80)
-    
+
     # Load article IDs
     article_ids = load_article_ids_from_csv(csv_path)
-    
+
     if not article_ids:
         print("No article IDs found in CSV")
         sys.exit(1)
-    
+
     # Update PostgreSQL
     print("\n" + "=" * 80)
     print("STEP 1: Update PostgreSQL status to 'wire'")
     print("=" * 80)
     postgres_updated = update_postgres_status(article_ids, dry_run=dry_run)
-    
+
     # Delete from BigQuery
     print("\n" + "=" * 80)
     print("STEP 2: Delete from BigQuery")
     print("=" * 80)
     bq_deleted = delete_from_bigquery(article_ids, dry_run=dry_run)
-    
+
     # Summary
     print("\n" + "=" * 80)
     print("SUMMARY")

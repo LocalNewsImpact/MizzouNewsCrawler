@@ -439,6 +439,6 @@ For issues or questions:
 
 ---
 
-**Last Updated**: October 17, 2025  
-**Kubernetes Version**: 1.33.4  
+**Last Updated**: October 17, 2025
+**Kubernetes Version**: 1.33.4
 **GKE Cluster**: mizzou-cluster (us-central1-a)

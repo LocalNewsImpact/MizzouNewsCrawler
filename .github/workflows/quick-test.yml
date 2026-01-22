@@ -1,7 +1,7 @@
 name: Quick Test
 
 # Fast CI for iterating on failing tests during development
-# 
+#
 # USE CASES:
 # - Re-run only failing tests without waiting 20 min for full CI
 # - Test a specific module you're working on
@@ -34,7 +34,7 @@ jobs:
   quick-test:
     name: Quick Test Run
     runs-on: ubuntu-latest
-    
+
     services:
       postgres:
         image: postgres:15
@@ -71,16 +71,16 @@ jobs:
         run: |
           # Save GCP credentials to file for container
           echo '${{ secrets.GCP_SA_KEY }}' > /tmp/gcp-key.json
-          
+
           # Determine test path (use input or default to tests/)
           TEST_PATH="${{ github.event.inputs.test_path }}"
           if [ -z "$TEST_PATH" ]; then
             TEST_PATH="tests/"
           fi
-          
+
           echo "Running tests: $TEST_PATH"
           echo "With args: ${{ github.event.inputs.pytest_args }}"
-          
+
           docker run --rm \
             --network host \
             -v ${{ github.workspace }}:/workspace \

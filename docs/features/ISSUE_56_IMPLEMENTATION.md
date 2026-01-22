@@ -137,18 +137,18 @@ def handle_command(args) -> int:
     print("🚀 Starting [operation]...")
     print(f"   Config param: {value}")
     print()
-    
+
     # 2. Process with real-time progress
     for item in items:
         # Processing...
         print(f"✓ [{current}/{total}] Item: result")
-    
+
     # 3. Print completion summary
     print()
     print("✅ [Operation] completed successfully!")
     print(f"   Processed: {count}")
     print(f"   Errors: {errors}")
-    
+
     return 0
 ```
 
@@ -368,7 +368,7 @@ The implementation is successful if:
 
 - **GitHub Issue**: #56 - CRITICAL: Implement comprehensive pipeline visibility and reliability monitoring
 - **Documentation**: `docs/PIPELINE_MONITORING.md`
-- **Related Issues**: 
+- **Related Issues**:
   - #57 - Processor critical issues (proxy, extraction, entity extraction SQL)
   - Original discovery silence issue noted in #56 comments
 

@@ -220,4 +220,3 @@ test-production-ready:
 	make test-docker
 	@echo ""
 	@echo "✅ ALL TESTS PASSED - Ready for production deployment!"
-

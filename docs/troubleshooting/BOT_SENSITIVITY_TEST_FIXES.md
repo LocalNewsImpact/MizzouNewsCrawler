@@ -96,7 +96,7 @@ After fixing bot sensitivity-related test failures:
 
 All 5 remaining failures are in `tests/utils/test_content_cleaner_balanced_comprehensive.py`:
 1. `test_get_articles_for_domain_with_mocked_db` - Mock not intercepting DatabaseManager call
-2. `test_get_articles_for_domain_raises_on_error` - Mock not working as expected  
+2. `test_get_articles_for_domain_raises_on_error` - Mock not working as expected
 3. `test_get_article_authors_handles_multiple_formats` - Database query issue
 4. `test_get_article_authors_handles_list_row` - Database query issue
 5. `test_mark_article_as_wire_updates_payload` - KeyError in payload structure

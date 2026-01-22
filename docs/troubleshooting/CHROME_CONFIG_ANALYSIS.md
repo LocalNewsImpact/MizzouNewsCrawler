@@ -39,7 +39,7 @@ Both driver creation methods share these configurations:
 #### Container-Specific Flags (Recently Added)
 ```python
 "--disable-software-rasterizer"  # ✅ New
-"--disable-setuid-sandbox"       # ✅ New  
+"--disable-setuid-sandbox"       # ✅ New
 "--remote-debugging-port=9222"   # ✅ New
 ```
 
@@ -207,7 +207,7 @@ Modified **only** `src/crawler/__init__.py` (Lines 1842-1908):
        "--disable-gpu",
        "--headless=new",
    ]
-   
+
    CHROME_CONTAINER_FLAGS = [
        "--disable-software-rasterizer",
        "--disable-setuid-sandbox",

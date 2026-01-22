@@ -10,9 +10,9 @@ from src.utils.content_type_detector import ContentTypeDetector
 def main():
     db = DatabaseManager()
     detector = ContentTypeDetector()
-    
+
     print(f"Detector version: {detector.VERSION}")
-    
+
     with db.get_session() as session:
         # Query non-wire articles with content
         query = text("""
@@ -23,16 +23,16 @@ def main():
             AND content != ''
             ORDER BY publish_date DESC
         """)
-        
+
         result = session.execute(query)
         rows = list(result)
         print(f"Found {len(rows)} non-wire articles to check\n")
-        
+
         detected = []
         for i, (article_id, url, title, content, author, status) in enumerate(rows):
             if (i + 1) % 250 == 0:
                 print(f"Processed {i + 1}/{len(rows)}...")
-            
+
             metadata = {"byline": author} if author else None
             detection = detector.detect(
                 url=url or "",
@@ -40,13 +40,13 @@ def main():
                 metadata=metadata,
                 content=content or '',
             )
-            
+
             if detection and detection.status == 'wire':
                 ev = detection.evidence or {}
                 service = "Unknown"
                 if "detected_services" in ev and ev["detected_services"]:
                     service = ev["detected_services"][0]
-                
+
                 detected.append({
                     "id": article_id,
                     "url": url,
@@ -57,11 +57,11 @@ def main():
                     "confidence": detection.confidence,
                     "evidence": str(ev.get("url", [])) if "url" in ev else "",
                 })
-        
+
         print(f"\nDetected {len(detected)}/{len(rows)} articles as wire")
         if len(rows) > 0:
             print(f"Detection rate: {len(detected)/len(rows)*100:.1f}%")
-        
+
         # Write to CSV
         if detected:
             output = "/tmp/production_wire_scan.csv"
@@ -74,7 +74,7 @@ def main():
                 writer.writeheader()
                 writer.writerows(detected)
             print(f"\nCSV written to: {output}")
-            
+
             # Show summary by service
             from collections import Counter
             service_counts = Counter(d["wire_service"] for d in detected)
@@ -83,7 +83,7 @@ def main():
                 print(f"  {service}: {count}")
         else:
             print("\nNo wire articles detected")
-        
+
         return 0
 
 

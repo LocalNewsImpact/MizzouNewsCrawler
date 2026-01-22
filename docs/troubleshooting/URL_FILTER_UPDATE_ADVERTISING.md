@@ -1,7 +1,7 @@
 # URL Filter Update: Exclude Advertising and Promotional Pages
 
-**Date**: October 20, 2025  
-**Issue**: `https://www.dddnews.com/posterboard-ads/mcdonalds-10f2b30a` is not a story URL  
+**Date**: October 20, 2025
+**Issue**: `https://www.dddnews.com/posterboard-ads/mcdonalds-10f2b30a` is not a story URL
 **Status**: ✅ FIXED
 
 ---
@@ -150,8 +150,8 @@ These patterns join existing filters for:
 
 ### Current Status
 
-✅ **Changes committed** to feature branch  
-⏳ **Not yet deployed** to production  
+✅ **Changes committed** to feature branch
+⏳ **Not yet deployed** to production
 📋 **Will take effect** on next pipeline run
 
 ### When Changes Take Effect
@@ -269,26 +269,26 @@ After deployment, track:
 
 ## Questions & Answers
 
-**Q: Will this affect existing articles?**  
+**Q: Will this affect existing articles?**
 A: No. The filters only match specific advertising URL patterns. Real news articles are not affected.
 
-**Q: What if a news site uses `/promotions/` for news about promotions?**  
+**Q: What if a news site uses `/promotions/` for news about promotions?**
 A: Unlikely, but if it happens, add site-specific include rules to override the global filter.
 
-**Q: Should we delete existing posterboard-ads URLs?**  
+**Q: Should we delete existing posterboard-ads URLs?**
 A: Optional. They'll no longer be discovered or updated, so they'll naturally age out of the system.
 
-**Q: Can we add more patterns later?**  
+**Q: Can we add more patterns later?**
 A: Yes. Simply add to `NON_ARTICLE_PATTERNS` in `src/utils/url_classifier.py` and redeploy.
 
 ---
 
 ## Summary
 
-✅ **Problem**: Advertising pages (posterboard-ads, classifieds) being treated as news articles  
-✅ **Solution**: Added URL pattern filters to exclude advertising/promotional content  
-✅ **Testing**: Verified filters work correctly  
-✅ **Impact**: Cleaner discovery, fewer false positives  
+✅ **Problem**: Advertising pages (posterboard-ads, classifieds) being treated as news articles
+✅ **Solution**: Added URL pattern filters to exclude advertising/promotional content
+✅ **Testing**: Verified filters work correctly
+✅ **Impact**: Cleaner discovery, fewer false positives
 ✅ **Deployment**: Changes ready for next pipeline run
 
 **Next steps**: Deploy to production and monitor discovery logs.

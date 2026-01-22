@@ -1,6 +1,6 @@
 # Entity Extraction Performance Issue
 
-**Date**: October 15, 2025 18:04 UTC  
+**Date**: October 15, 2025 18:04 UTC
 **Status**: CRITICAL - Entity extraction is 60x slower than expected
 
 ## Problem Summary
@@ -21,7 +21,7 @@ The processor pod is stuck in an infinite loop processing the same 13 articles b
 - spaCy en_core_web_sm: ~10,000 chars/second
 - **Expected time**: ~6 seconds
 
-### Actual Performance  
+### Actual Performance
 - **Actual time**: 20+ minutes (1200+ seconds)
 - **Performance**: ~48 chars/second
 - **Slowdown**: **208x slower than expected!**
@@ -30,7 +30,7 @@ The processor pod is stuck in an infinite loop processing the same 13 articles b
 ```
 PID 12: extract-entities subprocess
 - CPU: 79% (nearly maxed)
-- Memory: 1980MB  
+- Memory: 1980MB
 - CPU time: 15:32 minutes
 - Status: Running (not hung)
 ```
@@ -44,7 +44,7 @@ The entity extraction fetches gazetteer data for EVERY article:
 for row in rows:  # 13 articles
     # Get gazetteer rows for THIS source
     gazetteer_rows = get_gazetteer_rows(session, source_id, dataset_id)
-    
+
     entities = extractor.extract(text, gazetteer_rows=gazetteer_rows)
     entities = attach_gazetteer_matches(session, source_id, dataset_id, entities, gazetteer_rows)
 ```

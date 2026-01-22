@@ -199,7 +199,7 @@ class TestTelemetryMethodEffectivenessPostgres:
             SELECT
                 COUNT(*) as total_attempts,
                 COUNT(CASE WHEN status = 'extracted' THEN 1 END) as successful,
-                CAST(COUNT(CASE WHEN status = 'extracted' THEN 1 END) AS FLOAT) / 
+                CAST(COUNT(CASE WHEN status = 'extracted' THEN 1 END) AS FLOAT) /
                 NULLIF(COUNT(*), 0) as success_rate
             FROM articles
             WHERE extracted_at >= :cutoff_time
@@ -225,7 +225,7 @@ class TestTelemetryPublisherStatsPostgres:
         """Test aggregating telemetry by publisher/source."""
         query = text(
             """
-            SELECT 
+            SELECT
                 s.canonical_name as publisher,
                 COUNT(DISTINCT a.id) as article_count,
                 COUNT(DISTINCT cl.id) as candidate_count
@@ -257,7 +257,7 @@ class TestTelemetryPublisherStatsPostgres:
         """Test publisher stats with timing aggregations."""
         query = text(
             """
-            SELECT 
+            SELECT
                 s.canonical_name as publisher,
                 COUNT(a.id) as total_articles,
                 COUNT(CASE WHEN a.extracted_at >= :recent_cutoff THEN 1 END) as recent_articles,
@@ -298,7 +298,7 @@ class TestTelemetryFieldExtractionPostgres:
         """Test calculating field extraction success rates."""
         query = text(
             """
-            SELECT 
+            SELECT
                 COUNT(*) as total_articles,
                 COUNT(title) as with_title,
                 COUNT(author) as with_author,
@@ -332,7 +332,7 @@ class TestTelemetryFieldExtractionPostgres:
         """Test field extraction success grouped by publisher."""
         query = text(
             """
-            SELECT 
+            SELECT
                 s.canonical_name as publisher,
                 COUNT(a.id) as total_articles,
                 COUNT(a.title) as with_title,

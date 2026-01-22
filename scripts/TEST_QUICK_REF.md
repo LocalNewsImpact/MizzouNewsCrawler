@@ -14,19 +14,19 @@
 ## 📋 What Gets Tested
 
 ### Smoke Test (Fast)
-✓ Services start correctly  
-✓ Health checks pass  
-✓ API endpoints respond  
-✓ Unit tests pass  
+✓ Services start correctly
+✓ Health checks pass
+✓ API endpoints respond
+✓ Unit tests pass
 
 ### Full Integration Test (Comprehensive)
-✓ Multi-worker coordination  
-✓ Domain partitioning  
-✓ Database writes  
-✓ No duplicate articles  
-✓ Rate limiting  
-✓ Fallback mode  
-✓ Data integrity  
+✓ Multi-worker coordination
+✓ Domain partitioning
+✓ Database writes
+✓ No duplicate articles
+✓ Rate limiting
+✓ Fallback mode
+✓ Data integrity
 
 ## 🔍 Manual Verification
 
@@ -44,7 +44,7 @@ docker exec mizzou-postgres psql -U mizzou_user -d mizzou -c \
 
 # Check for duplicates (should be 0)
 docker exec mizzou-postgres psql -U mizzou_user -d mizzou -c \
-  "SELECT candidate_link_id, COUNT(*) FROM articles 
+  "SELECT candidate_link_id, COUNT(*) FROM articles
    GROUP BY candidate_link_id HAVING COUNT(*) > 1"
 ```
 

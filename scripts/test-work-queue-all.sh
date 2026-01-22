@@ -25,15 +25,15 @@ TESTS_FAILED=0
 run_test() {
     local test_name=$1
     local test_script=$2
-    
+
     echo ""
     echo -e "${BLUE}═══════════════════════════════════════════════${NC}"
     echo -e "${BLUE}Running: $test_name${NC}"
     echo -e "${BLUE}═══════════════════════════════════════════════${NC}"
     echo ""
-    
+
     TESTS_RUN=$((TESTS_RUN + 1))
-    
+
     if "$test_script"; then
         TESTS_PASSED=$((TESTS_PASSED + 1))
         echo -e "${GREEN}✓ $test_name PASSED${NC}"

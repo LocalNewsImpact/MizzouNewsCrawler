@@ -23,14 +23,14 @@ The refactoring (Issue #77) separates external site interaction from internal pr
    ```bash
    kubectl logs -n production -l app=mizzou-processor --follow
    ```
-   
+
    You should see:
    ```
    🚀 Starting continuous processor
    Configuration:
      - Poll interval: 60 seconds
      ...
-   
+
    Enabled pipeline steps:
      - Discovery: ❌
      - Verification: ❌
@@ -78,10 +78,10 @@ kubectl rollout undo deployment/mizzou-processor -n production
    ```bash
    # Watch job logs
    kubectl logs -n production -l dataset=Mizzou --follow
-   
+
    # Check job status
    kubectl get jobs -n production -l dataset=Mizzou
-   
+
    # Check pod status
    kubectl get pods -n production -l dataset=Mizzou
    ```
@@ -89,11 +89,11 @@ kubectl rollout undo deployment/mizzou-processor -n production
 3. **Verify database updates**:
    ```sql
    -- Check for new articles extracted
-   SELECT COUNT(*) 
-   FROM articles 
-   WHERE status = 'extracted' 
+   SELECT COUNT(*)
+   FROM articles
+   WHERE status = 'extracted'
    AND created_at > NOW() - INTERVAL '1 hour';
-   
+
    -- Check for Mizzou-specific extractions
    SELECT COUNT(a.id)
    FROM articles a
@@ -110,7 +110,7 @@ kubectl rollout undo deployment/mizzou-processor -n production
    ```bash
    kubectl logs -n production -l app=mizzou-processor --follow
    ```
-   
+
    Verify it picks up newly extracted articles for cleaning:
    ```
    ✅ Content cleaning (25 pending, limit 25) completed successfully
@@ -151,8 +151,8 @@ kubectl set env deployment/mizzou-processor -n production ENABLE_EXTRACTION=true
 3. **Verify candidate links**:
    ```sql
    -- Check for new discovered URLs
-   SELECT COUNT(*) 
-   FROM candidate_links 
+   SELECT COUNT(*)
+   FROM candidate_links
    WHERE status = 'discovered'
    AND created_at > NOW() - INTERVAL '1 hour';
    ```
@@ -182,7 +182,7 @@ kubectl set env deployment/mizzou-processor -n production ENABLE_EXTRACTION=true
    ```bash
    # Watch all extraction jobs
    kubectl get jobs -n production -l type=extraction
-   
+
    # Compare extraction rates
    kubectl logs -n production -l dataset=Mizzou,type=extraction --tail=100
    kubectl logs -n production -l dataset=Penn-State-Lehigh,type=extraction --tail=100
@@ -201,7 +201,7 @@ kubectl set env deployment/mizzou-processor -n production ENABLE_EXTRACTION=true
 **Steps**:
 
 1. **Create CronJob manifests**:
-   
+
    `k8s/mizzou-discovery-cronjob.yaml`:
    ```yaml
    apiVersion: batch/v1
@@ -269,7 +269,7 @@ kubectl set env deployment/mizzou-processor -n production ENABLE_EXTRACTION=true
 
 **Pipeline Status by Dataset**:
 ```sql
-SELECT 
+SELECT
   d.slug,
   COUNT(CASE WHEN cl.status = 'discovered' THEN 1 END) as discovered,
   COUNT(CASE WHEN cl.status = 'article' THEN 1 END) as verified,
@@ -286,7 +286,7 @@ GROUP BY d.slug;
 
 **Extraction Rate (Last Hour)**:
 ```sql
-SELECT 
+SELECT
   d.slug,
   COUNT(*) as articles_extracted,
   MIN(a.created_at) as first_extraction,
@@ -362,9 +362,9 @@ kubectl logs -n production -l app=mizzou-processor --tail=100
 
 **Diagnosis**:
 ```sql
-SELECT url, COUNT(*) 
-FROM candidate_links 
-GROUP BY url 
+SELECT url, COUNT(*)
+FROM candidate_links
+GROUP BY url
 HAVING COUNT(*) > 1;
 ```
 

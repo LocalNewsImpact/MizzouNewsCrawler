@@ -166,8 +166,8 @@ metrics.record_articles_discovered(
 )
 ```
 
-Metric: `custom.googleapis.com/articles_discovered`  
-Type: Counter  
+Metric: `custom.googleapis.com/articles_discovered`
+Type: Counter
 Labels: `source` (optional)
 
 #### 2. Articles Extracted
@@ -180,8 +180,8 @@ metrics.record_articles_extracted(
 )
 ```
 
-Metric: `custom.googleapis.com/articles_extracted`  
-Type: Counter  
+Metric: `custom.googleapis.com/articles_extracted`
+Type: Counter
 Labels: `source` (optional), `success` (true/false)
 
 #### 3. Pipeline Success Rate
@@ -193,8 +193,8 @@ metrics.record_pipeline_success_rate(
 )
 ```
 
-Metric: `custom.googleapis.com/pipeline_success_rate`  
-Type: Gauge (0.0 to 1.0)  
+Metric: `custom.googleapis.com/pipeline_success_rate`
+Type: Gauge (0.0 to 1.0)
 Labels: `stage` (discovery, extraction, analysis)
 
 #### 4. Processing Time
@@ -211,8 +211,8 @@ metrics.record_processing_time(
 )
 ```
 
-Metric: `custom.googleapis.com/processing_time_seconds`  
-Type: Distribution (supports percentiles)  
+Metric: `custom.googleapis.com/processing_time_seconds`
+Type: Distribution (supports percentiles)
 Labels: `stage` (discovery, extraction, analysis)
 
 #### 5. Queue Depth
@@ -224,8 +224,8 @@ metrics.record_queue_depth(
 )
 ```
 
-Metric: `custom.googleapis.com/queue_depth`  
-Type: Gauge  
+Metric: `custom.googleapis.com/queue_depth`
+Type: Gauge
 Labels: `queue` (verification_pending, extraction_pending, etc.)
 
 ### Using Metrics in Code
@@ -242,32 +242,32 @@ metrics = get_metrics_client()
 
 def discover_articles(source: str):
     start = time.time()
-    
+
     try:
         # Discover articles
         articles = fetch_articles(source)
-        
+
         # Record success
         metrics.record_articles_discovered(
             count=len(articles),
             source=source
         )
-        
+
         duration = time.time() - start
         metrics.record_processing_time(
             stage="discovery",
             duration_seconds=duration
         )
-        
+
         logger.info(
             "discovery_complete",
             source=source,
             count=len(articles),
             duration_seconds=duration
         )
-        
+
         return articles
-        
+
     except Exception as e:
         logger.error(
             "discovery_failed",
@@ -1024,5 +1024,5 @@ gcloud alpha monitoring channels list \
 
 ---
 
-**Last Updated**: November 22, 2025  
+**Last Updated**: November 22, 2025
 **Maintained By**: MizzouNewsCrawler DevOps Team

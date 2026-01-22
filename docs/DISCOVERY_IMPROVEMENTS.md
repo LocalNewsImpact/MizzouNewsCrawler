@@ -4,12 +4,12 @@
 
 The discovery pipeline has been significantly enhanced with:
 
-✅ **Database Compatibility** - Works seamlessly on SQLite (default) and PostgreSQL  
-✅ **User-Friendly Defaults** - First run works out of the box  
-✅ **Clear Error Messages** - Dataset validation with helpful suggestions  
-✅ **Enhanced Visibility** - New `discovery-status` command for pipeline inspection  
-✅ **Pre-flight Validation** - Catch issues before running discovery  
-✅ **Comprehensive Documentation** - Complete troubleshooting guide  
+✅ **Database Compatibility** - Works seamlessly on SQLite (default) and PostgreSQL
+✅ **User-Friendly Defaults** - First run works out of the box
+✅ **Clear Error Messages** - Dataset validation with helpful suggestions
+✅ **Enhanced Visibility** - New `discovery-status` command for pipeline inspection
+✅ **Pre-flight Validation** - Catch issues before running discovery
+✅ **Comprehensive Documentation** - Complete troubleshooting guide
 ✅ **Robust Test Coverage** - Tests for SQLite compatibility and CLI behavior
 
 ## Quick Start
@@ -62,7 +62,7 @@ python -m src.cli discover-urls --due-only
 
 ### Issue: "Processing 0 sources"
 
-**Before**: No explanation, just zero results  
+**Before**: No explanation, just zero results
 **Now**: Clear warning about scheduling behavior with suggestions
 
 ```bash
@@ -75,7 +75,7 @@ python -m src.cli discover-urls --force-all
 
 ### Issue: "Dataset not found"
 
-**Before**: Silent failure  
+**Before**: Silent failure
 **Now**: Clear error with available datasets listed
 
 ```
@@ -85,7 +85,7 @@ python -m src.cli discover-urls --force-all
 
 ### Issue: Database compatibility errors
 
-**Before**: PostgreSQL-specific SQL failed on SQLite  
+**Before**: PostgreSQL-specific SQL failed on SQLite
 **Now**: Automatic dialect detection and query adaptation
 
 ## New Commands

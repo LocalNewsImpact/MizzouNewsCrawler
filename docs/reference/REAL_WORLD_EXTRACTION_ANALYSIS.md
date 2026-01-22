@@ -43,7 +43,7 @@ After testing our three-tier extraction system (newspaper4k → BeautifulSoup �
 ### 3. Individual Method Performance
 On the warrencountyrecord.com URL:
 - **newspaper4k**: title:✓ author:✗ content:✓ publish_date:✓
-- **beautifulsoup**: title:✓ author:✗ content:✓ publish_date:✓  
+- **beautifulsoup**: title:✓ author:✗ content:✓ publish_date:✓
 - **selenium**: title:✓ author:✗ content:✗ publish_date:✗
 
 This shows newspaper4k and BeautifulSoup have similar effectiveness, while Selenium struggled with this particular site structure.
@@ -58,7 +58,7 @@ This shows newspaper4k and BeautifulSoup have similar effectiveness, while Selen
 
 ### 🎯 Real-World Performance Expectations
 - **100% completion**: Rare, only when source has full structured metadata
-- **75% completion**: Excellent result for most real-world sources  
+- **75% completion**: Excellent result for most real-world sources
 - **50% completion**: Acceptable for sites with minimal structured data
 - **<50% completion**: May indicate extraction issues worth investigating
 

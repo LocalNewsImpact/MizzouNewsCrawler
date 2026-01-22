@@ -22,10 +22,10 @@ existing_channel=$(gcloud alpha monitoring channels list \
 if [ -z "$existing_channel" ]; then
     echo "No notification channel found. Creating email channel..."
     echo "Note: You'll need to verify the email address."
-    
+
     # Prompt for email
     read -p "Enter email address for alerts: " ADMIN_EMAIL
-    
+
     cat > /tmp/notification-channel.json <<EOF
 {
   "type": "email",
@@ -36,14 +36,14 @@ if [ -z "$existing_channel" ]; then
   "enabled": true
 }
 EOF
-    
+
     NOTIFICATION_CHANNEL=$(gcloud alpha monitoring channels create \
         --channel-content-from-file=/tmp/notification-channel.json \
         --project="$PROJECT_ID" \
         --format="value(name)" 2>/dev/null || echo "")
-    
+
     rm /tmp/notification-channel.json
-    
+
     if [ -n "$NOTIFICATION_CHANNEL" ]; then
         echo "✓ Created notification channel: $NOTIFICATION_CHANNEL"
         echo "⚠️  Check email to verify the notification channel"
@@ -62,9 +62,9 @@ echo ""
 create_alert() {
     local alert_name=$1
     local alert_file=$2
-    
+
     echo "Creating alert policy: $alert_name"
-    
+
     gcloud alpha monitoring policies create \
         --notification-channels="$NOTIFICATION_CHANNEL" \
         --policy-from-file="$alert_file" \

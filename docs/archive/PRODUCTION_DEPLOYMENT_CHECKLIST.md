@@ -54,7 +54,7 @@ gcloud builds triggers run build-crawler-manual --branch=feature/gcp-kubernetes-
 
 **Critical Metrics to Watch:**
 - [ ] RSS feed discovery success rate
-- [ ] Article extraction success rate  
+- [ ] Article extraction success rate
 - [ ] Database query performance
 - [ ] Telemetry data collection
 - [ ] Error rates in Cloud Logging

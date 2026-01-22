@@ -1,5 +1,5 @@
 # Kubernetes Job Manifest Template for Dataset Extraction
-# 
+#
 # This template creates an isolated extraction job for a specific dataset.
 # Dataset-specific extraction allows independent rate limiting, monitoring,
 # and CAPTCHA backoff isolation per dataset.
@@ -112,4 +112,3 @@ spec:
       serviceAccountName: mizzou-app
       priorityClassName: batch-standard
   ttlSecondsAfterFinished: 86400
-

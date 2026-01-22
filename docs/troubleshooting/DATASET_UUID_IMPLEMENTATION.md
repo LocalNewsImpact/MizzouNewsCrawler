@@ -40,17 +40,17 @@ Core function that resolves dataset identifiers to canonical UUIDs:
 ```python
 def resolve_dataset_id(engine, dataset_identifier) -> str | None:
     """Resolve dataset name, slug, or UUID to canonical UUID.
-    
+
     Accepts:
     - Valid UUID (returned as-is)
     - Dataset slug (looked up in datasets table)
     - Dataset name (looked up in datasets table)
     - Dataset label (looked up in datasets table)
     - None (returned as None)
-    
+
     Returns:
         Dataset UUID as string, or None if dataset_identifier is None
-        
+
     Raises:
         ValueError: If identifier provided but dataset not found
     """
@@ -75,7 +75,7 @@ def resolve_dataset_id(engine, dataset_identifier) -> str | None:
        """Resolve dataset_label (name/slug) to canonical UUID."""
        if not self.dataset_label:
            return None
-       
+
        from src.utils.dataset_utils import resolve_dataset_id
        db_manager = self.discovery._create_db_manager()
        dataset_uuid = resolve_dataset_id(db_manager.engine, self.dataset_label)
@@ -104,7 +104,7 @@ def resolve_dataset_id(engine, dataset_identifier) -> str | None:
    ```python
    if getattr(args, "dataset", None):
        from src.utils.dataset_utils import resolve_dataset_id
-       
+
        dataset_uuid = resolve_dataset_id(db.engine, args.dataset)
        logger.info("Resolved dataset '%s' to UUID: %s", args.dataset, dataset_uuid)
        args.dataset = dataset_uuid  # Replace with UUID
@@ -114,7 +114,7 @@ def resolve_dataset_id(engine, dataset_identifier) -> str | None:
    ```python
    # BEFORE (complex subquery)
    "AND cl.dataset_id = (SELECT id FROM datasets WHERE slug = :dataset)"
-   
+
    # AFTER (direct UUID match)
    "AND cl.dataset_id = :dataset"
    ```
@@ -309,13 +309,13 @@ kubectl rollout undo deployment/mizzou-processor -n production
 
 ## Benefits
 
-✅ **Data integrity** - Proper foreign keys can be enforced  
-✅ **No parsing issues** - UUIDs have no spaces/hyphens/special chars  
-✅ **User flexibility** - Can use name, slug, or UUID interchangeably  
-✅ **Query reliability** - Won't break due to naming changes  
-✅ **Performance** - UUID joins are efficient (no subqueries)  
-✅ **Maintainability** - Single source of truth (UUID)  
-✅ **Debugging** - Clear distinction between display names and internal IDs  
+✅ **Data integrity** - Proper foreign keys can be enforced
+✅ **No parsing issues** - UUIDs have no spaces/hyphens/special chars
+✅ **User flexibility** - Can use name, slug, or UUID interchangeably
+✅ **Query reliability** - Won't break due to naming changes
+✅ **Performance** - UUID joins are efficient (no subqueries)
+✅ **Maintainability** - Single source of truth (UUID)
+✅ **Debugging** - Clear distinction between display names and internal IDs
 
 ## Usage Examples
 

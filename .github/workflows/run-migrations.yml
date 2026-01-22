@@ -38,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [approve-production]
     if: always() && (needs.approve-production.result == 'success' || github.event.inputs.environment == 'staging')
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -69,14 +69,14 @@ jobs:
         run: |
           IMAGE="us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/mizzou-crawler/migrator:${{ steps.image-tag.outputs.tag }}"
           echo "Checking if image exists: $IMAGE"
-          
+
           gcloud artifacts docker images describe "$IMAGE" || {
             echo "ERROR: Migrator image not found: $IMAGE"
             echo "Please build the migrator image first with:"
             echo "  gcloud builds submit --config=gcp/cloudbuild/cloudbuild-migrator.yaml"
             exit 1
           }
-          
+
           echo "✓ Migrator image found"
 
       - name: Create migration job manifest
@@ -84,7 +84,7 @@ jobs:
           IMAGE_TAG="${{ steps.image-tag.outputs.tag }}"
           NAMESPACE="${{ github.event.inputs.environment }}"
           JOB_NAME="alembic-migration-$(date +%s)"
-          
+
           cat > /tmp/migration-job.yaml <<EOF
           apiVersion: batch/v1
           kind: Job
@@ -141,25 +141,25 @@ jobs:
                         cpu: "500m"
             ttlSecondsAfterFinished: 86400
           EOF
-          
+
           echo "Created job manifest: ${JOB_NAME}"
           cat /tmp/migration-job.yaml
 
       - name: Apply migration job
         run: |
           kubectl apply -f /tmp/migration-job.yaml
-          
+
           JOB_NAME=$(kubectl get job -n ${{ github.event.inputs.environment }} \
             -l triggered-by=github-actions,run-id="${{ github.run_id }}" \
             -o jsonpath='{.items[0].metadata.name}')
-          
+
           echo "job_name=${JOB_NAME}" >> $GITHUB_ENV
 
       - name: Wait for migration to complete
         run: |
           echo "Waiting for migration job to complete..."
           echo "Job name: ${{ env.job_name }}"
-          
+
           # Wait up to 10 minutes for job to complete
           kubectl wait --for=condition=complete \
             --timeout=600s \
@@ -169,7 +169,7 @@ jobs:
             kubectl describe job/${{ env.job_name }} -n ${{ github.event.inputs.environment }}
             exit 1
           }
-          
+
           echo "✓ Migration job completed successfully"
 
       - name: Get migration logs
@@ -185,13 +185,13 @@ jobs:
           STATUS=$(kubectl get job/${{ env.job_name }} \
             -n ${{ github.event.inputs.environment }} \
             -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}')
-          
+
           if [ "$STATUS" != "True" ]; then
             echo "ERROR: Migration job failed"
             kubectl describe job/${{ env.job_name }} -n ${{ github.event.inputs.environment }}
             exit 1
           fi
-          
+
           echo "✓ Migration completed successfully"
 
   cleanup:

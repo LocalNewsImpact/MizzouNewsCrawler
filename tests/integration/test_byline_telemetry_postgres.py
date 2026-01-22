@@ -189,8 +189,8 @@ class TestBylineTelemetryPostgreSQL:
             # Query the actual table schema
             result = conn.execute(
                 """
-                SELECT column_name 
-                FROM information_schema.columns 
+                SELECT column_name
+                FROM information_schema.columns
                 WHERE table_name = 'byline_cleaning_telemetry'
                 ORDER BY ordinal_position
             """

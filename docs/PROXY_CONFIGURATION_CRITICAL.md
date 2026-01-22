@@ -81,7 +81,7 @@ stringData:
   # Only if overriding Decodo defaults
   decodo-username: "user-custom"
   decodo-password: "custom-password"
-  
+
   # For Selenium (separate)
   selenium-proxy-url: "http://proxy.example.com:8080"
 ```

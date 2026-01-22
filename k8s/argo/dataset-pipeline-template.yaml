@@ -1,5 +1,5 @@
 # Template for creating new dataset pipelines
-# 
+#
 # To create a new dataset pipeline:
 # 1. Copy this file and rename it (e.g., my-dataset-pipeline-cronworkflow.yaml)
 # 2. Update metadata.name with your dataset name
@@ -26,7 +26,7 @@ spec:
   workflowSpec:
     entrypoint: dataset-pipeline-wrapper
     serviceAccountName: argo-workflow
-    
+
     templates:
     # Wrapper that calls the reusable template
     - name: dataset-pipeline-wrapper
@@ -40,7 +40,7 @@ spec:
             # Dataset configuration - CHANGE THIS to match your dataset name
             - name: dataset
               value: "DATASET-NAME"
-            
+
             # Discovery parameters - ADJUST based on your dataset size
             - name: source-limit
               value: ""          # Empty = process ALL sources in dataset (recommended)
@@ -48,7 +48,7 @@ spec:
               value: "50"        # Max articles to discover per source
             - name: days-back
               value: "7"         # How far back to look for articles
-            
+
             # Verification parameters - ADJUST based on expected volume
             - name: verify-batch-size
               value: "10"        # URLs to verify per batch
@@ -56,7 +56,7 @@ spec:
               value: "100"       # Maximum batches to process
             - name: verify-idle-grace-seconds
               value: "600"       # Keep verification alive this long when idle
-            
+
             # Extraction parameters - ADJUST based on expected volume
             # Total capacity = extract-limit × extract-batches
             # Examples:
@@ -67,7 +67,7 @@ spec:
               value: "50"        # Articles to extract per batch (balance: larger=faster, smaller=safer)
             - name: extract-batches
               value: "40"        # Maximum batches to process (total capacity: limit × batches)
-            
+
             # Rate limiting - CRITICAL: ADJUST based on target site's bot protection
             # Conservative (low bot detection):
             #   inter-request-min: "2.0"
@@ -89,7 +89,7 @@ spec:
             #   batch-sleep: "420.0"
             #   captcha-backoff-base: "7200"   # 2 hours
             #   captcha-backoff-max: "21600"   # 6 hours
-            
+
             - name: inter-request-min
               value: "5.0"       # Minimum seconds between requests
             - name: inter-request-max

@@ -190,7 +190,7 @@ docker run --rm \
 LINT_EXIT_CODE=${PIPESTATUS[0]}
 if [ $LINT_EXIT_CODE -ne 0 ]; then
     echo -e "${YELLOW}⚠️  Linting checks failed - attempting auto-fix...${NC}"
-    
+
     # Run auto-fix in container
     docker run --rm \
         -v "$(pwd)":/workspace \
@@ -204,7 +204,7 @@ if [ $LINT_EXIT_CODE -ne 0 ]; then
             echo '  → Auto-sorting imports with isort...' &&
             python -m isort --profile black src/ tests/ web/
         " 2>&1 | { grep -v "WARNING: The requested image's platform" || true; }
-    
+
     AUTO_FIX_EXIT_CODE=${PIPESTATUS[0]}
     if [ $AUTO_FIX_EXIT_CODE -eq 0 ]; then
         echo -e "${GREEN}✅ Auto-fix completed successfully${NC}"

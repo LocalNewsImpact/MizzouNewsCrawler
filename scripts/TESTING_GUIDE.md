@@ -128,7 +128,7 @@ with db.get_session() as session:
         )
         session.add(source)
         session.flush()
-        
+
         for j in range(50):
             link = CandidateLink(
                 id=str(uuid.uuid4()),
@@ -153,7 +153,7 @@ watch -n 2 'docker exec mizzou-work-queue curl -s http://localhost:8080/stats | 
 
 # Check results
 docker exec mizzou-postgres psql -U mizzou_user -d mizzou -c "
-SELECT 
+SELECT
     COUNT(*) as total_articles,
     COUNT(DISTINCT cl.source) as unique_sources,
     MIN(a.extracted_at) as first,
@@ -203,9 +203,9 @@ docker exec -it mizzou-postgres psql -U mizzou_user -d mizzou
 SELECT COUNT(*) FROM articles;
 
 # Check for duplicates (should return 0)
-SELECT candidate_link_id, COUNT(*) 
-FROM articles 
-GROUP BY candidate_link_id 
+SELECT candidate_link_id, COUNT(*)
+FROM articles
+GROUP BY candidate_link_id
 HAVING COUNT(*) > 1;
 
 # Domain distribution
@@ -216,7 +216,7 @@ GROUP BY cl.source
 ORDER BY articles DESC;
 
 # Recent extraction activity
-SELECT 
+SELECT
     DATE_TRUNC('minute', extracted_at) as minute,
     COUNT(*) as articles
 FROM articles
@@ -225,7 +225,7 @@ GROUP BY minute
 ORDER BY minute DESC;
 
 # Verify data integrity
-SELECT 
+SELECT
     COUNT(*) as total,
     COUNT(text) as has_text,
     COUNT(title) as has_title,
@@ -351,7 +351,7 @@ Expected results from full integration test:
    ```bash
    # Deploy work queue service
    kubectl apply -f k8s/work-queue-deployment.yaml -n staging
-   
+
    # Deploy updated crawler
    ./scripts/deploy-services.sh copilot/implement-centralized-work-queue ci
    ```

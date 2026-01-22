@@ -51,7 +51,7 @@ if checks:
     print(f"  • Workflows: {last.get('workflows', {}).get('running', 0)} running")
     print(f"  • Processor pods: {last.get('pods', {}).get('processor_count', 0)}")
     print(f"  • API pods: {last.get('pods', {}).get('api_count', 0)}")
-    
+
     if last.get('errors'):
         print(f"  • Errors: {len(last['errors'])}")
 
@@ -62,7 +62,7 @@ if issues:
     by_type = defaultdict(int)
     for issue in issues:
         by_type[issue['type']] += 1
-    
+
     print("Issue breakdown:")
     for issue_type, count in sorted(by_type.items()):
         print(f"  • {issue_type}: {count}")

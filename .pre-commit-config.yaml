@@ -50,7 +50,7 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
-      
+
       - id: validate-telemetry-schemas
         name: validate-telemetry-schemas
         entry: python scripts/validate_telemetry_schemas.py

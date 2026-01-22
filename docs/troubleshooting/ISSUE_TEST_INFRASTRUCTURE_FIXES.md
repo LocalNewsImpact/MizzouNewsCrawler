@@ -97,7 +97,7 @@ alembic/versions/a9957c3054a4_add_remaining_telemetry_tables.py:
 def test_get_sources_integration_sqlite(tmp_path):
     db_path = tmp_path / "test.db"
     db_url = f"sqlite:///{db_path}"
-    
+
     # This fails because DatabaseManager tries Cloud SQL first
     dbm = DatabaseManager(database_url=db_url)  # <- Error here
 ```
@@ -217,7 +217,7 @@ def test_database_manager(tmp_path, monkeypatch):
     monkeypatch.setenv("USE_CLOUD_SQL_CONNECTOR", "false")
     db_path = tmp_path / "test.db"
     db_url = f"sqlite:///{db_path}"
-    
+
     dbm = DatabaseManager(database_url=db_url)
     yield dbm
     dbm.close()
@@ -255,13 +255,13 @@ done
 def upgrade():
     # Remove byline_cleaning_telemetry creation - already in e3114395bcc4
     # Keep only new tables not created by previous migrations
-    
+
     # Add byline_cleaning_telemetry_reviews (this is unique to this migration)
     op.create_table(
         'byline_cleaning_telemetry_reviews',
         # ... columns
     )
-    
+
     # Remove duplicate byline_cleaning_telemetry table creation
 ```
 
@@ -339,9 +339,9 @@ def mock_db_manager(tmp_path):
 def sample_extractions(test_database_manager):
     """Create sample extraction telemetry records."""
     from src.models.telemetry import ExtractionTelemetryV2
-    
+
     session = test_database_manager.session
-    
+
     # Create exactly 5 test records for predictable assertions
     for i in range(5):
         record = ExtractionTelemetryV2(
@@ -355,7 +355,7 @@ def sample_extractions(test_database_manager):
             extraction_timestamp=datetime.utcnow()
         )
         session.add(record)
-    
+
     session.commit()
     return session
 ```
@@ -376,14 +376,14 @@ def test_telemetry_summary_endpoint():
 def test_telemetry_summary_endpoint(sample_extractions):
     response = client.get("/api/telemetry/summary")
     data = response.json()
-    
+
     # Assert structure
     assert "extractions" in data
     assert isinstance(data["extractions"], list)
-    
+
     # Assert based on fixture data
     assert len(data["extractions"]) == 5
-    
+
     # Validate schema
     for extraction in data["extractions"]:
         assert "operation_id" in extraction
@@ -442,7 +442,7 @@ def track_http_status(
             status_category = "5xx"
         else:
             status_category = "other"
-    
+
     # ... rest of implementation
 ```
 
@@ -459,11 +459,11 @@ def track_http_status(
 1. **Discovery → Extraction → Analysis → Telemetry**
    - Input: Source with RSS feed
    - Expected: Articles extracted, entities identified, telemetry recorded
-   
+
 2. **Failed Extraction Recovery**
    - Input: Article with extraction failure
    - Expected: Failure recorded, retry scheduled, telemetry updated
-   
+
 3. **Duplicate Detection**
    - Input: Multiple articles with similar content
    - Expected: Duplicates flagged, telemetry shows near-misses
@@ -479,18 +479,18 @@ def track_http_status(
 def e2e_test_database(tmp_path):
     """Create isolated E2E test database with schema."""
     db_url = f"sqlite:///{tmp_path / 'e2e_test.db'}"
-    
+
     with patch.dict(os.environ, {
         "USE_CLOUD_SQL_CONNECTOR": "false",
         "DATABASE_URL": db_url
     }):
         dbm = DatabaseManager(database_url=db_url)
-        
+
         # Seed with minimal test data
         seed_test_data(dbm)
-        
+
         yield dbm
-        
+
         dbm.close()
 
 def seed_test_data(dbm):
@@ -571,27 +571,27 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-      
+
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
-      
+
       - name: Run tests
         env:
           USE_CLOUD_SQL_CONNECTOR: false
           DATABASE_URL: sqlite:///test.db
         run: |
           pytest -v --cov=src --cov-report=xml
-      
+
       - name: Upload coverage
         uses: codecov/codecov-action@v3
         with:
@@ -817,7 +817,7 @@ jobs:
 ## Assignees
 
 - **Phase 1-2**: DevOps/Infrastructure team
-- **Phase 3-4**: Backend development team  
+- **Phase 3-4**: Backend development team
 - **Phase 5-6**: QA/Testing team + Documentation team
 
 ## Timeline

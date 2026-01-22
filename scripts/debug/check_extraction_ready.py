@@ -24,7 +24,7 @@ if count > 0:
         print()
 else:
     print('NO candidate_links with status=article found!')
-    
+
     # Show what statuses DO exist
     result = db.session.execute(text(
         "SELECT status, COUNT(*) FROM candidate_links GROUP BY status ORDER BY COUNT(*) DESC LIMIT 10"

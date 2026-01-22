@@ -1,7 +1,7 @@
 # Discovery Pipeline Fix Summary
 
-**Date**: October 21, 2025  
-**Issue**: Discovery pipeline returning 0 sources for Mizzou-Missouri-State dataset  
+**Date**: October 21, 2025
+**Issue**: Discovery pipeline returning 0 sources for Mizzou-Missouri-State dataset
 **Status**: ✅ RESOLVED
 
 ---

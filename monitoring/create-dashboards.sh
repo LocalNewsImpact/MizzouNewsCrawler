@@ -14,15 +14,15 @@ echo ""
 create_dashboard() {
     local dashboard_file=$1
     local dashboard_name=$(basename "$dashboard_file" .json)
-    
+
     echo "Creating dashboard: $dashboard_name"
-    
+
     gcloud monitoring dashboards create \
         --config-from-file="$dashboard_file" \
         --project="$PROJECT_ID" 2>&1 | grep -v "WARNING" || {
         echo "Dashboard may already exist or error occurred"
         echo "Attempting to update instead..."
-        
+
         # Try to update existing dashboard
         # First, list dashboards to find the ID
         dashboard_id=$(gcloud monitoring dashboards list \
@@ -30,7 +30,7 @@ create_dashboard() {
             --filter="displayName:$dashboard_name" \
             --format="value(name)" \
             --limit=1 2>/dev/null || echo "")
-        
+
         if [ -n "$dashboard_id" ]; then
             echo "Found existing dashboard: $dashboard_id"
             echo "Update via UI: https://console.cloud.google.com/monitoring/dashboards"

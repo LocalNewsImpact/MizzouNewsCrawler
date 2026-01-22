@@ -1,6 +1,6 @@
 # Legacy Non-Article URL Cleanup
 
-**Date**: October 19, 2025  
+**Date**: October 19, 2025
 **Issue**: https://www.kfvs12.com/video-gallery/news/ got past StoryFilter
 
 ## Root Cause

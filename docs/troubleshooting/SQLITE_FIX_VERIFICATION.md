@@ -19,7 +19,7 @@ Using Kubernetes native variable expansion:
 
 ## Deployment Timeline
 1. **Commit b8e2413**: Added telemetry logging for diagnosis
-2. **Commit 43bd093**: Added DATABASE_URL to processor + workflows  
+2. **Commit 43bd093**: Added DATABASE_URL to processor + workflows
 3. **Applied configs**: Updated production cluster
 4. **Manual image update**: `kubectl set image deployment/mizzou-processor processor=...b8e2413`
 5. **Commit 5b816df**: Fixed workflow template entrypoint
@@ -65,7 +65,7 @@ USE_CLOUD_SQL_CONNECTOR=true
 Kubernetes successfully expanded `$(DATABASE_USER):$(DATABASE_PASSWORD)` including special characters (`/`, `=`).
 
 ## Next Steps Completed
-- ✅ Fixed processor deployment  
+- ✅ Fixed processor deployment
 - ✅ Fixed Argo workflow templates
 - ✅ Deployed processor:b8e2413
 - ✅ Applied workflow template updates

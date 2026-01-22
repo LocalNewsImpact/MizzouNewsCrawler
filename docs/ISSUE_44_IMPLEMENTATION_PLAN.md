@@ -14,7 +14,7 @@ The dashboard displays zero articles despite 3,958 articles existing in Cloud SQ
 
 #### 1. `/api/ui_overview` Endpoint Migration
 - **What Changed**: Replaced CSV reads with direct database queries
-- **Implementation**: 
+- **Implementation**:
   - Total article count: `session.query(Article).count()`
   - Wire article count: JSON parsing to check for non-empty wire service arrays
   - Candidate issues: Existing database query (already migrated)
@@ -105,7 +105,7 @@ python -m pytest backend/tests/test_api_dashboard_endpoints.py \
   - `/api/articles?limit=20` first page
   - `/api/articles?limit=20&offset=3940` last page
   - `/api/articles?reviewer=test` with filtering
-  
+
 **Tools**: Apache Bench (ab) or Locust for load testing
 
 ```bash
@@ -129,21 +129,21 @@ The migration joins `articles` with `candidate_links` to get source information.
 
 ```sql
 -- Critical for article listing performance
-CREATE INDEX IF NOT EXISTS idx_articles_created_at 
+CREATE INDEX IF NOT EXISTS idx_articles_created_at
   ON articles(created_at DESC);
 
 -- For candidate link joins
-CREATE INDEX IF NOT EXISTS idx_articles_candidate_link_id 
+CREATE INDEX IF NOT EXISTS idx_articles_candidate_link_id
   ON articles(candidate_link_id);
 
 -- For wire filtering (if PostgreSQL JSON indexing available)
-CREATE INDEX IF NOT EXISTS idx_articles_wire 
+CREATE INDEX IF NOT EXISTS idx_articles_wire
   ON articles USING GIN (wire);
 
 -- For reviewer filtering
-CREATE INDEX IF NOT EXISTS idx_reviews_article_uid 
+CREATE INDEX IF NOT EXISTS idx_reviews_article_uid
   ON reviews(article_uid);
-CREATE INDEX IF NOT EXISTS idx_reviews_reviewer 
+CREATE INDEX IF NOT EXISTS idx_reviews_reviewer
   ON reviews(reviewer);
 ```
 
@@ -458,12 +458,12 @@ gcloud builds submit --config cloudbuild-api-only.yaml
   - Set up test environment with Cloud SQL connection
   - Run integration tests
   - Performance benchmarking
-  
+
 - 🔄 **Day 4**: Staging deployment and validation (0.5 days)
   - Deploy to staging environment
   - Manual testing
   - Fix any issues found
-  
+
 - 🔄 **Day 4-5**: Production deployment (0.5 days)
   - Blue-green deployment
   - Post-deployment validation
@@ -515,8 +515,8 @@ The migration is **low-risk** with:
 
 ---
 
-**Document Version**: 1.0  
-**Last Updated**: 2025-10-05  
-**Author**: GitHub Copilot  
-**Related Issue**: #44  
+**Document Version**: 1.0
+**Last Updated**: 2025-10-05
+**Author**: GitHub Copilot
+**Related Issue**: #44
 **Related Commits**: 68ed365

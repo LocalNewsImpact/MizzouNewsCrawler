@@ -36,9 +36,9 @@ print(f"\nExporting {len(rows)} articles...")
 # Query all entities for these articles
 print("Querying entities...")
 result = session.execute(text('''
-    SELECT ae.article_id, 
-           ae.entity_text, 
-           ae.entity_norm, 
+    SELECT ae.article_id,
+           ae.entity_text,
+           ae.entity_norm,
            ae.entity_label,
            ae.osm_category,
            ae.osm_subcategory,
@@ -97,7 +97,7 @@ with open('/tmp/lehigh_all_articles.csv', 'w', newline='', encoding='utf-8-sig')
             'all_entities_json'  # Full entity data as JSON
         ]
         writer.writerow(base_columns + entity_columns)
-        
+
         # Write data rows
         for article in rows:
             row = []
@@ -109,14 +109,14 @@ with open('/tmp/lehigh_all_articles.csv', 'w', newline='', encoding='utf-8-sig')
                 if col in ('content', 'text') and val:
                     val = decode_rot47_segments(val) or val
                 row.append(val or '')
-            
+
             # Add entity data
             article_id = article.id
             entities = entities_by_article.get(article_id, [])
-            
+
             # Count entities
             row.append(len(entities))
-            
+
             # Group by NER entity label
             person_ents = [e['text'] for e in entities if e['label'] == 'PERSON']
             org_ents = [e['text'] for e in entities if e['label'] == 'ORG']
@@ -125,7 +125,7 @@ with open('/tmp/lehigh_all_articles.csv', 'w', newline='', encoding='utf-8-sig')
             fac_ents = [e['text'] for e in entities if e['label'] == 'FAC']
             norp_ents = [e['text'] for e in entities if e['label'] == 'NORP']
             event_ents = [e['text'] for e in entities if e['label'] == 'EVENT']
-            
+
             row.append('|'.join(person_ents))
             row.append('|'.join(org_ents))
             row.append('|'.join(gpe_ents))
@@ -133,7 +133,7 @@ with open('/tmp/lehigh_all_articles.csv', 'w', newline='', encoding='utf-8-sig')
             row.append('|'.join(fac_ents))
             row.append('|'.join(norp_ents))
             row.append('|'.join(event_ents))
-            
+
             # Group by OSM category
             osm_inst = [e['text'] for e in entities if e['osm_category'] == 'institution']
             osm_place = [e['text'] for e in entities if e['osm_category'] == 'place']
@@ -141,17 +141,17 @@ with open('/tmp/lehigh_all_articles.csv', 'w', newline='', encoding='utf-8-sig')
             osm_biz = [e['text'] for e in entities if e['osm_category'] == 'business']
             osm_school = [e['text'] for e in entities if e['osm_category'] == 'school']
             osm_event = [e['text'] for e in entities if e['osm_category'] == 'event']
-            
+
             row.append('|'.join(osm_inst))
             row.append('|'.join(osm_place))
             row.append('|'.join(osm_landmark))
             row.append('|'.join(osm_biz))
             row.append('|'.join(osm_school))
             row.append('|'.join(osm_event))
-            
+
             # Add full entity data as JSON
             row.append(json.dumps(entities) if entities else '')
-            
+
             writer.writerow(row)
 
 print('Exported to /tmp/lehigh_all_articles.csv')

@@ -39,7 +39,7 @@ class BylineTelemetryAnalyzer:
         start_date = datetime.now() - timedelta(days=days)
 
         query = """
-            SELECT 
+            SELECT
                 COUNT(*) as total_cleanings,
                 AVG(confidence_score) as avg_confidence,
                 AVG(processing_time_ms) as avg_processing_time,
@@ -51,7 +51,7 @@ class BylineTelemetryAnalyzer:
                 SUM(CASE WHEN source_name_removed = 1 THEN 1 ELSE 0 END) as source_removals,
                 SUM(duplicates_removed_count) as total_duplicates_removed,
                 COUNT(DISTINCT source_name) as unique_sources
-            FROM byline_cleaning_telemetry 
+            FROM byline_cleaning_telemetry
             WHERE extraction_timestamp > ?
         """
 
@@ -90,7 +90,7 @@ class BylineTelemetryAnalyzer:
         conn = sqlite3.connect(self.db_path)
 
         query = """
-            SELECT 
+            SELECT
                 source_name,
                 COUNT(*) as cleaning_count,
                 AVG(confidence_score) as avg_confidence,
@@ -101,7 +101,7 @@ class BylineTelemetryAnalyzer:
                 SUM(CASE WHEN requires_manual_review = 1 THEN 1 ELSE 0 END) as review_count,
                 SUM(CASE WHEN source_name_removed = 1 THEN 1 ELSE 0 END) as removal_count,
                 AVG(raw_byline_length) as avg_input_length
-            FROM byline_cleaning_telemetry 
+            FROM byline_cleaning_telemetry
             WHERE source_name IS NOT NULL
             GROUP BY source_name
             ORDER BY cleaning_count DESC
@@ -141,7 +141,7 @@ class BylineTelemetryAnalyzer:
         conn = sqlite3.connect(self.db_path)
 
         query = """
-            SELECT 
+            SELECT
                 bct.raw_byline,
                 bct.final_authors_display,
                 bct.source_name,
@@ -151,7 +151,7 @@ class BylineTelemetryAnalyzer:
                 bct.likely_valid_authors,
                 COUNT(*) as frequency
             FROM byline_cleaning_telemetry bct
-            WHERE bct.raw_byline IS NOT NULL 
+            WHERE bct.raw_byline IS NOT NULL
             AND bct.final_authors_display IS NOT NULL
             AND bct.raw_byline != bct.final_authors_display
             GROUP BY bct.raw_byline, bct.final_authors_display, bct.source_name
@@ -191,7 +191,7 @@ class BylineTelemetryAnalyzer:
 
         # Get training data with features
         query = """
-            SELECT 
+            SELECT
                 bct.raw_byline,
                 bct.final_authors_json,
                 bct.source_name,
@@ -268,11 +268,11 @@ class BylineTelemetryAnalyzer:
 
         # Get error statistics
         query = """
-            SELECT 
+            SELECT
                 COUNT(*) as total_with_errors,
                 cleaning_errors,
                 parsing_warnings
-            FROM byline_cleaning_telemetry 
+            FROM byline_cleaning_telemetry
             WHERE cleaning_errors != '[]' OR parsing_warnings != '[]'
         """
 

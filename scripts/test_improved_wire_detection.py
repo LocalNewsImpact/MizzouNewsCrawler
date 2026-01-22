@@ -16,10 +16,10 @@ def test_krcu_articles():
     """Test KRCU articles with NPR bylines."""
     engine = get_engine()
     detector = ContentTypeDetector()
-    
+
     print("Testing KRCU articles (NPR affiliate)...")
     print("=" * 80)
-    
+
     with Session(engine) as session:
         stmt = (
             select(Article)
@@ -28,10 +28,10 @@ def test_krcu_articles():
             .where(Article.content.isnot(None))
             .limit(30)
         )
-        
+
         articles = session.scalars(stmt).all()
         print(f"\nTesting {len(articles)} KRCU articles\n")
-        
+
         detected = 0
         for article in articles:
             result = detector.detect(
@@ -40,7 +40,7 @@ def test_krcu_articles():
                 metadata={"byline": article.author} if article.author else None,
                 content=article.content,
             )
-            
+
             if result and result.status == "wire":
                 detected += 1
                 print(f"✓ DETECTED: {article.title[:70]}")
@@ -48,7 +48,7 @@ def test_krcu_articles():
                 print(f"  Author: {article.author}")
                 print(f"  Evidence: {result.evidence}")
                 print()
-        
+
         print("=" * 80)
         print(f"KRCU Detection: {detected}/{len(articles)} ({detected/len(articles)*100:.1f}%)\n")
 
@@ -57,10 +57,10 @@ def test_small_town_afp():
     """Test small-town papers with AFP content and /nation/ URLs."""
     engine = get_engine()
     detector = ContentTypeDetector()
-    
+
     print("Testing small-town papers with /nation/ URLs...")
     print("=" * 80)
-    
+
     with Session(engine) as session:
         # Test griffonnews, bransontrilakesnews, webstercountycitizen
         stmt = (
@@ -77,10 +77,10 @@ def test_small_town_afp():
             .where(Article.content.isnot(None))
             .limit(20)
         )
-        
+
         articles = session.scalars(stmt).all()
         print(f"\nTesting {len(articles)} small-town articles with /nation/ URLs\n")
-        
+
         detected = 0
         for article in articles:
             result = detector.detect(
@@ -89,7 +89,7 @@ def test_small_town_afp():
                 metadata={"byline": article.author} if article.author else None,
                 content=article.content,
             )
-            
+
             if result and result.status == "wire":
                 detected += 1
                 print(f"✓ DETECTED: {article.title[:70]}")
@@ -97,7 +97,7 @@ def test_small_town_afp():
                 print(f"  Author: {article.author}")
                 print(f"  Evidence: {result.evidence}")
                 print()
-        
+
         print("=" * 80)
         print(f"Small-town Detection: {detected}/{len(articles)} ({detected/len(articles)*100:.1f}%)\n")
 
@@ -107,11 +107,11 @@ def main():
     print("\n" + "=" * 80)
     print("TESTING IMPROVED WIRE DETECTION")
     print("=" * 80 + "\n")
-    
+
     test_krcu_articles()
     print("\n")
     test_small_town_afp()
-    
+
     print("\n" + "=" * 80)
     print("TEST COMPLETE")
     print("=" * 80)

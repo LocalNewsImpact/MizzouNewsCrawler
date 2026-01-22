@@ -28,11 +28,11 @@ def patch_telemetry_file():
 
     # Function to add after record_discovery_outcome
     extraction_function = '''
-    def record_extraction_outcome(self, operation_id: str, article_id: int, 
+    def record_extraction_outcome(self, operation_id: str, article_id: int,
                                   url: str, extraction_result):
         """Record detailed extraction outcome for reporting and analysis."""
         from src.utils.extraction_outcomes import ExtractionResult
-        
+
         if not isinstance(extraction_result, ExtractionResult):
             self.logger.warning(f"Expected ExtractionResult, got {type(extraction_result)}")
             return
@@ -87,27 +87,27 @@ def patch_telemetry_file():
 
             with self.db_engine.connect() as conn:
                 conn.execute(insert_query, outcome_data)
-                
+
                 # Update articles table status based on extraction result
                 if extraction_result.is_success:
                     article_status = 'extracted'
                 else:
                     article_status = 'error'
-                
+
                 update_article_query = text("""
-                    UPDATE articles 
+                    UPDATE articles
                     SET status = :status,
                         processed_at = datetime('now'),
                         error_message = :error_message
                     WHERE id = :article_id
                 """)
-                
+
                 conn.execute(update_article_query, {
                     "article_id": article_id,
                     "status": article_status,
                     "error_message": extraction_result.error_message
                 })
-                
+
                 conn.commit()
 
             self.logger.debug(f"Recorded extraction outcome: {extraction_result.outcome.value} for article {article_id}")

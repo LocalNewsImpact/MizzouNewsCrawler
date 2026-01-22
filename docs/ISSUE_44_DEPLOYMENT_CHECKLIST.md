@@ -273,7 +273,7 @@ Additional observations or issues encountered:
 
 ---
 
-**Issue**: #44  
-**Commit**: 68ed365  
-**Deployment Date**: ________________  
-**Rollback Count**: ________________  
+**Issue**: #44
+**Commit**: 68ed365
+**Deployment Date**: ________________
+**Rollback Count**: ________________

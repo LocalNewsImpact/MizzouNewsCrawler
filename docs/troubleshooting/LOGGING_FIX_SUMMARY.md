@@ -63,7 +63,7 @@ def main() -> None:
     logger.info("  - Cleaning: %s", "✅" if ENABLE_CLEANING else "❌")
     logger.info("  - ML Analysis: %s", "✅" if ENABLE_ML_ANALYSIS else "❌")
     logger.info("  - Entity Extraction: %s", "✅" if ENABLE_ENTITY_EXTRACTION else "❌")
-    
+
     # Warn if no steps are enabled
     if not any([ENABLE_DISCOVERY, ENABLE_VERIFICATION, ENABLE_EXTRACTION,
                 ENABLE_CLEANING, ENABLE_ML_ANALYSIS, ENABLE_ENTITY_EXTRACTION]):

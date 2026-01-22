@@ -55,7 +55,7 @@ def update_candidate_status(
         update_data["error_message"] = error_message
 
     update_query = f"""
-        UPDATE candidate_links 
+        UPDATE candidate_links
         SET {", ".join(set_clauses)}
         WHERE id = :candidate_id
     """
@@ -115,7 +115,7 @@ def create_article_record(db, candidate, extraction_result):
     with db.engine.connect() as conn:
         conn.execute(
             text(f"""
-            INSERT INTO articles ({columns}) 
+            INSERT INTO articles ({columns})
             VALUES ({placeholders})
         """),
             article_data,

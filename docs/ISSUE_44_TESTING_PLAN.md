@@ -2,7 +2,7 @@
 
 **Issue**: [#44 Complete API Backend Migration: Replace CSV Reads with Database Queries for Dashboard Endpoints](https://github.com/LocalNewsImpact/MizzouNewsCrawler/issues/44)
 
-**Date**: October 5, 2025  
+**Date**: October 5, 2025
 **Status**: Planning Phase
 
 ---
@@ -75,7 +75,7 @@ def test_ui_overview_database_error_handling(db_session, monkeypatch):
     """Test ui_overview handles database connection failures gracefully."""
     def mock_error(*args, **kwargs):
         raise Exception("Database connection lost")
-    
+
     monkeypatch.setattr("sqlalchemy.orm.Session.query", mock_error)
     response = client.get("/api/ui_overview")
     assert response.status_code == 500
@@ -94,7 +94,7 @@ def test_articles_pagination(db_session, sample_articles):
     data = response.json()
     assert data["count"] == 50
     assert len(data["results"]) == 10
-    
+
     # Test offset
     response = client.get("/api/articles?limit=10&offset=10")
     assert len(response.json()["results"]) == 10
@@ -261,12 +261,12 @@ def test_cloud_sql_query_performance():
     """Test database queries meet performance targets."""
     import time
     db_manager = DatabaseManager(config.DATABASE_URL)
-    
+
     start = time.time()
     with db_manager.get_session() as session:
         count = session.query(Article).count()
     elapsed = time.time() - start
-    
+
     # Should complete in <500ms for dashboard responsiveness
     assert elapsed < 0.5, f"Query took {elapsed:.2f}s (target: <0.5s)"
 ```
@@ -285,7 +285,7 @@ def test_ui_overview_cloud_sql():
     client = TestClient(app)
     response = client.get("/api/ui_overview")
     assert response.status_code == 200
-    
+
     data = response.json()
     # With real data, should have non-zero counts
     assert data["total_articles"] > 0
@@ -298,7 +298,7 @@ def test_articles_endpoint_cloud_sql():
     client = TestClient(app)
     response = client.get("/api/articles?limit=10")
     assert response.status_code == 200
-    
+
     data = response.json()
     assert data["count"] > 0
     assert len(data["results"]) > 0
@@ -312,12 +312,12 @@ def test_articles_endpoint_cloud_sql():
 def test_api_pagination_cloud_sql():
     """Test pagination works correctly with large dataset."""
     client = TestClient(app)
-    
+
     # Get first page
     page1 = client.get("/api/articles?limit=20&offset=0").json()
     # Get second page
     page2 = client.get("/api/articles?limit=20&offset=20").json()
-    
+
     # Verify different results
     page1_uids = {r["uid"] for r in page1["results"]}
     page2_uids = {r["uid"] for r in page2["results"]}
@@ -382,20 +382,20 @@ from backend.app.main import app
 def test_concurrent_ui_overview_requests():
     """Test ui_overview handles 100 concurrent requests."""
     client = TestClient(app)
-    
+
     def make_request():
         start = time.time()
         response = client.get("/api/ui_overview")
         elapsed = time.time() - start
         return response.status_code, elapsed
-    
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=100) as executor:
         futures = [executor.submit(make_request) for _ in range(100)]
         results = [f.result() for f in futures]
-    
+
     # All requests should succeed
     assert all(status == 200 for status, _ in results)
-    
+
     # 95th percentile should be <1s
     times = sorted([elapsed for _, elapsed in results])
     p95 = times[int(len(times) * 0.95)]
@@ -405,23 +405,23 @@ def test_concurrent_ui_overview_requests():
 def test_pagination_performance():
     """Test pagination through large result sets."""
     client = TestClient(app)
-    
+
     total_fetched = 0
     offset = 0
     limit = 100
-    
+
     start = time.time()
     while True:
         response = client.get(f"/api/articles?limit={limit}&offset={offset}")
         data = response.json()
         total_fetched += len(data["results"])
-        
+
         if len(data["results"]) < limit:
             break
         offset += limit
-    
+
     elapsed = time.time() - start
-    
+
     # Should fetch 1000+ articles in <5s
     assert total_fetched > 1000
     assert elapsed < 5.0, f"Fetched {total_fetched} in {elapsed:.2f}s"
@@ -435,13 +435,13 @@ def test_pagination_performance():
 def test_connection_pool_exhaustion():
     """Test app handles connection pool exhaustion gracefully."""
     client = TestClient(app)
-    
+
     # Make more concurrent requests than pool size
     with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
-        futures = [executor.submit(client.get, "/api/ui_overview") 
+        futures = [executor.submit(client.get, "/api/ui_overview")
                    for _ in range(50)]
         results = [f.result() for f in futures]
-    
+
     # All should succeed or return 503 (not crash)
     assert all(r.status_code in [200, 503] for r in results)
     success_rate = sum(1 for r in results if r.status_code == 200) / len(results)
@@ -557,7 +557,7 @@ def test_production_ui_overview():
     """Smoke test: ui_overview returns valid data in production."""
     response = requests.get(f"{PRODUCTION_URL}/api/ui_overview", timeout=5)
     assert response.status_code == 200
-    
+
     data = response.json()
     # Should have non-zero articles in production
     assert data["total_articles"] > 0
@@ -568,11 +568,11 @@ def test_production_ui_overview():
 def test_production_articles_pagination():
     """Smoke test: articles endpoint works in production."""
     response = requests.get(
-        f"{PRODUCTION_URL}/api/articles?limit=5", 
+        f"{PRODUCTION_URL}/api/articles?limit=5",
         timeout=5
     )
     assert response.status_code == 200
-    
+
     data = response.json()
     assert data["count"] > 0
     assert len(data["results"]) <= 5
@@ -581,11 +581,11 @@ def test_production_articles_pagination():
 def test_production_api_response_time():
     """Smoke test: API response time is acceptable."""
     import time
-    
+
     start = time.time()
     response = requests.get(f"{PRODUCTION_URL}/api/ui_overview", timeout=5)
     elapsed = time.time() - start
-    
+
     assert response.status_code == 200
     # Should respond in <500ms
     assert elapsed < 0.5, f"Response took {elapsed:.2f}s"
@@ -733,10 +733,10 @@ def test_rollback_preserves_data():
     """Test that rollback doesn't lose data."""
     # Record current article count
     before_count = get_article_count()
-    
+
     # Simulate rollback (deploy old image)
     # ... rollback steps ...
-    
+
     # Verify data still accessible
     after_count = get_article_count()
     assert after_count == before_count
@@ -753,7 +753,7 @@ def test_rollback_restores_functionality():
 ## Complications & Mitigation
 
 ### 1. **Cloud SQL Connection Limits**
-**Risk**: Connection pool exhaustion under load  
+**Risk**: Connection pool exhaustion under load
 **Mitigation**:
 - Configure connection pool: `SQLALCHEMY_POOL_SIZE=20`
 - Set `SQLALCHEMY_MAX_OVERFLOW=10`
@@ -772,7 +772,7 @@ engine = create_engine(
 ```
 
 ### 2. **Test Data Isolation**
-**Risk**: Integration tests pollute Cloud SQL test instance  
+**Risk**: Integration tests pollute Cloud SQL test instance
 **Mitigation**:
 - Use separate test database: `test_db`
 - Implement database fixtures with cleanup
@@ -786,16 +786,16 @@ def isolated_db_session():
     connection = engine.connect()
     transaction = connection.begin()
     session = Session(bind=connection)
-    
+
     yield session
-    
+
     session.close()
     transaction.rollback()
     connection.close()
 ```
 
 ### 3. **Performance Degradation**
-**Risk**: Database queries slower than CSV reads  
+**Risk**: Database queries slower than CSV reads
 **Mitigation**:
 - Add database indexes (see Issue #44)
 - Implement query result caching
@@ -807,12 +807,12 @@ def isolated_db_session():
 CREATE INDEX CONCURRENTLY idx_articles_county ON articles(county);
 CREATE INDEX CONCURRENTLY idx_articles_source_id ON articles(source_id);
 CREATE INDEX CONCURRENTLY idx_articles_publish_date ON articles(publish_date DESC);
-CREATE INDEX CONCURRENTLY idx_articles_wire_detected ON articles(wire_detected) 
+CREATE INDEX CONCURRENTLY idx_articles_wire_detected ON articles(wire_detected)
   WHERE wire_detected = true;
 ```
 
 ### 4. **CI/CD Pipeline Timeouts**
-**Risk**: Integration tests timeout Cloud Build  
+**Risk**: Integration tests timeout Cloud Build
 **Mitigation**:
 - Increase Cloud Build timeout to 20 minutes
 - Run integration tests in parallel
@@ -820,7 +820,7 @@ CREATE INDEX CONCURRENTLY idx_articles_wire_detected ON articles(wire_detected)
 - Use Cloud SQL Proxy sidecar pattern
 
 ### 5. **Data Migration During Deployment**
-**Risk**: Schema changes break during rolling update  
+**Risk**: Schema changes break during rolling update
 **Mitigation**:
 - Use backward-compatible migrations
 - Deploy in phases:
@@ -842,7 +842,7 @@ def ui_overview():
 ```
 
 ### 6. **Test Environment Costs**
-**Risk**: Cloud SQL test instance adds costs  
+**Risk**: Cloud SQL test instance adds costs
 **Mitigation**:
 - Use smallest instance size (db-f1-micro)
 - Auto-shutdown after hours
@@ -850,7 +850,7 @@ def ui_overview():
 - Consider local PostgreSQL for most tests
 
 ### 7. **Secret Management**
-**Risk**: Test credentials exposed in CI/CD  
+**Risk**: Test credentials exposed in CI/CD
 **Mitigation**:
 - Use Google Secret Manager
 - Never commit credentials

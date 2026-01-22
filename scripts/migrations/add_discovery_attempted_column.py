@@ -27,7 +27,7 @@ def add_discovery_attempted_column():
 
         # Add the column
         cursor.execute("""
-            ALTER TABLE sources 
+            ALTER TABLE sources
             ADD COLUMN discovery_attempted TIMESTAMP
         """)
 

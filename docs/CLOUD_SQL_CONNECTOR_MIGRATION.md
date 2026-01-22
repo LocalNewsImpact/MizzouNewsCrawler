@@ -10,11 +10,11 @@ This guide documents the migration from Cloud SQL Proxy sidecars to the Cloud SQ
 
 ## Benefits
 
-✅ **Automatic Job Completion** - Jobs complete immediately when main container exits  
-✅ **Resource Savings** - Frees ~89-445Mi memory and ~75-125m CPU per pod  
-✅ **Simpler Configuration** - No sidecar containers in Kubernetes manifests  
-✅ **Production-Grade** - Google's recommended approach for Cloud SQL connections  
-✅ **Better Reliability** - Fewer moving parts, less complexity  
+✅ **Automatic Job Completion** - Jobs complete immediately when main container exits
+✅ **Resource Savings** - Frees ~89-445Mi memory and ~75-125m CPU per pod
+✅ **Simpler Configuration** - No sidecar containers in Kubernetes manifests
+✅ **Production-Grade** - Google's recommended approach for Cloud SQL connections
+✅ **Better Reliability** - Fewer moving parts, less complexity
 
 ## Architecture Comparison
 
@@ -185,7 +185,7 @@ kubectl delete job test-crawler-<timestamp> -n production
 ```
 
 Expected behavior:
-- ✅ Job status shows "Complete" 
+- ✅ Job status shows "Complete"
 - ✅ Pod exits after work finishes
 - ✅ No manual cleanup needed
 

@@ -46,7 +46,7 @@ def wire_patterns_session(tmp_path):
             text(
                 """
             INSERT INTO wire_services (pattern, service_name, pattern_type, case_sensitive, priority, active, created_at, updated_at)
-            VALUES 
+            VALUES
                 ('Powered by Daypop', 'Daypop', 'content', 0, 50, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
                 ('Daypop', 'Daypop', 'content', 0, 50, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
                 ('© .* Daypop', 'Daypop', 'copyright', 0, 50, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)

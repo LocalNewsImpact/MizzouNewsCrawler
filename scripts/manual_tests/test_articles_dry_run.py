@@ -27,12 +27,12 @@ def test_on_articles_table():
 
     # Get a sample of articles with bylines
     query = """
-    SELECT id, url, author, title 
-    FROM articles 
-    WHERE author IS NOT NULL 
-    AND author != '' 
+    SELECT id, url, author, title
+    FROM articles
+    WHERE author IS NOT NULL
+    AND author != ''
     AND author != 'NULL'
-    ORDER BY RANDOM() 
+    ORDER BY RANDOM()
     LIMIT 20
     """
 

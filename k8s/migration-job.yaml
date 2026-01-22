@@ -17,12 +17,12 @@ spec:
     spec:
       restartPolicy: Never
       serviceAccountName: mizzou-app
-      
+
       containers:
       - name: migrator
         image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/migrator:34ad5bf
         imagePullPolicy: IfNotPresent
-        
+
         env:
         # Database connection settings
         - name: DATABASE_DIALECT
@@ -46,13 +46,13 @@ spec:
             secretKeyRef:
               name: cloudsql-db-credentials
               key: database
-        
+
         # Cloud SQL Connector configuration
         - name: USE_CLOUD_SQL_CONNECTOR
           value: "true"
         - name: CLOUD_SQL_INSTANCE
           value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
-        
+
         resources:
           requests:
             memory: "256Mi"
@@ -60,7 +60,7 @@ spec:
           limits:
             memory: "512Mi"
             cpu: "500m"
-        
+
         # Security context
         securityContext:
           runAsUser: 1000

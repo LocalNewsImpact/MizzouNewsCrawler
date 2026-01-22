@@ -553,7 +553,7 @@ def _check_statistics_freshness(session):
     result = session.execute(
         text(
             """
-            SELECT 
+            SELECT
                 schemaname || '.' || relname as table_name,
                 n_tup_ins + n_tup_upd + n_tup_del as modifications,
                 last_analyze,

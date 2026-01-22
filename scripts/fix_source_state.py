@@ -103,10 +103,10 @@ def main():
         state_query = session.execute(
             text(
                 """
-            SELECT 
+            SELECT
                 json_extract(metadata, '$.state') as state,
                 COUNT(*) as count
-            FROM sources 
+            FROM sources
             WHERE json_extract(metadata, '$.state') IS NOT NULL
             GROUP BY json_extract(metadata, '$.state')
             ORDER BY count DESC

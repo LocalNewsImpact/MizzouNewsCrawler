@@ -136,19 +136,19 @@ curl http://$API_IP/api/telemetry/code_review/stats
 ## Next Steps (Future Work)
 
 ### Issue #33: Migrate Reviews and Snapshots Endpoints
-**Priority:** High  
-**Effort:** 8-11 hours  
+**Priority:** High
+**Effort:** 8-11 hours
 **Description:** Refactor the remaining SQLite endpoints (reviews, snapshots, domain feedback) to use Cloud SQL
 
 Key tasks:
 - Refactor `/api/reviews` endpoints
-- Refactor `/api/snapshots` endpoints  
+- Refactor `/api/snapshots` endpoints
 - Refactor `/api/domain_feedback` endpoints
 - Test data persistence across pod restarts
 
 ### Issue #34: Complete SQLite Removal
-**Priority:** Medium  
-**Effort:** 3-4 hours  
+**Priority:** Medium
+**Effort:** 3-4 hours
 **Description:** Remove all SQLite code and dependencies
 
 Key tasks:
@@ -245,6 +245,6 @@ After merge and deployment, verify:
 
 ---
 
-**Status:** Ready to merge ✅  
-**Risk Level:** Low (hybrid architecture preserves existing functionality)  
+**Status:** Ready to merge ✅
+**Risk Level:** Low (hybrid architecture preserves existing functionality)
 **Deployment:** Can be deployed immediately after merge

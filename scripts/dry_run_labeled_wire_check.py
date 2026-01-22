@@ -31,9 +31,9 @@ with db.get_session() as session:
         print(json.dumps(dict(row._mapping)))
 """
     ]
-    
+
     result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-    
+
     # Parse JSON lines
     rows = []
     for line in result.stdout.strip().split('\n'):
@@ -42,7 +42,7 @@ with db.get_session() as session:
                 rows.append(json.loads(line))
             except json.JSONDecodeError:
                 continue
-    
+
     return rows
 
 
@@ -60,13 +60,13 @@ import json
 db = DatabaseManager()
 with db.get_session() as session:
     detector = ContentTypeDetector(session=session)
-    
+
     result = detector._detect_wire_service(
         url={json.dumps(url)},
         content={json.dumps(text or '')},
         metadata={{'author': {json.dumps(author)}}}
     )
-    
+
     if result and result.status == 'wire':
         print(json.dumps({{
             'is_wire': True,
@@ -80,7 +80,7 @@ with db.get_session() as session:
         print(json.dumps({{'is_wire': False}}))
 """
     ]
-    
+
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=30)
         return json.loads(result.stdout.strip())
@@ -92,16 +92,16 @@ with db.get_session() as session:
 def main():
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_csv = f"labeled_articles_wire_check_{timestamp}.csv"
-    
+
     print("=" * 80)
     print("Dry-Run: Check Labeled Articles for Wire Detection")
     print("=" * 80)
     print()
-    
+
     # Get labeled articles from production
     print("Fetching labeled articles from production...")
     sql = """
-        SELECT 
+        SELECT
             a.id,
             a.url,
             a.title,
@@ -117,20 +117,20 @@ def main():
         ORDER BY a.publish_date DESC
         LIMIT 5000
     """
-    
+
     articles = run_kubectl_query(sql)
     print(f"Found {len(articles)} labeled articles to check")
     print()
-    
+
     # Check each article
     wire_detected = []
     not_wire = []
-    
+
     print("Checking articles with new wire detection...")
     for i, article in enumerate(articles, 1):
         if i % 100 == 0:
             print(f"  Processed {i}/{len(articles)}...")
-        
+
         detection = check_wire_detection(
             article['id'],
             article['url'],
@@ -138,7 +138,7 @@ def main():
             article['text'],
             article['author']
         )
-        
+
         if detection['is_wire']:
             wire_detected.append({
                 'article_id': article['id'],
@@ -155,7 +155,7 @@ def main():
             })
         else:
             not_wire.append(article['id'])
-    
+
     print()
     print("=" * 80)
     print("RESULTS")
@@ -164,22 +164,22 @@ def main():
     print(f"Would be detected as wire: {len(wire_detected)} ({100*len(wire_detected)/len(articles):.1f}%)")
     print(f"Would remain labeled: {len(not_wire)} ({100*len(not_wire)/len(articles):.1f}%)")
     print()
-    
+
     # Export to CSV
     if wire_detected:
         with open(output_csv, 'w', newline='') as f:
             fieldnames = [
                 'article_id', 'url', 'title', 'author', 'source', 'publish_date',
-                'confidence', 'confidence_score', 'detected_services', 
+                'confidence', 'confidence_score', 'detected_services',
                 'detection_tier', 'reason'
             ]
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(wire_detected)
-        
+
         print(f"Exported {len(wire_detected)} wire detections to: {output_csv}")
         print()
-        
+
         # Show sample
         print("Sample wire detections:")
         for item in wire_detected[:10]:

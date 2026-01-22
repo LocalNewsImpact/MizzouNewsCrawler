@@ -1,9 +1,9 @@
 # PR #78 Orchestration Refactor - Phased Rollout Plan
 
-**Created**: October 15, 2025  
-**PR**: #78 - Refactor orchestration: Split dataset jobs from continuous processor  
-**Related Issue**: #77  
-**Branch**: `copilot/refactor-pipeline-orchestration`  
+**Created**: October 15, 2025
+**PR**: #78 - Refactor orchestration: Split dataset jobs from continuous processor
+**Related Issue**: #77
+**Branch**: `copilot/refactor-pipeline-orchestration`
 **Target**: `feature/gcp-kubernetes-deployment`
 
 ---
@@ -18,7 +18,7 @@ PR #78 refactors the pipeline orchestration to separate external site interactio
 - **Easy scaling** by copying job templates
 - **Resource efficiency** (ML models loaded once, shared across all datasets)
 
-**Timeline**: 3-4 weeks for complete rollout  
+**Timeline**: 3-4 weeks for complete rollout
 **Risk Level**: Low (non-breaking, gradual migration with rollback procedures)
 
 ---
@@ -67,7 +67,7 @@ PR #78 refactors the pipeline orchestration to separate external site interactio
    # Review final changes
    git checkout copilot/refactor-pipeline-orchestration
    git pull origin copilot/refactor-pipeline-orchestration
-   
+
    # Merge to feature branch
    git checkout feature/gcp-kubernetes-deployment
    git merge copilot/refactor-pipeline-orchestration
@@ -79,7 +79,7 @@ PR #78 refactors the pipeline orchestration to separate external site interactio
    # Trigger Cloud Build (manual or automatic)
    gcloud builds triggers run build-processor-manual \
      --branch=feature/gcp-kubernetes-deployment
-   
+
    # Monitor build progress
    gcloud builds list --filter="trigger_id=build-processor-manual" --limit=1
    ```
@@ -98,7 +98,7 @@ PR #78 refactors the pipeline orchestration to separate external site interactio
    ```bash
    # Apply updated deployment (with feature flags disabled)
    kubectl apply -f k8s/processor-deployment.yaml
-   
+
    # Watch rollout
    kubectl rollout status deployment/mizzou-processor -n production
    ```
@@ -108,7 +108,7 @@ PR #78 refactors the pipeline orchestration to separate external site interactio
    # Check logs for feature flag status
    kubectl logs -n production -l app=mizzou-processor --tail=100 | grep "Enabled pipeline steps"
    ```
-   
+
    **Expected output**:
    ```
    Enabled pipeline steps:
@@ -124,7 +124,7 @@ PR #78 refactors the pipeline orchestration to separate external site interactio
    ```bash
    kubectl logs -n production -l app=mizzou-processor --follow
    ```
-   
+
    **Expected behavior**:
    - Processor continues cleaning/ML/entity extraction
    - No new extractions (`extraction_pending` stays at 0)
@@ -176,7 +176,7 @@ kubectl logs -n production -l app=mizzou-processor --tail=50
    ```bash
    # Apply job manifest
    kubectl apply -f k8s/mizzou-extraction-job.yaml
-   
+
    # Verify job created
    kubectl get jobs -n production -l dataset=Mizzou
    ```
@@ -185,7 +185,7 @@ kubectl logs -n production -l app=mizzou-processor --tail=50
    ```bash
    # Watch pod creation
    kubectl get pods -n production -l dataset=Mizzou -w
-   
+
    # Follow job logs
    kubectl logs -n production -l dataset=Mizzou --follow
    ```
@@ -194,11 +194,11 @@ kubectl logs -n production -l app=mizzou-processor --tail=50
    ```sql
    -- Connect to Cloud SQL
    -- Check for new Mizzou extractions (last hour)
-   SELECT COUNT(*) 
-   FROM articles 
-   WHERE status = 'extracted' 
+   SELECT COUNT(*)
+   FROM articles
+   WHERE status = 'extracted'
    AND created_at > NOW() - INTERVAL '1 hour';
-   
+
    -- Verify Mizzou-specific articles
    SELECT COUNT(a.id)
    FROM articles a
@@ -218,7 +218,7 @@ kubectl logs -n production -l app=mizzou-processor --tail=50
    # Watch processor logs
    kubectl logs -n production -l app=mizzou-processor --follow
    ```
-   
+
    **Expected behavior**:
    - Processor picks up newly extracted Mizzou articles
    - Cleaning step processes articles (`status='extracted' → 'cleaned'`)
@@ -237,10 +237,10 @@ kubectl logs -n production -l app=mizzou-processor --tail=50
    ```bash
    # Delete completed job
    kubectl delete job mizzou-extraction -n production
-   
+
    # Rerun extraction
    kubectl apply -f k8s/mizzou-extraction-job.yaml
-   
+
    # Monitor for consistency
    kubectl logs -n production -l dataset=Mizzou --follow
    ```
@@ -248,16 +248,16 @@ kubectl logs -n production -l app=mizzou-processor --tail=50
 8. **Collect performance metrics**:
    ```sql
    -- Extraction rate analysis
-   SELECT 
+   SELECT
      DATE_TRUNC('hour', created_at) as hour,
      COUNT(*) as articles_extracted
    FROM articles
    WHERE created_at > NOW() - INTERVAL '3 days'
    GROUP BY hour
    ORDER BY hour DESC;
-   
+
    -- Average extraction time (if tracked in telemetry)
-   SELECT 
+   SELECT
      operation_type,
      AVG(duration_seconds) as avg_duration,
      COUNT(*) as operation_count
@@ -311,7 +311,7 @@ kubectl logs -n production -l app=mizzou-processor --tail=100 | grep "extraction
 1. **Deploy discovery job**:
    ```bash
    kubectl apply -f k8s/mizzou-discovery-job.yaml
-   
+
    # Verify job created
    kubectl get jobs -n production -l dataset=Mizzou,type=discovery
    ```
@@ -324,11 +324,11 @@ kubectl logs -n production -l app=mizzou-processor --tail=100 | grep "extraction
 3. **Verify candidate links created**:
    ```sql
    -- Check for new discovered URLs (last hour)
-   SELECT COUNT(*) 
-   FROM candidate_links 
+   SELECT COUNT(*)
+   FROM candidate_links
    WHERE status = 'discovered'
    AND created_at > NOW() - INTERVAL '1 hour';
-   
+
    -- Verify Mizzou-specific URLs
    SELECT cl.url, cl.status, cl.created_at
    FROM candidate_links cl
@@ -349,17 +349,17 @@ kubectl logs -n production -l app=mizzou-processor --tail=100 | grep "extraction
    # Run discovery
    kubectl delete job mizzou-discovery -n production
    kubectl apply -f k8s/mizzou-discovery-job.yaml
-   
+
    # Wait for completion (check logs)
    kubectl logs -n production -l dataset=Mizzou,type=discovery --follow
-   
+
    # Run extraction on newly discovered URLs
    kubectl delete job mizzou-extraction -n production
    kubectl apply -f k8s/mizzou-extraction-job.yaml
-   
+
    # Monitor extraction
    kubectl logs -n production -l dataset=Mizzou,type=extraction --follow
-   
+
    # Watch processor handle new articles
    kubectl logs -n production -l app=mizzou-processor --follow
    ```
@@ -371,7 +371,7 @@ kubectl logs -n production -l app=mizzou-processor --tail=100 | grep "extraction
    FROM candidate_links
    GROUP BY url
    HAVING COUNT(*) > 1;
-   
+
    -- If duplicates exist, investigate source
    SELECT url, status, created_at, source
    FROM candidate_links
@@ -420,7 +420,7 @@ kubectl set env deployment/mizzou-processor -n production \
    # Verify aggressive rate limiting configured
    cat k8s/lehigh-extraction-job.yaml | grep -A 10 "env:"
    ```
-   
+
    **Expected rate limits**:
    ```yaml
    - name: INTER_REQUEST_MIN
@@ -435,7 +435,7 @@ kubectl set env deployment/mizzou-processor -n production \
    ```bash
    # NOTE: This may already exist from previous work (Issue #44)
    kubectl apply -f k8s/lehigh-extraction-job.yaml
-   
+
    # Monitor carefully due to CAPTCHA risk
    kubectl logs -n production -l dataset=Penn-State-Lehigh --follow
    ```
@@ -451,7 +451,7 @@ kubectl set env deployment/mizzou-processor -n production \
 4. **Deploy Lehigh discovery job**:
    ```bash
    kubectl apply -f k8s/lehigh-discovery-job.yaml
-   
+
    kubectl logs -n production -l dataset=Penn-State-Lehigh,type=discovery --follow
    ```
 
@@ -462,7 +462,7 @@ kubectl set env deployment/mizzou-processor -n production \
    # Compare extraction logs
    kubectl logs -n production -l dataset=Mizzou,type=extraction --tail=50
    kubectl logs -n production -l dataset=Penn-State-Lehigh,type=extraction --tail=50
-   
+
    # List all active jobs
    kubectl get jobs -n production -l type=extraction
    ```
@@ -475,7 +475,7 @@ kubectl set env deployment/mizzou-processor -n production \
 7. **Compare extraction rates**:
    ```sql
    -- Extraction counts by dataset (last 24 hours)
-   SELECT 
+   SELECT
      d.slug,
      COUNT(a.id) as articles_extracted,
      MIN(a.created_at) as first_extraction,
@@ -579,7 +579,7 @@ kubectl apply -f k8s/lehigh-extraction-job.yaml
    ```bash
    kubectl apply -f k8s/mizzou-discovery-cronjob.yaml
    kubectl apply -f k8s/lehigh-discovery-cronjob.yaml
-   
+
    # Verify CronJobs created
    kubectl get cronjobs -n production
    ```
@@ -589,14 +589,14 @@ kubectl apply -f k8s/lehigh-extraction-job.yaml
    # Manually trigger Mizzou discovery
    kubectl create job mizzou-discovery-test-1 \
      --from=cronjob/mizzou-discovery-daily -n production
-   
+
    # Watch execution
    kubectl logs -n production -l job-name=mizzou-discovery-test-1 --follow
-   
+
    # Manually trigger Lehigh discovery
    kubectl create job lehigh-discovery-test-1 \
      --from=cronjob/lehigh-discovery-daily -n production
-   
+
    # Watch execution
    kubectl logs -n production -l job-name=lehigh-discovery-test-1 --follow
    ```
@@ -607,10 +607,10 @@ kubectl apply -f k8s/lehigh-extraction-job.yaml
    ```bash
    # Check CronJob status before scheduled time
    kubectl get cronjobs -n production -o wide
-   
+
    # Watch for job creation at 6 AM UTC (Mizzou)
    watch kubectl get jobs -n production -l type=discovery
-   
+
    # Check logs of scheduled job
    kubectl logs -n production -l job-name=<auto-generated-name> --follow
    ```
@@ -619,7 +619,7 @@ kubectl apply -f k8s/lehigh-extraction-job.yaml
    ```bash
    # List recent discovery jobs
    kubectl get jobs -n production -l type=discovery --sort-by=.metadata.creationTimestamp
-   
+
    # Check CronJob status
    kubectl describe cronjob mizzou-discovery-daily -n production
    ```
@@ -664,7 +664,7 @@ kubectl apply -f k8s/lehigh-discovery-job.yaml
 1. **Collect performance data**:
    ```sql
    -- Pipeline throughput by dataset (last 7 days)
-   SELECT 
+   SELECT
      d.slug,
      COUNT(CASE WHEN cl.status = 'discovered' THEN 1 END) as discovered,
      COUNT(CASE WHEN cl.status = 'article' THEN 1 END) as verified,
@@ -678,9 +678,9 @@ kubectl apply -f k8s/lehigh-discovery-job.yaml
    LEFT JOIN articles a ON cl.id = a.candidate_link_id
    WHERE a.created_at > NOW() - INTERVAL '7 days'
    GROUP BY d.slug;
-   
+
    -- Average extraction rate (articles per hour)
-   SELECT 
+   SELECT
      d.slug,
      DATE_TRUNC('hour', a.created_at) as hour,
      COUNT(*) as articles_per_hour
@@ -699,7 +699,7 @@ kubectl apply -f k8s/lehigh-discovery-job.yaml
    ```bash
    # Check for extraction failures
    kubectl logs -n production -l type=extraction | grep -i "error\|failed\|exception"
-   
+
    # Check processor errors
    kubectl logs -n production -l app=mizzou-processor | grep -i "error\|failed\|exception"
    ```
@@ -715,7 +715,7 @@ kubectl apply -f k8s/lehigh-discovery-job.yaml
    ```bash
    # Check pod resource consumption
    kubectl top pods -n production -l app=mizzou-crawler
-   
+
    # Review job completion times
    kubectl get jobs -n production -l type=extraction -o json | \
      jq '.items[] | {name: .metadata.name, duration: (.status.completionTime - .status.startTime)}'
@@ -775,7 +775,7 @@ kubectl apply -f k8s/lehigh-discovery-job.yaml
    ```bash
    kubectl apply -f k8s/newdataset-discovery-job.yaml
    kubectl apply -f k8s/newdataset-extraction-job.yaml
-   
+
    kubectl logs -n production -l dataset=NEWDATASET --follow
    ```
 
@@ -898,6 +898,6 @@ This phased rollout plan ensures a safe, gradual migration to the refactored orc
 
 ---
 
-**Document Version**: 1.0  
-**Last Updated**: October 15, 2025  
+**Document Version**: 1.0
+**Last Updated**: October 15, 2025
 **Status**: Ready for Team Review

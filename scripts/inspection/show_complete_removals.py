@@ -25,8 +25,8 @@ def analyze_domain_removals():
     # Get domains with sufficient articles (extract domain from URL)
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT 
-            CASE 
+        SELECT
+            CASE
                 WHEN url LIKE 'https://%' THEN SUBSTR(url, 9, INSTR(SUBSTR(url, 9), '/') - 1)
                 WHEN url LIKE 'http://%' THEN SUBSTR(url, 8, INSTR(SUBSTR(url, 8), '/') - 1)
                 ELSE url

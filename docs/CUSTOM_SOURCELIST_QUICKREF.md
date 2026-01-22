@@ -47,10 +47,10 @@ https://example.com/article-3
 
 ## Key Points
 
-✅ **Isolated**: Never included in Missouri discovery cron jobs  
-✅ **Full Pipeline**: Extraction → Cleaning → Wire Detection → ML Classification  
-✅ **Excel Export**: All fields including ML classifications  
-✅ **Reusable**: Same dataset can be used for multiple imports  
+✅ **Isolated**: Never included in Missouri discovery cron jobs
+✅ **Full Pipeline**: Extraction → Cleaning → Wire Detection → ML Classification
+✅ **Excel Export**: All fields including ML classifications
+✅ **Reusable**: Same dataset can be used for multiple imports
 
 ## Common Tasks
 
@@ -65,7 +65,7 @@ db = DatabaseManager()
 session = db.get_session().__enter__()
 
 result = session.execute(text('''
-    SELECT 
+    SELECT
         COUNT(DISTINCT c.id) as total_urls,
         COUNT(DISTINCT a.id) as extracted,
         COUNT(CASE WHEN a.primary_label IS NOT NULL THEN 1 END) as classified
@@ -94,7 +94,7 @@ Modify the export query to filter by status:
 
 ```python
 # In custom_sourcelist_workflow.py, line ~420, add:
-WHERE c.dataset_id = :dataset_id 
+WHERE c.dataset_id = :dataset_id
   AND a.status = 'cleaned'  # or 'wire', 'opinion', etc.
 ```
 
@@ -135,7 +135,7 @@ spec:
           containers:
           - name: processor
             image: gcr.io/your-project/processor:latest
-            command: ["python", "scripts/custom_sourcelist_workflow.py", 
+            command: ["python", "scripts/custom_sourcelist_workflow.py",
                      "extract", "--dataset-slug", "my-project-2025"]
 ```
 

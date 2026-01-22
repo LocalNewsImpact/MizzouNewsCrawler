@@ -109,7 +109,7 @@ All new functionality covered by tests:
 
 ```bash
 test_analyze_dataset_domains_single_domain      PASS
-test_analyze_dataset_domains_multiple_domains   PASS  
+test_analyze_dataset_domains_multiple_domains   PASS
 test_analyze_dataset_domains_no_urls            PASS
 ```
 
@@ -121,7 +121,7 @@ Test Case 1: Lehigh (Single Domain)
   Unique domains: 1
   Is single domain: True
   Sample domains: ['lehighvalleynews.com']
-  
+
 ✓ PASS: Long pause will be applied for Lehigh job
   Reason: Single-domain dataset detected upfront
 ```

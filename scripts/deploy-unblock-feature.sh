@@ -41,7 +41,7 @@ with db.get_session() as session:
     # Update Nexstar domains
     result = session.execute(text('''
         UPDATE sources
-        SET 
+        SET
             extraction_method = 'unblock',
             bot_protection_type = 'perimeterx',
             bot_protection_detected_at = NOW()
@@ -53,12 +53,12 @@ with db.get_session() as session:
         )
         AND (extraction_method != 'unblock' OR extraction_method IS NULL)
     '''))
-    
+
     updated = result.rowcount
     session.commit()
-    
+
     print(f'Updated {updated} domains to use unblock method')
-    
+
     # Verify
     rows = session.execute(text('''
         SELECT host, extraction_method, bot_protection_type
@@ -66,7 +66,7 @@ with db.get_session() as session:
         WHERE host IN ('fox2now.com', 'fox4kc.com', 'fourstateshomepage.com', 'ozarksfirst.com')
         ORDER BY host
     ''')).fetchall()
-    
+
     print('\nVerification:')
     for row in rows:
         print(f'  {row[0]}: {row[1]} ({row[2]})')

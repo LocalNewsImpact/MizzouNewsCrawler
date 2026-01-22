@@ -13,7 +13,7 @@
     }
   },
   {
-    "name": "komu.com", 
+    "name": "komu.com",
     "description": "KOMU 8 News - NBC affiliate serving Columbia, Missouri",
     "seed_urls": [
       "https://www.komu.com/news/",

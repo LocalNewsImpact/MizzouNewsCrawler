@@ -42,8 +42,8 @@ def find_articles_with_url_fragments(db_path: str) -> list[tuple]:
         # Get all articles with author data
         query = """
         SELECT id, url, title, author
-        FROM articles 
-        WHERE author IS NOT NULL 
+        FROM articles
+        WHERE author IS NOT NULL
         AND author != '[]'
         AND author != ''
         """

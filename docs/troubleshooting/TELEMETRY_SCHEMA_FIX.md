@@ -96,12 +96,12 @@ Updated `tests/test_telemetry_system.py` to:
 ```python
 def create_telemetry_tables(db_path: str) -> None:
     """Create telemetry tables manually for testing (without Alembic).
-    
+
     This replicates the schema from Alembic migrations.
     """
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
-    
+
     # Create http_error_summary table
     # NOTE: UNIQUE(host, status_code) is required for ON CONFLICT to work.
     # This matches the production schema after migration 805164cd4665.

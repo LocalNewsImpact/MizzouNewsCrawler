@@ -1486,7 +1486,8 @@ class ContentExtractor:
             db = DatabaseManager()
             with db.get_session() as session:
                 session.execute(
-                    text("""
+                    text(
+                        """
                         UPDATE sources
                         SET extraction_method = :method,
                             selenium_only = :is_selenium,
@@ -1494,7 +1495,8 @@ class ContentExtractor:
                             bot_protection_detected_at = :detected_at
                         WHERE host = :host
                         AND (extraction_method = 'http' OR extraction_method IS NULL)
-                    """),
+                    """
+                    ),
                     {
                         "host": domain,
                         "method": method,
@@ -1532,11 +1534,13 @@ class ContentExtractor:
             db = DatabaseManager()
             with db.get_session() as session:
                 row = session.execute(
-                    text("""
+                    text(
+                        """
                         SELECT COALESCE(extraction_method, 'http'), bot_protection_type
                         FROM sources
                         WHERE host = :host
-                    """),
+                    """
+                    ),
                     {"host": domain},
                 ).fetchone()
 
@@ -1689,11 +1693,13 @@ class ContentExtractor:
             db = DatabaseManager()
             with db.get_session() as session:
                 session.execute(
-                    text("""
+                    text(
+                        """
                         UPDATE sources
                         SET amp_supported = :supported
                         WHERE host = :host
-                    """),
+                    """
+                    ),
                     {
                         "host": domain,
                         "supported": supported,
@@ -1728,11 +1734,13 @@ class ContentExtractor:
             db = DatabaseManager()
             with db.get_session() as session:
                 row = session.execute(
-                    text("""
+                    text(
+                        """
                         SELECT amp_supported
                         FROM sources
                         WHERE host = :host
-                    """),
+                    """
+                    ),
                     {"host": domain},
                 ).fetchone()
 
@@ -4449,7 +4457,8 @@ class ContentExtractor:
             driver.execute_script(
                 "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
             )
-            driver.execute_script("""
+            driver.execute_script(
+                """
                 // Override plugins to appear more legitimate
                 Object.defineProperty(navigator, 'plugins', {
                     get: () => [1, 2, 3, 4, 5]
@@ -4467,7 +4476,8 @@ class ContentExtractor:
                         Promise.resolve({ state: Notification.permission }) :
                         originalQuery(parameters)
                 );
-                """)
+                """
+            )
         except Exception as e:
             logger.debug(f"Manual stealth enhancements failed (non-fatal): {e}")
 
@@ -4577,7 +4587,8 @@ class ContentExtractor:
             "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
         )
 
-        driver.execute_script("""
+        driver.execute_script(
+            """
             // Override plugins
             Object.defineProperty(navigator, 'plugins', {
                 get: () => [1, 2, 3, 4, 5]
@@ -4597,7 +4608,8 @@ class ContentExtractor:
             Object.defineProperty(navigator, 'permissions', {
                 get: () => undefined
             });
-        """)
+        """
+        )
 
         # Set timeouts - use longer timeouts for headful to allow JS challenges to resolve
         if headless_mode:
@@ -4925,13 +4937,15 @@ class ContentExtractor:
                 for _ in range(1):  # Reduced from 2 iterations
                     x = random.randint(100, 800)
                     y = random.randint(100, 600)
-                    driver.execute_script(f"""
+                    driver.execute_script(
+                        f"""
                         var event = new MouseEvent('mousemove', {{
                             clientX: {x},
                             clientY: {y}
                         }});
                         document.dispatchEvent(event);
-                    """)
+                    """
+                    )
                     time.sleep(0.1)  # Reduced from 0.1-0.3 seconds
 
         except Exception as e:

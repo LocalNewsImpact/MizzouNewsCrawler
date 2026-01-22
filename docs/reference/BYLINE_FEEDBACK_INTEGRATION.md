@@ -9,7 +9,7 @@ Your React frontend now includes a comprehensive byline telemetry review system 
 ### 1. Backend API Extensions
 - **New endpoints** in `web/reviewer_api.py`:
   - `GET /api/byline_telemetry/pending` - Get items needing review
-  - `POST /api/byline_telemetry/feedback` - Submit human feedback  
+  - `POST /api/byline_telemetry/feedback` - Submit human feedback
   - `GET /api/byline_telemetry/stats` - Review statistics
   - `GET /api/byline_telemetry/training_data` - Export labeled data
 
@@ -38,7 +38,7 @@ cd web
 python reviewer_api.py
 
 # Start frontend (separate terminal)
-cd web/frontend  
+cd web/frontend
 npm run dev
 ```
 
@@ -75,7 +75,7 @@ The system captures rich features for ML model development:
 
 **Raw Features:**
 - Original byline text and metadata
-- Transformation steps and confidence scores  
+- Transformation steps and confidence scores
 - Processing characteristics
 
 **Human Labels:**
@@ -93,7 +93,7 @@ The system captures rich features for ML model development:
 1. **Seamless Workflow**: Human feedback integrated into existing web interface
 2. **Rich Context**: Reviewers see full transformation metadata
 3. **Scalable**: Multiple reviewers can work simultaneously
-4. **Traceable**: All feedback timestamped and attributed  
+4. **Traceable**: All feedback timestamped and attributed
 5. **ML Ready**: Labeled data automatically formatted for training
 
 ## Next Steps

@@ -45,7 +45,7 @@ def get_telemetry_originals(db_path: str) -> list[tuple]:
                a.author as current_authors, a.title, a.url
         FROM byline_cleaning_telemetry t
         JOIN articles a ON t.article_id = a.id
-        WHERE t.raw_byline IS NOT NULL 
+        WHERE t.raw_byline IS NOT NULL
         AND t.final_authors_json IS NOT NULL
         """
 

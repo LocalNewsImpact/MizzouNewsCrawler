@@ -100,7 +100,7 @@ def discovery_status():
 def source_counts():
     """Show article counts by source."""
     query = """
-        SELECT 
+        SELECT
             cl.source_name,
             COUNT(*) as article_count,
             MIN(cl.created_at) as first_discovery,
@@ -129,7 +129,7 @@ def recent_activity(hours=24):
         ),
         (
             """
-            SELECT 
+            SELECT
                 cl.source_name,
                 COUNT(*) as articles_found
             FROM candidate_links cl
@@ -166,7 +166,7 @@ def telemetry_status():
         ("SELECT COUNT(*) FROM operations", None, "Total Operations Tracked"),
         (
             """
-            SELECT 
+            SELECT
                 operation_type,
                 COUNT(*) as count,
                 MAX(created_at) as last_run
@@ -186,7 +186,7 @@ def telemetry_status():
         ),
         (
             """
-            SELECT 
+            SELECT
                 outcome,
                 COUNT(*) as count,
                 ROUND(AVG(discovery_time_ms), 1) as avg_time_ms

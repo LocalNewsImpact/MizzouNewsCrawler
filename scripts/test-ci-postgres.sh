@@ -120,7 +120,7 @@ if [ -d "venv" ]; then
     source venv/bin/activate
     echo "Using DATABASE_URL: $DATABASE_URL"
     alembic upgrade head
-    
+
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}✅ Migrations completed${NC}"
     else

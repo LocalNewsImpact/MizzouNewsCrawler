@@ -430,8 +430,8 @@ class TestComprehensiveExtractionTelemetry:
         result = session.execute(
             text(
                 """
-            SELECT column_name 
-            FROM information_schema.columns 
+            SELECT column_name
+            FROM information_schema.columns
             WHERE table_name = 'extraction_telemetry_v2'
             ORDER BY ordinal_position
         """
@@ -474,8 +474,8 @@ class TestComprehensiveExtractionTelemetry:
         result = session.execute(
             text(
                 """
-            SELECT column_name 
-            FROM information_schema.columns 
+            SELECT column_name
+            FROM information_schema.columns
             WHERE table_name = 'http_error_summary'
             ORDER BY ordinal_position
         """

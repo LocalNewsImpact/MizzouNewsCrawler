@@ -16,36 +16,36 @@ def check_schema():
     """Check actual database schema."""
     print("Connecting to database...")
     db = DatabaseManager()
-    
+
     # Get inspector
     inspector = inspect(db.engine)
-    
+
     print("\n" + "="*80)
     print("TABLES IN DATABASE:")
     print("="*80)
-    
+
     tables = inspector.get_table_names()
     for table in sorted(tables):
         print(f"\n📋 Table: {table}")
         print("-" * 80)
-        
+
         columns = inspector.get_columns(table)
         for col in columns:
             nullable = "NULL" if col['nullable'] else "NOT NULL"
             col_type = str(col['type'])
             print(f"  {col['name']:30} {col_type:20} {nullable}")
-    
+
     print("\n" + "="*80)
     print("CHECKING MAIN TABLES:")
     print("="*80)
-    
+
     # Check if main tables exist
     export_tables = ['articles', 'article_labels', 'article_entities']
-    
+
     for table in export_tables:
         if table in tables:
             print(f"\n✅ {table} EXISTS")
-            
+
             # Get sample row count
             with db.engine.connect() as conn:
                 result = conn.execute(text(f"SELECT COUNT(*) FROM {table}"))

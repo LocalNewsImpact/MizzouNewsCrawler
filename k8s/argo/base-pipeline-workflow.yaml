@@ -122,7 +122,7 @@ spec:
             value: "{{inputs.parameters.log-level}}"
         # Dynamic parallelism: spawn N workers based on calculation
         withParam: "{{tasks.calculate-extraction-workers.outputs.result}}"
-  
+
   # Discovery step template
   - name: discovery-step
     inputs:
@@ -217,7 +217,7 @@ spec:
         limits:
           cpu: 1000m
           memory: 4Gi
-  
+
   # Verification step template
   - name: verification-step
     inputs:
@@ -314,7 +314,7 @@ spec:
         limits:
           cpu: 1000m
           memory: 3Gi
-  
+
   # Extraction step template
   - name: extraction-step
     inputs:
@@ -571,11 +571,11 @@ spec:
                   with engine.connect() as conn:
                       # Count verified candidate_links that don't have a corresponding article yet
                       r = conn.execute(text("""
-                          SELECT COUNT(*) 
+                          SELECT COUNT(*)
                           FROM candidate_links cl
                           WHERE cl.status = 'article'
                           AND NOT EXISTS (
-                              SELECT 1 
+                              SELECT 1
                               FROM articles a
                               WHERE a.candidate_link_id = cl.id
                           )
@@ -681,7 +681,7 @@ spec:
 
           backlog = get_extraction_backlog()
           worker_count = calculate_worker_count(backlog)
-          
+
           # Output JSON array [{"id": 1}, {"id": 2}, ...] for Argo withParam
           workers = [{"id": i+1} for i in range(worker_count)]
           print(f"Backlog: {backlog} articles → {worker_count} workers", file=sys.stderr)

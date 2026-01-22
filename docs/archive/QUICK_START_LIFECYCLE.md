@@ -59,7 +59,7 @@ from backend.app.lifecycle import get_db_manager
 def test_articles():
     test_db = DatabaseManager("sqlite:///:memory:")
     app.dependency_overrides[get_db_manager] = lambda: test_db
-    
+
     try:
         client = TestClient(app)
         response = client.get("/articles")

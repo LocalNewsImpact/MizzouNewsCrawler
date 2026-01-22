@@ -1,6 +1,6 @@
 # Memory Increase Root Cause Analysis
 
-**Date**: October 15, 2025  
+**Date**: October 15, 2025
 **Issue**: Processor image 322bb13 requires 4Gi memory vs 6bd5ca9 which ran on 2Gi
 
 ## Timeline Comparison

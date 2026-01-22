@@ -59,8 +59,8 @@ def backfill_source_host_ids(db_path: str = "data/mizzou.db", dry_run: bool = Tr
     try:
         # Get count of records that need fixing
         cursor.execute("""
-            SELECT COUNT(*) as count 
-            FROM candidate_links 
+            SELECT COUNT(*) as count
+            FROM candidate_links
             WHERE source_host_id IS NULL
         """)
         null_count = cursor.fetchone()["count"]
@@ -96,7 +96,7 @@ def backfill_source_host_ids(db_path: str = "data/mizzou.db", dry_run: bool = Tr
         # Get candidate_links that need updating
         cursor.execute("""
             SELECT id, url, source, source_name
-            FROM candidate_links 
+            FROM candidate_links
             WHERE source_host_id IS NULL
             ORDER BY id
         """)
@@ -174,8 +174,8 @@ def backfill_source_host_ids(db_path: str = "data/mizzou.db", dry_run: bool = Tr
 
             cursor.executemany(
                 """
-                UPDATE candidate_links 
-                SET source_host_id = ? 
+                UPDATE candidate_links
+                SET source_host_id = ?
                 WHERE id = ?
             """,
                 updates_to_make,
@@ -186,8 +186,8 @@ def backfill_source_host_ids(db_path: str = "data/mizzou.db", dry_run: bool = Tr
 
             # Verify the update
             cursor.execute("""
-                SELECT COUNT(*) as count 
-                FROM candidate_links 
+                SELECT COUNT(*) as count
+                FROM candidate_links
                 WHERE source_host_id IS NULL
             """)
             remaining_nulls = cursor.fetchone()["count"]

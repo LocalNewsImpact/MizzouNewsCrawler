@@ -29,7 +29,7 @@ SCHEMAS = {
         'dataset_id', 'source_id'
     },
     'articles': {
-        'id', 'candidate_link_id', 'url', 'title', 'status', 
+        'id', 'candidate_link_id', 'url', 'title', 'status',
         'created_at', 'extracted_at'
     }
 }
@@ -37,12 +37,12 @@ SCHEMAS = {
 for yaml_file in Path('k8s/argo').glob('**/*.yaml'):
     with open(yaml_file) as f:
         content = f.read()
-    
+
     # Check for article_id in candidate_links
     if 'article_id' in content and 'candidate_links' in content:
         if re.search(r'candidate_links.*article_id', content, re.IGNORECASE | re.DOTALL):
             errors.append(f"{yaml_file}: candidate_links has no article_id column")
-    
+
     # Check for invalid --exhaust-queue flag
     if '--exhaust-queue' in content:
         errors.append(f"{yaml_file}: Invalid --exhaust-queue flag")
@@ -67,10 +67,10 @@ echo "Step 2: Applying to $ENVIRONMENT namespace..."
 if [[ "$ENVIRONMENT" == "staging" ]]; then
     # Create namespace if it doesn't exist
     kubectl create namespace staging --dry-run=client -o yaml | kubectl apply -f -
-    
+
     # Apply with kustomize
     kubectl apply -k k8s/overlays/staging
-    
+
     echo ""
     echo "✅ Deployed to staging!"
     echo ""
@@ -87,9 +87,9 @@ else
         echo "Cancelled."
         exit 0
     fi
-    
+
     kubectl apply -k k8s/overlays/production
-    
+
     echo ""
     echo "✅ Deployed to production!"
 fi

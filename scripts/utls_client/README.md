@@ -47,4 +47,3 @@ Replaying a captured ServerHello locally (useful for deterministic reproduction)
 Notes
 - `--probe-only` will only send the ClientHello and read the first server response; it does not attempt a full TLS handshake.
 - Use `--probe-out-dir` to control where probe artifacts are written when running `utls_client` directly; the runner mounts that directory to capture results.
-

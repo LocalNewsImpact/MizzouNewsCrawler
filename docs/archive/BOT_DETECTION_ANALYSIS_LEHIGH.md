@@ -1,8 +1,8 @@
 # Bot Detection Analysis - Lehigh Valley News
 
-**Date:** October 11, 2025  
-**Site:** lehighvalleynews.com  
-**Issue:** Job suspended after 27 minutes, bot detector triggered  
+**Date:** October 11, 2025
+**Site:** lehighvalleynews.com
+**Issue:** Job suspended after 27 minutes, bot detector triggered
 **Progress:** 448 articles extracted (40.4% of 1,108 URLs)
 
 ---
@@ -76,8 +76,8 @@ DECODO_ROTATE_IP: true (10 IPs available: ports 10001-10010)
 ### Immediate Actions (Low Effort, High Impact)
 
 #### 1. **Extend Delays Between Requests**
-**Current:** 15-25s  
-**Recommended:** 30-45s  
+**Current:** 15-25s
+**Recommended:** 30-45s
 **Rationale:** Slower = more human-like, reduces request volume per IP
 
 ```yaml
@@ -90,8 +90,8 @@ DECODO_ROTATE_IP: true (10 IPs available: ports 10001-10010)
 **Impact:** Job will take ~2x longer, but less likely to trigger detection
 
 #### 2. **Increase Batch Sleep**
-**Current:** 60s  
-**Recommended:** 120-180s  
+**Current:** 60s
+**Recommended:** 120-180s
 **Rationale:** Longer pauses between batches gives IPs "cool down" time
 
 ```yaml
@@ -102,8 +102,8 @@ DECODO_ROTATE_IP: true (10 IPs available: ports 10001-10010)
 **Impact:** Adds 3 min per batch, ~12 hours for 660 remaining articles
 
 #### 3. **Reduce Batch Size**
-**Current:** 5 articles per batch  
-**Recommended:** 3 articles per batch  
+**Current:** 5 articles per batch
+**Recommended:** 3 articles per batch
 **Rationale:** Smaller batches = less predictable pattern
 
 ```yaml
@@ -115,8 +115,8 @@ command:
 **Impact:** More batches but less suspicious burst behavior
 
 #### 4. **Wait Longer Before Retry**
-**Current:** Retrying immediately after suspension  
-**Recommended:** Wait 4-6 hours  
+**Current:** Retrying immediately after suspension
+**Recommended:** Wait 4-6 hours
 **Rationale:** Give IPs time to clear from site's blocklist
 
 **Action:** Schedule next run for 6 hours after suspension
@@ -126,7 +126,7 @@ command:
 ### Medium-Term Improvements (Moderate Effort)
 
 #### 5. **Implement Request Jitter**
-**Problem:** Even with 30-45s range, timing can appear mechanical  
+**Problem:** Even with 30-45s range, timing can appear mechanical
 **Solution:** Add random jitter to delays
 
 ```python
@@ -140,7 +140,7 @@ time.sleep(final_delay)
 **Impact:** Makes timing unpredictable, harder to fingerprint
 
 #### 6. **Randomize Batch Sizes**
-**Problem:** Consistent 5 articles/batch is predictable  
+**Problem:** Consistent 5 articles/batch is predictable
 **Solution:** Vary batch size between 2-5 articles
 
 ```python
@@ -151,7 +151,7 @@ batch_size = random.randint(2, 5)
 **Impact:** Less predictable request patterns
 
 #### 7. **Add Random "Think Time" Between Batches**
-**Problem:** Fixed 60s batch sleep is predictable  
+**Problem:** Fixed 60s batch sleep is predictable
 **Solution:** Vary batch sleep 90-300s (1.5-5 minutes)
 
 ```python
@@ -162,7 +162,7 @@ time.sleep(batch_sleep)
 **Impact:** More natural behavior simulation
 
 #### 8. **Rotate IPs More Aggressively**
-**Current:** Decodo rotates based on internal logic  
+**Current:** Decodo rotates based on internal logic
 **Recommended:** Force IP rotation every 2-3 requests
 
 ```yaml
@@ -177,7 +177,7 @@ time.sleep(batch_sleep)
 ### Long-Term Solutions (Higher Effort, Maximum Impact)
 
 #### 9. **Add Secondary Proxy Provider**
-**Problem:** All 10 Decodo IPs may be flagged  
+**Problem:** All 10 Decodo IPs may be flagged
 **Solution:** Use multiple proxy providers (Bright Data, Smartproxy, Oxylabs)
 
 ```yaml
@@ -195,7 +195,7 @@ time.sleep(batch_sleep)
 **Cost:** $50-200/month for additional providers
 
 #### 10. **Implement "Headless Real Browser" Mode**
-**Problem:** Even undetected-chrome can be fingerprinted  
+**Problem:** Even undetected-chrome can be fingerprinted
 **Solution:** Use Playwright/Puppeteer with real Chrome profile
 
 **Benefits:**
@@ -206,7 +206,7 @@ time.sleep(batch_sleep)
 **Downside:** Slower, more resource-intensive
 
 #### 11. **Add Request Pacing Based on Time of Day**
-**Problem:** Consistent request rate 24/7 is suspicious  
+**Problem:** Consistent request rate 24/7 is suspicious
 **Solution:** Slow down during peak hours, speed up at night
 
 ```python
@@ -224,7 +224,7 @@ delay = random.uniform(30, 45) * delay_multiplier
 **Impact:** More human-like request patterns
 
 #### 12. **Implement Session Resumption**
-**Problem:** Job starts fresh each time, loses context  
+**Problem:** Job starts fresh each time, loses context
 **Solution:** Track which IPs were used, which got blocked
 
 ```python
@@ -244,7 +244,7 @@ delay = random.uniform(30, 45) * delay_multiplier
 - Faster detection of problematic IPs
 
 #### 13. **Add "Warmup" Phase**
-**Problem:** Jobs start extracting aggressively immediately  
+**Problem:** Jobs start extracting aggressively immediately
 **Solution:** Start slow (1 article/min), gradually increase speed
 
 ```python
@@ -320,7 +320,7 @@ delay = random.uniform(30, 45) * delay_multiplier
 4. If successful, run full job with 660 remaining articles
 5. Monitor closely, suspend if 2+ CAPTCHAs detected
 
-**Timeline:** 12-18 hours for full completion  
+**Timeline:** 12-18 hours for full completion
 **Success Probability:** 75-85%
 
 ### Option B: Aggressive Approach
@@ -329,7 +329,7 @@ delay = random.uniform(30, 45) * delay_multiplier
 3. Run with even slower settings (45-60s delays)
 4. Complete in ~24-30 hours with minimal risk
 
-**Timeline:** 48 hours total (24 wait + 24 extraction)  
+**Timeline:** 48 hours total (24 wait + 24 extraction)
 **Success Probability:** 90-95%
 
 ### Option C: Split Across Multiple Days
@@ -337,7 +337,7 @@ delay = random.uniform(30, 45) * delay_multiplier
 2. Use Phase 1 settings, run only during off-peak hours (2-6 AM UTC)
 3. Gives IPs maximum recovery time between runs
 
-**Timeline:** 7 days  
+**Timeline:** 7 days
 **Success Probability:** 95%+
 
 ---
@@ -360,9 +360,9 @@ delay = random.uniform(30, 45) * delay_multiplier
 ## Long-Term Strategy for Aggressive Sites
 
 ### Site Classification
-**Low Protection:** 95%+ success with 5-10s delays (most sites)  
-**Medium Protection:** 85-95% success with 15-30s delays  
-**High Protection:** 70-85% success with 30-60s delays (Lehigh Valley News)  
+**Low Protection:** 95%+ success with 5-10s delays (most sites)
+**Medium Protection:** 85-95% success with 15-30s delays
+**High Protection:** 70-85% success with 30-60s delays (Lehigh Valley News)
 **Very High Protection:** <70% success, requires advanced techniques
 
 ### Per-Site Profiles

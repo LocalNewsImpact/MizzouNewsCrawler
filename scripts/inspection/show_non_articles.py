@@ -13,9 +13,9 @@ def main():
 
     # Get counts
     cursor.execute("""
-        SELECT status, COUNT(*) 
-        FROM candidate_links 
-        WHERE status IN ("article", "not_article") 
+        SELECT status, COUNT(*)
+        FROM candidate_links
+        WHERE status IN ("article", "not_article")
         GROUP BY status
     """)
     results = cursor.fetchall()
@@ -40,10 +40,10 @@ def main():
     print("-" * 60)
 
     cursor.execute("""
-        SELECT url, source, created_at 
-        FROM candidate_links 
-        WHERE status = "article" 
-        ORDER BY created_at DESC 
+        SELECT url, source, created_at
+        FROM candidate_links
+        WHERE status = "article"
+        ORDER BY created_at DESC
         LIMIT 5
     """)
 
@@ -59,10 +59,10 @@ def main():
     print("-" * 60)
 
     cursor.execute("""
-        SELECT url, source, created_at 
-        FROM candidate_links 
-        WHERE status = "not_article" 
-        ORDER BY created_at DESC 
+        SELECT url, source, created_at
+        FROM candidate_links
+        WHERE status = "not_article"
+        ORDER BY created_at DESC
         LIMIT 10
     """)
 
@@ -79,10 +79,10 @@ def main():
     print("-" * 60)
 
     cursor.execute("""
-        SELECT url 
-        FROM candidate_links 
-        WHERE status = "not_article" 
-        ORDER BY created_at DESC 
+        SELECT url
+        FROM candidate_links
+        WHERE status = "not_article"
+        ORDER BY created_at DESC
         LIMIT 20
     """)
 

@@ -19,7 +19,7 @@ The test infrastructure allows you to:
 def db_engine():
     """Create in-memory SQLite database for testing."""
     from sqlalchemy.pool import StaticPool
-    
+
     engine = create_engine(
         "sqlite:///:memory:",
         echo=False,
@@ -32,7 +32,7 @@ def db_engine():
     engine.dispose()
 ```
 
-**Why StaticPool?** 
+**Why StaticPool?**
 - In-memory SQLite databases normally exist only for one connection
 - FastAPI TestClient runs in a different thread than pytest fixtures
 - StaticPool ensures all connections (fixture setup + endpoint queries) see the same database
@@ -45,10 +45,10 @@ def test_client(db_engine, monkeypatch):
     """Create FastAPI test client with mocked database engine."""
     from contextlib import contextmanager
     from backend.app import main
-    
+
     # Mock the DatabaseManager's engine with our test engine
     monkeypatch.setattr(main.db_manager, "engine", db_engine)
-    
+
     # Mock get_session to use the test engine
     @contextmanager
     def mock_get_session_context():
@@ -62,12 +62,12 @@ def test_client(db_engine, monkeypatch):
             raise
         finally:
             session.close()
-    
+
     def mock_get_session():
         return mock_get_session_context()
-    
+
     monkeypatch.setattr(main.db_manager, "get_session", mock_get_session)
-    
+
     client = TestClient(app)
     return client
 ```
@@ -104,7 +104,7 @@ def sample_sources(db_session) -> List[Source]:
 def sample_articles(db_session, sample_candidate_links):
     """Create sample articles using CloudSQL schema."""
     import json
-    
+
     articles = []
     for i in range(50):
         article = Article(
@@ -116,7 +116,7 @@ def sample_articles(db_session, sample_candidate_links):
         )
         articles.append(article)
         db_session.add(article)
-    
+
     db_session.commit()
     return articles
 ```
@@ -144,7 +144,7 @@ def test_my_endpoint(test_client, db_session, sample_sources):
     # Create additional test data if needed
     from src.models import Article, CandidateLink
     import json
-    
+
     # Create CandidateLink (relationship table)
     link = CandidateLink(
         id="test-link-1",
@@ -156,7 +156,7 @@ def test_my_endpoint(test_client, db_session, sample_sources):
     )
     db_session.add(link)
     db_session.commit()
-    
+
     # Create Article
     article = Article(
         id="test-article-1",                  # Use 'id', not 'uid'
@@ -168,7 +168,7 @@ def test_my_endpoint(test_client, db_session, sample_sources):
     )
     db_session.add(article)
     db_session.commit()
-    
+
     # Make request
     response = test_client.get("/api/my_endpoint")
     assert response.status_code == 200
@@ -179,10 +179,10 @@ def test_my_endpoint(test_client, db_session, sample_sources):
 ```python
 def test_endpoint_returns_correct_data(test_client, sample_articles):
     response = test_client.get("/api/endpoint")
-    
+
     assert response.status_code == 200
     data = response.json()
-    
+
     # The endpoint will query the test database, not production
     assert data["total_articles"] == 50
     assert "wire_count" in data
@@ -255,8 +255,8 @@ To ensure your test fixtures match the production schema:
    ```bash
    # Check Source model
    grep -A 20 "class Source" src/models/__init__.py
-   
-   # Check Article model  
+
+   # Check Article model
    grep -A 50 "class Article" src/models/__init__.py
    ```
 
@@ -264,10 +264,10 @@ To ensure your test fixtures match the production schema:
    ```python
    from src.models import Source, Article
    import inspect
-   
+
    # See all Source fields
    print([col.name for col in Source.__table__.columns])
-   
+
    # See all Article fields
    print([col.name for col in Article.__table__.columns])
    ```

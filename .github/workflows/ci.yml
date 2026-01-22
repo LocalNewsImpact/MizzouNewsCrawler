@@ -14,7 +14,7 @@ on:
   # No need to run tests again after merge when they already passed on the PR
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    branches: 
+    branches:
       - main  # Run CI on PRs to main branch
   schedule:
     # Run stress job weekly at 03:00 UTC on Sundays (example)
@@ -65,19 +65,19 @@ jobs:
       - name: Validate deployment configurations
         run: |
           echo "Validating k8s deployment YAML..."
-          
+
           # Verify PYTHONPATH includes /app
           if ! grep -q 'value: "/app:' k8s/processor-deployment.yaml; then
             echo "❌ PYTHONPATH does not include /app!"
             exit 1
           fi
-          
+
           # Verify image is placeholder (not :latest)
           if grep -q 'image:.*:latest' k8s/processor-deployment.yaml; then
             echo "❌ Deployment uses image:latest!"
             exit 1
           fi
-          
+
           echo "✅ Deployment YAML validation passed"
 
   mypy-strict:
@@ -117,7 +117,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [lint]
     if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
-    
+
     steps:
       - uses: actions/checkout@v4
       - name: Clean Python bytecode cache
@@ -159,7 +159,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [lint]
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
-    
+
     services:
       postgres:
         image: postgres:15
@@ -671,7 +671,7 @@ jobs:
     name: Stress Concurrency Tests (scheduled/manual only)
     runs-on: ubuntu-latest
     if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
-    
+
     services:
       postgres:
         image: postgres:15

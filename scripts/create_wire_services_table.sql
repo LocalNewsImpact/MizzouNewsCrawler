@@ -30,9 +30,9 @@ CREATE INDEX IF NOT EXISTS ix_wire_services_active ON wire_services (active);
 -- Priority: 10 = high priority (major services), 50 = medium, 100 = standard
 
 -- Generic broadcaster dateline (highest priority to check first)
-INSERT INTO wire_services 
+INSERT INTO wire_services
     (service_name, pattern, pattern_type, case_sensitive, priority, active, notes, created_at, updated_at)
-VALUES 
+VALUES
     ('Broadcaster', '^[A-Z][A-Z\s,\.''-]+\(([A-Z]{3,5})\)\s*[—–-]', 'dateline', false, 1, true,
      'Generic broadcaster callsign - requires URL matching', NOW(), NOW()),
 

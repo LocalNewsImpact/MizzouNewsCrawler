@@ -1,6 +1,6 @@
 # PR #91 Testing Summary: What's Needed Before Merge & Deploy
 
-**PR:** [#91 - Optimize ML Model Loading](https://github.com/LocalNewsImpact/MizzouNewsCrawler/pull/91)  
+**PR:** [#91 - Optimize ML Model Loading](https://github.com/LocalNewsImpact/MizzouNewsCrawler/pull/91)
 **Date:** October 19, 2025
 
 ---
@@ -14,7 +14,7 @@
 
 **What's Needed Before Merging:**
 1. **Run existing tests locally** (15 minutes)
-2. **Local end-to-end test** (30 minutes)  
+2. **Local end-to-end test** (30 minutes)
 3. **Staging environment validation** (2-4 hours)
 
 **Total Testing Time Required:** ~3-5 hours

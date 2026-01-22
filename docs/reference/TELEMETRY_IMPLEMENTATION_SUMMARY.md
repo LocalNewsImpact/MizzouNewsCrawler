@@ -1,6 +1,6 @@
 # Telemetry Store Implementation Summary
 
-**Last Updated:** October 2025  
+**Last Updated:** October 2025
 **Status:** ✅ Fully Migrated to SQLAlchemy
 
 ## Overview
@@ -25,7 +25,7 @@
   - SQLite: `sqlite:///data/mizzou.db` (default for local development)
   - PostgreSQL: `postgresql+psycopg2://user:pass@host/db` (Cloud SQL production)
   - Automatic DDL adaptation for different database dialects
-- Individual jobs can point to alternate databases by instantiating 
+- Individual jobs can point to alternate databases by instantiating
   `TelemetryStore(database=..., async_writes=...)`.
 - Context manager `store.connection()` provides a sqlite3-compatible interface
   that works with both SQLite and PostgreSQL.
@@ -48,13 +48,13 @@ need to share the same database connection pool.
 All telemetry producers now work seamlessly with both SQLite and PostgreSQL:
 
 - ✅ `src/utils/byline_telemetry.py` - Fully migrated
-- ✅ `src/utils/content_cleaning_telemetry.py` - Fully migrated  
+- ✅ `src/utils/content_cleaning_telemetry.py` - Fully migrated
 - ✅ `src/utils/extraction_telemetry.py` - Fully migrated
 - ✅ `src/utils/comprehensive_telemetry.py` - Fully migrated
 
 **Migration Details:** See `docs/TELEMETRY_STORE_SQLALCHEMY_MIGRATION.md`
 
-**Alembic Migrations:** 
+**Alembic Migrations:**
 - `alembic/versions/a9957c3054a4_add_remaining_telemetry_tables.py`
 - Creates all telemetry tables in PostgreSQL/Cloud SQL
 

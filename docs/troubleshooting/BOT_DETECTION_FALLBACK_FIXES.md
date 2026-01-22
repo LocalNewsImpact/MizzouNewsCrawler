@@ -1,7 +1,7 @@
 # Bot Detection & Extraction Fallback Fixes
 
-**Date**: October 14, 2025  
-**Branch**: `feature/gcp-kubernetes-deployment`  
+**Date**: October 14, 2025
+**Branch**: `feature/gcp-kubernetes-deployment`
 **Commits**: `1b34328`, `a5a18b2`, `14922a5`
 
 ## Problem Summary
@@ -15,7 +15,7 @@ When any extraction method hit a CAPTCHA or rate limit:
 3. **Selenium**: **Explicitly ignored rate limits** (comment: "intentionally NOT check"), tried anyway
 4. **Result**: Same CAPTCHA hit 2-3 times, exponential backoff growth (6562s → 16204s → 40000s+)
 
-### Issue 2: 404 Fallbacks  
+### Issue 2: 404 Fallbacks
 When a URL returned 404/410 (permanent not found):
 1. **newspaper4k**: Detected 404, cached as dead URL, returned error result
 2. **BeautifulSoup**: Tried to fetch again (wasted HTTP request)
@@ -213,8 +213,8 @@ kubectl logs -n production -l app=mizzou-processor --tail=100 -f | grep -E "(Ski
 
 4. **404 Handling**:
    ```sql
-   SELECT COUNT(*) 
-   FROM candidate_links 
+   SELECT COUNT(*)
+   FROM candidate_links
    WHERE status = '404'
    AND updated_at > NOW() - INTERVAL '24 hours';
    ```

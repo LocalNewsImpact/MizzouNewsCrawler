@@ -130,10 +130,10 @@ H1: "Young mother shot in car; police search for suspect"
    ```bash
    # Run migration
    kubectl exec -n production deployment/mizzou-api -- alembic upgrade head
-   
+
    # Update domains
    kubectl exec -n production deployment/mizzou-api -- python -c "..." # see deploy script
-   
+
    # Deploy processor
    ./scripts/deploy-services.sh main processor
    ```
@@ -142,7 +142,7 @@ H1: "Young mother shot in car; police search for suspect"
    ```bash
    # Check logs
    kubectl logs -n production -l app=mizzou-processor --tail=100 -f | grep unblock
-   
+
    # Test extraction
    kubectl exec -n production deployment/mizzou-processor -- \
      python -m src.cli.cli_modular extract-url \

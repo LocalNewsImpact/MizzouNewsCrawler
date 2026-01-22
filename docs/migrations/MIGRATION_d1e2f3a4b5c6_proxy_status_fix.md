@@ -2,9 +2,9 @@
 
 ## Overview
 
-**Migration ID**: `d1e2f3a4b5c6_fix_proxy_status_column_type`  
-**Date**: 2025-10-31  
-**Severity**: CRITICAL  
+**Migration ID**: `d1e2f3a4b5c6_fix_proxy_status_column_type`
+**Date**: 2025-10-31
+**Severity**: CRITICAL
 **Issue**: #123 - Telemetry PostgreSQL schema missing → SQLite fallback → data loss
 
 ## Problem Statement
@@ -38,8 +38,8 @@ This migration changes the `proxy_status` column type from `Integer` to `String`
 
 ### PostgreSQL
 ```sql
-ALTER TABLE extraction_telemetry_v2 
-ALTER COLUMN proxy_status TYPE VARCHAR 
+ALTER TABLE extraction_telemetry_v2
+ALTER COLUMN proxy_status TYPE VARCHAR
 USING proxy_status::VARCHAR
 ```
 
@@ -152,9 +152,9 @@ After deployment, verify the fix is working:
 ### 1. Check Column Type
 ```sql
 -- PostgreSQL
-SELECT column_name, data_type 
-FROM information_schema.columns 
-WHERE table_name = 'extraction_telemetry_v2' 
+SELECT column_name, data_type
+FROM information_schema.columns
+WHERE table_name = 'extraction_telemetry_v2'
   AND column_name = 'proxy_status';
 
 -- Expected: data_type = 'character varying' or 'varchar'

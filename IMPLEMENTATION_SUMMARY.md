@@ -108,7 +108,7 @@ Comprehensive guide (200+ lines) covering:
 - Proper NOT NULL constraints
 - All integration tests pass
 
-✅ **SQLite**  
+✅ **SQLite**
 - Uses TEXT/JSON for `discovered_sections`
 - Integer for BOOLEAN (0/1)
 - All integration tests pass
@@ -216,7 +216,7 @@ conn.execute(
 - New columns have safe defaults
 - Feature is opt-in via `section_discovery_enabled`
 
-**Rollback Plan**: 
+**Rollback Plan**:
 - Drop the three new columns if needed
 - No existing functionality depends on them
 

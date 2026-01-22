@@ -1,7 +1,7 @@
 # Decodo ISP Proxy Integration
 
-**Date:** October 10, 2025  
-**Status:** ✅ Tested and Ready  
+**Date:** October 10, 2025
+**Status:** ✅ Tested and Ready
 **Proxy Type:** ISP proxy with built-in US credentials
 
 ---
@@ -58,8 +58,8 @@ session = db.get_session().__enter__()
 
 # Check recent extractions
 recent = session.execute(text('''
-    SELECT COUNT(*) FROM articles 
-    WHERE status = 'extracted' 
+    SELECT COUNT(*) FROM articles
+    WHERE status = 'extracted'
     AND created_at >= NOW() - INTERVAL '30 minutes'
 ''')).scalar()
 
@@ -157,7 +157,7 @@ Run both proxies side-by-side for 1 hour:
 
 1. **Current state:** Origin proxy running, check success rate
 2. **Switch to Decodo:** Set `PROXY_PROVIDER=decodo`, monitor for 30 min
-3. **Compare results:** 
+3. **Compare results:**
    - Extraction success rate
    - Bot blocking incidents
    - Response times
@@ -261,7 +261,7 @@ If response time > 5 seconds:
 1. ✅ **Immediate:** Test Decodo proxy with `PROXY_PROVIDER=decodo`
 2. ⏳ **Monitor:** Watch extraction success rate for 30 minutes
 3. 🔍 **Compare:** Evaluate Decodo vs Origin proxy performance
-4. 📊 **Decide:** 
+4. 📊 **Decide:**
    - If better → Keep using Decodo
    - If same → Try premium service (BrightData)
    - If worse → Stick with origin

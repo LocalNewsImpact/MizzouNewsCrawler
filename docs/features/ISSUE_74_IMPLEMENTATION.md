@@ -43,7 +43,7 @@ needs_long_pause = (
 # Checks upfront detection FIRST, then falls back to batch analysis
 needs_long_pause = (
     is_single_domain_dataset or                    # NEW: Upfront detection
-    same_domain_consecutive >= max_same_domain or 
+    same_domain_consecutive >= max_same_domain or
     unique_domains <= 1
 )
 ```
@@ -59,7 +59,7 @@ needs_long_pause = (
 
 **And warns if misconfigured:**
 ```
-WARNING: Single-domain dataset detected but BATCH_SLEEP_SECONDS is low (5.0s). 
+WARNING: Single-domain dataset detected but BATCH_SLEEP_SECONDS is low (5.0s).
 Consider increasing to 60-300s to avoid rate limiting.
 ```
 
@@ -106,23 +106,23 @@ env:
     value: "90.0"  # 90 seconds minimum between requests
   - name: INTER_REQUEST_MAX
     value: "180.0"  # 180 seconds maximum (3 minutes)
-  
+
   # Long batch sleep to avoid pattern detection
   - name: BATCH_SLEEP_SECONDS
     value: "300"  # 5 minutes between batches
   - name: BATCH_SLEEP_JITTER
     value: "0.45"  # Add ±45% randomness
-  
+
   # Reduced batch size
   - name: BATCH_SIZE_JITTER
     value: "0.33"  # Vary batch size by ±33%
-  
+
   # User agent rotation
   - name: UA_ROTATE_BASE
     value: "4"  # Rotate every 3-5 requests
   - name: UA_ROTATE_JITTER
     value: "0.25"
-  
+
   # IP rotation (if using proxy like Decodo)
   - name: DECODO_ROTATE_IP
     value: "true"
@@ -139,7 +139,7 @@ env:
     value: "10.0"  # 10 seconds minimum
   - name: INTER_REQUEST_MAX
     value: "30.0"  # 30 seconds maximum
-  
+
   # Short batch sleep (or minimal)
   - name: BATCH_SLEEP_SECONDS
     value: "5.0"  # 5 seconds between batches

@@ -33,12 +33,12 @@ Successfully configured BigQuery Data Transfer Service to automatically sync all
 
 ## Benefits
 
-✅ **Zero custom code** - Managed by Google  
-✅ **Automatic daily syncs** - No manual intervention  
-✅ **Complete data** - All articles, labels, and entities  
-✅ **Data consistency** - All tables sync at same time  
-✅ **Monitoring built-in** - View status in BigQuery console  
-✅ **No batch limits** - Handles all data regardless of size  
+✅ **Zero custom code** - Managed by Google
+✅ **Automatic daily syncs** - No manual intervention
+✅ **Complete data** - All articles, labels, and entities
+✅ **Data consistency** - All tables sync at same time
+✅ **Monitoring built-in** - View status in BigQuery console
+✅ **No batch limits** - Handles all data regardless of size
 
 ## Monitoring
 
@@ -57,7 +57,7 @@ bq ls --transfer_run --max_results=1 projects/145096615031/locations/us/transfer
 # Articles
 bq query --use_legacy_sql=false 'SELECT COUNT(*) FROM `mizzou-news-crawler.mizzou_analytics.articles`'
 
-# Labels  
+# Labels
 bq query --use_legacy_sql=false 'SELECT COUNT(*) FROM `mizzou-news-crawler.mizzou_analytics.article_labels`'
 
 # Entities

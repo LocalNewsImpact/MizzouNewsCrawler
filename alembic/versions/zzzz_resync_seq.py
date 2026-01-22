@@ -19,11 +19,11 @@ def upgrade() -> None:
     # Check if we're using PostgreSQL
     bind = op.get_bind()
     is_postgresql = bind.dialect.name == 'postgresql'
-    
+
     if not is_postgresql:
         # SQLite doesn't have sequences - skip this migration
         return
-    
+
     # Use SQL to set the telemetry sequence to max(id) on the table
     op.execute(
         """

@@ -1,6 +1,6 @@
 # Wire Detection False Positives Analysis
-**Date:** November 22, 2025  
-**Total Wire Stories:** 13,451  
+**Date:** November 22, 2025
+**Total Wire Stories:** 13,451
 **False Positives Identified:** 727 (5.4%)
 
 ## Executive Summary
@@ -45,7 +45,7 @@ wire_byline_patterns = [
 
 **Problem:** These regex patterns use `[A-Z]+` which matches **ANY** uppercase abbreviation in parentheses, including:
 - `(KMIZ)` - Local TV station
-- `(KOMU)` - Local TV station  
+- `(KOMU)` - Local TV station
 - `(KRCG)` - Local TV station
 - Other local broadcaster callsigns
 
@@ -177,7 +177,7 @@ def is_local_broadcaster(abbrev: str) -> bool:
 def validate_wire_detection(dateline_match: str, byline: str, url: str) -> bool:
     """
     Validate wire detection by cross-checking multiple signals.
-    
+
     Returns False if:
     - Dateline contains local broadcaster callsign
     - Byline is a named individual (not "AP Staff")
@@ -187,15 +187,15 @@ def validate_wire_detection(dateline_match: str, byline: str, url: str) -> bool:
     match = re.search(r'\(([A-Z]+)\)', dateline_match)
     if match:
         identifier = match.group(1)
-        
+
         # Reject if local broadcaster
         if is_local_broadcaster(identifier):
             return False
-        
+
         # Require whitelist match
         if not is_wire_service_identifier(identifier):
             return False
-    
+
     # Check byline format
     if byline:
         # Wire services use: "AP Staff", "Reuters", "By AP"
@@ -204,7 +204,7 @@ def validate_wire_detection(dateline_match: str, byline: str, url: str) -> bool:
         if has_personal_name:
             # Named reporter suggests local content
             return False
-    
+
     return True
 ```
 
@@ -214,7 +214,7 @@ def validate_wire_detection(dateline_match: str, byline: str, url: str) -> bool:
 def check_geographic_locality(url: str, content: str, source: str) -> bool:
     """
     Check if content is hyperlocal to the publisher's coverage area.
-    
+
     Returns True if:
     - URL contains local city/county names
     - Content discusses local government, schools, events
@@ -232,17 +232,17 @@ def check_geographic_locality(url: str, content: str, source: str) -> bool:
             'City Council', 'County Commission'
         ]
     }
-    
+
     # Check URL
     url_local = any(pattern in url.lower() for pattern in local_indicators['url_patterns'])
-    
+
     # Check content (first 500 chars)
     preview = content[:500] if content else ''
     content_local = sum(
         1 for keyword in local_indicators['content_keywords']
         if keyword.lower() in preview.lower()
     ) >= 2  # At least 2 local keywords
-    
+
     return url_local and content_local
 ```
 
@@ -254,27 +254,27 @@ def _detect_wire_service(self, *, url: str, content: str, metadata: dict) -> Con
     Detect wire service content with improved validation.
     """
     # ... existing pattern matching ...
-    
+
     if wire_byline_found:
         # BEFORE marking as wire, validate the match
         dateline_identifier = extract_dateline_identifier(opening)
-        
+
         # Reject local broadcasters
         if is_local_broadcaster(dateline_identifier):
             return None
-        
+
         # Require whitelist match
         if not is_wire_service_identifier(dateline_identifier):
             return None
-        
+
         # Cross-validate with byline
         if not validate_wire_detection(opening, author, url):
             return None
-        
+
         # Check geographic locality
         if check_geographic_locality(url, content, source):
             return None  # Local content, not wire
-    
+
     # ... rest of logic ...
 ```
 
@@ -324,7 +324,7 @@ def _detect_wire_service(self, *, url: str, content: str, metadata: dict) -> Con
 def test_local_broadcaster_dateline_not_wire():
     """Local station datelines should not trigger wire detection."""
     detector = ContentTypeDetector()
-    
+
     # ABC 17 Columbia
     result = detector.detect(
         url="https://abc17news.com/news/columbia/2025/11/14/local-story",
@@ -333,7 +333,7 @@ def test_local_broadcaster_dateline_not_wire():
         content="COLUMBIA, Mo. (KMIZ)\n\nThe Columbia City Council met today..."
     )
     assert result is None or result.status != "wire"
-    
+
     # CBS Jefferson City
     result = detector.detect(
         url="https://krcgtv.com/news/local/jefferson-city-news",
@@ -346,7 +346,7 @@ def test_local_broadcaster_dateline_not_wire():
 def test_actual_wire_dateline_detected():
     """Real wire service datelines should still be detected."""
     detector = ContentTypeDetector()
-    
+
     result = detector.detect(
         url="https://abc17news.com/world/2025/11/14/international-news",
         title="International Crisis",
@@ -364,7 +364,7 @@ def test_actual_wire_dateline_detected():
 The wire detection system's **5.4% false positive rate** stems from a single architectural flaw: **treating local broadcaster datelines as wire service indicators**. The fix is straightforward:
 
 1. **Whitelist** known wire services
-2. **Blacklist** FCC broadcast callsigns  
+2. **Blacklist** FCC broadcast callsigns
 3. **Cross-validate** dateline with byline and URL patterns
 
 This will restore user trust, improve ML training data quality, and ensure local journalists receive proper attribution for their work.

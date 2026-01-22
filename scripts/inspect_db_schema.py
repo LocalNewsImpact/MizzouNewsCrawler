@@ -17,7 +17,7 @@ with db.engine.connect() as conn:
     print('ARTICLES TABLE COLUMNS:')
     for row in result:
         print(f'  {row[0]}: {row[1]}')
-    
+
     print('\nCANDIDATE_LINKS TABLE COLUMNS:')
     result = conn.execute(text(
         "SELECT column_name, data_type "
@@ -27,7 +27,7 @@ with db.engine.connect() as conn:
     ))
     for row in result:
         print(f'  {row[0]}: {row[1]}')
-    
+
     print('\nSOURCES TABLE COLUMNS:')
     result = conn.execute(text(
         "SELECT column_name, data_type "
@@ -37,7 +37,7 @@ with db.engine.connect() as conn:
     ))
     for row in result:
         print(f'  {row[0]}: {row[1]}')
-    
+
     print('\nSample query test:')
     result = conn.execute(text(
         "SELECT a.id, a.url, cl.source_id, cl.source_name "

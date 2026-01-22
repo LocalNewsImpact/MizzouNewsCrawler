@@ -32,8 +32,8 @@ def analyze_alternative_extractions():
     # Get entries with alternative extractions
     cursor.execute("""
         SELECT id, url, final_field_attribution, alternative_extractions
-        FROM extraction_telemetry_v2 
-        WHERE alternative_extractions IS NOT NULL 
+        FROM extraction_telemetry_v2
+        WHERE alternative_extractions IS NOT NULL
         AND alternative_extractions != 'null'
         AND alternative_extractions != '{}'
     """)

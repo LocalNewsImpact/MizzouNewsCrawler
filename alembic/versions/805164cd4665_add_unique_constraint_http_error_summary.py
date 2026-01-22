@@ -21,10 +21,10 @@ def upgrade() -> None:
     """Upgrade schema."""
     # Add UNIQUE constraint on (host, status_code) to support ON CONFLICT
     # This is required for the upsert operation in comprehensive_telemetry.py
-    
+
     # For PostgreSQL: Use create_unique_constraint
     # For SQLite: Must use batch mode (table recreation)
-    
+
     with op.batch_alter_table('http_error_summary', schema=None) as batch_op:
         batch_op.create_unique_constraint(
             'uq_http_error_summary_host_status',

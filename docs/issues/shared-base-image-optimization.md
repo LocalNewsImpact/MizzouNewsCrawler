@@ -1,9 +1,9 @@
 # Shared Base Image Optimization Roadmap
 
-**Issue**: #38  
-**Status**: Implementation In Progress  
-**Estimated Time**: 18 hours (2-3 days)  
-**Priority**: High  
+**Issue**: #38
+**Status**: Implementation In Progress
+**Estimated Time**: 18 hours (2-3 days)
+**Priority**: High
 **Impact**: 83% reduction in build time (15 min → 2-3 min per service)
 
 ---
@@ -359,10 +359,10 @@ CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
    ```bash
    # API health check
    curl http://localhost:8000/health
-   
+
    # Crawler test
    docker-compose run --rm crawler python -m src.cli.main discover-urls --source-limit 1
-   
+
    # Processor test
    docker-compose run --rm processor python -m src.cli.main extract --limit 5
    ```
@@ -371,7 +371,7 @@ CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
    ```bash
    # First build (no cache)
    time docker build --no-cache -t mizzou-api:test -f Dockerfile.api .
-   
+
    # Second build (with base cached)
    time docker build -t mizzou-api:test2 -f Dockerfile.api .
    ```
@@ -417,11 +417,11 @@ CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
      - '-f'
      - 'Dockerfile.base'
      - '.'
-   
+
    images:
    - 'us-central1-docker.pkg.dev/$PROJECT_ID/mizzou-crawler/base:latest'
    - 'us-central1-docker.pkg.dev/$PROJECT_ID/mizzou-crawler/base:$SHORT_SHA'
-   
+
    timeout: 1200s  # 20 minutes for base image
    ```
 
@@ -515,14 +515,14 @@ steps:
 1. **Shared Base Image**:
    ```markdown
    ### Shared Base Image Strategy
-   
+
    This project uses a shared base image containing common dependencies to optimize build times:
-   
+
    - **Base Image**: `base:latest` (~1.5 GB)
      - System dependencies (gcc, g++, libpq-dev)
      - Common Python packages (pandas, sqlalchemy, spacy, etc.)
      - Spacy model (en_core_web_sm)
-   
+
    - **Service Images**: Build from base + service-specific packages
      - API: base + FastAPI (~300 MB additional)
      - Processor: base + ML packages (~400 MB additional)
@@ -532,41 +532,41 @@ steps:
 2. **Building Base Image**:
    ```markdown
    ### Building the Base Image
-   
+
    The base image should be rebuilt when:
    - Base dependencies are added/removed in `requirements-base.txt`
    - System dependencies change
    - Spacy model version updates
    - Security patches needed
-   
+
    **Local Build**:
    ```bash
    docker build -t mizzou-base:latest -f Dockerfile.base .
    ```
-   
+
    **Cloud Build** (recommended):
    ```bash
    gcloud builds triggers run build-base-manual
    ```
-   
+
    Rebuild time: ~10 minutes (first time), ~5 minutes (cached)
    ```
 
 3. **Troubleshooting**:
    ```markdown
    ### Issue: "Base image not found"
-   
+
    **Symptoms**:
    ```
    Error: base:latest not found
    ```
-   
+
    **Solutions**:
    1. Build base image locally:
       ```bash
       docker build -t mizzou-base:latest -f Dockerfile.base .
       ```
-   
+
    2. Pull from Artifact Registry:
       ```bash
       docker pull us-central1-docker.pkg.dev/PROJECT/images/base:latest
@@ -588,76 +588,76 @@ steps:
 2. **Rebuild Procedure**:
    ```markdown
    ## Base Image Rebuild Procedure
-   
+
    1. **Update requirements-base.txt** with new/changed dependencies
-   
+
    2. **Test locally**:
       ```bash
       docker build -t mizzou-base:test -f Dockerfile.base .
       docker run mizzou-base:test python -c "import <new_package>"
       ```
-   
+
    3. **Update service requirements** if needed
-   
+
    4. **Commit changes**:
       ```bash
       git add requirements-base.txt Dockerfile.base
       git commit -m "Update base image dependencies"
       git push
       ```
-   
+
    5. **Build in Cloud**:
       ```bash
       gcloud builds triggers run build-base-manual
       ```
-   
+
    6. **Wait for base build** (~10 minutes)
-   
+
    7. **Rebuild services** (automatic or manual trigger)
-   
+
    8. **Test services** in staging/production
    ```
 
 3. **Rollback Procedure**:
    ```markdown
    ## Rollback Procedure
-   
+
    If base image update causes issues:
-   
+
    1. **Revert to previous base image**:
       ```bash
       # Find previous working version
       gcloud artifacts docker images list \
         us-central1-docker.pkg.dev/PROJECT/mizzou-crawler/base
-      
+
       # Tag previous version as latest
       gcloud artifacts docker tags add \
         us-central1-docker.pkg.dev/PROJECT/mizzou-crawler/base:<OLD_SHA> \
         us-central1-docker.pkg.dev/PROJECT/mizzou-crawler/base:latest
       ```
-   
+
    2. **Rebuild services with old base**:
       ```bash
       gcloud builds triggers run build-api-manual
       # etc.
       ```
-   
+
    3. **Fix base image issue**
-   
+
    4. **Test fixed base image**
-   
+
    5. **Re-deploy updated base**
    ```
 
 4. **Version Strategy**:
    ```markdown
    ## Base Image Versioning
-   
+
    Base images are tagged with:
    - `latest`: Current production version
    - `<git-sha>`: Specific commit version (immutable)
    - `<version>`: Semantic version (e.g., v1.0, v1.1)
-   
+
    Service images reference:
    - Local dev: `base:latest`
    - Production: `base:<git-sha>` (pinned for stability)
@@ -693,26 +693,26 @@ steps:
    ```bash
    # 1. Build base image in Cloud
    gcloud builds triggers run build-base-manual
-   
+
    # 2. Wait for completion (~10 minutes)
    gcloud builds list --ongoing
-   
+
    # 3. Build service images
    gcloud builds triggers run build-api-manual
    gcloud builds triggers run build-processor-manual
    gcloud builds triggers run build-crawler-manual
-   
+
    # 4. Monitor builds (~2-3 minutes each)
    gcloud builds list --ongoing
-   
+
    # 5. Verify Cloud Deploy releases created
    gcloud deploy releases list \
      --delivery-pipeline=mizzou-news-crawler \
      --region=us-central1
-   
+
    # 6. Monitor deployment
    kubectl get pods -n production -w
-   
+
    # 7. Verify services healthy
    kubectl get pods -n production
    kubectl logs -n production <pod-name>
@@ -729,7 +729,7 @@ steps:
    ```bash
    # Check build times
    gcloud builds list --format="table(id,status,createTime,duration)" --limit=10
-   
+
    # Compare with historical builds
    # Before: ~900s (15 min)
    # After: ~120-180s (2-3 min)
@@ -785,7 +785,7 @@ If issues arise after deployment:
    # Tag old base as latest
    gcloud artifacts docker tags add \
      BASE_IMAGE:<old-sha> BASE_IMAGE:latest
-   
+
    # Rebuild services
    gcloud builds triggers run build-api-manual
    ```
@@ -795,7 +795,7 @@ If issues arise after deployment:
    # Revert all Dockerfile changes
    git revert <commit-hash>
    git push
-   
+
    # Trigger builds with reverted code
    ```
 
@@ -907,7 +907,7 @@ This optimization was previously implemented in commit `65b4df3` with a `Dockerf
 - [ ] Testing Complete
 - [ ] Ready for Production
 
-**Approved by**: _____________  
+**Approved by**: _____________
 **Date**: _____________
 
 ---

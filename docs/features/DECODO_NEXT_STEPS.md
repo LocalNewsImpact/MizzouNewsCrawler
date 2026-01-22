@@ -1,7 +1,7 @@
 # Decodo Proxy - Ready to Test
 
-**Commit:** c66d92b  
-**Status:** ✅ Pushed to feature/gcp-kubernetes-deployment  
+**Commit:** c66d92b
+**Status:** ✅ Pushed to feature/gcp-kubernetes-deployment
 **Ready:** Yes - Test immediately
 
 ---
@@ -18,9 +18,9 @@ IP Address: 216.132.139.41
 Location: United States (Astound Broadband ISP)
 ```
 
-✅ **Test 1:** IP check - SUCCESS  
-✅ **Test 2:** Kansas City Star access - SUCCESS (200 OK, 0.70s)  
-✅ **Test 3:** Columbia Missourian access - SUCCESS (200 OK, 0.31s)  
+✅ **Test 1:** IP check - SUCCESS
+✅ **Test 2:** Kansas City Star access - SUCCESS (200 OK, 0.70s)
+✅ **Test 3:** Columbia Missourian access - SUCCESS (200 OK, 0.31s)
 
 ⚠️ Note: Bot blocking keywords detected in content (may be false positive)
 
@@ -50,8 +50,8 @@ from src.models.database import DatabaseManager
 from sqlalchemy import text
 session = DatabaseManager().get_session().__enter__()
 recent = session.execute(text(
-    \"SELECT COUNT(*) FROM articles 
-     WHERE status='extracted' 
+    \"SELECT COUNT(*) FROM articles
+     WHERE status='extracted'
      AND created_at >= NOW() - INTERVAL '30 minutes'\"
 )).scalar()
 print(f'Extracted: {recent}')

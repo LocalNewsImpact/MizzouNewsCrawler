@@ -1,7 +1,7 @@
 # Dataset Assignment Fix - Implementation Summary
 
-**Date**: October 15, 2025  
-**Issue**: 6,174 candidate_links had NULL dataset_id values  
+**Date**: October 15, 2025
+**Issue**: 6,174 candidate_links had NULL dataset_id values
 **Status**: ✅ **RESOLVED** - 5,120 records fixed, 1 orphaned record remains
 
 ---
@@ -95,16 +95,16 @@ CMD ["python", "-m", "src.cli.main", "discover-urls", \
    python -m src.cli.main discover-urls --dataset "Publisher Links from publinks.csv"
                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
                                          This parameter is REQUIRED
-   
+
 2. NewsDiscovery.run_discovery(dataset_label="Publisher Links from publinks.csv")
    ├─ Filters sources via dataset_sources junction table
    ├─ Only processes sources assigned to this dataset
    └─ Passes dataset_label to SourceProcessor
-   
+
 3. SourceProcessor(dataset_label="Publisher Links from publinks.csv")
    ├─ Discovers URLs from source
    └─ Calls _store_candidates(dataset_id=<UUID>)
-   
+
 4. upsert_candidate_link(dataset_id=<UUID>, ...)
    └─ Creates/updates candidate_link with proper dataset_id
 ```

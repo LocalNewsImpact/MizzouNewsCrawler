@@ -1,9 +1,9 @@
 # Standalone Cleaning Command Deployment
 
-**Date:** October 10, 2025  
-**Time:** 19:31 UTC  
-**Commit:** c933832  
-**Build ID:** 5c703762-11e3-4069-b742-7b5ec06ea492  
+**Date:** October 10, 2025
+**Time:** 19:31 UTC
+**Commit:** c933832
+**Build ID:** 5c703762-11e3-4069-b742-7b5ec06ea492
 **Status:** 🚧 BUILD IN PROGRESS
 
 ---
@@ -76,9 +76,9 @@ python -m src.cli.cli_modular clean-articles --limit 50 --status extracted
 
 ## Build Information
 
-**Build ID:** 5c703762-11e3-4069-b742-7b5ec06ea492  
-**Branch:** copilot/investigate-fix-bot-blocking-issues  
-**Commit:** c933832  
+**Build ID:** 5c703762-11e3-4069-b742-7b5ec06ea492
+**Branch:** copilot/investigate-fix-bot-blocking-issues
+**Commit:** c933832
 **Images:**
 - `processor:c933832` (commit-specific tag)
 - `processor:v1.3.1` (version tag)
@@ -212,22 +212,22 @@ opinion: 37
 ## Success Criteria
 
 ### Immediate (15 minutes after deployment)
-✅ Pod running with image `processor:c933832`  
-✅ Logs show "Content cleaning (1439 pending, limit 100)"  
-✅ Logs show "✅ Content cleaning completed successfully"  
-✅ Queue count cleaning_pending decreasing  
+✅ Pod running with image `processor:c933832`
+✅ Logs show "Content cleaning (1439 pending, limit 100)"
+✅ Logs show "✅ Content cleaning completed successfully"
+✅ Queue count cleaning_pending decreasing
 
 ### Short-term (1 hour)
-✅ 200+ articles cleaned (cleaning_pending: 1,439 → ~1,200)  
-✅ Articles moving to "cleaned" status  
-✅ ML labeling processing both extracted and cleaned articles  
-✅ Status changes logged: "extracted→cleaned", "extracted→wire", "extracted→local"  
+✅ 200+ articles cleaned (cleaning_pending: 1,439 → ~1,200)
+✅ Articles moving to "cleaned" status
+✅ ML labeling processing both extracted and cleaned articles
+✅ Status changes logged: "extracted→cleaned", "extracted→wire", "extracted→local"
 
 ### Medium-term (24 hours)
-✅ All 1,439 articles cleaned (cleaning_pending: 0)  
-✅ Cleaning running automatically in processor cycles  
-✅ ML labeling catching up (1,500+ articles labeled)  
-✅ Pipeline operating normally  
+✅ All 1,439 articles cleaned (cleaning_pending: 0)
+✅ Cleaning running automatically in processor cycles
+✅ ML labeling catching up (1,500+ articles labeled)
+✅ Pipeline operating normally
 
 ---
 
@@ -236,7 +236,7 @@ opinion: 37
 ### Check Cleaning Progress
 ```sql
 -- Queue status
-SELECT 
+SELECT
   COUNT(*) FILTER (WHERE status = 'extracted') as extracted,
   COUNT(*) FILTER (WHERE status = 'cleaned') as cleaned,
   COUNT(*) FILTER (WHERE status = 'wire') as wire,
@@ -248,7 +248,7 @@ WHERE created_at >= NOW() - INTERVAL '7 days';
 ### Status Transitions Over Time
 ```sql
 -- Articles cleaned in last hour
-SELECT 
+SELECT
   DATE_TRUNC('minute', updated_at) as minute,
   status,
   COUNT(*) as status_changes
@@ -262,7 +262,7 @@ ORDER BY minute DESC;
 ### ML Labeling Progress
 ```sql
 -- Labels applied after cleaning deployed
-SELECT 
+SELECT
   COUNT(*) as labeled_articles,
   primary_label,
   COUNT(*) as label_count
@@ -275,7 +275,7 @@ ORDER BY label_count DESC;
 ### Cleaning Command Performance
 ```sql
 -- Cleaning telemetry (if available)
-SELECT 
+SELECT
   created_at,
   metadata->>'domain' as domain,
   metadata->>'chars_removed' as chars_removed,
@@ -331,7 +331,7 @@ kubectl get deployment mizzou-processor -n production \
 Extraction → domains_for_cleaning populated → Run cleaning on those domains
               ↑
               Only populated when extraction succeeds
-              
+
 Result: 0 successful extractions → empty domains_for_cleaning → no cleaning
 ```
 
@@ -354,25 +354,25 @@ Result: Backlog can progress even when extraction is blocked
 
 ### Prevention for Future
 
-✅ **Independent pipeline stages** - Each command queries database by status  
-✅ **Backlog recovery tools** - Standalone commands can process stuck articles  
-✅ **Status transition monitoring** - Track articles moving through pipeline  
-✅ **Queue depth alerts** - Alert when counts stay static for >4 hours  
+✅ **Independent pipeline stages** - Each command queries database by status
+✅ **Backlog recovery tools** - Standalone commands can process stuck articles
+✅ **Status transition monitoring** - Track articles moving through pipeline
+✅ **Queue depth alerts** - Alert when counts stay static for >4 hours
 
 ---
 
 ## Timeline
 
-**October 2, 2025 6:00 PM:** Last successful full pipeline completion  
-**October 5, 2025:** Bot blocking started affecting all domains  
-**October 10, 2025 15:56 UTC:** Deployed bot blocking improvements (5f8ff4b)  
-**October 10, 2025 16:10 UTC:** Discovered Selenium not running (rate limit bug)  
-**October 10, 2025 16:53 UTC:** Fixed Selenium fallback (d868b99)  
-**October 10, 2025 17:15 UTC:** Selenium working but sites still blocking  
-**October 10, 2025 18:20 UTC:** Discovered entity extraction infinite loop  
-**October 10, 2025 18:47 UTC:** Fixed entity extraction sentinels (df12220)  
-**October 10, 2025 19:00 UTC:** User asked: "Why are none being cleaned?"  
-**October 10, 2025 19:15 UTC:** Discovered cleaning architectural gap  
+**October 2, 2025 6:00 PM:** Last successful full pipeline completion
+**October 5, 2025:** Bot blocking started affecting all domains
+**October 10, 2025 15:56 UTC:** Deployed bot blocking improvements (5f8ff4b)
+**October 10, 2025 16:10 UTC:** Discovered Selenium not running (rate limit bug)
+**October 10, 2025 16:53 UTC:** Fixed Selenium fallback (d868b99)
+**October 10, 2025 17:15 UTC:** Selenium working but sites still blocking
+**October 10, 2025 18:20 UTC:** Discovered entity extraction infinite loop
+**October 10, 2025 18:47 UTC:** Fixed entity extraction sentinels (df12220)
+**October 10, 2025 19:00 UTC:** User asked: "Why are none being cleaned?"
+**October 10, 2025 19:15 UTC:** Discovered cleaning architectural gap
 **October 10, 2025 19:31 UTC:** Deployed standalone cleaning command (c933832) ⭐
 
 ---
@@ -388,8 +388,8 @@ Result: Backlog can progress even when extraction is blocked
 
 ---
 
-**Deployment Status:** 🚧 BUILD IN PROGRESS  
-**Build ID:** 5c703762-11e3-4069-b742-7b5ec06ea492  
-**Expected Completion:** 19:33 UTC  
-**Deployed By:** GitHub Copilot + User Investigation  
+**Deployment Status:** 🚧 BUILD IN PROGRESS
+**Build ID:** 5c703762-11e3-4069-b742-7b5ec06ea492
+**Expected Completion:** 19:33 UTC
+**Deployed By:** GitHub Copilot + User Investigation
 **Related Issues:** #64 (Bot Blocking), Pipeline Stalled Since Oct 2

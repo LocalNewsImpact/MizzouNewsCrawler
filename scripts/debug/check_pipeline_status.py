@@ -9,13 +9,13 @@ db = DatabaseManager()
 with db.get_session() as session:
     # Get overall status counts
     status_query = text("""
-        SELECT 
+        SELECT
             status,
             COUNT(*) as count
         FROM articles
         WHERE created_at >= NOW() - INTERVAL '7 days'
         GROUP BY status
-        ORDER BY 
+        ORDER BY
             CASE status
                 WHEN 'discovered' THEN 1
                 WHEN 'verified' THEN 2
@@ -43,7 +43,7 @@ with db.get_session() as session:
 
     # Get entity extraction status
     entity_query = text("""
-        SELECT 
+        SELECT
             COUNT(DISTINCT a.id) as articles_with_entities,
             COUNT(e.id) as total_entities,
             COUNT(DISTINCT CASE WHEN e.label = 'SENTINEL' THEN a.id END) as articles_with_sentinel
@@ -63,7 +63,7 @@ with db.get_session() as session:
 
     # Get ML labels status
     label_query = text("""
-        SELECT 
+        SELECT
             COUNT(DISTINCT article_id) as labeled_articles,
             COUNT(*) as total_labels,
             label_version
@@ -85,12 +85,12 @@ with db.get_session() as session:
 
     # Get cleaning queue size
     cleaning_query = text("""
-        SELECT COUNT(*) 
+        SELECT COUNT(*)
         FROM articles
         WHERE status = 'extracted'
         AND created_at >= NOW() - INTERVAL '7 days'
     """)
-    
+
     print()
     print('=== QUEUE STATUS ===')
     print()

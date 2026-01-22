@@ -241,7 +241,7 @@ from sqlalchemy import text
 db = DatabaseManager()
 with db.get_session() as session:
     result = session.execute(text('''
-        SELECT COUNT(*) FROM articles 
+        SELECT COUNT(*) FROM articles
         WHERE extracted_at >= NOW() - INTERVAL '1 hour'
     ''')).scalar()
     print(f'Articles last hour: {result}')
@@ -255,9 +255,9 @@ db = DatabaseManager()
 with db.get_session() as session:
     result = session.execute(text('''
         SELECT COUNT(*) FROM (
-            SELECT candidate_link_id, COUNT(*) 
-            FROM articles 
-            GROUP BY candidate_link_id 
+            SELECT candidate_link_id, COUNT(*)
+            FROM articles
+            GROUP BY candidate_link_id
             HAVING COUNT(*) > 1
         ) dupes
     ''')).scalar()
@@ -299,12 +299,12 @@ After staging validation:
 
 This testing suite provides **comprehensive validation** before production deployment:
 
-✓ **Fast feedback** - Smoke test in 2 minutes  
-✓ **Complete coverage** - All components tested  
-✓ **Real database** - PostgreSQL with actual writes  
-✓ **Multi-worker** - Parallel execution verified  
-✓ **Fallback safety** - System works without queue  
-✓ **Data integrity** - All writes validated  
-✓ **Performance metrics** - Throughput measured  
+✓ **Fast feedback** - Smoke test in 2 minutes
+✓ **Complete coverage** - All components tested
+✓ **Real database** - PostgreSQL with actual writes
+✓ **Multi-worker** - Parallel execution verified
+✓ **Fallback safety** - System works without queue
+✓ **Data integrity** - All writes validated
+✓ **Performance metrics** - Throughput measured
 
 **Run `./scripts/test-work-queue-all.sh` before every deployment!**

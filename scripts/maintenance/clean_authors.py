@@ -39,8 +39,8 @@ def clean_authors_in_database(db_path: str, dry_run: bool = True) -> dict[str, A
     try:
         # Get all articles with authors
         cursor = conn.execute("""
-            SELECT id, author 
-            FROM articles 
+            SELECT id, author
+            FROM articles
             WHERE author IS NOT NULL AND author != ''
             ORDER BY id
         """)
@@ -113,7 +113,7 @@ def clean_authors_in_database(db_path: str, dry_run: bool = True) -> dict[str, A
             if not dry_run:
                 conn.execute(
                     """
-                    UPDATE articles 
+                    UPDATE articles
                     SET author = ?, processed_at = CURRENT_TIMESTAMP
                     WHERE id = ?
                 """,

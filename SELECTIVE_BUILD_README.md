@@ -168,7 +168,7 @@ Nothing matched?   → Rebuild migrator (only, default)
 
 **BASE**:
 ```
-Dockerfile.base, requirements-base.txt, src/config.py, pyproject.toml, 
+Dockerfile.base, requirements-base.txt, src/config.py, pyproject.toml,
 alembic/, setup.py
 ```
 

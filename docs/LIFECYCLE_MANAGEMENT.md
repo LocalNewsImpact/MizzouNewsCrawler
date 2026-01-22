@@ -69,16 +69,16 @@ def list_articles(
 ):
     if not db:
         raise HTTPException(503, "Database unavailable")
-    
+
     with db.get_session() as session:
         articles = session.query(Article).limit(10).all()
-    
+
     if telemetry:
         telemetry.submit(lambda conn: conn.execute(
             "INSERT INTO access_log (endpoint, timestamp) VALUES (?, ?)",
             ("/articles", datetime.now())
         ))
-    
+
     return {"articles": [a.to_dict() for a in articles]}
 ```
 
@@ -94,14 +94,14 @@ from backend.app.main import app
 def test_list_articles():
     # Create a test database manager
     test_db = DatabaseManager("sqlite:///:memory:")
-    
+
     # Override the dependency
     app.dependency_overrides[get_db_manager] = lambda: test_db
-    
+
     with TestClient(app) as client:
         response = client.get("/articles")
         assert response.status_code == 200
-    
+
     # Clean up override
     app.dependency_overrides.clear()
 ```
@@ -111,13 +111,13 @@ Or monkeypatch `app.state` directly:
 ```python
 def test_with_mock_telemetry():
     from unittest.mock import MagicMock
-    
+
     mock_store = MagicMock()
     app.state.telemetry_store = mock_store
-    
+
     with TestClient(app) as client:
         response = client.get("/articles")
-    
+
     # Verify telemetry was called
     mock_store.submit.assert_called()
 ```
@@ -229,7 +229,7 @@ def list_articles(
 ):
     if not db:
         raise HTTPException(503, "Database unavailable")
-    
+
     with db.get_session() as session:
         articles = session.query(Article).all()
     return {"articles": articles}
@@ -246,7 +246,7 @@ def test_articles():
     # Monkeypatch module-level db_manager
     test_db = DatabaseManager("sqlite:///:memory:")
     main_module.db_manager = test_db
-    
+
     client = TestClient(main_module.app)
     response = client.get("/articles")
     assert response.status_code == 200
@@ -260,14 +260,14 @@ from backend.app.lifecycle import get_db_manager
 
 def test_articles():
     test_db = DatabaseManager("sqlite:///:memory:")
-    
+
     # Override dependency
     app.dependency_overrides[get_db_manager] = lambda: test_db
-    
+
     client = TestClient(app)
     response = client.get("/articles")
     assert response.status_code == 200
-    
+
     # Clean up
     app.dependency_overrides.clear()
 ```

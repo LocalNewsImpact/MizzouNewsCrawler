@@ -133,17 +133,17 @@ def create_article(
 ):
     if not db:
         raise HTTPException(503, "Database unavailable")
-    
+
     # Save article
     with db.get_session() as session:
         new_article = Article(**article.dict())
         session.add(new_article)
         session.commit()
-    
+
     # Optional telemetry - doesn't fail if unavailable
     if telemetry:
         telemetry.submit(lambda conn: log_creation(conn, new_article.id))
-    
+
     return {"id": new_article.id}
 ```
 
@@ -171,7 +171,7 @@ def fetch_and_save(
         raise HTTPException(503, "Database unavailable")
     if not session:
         raise HTTPException(503, "HTTP client unavailable")
-    
+
     # Both resources available
     response = session.get(url, timeout=10)
     with db.get_session() as db_session:
@@ -366,7 +366,7 @@ if use_origin_proxy:
     proxy_url = os.getenv("ORIGIN_PROXY_URL")
     proxy_user = os.getenv("PROXY_USERNAME")
     proxy_pass = os.getenv("PROXY_PASSWORD")
-    
+
     if not proxy_url:
         logger.error("USE_ORIGIN_PROXY=true but ORIGIN_PROXY_URL not set")
         # Don't install proxy
@@ -457,7 +457,7 @@ def metrics():
         db_connections_active.set(app.state.db_manager.engine.pool.size())
     if app.state.telemetry_store:
         telemetry_queue_size.set(app.state.telemetry_store._queue.qsize())
-    
+
     # Return Prometheus metrics
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 ```

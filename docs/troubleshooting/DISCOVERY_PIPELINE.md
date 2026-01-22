@@ -1,6 +1,6 @@
 # Discovery Pipeline Troubleshooting Guide
 
-**Last Updated**: October 21, 2025  
+**Last Updated**: October 21, 2025
 **Version**: 2.0
 
 ---
@@ -115,7 +115,7 @@ python -m src.cli load-sources --csv sources/publinks.csv
 #### Check Dataset-Source Links
 ```sql
 -- Run in sqlite3 data/mizzou.db
-SELECT 
+SELECT
     d.label as dataset,
     COUNT(ds.source_id) as source_count
 FROM datasets d
@@ -187,7 +187,7 @@ python -m src.cli discover-urls \
 #### Review Telemetry
 ```sql
 -- Check discovery method effectiveness
-SELECT 
+SELECT
     source_url,
     discovery_method,
     status,
@@ -210,7 +210,7 @@ LIMIT 20;
 .mode column
 .headers on
 
-SELECT 
+SELECT
     DATE(discovered_at) as date,
     COUNT(*) as urls_discovered,
     COUNT(DISTINCT source_host_id) as sources_active
@@ -224,8 +224,8 @@ ORDER BY date DESC;
 
 ```sql
 -- Sources by last discovery date
-SELECT 
-    CASE 
+SELECT
+    CASE
         WHEN last_disc IS NULL THEN 'Never'
         WHEN DATE(last_disc) >= DATE('now', '-1 day') THEN 'Today'
         WHEN DATE(last_disc) >= DATE('now', '-7 days') THEN 'This Week'
@@ -234,7 +234,7 @@ SELECT
     END as recency,
     COUNT(*) as source_count
 FROM (
-    SELECT 
+    SELECT
         s.id,
         MAX(cl.discovered_at) as last_disc
     FROM sources s
@@ -242,7 +242,7 @@ FROM (
     GROUP BY s.id
 )
 GROUP BY recency
-ORDER BY 
+ORDER BY
     CASE recency
         WHEN 'Today' THEN 1
         WHEN 'This Week' THEN 2
@@ -256,7 +256,7 @@ ORDER BY
 
 ```sql
 -- Top failure types
-SELECT 
+SELECT
     failure_type,
     COUNT(*) as count,
     ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) as percentage
@@ -379,7 +379,7 @@ db = DatabaseManager('sqlite:///data/mizzou.db')
 with db.engine.begin() as conn:
     # Reset metadata for all sources
     conn.execute(text("""
-        UPDATE sources 
+        UPDATE sources
         SET metadata = json_set(
             COALESCE(metadata, '{}'),
             '$.last_discovery_at',
@@ -400,7 +400,7 @@ from sqlalchemy import text
 db = DatabaseManager('sqlite:///data/mizzou.db')
 with db.engine.begin() as conn:
     conn.execute(text("""
-        UPDATE sources 
+        UPDATE sources
         SET metadata = json_remove(
             metadata,
             '$.rss_missing',
@@ -470,9 +470,9 @@ echo "" >> discovery_report.txt
 
 echo "=== Recent Errors ===" >> discovery_report.txt
 sqlite3 data/mizzou.db "
-SELECT created_at, error_message 
-FROM site_failures 
-ORDER BY created_at DESC 
+SELECT created_at, error_message
+FROM site_failures
+ORDER BY created_at DESC
 LIMIT 10;" >> discovery_report.txt
 
 echo "Report saved to: discovery_report.txt"

@@ -84,7 +84,7 @@ def test_telemetry_data_storage():
 
     # Check main telemetry table
     cursor.execute("""
-        SELECT COUNT(*) FROM byline_cleaning_telemetry 
+        SELECT COUNT(*) FROM byline_cleaning_telemetry
         WHERE extraction_timestamp > datetime('now', '-1 minute')
     """)
     recent_count = cursor.fetchone()[0]
@@ -107,14 +107,14 @@ def test_telemetry_data_storage():
 
     # Get sample data for validation
     cursor.execute("""
-        SELECT 
-            raw_byline, 
-            final_authors_json, 
+        SELECT
+            raw_byline,
+            final_authors_json,
             confidence_score,
             processing_time_ms,
             source_name,
             final_authors_count
-        FROM byline_cleaning_telemetry 
+        FROM byline_cleaning_telemetry
         WHERE extraction_timestamp > datetime('now', '-1 minute')
         ORDER BY extraction_timestamp DESC
         LIMIT 3
@@ -263,7 +263,7 @@ def test_confidence_scoring():
         cursor.execute(
             """
             SELECT confidence_score, likely_valid_authors, likely_noise
-            FROM byline_cleaning_telemetry 
+            FROM byline_cleaning_telemetry
             WHERE article_id = ?
             ORDER BY extraction_timestamp DESC
             LIMIT 1

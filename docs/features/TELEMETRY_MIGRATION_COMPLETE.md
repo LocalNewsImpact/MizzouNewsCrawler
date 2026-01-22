@@ -18,7 +18,7 @@ Created SQLAlchemy ORM models for telemetry data:
   - Method tracking (attempted methods, successful method, timings)
   - Field extraction tracking (JSON-encoded field-level data)
   - Success/failure results
-  
+
 - `HttpErrorSummary` - HTTP error aggregation with:
   - Host and status code tracking
   - Error counts and timestamps (first_seen, last_seen)

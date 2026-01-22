@@ -69,13 +69,13 @@ class BylineCleanerDaemon:
             # - Email addresses
             # - Obvious title patterns
             query = text("""
-                SELECT id, author 
-                FROM articles 
-                WHERE author IS NOT NULL 
+                SELECT id, author
+                FROM articles
+                WHERE author IS NOT NULL
                 AND author != ''
                 AND (
                     author LIKE '%Staff%' OR
-                    author LIKE '%Editor%' OR  
+                    author LIKE '%Editor%' OR
                     author LIKE '%Reporter%' OR
                     author LIKE '%@%' OR
                     author LIKE '%,%' OR
@@ -124,7 +124,7 @@ class BylineCleanerDaemon:
             if cleaned_author != raw_author:
                 session.execute(
                     text("""
-                        UPDATE articles 
+                        UPDATE articles
                         SET author = :cleaned_author,
                             updated_at = :updated_at
                         WHERE id = :article_id

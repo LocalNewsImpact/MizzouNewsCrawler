@@ -24,9 +24,9 @@ def monitor_gazetteer():
         result = conn.execute(
             text(
                 """
-            SELECT id, process_type, command, status, started_at, completed_at, 
+            SELECT id, process_type, command, status, started_at, completed_at,
                    progress_current, progress_total, error_message, process_metadata
-            FROM background_processes 
+            FROM background_processes
             WHERE process_type LIKE '%gazetteer%' OR command LIKE '%gazetteer%'
             ORDER BY started_at DESC
             LIMIT 3

@@ -30,7 +30,7 @@ PROXY_PATTERNS = [
 def mark_proxy_challenges_as_error():
     """Find and mark articles with proxy challenge titles/content as error status."""
     db = DatabaseManager()
-    
+
     with db.get_session() as session:
         # First, count how many articles match
         count_query = """
@@ -46,14 +46,14 @@ def mark_proxy_challenges_as_error():
                 for pattern in PROXY_PATTERNS
             )
         )
-        
+
         total_count = session.execute(text(count_query)).scalar()
         logger.info(f"Found {total_count} articles with proxy challenge patterns")
-        
+
         if total_count == 0:
             logger.info("No articles to update")
             return
-        
+
         # Get examples before updating
         example_query = """
             SELECT id, url, title, status, wire_check_status
@@ -70,13 +70,13 @@ def mark_proxy_challenges_as_error():
                 for pattern in PROXY_PATTERNS
             )
         )
-        
+
         examples = session.execute(text(example_query)).fetchall()
         logger.info("Examples being updated:")
         for row in examples:
             logger.info(f"  - {row[2][:80]} (status: {row[3]}, wire: {row[4]})")
             logger.info(f"    URL: {row[1]}")
-        
+
         # Update articles to error status
         update_query = """
             UPDATE articles
@@ -91,13 +91,13 @@ def mark_proxy_challenges_as_error():
                 for pattern in PROXY_PATTERNS
             )
         )
-        
+
         result = session.execute(text(update_query))
         session.commit()
-        
+
         logger.info(f"✅ Updated {result.rowcount} articles to status='error'")
         logger.info("These articles will no longer be exported to BigQuery")
-        
+
         # Verify no more would be exported
         verify_query = """
             SELECT COUNT(*)
@@ -113,7 +113,7 @@ def mark_proxy_challenges_as_error():
                 for pattern in PROXY_PATTERNS
             )
         )
-        
+
         remaining = session.execute(text(verify_query)).scalar()
         if remaining > 0:
             logger.warning(f"⚠️  {remaining} proxy challenge articles still marked for export!")

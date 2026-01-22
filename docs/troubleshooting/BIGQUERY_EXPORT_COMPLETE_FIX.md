@@ -1,20 +1,20 @@
 # BigQuery Export Complete Fix Summary
 
-**Date:** October 17-18, 2025  
-**Branch:** feature/gcp-kubernetes-deployment  
+**Date:** October 17-18, 2025
+**Branch:** feature/gcp-kubernetes-deployment
 **Final Commits:** 56fa1cb → c513fad → 4da937e → 6940b3e
 
 ## Issues Found and Fixed
 
 ### 1. ✅ Using Deprecated CLI Entry Point
-**Problem:** CronJob was using `python -m src.cli.main` which is deprecated  
-**Root Cause:** The `main.py` file itself says it's deprecated and forwards to `cli_modular`  
-**Fix:** Changed CronJob command to use `python -m src.cli.cli_modular`  
+**Problem:** CronJob was using `python -m src.cli.main` which is deprecated
+**Root Cause:** The `main.py` file itself says it's deprecated and forwards to `cli_modular`
+**Fix:** Changed CronJob command to use `python -m src.cli.cli_modular`
 **Commit:** c513fad
 
 ### 2. ✅ Telemetry Module SQLite Warnings
-**Problem:** Every command showed `WARNING:root:Config DATABASE_URL is not PostgreSQL: sqlite:///data/mizzo... Falling back to SQLite`  
-**Root Cause:** Telemetry module wasn't detecting Cloud SQL Connector configuration  
+**Problem:** Every command showed `WARNING:root:Config DATABASE_URL is not PostgreSQL: sqlite:///data/mizzo... Falling back to SQLite`
+**Root Cause:** Telemetry module wasn't detecting Cloud SQL Connector configuration
 **Fix:** Updated `src/telemetry/store.py` to:
 - Detect `USE_CLOUD_SQL_CONNECTOR` + `CLOUD_SQL_INSTANCE` environment variables
 - Build PostgreSQL URL from `DATABASE_USER`, `DATABASE_PASSWORD`, `DATABASE_NAME`
@@ -22,13 +22,13 @@
 **Commit:** 56fa1cb
 
 ### 3. ✅ Incorrect Database Schema Assumptions
-**Problem:** BigQuery export queries referenced non-existent columns  
+**Problem:** BigQuery export queries referenced non-existent columns
 **Errors:**
 - `column a.source_id does not exist` (articles table doesn't have source_id)
 - `column s.url does not exist` (sources table doesn't have url column)
 
-**Root Cause:** Didn't inspect actual database schema before writing queries  
-**Fix:** 
+**Root Cause:** Didn't inspect actual database schema before writing queries
+**Fix:**
 - Inspected actual schema using processor image + Cloud SQL Connector
 - Found articles → candidate_link_id → candidate_links → source_id → sources
 - Removed unnecessary sources table join
@@ -46,8 +46,8 @@ cl.source_id, cl.source (not s.url), a.text_excerpt (not summary), a.extraction_
 **Commits:** c513fad, 4da937e
 
 ### 4. ✅ Telemetry Tables Using SQLite Syntax in PostgreSQL
-**Problem:** Extraction pipeline failed with `syntax error at or near "AUTOINCREMENT"`  
-**Root Cause:** Telemetry table creation used SQLite's `AUTOINCREMENT` instead of PostgreSQL's `SERIAL`  
+**Problem:** Extraction pipeline failed with `syntax error at or near "AUTOINCREMENT"`
+**Root Cause:** Telemetry table creation used SQLite's `AUTOINCREMENT` instead of PostgreSQL's `SERIAL`
 **Fix:** Updated `src/utils/comprehensive_telemetry.py`:
 - Detect PostgreSQL vs SQLite from `DATABASE_URL`
 - Use `SERIAL PRIMARY KEY` for PostgreSQL
@@ -57,8 +57,8 @@ cl.source_id, cl.source (not s.url), a.text_excerpt (not summary), a.extraction_
 **Commit:** 6940b3e
 
 ### 5. ⏳ BigQuery Permissions (In Progress)
-**Problem:** `403 Access Denied: BigQuery BigQuery: Permission bigquery.tables.updateData denied`  
-**Fix Applied:** Granted `roles/bigquery.dataEditor` to `mizzou-k8s-sa@mizzou-news-crawler.iam.gserviceaccount.com`  
+**Problem:** `403 Access Denied: BigQuery BigQuery: Permission bigquery.tables.updateData denied`
+**Fix Applied:** Granted `roles/bigquery.dataEditor` to `mizzou-k8s-sa@mizzou-news-crawler.iam.gserviceaccount.com`
 **Status:** IAM changes take up to 7 minutes to propagate - need to retest
 
 ## Files Modified

@@ -8,7 +8,7 @@ on:
       - completed
     branches:
       - main
-  
+
   # Allow manual trigger
   workflow_dispatch:
     inputs:
@@ -23,32 +23,32 @@ jobs:
     runs-on: ubuntu-latest
     # Only run if deployment succeeded
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
-      
+
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
-      
+
       - name: Configure kubectl
         run: |
           gcloud container clusters get-credentials mizzou-news-gke \
             --region us-central1
-      
+
       - name: Wait for deployments to be ready
         run: |
           echo "⏳ Verifying deployments are healthy and ready..."
           echo ""
-          
+
           TIMEOUT=600  # 10 minutes
           SERVICES=(mizzou-api mizzou-processor mizzou-crawler)
-          
+
           for service in "${SERVICES[@]}"; do
             echo "Checking $service deployment..."
             if ! kubectl rollout status deployment/$service -n production --timeout=${TIMEOUT}s; then
@@ -63,43 +63,43 @@ jobs:
             fi
             echo "✅ $service is ready"
           done
-          
+
           echo ""
           echo "⏳ Waiting additional 30 seconds for service stabilization..."
           sleep 30
-          
+
           # Verify no pods are in CrashLoopBackOff
           echo ""
           echo "Verifying pod health..."
           CRASH_PODS=$(kubectl get pods -n production \
             -o jsonpath='{range .items[*]}{.metadata.name},{.status.containerStatuses[*].state.waiting.reason}{"\n"}{end}' | \
             grep CrashLoopBackOff | wc -l)
-          
+
           if [ "$CRASH_PODS" -gt 0 ]; then
             echo "❌ Found pods in CrashLoopBackOff state"
             kubectl get pods -n production -o wide
             exit 1
           fi
-          
+
           echo "✅ All pods are healthy"
-      
+
       - name: Run smoke tests
         id: smoke_tests
         run: |
           echo "🧪 Running production smoke tests..."
           echo ""
-          
+
           # Get processor pod
           POD_NAME=$(kubectl get pods -n production -l app=mizzou-processor -o jsonpath='{.items[0].metadata.name}')
-          
+
           if [ -z "$POD_NAME" ]; then
             echo "❌ No processor pod found"
             kubectl get pods -n production
             exit 1
           fi
-          
+
           echo "Using pod: $POD_NAME"
-          
+
           # Verify pod is actually running (not just ready)
           POD_STATUS=$(kubectl get pod "$POD_NAME" -n production -o jsonpath='{.status.phase}')
           if [ "$POD_STATUS" != "Running" ]; then
@@ -107,7 +107,7 @@ jobs:
             kubectl describe pod "$POD_NAME" -n production
             exit 1
           fi
-          
+
           # Quick connectivity check
           echo "Checking pod connectivity..."
           if ! kubectl exec -n production "$POD_NAME" -- bash -c "echo 'OK'"; then
@@ -115,22 +115,22 @@ jobs:
             exit 1
           fi
           echo "✅ Pod is responding"
-          
+
           echo ""
           echo "Running test suite..."
-          
+
           # Build pytest command
           PYTEST_CMD="pytest tests/e2e/test_production_smoke.py -v --tb=short --color=yes"
-          
+
           # Add test filter if provided
           if [ -n "${{ github.event.inputs.test_filter }}" ]; then
             PYTEST_CMD="$PYTEST_CMD -k ${{ github.event.inputs.test_filter }}"
           fi
-          
+
           # Run tests with timeout
           timeout 600 kubectl exec -n production "$POD_NAME" -- bash -c "$PYTEST_CMD"
           TEST_RESULT=$?
-          
+
           if [ $TEST_RESULT -eq 124 ]; then
             echo "❌ Tests timed out after 10 minutes"
             exit 1
@@ -138,7 +138,7 @@ jobs:
             echo "❌ Tests failed with exit code $TEST_RESULT"
             exit 1
           fi
-      
+
       - name: Report results
         if: always()
         run: |
@@ -149,25 +149,25 @@ jobs:
             echo "Check the logs above for details."
             exit 1
           fi
-      
+
       - name: Notify on failure
         if: failure()
         uses: actions/github-script@v7
         with:
           script: |
             const issue_body = `## 🚨 Production Smoke Tests Failed
-            
+
             The E2E smoke tests failed after deployment to production.
-            
+
             **Workflow:** ${context.workflow}
             **Run:** ${context.runId}
             **Commit:** ${context.sha}
-            
+
             ### Action Required
             - Check the [workflow run](${context.payload.repository.html_url}/actions/runs/${context.runId}) for details
             - Verify production services are functioning correctly
             - Consider rollback if critical functionality is broken
-            
+
             ### Quick Checks
             \`\`\`bash
             # Check recent extractions
@@ -179,12 +179,12 @@ jobs:
                 result = session.execute(text('SELECT COUNT(*) FROM articles WHERE extracted_at >= NOW() - INTERVAL \\'1 hour\\')).scalar()
                 print(f'Articles extracted in last hour: {result}')
             "
-            
+
             # Check pod logs
             kubectl logs -n production -l app=mizzou-processor --tail=100 | grep -i error
             \`\`\`
             `;
-            
+
             github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,

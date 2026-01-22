@@ -19,18 +19,18 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Disable autovacuum ANALYZE for article_entities.
-    
+
     The article_entities table is write-once, read-many:
     - Written only during bulk entity extraction for new sources
     - Read constantly by NER queries and analytics
-    
+
     Auto-analyze wastes resources checking this table daily when it rarely changes.
     Instead, we manually run ANALYZE after bulk entity insertion via:
       session.execute(text('ANALYZE article_entities'))
-    
+
     This ensures new entities are indexed immediately when added, without
     unnecessary daily overhead for a mostly-static table.
-    
+
     Note: We keep autovacuum enabled for cleanup, just disable auto-analyze.
     """
     # Disable auto-analyze but keep autovacuum for cleanup

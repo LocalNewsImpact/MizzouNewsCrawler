@@ -54,14 +54,14 @@ updated_count = 0
 for template in wf['spec']['templates']:
     if 'container' in template and 'image' in template['container']:
         img = template['container']['image']
-        
+
         # Update crawler images
         if service_type == 'crawler' and f'{service_type}:' in img:
             new_image = f"{registry}/crawler:{new_sha}"
             template['container']['image'] = new_image
             print(f"  ✓ Updated {template['name']}: {new_image}")
             updated_count += 1
-        
+
         # Update processor images
         elif service_type == 'processor' and f'{service_type}:' in img:
             new_image = f"{registry}/processor:{new_sha}"
@@ -80,11 +80,11 @@ try:
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
     )
     stdout, stderr = proc.communicate(json.dumps(wf))
-    
+
     if proc.returncode != 0:
         print(f"❌ Failed to apply workflow template: {stderr}")
         sys.exit(1)
-    
+
     print(stdout)
     print(f"✅ Updated {updated_count} workflow templates with {service_type}:{new_sha}")
 except Exception as e:

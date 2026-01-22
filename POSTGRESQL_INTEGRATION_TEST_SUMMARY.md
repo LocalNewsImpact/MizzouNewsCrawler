@@ -1,7 +1,7 @@
 # PostgreSQL Integration Test Summary
 
-**Created**: 2025-11-02  
-**Issue**: Add integration tests for verification and pipeline-status CLI commands  
+**Created**: 2025-11-02
+**Issue**: Add integration tests for verification and pipeline-status CLI commands
 **Branch**: copilot/add-integration-tests-cli-commands
 
 ## Overview
@@ -192,12 +192,12 @@ WHERE last_seen >= CURRENT_TIMESTAMP - INTERVAL '{days} days'
 ```python
 from datetime import timedelta
 cutoff_time = datetime.utcnow() - timedelta(days=days)
-# ... 
+# ...
 WHERE last_seen >= ?
 # params: (cutoff_time,)
 ```
 
-**Impact**: 
+**Impact**:
 - ✅ Works with both SQLite and PostgreSQL (interim solution)
 - ✅ No functional change to query logic
 - ✅ Parameterized query prevents SQL injection
@@ -244,8 +244,8 @@ AND v.verified_at >= :cutoff_time
 ## PostgreSQL-Specific Features Tested
 
 ### 1. FOR UPDATE SKIP LOCKED
-**Purpose**: Parallel processing without blocking  
-**File**: test_verification_command_postgres.py  
+**Purpose**: Parallel processing without blocking
+**File**: test_verification_command_postgres.py
 **Test**: `test_for_update_skip_locked_syntax_postgres`
 
 ```python
@@ -261,14 +261,14 @@ query = text("""
 **Why it matters**: Allows multiple verification workers to process different batches simultaneously without blocking each other. Critical for production scalability.
 
 ### 2. INTERVAL Syntax
-**Purpose**: Date arithmetic in SQL  
-**Files**: test_pipeline_status_command_postgres.py, test_telemetry_command_postgres.py  
+**Purpose**: Date arithmetic in SQL
+**Files**: test_pipeline_status_command_postgres.py, test_telemetry_command_postgres.py
 **Tests**: Multiple tests validate various INTERVAL units
 
 ```python
 intervals = [
     "INTERVAL '1 minute'",
-    "INTERVAL '1 hour'", 
+    "INTERVAL '1 hour'",
     "INTERVAL '24 hours'",
     "INTERVAL '7 days'",
 ]
@@ -277,8 +277,8 @@ intervals = [
 **Why it matters**: Production queries use INTERVAL for time-windowed metrics. Tests ensure these work correctly in PostgreSQL.
 
 ### 3. COALESCE for NULL Handling
-**Purpose**: Default values for NULLs in aggregations  
-**File**: test_pipeline_status_command_postgres.py  
+**Purpose**: Default values for NULLs in aggregations
+**File**: test_pipeline_status_command_postgres.py
 **Test**: `test_coalesce_in_aggregation_postgres`
 
 ```sql
@@ -288,8 +288,8 @@ SELECT COALESCE(SUM(processed), 0) as total_processed
 **Why it matters**: Prevents NULL results in pipeline metrics that would break dashboards.
 
 ### 4. CASE Statements in Aggregations
-**Purpose**: Conditional counting  
-**Files**: All test files  
+**Purpose**: Conditional counting
+**Files**: All test files
 **Tests**: Multiple tests use CASE for conditional aggregations
 
 ```sql
@@ -299,8 +299,8 @@ COUNT(CASE WHEN status = 'extracted' THEN 1 END) as successful
 **Why it matters**: Used throughout telemetry for success rate calculations.
 
 ### 5. DISTINCT COUNT in Subqueries
-**Purpose**: Count unique values across joins  
-**File**: test_pipeline_status_command_postgres.py  
+**Purpose**: Count unique values across joins
+**File**: test_pipeline_status_command_postgres.py
 **Test**: `test_distinct_count_in_subquery_postgres`
 
 ```sql
@@ -319,16 +319,16 @@ All tests use the `cloud_sql_session` fixture from `tests/backend/conftest.py`:
 @pytest.fixture(scope="function")
 def cloud_sql_session(cloud_sql_engine):
     """Create session for Cloud SQL integration tests.
-    
+
     Uses transactions to ensure test isolation and cleanup.
     """
     connection = cloud_sql_engine.connect()
     transaction = connection.begin()
     SessionLocal = sessionmaker(bind=connection)
     session = SessionLocal()
-    
+
     yield session
-    
+
     session.close()
     transaction.rollback()  # Automatic cleanup!
     connection.close()
@@ -390,7 +390,7 @@ postgres-integration:
   name: Integration Tests (PostgreSQL)
   runs-on: ubuntu-latest
   needs: [unit]
-  
+
   services:
     postgres:
       image: postgres:15
@@ -405,13 +405,13 @@ postgres-integration:
         --health-retries 5
       ports:
         - 5432:5432
-  
+
   steps:
     - name: Run Alembic migrations
       env:
         DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/mizzou_test"
       run: alembic upgrade head
-    
+
     - name: Run all integration tests with PostgreSQL
       env:
         TEST_DATABASE_URL: "postgresql://postgres:postgres@172.17.0.1:5432/mizzou_test"
@@ -565,19 +565,19 @@ except Exception:
 
 This integration test suite provides comprehensive PostgreSQL coverage for critical CLI commands. The tests:
 
-✅ Follow repository testing protocols  
-✅ Use proper fixtures and markers  
-✅ Test PostgreSQL-specific features  
-✅ Fix compatibility issues  
-✅ Provide clear documentation  
-✅ Enable confident production deployments  
+✅ Follow repository testing protocols
+✅ Use proper fixtures and markers
+✅ Test PostgreSQL-specific features
+✅ Fix compatibility issues
+✅ Provide clear documentation
+✅ Enable confident production deployments
 
 **Overall Assessment**: 🟢 PRODUCTION READY
 
-**Test Quality**: High  
-**Coverage**: Comprehensive  
-**Maintainability**: Good  
-**Documentation**: Complete  
+**Test Quality**: High
+**Coverage**: Comprehensive
+**Maintainability**: Good
+**Documentation**: Complete
 
 ## References
 

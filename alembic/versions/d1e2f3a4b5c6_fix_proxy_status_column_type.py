@@ -20,7 +20,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Fix proxy_status column type from Integer to String.
-    
+
     This migration corrects a critical schema mismatch where proxy_status
     was created as Integer in migration c22022d6d3ec but the ORM model
     expects String. This mismatch causes insertion failures in PostgreSQL,
@@ -29,7 +29,7 @@ def upgrade() -> None:
     # Check if we're using PostgreSQL or SQLite
     connection = op.get_bind()
     dialect_name = connection.dialect.name
-    
+
     if dialect_name == 'postgresql':
         # PostgreSQL requires explicit type conversion
         # Use ALTER COLUMN with USING clause to convert Integer to String
@@ -59,16 +59,16 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Revert proxy_status column type from String to Integer.
-    
+
     WARNING: This downgrade will fail if there are string values in the column
     that cannot be converted to integers (e.g., 'success', 'failed', 'bypassed').
     This is expected behavior since the String type is the correct schema.
-    
+
     If downgrade is needed in production, manually truncate or convert the data first.
     """
     connection = op.get_bind()
     dialect_name = connection.dialect.name
-    
+
     if dialect_name == 'postgresql':
         # Use a CASE statement to handle string values gracefully
         # Non-numeric strings will be converted to NULL

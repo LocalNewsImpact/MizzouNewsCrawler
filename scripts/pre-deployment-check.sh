@@ -23,9 +23,9 @@ check() {
     local name=$1
     local command=$2
     local required=${3:-true}
-    
+
     echo -n "Checking: $name... "
-    
+
     if eval "$command" > /dev/null 2>&1; then
         echo -e "${GREEN}✓${NC}"
         PASS=$((PASS + 1))
@@ -87,7 +87,7 @@ echo "Testing Checks:"
 if [ -f .test_results ]; then
     check "Smoke test passed" \
         "grep -q 'smoke.*PASSED' .test_results"
-    
+
     check "Full integration test passed" \
         "grep -q 'full.*PASSED' .test_results"
 else

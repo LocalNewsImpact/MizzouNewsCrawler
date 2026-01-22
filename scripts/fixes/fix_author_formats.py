@@ -28,8 +28,8 @@ def fix_author_formats():
 
     # Get all articles with author data
     cursor.execute("""
-        SELECT id, url, author 
-        FROM articles 
+        SELECT id, url, author
+        FROM articles
         WHERE author IS NOT NULL AND author != ''
         ORDER BY id
     """)
@@ -130,8 +130,8 @@ def fix_author_formats():
             # Update database
             cursor.execute(
                 """
-                UPDATE articles 
-                SET author = ? 
+                UPDATE articles
+                SET author = ?
                 WHERE id = ?
             """,
                 (new_author_json, article_id),
@@ -159,10 +159,10 @@ def fix_author_formats():
     # Verify final state
     print("\n🔍 Verifying final state...")
     cursor.execute("""
-        SELECT author, COUNT(*) as count 
-        FROM articles 
+        SELECT author, COUNT(*) as count
+        FROM articles
         WHERE author IS NOT NULL AND author != ''
-        GROUP BY author 
+        GROUP BY author
         ORDER BY count DESC
         LIMIT 10
     """)
@@ -174,9 +174,9 @@ def fix_author_formats():
 
     # Check for any remaining contamination
     cursor.execute("""
-        SELECT COUNT(*) 
-        FROM articles 
-        WHERE author IS NOT NULL 
+        SELECT COUNT(*)
+        FROM articles
+        WHERE author IS NOT NULL
         AND (author LIKE '%webster citizen%' OR author LIKE '%citizen%')
     """)
 

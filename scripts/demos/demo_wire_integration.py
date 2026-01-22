@@ -39,15 +39,15 @@ def demo_wire_service_integration():
 
     # Check current wire service distribution
     cursor.execute("""
-        SELECT 
-            CASE 
+        SELECT
+            CASE
                 WHEN wire IS NULL THEN 'Local/Staff Content'
                 ELSE 'Wire Service Content'
             END as content_type,
             COUNT(*) as count
-        FROM articles 
-        GROUP BY 
-            CASE 
+        FROM articles
+        GROUP BY
+            CASE
                 WHEN wire IS NULL THEN 'Local/Staff Content'
                 ELSE 'Wire Service Content'
             END
@@ -120,11 +120,11 @@ def demo_wire_service_integration():
     print("-" * 29)
 
     cursor.execute("""
-        SELECT 
+        SELECT
             COALESCE(wire, 'Local/Staff') as source_type,
             COUNT(*) as count,
             ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM articles), 1) as percentage
-        FROM articles 
+        FROM articles
         GROUP BY wire
         ORDER BY count DESC
         LIMIT 10
@@ -157,13 +157,13 @@ def demo_backfill_process():
 
     # Get sample of articles that might have wire services
     cursor.execute("""
-        SELECT id, byline, clean_byline 
-        FROM articles 
-        WHERE byline IS NOT NULL 
+        SELECT id, byline, clean_byline
+        FROM articles
+        WHERE byline IS NOT NULL
         AND wire IS NULL
         AND (
             LOWER(byline) LIKE '%associated press%' OR
-            LOWER(byline) LIKE '%reuters%' OR  
+            LOWER(byline) LIKE '%reuters%' OR
             LOWER(byline) LIKE '%cnn%' OR
             LOWER(byline) LIKE '%fox news%' OR
             LOWER(byline) LIKE '%new york times%' OR

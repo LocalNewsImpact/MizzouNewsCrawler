@@ -20,7 +20,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Add cron_enabled column to datasets table.
-    
+
     This flag controls whether a dataset should be included in automated
     cron jobs. Existing datasets default to True (enabled for cron).
     New custom source lists should set this to False to prevent accidental
@@ -30,7 +30,7 @@ def upgrade() -> None:
     conn = op.get_bind()
     inspector = sa.inspect(conn)
     columns = [col['name'] for col in inspector.get_columns('datasets')]
-    
+
     if 'cron_enabled' not in columns:
         # Add column with default True for existing datasets
         # Note: server_default='TRUE' ensures existing datasets are cron-enabled
@@ -48,6 +48,6 @@ def downgrade() -> None:
     conn = op.get_bind()
     inspector = sa.inspect(conn)
     columns = [col['name'] for col in inspector.get_columns('datasets')]
-    
+
     if 'cron_enabled' in columns:
         op.drop_column('datasets', 'cron_enabled')

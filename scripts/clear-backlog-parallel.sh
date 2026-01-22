@@ -55,8 +55,8 @@ with db.get_session() as session:
         JOIN candidate_links cl ON a.candidate_link_id = cl.id
         WHERE a.status IN ('cleaned', 'local')
         AND NOT EXISTS (
-            SELECT 1 FROM article_labels al 
-            WHERE al.article_id = a.id 
+            SELECT 1 FROM article_labels al
+            WHERE al.article_id = a.id
             AND al.label_version = 'default'
         )
         GROUP BY cl.source
@@ -109,7 +109,7 @@ launch_entity_worker() {
     shift
     local sources=("$@")
     local pod_name="entity-worker-${worker_id}"
-    
+
     # Build source filter
     local source_list=""
     for src in "${sources[@]}"; do
@@ -119,22 +119,22 @@ launch_entity_worker() {
         fi
     done
     source_list=${source_list:1}  # Remove leading comma
-    
+
     if [ -z "$source_list" ]; then
         echo -e "${COLOR_YELLOW}[Worker ${worker_id}] No sources assigned${COLOR_RESET}"
         return
     fi
-    
+
     echo -e "${COLOR_BLUE}[Entity Worker ${worker_id}] Processing: ${source_list:0:80}...${COLOR_RESET}"
-    
+
     # Delete if exists
     kubectl delete pod -n ${NAMESPACE} ${pod_name} --ignore-not-found=true 2>/dev/null || true
     sleep 1
-    
+
     # For now, we'll process all articles but workers will naturally work on different sources
     # due to ORDER BY source_id. This is imperfect but better than nothing.
     # A better solution would be to pass source filter to the command.
-    
+
     kubectl run ${pod_name} \
         --namespace=${NAMESPACE} \
         --image=us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest \
@@ -166,7 +166,7 @@ launch_entity_worker() {
             }]
           }
         }' > /dev/null
-    
+
     echo -e "${COLOR_GREEN}[Entity Worker ${worker_id}] Launched${COLOR_RESET}"
 }
 
@@ -174,13 +174,13 @@ launch_entity_worker() {
 launch_class_worker() {
     local worker_id=$1
     local pod_name="class-worker-${worker_id}"
-    
+
     echo -e "${COLOR_BLUE}[Classification Worker ${worker_id}] Launching...${COLOR_RESET}"
-    
+
     # Delete if exists
     kubectl delete pod -n ${NAMESPACE} ${pod_name} --ignore-not-found=true 2>/dev/null || true
     sleep 1
-    
+
     kubectl run ${pod_name} \
         --namespace=${NAMESPACE} \
         --image=us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest \
@@ -212,7 +212,7 @@ launch_class_worker() {
             }]
           }
         }' > /dev/null
-    
+
     echo -e "${COLOR_GREEN}[Classification Worker ${worker_id}] Launched${COLOR_RESET}"
 }
 

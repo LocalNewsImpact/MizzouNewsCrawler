@@ -121,9 +121,9 @@ Connect to Cloud SQL and verify tables:
 
 ```sql
 -- Check tables exist
-SELECT table_name 
-FROM information_schema.tables 
-WHERE table_schema = 'public' 
+SELECT table_name
+FROM information_schema.tables
+WHERE table_schema = 'public'
   AND table_name IN (
     'reviews', 'domain_feedback', 'snapshots', 'candidates',
     'reextract_jobs', 'dedupe_audit', 'byline_cleaning_telemetry',
@@ -134,8 +134,8 @@ WHERE table_schema = 'public'
 \d reviews
 
 -- Check indexes
-SELECT indexname, indexdef 
-FROM pg_indexes 
+SELECT indexname, indexdef
+FROM pg_indexes
 WHERE tablename IN ('reviews', 'snapshots', 'byline_cleaning_telemetry');
 ```
 

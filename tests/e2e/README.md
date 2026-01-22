@@ -140,11 +140,11 @@ When adding new integrated features, add corresponding smoke tests:
 ```python
 class TestNewFeature:
     """Test the new X feature integration."""
-    
+
     def test_feature_x_workflow(self, production_db):
         """
         Verify feature X works end-to-end.
-        
+
         Validates:
         1. Input data is processed
         2. Feature X writes results
@@ -152,11 +152,11 @@ class TestNewFeature:
         """
         with production_db.get_session() as session:
             result = session.execute(text("""
-                SELECT COUNT(*) 
+                SELECT COUNT(*)
                 FROM feature_x_table
                 WHERE created_at >= NOW() - INTERVAL '1 hour'
             """)).scalar()
-            
+
             assert result > 0, \
                 "No feature X results in last hour - feature may not be running"
 ```

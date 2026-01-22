@@ -98,7 +98,7 @@ docker compose down -v
   - System packages: gcc, g++, libpq-dev
   - Python packages: pandas, sqlalchemy, spacy, pytest, etc.
   - Spacy model: en_core_web_sm
-  
+
 - **Service Images**: Build from base + service-specific packages
   - API: base + FastAPI (~300 MB additional)
   - Processor: base + ML packages (~400 MB additional)
@@ -348,7 +348,7 @@ Error: bind: address already in use
    # On macOS/Linux
    lsof -i :8000
    kill -9 <PID>
-   
+
    # On Windows
    netstat -ano | findstr :8000
    taskkill /PID <PID> /F

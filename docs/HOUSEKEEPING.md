@@ -9,7 +9,7 @@ The housekeeping command runs daily (by default at 2 AM UTC via Kubernetes CronJ
 1. **NULL text articles** - Articles with empty content that can't be processed
 2. **Expired candidates** - Candidates waiting for extraction beyond a threshold
 3. **Stuck extraction** - Articles not advancing from `extracted` status
-4. **Stuck cleaning** - Articles not advancing from `cleaned` status  
+4. **Stuck cleaning** - Articles not advancing from `cleaned` status
 5. **Stuck verification** - Candidates not advancing from `verified` status
 
 ## Usage
@@ -82,7 +82,7 @@ kubectl describe job mizzou-housekeeping-manual-1234567890 -n production
    Found 5 articles with NULL text in 'extracted' status
    - AP News (15d): https://apnews.com/article/...
    - NPR (12d): https://npr.org/sections/...
-   
+
    ✅ Marked 5 articles as paused
 ```
 
@@ -102,7 +102,7 @@ kubectl describe job mizzou-housekeeping-manual-1234567890 -n production
    - KPLR11/Fox 2 Now: 45 (oldest 28d)
    - KSN/KODE TV: 32 (oldest 25d)
    - The Missouri Independent: 20 (oldest 22d)
-   
+
    ✅ Marked 128 candidates as paused
 ```
 
@@ -121,7 +121,7 @@ kubectl describe job mizzou-housekeeping-manual-1234567890 -n production
    ⚠️  Found 15 articles stuck in 'extracted' status
    - AP News (48h): https://apnews.com/article/...
    - Reuters (42h): https://reuters.com/...
-   
+
    → This usually indicates a cleaning pipeline bottleneck
 ```
 

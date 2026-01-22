@@ -5,7 +5,7 @@ Social media sharing buttons and other obvious boilerplate patterns were being f
 
 **Example patterns that were being missed:**
 - `Facebook Twitter WhatsApp SMS Email` (35 characters)
-- `Share this story` (16 characters)  
+- `Share this story` (16 characters)
 - `Back to top` (11 characters)
 - `Subscribe to our newsletter` (27 characters)
 
@@ -62,7 +62,7 @@ if len(pattern_text) < 150 and not is_high_confidence:
 
 ✅ **All test cases pass:**
 - Social media sharing buttons: Correctly identified as high-confidence
-- Navigation elements: Correctly identified as high-confidence  
+- Navigation elements: Correctly identified as high-confidence
 - Regular content: Correctly filtered out as NOT high-confidence
 - Length override logic: Working correctly for both paths
 

@@ -69,18 +69,18 @@ class FocusedAuthorComparison:
 
             # Get bylines that produced actual author extractions (not wire services)
             query = """
-            SELECT DISTINCT bct.raw_byline, a.author 
-            FROM byline_cleaning_telemetry bct 
-            JOIN articles a ON a.id = bct.article_id 
-            WHERE a.author IS NOT NULL 
-              AND a.author != '' 
-              AND a.author != '[]' 
-              AND a.wire IS NULL 
-              AND bct.raw_byline IS NOT NULL 
+            SELECT DISTINCT bct.raw_byline, a.author
+            FROM byline_cleaning_telemetry bct
+            JOIN articles a ON a.id = bct.article_id
+            WHERE a.author IS NOT NULL
+              AND a.author != ''
+              AND a.author != '[]'
+              AND a.wire IS NULL
+              AND bct.raw_byline IS NOT NULL
               AND bct.raw_byline != ''
               AND LENGTH(bct.raw_byline) > 3
               AND LENGTH(bct.raw_byline) < 200
-            ORDER BY RANDOM() 
+            ORDER BY RANDOM()
             LIMIT 150
             """
 

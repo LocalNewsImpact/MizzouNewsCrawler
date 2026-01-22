@@ -155,11 +155,11 @@ kubectl logs -n production -l workflow-name=<NEW_WORKFLOW_NAME> -f
 
 ## Success Metrics
 
-✅ All workflow templates have stage labels  
-✅ All templates have workflow-name and workflow-uid labels  
-✅ CronWorkflow has workflow-level metadata  
-✅ Documentation created for users  
-✅ Changes deployed to production cluster  
+✅ All workflow templates have stage labels
+✅ All templates have workflow-name and workflow-uid labels
+✅ CronWorkflow has workflow-level metadata
+✅ Documentation created for users
+✅ Changes deployed to production cluster
 
 ## Next Steps
 

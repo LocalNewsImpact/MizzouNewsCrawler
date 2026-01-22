@@ -15,13 +15,13 @@ echo "================================================================"
 wait_for_build() {
     local build_id=$1
     local build_name=$2
-    
+
     echo ""
     echo "Waiting for $build_name (ID: $build_id) to complete..."
-    
+
     while true; do
         status=$(gcloud builds describe "$build_id" --project="$PROJECT" --format="value(status)" 2>/dev/null || echo "UNKNOWN")
-        
+
         case "$status" in
             "SUCCESS")
                 echo "✓ $build_name completed successfully!"

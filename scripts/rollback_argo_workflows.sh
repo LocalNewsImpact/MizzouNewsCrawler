@@ -43,14 +43,14 @@ confirm_rollback() {
         print_info "[DRY RUN] Skipping confirmation"
         return
     fi
-    
+
     echo ""
     print_warning "This will delete Argo Workflows pipelines and configurations."
     print_warning "Original CronJobs will need to be re-enabled manually if needed."
     echo ""
     read -p "Are you sure you want to continue? (yes/no): " -r
     echo ""
-    
+
     if [[ ! $REPLY =~ ^[Yy][Ee][Ss]$ ]]; then
         print_info "Rollback cancelled"
         exit 0
@@ -60,18 +60,18 @@ confirm_rollback() {
 # Function to suspend Argo CronWorkflows
 suspend_cronworkflows() {
     print_info "Suspending Argo CronWorkflows..."
-    
+
     if [ "${DRY_RUN}" = "true" ]; then
         print_info "[DRY RUN] Would suspend CronWorkflows"
         return
     fi
-    
+
     # Suspend Mizzou pipeline
     if kubectl get cronworkflow mizzou-news-pipeline -n ${NAMESPACE} &> /dev/null; then
         kubectl patch cronworkflow mizzou-news-pipeline -n ${NAMESPACE} -p '{"spec":{"suspend":true}}'
         print_info "Suspended mizzou-news-pipeline"
     fi
-    
+
     print_info "Waiting 30 seconds to ensure no new workflows are triggered..."
     sleep 30
 }
@@ -79,21 +79,21 @@ suspend_cronworkflows() {
 # Function to delete running workflows
 delete_running_workflows() {
     print_info "Checking for running workflows..."
-    
+
     if [ "${DRY_RUN}" = "true" ]; then
         print_info "[DRY RUN] Would delete running workflows"
         kubectl get workflows -n ${NAMESPACE} 2>/dev/null || true
         return
     fi
-    
+
     # Get list of running workflows
     local running_workflows=$(kubectl get workflows -n ${NAMESPACE} --field-selector=status.phase=Running -o name 2>/dev/null || echo "")
-    
+
     if [ -z "${running_workflows}" ]; then
         print_info "No running workflows found"
         return
     fi
-    
+
     print_warning "Found running workflows. Deleting them..."
     echo "${running_workflows}" | xargs -I {} kubectl delete {} -n ${NAMESPACE}
     print_info "Running workflows deleted"
@@ -102,12 +102,12 @@ delete_running_workflows() {
 # Function to delete CronWorkflows
 delete_cronworkflows() {
     print_info "Deleting Argo CronWorkflows..."
-    
+
     if [ "${DRY_RUN}" = "true" ]; then
         print_info "[DRY RUN] Would delete CronWorkflows"
         return
     fi
-    
+
     # Delete Mizzou pipeline
     if kubectl get cronworkflow mizzou-news-pipeline -n ${NAMESPACE} &> /dev/null; then
         kubectl delete cronworkflow mizzou-news-pipeline -n ${NAMESPACE}
@@ -118,12 +118,12 @@ delete_cronworkflows() {
 # Function to delete WorkflowTemplate
 delete_workflow_template() {
     print_info "Deleting Workflow Template..."
-    
+
     if [ "${DRY_RUN}" = "true" ]; then
         print_info "[DRY RUN] Would delete WorkflowTemplate"
         return
     fi
-    
+
     if kubectl get workflowtemplate news-pipeline-template -n ${NAMESPACE} &> /dev/null; then
         kubectl delete workflowtemplate news-pipeline-template -n ${NAMESPACE}
         print_info "Deleted news-pipeline-template"
@@ -133,24 +133,24 @@ delete_workflow_template() {
 # Function to delete RBAC resources
 delete_rbac() {
     print_info "Deleting RBAC resources..."
-    
+
     if [ "${DRY_RUN}" = "true" ]; then
         print_info "[DRY RUN] Would delete RBAC resources"
         return
     fi
-    
+
     # Delete RoleBinding
     if kubectl get rolebinding argo-workflow-binding -n ${NAMESPACE} &> /dev/null; then
         kubectl delete rolebinding argo-workflow-binding -n ${NAMESPACE}
         print_info "Deleted RoleBinding argo-workflow-binding"
     fi
-    
+
     # Delete Role
     if kubectl get role argo-workflow-role -n ${NAMESPACE} &> /dev/null; then
         kubectl delete role argo-workflow-role -n ${NAMESPACE}
         print_info "Deleted Role argo-workflow-role"
     fi
-    
+
     # Delete ServiceAccount
     if kubectl get serviceaccount argo-workflow -n ${NAMESPACE} &> /dev/null; then
         kubectl delete serviceaccount argo-workflow -n ${NAMESPACE}
@@ -164,14 +164,14 @@ uninstall_argo() {
         print_info "Keeping Argo Workflows installation (KEEP_ARGO=true)"
         return
     fi
-    
+
     print_warning "Uninstalling Argo Workflows from argo namespace..."
-    
+
     if [ "${DRY_RUN}" = "true" ]; then
         print_info "[DRY RUN] Would uninstall Argo Workflows"
         return
     fi
-    
+
     if kubectl get namespace argo &> /dev/null; then
         kubectl delete namespace argo
         print_info "Deleted argo namespace and all resources"
@@ -203,33 +203,33 @@ show_reenable_instructions() {
 # Main execution
 main() {
     print_info "Starting Argo Workflows rollback..."
-    
+
     # Confirm rollback
     confirm_rollback
-    
+
     # Suspend CronWorkflows
     suspend_cronworkflows
-    
+
     # Delete running workflows
     delete_running_workflows
-    
+
     # Delete CronWorkflows
     delete_cronworkflows
-    
+
     # Delete WorkflowTemplate
     delete_workflow_template
-    
+
     # Delete RBAC resources
     delete_rbac
-    
+
     # Optionally uninstall Argo
     uninstall_argo
-    
+
     # Show re-enable instructions
     if [ "${DRY_RUN}" != "true" ]; then
         show_reenable_instructions
     fi
-    
+
     print_info "Rollback script completed successfully"
 }
 

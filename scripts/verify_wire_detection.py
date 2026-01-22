@@ -36,7 +36,7 @@ def verify_wire_detection(
 ) -> None:
     """
     Run new detector on sample articles and identify wire status changes.
-    
+
     Args:
         sample_size: Number of articles to sample and re-check
         wire_to_local_csv: Output CSV for articles that changed from wire to local
@@ -45,10 +45,10 @@ def verify_wire_detection(
     """
     db = DatabaseManager()
     detector = ContentTypeDetector()
-    
+
     wire_to_local: list[dict] = []
     local_to_wire: list[dict] = []
-    
+
     with db.get_session() as session:
         # Build query
         stmt = (
@@ -58,7 +58,7 @@ def verify_wire_detection(
             .order_by(Article.extracted_at.desc())
             .limit(sample_size)
         )
-        
+
         # Filter by specific sources if provided
         if sources:
             source_conditions = [
@@ -66,31 +66,31 @@ def verify_wire_detection(
                 for src in sources
             ]
             stmt = stmt.where(or_(*source_conditions))
-        
+
         result = session.execute(stmt)
         rows = result.all()
-        
+
         logger.info(f"Processing {len(rows)} articles...")
-        
+
         processed = 0
         unchanged = 0
-        
+
         for article, url, source in rows:
             processed += 1
-            
+
             if processed % 100 == 0:
                 logger.info(f"Processed {processed}/{len(rows)} articles...")
-            
+
             # Get current status
             old_status = article.status or 'unknown'
             old_is_wire = old_status == 'wire'
-            
+
             # Run new detector
             metadata = {
                 'author': article.author,
                 'byline': article.author,
             }
-            
+
             # Use the main detect method
             detection_result = detector.detect(
                 url=url,
@@ -98,13 +98,13 @@ def verify_wire_detection(
                 metadata=metadata,
                 title=article.title,
             )
-            
+
             # Check if result is wire
             new_is_wire = (
                 detection_result is not None
                 and detection_result.status == 'wire'
             )
-            
+
             # Check for status change
             if old_is_wire and not new_is_wire:
                 # Wire → Local
@@ -120,13 +120,13 @@ def verify_wire_detection(
                     'new_evidence': 'None (not detected as wire)',
                 }
                 wire_to_local.append(record)
-                
+
             elif not old_is_wire and new_is_wire:
                 # Local → Wire
                 evidence = detection_result.evidence if detection_result else {}
                 detected_services = evidence.get('detected_services', [])
                 detection_tier = evidence.get('detection_tier', 'unknown')
-                
+
                 record = {
                     'article_id': article.id,
                     'url': url,
@@ -144,7 +144,7 @@ def verify_wire_detection(
                 local_to_wire.append(record)
             else:
                 unchanged += 1
-        
+
         # Write CSV files
         fieldnames = [
             'article_id',
@@ -157,7 +157,7 @@ def verify_wire_detection(
             'old_evidence',
             'new_evidence',
         ]
-        
+
         # Wire → Local
         if wire_to_local:
             with open(wire_to_local_csv, 'w', newline='', encoding='utf-8') as f:
@@ -170,7 +170,7 @@ def verify_wire_detection(
             )
         else:
             logger.info("No wire→local changes detected")
-        
+
         # Local → Wire
         if local_to_wire:
             with open(local_to_wire_csv, 'w', newline='', encoding='utf-8') as f:
@@ -183,7 +183,7 @@ def verify_wire_detection(
             )
         else:
             logger.info("No local→wire changes detected")
-        
+
         # Summary
         print("\n" + "="*80)
         print("WIRE DETECTION VERIFICATION SUMMARY")
@@ -225,9 +225,9 @@ def main():
         nargs='+',
         help='Specific sources to check (e.g., abc17news.com komu.com)'
     )
-    
+
     args = parser.parse_args()
-    
+
     verify_wire_detection(
         sample_size=args.sample_size,
         wire_to_local_csv=args.wire_to_local_csv,

@@ -16,21 +16,21 @@ while true; do
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "Iteration ${iteration}: $(date)"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    
+
     # Check backlog via pipeline-status
     echo "📊 Checking pipeline status..."
     processor_pod=$(kubectl get pods -n ${NAMESPACE} -l app=mizzou-processor -o jsonpath='{.items[0].metadata.name}')
-    
+
     backlog=$(kubectl exec -n ${NAMESPACE} ${processor_pod} -- python -m src.cli.cli_modular pipeline-status 2>&1 | grep "Ready for extraction:" | awk '{print $4}' || echo "0")
-    
+
     echo "   Backlog: ${backlog} articles"
-    
+
     if [ "${backlog}" -lt "${MIN_BACKLOG}" ]; then
         echo "✅ Backlog cleared! (${backlog} < ${MIN_BACKLOG})"
         echo "🎉 Extraction complete!"
         break
     fi
-    
+
     # Submit new extraction workflow
     echo "🔄 Submitting extraction workflow..."
     workflow_name=$(cat <<'WORKFLOW_EOF' | kubectl create -n ${NAMESPACE} -f - -o jsonpath='{.metadata.name}'
@@ -124,9 +124,9 @@ spec:
           cpu: "500m"
 WORKFLOW_EOF
     )
-    
+
     echo "   Workflow: ${workflow_name}"
-    
+
     # Wait for workflow to complete
     echo "⏳ Waiting for workflow to complete..."
     kubectl wait --for=condition=Completed --timeout=2h workflow/${workflow_name} -n ${NAMESPACE} || {
@@ -135,16 +135,16 @@ WORKFLOW_EOF
             echo "❌ Workflow failed, but continuing to next iteration..."
         fi
     }
-    
+
     # Get final status
     final_status=$(kubectl get workflow ${workflow_name} -n ${NAMESPACE} -o jsonpath='{.status.phase}')
     echo "   Final status: ${final_status}"
-    
+
     # Brief pause before next iteration
     echo ""
     echo "💤 Waiting 30 seconds before next iteration..."
     sleep 30
-    
+
     iteration=$((iteration + 1))
 done
 

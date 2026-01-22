@@ -129,8 +129,8 @@ class TestPipelineDiscoveryStatusPostgres:
         """Test counting total sources in PostgreSQL."""
         query = text(
             """
-            SELECT COUNT(*) 
-            FROM sources 
+            SELECT COUNT(*)
+            FROM sources
             WHERE host IS NOT NULL
         """
         )
@@ -220,8 +220,8 @@ class TestPipelineVerificationStatusPostgres:
         """Test counting pending verification URLs."""
         query = text(
             """
-            SELECT COUNT(*) 
-            FROM candidate_links 
+            SELECT COUNT(*)
+            FROM candidate_links
             WHERE status = 'discovered'
         """
         )
@@ -238,8 +238,8 @@ class TestPipelineVerificationStatusPostgres:
         """Test counting verified articles."""
         query = text(
             """
-            SELECT COUNT(*) 
-            FROM candidate_links 
+            SELECT COUNT(*)
+            FROM candidate_links
             WHERE status = 'article'
         """
         )
@@ -284,8 +284,8 @@ class TestPipelineExtractionStatusPostgres:
             FROM candidate_links
             WHERE status = 'article'
             AND id NOT IN (
-                SELECT candidate_link_id 
-                FROM articles 
+                SELECT candidate_link_id
+                FROM articles
                 WHERE candidate_link_id IS NOT NULL
             )
         """
@@ -303,7 +303,7 @@ class TestPipelineExtractionStatusPostgres:
         """Test counting total extracted articles."""
         query = text(
             """
-            SELECT COUNT(*) 
+            SELECT COUNT(*)
             FROM articles
         """
         )
@@ -322,8 +322,8 @@ class TestPipelineExtractionStatusPostgres:
 
         query = text(
             """
-            SELECT COUNT(*) 
-            FROM articles 
+            SELECT COUNT(*)
+            FROM articles
             WHERE extracted_at >= :cutoff
         """
         )
@@ -373,7 +373,7 @@ class TestPipelineEntityExtractionStatusPostgres:
             AND a.text IS NOT NULL
             AND a.status NOT IN ('wire', 'opinion', 'obituary', 'error')
             AND NOT EXISTS (
-                SELECT 1 FROM article_entities ae 
+                SELECT 1 FROM article_entities ae
                 WHERE ae.article_id = a.id
             )
         """
@@ -395,7 +395,7 @@ class TestPipelineEntityExtractionStatusPostgres:
             SELECT a.id, a.title
             FROM articles a
             WHERE NOT EXISTS (
-                SELECT 1 FROM article_entities ae 
+                SELECT 1 FROM article_entities ae
                 WHERE ae.article_id = a.id
                 LIMIT 1
             )
@@ -598,7 +598,7 @@ class TestPipelinePostgresSpecificFeatures:
         # This pattern is used in pipeline metrics
         query = text(
             """
-            SELECT 
+            SELECT
                 status,
                 COUNT(*) as count,
                 COALESCE(SUM(CASE WHEN processed_at IS NOT NULL THEN 1 ELSE 0 END), 0) as processed
@@ -623,8 +623,8 @@ class TestPipelinePostgresSpecificFeatures:
         """Test CASE statements in aggregate queries."""
         query = text(
             """
-            SELECT 
-                CASE 
+            SELECT
+                CASE
                     WHEN status = 'discovered' THEN 'pending'
                     WHEN status = 'article' THEN 'verified'
                     ELSE 'other'
@@ -652,12 +652,12 @@ class TestPipelinePostgresSpecificFeatures:
         """Test DISTINCT COUNT in complex subqueries."""
         query = text(
             """
-            SELECT 
-                (SELECT COUNT(DISTINCT source_host_id) 
-                 FROM candidate_links 
+            SELECT
+                (SELECT COUNT(DISTINCT source_host_id)
+                 FROM candidate_links
                  WHERE discovered_at >= CURRENT_TIMESTAMP - INTERVAL '24 hours') as sources_discovered,
-                (SELECT COUNT(*) 
-                 FROM candidate_links 
+                (SELECT COUNT(*)
+                 FROM candidate_links
                  WHERE discovered_at >= CURRENT_TIMESTAMP - INTERVAL '24 hours') as urls_discovered
         """
         )

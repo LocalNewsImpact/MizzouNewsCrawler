@@ -23,7 +23,7 @@ class TestCrossPublicationDetection:
                 <p>Article content about the Miami Dolphins...</p>
             </div>
             <div class="author-bio">
-                <p>C. Isaiah Smalls II is a sports reporter for the Miami Herald. 
+                <p>C. Isaiah Smalls II is a sports reporter for the Miami Herald.
                 He covers the Miami Dolphins.</p>
             </div>
         </article>
@@ -79,7 +79,7 @@ class TestCrossPublicationDetection:
                 <p>Sports coverage content...</p>
             </div>
             <div class="author-bio">
-                <p>Nick Harris is the reporter for the Fort Worth Star-Telegram 
+                <p>Nick Harris is the reporter for the Fort Worth Star-Telegram
                 covering high school sports.</p>
             </div>
         </article>
@@ -115,7 +115,7 @@ class TestCrossPublicationDetection:
                 <p>The city council met Tuesday...</p>
             </div>
             <div class="author-bio">
-                <p>Sarah Johnson is a reporter for The Columbia Missourian 
+                <p>Sarah Johnson is a reporter for The Columbia Missourian
                 covering local government.</p>
             </div>
         </article>

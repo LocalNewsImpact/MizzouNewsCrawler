@@ -60,7 +60,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id'),
         comment='Wire service detection patterns'
     )
-    
+
     # Create indexes
     op.create_index(
         'ix_wire_services_service_name',

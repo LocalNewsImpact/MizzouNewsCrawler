@@ -24,11 +24,11 @@ def upgrade() -> None:
     from sqlalchemy import inspect
     conn = op.get_bind()
     inspector = inspect(conn)
-    
+
     if 'local_broadcaster_callsigns' in inspector.get_table_names():
         # Table already exists, skip creation
         return
-    
+
     op.create_table(
         'local_broadcaster_callsigns',
         sa.Column('id', sa.Integer(), nullable=False),
@@ -73,7 +73,7 @@ def upgrade() -> None:
         ),
         comment='Local broadcaster callsigns for wire detection'
     )
-    
+
     # Create indexes for efficient lookups
     op.create_index(
         'ix_local_broadcaster_callsigns_callsign',

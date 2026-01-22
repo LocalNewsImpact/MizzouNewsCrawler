@@ -100,11 +100,11 @@ python -m src.cli.main extract --limit 50
 ```sql
 SELECT ... FROM candidate_links cl
 WHERE cl.status = 'article'
-  AND (cl.dataset_id IS NULL 
+  AND (cl.dataset_id IS NULL
        OR cl.dataset_id IN (SELECT id FROM datasets WHERE cron_enabled = 1))
 ```
 
-**Result:** 
+**Result:**
 - ✅ Processes Missouri articles (dataset_id=NULL or cron_enabled=True datasets)
 - ❌ **Excludes** Lehigh Valley (cron_enabled=False)
 
@@ -195,7 +195,7 @@ with db.get_session() as session:
         FROM datasets
         ORDER BY slug
     ''')).fetchall()
-    
+
     print('Dataset Status:')
     for row in result:
         status = '🔓 Cron enabled' if row[1] else '🔒 Cron disabled'
@@ -221,17 +221,17 @@ from sqlalchemy import text
 db = DatabaseManager()
 with db.get_session() as session:
     result = session.execute(text('''
-        SELECT 
+        SELECT
             COALESCE(d.slug, 'no-dataset') as dataset,
             COUNT(*) as count
         FROM candidate_links cl
         LEFT JOIN datasets d ON cl.dataset_id = d.id
         WHERE cl.status = 'article'
-          AND (cl.dataset_id IS NULL 
+          AND (cl.dataset_id IS NULL
                OR cl.dataset_id IN (SELECT id FROM datasets WHERE cron_enabled = 1))
         GROUP BY d.slug
     ''')).fetchall()
-    
+
     print('Articles available to cron jobs:')
     for row in result:
         print(f'  {row[0]}: {row[1]} articles')
@@ -248,11 +248,11 @@ Articles available to cron jobs:
 
 ## Benefits
 
-✅ **Explicit Control:** Clear flag indicates dataset's cron eligibility  
-✅ **Safe Default:** New custom source lists automatically excluded  
-✅ **Backward Compatible:** Existing datasets maintain current behavior  
-✅ **No Implicit Logic:** No need to guess which datasets should be processed  
-✅ **Override Available:** Explicit `--dataset` flag bypasses cron restriction  
+✅ **Explicit Control:** Clear flag indicates dataset's cron eligibility
+✅ **Safe Default:** New custom source lists automatically excluded
+✅ **Backward Compatible:** Existing datasets maintain current behavior
+✅ **No Implicit Logic:** No need to guess which datasets should be processed
+✅ **Override Available:** Explicit `--dataset` flag bypasses cron restriction
 
 ## Documentation Updates
 

@@ -16,7 +16,7 @@ kubectl rollout undo deployment/mizzou-processor -n production
 kubectl rollout status deployment/mizzou-processor -n production
 ```
 
-### Roll Back Crawler Deployment  
+### Roll Back Crawler Deployment
 ```bash
 kubectl rollout undo deployment/mizzou-crawler -n production
 kubectl rollout status deployment/mizzou-crawler -n production
@@ -61,7 +61,7 @@ gcloud artifacts docker tags list \
 # Replace <previous-sha> with the working commit SHA
 kubectl set image deployment/mizzou-api -n production \
   api=us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:<previous-sha>
-  
+
 kubectl set image deployment/mizzou-processor -n production \
   processor=us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:<previous-sha>
 ```
@@ -95,7 +95,7 @@ kubectl get deployment mizzou-processor -n production -o jsonpath='{.spec.templa
 
 3. **Update team**: Post in Slack/GitHub issue with:
    - What was deployed
-   - What went wrong  
+   - What went wrong
    - Current state (rolled back to X)
    - Next steps
 
@@ -117,5 +117,5 @@ kubectl get deployment mizzou-processor -n production -o jsonpath='{.spec.templa
 
 ---
 
-**Last Updated**: October 5, 2025  
+**Last Updated**: October 5, 2025
 **Maintained By**: DevOps Team

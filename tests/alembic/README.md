@@ -192,6 +192,6 @@ pip install cloud-sql-python-connector[pg8000]
 
 ---
 
-**Status**: ✅ Complete  
-**Ready for**: Production use after migration fix  
+**Status**: ✅ Complete
+**Ready for**: Production use after migration fix
 **Maintainer**: See Issue #42

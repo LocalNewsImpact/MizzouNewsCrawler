@@ -234,6 +234,6 @@ Edit `k8s/processor-deployment.yaml`:
 
 ---
 
-**Applied**: 2025-10-11 19:42 UTC  
-**Commits**: df76080 (Lehigh job), 3193752 (processor deployment)  
+**Applied**: 2025-10-11 19:42 UTC
+**Commits**: df76080 (Lehigh job), 3193752 (processor deployment)
 **Status**: Lehigh job running, processor building

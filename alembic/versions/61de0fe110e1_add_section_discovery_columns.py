@@ -24,11 +24,11 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Add section discovery columns to sources table."""
-    
+
     # Check if we're using SQLite (for batch mode)
     bind = op.get_bind()
     is_sqlite = bind.dialect.name == 'sqlite'
-    
+
     if is_sqlite:
         # SQLite requires batch mode for ALTER TABLE operations
         with op.batch_alter_table('sources', schema=None) as batch_op:
@@ -91,11 +91,11 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Remove section discovery columns from sources table."""
-    
+
     # Check if we're using SQLite (for batch mode)
     bind = op.get_bind()
     is_sqlite = bind.dialect.name == 'sqlite'
-    
+
     if is_sqlite:
         with op.batch_alter_table('sources', schema=None) as batch_op:
             batch_op.drop_column('section_last_updated')

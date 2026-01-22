@@ -128,14 +128,14 @@ Example:
 ```python
 class TestNewPhaseCriticalSQL:
     """Test critical SQL operations in new phase."""
-    
+
     def test_insert_operation(self, test_db, test_source):
         """Test inserting data in new phase."""
         with test_db.session as session:
             # Create and insert test data
             # Verify insertion succeeded
             pass
-    
+
     def test_query_operation(self, test_db):
         """Test querying data in new phase."""
         query = text("""
@@ -143,7 +143,7 @@ class TestNewPhaseCriticalSQL:
             FROM table_name
             WHERE condition = :value
         """)
-        
+
         with test_db.session as session:
             result = session.execute(query, {"value": "test"})
             # Verify query results

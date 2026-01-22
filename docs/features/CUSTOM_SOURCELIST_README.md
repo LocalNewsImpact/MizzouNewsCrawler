@@ -27,7 +27,7 @@ Created a complete workflow for processing articles from a separate source list 
   - Database schema
   - Troubleshooting
   - Best practices
-  
+
 - **`docs/CUSTOM_SOURCELIST_QUICKREF.md`** - Quick reference
   - One-command setup
   - Common tasks
@@ -122,7 +122,7 @@ python scripts/custom_sourcelist_workflow.py export \
 The `extract` command runs a **full pipeline**:
 
 1. **Extraction** - Downloads HTML, parses with newspaper4k
-2. **Cleaning** - Normalizes bylines/authors  
+2. **Cleaning** - Normalizes bylines/authors
 3. **Wire Detection** - Identifies AP, Reuters, etc.
 4. **ML Classification** - Topic classification (primary + secondary)
 
@@ -226,7 +226,7 @@ session = db.get_session().__enter__()
 
 # Count articles by dataset
 result = session.execute(text('''
-    SELECT 
+    SELECT
         COALESCE(d.slug, 'no-dataset') as dataset,
         COUNT(*) as count
     FROM articles a
@@ -264,13 +264,13 @@ python -m src.cli.main discover-urls --dataset client-project-2025  # ← Would 
 
 ## Advantages of This Approach
 
-✅ **Uses Existing Infrastructure**: Leverages Dataset model, CLI filters, pipeline  
-✅ **No Code Changes Needed**: Existing commands already support `--dataset`  
-✅ **Complete Isolation**: Database-level separation via dataset_id  
-✅ **Full Feature Set**: Extraction, cleaning, wire detection, ML classification  
-✅ **Excel Export**: Built-in reporting with all requested fields  
-✅ **Reusable**: Same dataset can handle multiple URL imports  
-✅ **Auditable**: Full database tracking and metadata  
+✅ **Uses Existing Infrastructure**: Leverages Dataset model, CLI filters, pipeline
+✅ **No Code Changes Needed**: Existing commands already support `--dataset`
+✅ **Complete Isolation**: Database-level separation via dataset_id
+✅ **Full Feature Set**: Extraction, cleaning, wire detection, ML classification
+✅ **Excel Export**: Built-in reporting with all requested fields
+✅ **Reusable**: Same dataset can handle multiple URL imports
+✅ **Auditable**: Full database tracking and metadata
 
 ## Testing Checklist
 

@@ -43,18 +43,18 @@ def validate_uuid(value: str) -> bool:
 
 def migrate_dataset_ids(dry_run: bool = False) -> dict:
     """Migrate dataset_id values from names/slugs to UUIDs.
-    
+
     Args:
         dry_run: If True, only analyze and report what would be changed
-        
+
     Returns:
         Dictionary with migration statistics
     """
     logger.info("Starting dataset_id migration to UUIDs...")
-    
+
     if dry_run:
         logger.info("DRY RUN MODE - No data will be modified")
-    
+
     db = DatabaseManager()
     stats = {
         "total_rows": 0,
@@ -67,10 +67,10 @@ def migrate_dataset_ids(dry_run: bool = False) -> dict:
         "unresolved": 0,
         "errors": 0,
     }
-    
+
     invalid_values = defaultdict(int)
     unresolved_values = []
-    
+
     try:
         with db.engine.connect() as conn:
             # Get all datasets for resolution mapping
@@ -80,12 +80,12 @@ def migrate_dataset_ids(dry_run: bool = False) -> dict:
             )
             datasets = list(datasets_result.fetchall())
             logger.info(f"Loaded {len(datasets)} datasets")
-            
+
             # Create lookup maps
             name_to_uuid = {}
             slug_to_uuid = {}
             label_to_uuid = {}
-            
+
             for dataset_id, name, slug, label in datasets:
                 if name:
                     name_to_uuid[name] = dataset_id
@@ -93,7 +93,7 @@ def migrate_dataset_ids(dry_run: bool = False) -> dict:
                     slug_to_uuid[slug] = dataset_id
                 if label:
                     label_to_uuid[label] = dataset_id
-            
+
             # Analyze current state
             logger.info("Analyzing current dataset_id values...")
             result = conn.execute(
@@ -104,12 +104,12 @@ def migrate_dataset_ids(dry_run: bool = False) -> dict:
                     "GROUP BY dataset_id"
                 )
             )
-            
+
             analysis = list(result.fetchall())
-            
+
             for dataset_id_value, count in analysis:
                 stats["total_rows"] += count
-                
+
                 if validate_uuid(dataset_id_value):
                     stats["valid_uuids"] += count
                     logger.debug(
@@ -121,7 +121,7 @@ def migrate_dataset_ids(dry_run: bool = False) -> dict:
                     logger.info(
                         f"  ⚠️  Invalid value: '{dataset_id_value}' ({count} rows)"
                     )
-            
+
             # Count NULL values separately
             null_result = conn.execute(
                 text(
@@ -130,24 +130,24 @@ def migrate_dataset_ids(dry_run: bool = False) -> dict:
                 )
             )
             stats["null_values"] = null_result.scalar() or 0
-            
+
             logger.info("\n=== Current State ===")
             logger.info(f"Total candidate_links with dataset_id: {stats['total_rows']}")
             logger.info(f"Valid UUIDs: {stats['valid_uuids']}")
             logger.info(f"Invalid values: {stats['invalid_values']}")
             logger.info(f"NULL values: {stats['null_values']}")
-            
+
             if stats["invalid_values"] == 0:
                 logger.info("\n✅ All dataset_id values are already valid UUIDs!")
                 return stats
-            
+
             # Migrate invalid values
             logger.info("\n=== Migration Plan ===")
-            
+
             for invalid_value, count in invalid_values.items():
                 resolved_uuid = None
                 resolution_method = None
-                
+
                 # Try slug first (most common case)
                 if invalid_value in slug_to_uuid:
                     resolved_uuid = slug_to_uuid[invalid_value]
@@ -163,13 +163,13 @@ def migrate_dataset_ids(dry_run: bool = False) -> dict:
                     resolved_uuid = label_to_uuid[invalid_value]
                     resolution_method = "label"
                     stats["updated_by_label"] += count
-                
+
                 if resolved_uuid:
                     logger.info(
                         f"  ✓ '{invalid_value}' ({resolution_method}) "
                         f"→ {resolved_uuid} ({count} rows)"
                     )
-                    
+
                     if not dry_run:
                         try:
                             conn.execute(
@@ -194,12 +194,12 @@ def migrate_dataset_ids(dry_run: bool = False) -> dict:
                     )
                     stats["unresolved"] += count
                     unresolved_values.append(invalid_value)
-            
+
             if not dry_run:
                 logger.info("\n=== Migration Complete ===")
             else:
                 logger.info("\n=== Dry Run Complete ===")
-            
+
             # Verify final state
             if not dry_run:
                 logger.info("Verifying migration results...")
@@ -210,12 +210,12 @@ def migrate_dataset_ids(dry_run: bool = False) -> dict:
                         "WHERE dataset_id IS NOT NULL"
                     )
                 )
-                
+
                 invalid_remaining = []
                 for (val,) in verify_result:
                     if not validate_uuid(val):
                         invalid_remaining.append(val)
-                
+
                 if invalid_remaining:
                     logger.error(
                         f"\n⚠️  WARNING: {len(invalid_remaining)} invalid "
@@ -225,12 +225,12 @@ def migrate_dataset_ids(dry_run: bool = False) -> dict:
                         logger.error(f"   - {val}")
                 else:
                     logger.info("\n✅ All dataset_id values are now valid UUIDs!")
-    
+
     except Exception:
         logger.exception("Migration failed with error")
         stats["errors"] = -1
         return stats
-    
+
     # Print summary
     logger.info("\n=== Summary ===")
     logger.info(f"Total rows processed: {stats['total_rows']}")
@@ -238,14 +238,14 @@ def migrate_dataset_ids(dry_run: bool = False) -> dict:
     logger.info(f"Updated via slug: {stats['updated_by_slug']}")
     logger.info(f"Updated via name: {stats['updated_by_name']}")
     logger.info(f"Updated via label: {stats['updated_by_label']}")
-    
+
     if stats["unresolved"] > 0:
         logger.warning(f"Unresolved values: {stats['unresolved']}")
         logger.warning(f"Unresolved dataset identifiers: {unresolved_values}")
-    
+
     if stats["errors"] > 0:
         logger.error(f"Errors: {stats['errors']}")
-    
+
     return stats
 
 
@@ -259,11 +259,11 @@ def main():
         action="store_true",
         help="Show what would be changed without modifying data",
     )
-    
+
     args = parser.parse_args()
-    
+
     stats = migrate_dataset_ids(dry_run=args.dry_run)
-    
+
     # Return exit code based on results
     if stats["errors"] < 0:
         return 1

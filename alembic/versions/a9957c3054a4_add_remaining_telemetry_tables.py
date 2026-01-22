@@ -20,11 +20,11 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema - add remaining telemetry tables."""
-    
+
     # Add missing index on byline_cleaning_telemetry.created_at
     # (table already created in migration e3114395bcc4)
     op.create_index(op.f('ix_byline_cleaning_telemetry_created_at'), 'byline_cleaning_telemetry', ['created_at'], unique=False)
-    
+
     # Content cleaning sessions table
     op.create_table(
         'content_cleaning_sessions',
@@ -46,7 +46,7 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_content_cleaning_sessions_domain'), 'content_cleaning_sessions', ['domain'], unique=False)
     op.create_index(op.f('ix_content_cleaning_sessions_created_at'), 'content_cleaning_sessions', ['created_at'], unique=False)
-    
+
     # Content cleaning segments table
     op.create_table(
         'content_cleaning_segments',
@@ -70,7 +70,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['telemetry_id'], ['content_cleaning_sessions.telemetry_id'], )
     )
     op.create_index(op.f('ix_content_cleaning_segments_telemetry_id'), 'content_cleaning_segments', ['telemetry_id'], unique=False)
-    
+
     # Content cleaning wire events table
     op.create_table(
         'content_cleaning_wire_events',
@@ -93,7 +93,7 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_content_cleaning_wire_events_telemetry_id'), 'content_cleaning_wire_events', ['telemetry_id'], unique=False)
     op.create_index(op.f('ix_content_cleaning_wire_events_domain'), 'content_cleaning_wire_events', ['domain'], unique=False)
-    
+
     # Content cleaning locality events table
     op.create_table(
         'content_cleaning_locality_events',
@@ -117,7 +117,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['telemetry_id'], ['content_cleaning_sessions.telemetry_id'], )
     )
     op.create_index(op.f('ix_content_cleaning_locality_events_telemetry_id'), 'content_cleaning_locality_events', ['telemetry_id'], unique=False)
-    
+
     # Persistent boilerplate patterns table
     op.create_table(
         'persistent_boilerplate_patterns',
@@ -138,7 +138,7 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_persistent_boilerplate_patterns_domain'), 'persistent_boilerplate_patterns', ['domain'], unique=False)
     op.create_index(op.f('ix_persistent_boilerplate_patterns_pattern_text_hash'), 'persistent_boilerplate_patterns', ['pattern_text_hash'], unique=False)
-    
+
     # Content type detection telemetry table
     op.create_table(
         'content_type_detection_telemetry',
@@ -169,24 +169,24 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_content_type_detection_telemetry_status'), table_name='content_type_detection_telemetry')
     op.drop_index(op.f('ix_content_type_detection_telemetry_article_id'), table_name='content_type_detection_telemetry')
     op.drop_table('content_type_detection_telemetry')
-    
+
     op.drop_index(op.f('ix_persistent_boilerplate_patterns_pattern_text_hash'), table_name='persistent_boilerplate_patterns')
     op.drop_index(op.f('ix_persistent_boilerplate_patterns_domain'), table_name='persistent_boilerplate_patterns')
     op.drop_table('persistent_boilerplate_patterns')
-    
+
     op.drop_index(op.f('ix_content_cleaning_locality_events_telemetry_id'), table_name='content_cleaning_locality_events')
     op.drop_table('content_cleaning_locality_events')
-    
+
     op.drop_index(op.f('ix_content_cleaning_wire_events_domain'), table_name='content_cleaning_wire_events')
     op.drop_index(op.f('ix_content_cleaning_wire_events_telemetry_id'), table_name='content_cleaning_wire_events')
     op.drop_table('content_cleaning_wire_events')
-    
+
     op.drop_index(op.f('ix_content_cleaning_segments_telemetry_id'), table_name='content_cleaning_segments')
     op.drop_table('content_cleaning_segments')
-    
+
     op.drop_index(op.f('ix_content_cleaning_sessions_created_at'), table_name='content_cleaning_sessions')
     op.drop_index(op.f('ix_content_cleaning_sessions_domain'), table_name='content_cleaning_sessions')
     op.drop_table('content_cleaning_sessions')
-    
+
     # Drop only the index we added (tables are handled by migration e3114395bcc4)
     op.drop_index(op.f('ix_byline_cleaning_telemetry_created_at'), table_name='byline_cleaning_telemetry')

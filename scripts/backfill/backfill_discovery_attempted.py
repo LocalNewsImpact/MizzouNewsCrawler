@@ -28,14 +28,14 @@ def backfill_discovery_attempted():
         # Strategy 1: Use discovery_outcomes table (most recent evidence)
         print("\n1. Backfilling from discovery_outcomes table...")
         cursor.execute("""
-            UPDATE sources 
+            UPDATE sources
             SET discovery_attempted = (
-                SELECT MIN(timestamp) 
-                FROM discovery_outcomes 
+                SELECT MIN(timestamp)
+                FROM discovery_outcomes
                 WHERE discovery_outcomes.source_id = sources.id
             )
             WHERE id IN (
-                SELECT DISTINCT source_id 
+                SELECT DISTINCT source_id
                 FROM discovery_outcomes
             )
             AND discovery_attempted IS NULL
@@ -46,15 +46,15 @@ def backfill_discovery_attempted():
         # Strategy 2: Use candidate_links table (older evidence)
         print("\n2. Backfilling from candidate_links table...")
         cursor.execute("""
-            UPDATE sources 
+            UPDATE sources
             SET discovery_attempted = (
-                SELECT MIN(created_at) 
-                FROM candidate_links 
+                SELECT MIN(created_at)
+                FROM candidate_links
                 WHERE candidate_links.source_host_id = sources.id
             )
             WHERE id IN (
-                SELECT DISTINCT source_host_id 
-                FROM candidate_links 
+                SELECT DISTINCT source_host_id
+                FROM candidate_links
                 WHERE source_host_id IS NOT NULL
             )
             AND discovery_attempted IS NULL
@@ -65,14 +65,14 @@ def backfill_discovery_attempted():
         # Strategy 3: Use discovery_method_effectiveness table if needed
         print("\n3. Backfilling from discovery_method_effectiveness table...")
         cursor.execute("""
-            UPDATE sources 
+            UPDATE sources
             SET discovery_attempted = (
-                SELECT MIN(last_attempt) 
-                FROM discovery_method_effectiveness 
+                SELECT MIN(last_attempt)
+                FROM discovery_method_effectiveness
                 WHERE discovery_method_effectiveness.source_id = sources.id
             )
             WHERE id IN (
-                SELECT DISTINCT source_id 
+                SELECT DISTINCT source_id
                 FROM discovery_method_effectiveness
             )
             AND discovery_attempted IS NULL

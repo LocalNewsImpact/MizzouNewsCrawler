@@ -101,7 +101,7 @@ python -m src.cli discover-urls \
 
 ```sql
 -- Recent discovery activity
-SELECT 
+SELECT
     DATE(discovered_at) as date,
     COUNT(*) as urls
 FROM candidate_links
@@ -109,8 +109,8 @@ WHERE discovered_at >= DATE('now', '-7 days')
 GROUP BY DATE(discovered_at);
 
 -- Sources by status
-SELECT 
-    CASE 
+SELECT
+    CASE
         WHEN MAX(cl.discovered_at) IS NULL THEN 'Never'
         WHEN DATE(MAX(cl.discovered_at)) >= DATE('now', '-1 day') THEN 'Recent'
         ELSE 'Old'

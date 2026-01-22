@@ -502,11 +502,11 @@ _VERIFICATION_SCHEMA = (
     )
     """,
     """
-    CREATE INDEX IF NOT EXISTS idx_verification_telemetry_timestamp 
+    CREATE INDEX IF NOT EXISTS idx_verification_telemetry_timestamp
         ON verification_telemetry(timestamp DESC)
     """,
     """
-    CREATE INDEX IF NOT EXISTS idx_verification_telemetry_job_name 
+    CREATE INDEX IF NOT EXISTS idx_verification_telemetry_job_name
         ON verification_telemetry(job_name)
     """,
 )

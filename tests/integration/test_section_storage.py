@@ -50,9 +50,9 @@ def test_section_columns_exist(db_manager):
             result = conn.execute(
                 text(
                     """
-                    SELECT column_name 
-                    FROM information_schema.columns 
-                    WHERE table_name = 'sources' 
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_name = 'sources'
                     AND column_name IN (
                         'discovered_sections',
                         'section_discovery_enabled',
@@ -120,7 +120,7 @@ def test_store_section_data(db_manager, test_source_id):
             conn.execute(
                 text(
                     """
-                    UPDATE sources 
+                    UPDATE sources
                     SET discovered_sections = :sections::jsonb,
                         section_last_updated = :updated
                     WHERE id = :id
@@ -137,7 +137,7 @@ def test_store_section_data(db_manager, test_source_id):
             conn.execute(
                 text(
                     """
-                    UPDATE sources 
+                    UPDATE sources
                     SET discovered_sections = :sections,
                         section_last_updated = :updated
                     WHERE id = :id
@@ -441,7 +441,7 @@ def test_update_sections(db_manager, test_source_id):
             conn.execute(
                 text(
                     """
-                    UPDATE sources 
+                    UPDATE sources
                     SET discovered_sections = :sections::jsonb
                     WHERE id = :id
                     """
@@ -455,7 +455,7 @@ def test_update_sections(db_manager, test_source_id):
             conn.execute(
                 text(
                     """
-                    UPDATE sources 
+                    UPDATE sources
                     SET discovered_sections = :sections
                     WHERE id = :id
                     """

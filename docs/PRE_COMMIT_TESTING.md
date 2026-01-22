@@ -264,22 +264,22 @@ mypy src/cli/commands/discovery.py --explicit-package-bases --ignore-missing-imp
 
 ## FAQ
 
-**Q: Do I have to fix all mypy errors?**  
+**Q: Do I have to fix all mypy errors?**
 A: No. Mypy is non-blocking. Fix new errors you introduce, but pre-existing issues are okay.
 
-**Q: What if tests fail on something I didn't change?**  
+**Q: What if tests fail on something I didn't change?**
 A: Investigate first. If it's a flaky test, report it. If it's a real issue, fix it or get help.
 
-**Q: Can I skip the pre-commit checks?**  
+**Q: Can I skip the pre-commit checks?**
 A: Technically yes, but please don't. They catch errors before they reach PR review.
 
-**Q: How do I run just one test?**  
+**Q: How do I run just one test?**
 A: `pytest tests/path/to/test_file.py::test_function_name -v`
 
-**Q: The script says "All checks passed" but I see warnings?**  
+**Q: The script says "All checks passed" but I see warnings?**
 A: MyPy warnings are expected and non-blocking. As long as linting and tests pass, you're good.
 
-**Q: How do I add test coverage for new code?**  
+**Q: How do I add test coverage for new code?**
 A: Add tests in `tests/` that exercise your new functions/classes. Use `pytest --cov=src/your_module`.
 
 ## Support

@@ -95,7 +95,7 @@ def save_telemetry(self, session):
                 likely_valid_authors, likely_noise,
                 requires_manual_review, cleaning_errors,
                 parsing_warnings, created_at  # <- Easy to forget!
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
@@ -145,7 +145,7 @@ def save_telemetry(self, session_data):
         parsing_warnings=session_data.get("parsing_warnings"),
         created_at=datetime.utcnow(),  # Type checker ensures this is datetime!
     )
-    
+
     session = Session(self.store.engine)
     session.add(telemetry)
     session.commit()
@@ -168,11 +168,11 @@ def test_byline_telemetry_orm(tmp_path):
     from src.models.telemetry_orm import BylineCleaningTelemetry, Base
     from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
-    
+
     # Create test database
     engine = create_engine(f"sqlite:///{tmp_path}/test.db")
     Base.metadata.create_all(engine)
-    
+
     # Create telemetry record
     telemetry = BylineCleaningTelemetry(
         id="test-123",
@@ -181,12 +181,12 @@ def test_byline_telemetry_orm(tmp_path):
         confidence_score=0.9,
         created_at=datetime.utcnow()
     )
-    
+
     # Save
     session = Session(engine)
     session.add(telemetry)
     session.commit()
-    
+
     # Query
     result = session.query(BylineCleaningTelemetry).filter_by(id="test-123").first()
     assert result.raw_byline == "By John Doe"

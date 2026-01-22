@@ -8,13 +8,13 @@ db = DatabaseManager()
 with db.get_session() as session:
     # Get Missouri sources that look like broadcasters
     results = session.execute(text("""
-        SELECT 
+        SELECT
             id,
             host,
             canonical_name,
             city,
             county
-        FROM sources 
+        FROM sources
         WHERE status = 'active'
         AND (
             canonical_name ~* '\\b[KW][A-Z]{3,4}\\b'
@@ -22,7 +22,7 @@ with db.get_session() as session:
         )
         ORDER BY canonical_name
     """)).fetchall()
-    
+
     if not results:
         print("No broadcaster sources found")
     else:

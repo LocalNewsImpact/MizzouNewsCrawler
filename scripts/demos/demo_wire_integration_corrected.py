@@ -130,10 +130,10 @@ def demonstrate_database_integration():
 
         # Get some sample records with authors
         cursor.execute("""
-            SELECT id, author, wire 
-            FROM articles 
-            WHERE author IS NOT NULL 
-            AND author != 'null' 
+            SELECT id, author, wire
+            FROM articles
+            WHERE author IS NOT NULL
+            AND author != 'null'
             AND author != '[]'
             LIMIT 10
         """)

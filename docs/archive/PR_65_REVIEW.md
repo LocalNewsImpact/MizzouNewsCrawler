@@ -1,9 +1,9 @@
 # PR #65 Review: Bot Blocking Fixes
 
-**Date:** October 10, 2025  
-**Reviewer:** AI Code Review  
-**PR:** https://github.com/LocalNewsImpact/MizzouNewsCrawler/pull/65  
-**Branch:** `copilot/investigate-fix-bot-blocking-issues`  
+**Date:** October 10, 2025
+**Reviewer:** AI Code Review
+**PR:** https://github.com/LocalNewsImpact/MizzouNewsCrawler/pull/65
+**Branch:** `copilot/investigate-fix-bot-blocking-issues`
 **Target:** Fixes Issue #64 (100% bot blocking - zero extractions)
 
 ## Executive Summary
@@ -105,62 +105,62 @@ from src.crawler import ContentExtractor
 
 class TestBotBlockingIntegration:
     """Integration tests against real (or test) domains."""
-    
+
     @pytest.mark.integration
     def test_real_domain_extraction(self):
         """Test extraction against a known-working domain."""
         extractor = ContentExtractor()
-        
+
         # Use a domain that historically worked
         test_url = "https://www.columbiatribune.com/story/news/2025/10/09/test-article"
-        
+
         result = extractor.extract(test_url)
-        
+
         # Should not be blocked
         assert result.get("status") != "bot_protection"
         assert result.get("http_status") not in [403, 503]
-    
+
     @pytest.mark.integration
     def test_blocked_domain_handling(self):
         """Test graceful handling of blocked domains."""
         extractor = ContentExtractor()
-        
+
         # Use a domain known to be blocking (e.g., fox2now.com)
         test_url = "https://fox2now.com/test-article"
-        
+
         result = extractor.extract(test_url)
-        
+
         # Should detect protection and apply proper backoff
         if result.get("status") == "bot_protection":
             # Verify backoff was triggered
             assert extractor.domain_backoff_until.get("fox2now.com") is not None
-    
+
     @pytest.mark.integration
     def test_referer_in_real_request(self):
         """Verify Referer header is actually sent."""
         extractor = ContentExtractor()
-        
+
         # Test with request debugging enabled
         test_url = "https://httpbin.org/headers"
-        
+
         result = extractor.extract(test_url)
-        
+
         # httpbin.org echoes headers back - verify Referer was sent
         # (This would require parsing the response to check headers)
-    
+
     @pytest.mark.integration
     def test_user_agent_rotation(self):
         """Verify User-Agent actually rotates across requests."""
         extractor = ContentExtractor()
-        
+
         user_agents_seen = set()
-        
+
         for _ in range(15):  # More than UA_ROTATE_BASE
             # Extract from test URL
             result = extractor.extract("https://httpbin.org/user-agent")
             # Parse UA from response
             # Add to seen set
-        
+
         # Should have rotated at least once
         assert len(user_agents_seen) >= 2
 ```
@@ -232,7 +232,7 @@ After confirming fixes work, increase to normal values.
 -- Query to run hourly after deployment
 
 -- Success Rate Comparison
-SELECT 
+SELECT
   DATE_TRUNC('hour', created_at) as hour,
   COUNT(*) as total_attempts,
   SUM(CASE WHEN is_success THEN 1 ELSE 0 END) as successful,
@@ -245,7 +245,7 @@ GROUP BY DATE_TRUNC('hour', created_at)
 ORDER BY hour DESC;
 
 -- Bot Protection Detection Breakdown
-SELECT 
+SELECT
   error_message,
   COUNT(*) as occurrences,
   ARRAY_AGG(DISTINCT host) as affected_domains
@@ -328,7 +328,7 @@ if result.get("status") == "success":
     # Parse response to check headers
     import json
     headers = json.loads(result.get("content", "{}")).get("headers", {})
-    
+
     print("Headers sent:")
     print(f"  User-Agent: {headers.get('User-Agent')}")
     print(f"  Referer: {headers.get('Referer', 'NOT SENT')}")
@@ -430,7 +430,7 @@ python -m src.cli.cli_modular extract-articles \
 
 # Check telemetry
 sqlite3 tmp_test.db << 'EOF'
-SELECT 
+SELECT
   COUNT(*) as total,
   SUM(CASE WHEN is_success THEN 1 ELSE 0 END) as successful,
   SUM(CASE WHEN http_status_code = 403 THEN 1 ELSE 0 END) as blocked_403,
@@ -450,7 +450,7 @@ EOF
    ```bash
    # Scale down to 1 replica temporarily
    kubectl scale deployment mizzou-processor -n production --replicas=1
-   
+
    # Deploy new image
    gcloud builds triggers run build-processor-manual --branch=copilot/investigate-fix-bot-blocking-issues
    ```
@@ -459,7 +459,7 @@ EOF
    ```bash
    # Watch logs
    kubectl logs -f -n production -l app=mizzou-processor | grep -E "(Bot protection|✅ Successfully|🚫)"
-   
+
    # Query telemetry every 30 minutes
    # Run SQL success rate query (see Test 4 above)
    ```
@@ -559,5 +559,5 @@ The emergency nature (0% extraction success) justifies aggressive deployment, bu
 
 ---
 
-**Review Completed:** October 10, 2025  
+**Review Completed:** October 10, 2025
 **Next Actions:** Run integration tests, then deploy with monitoring

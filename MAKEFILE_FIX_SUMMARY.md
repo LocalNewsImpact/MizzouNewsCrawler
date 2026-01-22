@@ -20,10 +20,10 @@ run_full_ci() {
     # Set PostgreSQL env vars
     export TEST_DATABASE_URL="postgresql://$USER@localhost/news_crawler_test"
     # ... more env vars
-    
+
     # Run migrations
     alembic upgrade head
-    
+
     # Run ALL tests in one go
     pytest \
         --cov=src \
@@ -43,7 +43,7 @@ run_full_ci() {
     unset DATABASE_URL
     unset TEST_DATABASE_URL
     unset TELEMETRY_DATABASE_URL
-    
+
     pytest \
         -m 'not postgres' \
         --cov=src \
@@ -53,13 +53,13 @@ run_full_ci() {
         --cov-fail-under=78 \
         -v \
         tests/
-    
+
     # Step 2: Run PostgreSQL integration tests
     export TEST_DATABASE_URL="postgresql://$USER@localhost/news_crawler_test"
     # ... more env vars
-    
+
     alembic upgrade head
-    
+
     pytest \
         -v \
         -m integration \

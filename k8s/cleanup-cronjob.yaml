@@ -35,13 +35,13 @@ spec:
               echo "🧹 Starting cleanup of completed and failed resources..."
               echo "Timestamp: $(date -u)"
               echo ""
-              
+
               # Clean up completed jobs older than 1 hour
               echo "Cleaning up completed jobs older than 1 hour..."
               COMPLETED_JOBS=$(kubectl get jobs -n production --field-selector status.successful=1 -o json | \
-                jq -r '.items[] | select(.status.completionTime != null) | 
+                jq -r '.items[] | select(.status.completionTime != null) |
                 select((now - (.status.completionTime | fromdateiso8601)) > 3600) | .metadata.name')
-              
+
               if [ -n "$COMPLETED_JOBS" ]; then
                 echo "Found completed jobs to delete:"
                 echo "$COMPLETED_JOBS"
@@ -50,17 +50,17 @@ spec:
               else
                 echo "ℹ️  No completed jobs to clean up"
               fi
-              
+
               echo ""
-              
+
               # Clean up failed jobs older than 6 hours
               echo "Cleaning up failed jobs older than 6 hours..."
               FAILED_JOBS=$(kubectl get jobs -n production --field-selector status.successful=0 -o json | \
-                jq -r '.items[] | select(.status.conditions != null) | 
+                jq -r '.items[] | select(.status.conditions != null) |
                 select(.status.conditions[] | select(.type == "Failed" and .status == "True")) |
-                select((now - (.status.conditions[] | select(.type == "Failed") | .lastTransitionTime | fromdateiso8601)) > 21600) | 
+                select((now - (.status.conditions[] | select(.type == "Failed") | .lastTransitionTime | fromdateiso8601)) > 21600) |
                 .metadata.name')
-              
+
               if [ -n "$FAILED_JOBS" ]; then
                 echo "Found failed jobs to delete:"
                 echo "$FAILED_JOBS"
@@ -69,15 +69,15 @@ spec:
               else
                 echo "ℹ️  No failed jobs to clean up"
               fi
-              
+
               echo ""
-              
+
               # Clean up evicted/failed pods older than 1 hour
               echo "Cleaning up evicted/failed pods older than 1 hour..."
               EVICTED_PODS=$(kubectl get pods -n production --field-selector status.phase=Failed -o json | \
                 jq -r '.items[] | select(.status.reason == "Evicted" or .status.phase == "Failed") |
                 select((now - (.status.startTime | fromdateiso8601)) > 3600) | .metadata.name' 2>/dev/null || true)
-              
+
               if [ -n "$EVICTED_PODS" ]; then
                 echo "Found evicted/failed pods to delete:"
                 echo "$EVICTED_PODS"
@@ -86,14 +86,14 @@ spec:
               else
                 echo "ℹ️  No evicted/failed pods to clean up"
               fi
-              
+
               echo ""
-              
+
               # Clean up succeeded pods (from completed jobs) older than 30 minutes
               echo "Cleaning up succeeded pods older than 30 minutes..."
               SUCCEEDED_PODS=$(kubectl get pods -n production --field-selector status.phase=Succeeded -o json | \
                 jq -r '.items[] | select((now - (.status.startTime | fromdateiso8601)) > 1800) | .metadata.name' 2>/dev/null || true)
-              
+
               if [ -n "$SUCCEEDED_PODS" ]; then
                 echo "Found succeeded pods to delete:"
                 echo "$SUCCEEDED_PODS"
@@ -102,7 +102,7 @@ spec:
               else
                 echo "ℹ️  No succeeded pods to clean up"
               fi
-              
+
               echo ""
               echo "🎉 Cleanup completed successfully!"
               echo "Timestamp: $(date -u)"

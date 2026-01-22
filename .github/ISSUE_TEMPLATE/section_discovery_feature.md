@@ -27,7 +27,7 @@ def _discover_section_urls(
 ) -> list[str]:
     """
     Detect common section pages from navigation elements.
-    
+
     Strategy:
     1. Find <nav>, <menu>, or elements with nav-related classes
     2. Extract links matching patterns: /news, /local, /sports, etc.
@@ -68,7 +68,7 @@ def discover_with_newspaper4k(
     rss_already_attempted: bool = False,
 ) -> list[dict]:
     # ... existing RSS/homepage logic ...
-    
+
     # NEW: Check proven sections when RSS fails
     if not rss_results and source_meta:
         sections = self._get_proven_sections(source_meta)
@@ -155,13 +155,13 @@ def _update_section_performance(
 class TestSectionDiscovery:
     def test_extract_nav_sections(self):
         """Test section extraction from navigation HTML"""
-        
+
     def test_section_url_normalization(self):
         """Test relative/absolute URL handling"""
-        
+
     def test_section_deduplication(self):
         """Test removing duplicate sections"""
-        
+
     def test_proven_section_filtering(self):
         """Test filtering by success metrics"""
 ```
@@ -171,10 +171,10 @@ class TestSectionDiscovery:
 class TestSectionDiscoveryIntegration:
     def test_section_storage_and_retrieval(self):
         """Test full storage cycle"""
-        
+
     def test_section_performance_tracking(self):
         """Test metrics update correctly"""
-        
+
     def test_section_automatic_pruning(self):
         """Test low performers are removed"""
 ```
@@ -183,10 +183,10 @@ class TestSectionDiscoveryIntegration:
 ```python
 def test_krcg_section_discovery():
     """Test on real KRCG site (if accessible)"""
-    
+
 def test_multi_section_discovery():
     """Test discovering from multiple sections"""
-    
+
 def test_rss_fallback_to_sections():
     """Test fallback behavior when RSS fails"""
 ```
@@ -248,17 +248,17 @@ SECTION_PRUNE_AFTER_FAILURES = 5  # Remove after N consecutive failures
 ### Technical Risks
 1. **Performance Impact**: Checking multiple sections increases request count
    - Mitigation: Parallel fetching with rate limiting, automatic pruning
-   
+
 2. **False Positives**: Detecting wrong URLs as sections
    - Mitigation: Performance tracking removes ineffective sections automatically
-   
+
 3. **Maintenance Burden**: Sites change navigation structure
    - Mitigation: Automatic re-discovery on each run updates section list
 
 ### Operational Risks
 1. **Rate Limiting**: More requests might trigger blocks
    - Mitigation: Respect existing rate limits, add per-source delays
-   
+
 2. **Storage Growth**: Section metadata increases DB size
    - Mitigation: Automatic pruning, limit to top N sections per source
 
@@ -277,10 +277,10 @@ SECTION_PRUNE_AFTER_FAILURES = 5  # Remove after N consecutive failures
 
 1. Should we check sections in parallel or sequentially?
    - **Recommendation**: Parallel with max 3 concurrent, respects rate limits better
-   
+
 2. How often should we re-discover sections?
    - **Recommendation**: Every 7 days or on 3 consecutive RSS failures
-   
+
 3. Should sections be shared across sources on same domain?
    - **Recommendation**: No, each source independent for now (simpler)
 

@@ -238,15 +238,15 @@ Restore sidecar container definitions from previous commit if needed.
 1. **Monitor Next Scheduled CronJob**
    - Crawler: Daily at 2 AM UTC
    - Processor: Every 6 hours
-   
+
 2. **Verify Automatic Completion**
    - Check that jobs complete without manual intervention
    - Confirm TTL-based cleanup works
-   
+
 3. **Document Performance**
    - Compare job completion times vs. previous runs
    - Monitor resource usage improvements
-   
+
 4. **Update Runbooks**
    - Remove manual cleanup procedures
    - Document new monitoring approach

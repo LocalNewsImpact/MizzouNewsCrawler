@@ -227,13 +227,13 @@ Time wasted: 2s (at startup only)
 def process_entity_extraction(count: int) -> bool:
     command = [
         "extract-entities",
-        "--limit", 
+        "--limit",
         str(limit),
     ]
-    
+
     # Spawns new process - model will be reloaded!
     return run_cli_command(command, description)
-    
+
     # New process exits, memory freed
 ```
 
@@ -252,11 +252,11 @@ def get_cached_entity_extractor():
 def process_entity_extraction(count: int) -> bool:
     # Get cached extractor (no reload!)
     extractor = get_cached_entity_extractor()
-    
+
     # Call function directly (no subprocess!)
     args = Namespace(limit=limit, source=None)
     return handle_entity_extraction_command(args, extractor=extractor)
-    
+
     # Process continues, memory stays allocated
 ```
 

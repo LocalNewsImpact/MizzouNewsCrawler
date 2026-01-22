@@ -58,7 +58,7 @@ echo "----------------------------------------"
 if docker compose up -d api; then
     echo "Waiting for API to start..."
     sleep 3
-    
+
     # Test health endpoint
     if curl -s http://localhost:8000/health | grep -q "healthy"; then
         echo -e "${GREEN}✅ API health check passed${NC}"

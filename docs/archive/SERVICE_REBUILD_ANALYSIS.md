@@ -38,7 +38,7 @@ gcloud builds triggers run build-crawler-manual \
   --branch=feature/gcp-kubernetes-deployment
 ```
 
-### 2. ✅ **PROCESSOR** - HIGH PRIORITY  
+### 2. ✅ **PROCESSOR** - HIGH PRIORITY
 **Why**: Uses changed source files directly
 - ✅ `src/pipeline/entity_extraction.py` - Gazetteer OR logic fix
 - ✅ `src/models/telemetry_orm.py` - New ORM models
@@ -127,7 +127,7 @@ gcloud builds triggers run build-api-manual \
 
 **Changed Files Impact**: HIGH (2 direct files changed)
 
-### Processor Service  
+### Processor Service
 **Dockerfile**: `Dockerfile.processor`
 **Source Files Used**:
 - ✅ `src/pipeline/` - ALL FILES (entity_extraction.py changed)
@@ -139,7 +139,7 @@ gcloud builds triggers run build-api-manual \
 **Changed Files Impact**: HIGH (1 direct file changed)
 
 ### API Service
-**Dockerfile**: `Dockerfile.api`  
+**Dockerfile**: `Dockerfile.api`
 **Source Files Used**:
 - `backend/` - FastAPI application
 - ⚠️ `src/models/` - ORM models (if querying telemetry)
@@ -208,7 +208,7 @@ gcloud builds triggers run build-api-manual \
 kubectl logs -n production -l app=crawler --tail=50 | grep -i "rss\|metadata\|scheduling"
 ```
 
-### Check Processor  
+### Check Processor
 ```bash
 kubectl logs -n production -l app=processor --tail=50 | grep -i "entity\|gazetteer\|extraction"
 ```
@@ -226,7 +226,7 @@ gcloud sql connect mizzou-crawler-instance --user=postgres
 ## 📊 Build Time Estimates
 
 - **Base Image**: Already built, reuse existing
-- **ML Base**: Already built, reuse existing  
+- **ML Base**: Already built, reuse existing
 - **Crawler**: ~2-3 minutes (depends on base)
 - **Processor**: ~1-2 minutes (uses ml-base)
 - **API**: ~1-2 minutes (depends on base)

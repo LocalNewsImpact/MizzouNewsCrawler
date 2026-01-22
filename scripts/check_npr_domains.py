@@ -9,16 +9,16 @@ from src.models.database import DatabaseManager
 
 def main():
     db = DatabaseManager()
-    
+
     # Sample NPR names from user's list
     npr_names = [
         'a martínez', 'ailsa chang', 'andrew limbong', 'scott simon',
         'leila fadel', 'steve inskeep', 'mary louise kelly', 'michel martin',
         'ayesha rascoe', 'juana summers', 'sacha pfeiffer', 'domenico montanaro'
     ]
-    
+
     print("Checking domains for non-wire articles with NPR bylines:\n")
-    
+
     with db.get_session() as session:
         for name in npr_names:
             query = text("""
@@ -28,10 +28,10 @@ def main():
                 AND LOWER(author) LIKE :search_pattern
                 LIMIT 10
             """)
-            
+
             result = session.execute(query, {"search_pattern": f'%{name}%'})
             matches = result.fetchall()
-            
+
             if matches:
                 print(f"\n'{name.title()}' ({len(matches)} shown):")
                 for article in matches:

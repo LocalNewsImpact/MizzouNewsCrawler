@@ -1,6 +1,6 @@
 # Cluster Capacity Crisis Analysis
 
-**Date:** October 19, 2025  
+**Date:** October 19, 2025
 **Status:** 🔴 CRITICAL - Cluster at capacity, pods failing due to resource exhaustion
 
 ---
@@ -221,7 +221,7 @@ spec:
     secondsAfterCompletion: 3600  # Delete pods 1 hour after completion
     secondsAfterSuccess: 1800     # Delete successful pods after 30 min
     secondsAfterFailure: 7200     # Keep failed pods for 2 hours (debugging)
-  
+
   podGC:
     strategy: OnPodSuccess  # Clean up successful pods immediately
 ```
@@ -302,7 +302,7 @@ spec:
 
 #### 8. Move Entity Extraction to Async Job Queue
 
-**Current:** Entity extraction runs inline during article processing  
+**Current:** Entity extraction runs inline during article processing
 **Problem:** Spiky memory usage, crashes, blocks other processing
 
 **Solution:** Use Cloud Tasks or Pub/Sub for async entity extraction
@@ -463,6 +463,6 @@ After fixes, monitor:
 
 ---
 
-**Status:** Ready for implementation  
-**Owner:** DevOps/Platform Team  
+**Status:** Ready for implementation
+**Owner:** DevOps/Platform Team
 **Estimated Time:** 2-3 hours for immediate fixes, 1 week for long-term improvements

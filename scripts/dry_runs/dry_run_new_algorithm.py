@@ -29,12 +29,12 @@ def get_current_articles_with_authors(db_path: str) -> list[tuple[int, str, str]
 
     # Get articles that have both raw bylines and processed authors
     query = """
-    SELECT id, byline, authors 
-    FROM articles 
-    WHERE byline IS NOT NULL 
-    AND byline != '' 
-    AND authors IS NOT NULL 
-    AND authors != '' 
+    SELECT id, byline, authors
+    FROM articles
+    WHERE byline IS NOT NULL
+    AND byline != ''
+    AND authors IS NOT NULL
+    AND authors != ''
     AND authors != '[]'
     ORDER BY id
     """

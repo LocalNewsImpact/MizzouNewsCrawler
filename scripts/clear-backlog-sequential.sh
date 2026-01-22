@@ -23,12 +23,12 @@ wait_for_pod() {
     local pod_name=$1
     local max_wait=1800  # 30 minutes max
     local elapsed=0
-    
+
     echo -e "${COLOR_YELLOW}Waiting for ${pod_name} to complete...${COLOR_RESET}"
-    
+
     while [ $elapsed -lt $max_wait ]; do
         status=$(kubectl get pod -n ${NAMESPACE} ${pod_name} -o jsonpath='{.status.phase}' 2>/dev/null || echo "NotFound")
-        
+
         if [ "$status" = "Succeeded" ]; then
             echo -e "${COLOR_GREEN}✅ ${pod_name} completed successfully${COLOR_RESET}"
             kubectl logs -n ${NAMESPACE} ${pod_name} --tail=10
@@ -41,18 +41,18 @@ wait_for_pod() {
             echo -e "${COLOR_RED}❌ ${pod_name} not found${COLOR_RESET}"
             return 1
         fi
-        
+
         # Show progress every minute
         if [ $((elapsed % 60)) -eq 0 ]; then
             echo -e "  Status: ${status} (${elapsed}s elapsed)"
             # Show last log line
             kubectl logs -n ${NAMESPACE} ${pod_name} --tail=1 2>/dev/null || true
         fi
-        
+
         sleep 10
         elapsed=$((elapsed + 10))
     done
-    
+
     echo -e "${COLOR_RED}❌ ${pod_name} timed out after ${max_wait}s${COLOR_RESET}"
     return 1
 }
@@ -62,16 +62,16 @@ run_entity_batch_sequential() {
     local batch_num=$1
     local batch_size=$2
     local pod_name="entity-batch-${batch_num}"
-    
+
     echo -e ""
     echo -e "${COLOR_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
     echo -e "${COLOR_BLUE}Entity Extraction Batch ${batch_num}${COLOR_RESET}"
     echo -e "${COLOR_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
-    
+
     # Delete if exists
     kubectl delete pod -n ${NAMESPACE} ${pod_name} --ignore-not-found=true 2>/dev/null || true
     sleep 2
-    
+
     # Create pod
     kubectl run ${pod_name} \
         --namespace=${NAMESPACE} \
@@ -103,7 +103,7 @@ run_entity_batch_sequential() {
             }]
           }
         }' > /dev/null
-    
+
     wait_for_pod ${pod_name}
     return $?
 }
@@ -114,16 +114,16 @@ run_classification_batch_sequential() {
     local batch_size=$2
     local inference_batch=$3
     local pod_name="class-batch-${batch_num}"
-    
+
     echo -e ""
     echo -e "${COLOR_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
     echo -e "${COLOR_BLUE}Classification Batch ${batch_num}${COLOR_RESET}"
     echo -e "${COLOR_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
-    
+
     # Delete if exists
     kubectl delete pod -n ${NAMESPACE} ${pod_name} --ignore-not-found=true 2>/dev/null || true
     sleep 2
-    
+
     # Create pod
     kubectl run ${pod_name} \
         --namespace=${NAMESPACE} \
@@ -155,7 +155,7 @@ run_classification_batch_sequential() {
             }]
           }
         }' > /dev/null
-    
+
     wait_for_pod ${pod_name}
     return $?
 }

@@ -33,44 +33,44 @@ steps:
       - '-c'
       - |
         echo "Validating migration files in image..."
-        
+
         # Check alembic.ini exists
         if [ ! -f /app/alembic.ini ]; then
           echo "ERROR: /app/alembic.ini not found"
           exit 1
         fi
         echo "✓ alembic.ini found"
-        
+
         # Check alembic directory exists
         if [ ! -d /app/alembic ]; then
           echo "ERROR: /app/alembic directory not found"
           exit 1
         fi
         echo "✓ alembic/ directory found"
-        
+
         # Check versions directory exists
         if [ ! -d /app/alembic/versions ]; then
           echo "ERROR: /app/alembic/versions directory not found"
           exit 1
         fi
         echo "✓ alembic/versions/ directory found"
-        
+
         # Count migration files
         count=$(find /app/alembic/versions -name "*.py" -not -name "__init__.py" | wc -l)
         echo "✓ Found $count migration files"
-        
+
         if [ "$count" -eq 0 ]; then
           echo "ERROR: No migration files found"
           exit 1
         fi
-        
+
         # Check entrypoint exists and is executable
         if [ ! -x /entrypoint.sh ]; then
           echo "ERROR: /entrypoint.sh not found or not executable"
           exit 1
         fi
         echo "✓ entrypoint.sh is executable"
-        
+
         echo ""
         echo "All validation checks passed!"
     waitFor:

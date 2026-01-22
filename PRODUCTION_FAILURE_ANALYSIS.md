@@ -143,10 +143,10 @@ def test_continuous_processor_starts():
 
 **The ChromeDriver Bug:**
 ```
-ERROR - Failed to create persistent driver: Message: session not created: 
+ERROR - Failed to create persistent driver: Message: session not created:
 Chrome instance exited. Examine ChromeDriver verbose log to determine the cause.
 
-WARNING - undetected-chromedriver failed to initialize: Message: session not created: 
+WARNING - undetected-chromedriver failed to initialize: Message: session not created:
 cannot connect to chrome at 127.0.0.1:45247
 from chrome not reachable
 ```
@@ -167,12 +167,12 @@ def test_chromedriver_actually_launches():
     # Don't mock - actually try to launch Chrome
     from selenium import webdriver
     from selenium.webdriver.chrome.options import Options
-    
+
     options = Options()
     options.add_argument("--headless")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
-    
+
     try:
         driver = webdriver.Chrome(options=options)
         driver.get("https://example.com")
@@ -185,7 +185,7 @@ def test_chromedriver_actually_launches():
 def test_undetected_chromedriver_launches():
     """Verify undetected-chromedriver works in production environment."""
     import undetected_chromedriver as uc
-    
+
     try:
         driver = uc.Chrome(headless=True, use_subprocess=True)
         driver.get("https://example.com")
@@ -202,7 +202,7 @@ def test_undetected_chromedriver_launches():
 
 We tested that individual components work (newspaper extraction, Selenium mocking, database queries) but **not the end-to-end behavior** that users depend on:
 
-❌ "Does Selenium method return correct data structure?" (implementation)  
+❌ "Does Selenium method return correct data structure?" (implementation)
 ✅ "Can we extract content from PerimeterX-protected fox4kc.com?" (behavior)
 
 ### 2. **Mocking Too Much**
@@ -233,9 +233,9 @@ def test_selenium_extraction(mock_chrome):
 
 We have **integration tests for database operations** but **not for extraction workflows**:
 
-✅ "Can we insert/update/query articles?"  
-❌ "Can we extract an article from discovery → verification → extraction → cleaning?"  
-❌ "Does extraction work with different bot protection types?"  
+✅ "Can we insert/update/query articles?"
+❌ "Can we extract an article from discovery → verification → extraction → cleaning?"
+❌ "Does extraction work with different bot protection types?"
 ❌ "Does the extraction method configuration actually change runtime behavior?"
 
 ---
@@ -267,19 +267,19 @@ jobs:
     steps:
       - name: Build production images
         run: docker-compose build
-      
+
       - name: Test processor starts
         run: |
           docker-compose up -d processor
           sleep 10
           docker-compose logs processor | grep -q "Continuous processor started"
-      
+
       - name: Test actual extraction
         run: |
           docker-compose run crawler python -m src.cli.cli_modular extract \
             --urls https://www.komu.com/test-article \
             --limit 1
-      
+
       - name: Verify ChromeDriver works
         run: |
           docker-compose run crawler python -c "
@@ -296,16 +296,16 @@ jobs:
 # tests/test_extraction_priority_logic.py
 class TestExtractionPriorityLogic:
     """Test _should_prioritize_selenium() for all extraction methods."""
-    
+
     def test_unblock_prioritizes_selenium(self):
         """Unblock domains MUST try Selenium first to defeat bot protection."""
         extractor = ContentExtractor()
         assert extractor._should_prioritize_selenium("unblock") is True
-    
+
     def test_selenium_only_prioritizes_selenium(self):
         extractor = ContentExtractor()
         assert extractor._should_prioritize_selenium("selenium") is True
-    
+
     def test_standard_follows_strategy(self):
         extractor = ContentExtractor(selenium_primary_strategy="selenium-first")
         assert extractor._should_prioritize_selenium("standard") is True

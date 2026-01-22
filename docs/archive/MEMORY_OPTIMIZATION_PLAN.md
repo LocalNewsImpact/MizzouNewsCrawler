@@ -1,7 +1,7 @@
 # Memory Optimization Plan
 
-**Date**: October 15, 2025  
-**Context**: Processor pod using 2065Mi despite having extraction disabled  
+**Date**: October 15, 2025
+**Context**: Processor pod using 2065Mi despite having extraction disabled
 **Root Causes Identified**:
 
 ## 1. Eager Module Imports (PRIMARY ISSUE)
@@ -42,7 +42,7 @@ def handle_extraction_command(args):
 def handle_extraction_command(args):
     # Lazy import - only load when extraction actually runs
     from src.crawler import ContentExtractor, NotFoundError
-    
+
     extractor = ContentExtractor()
     # ... extraction logic
 ```
@@ -99,7 +99,7 @@ These are **test/export data**, not runtime dependencies, but `.dockerignore` do
   - Continuous processor pod (cleaning/ML/entities only)
   - Extraction jobs (Mizzou, Lehigh)
   - Discovery cron jobs
-  
+
 **This is GOOD** - no code duplication, single source of truth
 
 ### Future Optimization (NOT URGENT)
@@ -232,7 +232,7 @@ kubectl logs -n production -l dataset=Mizzou --follow
 
 ## Decision
 
-**Proceed with Phase 1?** 
+**Proceed with Phase 1?**
 - ✅ YES for CSV exclusion (.dockerignore) - zero risk
 - ⚠️ REVIEW NEEDED for lazy imports - need to verify no other top-level imports
 

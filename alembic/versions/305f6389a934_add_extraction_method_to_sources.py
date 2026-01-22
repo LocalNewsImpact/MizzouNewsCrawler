@@ -20,12 +20,12 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Add extraction_method column to sources table.
-    
+
     Replaces selenium_only boolean with extraction_method string:
     - 'http': default, use HTTP requests
     - 'selenium': use Selenium browser
     - 'unblock': use Decodo unblock proxy for strong bot protection
-    
+
     Migrates existing selenium_only=true rows to extraction_method='selenium'.
     """
     # Add extraction_method column with default 'http'
@@ -38,7 +38,7 @@ def upgrade() -> None:
             server_default="'http'"
         )
     )
-    
+
     # Migrate existing selenium_only=true to extraction_method='selenium'
     op.execute(
         """
@@ -47,7 +47,7 @@ def upgrade() -> None:
         WHERE selenium_only = true
         """
     )
-    
+
     # For PerimeterX protected domains, use 'unblock' method
     op.execute(
         """
@@ -57,7 +57,7 @@ def upgrade() -> None:
         AND selenium_only = true
         """
     )
-    
+
     # Add index for extraction_method queries
     op.create_index(
         'ix_sources_extraction_method',
@@ -70,7 +70,7 @@ def downgrade() -> None:
     """Remove extraction_method column, restore selenium_only behavior."""
     # Drop index
     op.drop_index('ix_sources_extraction_method', 'sources')
-    
+
     # Update selenium_only based on extraction_method before dropping
     op.execute(
         """
@@ -79,6 +79,6 @@ def downgrade() -> None:
         WHERE extraction_method IN ('selenium', 'unblock')
         """
     )
-    
+
     # Drop extraction_method column
     op.drop_column('sources', 'extraction_method')

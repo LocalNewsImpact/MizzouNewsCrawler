@@ -1,6 +1,6 @@
 # Telemetry Fixes Summary
 
-**Date**: October 20, 2025  
+**Date**: October 20, 2025
 **Branch**: feature/gcp-kubernetes-deployment
 
 ## Issues Fixed
@@ -114,7 +114,7 @@ After deployment completes, verify:
 
 3. **All sources processed:**
    ```sql
-   SELECT COUNT(*) FROM sources 
+   SELECT COUNT(*) FROM sources
    WHERE id IN (SELECT DISTINCT source_host_id FROM candidate_links)
    ```
    Should approach 157 sources over time

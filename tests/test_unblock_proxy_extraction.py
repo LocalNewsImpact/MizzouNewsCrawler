@@ -1134,7 +1134,7 @@ class TestPostgreSQLIntegration:
             text(
                 """
             INSERT INTO sources (id, host, host_norm, canonical_name, extraction_method, bot_protection_type)
-            VALUES ('test-integration-unblock', 'integration-test.com', 'integration-test.com', 
+            VALUES ('test-integration-unblock', 'integration-test.com', 'integration-test.com',
                     'Integration Test', 'unblock', 'perimeterx')
             ON CONFLICT (host_norm) DO UPDATE SET
                 extraction_method = 'unblock',
@@ -1178,7 +1178,7 @@ class TestPostgreSQLIntegration:
             text(
                 """
             INSERT INTO sources (id, host, host_norm, canonical_name, extraction_method)
-            VALUES ('test-integration-mark', 'mark-test.com', 'mark-test.com', 
+            VALUES ('test-integration-mark', 'mark-test.com', 'mark-test.com',
                     'Mark Test', 'http')
             ON CONFLICT (host_norm) DO UPDATE SET extraction_method = 'http'
         """
@@ -1252,7 +1252,7 @@ class TestPostgreSQLIntegration:
             text(
                 """
             INSERT INTO sources (id, host, host_norm, canonical_name, extraction_method, bot_protection_type)
-            VALUES ('test-integration-cache', 'cache-test.com', 'cache-test.com', 
+            VALUES ('test-integration-cache', 'cache-test.com', 'cache-test.com',
                     'Cache Test', 'selenium', 'cloudflare')
             ON CONFLICT (host_norm) DO UPDATE SET
                 extraction_method = 'selenium',

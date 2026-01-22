@@ -32,10 +32,10 @@ To optimize build times, we've split ML dependencies into a separate base image 
 
 ## Key Benefits
 
-✅ **10x faster processor iterations** - Code-only changes build in ~30 seconds  
-✅ **Smaller non-ML images** - API and crawler stay at ~500MB vs 8GB  
-✅ **Lower costs** - Less build time, less storage, less bandwidth  
-✅ **Easier maintenance** - ML dependencies managed in one place  
+✅ **10x faster processor iterations** - Code-only changes build in ~30 seconds
+✅ **Smaller non-ML images** - API and crawler stay at ~500MB vs 8GB
+✅ **Lower costs** - Less build time, less storage, less bandwidth
+✅ **Easier maintenance** - ML dependencies managed in one place
 
 ## Files
 

@@ -33,10 +33,10 @@ def run_migration():
     ALTER TABLE extraction_outcomes ADD COLUMN content_quality_issues TEXT DEFAULT '[]';
     ALTER TABLE extraction_outcomes ADD COLUMN author_quality_issues TEXT DEFAULT '[]';
     ALTER TABLE extraction_outcomes ADD COLUMN publish_date_quality_issues TEXT DEFAULT '[]';
-    
+
     -- Add overall quality score column
     ALTER TABLE extraction_outcomes ADD COLUMN overall_quality_score REAL DEFAULT 1.0;
-    
+
     -- Add field-specific quality flags for quick filtering
     ALTER TABLE extraction_outcomes ADD COLUMN title_has_issues BOOLEAN DEFAULT FALSE;
     ALTER TABLE extraction_outcomes ADD COLUMN content_has_issues BOOLEAN DEFAULT FALSE;

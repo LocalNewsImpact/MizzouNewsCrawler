@@ -22,12 +22,12 @@
 **Root Cause**: Schema mismatch - columns don't exist in production
 
 - `candidate_links.is_section_url` - column does not exist
-- `candidate_links.section_url_id` - column does not exist  
+- `candidate_links.section_url_id` - column does not exist
 - `source_urls` table - table does not exist
 
 **Impact**: Section URL extraction feature not yet deployed to production
 
-**Action Required**: 
+**Action Required**:
 - Feature is not implemented yet OR
 - Migration needed to add these columns/tables
 - Tests are validating a future feature
@@ -58,7 +58,7 @@
 
 **Impact**: Data quality issue - same article extracted multiple times
 
-**Action Required**: 
+**Action Required**:
 - Investigate why duplicates occur
 - Add deduplication logic
 - Clean up existing duplicates
@@ -97,8 +97,8 @@
 
 1. **Query actual production schema** to understand what columns/tables exist:
    ```python
-   SELECT table_name, column_name, data_type 
-   FROM information_schema.columns 
+   SELECT table_name, column_name, data_type
+   FROM information_schema.columns
    WHERE table_schema = 'public'
    ORDER BY table_name, ordinal_position
    ```
@@ -110,7 +110,7 @@
 ### Short-term (Priority 2)
 
 4. **Review section URL feature status**:
-   - Is it planned? 
+   - Is it planned?
    - Does it need migration?
    - When will it be deployed?
 

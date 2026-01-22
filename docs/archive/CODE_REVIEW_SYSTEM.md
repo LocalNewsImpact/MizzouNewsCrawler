@@ -26,7 +26,7 @@ curl -X POST http://localhost:8001/api/code_review_telemetry/add \
     "author": "developer.name",
     "file_path": "src/auth/middleware.py",
     "code_diff": "- if not token:\n+ if not token or token_expired(token):",
-    "change_type": "bugfix", 
+    "change_type": "bugfix",
     "priority": "high",
     "source_branch": "fix/auth-bug",
     "target_branch": "main"

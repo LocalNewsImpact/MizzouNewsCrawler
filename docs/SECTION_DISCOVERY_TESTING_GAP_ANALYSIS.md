@@ -100,10 +100,10 @@ Consider adding workflow-level integration tests that:
 
 ## Current Status
 
-✅ **Unit tests:** 33 tests passing (algorithms work)  
-✅ **Integration code:** Implemented in commit d42c1c0  
-✅ **Workflow integration:** `process()` calls `_discover_and_store_sections()`  
-⏳ **Manual verification:** Pending local discovery run  
-⏳ **Production testing:** Will verify after merge  
+✅ **Unit tests:** 33 tests passing (algorithms work)
+✅ **Integration code:** Implemented in commit d42c1c0
+✅ **Workflow integration:** `process()` calls `_discover_and_store_sections()`
+⏳ **Manual verification:** Pending local discovery run
+⏳ **Production testing:** Will verify after merge
 
 The integration gap has been identified and fixed. Future work should focus on pragmatic testing strategies that balance coverage with maintainability.

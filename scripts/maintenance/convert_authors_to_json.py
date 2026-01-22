@@ -52,10 +52,10 @@ def convert_normal_to_json_format():
 
     # First, get all normal format entries
     cursor.execute("""
-        SELECT id, author 
-        FROM articles 
-        WHERE author IS NOT NULL 
-        AND author != '' 
+        SELECT id, author
+        FROM articles
+        WHERE author IS NOT NULL
+        AND author != ''
         AND author NOT LIKE '[%'
     """)
 
@@ -101,8 +101,8 @@ def convert_normal_to_json_format():
             # Update the database
             cursor.execute(
                 """
-                UPDATE articles 
-                SET author = ? 
+                UPDATE articles
+                SET author = ?
                 WHERE id = ?
             """,
                 (json_author, article_id),
@@ -126,17 +126,17 @@ def convert_normal_to_json_format():
 
     # Verify the conversion
     cursor.execute("""
-        SELECT COUNT(*) 
-        FROM articles 
-        WHERE author IS NOT NULL 
-        AND author != '' 
+        SELECT COUNT(*)
+        FROM articles
+        WHERE author IS NOT NULL
+        AND author != ''
         AND author NOT LIKE '[%'
     """)
     remaining_normal = cursor.fetchone()[0]
 
     cursor.execute("""
-        SELECT COUNT(*) 
-        FROM articles 
+        SELECT COUNT(*)
+        FROM articles
         WHERE author LIKE '[%'
     """)
     total_json = cursor.fetchone()[0]
@@ -148,9 +148,9 @@ def convert_normal_to_json_format():
     # Show some examples after conversion
     if total_json > 0:
         cursor.execute("""
-            SELECT author 
-            FROM articles 
-            WHERE author LIKE '[%' 
+            SELECT author
+            FROM articles
+            WHERE author LIKE '[%'
             LIMIT 5
         """)
         json_examples = [row[0] for row in cursor.fetchall()]

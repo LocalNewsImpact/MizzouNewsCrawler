@@ -1,8 +1,8 @@
 # Gazetteer OR Bug Fix - Critical Performance Issue
 
-**Date:** October 19, 2025  
-**Commit:** 075b5e3  
-**Build:** 44919137  
+**Date:** October 19, 2025
+**Commit:** 075b5e3
+**Build:** 44919137
 **Impact:** CRITICAL - Entity extraction hanging indefinitely
 
 ## Problem
@@ -11,8 +11,8 @@ Entity extraction was hanging for 10-30 minutes per article, causing the extract
 
 ### Root Cause
 
-**File:** `src/pipeline/entity_extraction.py`  
-**Function:** `get_gazetteer_rows()`  
+**File:** `src/pipeline/entity_extraction.py`
+**Function:** `get_gazetteer_rows()`
 **Bug:** Lines 369-371 used **OR logic** instead of **AND logic** when multiple filters provided
 
 ```python

@@ -206,7 +206,7 @@ def main():
                             f"Error processing site {site_config.get('name', 'unknown')}: {e}"
                         )
                         total_metrics["total_errors"] += 1
-                    
+
                     # Update progress after each site
                     progress_metrics.processed_items = idx
                     operation.update_progress(progress_metrics)

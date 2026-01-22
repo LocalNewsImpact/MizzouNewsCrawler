@@ -358,37 +358,37 @@ gcloud monitoring uptime-checks create \
   - [ ] Install gcloud CLI
   - [ ] Create GCP project
   - [ ] Enable required APIs
-  
+
 - [ ] Step 2: Artifact Registry
   - [ ] Create Docker repository
   - [ ] Tag and push images
-  
+
 - [ ] Step 3: Cloud SQL
   - [ ] Create PostgreSQL instance
   - [ ] Create database and user
   - [ ] Configure connection
-  
+
 - [ ] Step 4: GKE Cluster
   - [ ] Create cluster
   - [ ] Configure kubectl
   - [ ] Create namespaces
-  
+
 - [ ] Step 5: Kubernetes Configuration
   - [ ] Create ConfigMaps
   - [ ] Create Secrets
   - [ ] Create deployment manifests
-  
+
 - [ ] Step 6: Deploy to GKE
   - [ ] Deploy API
   - [ ] Deploy Crawler
   - [ ] Deploy Processor
   - [ ] Verify all services
-  
+
 - [ ] Step 7: Networking
   - [ ] Configure ingress
   - [ ] Set up load balancer
   - [ ] Configure SSL (optional)
-  
+
 - [ ] Step 8: Monitoring
   - [ ] Set up logging
   - [ ] Create dashboards

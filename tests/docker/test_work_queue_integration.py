@@ -243,7 +243,7 @@ with db.get_session() as session:
     )
     session.add(source)
     session.commit()
-    
+
     link = CandidateLink(
         id=str(uuid.uuid4()),
         url='https://test-wq.com/article-1',
@@ -300,7 +300,7 @@ with db.get_session() as session:
         )
         session.add(source)
         session.commit()
-        
+
         for j in range(10):
             link = CandidateLink(
                 id=str(uuid.uuid4()),
@@ -311,7 +311,7 @@ with db.get_session() as session:
                 discovered_by='test'
             )
             session.add(link)
-    
+
     session.commit()
     print('Test data created: 5 domains, 50 articles')
 """,
@@ -373,7 +373,7 @@ with db.get_session() as session:
     )
     session.add(source)
     session.commit()
-    
+
     for i in range(20):
         link = CandidateLink(
             id=str(uuid.uuid4()),
@@ -384,7 +384,7 @@ with db.get_session() as session:
             discovered_by='test'
         )
         session.add(link)
-    
+
     session.commit()
     print('Created 20 articles for cooldown-test.com')
 """,
@@ -499,7 +499,7 @@ with db.get_session() as session:
     )
     session.add(source)
     session.commit()
-    
+
     for i in range(10):
         link = CandidateLink(
             id=str(uuid.uuid4()),
@@ -510,7 +510,7 @@ with db.get_session() as session:
             discovered_by='test'
         )
         session.add(link)
-    
+
     session.commit()
 """,
             ],

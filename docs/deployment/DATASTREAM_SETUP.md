@@ -97,7 +97,7 @@ Once Datastream is working and verified, you can clean up the old infrastructure
    ```bash
    kubectl delete cronjob bigquery-export -n production
    ```
-   
+
    Note: The manual export code has already been removed from the repository.
 
 ## Monitoring
@@ -116,13 +116,13 @@ Datastream pricing (approximate):
 
 ## Benefits Over Custom Code
 
-✅ No manual batching logic  
-✅ No duplicate detection needed  
-✅ Handles schema changes automatically  
-✅ Real-time replication (seconds of latency)  
-✅ Managed service (no maintenance)  
-✅ Automatic retries and error handling  
-✅ Built-in monitoring and alerting  
+✅ No manual batching logic
+✅ No duplicate detection needed
+✅ Handles schema changes automatically
+✅ Real-time replication (seconds of latency)
+✅ Managed service (no maintenance)
+✅ Automatic retries and error handling
+✅ Built-in monitoring and alerting
 
 ## Next Steps
 

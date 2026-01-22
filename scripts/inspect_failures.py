@@ -21,7 +21,7 @@ with db.get_session() as session:
             print(f"Title: '{article.title}'")
             content_snippet = article.content[:300] if article.content else "None"
             print(f"Content Start: {content_snippet}")
-            
+
             result = detector.detect(
                 url=article.url,
                 title=article.title,

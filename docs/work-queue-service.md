@@ -224,15 +224,15 @@ from sqlalchemy import text
 db = DatabaseManager()
 with db.get_session() as session:
     result = session.execute(text('''
-        SELECT 
+        SELECT
             DATE_TRUNC('hour', extracted_at) as hour,
             COUNT(*) as articles
-        FROM articles 
+        FROM articles
         WHERE extracted_at >= NOW() - INTERVAL '2 hours'
         GROUP BY hour
         ORDER BY hour DESC
     ''')).fetchall()
-    
+
     for row in result:
         print(f'{row[0]}: {row[1]} articles')
 "

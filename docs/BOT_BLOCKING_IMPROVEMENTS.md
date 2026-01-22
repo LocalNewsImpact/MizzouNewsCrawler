@@ -207,7 +207,7 @@ Track these metrics to assess improvement effectiveness:
 
 Query example:
 ```sql
-SELECT 
+SELECT
   DATE(created_at) as date,
   COUNT(*) as total_attempts,
   SUM(CASE WHEN is_success THEN 1 ELSE 0 END) as successful,

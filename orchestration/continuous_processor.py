@@ -87,7 +87,7 @@ class WorkQueue:
     @staticmethod
     def get_counts() -> dict[str, int]:
         """Return counts of work items in each stage.
-        
+
         Only queries for enabled pipeline steps to reduce unnecessary database load.
         """
         counts = {
@@ -179,7 +179,7 @@ class WorkQueue:
 
 def run_cli_command(command: list[str], description: str) -> bool:
     """Execute a CLI command, streaming output to logs in real-time.
-    
+
     Returns True if successful. This improves observability in Kubernetes
     by emitting child process output directly to the pod logs instead of
     buffering it. We also log elapsed time.
@@ -211,7 +211,7 @@ def run_cli_command(command: list[str], description: str) -> bool:
                 if line:
                     # Print directly to avoid double timestamps in Cloud Logging
                     print(line.rstrip(), flush=True)
-        
+
         # Wait for process to complete
         returncode = proc.wait()
 
@@ -334,7 +334,7 @@ _MEDIACLOUD_DETECTOR = None
 
 def get_cached_entity_extractor():
     """Get or create cached entity extractor with spaCy model loaded once.
-    
+
     This avoids reloading the spaCy model on every batch, which was causing
     288 model reloads per day (wasting 10 min/day + 2GB memory spikes).
     """
@@ -545,7 +545,7 @@ def process_entity_extraction(count: int) -> bool:
     them in the article_entities table. The gazetteer data (OSM locations
     for each source) should already be populated via the populate-gazetteer
     command during initial setup.
-    
+
     Uses a cached extractor to avoid reloading the spaCy model on every batch.
     """
     if count == 0:
@@ -554,22 +554,22 @@ def process_entity_extraction(count: int) -> bool:
     # Process up to GAZETTEER_BATCH_SIZE articles per run
     # (or all pending if less than batch size)
     limit = min(count, GAZETTEER_BATCH_SIZE)
-    
+
     try:
         from argparse import Namespace
         from src.cli.commands.entity_extraction import handle_entity_extraction_command
-        
+
         logger.info("▶️  Entity extraction (%d pending, limit %d)", count, limit)
-        
+
         # Get cached extractor (model already loaded!)
         extractor = get_cached_entity_extractor()
-        
+
         # Call directly instead of subprocess to keep model in memory
         args = Namespace(limit=limit, source=None)
         start = time.time()
         result = handle_entity_extraction_command(args, extractor=extractor)
         elapsed = time.time() - start
-        
+
         if result == 0:
             logger.info("✅ Entity extraction completed successfully (%.1fs)", elapsed)
             return True
@@ -580,7 +580,7 @@ def process_entity_extraction(count: int) -> bool:
                 elapsed,
             )
             return False
-            
+
     except Exception as e:
         logger.exception("💥 Entity extraction raised exception: %s", e)
         return False
@@ -659,7 +659,7 @@ def main() -> None:
     logger.info("  - Wire Detection: %s", "✅" if ENABLE_WIRE_DETECTION else "❌")
     logger.info("  - ML Analysis: %s", "✅" if ENABLE_ML_ANALYSIS else "❌")
     logger.info("  - Entity Extraction: %s", "✅" if ENABLE_ENTITY_EXTRACTION else "❌")
-    
+
     # Warn if no steps are enabled
     if not any([
         ENABLE_DISCOVERY,
