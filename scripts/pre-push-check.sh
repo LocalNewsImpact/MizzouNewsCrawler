@@ -44,7 +44,17 @@ else
 fi
 echo ""
 
-# 3. Run the quick argo tests (same as CI argo-quick job)
+# 3. Validate YAML syntax (MATCHES CI)
+echo "📝 Validating YAML syntax..."
+pip install -q PyYAML >/dev/null 2>&1 || true
+find . -name "*.yaml" -o -name "*.yml" | while read -r file; do
+  echo "  Checking $file..."
+  python -c "import yaml; list(yaml.safe_load_all(open('$file')))" || exit 1
+done
+echo -e "${GREEN}✓ YAML validation passed${NC}"
+echo ""
+
+# 4. Run the quick argo tests (same as CI argo-quick job)
 echo "🧪 Running argo-quick tests..."
 if pytest -q --override-ini='addopts=' -p no:pytest-cov \
     tests/unit/test_argo_workflow_template.py \
@@ -56,7 +66,7 @@ else
 fi
 echo ""
 
-# 4. Run unit tests (fast subset)
+# 5. Run unit tests (fast subset)
 echo "🧪 Running unit tests..."
 if pytest -q --override-ini='addopts=' -p no:pytest-cov tests/unit/ -k "not slow"; then
     echo -e "${GREEN}✓ unit tests passed${NC}"
