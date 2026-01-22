@@ -66,10 +66,10 @@ jobs:
             else
               echo "Chromedriver release not found on storage; falling back to chromedriver-autoinstaller (last resort)"
               python3 -m pip install --quiet chromedriver-autoinstaller || true
-              CHROMEDRIVER_PATH=$(python3 - <<-PY
+              CHROMEDRIVER_PATH=$(python3 - <<'ENDPY'
                 import chromedriver_autoinstaller as c
                 print(c.install())
-                PY
+              ENDPY
               )
               if [ -z "$CHROMEDRIVER_PATH" ]; then
                 echo "ERROR: chromedriver-autoinstaller failed"
@@ -228,7 +228,7 @@ jobs:
           docker run --rm -v "$GITHUB_WORKSPACE":/workspace -w /workspace chromedriver-test:ci bash -lc '
             pip install --no-cache-dir undetected-chromedriver
             python3 scripts/diagnose_user_agent_metadata.py > /tmp/diag.json || true
-            python3 - <<PY
+            python3 - <<'ENDPY'
             import json,sys
             r=json.load(open("/tmp/diag.json"))
 
@@ -257,7 +257,7 @@ jobs:
 
             print("❌ UA metadata checks failed (full_payload and fallbacks not accepted)")
             sys.exit(1)
-            PY
+            ENDPY
           '
 
 
