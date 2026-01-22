@@ -1486,8 +1486,7 @@ class ContentExtractor:
             db = DatabaseManager()
             with db.get_session() as session:
                 session.execute(
-                    text(
-                        """
+                    text("""
                         UPDATE sources
                         SET extraction_method = :method,
                             selenium_only = :is_selenium,
@@ -1495,8 +1494,7 @@ class ContentExtractor:
                             bot_protection_detected_at = :detected_at
                         WHERE host = :host
                         AND (extraction_method = 'http' OR extraction_method IS NULL)
-                    """
-                    ),
+                    """),
                     {
                         "host": domain,
                         "method": method,
@@ -1534,13 +1532,11 @@ class ContentExtractor:
             db = DatabaseManager()
             with db.get_session() as session:
                 row = session.execute(
-                    text(
-                        """
+                    text("""
                         SELECT COALESCE(extraction_method, 'http'), bot_protection_type
                         FROM sources
                         WHERE host = :host
-                    """
-                    ),
+                    """),
                     {"host": domain},
                 ).fetchone()
 
@@ -1563,128 +1559,132 @@ class ContentExtractor:
 
     def _convert_to_amp_url(self, url: str) -> List[str]:
         """Generate AMP URL variations for a given URL.
-        
+
         Returns list of AMP URLs to try, in priority order:
         1. /amp/ suffix
-        2. ?amp=1 parameter  
+        2. ?amp=1 parameter
         3. Google AMP Cache format
-        
+
         Args:
             url: Original article URL
-            
+
         Returns:
             List of AMP URL candidates to try
         """
         amp_urls = []
-        
+
         # Pattern 1: /amp/ suffix (most common)
-        base_url = url.rstrip('/')
+        base_url = url.rstrip("/")
         amp_urls.append(f"{base_url}/amp/")
-        
+
         # Pattern 2: ?amp=1 query parameter
-        separator = '&' if '?' in url else '?'
+        separator = "&" if "?" in url else "?"
         amp_urls.append(f"{url}{separator}amp=1")
-        
+
         # Pattern 3: Google AMP Cache
         # Format: https://domain-com.cdn.ampproject.org/c/s/domain.com/article
         parsed = urlparse(url)
-        domain_escaped = parsed.netloc.replace('.', '-')
-        path_clean = parsed.path.lstrip('/')
-        scheme_prefix = 's' if parsed.scheme == 'https' else ''
+        domain_escaped = parsed.netloc.replace(".", "-")
+        path_clean = parsed.path.lstrip("/")
+        scheme_prefix = "s" if parsed.scheme == "https" else ""
         amp_cache_url = (
             f"https://{domain_escaped}.cdn.ampproject.org/c/{scheme_prefix}/"
             f"{parsed.netloc}/{path_clean}"
         )
         amp_urls.append(amp_cache_url)
-        
+
         logger.debug(f"Generated {len(amp_urls)} AMP URL candidates for {url}")
         return amp_urls
 
     def _validate_amp_page(self, html: str) -> bool:
         """Check if HTML is a valid AMP page.
-        
+
         Args:
             html: HTML content to validate
-            
+
         Returns:
             True if page appears to be valid AMP
         """
         if not html or len(html) < 500:
             return False
-            
+
         # Check for AMP indicators in HTML
         html_lower = html.lower()
-        
+
         # Check for <html amp> or <html ⚡>
         amp_indicators = [
-            '<html amp',
-            '<html ⚡',
-            'ampproject.org',
-            'amp-boilerplate',
-            'amp-custom',
+            "<html amp",
+            "<html ⚡",
+            "ampproject.org",
+            "amp-boilerplate",
+            "amp-custom",
         ]
-        
+
         return any(indicator in html_lower for indicator in amp_indicators)
 
     def _test_amp_support(self, domain: str, sample_url: Optional[str] = None) -> bool:
         """Test if a domain supports AMP pages.
-        
+
         Tries to fetch an AMP version of a sample URL to determine if the
         domain supports AMP. Updates the sources table with the result.
-        
+
         Args:
             domain: Domain to test
             sample_url: Optional specific URL to test (otherwise uses domain homepage)
-            
+
         Returns:
             True if domain supports AMP
         """
         test_url = sample_url or f"https://{domain}"
-        
+
         try:
             session = self._get_domain_session(test_url)
             amp_urls = self._convert_to_amp_url(test_url)
-            
+
             # Try each AMP URL pattern
             for amp_url in amp_urls:
                 try:
                     logger.info(f"🔍 Testing AMP support: {amp_url}")
                     response = session.get(amp_url, timeout=self.timeout)
-                    
+
                     if response.status_code == 200:
                         if self._validate_amp_page(response.text):
-                            logger.info(f"✅ AMP supported on {domain} (pattern: {amp_url})")
+                            logger.info(
+                                f"✅ AMP supported on {domain} (pattern: {amp_url})"
+                            )
                             # Update sources table
                             self._mark_domain_amp_supported(domain, True)
                             return True
                         else:
                             logger.debug(f"URL succeeded but not valid AMP: {amp_url}")
                     else:
-                        logger.debug(f"AMP URL returned {response.status_code}: {amp_url}")
-                        
+                        logger.debug(
+                            f"AMP URL returned {response.status_code}: {amp_url}"
+                        )
+
                 except Exception as e:
                     logger.debug(f"AMP test failed for {amp_url}: {e}")
                     continue
-            
+
             # No AMP URLs worked
             logger.info(f"❌ AMP not supported on {domain}")
             self._mark_domain_amp_supported(domain, False)
             return False
-            
+
         except Exception as e:
             logger.warning(f"Failed to test AMP support for {domain}: {e}")
             return False
 
     def _mark_domain_amp_supported(self, domain: str, supported: bool) -> None:
         """Mark a domain as supporting or not supporting AMP.
-        
+
         Args:
             domain: Domain to mark
             supported: Whether AMP is supported
         """
         from sqlalchemy import text
         from src.models.database import DatabaseManager
-        
+
         try:
             db = DatabaseManager()
             with db.get_session() as session:
@@ -1697,7 +1697,7 @@ class ContentExtractor:
                     {
                         "host": domain,
                         "supported": supported,
-                    }
+                    },
                 )
                 session.commit()
                 logger.info(f"📝 Marked {domain} amp_supported={supported}")
@@ -1706,10 +1706,10 @@ class ContentExtractor:
 
     def _get_domain_amp_support(self, domain: str) -> Optional[bool]:
         """Check if a domain is known to support AMP.
-        
+
         Args:
             domain: Domain to check
-            
+
         Returns:
             True if known to support AMP, False if known not to support, None if unknown
         """
@@ -1720,11 +1720,11 @@ class ContentExtractor:
                 return self._amp_support_cache[cache_key]
         else:
             self._amp_support_cache = {}
-        
+
         try:
             from sqlalchemy import text
             from src.models.database import DatabaseManager
-            
+
             db = DatabaseManager()
             with db.get_session() as session:
                 row = session.execute(
@@ -1733,16 +1733,16 @@ class ContentExtractor:
                         FROM sources
                         WHERE host = :host
                     """),
-                    {"host": domain}
+                    {"host": domain},
                 ).fetchone()
-                
+
                 if row and row[0] is not None:
                     result = bool(row[0])
                     self._amp_support_cache[cache_key] = result
                     return result
                 else:
                     return None
-                    
+
         except Exception as e:
             logger.debug(f"Failed to check AMP support for {domain}: {e}")
             return None
@@ -3041,22 +3041,28 @@ class ContentExtractor:
                     # Check if domain is known to support AMP - try AMP first if so
                     amp_supported = self._get_domain_amp_support(domain)
                     if amp_supported is True:
-                        logger.info(f"🔄 Domain {domain} known to support AMP, trying AMP first")
+                        logger.info(
+                            f"🔄 Domain {domain} known to support AMP, trying AMP first"
+                        )
                         amp_urls = self._convert_to_amp_url(url)
-                        
+
                         for amp_url in amp_urls:
                             try:
                                 logger.info(f"📡 Fetching AMP URL: {amp_url}")
                                 response = session.get(
-                                    amp_url, timeout=self.timeout, headers=request_headers
+                                    amp_url,
+                                    timeout=self.timeout,
+                                    headers=request_headers,
                                 )
-                                
+
                                 if response.status_code == 200:
                                     if self._validate_amp_page(response.text):
-                                        logger.info(f"✅ Successfully fetched AMP page for {domain}")
+                                        logger.info(
+                                            f"✅ Successfully fetched AMP page for {domain}"
+                                        )
                                         http_status = 200
                                         article.html = response.text
-                                        
+
                                         # Record AMP success
                                         self.bot_sensitivity_manager.record_bot_detection(
                                             host=domain,
@@ -3065,24 +3071,32 @@ class ContentExtractor:
                                             http_status_code=200,
                                             response_indicators={"amp_url": amp_url},
                                         )
-                                        
+
                                         # Skip normal HTTP request, go directly to parsing
                                         break
                                     else:
-                                        logger.debug(f"AMP URL succeeded but not valid AMP: {amp_url}")
+                                        logger.debug(
+                                            f"AMP URL succeeded but not valid AMP: {amp_url}"
+                                        )
                                 else:
-                                    logger.debug(f"AMP URL returned {response.status_code}: {amp_url}")
-                                    
+                                    logger.debug(
+                                        f"AMP URL returned {response.status_code}: {amp_url}"
+                                    )
+
                             except Exception as amp_e:
-                                logger.debug(f"AMP preemptive fetch failed: {amp_url} - {amp_e}")
+                                logger.debug(
+                                    f"AMP preemptive fetch failed: {amp_url} - {amp_e}"
+                                )
                                 continue
-                        
+
                         # If we successfully got AMP HTML, skip the normal request
                         if article.html:
                             logger.info(f"✅ Using preemptive AMP fetch for {domain}")
                         else:
                             # AMP fetch failed, fall back to normal request
-                            logger.warning(f"AMP preemptive fetch failed, trying normal URL")
+                            logger.warning(
+                                f"AMP preemptive fetch failed, trying normal URL"
+                            )
                             response = session.get(
                                 url, timeout=self.timeout, headers=request_headers
                             )
@@ -3141,25 +3155,33 @@ class ContentExtractor:
 
                         # Try AMP bypass for PerimeterX before marking domain or falling back
                         if protection_type == "perimeterx":
-                            logger.info(f"🔄 Attempting AMP bypass for PerimeterX on {domain}")
-                            
+                            logger.info(
+                                f"🔄 Attempting AMP bypass for PerimeterX on {domain}"
+                            )
+
                             amp_urls = self._convert_to_amp_url(url)
                             amp_success = False
-                            
+
                             for amp_url in amp_urls:
                                 try:
                                     logger.info(f"📡 Trying AMP URL: {amp_url}")
                                     amp_response = session.get(
-                                        amp_url, timeout=self.timeout, headers=request_headers
+                                        amp_url,
+                                        timeout=self.timeout,
+                                        headers=request_headers,
                                     )
-                                    
+
                                     if amp_response.status_code == 200:
                                         if self._validate_amp_page(amp_response.text):
-                                            logger.info(f"✅ AMP bypass successful for {domain}!")
-                                            
+                                            logger.info(
+                                                f"✅ AMP bypass successful for {domain}!"
+                                            )
+
                                             # Mark domain as AMP-supported
-                                            self._mark_domain_amp_supported(domain, True)
-                                            
+                                            self._mark_domain_amp_supported(
+                                                domain, True
+                                            )
+
                                             # Record AMP bypass success
                                             self.bot_sensitivity_manager.record_bot_detection(
                                                 host=domain,
@@ -3171,35 +3193,45 @@ class ContentExtractor:
                                                     "amp_url": amp_url,
                                                 },
                                             )
-                                            
+
                                             # Use AMP HTML for extraction
                                             article.html = amp_response.text
                                             http_status = 200
                                             amp_success = True
                                             break
                                         else:
-                                            logger.debug(f"AMP URL succeeded but invalid AMP: {amp_url}")
+                                            logger.debug(
+                                                f"AMP URL succeeded but invalid AMP: {amp_url}"
+                                            )
                                     else:
-                                        logger.debug(f"AMP URL returned {amp_response.status_code}")
-                                        
+                                        logger.debug(
+                                            f"AMP URL returned {amp_response.status_code}"
+                                        )
+
                                 except Exception as amp_e:
                                     logger.debug(f"AMP URL failed: {amp_url} - {amp_e}")
                                     continue
-                            
+
                             if amp_success:
                                 # Successfully bypassed with AMP, continue to parsing
-                                logger.info(f"✅ Successfully used AMP to bypass PerimeterX on {domain}")
+                                logger.info(
+                                    f"✅ Successfully used AMP to bypass PerimeterX on {domain}"
+                                )
                                 # Reset error count on success
                                 self._reset_error_count(domain)
                                 # Record proxy success
                                 response_time = amp_response.elapsed.total_seconds()
-                                self.proxy_manager.record_success(response_time=response_time)
+                                self.proxy_manager.record_success(
+                                    response_time=response_time
+                                )
                                 # Note: article.html already set above, will parse after this block
                             else:
                                 # AMP bypass failed, record and continue to fallback
-                                logger.warning(f"❌ AMP bypass failed for {domain}, trying Selenium")
+                                logger.warning(
+                                    f"❌ AMP bypass failed for {domain}, trying Selenium"
+                                )
                                 self._mark_domain_amp_supported(domain, False)
-                                
+
                                 # Record AMP bypass failure
                                 self.bot_sensitivity_manager.record_bot_detection(
                                     host=domain,
@@ -3210,26 +3242,32 @@ class ContentExtractor:
                                         "protection_type": protection_type,
                                     },
                                 )
-                                
+
                                 # Continue with normal fallback flow
                                 if self._is_js_required_protection(protection_type):
                                     self._mark_domain_special_extraction(
                                         domain, protection_type
                                     )
-                                
+
                                 # Record bot detection event
-                                is_captcha = self._is_js_required_protection(protection_type)
+                                is_captcha = self._is_js_required_protection(
+                                    protection_type
+                                )
                                 event_type = (
-                                    "captcha_detected" if is_captcha else "403_forbidden"
+                                    "captcha_detected"
+                                    if is_captcha
+                                    else "403_forbidden"
                                 )
                                 self.bot_sensitivity_manager.record_bot_detection(
                                     host=domain,
                                     url=url,
                                     event_type=event_type,
                                     http_status_code=response.status_code,
-                                    response_indicators={"protection_type": protection_type},
+                                    response_indicators={
+                                        "protection_type": protection_type
+                                    },
                                 )
-                                
+
                                 raise Exception(
                                     f"Bot protection on {domain}: "
                                     f"{protection_type} ({response.status_code}) - will try Selenium"
@@ -3242,7 +3280,9 @@ class ContentExtractor:
                                 )
 
                             # Record bot detection event
-                            is_captcha = self._is_js_required_protection(protection_type)
+                            is_captcha = self._is_js_required_protection(
+                                protection_type
+                            )
                             event_type = (
                                 "captcha_detected" if is_captcha else "403_forbidden"
                             )
@@ -3251,7 +3291,9 @@ class ContentExtractor:
                                 url=url,
                                 event_type=event_type,
                                 http_status_code=response.status_code,
-                                response_indicators={"protection_type": protection_type},
+                                response_indicators={
+                                    "protection_type": protection_type
+                                },
                             )
 
                             # Raise regular Exception to allow Selenium fallback
@@ -4407,8 +4449,7 @@ class ContentExtractor:
             driver.execute_script(
                 "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
             )
-            driver.execute_script(
-                """
+            driver.execute_script("""
                 // Override plugins to appear more legitimate
                 Object.defineProperty(navigator, 'plugins', {
                     get: () => [1, 2, 3, 4, 5]
@@ -4426,8 +4467,7 @@ class ContentExtractor:
                         Promise.resolve({ state: Notification.permission }) :
                         originalQuery(parameters)
                 );
-                """
-            )
+                """)
         except Exception as e:
             logger.debug(f"Manual stealth enhancements failed (non-fatal): {e}")
 
@@ -4537,8 +4577,7 @@ class ContentExtractor:
             "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
         )
 
-        driver.execute_script(
-            """
+        driver.execute_script("""
             // Override plugins
             Object.defineProperty(navigator, 'plugins', {
                 get: () => [1, 2, 3, 4, 5]
@@ -4558,8 +4597,7 @@ class ContentExtractor:
             Object.defineProperty(navigator, 'permissions', {
                 get: () => undefined
             });
-        """
-        )
+        """)
 
         # Set timeouts - use longer timeouts for headful to allow JS challenges to resolve
         if headless_mode:
@@ -4887,15 +4925,13 @@ class ContentExtractor:
                 for _ in range(1):  # Reduced from 2 iterations
                     x = random.randint(100, 800)
                     y = random.randint(100, 600)
-                    driver.execute_script(
-                        f"""
+                    driver.execute_script(f"""
                         var event = new MouseEvent('mousemove', {{
                             clientX: {x},
                             clientY: {y}
                         }});
                         document.dispatchEvent(event);
-                    """
-                    )
+                    """)
                     time.sleep(0.1)  # Reduced from 0.1-0.3 seconds
 
         except Exception as e:
