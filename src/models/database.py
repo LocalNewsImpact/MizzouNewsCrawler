@@ -1274,14 +1274,12 @@ def bulk_insert_candidate_links(
                 if "postgresql" in engine.dialect.name:
                     # PostgreSQL: Use information_schema
                     res = conn.execute(
-                        text(
-                            """
+                        text("""
                             SELECT column_name
                             FROM information_schema.columns
                             WHERE table_name = :table_name
                             ORDER BY ordinal_position
-                            """
-                        ),
+                            """),
                         {"table_name": tbl_name},
                     )
                     return [r[0] for r in res.fetchall()]
@@ -1622,14 +1620,12 @@ def bulk_insert_articles(
                 if "postgresql" in engine.dialect.name:
                     # PostgreSQL: Use information_schema
                     res = conn.execute(
-                        text(
-                            """
+                        text("""
                             SELECT column_name
                             FROM information_schema.columns
                             WHERE table_name = :table_name
                             ORDER BY ordinal_position
-                            """
-                        ),
+                            """),
                         {"table_name": tbl_name},
                     )
                     return [r[0] for r in res.fetchall()]

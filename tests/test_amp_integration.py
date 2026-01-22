@@ -58,8 +58,7 @@ VALID_AMP_HTML = """
 </html>
 """
 
-REGULAR_HTML = (
-    """
+REGULAR_HTML = """
 <!DOCTYPE html>
 <html>
 <head>
@@ -73,9 +72,7 @@ REGULAR_HTML = (
     </article>
 </body>
 </html>
-"""
-    * 5
-)  # Make it long enough
+""" * 5  # Make it long enough
 
 
 class TestAMPBypassIntegration:

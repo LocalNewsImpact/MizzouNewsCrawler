@@ -273,14 +273,12 @@ def test_cloud_sql_join_articles_sources(cloud_sql_session):
     """
     from sqlalchemy import text
 
-    query = text(
-        """
+    query = text("""
         SELECT a.id, a.title, cl.source
         FROM articles a
         JOIN candidate_links cl ON a.candidate_link_id = cl.id
         LIMIT 10
-    """
-    )
+    """)
 
     results = cloud_sql_session.execute(query).fetchall()
 
@@ -300,14 +298,12 @@ def test_cloud_sql_join_articles_reviews(cloud_sql_session):
     """
     from sqlalchemy import text
 
-    query = text(
-        """
+    query = text("""
         SELECT a.id, r.reviewer
         FROM articles a
         LEFT JOIN reviews r ON a.id = r.article_uid
         LIMIT 10
-    """
-    )
+    """)
 
     results = cloud_sql_session.execute(query).fetchall()
 
@@ -325,14 +321,12 @@ def test_cloud_sql_distinct_counties(cloud_sql_session):
     """
     from sqlalchemy import text
 
-    query = text(
-        """
+    query = text("""
         SELECT DISTINCT cl.source_county
         FROM candidate_links cl
         WHERE cl.source_county IS NOT NULL
         ORDER BY cl.source_county
-    """
-    )
+    """)
 
     results = cloud_sql_session.execute(query).fetchall()
 
@@ -349,14 +343,12 @@ def test_cloud_sql_distinct_reviewers(cloud_sql_session):
     """
     from sqlalchemy import text
 
-    query = text(
-        """
+    query = text("""
         SELECT DISTINCT reviewer
         FROM reviews
         WHERE reviewer IS NOT NULL
         ORDER BY reviewer
-    """
-    )
+    """)
 
     results = cloud_sql_session.execute(query).fetchall()
 
@@ -403,15 +395,13 @@ def test_cloud_sql_performance_large_query(cloud_sql_session):
     start_time = time.time()
 
     # Query that simulates /api/articles with proper joins
-    query = text(
-        """
+    query = text("""
         SELECT a.id, a.title, cl.source, cl.source_county
         FROM articles a
         JOIN candidate_links cl ON a.candidate_link_id = cl.id
         ORDER BY a.created_at DESC
         LIMIT 100
-    """
-    )
+    """)
 
     results = cloud_sql_session.execute(query).fetchall()
     elapsed_time = time.time() - start_time

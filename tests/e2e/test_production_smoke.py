@@ -51,18 +51,14 @@ class TestSectionURLExtraction:
         """
         with production_db.get_session() as session:
             # Check that we have section URLs in the database
-            result = session.execute(
-                text(
-                    """
+            result = session.execute(text("""
                 SELECT
                     COUNT(*) as sources_with_sections,
                     MIN(section_last_updated) as oldest,
                     MAX(section_last_updated) as newest
                 FROM sources
                 WHERE discovered_sections IS NOT NULL
-            """
-                )
-            ).fetchone()
+            """)).fetchone()
 
             section_count, oldest, newest = result
 
@@ -89,18 +85,14 @@ class TestSectionURLExtraction:
         """
         with production_db.get_session() as session:
             # Check that sources have section discovery enabled
-            result = session.execute(
-                text(
-                    """
+            result = session.execute(text("""
                 SELECT
                     COUNT(*) as total_active,
                     COUNT(CASE WHEN section_discovery_enabled THEN 1 END) as enabled_count,
                     COUNT(CASE WHEN discovered_sections IS NOT NULL THEN 1 END) as with_sections
                 FROM sources
                 WHERE status = 'active'
-            """
-                )
-            ).fetchone()
+            """)).fetchone()
 
             total_active, enabled_count, with_sections = result
 
@@ -127,28 +119,20 @@ class TestSectionURLExtraction:
         """
         with production_db.get_session() as session:
             # Check for discoveries using section_supplemental method
-            result = session.execute(
-                text(
-                    """
+            result = session.execute(text("""
                 SELECT COUNT(*) as section_discoveries
                 FROM candidate_links
                 WHERE discovered_at >= NOW() - INTERVAL '7 days'
                 AND discovered_by = 'section_supplemental'
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             # Verify infrastructure is ready
-            sources_ready = session.execute(
-                text(
-                    """
+            sources_ready = session.execute(text("""
                 SELECT COUNT(*)
                 FROM sources
                 WHERE discovered_sections IS NOT NULL
                 AND section_discovery_enabled = true
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             assert (
                 sources_ready > 0
@@ -176,9 +160,7 @@ class TestExtractionPipeline:
         """
         with production_db.get_session() as session:
             # Get pipeline statistics for last 24 hours
-            result = session.execute(
-                text(
-                    """
+            result = session.execute(text("""
                 SELECT
                     COUNT(DISTINCT cl.id) as discovered,
                     COUNT(DISTINCT CASE WHEN cl.status = 'article' THEN cl.id END) as verified,
@@ -187,9 +169,7 @@ class TestExtractionPipeline:
                 FROM candidate_links cl
                 LEFT JOIN articles a ON cl.id = a.candidate_link_id
                 WHERE cl.discovered_at >= NOW() - INTERVAL '24 hours'
-            """
-                )
-            ).fetchone()
+            """)).fetchone()
 
             discovered, verified, extracted, avg_time = result
 
@@ -227,9 +207,7 @@ class TestExtractionPipeline:
         """
         with production_db.get_session() as session:
             # Check recent extractions for quality
-            result = session.execute(
-                text(
-                    """
+            result = session.execute(text("""
                 SELECT
                     COUNT(*) as total,
                     COUNT(CASE WHEN LENGTH(text) > 100 THEN 1 END) as has_text,
@@ -239,9 +217,7 @@ class TestExtractionPipeline:
                     AVG(LENGTH(text)) as avg_text_length
                 FROM articles
                 WHERE extracted_at >= NOW() - INTERVAL '1 hour'
-            """
-                )
-            ).fetchone()
+            """)).fetchone()
 
             total, has_text, has_title, has_author, has_date, avg_length = result
 
@@ -280,17 +256,13 @@ class TestTelemetrySystem:
         """
         with production_db.get_session() as session:
             # Check recent telemetry writes
-            result = session.execute(
-                text(
-                    """
+            result = session.execute(text("""
                 SELECT
                     MAX(created_at) as last_write,
                     COUNT(*) as recent_count
                 FROM content_cleaning_segments
                 WHERE created_at >= NOW() - INTERVAL '1 hour'
-            """
-                )
-            ).fetchone()
+            """)).fetchone()
 
             last_write, count = result
 
@@ -314,16 +286,12 @@ class TestTelemetrySystem:
         """
         with production_db.get_session() as session:
             # Check column types
-            result = session.execute(
-                text(
-                    """
+            result = session.execute(text("""
                 SELECT column_name, data_type
                 FROM information_schema.columns
                 WHERE table_name IN ('content_cleaning_segments', 'content_cleaning_wire_events')
                 AND column_name LIKE '%hash%'
-            """
-                )
-            ).fetchall()
+            """)).fetchall()
 
             for col_name, data_type in result:
                 assert (
@@ -331,15 +299,11 @@ class TestTelemetrySystem:
                 ), f"Column {col_name} is {data_type}, should be bigint - migration may have failed"
 
             # Check for large hash values (would fail with INTEGER)
-            result = session.execute(
-                text(
-                    """
+            result = session.execute(text("""
                 SELECT COUNT(*)
                 FROM content_cleaning_segments
                 WHERE ABS(segment_text_hash) > 2147483647
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             # If we have data, some should have large hashes
             total = session.execute(
@@ -361,9 +325,7 @@ class TestDataIntegrity:
     def test_no_orphaned_articles(self, production_db):
         """Verify articles are properly linked to candidate_links."""
         with production_db.get_session() as session:
-            orphans = session.execute(
-                text(
-                    """
+            orphans = session.execute(text("""
                 SELECT COUNT(*)
                 FROM articles a
                 WHERE a.candidate_link_id IS NOT NULL
@@ -371,9 +333,7 @@ class TestDataIntegrity:
                     SELECT 1 FROM candidate_links cl
                     WHERE cl.id = a.candidate_link_id
                 )
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             assert (
                 orphans == 0
@@ -382,17 +342,13 @@ class TestDataIntegrity:
     def test_no_duplicate_extractions(self, production_db):
         """Verify no duplicate extractions for the same URL."""
         with production_db.get_session() as session:
-            duplicates = session.execute(
-                text(
-                    """
+            duplicates = session.execute(text("""
                 SELECT url, COUNT(*) as dup_count
                 FROM articles
                 GROUP BY url
                 HAVING COUNT(*) > 1
                 LIMIT 5
-            """
-                )
-            ).fetchall()
+            """)).fetchall()
 
             if duplicates:
                 dup_urls = [row[0] for row in duplicates[:3]]
@@ -401,9 +357,7 @@ class TestDataIntegrity:
     def test_source_metadata_complete(self, production_db):
         """Verify active sources have required metadata."""
         with production_db.get_session() as session:
-            incomplete = session.execute(
-                text(
-                    """
+            incomplete = session.execute(text("""
                 SELECT COUNT(*)
                 FROM sources
                 WHERE status = 'active'
@@ -413,9 +367,7 @@ class TestDataIntegrity:
                     OR city IS NULL
                     OR county IS NULL
                 )
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             assert (
                 incomplete == 0
@@ -438,28 +390,20 @@ class TestErrorRecoveryAndResilience:
         """
         with production_db.get_session() as session:
             # Check for articles with null/empty content (extraction failures)
-            failed_extractions = session.execute(
-                text(
-                    """
+            failed_extractions = session.execute(text("""
                 SELECT COUNT(*) as failed_count
                 FROM articles
                 WHERE (text IS NULL OR LENGTH(TRIM(text)) < 50)
                 AND extracted_at >= NOW() - INTERVAL '6 hours'
                 AND status = 'extracted'
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             # Some failures are expected, but should be rare (<5%)
-            total_recent = session.execute(
-                text(
-                    """
+            total_recent = session.execute(text("""
                 SELECT COUNT(*)
                 FROM articles
                 WHERE extracted_at >= NOW() - INTERVAL '6 hours'
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             if total_recent > 100:
                 failure_rate = failed_extractions / total_recent
@@ -469,9 +413,7 @@ class TestErrorRecoveryAndResilience:
                 )
 
             # Failed URLs should still be in candidate_links (not deleted)
-            orphaned = session.execute(
-                text(
-                    """
+            orphaned = session.execute(text("""
                 SELECT COUNT(*)
                 FROM articles a
                 WHERE a.candidate_link_id IS NOT NULL
@@ -480,9 +422,7 @@ class TestErrorRecoveryAndResilience:
                     WHERE cl.id = a.candidate_link_id
                 )
                 AND a.extracted_at >= NOW() - INTERVAL '6 hours'
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             assert orphaned == 0, (
                 f"Found {orphaned} orphaned articles - "
@@ -501,17 +441,13 @@ class TestErrorRecoveryAndResilience:
         """
         with production_db.get_session() as session:
             # Check for any duplicate URLs (should be zero)
-            duplicates = session.execute(
-                text(
-                    """
+            duplicates = session.execute(text("""
                 SELECT url, COUNT(*) as count
                 FROM articles
                 WHERE extracted_at >= NOW() - INTERVAL '7 days'
                 GROUP BY url
                 HAVING COUNT(*) > 1
-            """
-                )
-            ).fetchall()
+            """)).fetchall()
 
             if duplicates:
                 dup_list = [(row[0][:80], row[1]) for row in duplicates[:5]]
@@ -521,33 +457,25 @@ class TestErrorRecoveryAndResilience:
                 )
 
             # Verify constraint is defined in database schema
-            constraint_exists = session.execute(
-                text(
-                    """
+            constraint_exists = session.execute(text("""
                 SELECT constraint_type
                 FROM information_schema.table_constraints
                 WHERE table_name = 'articles'
                 AND constraint_type = 'UNIQUE'
                 AND constraint_name ILIKE '%url%'
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             assert (
                 constraint_exists
             ), "Unique constraint on articles.url not found - may not be enforced"
 
             # Check for high rate of duplicate extraction attempts
-            recent_urls = session.execute(
-                text(
-                    """
+            recent_urls = session.execute(text("""
                 SELECT COUNT(DISTINCT url) as unique_urls,
                        COUNT(*) as total_articles
                 FROM articles
                 WHERE extracted_at >= NOW() - INTERVAL '1 day'
-            """
-                )
-            ).fetchone()
+            """)).fetchone()
 
             if recent_urls and recent_urls[1] > 0:
                 uniqueness_ratio = recent_urls[0] / recent_urls[1]
@@ -569,18 +497,14 @@ class TestErrorRecoveryAndResilience:
         with production_db.get_session() as session:
             # Test basic connectivity and query
             try:
-                result = session.execute(
-                    text(
-                        """
+                result = session.execute(text("""
                     SELECT
                         version() as db_version,
                         NOW() as server_time,
                         COUNT(*) as article_count
                     FROM articles
                     LIMIT 1
-                """
-                    )
-                ).fetchone()
+                """)).fetchone()
 
                 assert result is not None, "Database query returned no result"
 
@@ -588,17 +512,13 @@ class TestErrorRecoveryAndResilience:
                 pytest.fail(f"Database connection failed: {e}")
 
             # Check for long-running queries that might indicate stuck connections
-            long_queries = session.execute(
-                text(
-                    """
+            long_queries = session.execute(text("""
                 SELECT COUNT(*)
                 FROM pg_stat_activity
                 WHERE state = 'active'
                 AND query_start < NOW() - INTERVAL '5 minutes'
                 AND pid != pg_backend_pid()
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             # Some long queries acceptable, but excessive indicates issues
             assert long_queries < 10, (
@@ -607,15 +527,11 @@ class TestErrorRecoveryAndResilience:
             )
 
             # Verify statement timeout is configured
-            statement_timeout = session.execute(
-                text(
-                    """
+            statement_timeout = session.execute(text("""
                 SELECT setting
                 FROM pg_settings
                 WHERE name = 'statement_timeout'
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             # Should have a timeout set (not 0)
             if statement_timeout:
@@ -637,9 +553,7 @@ class TestErrorRecoveryAndResilience:
         """
         with production_db.get_session() as session:
             # Check for consistency between articles and article_entities
-            inconsistent = session.execute(
-                text(
-                    """
+            inconsistent = session.execute(text("""
                 SELECT
                     COUNT(*) as articles_without_entities_when_classified
                 FROM articles a
@@ -649,9 +563,7 @@ class TestErrorRecoveryAndResilience:
                     SELECT 1 FROM article_entities ae
                     WHERE ae.article_id = a.id
                 )
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             # Some articles may legitimately have no entities,
             # but shouldn't be classified without them
@@ -661,17 +573,13 @@ class TestErrorRecoveryAndResilience:
             )
 
             # Check for articles with labels but missing required fields
-            incomplete_labeled = session.execute(
-                text(
-                    """
+            incomplete_labeled = session.execute(text("""
                 SELECT COUNT(*)
                 FROM articles a
                 INNER JOIN article_labels al ON a.id = al.article_id
                 WHERE (a.text IS NULL OR LENGTH(TRIM(a.text)) < 100)
                 AND a.extracted_at >= NOW() - INTERVAL '6 hours'
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             assert incomplete_labeled < 5, (
                 f"Found {incomplete_labeled} labeled articles with "
@@ -680,18 +588,14 @@ class TestErrorRecoveryAndResilience:
             )
 
             # Verify status transitions are consistent
-            invalid_status = session.execute(
-                text(
-                    """
+            invalid_status = session.execute(text("""
                 SELECT COUNT(DISTINCT a.id)
                 FROM articles a
                 WHERE (
                     (a.status = 'extracted' AND a.primary_label IS NOT NULL) OR
                     (a.status = 'classified' AND a.primary_label IS NULL)
                 )
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             assert invalid_status == 0, (
                 f"Found {invalid_status} articles with inconsistent "
@@ -711,9 +615,7 @@ class TestErrorRecoveryAndResilience:
         """
         with production_db.get_session() as session:
             # Find candidate_links that have been attempted multiple times
-            retry_candidates = session.execute(
-                text(
-                    """
+            retry_candidates = session.execute(text("""
                 SELECT COUNT(DISTINCT cl.id) as retry_count
                 FROM candidate_links cl
                 LEFT JOIN articles a ON cl.id = a.candidate_link_id
@@ -724,23 +626,17 @@ class TestErrorRecoveryAndResilience:
                     WHERE a2.candidate_link_id = cl.id
                     AND a2.extracted_at >= NOW() - INTERVAL '1 day'
                 )
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             # Some URLs may be in retry queue
             logger.info(f"Found {retry_candidates} candidate_links eligible for retry")
 
             # Verify candidate_links don't have a "failed" or "blocked" status
-            blocked = session.execute(
-                text(
-                    """
+            blocked = session.execute(text("""
                 SELECT COUNT(*)
                 FROM candidate_links
                 WHERE status IN ('failed', 'blocked', 'error')
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             assert blocked == 0, (
                 f"Found {blocked} candidate_links with blocked "
@@ -748,9 +644,7 @@ class TestErrorRecoveryAndResilience:
             )
 
             # Check extraction success rate for URLs attempted multiple times
-            multi_attempt = session.execute(
-                text(
-                    """
+            multi_attempt = session.execute(text("""
                 SELECT
                     COUNT(DISTINCT cl.id) as attempted,
                     COUNT(DISTINCT a.id) as successful
@@ -758,9 +652,7 @@ class TestErrorRecoveryAndResilience:
                 LEFT JOIN articles a ON cl.id = a.candidate_link_id
                 WHERE cl.status = 'article'
                 AND cl.last_verified_at >= NOW() - INTERVAL '7 days'
-            """
-                )
-            ).fetchone()
+            """)).fetchone()
 
             if multi_attempt and multi_attempt[0] > 100:
                 success_calc = (
@@ -788,16 +680,12 @@ class TestDataPipelineConsistency:
         """
         with production_db.get_session() as session:
             # Find recently verified URLs
-            verified_urls = session.execute(
-                text(
-                    """
+            verified_urls = session.execute(text("""
                 SELECT COUNT(*) as count
                 FROM candidate_links
                 WHERE status = 'article'
                 AND status_updated_at >= NOW() - INTERVAL '24 hours'
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             # Should have URLs transitioning through verification
             assert (
@@ -805,17 +693,13 @@ class TestDataPipelineConsistency:
             ), "No URLs verified in last 24h - verification may not be running"
 
             # Check for any stuck in intermediate states
-            stuck = session.execute(
-                text(
-                    """
+            stuck = session.execute(text("""
                 SELECT COUNT(*)
                 FROM candidate_links
                 WHERE status NOT IN
                     ('discovered', 'article', 'non-article', 'failed')
                 AND created_at >= NOW() - INTERVAL '7 days'
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             assert stuck == 0, (
                 f"Found {stuck} URLs in unknown status - "
@@ -823,16 +707,12 @@ class TestDataPipelineConsistency:
             )
 
             # Verify status timestamps progress forward
-            bad_timestamps = session.execute(
-                text(
-                    """
+            bad_timestamps = session.execute(text("""
                 SELECT COUNT(*)
                 FROM candidate_links
                 WHERE status_updated_at < created_at
                 AND created_at >= NOW() - INTERVAL '7 days'
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             assert bad_timestamps == 0, (
                 f"Found {bad_timestamps} URLs with reversed timestamps - "
@@ -851,32 +731,24 @@ class TestDataPipelineConsistency:
         """
         with production_db.get_session() as session:
             # Find recently extracted articles
-            recent_extractions = session.execute(
-                text(
-                    """
+            recent_extractions = session.execute(text("""
                 SELECT COUNT(*)
                 FROM articles
                 WHERE extracted_at >= NOW() - INTERVAL '24 hours'
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             assert (
                 recent_extractions > 0
             ), "No articles extracted in last 24h - extraction may not work"
 
             # All articles should link to 'article' status candidate_links
-            bad_links = session.execute(
-                text(
-                    """
+            bad_links = session.execute(text("""
                 SELECT COUNT(*)
                 FROM articles a
                 JOIN candidate_links cl ON a.candidate_link_id = cl.id
                 WHERE cl.status NOT IN ('article', 'extracted', 'non-article')
                 AND a.extracted_at >= NOW() - INTERVAL '7 days'
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             assert bad_links == 0, (
                 f"Found {bad_links} articles from non-article candidate_links - "
@@ -884,17 +756,13 @@ class TestDataPipelineConsistency:
             )
 
             # Extraction timestamp should be after verification
-            bad_timing = session.execute(
-                text(
-                    """
+            bad_timing = session.execute(text("""
                 SELECT COUNT(*)
                 FROM articles a
                 JOIN candidate_links cl ON a.candidate_link_id = cl.id
                 WHERE a.extracted_at < cl.status_updated_at
                 AND a.extracted_at >= NOW() - INTERVAL '7 days'
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             assert bad_timing == 0, (
                 f"Found {bad_timing} articles extracted before verification - "
@@ -913,28 +781,20 @@ class TestDataPipelineConsistency:
         """
         with production_db.get_session() as session:
             # Find recently cleaned articles
-            cleaned_articles = session.execute(
-                text(
-                    """
+            cleaned_articles = session.execute(text("""
                 SELECT COUNT(*)
                 FROM articles
                 WHERE status = 'cleaned'
                 AND extracted_at >= NOW() - INTERVAL '24 hours'
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             # Should have cleaned articles if extraction is running
-            extracted = session.execute(
-                text(
-                    """
+            extracted = session.execute(text("""
                 SELECT COUNT(*)
                 FROM articles
                 WHERE status = 'extracted'
                 AND extracted_at >= NOW() - INTERVAL '24 hours'
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             if extracted > 10:
                 # If we have many extracted, should have some cleaned
@@ -943,17 +803,13 @@ class TestDataPipelineConsistency:
                 ), "No cleaned articles - cleaning pipeline may not run"
 
             # Cleaned articles should have content
-            cleaned_without_content = session.execute(
-                text(
-                    """
+            cleaned_without_content = session.execute(text("""
                 SELECT COUNT(*)
                 FROM articles
                 WHERE status IN ('cleaned', 'classified')
                 AND (content IS NULL OR LENGTH(TRIM(content)) < 50)
                 AND extracted_at >= NOW() - INTERVAL '24 hours'
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             assert cleaned_without_content == 0, (
                 f"Found {cleaned_without_content} cleaned articles "
@@ -972,34 +828,26 @@ class TestDataPipelineConsistency:
         """
         with production_db.get_session() as session:
             # Articles can go directly to classified or through cleaned
-            classified = session.execute(
-                text(
-                    """
+            classified = session.execute(text("""
                 SELECT COUNT(*)
                 FROM articles
                 WHERE status IN ('classified', 'local', 'wire',
                                 'opinion', 'obituary')
                 AND extracted_at >= NOW() - INTERVAL '24 hours'
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             # Should have classified articles
             assert classified > 0, "No classified articles - ML pipeline may not run"
 
             # All classified articles should have labels
-            no_labels = session.execute(
-                text(
-                    """
+            no_labels = session.execute(text("""
                 SELECT COUNT(*)
                 FROM articles
                 WHERE status IN ('classified', 'local', 'wire',
                                 'opinion', 'obituary')
                 AND primary_label IS NULL
                 AND extracted_at >= NOW() - INTERVAL '24 hours'
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             assert no_labels == 0, (
                 f"Found {no_labels} classified articles without labels - "
@@ -1007,9 +855,7 @@ class TestDataPipelineConsistency:
             )
 
             # Labels should have reasonable confidence
-            low_confidence = session.execute(
-                text(
-                    """
+            low_confidence = session.execute(text("""
                 SELECT COUNT(*)
                 FROM articles a
                 WHERE a.status IN
@@ -1020,9 +866,7 @@ class TestDataPipelineConsistency:
                     AND al.confidence < 0.3
                 )
                 AND a.extracted_at >= NOW() - INTERVAL '24 hours'
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             # Some low confidence is ok, but shouldn't be excessive
             if classified > 50:
@@ -1043,45 +887,35 @@ class TestDataPipelineConsistency:
         """
         with production_db.get_session() as session:
             # Check entities lineage
-            orphaned_entities = session.execute(
-                text(
-                    """
+            orphaned_entities = session.execute(text("""
                 SELECT COUNT(*)
                 FROM article_entities ae
                 WHERE NOT EXISTS (
                     SELECT 1 FROM articles a
                     WHERE a.id = ae.article_id
                 )
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             assert orphaned_entities == 0, (
                 f"Found {orphaned_entities} orphaned entities - " f"lineage broken"
             )
 
             # Check labels lineage
-            orphaned_labels = session.execute(
-                text(
-                    """
+            orphaned_labels = session.execute(text("""
                 SELECT COUNT(*)
                 FROM article_labels al
                 WHERE NOT EXISTS (
                     SELECT 1 FROM articles a
                     WHERE a.id = al.article_id
                 )
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             assert orphaned_labels == 0, (
                 f"Found {orphaned_labels} orphaned labels - " f"lineage broken"
             )
 
             # Check article-candidate_link lineage
-            orphaned_articles = session.execute(
-                text(
-                    """
+            orphaned_articles = session.execute(text("""
                 SELECT COUNT(*)
                 FROM articles a
                 WHERE a.candidate_link_id IS NOT NULL
@@ -1089,9 +923,7 @@ class TestDataPipelineConsistency:
                     SELECT 1 FROM candidate_links cl
                     WHERE cl.id = a.candidate_link_id
                 )
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             assert orphaned_articles == 0, (
                 f"Found {orphaned_articles} orphaned articles - "
@@ -1110,9 +942,7 @@ class TestDataPipelineConsistency:
         """
         with production_db.get_session() as session:
             # Check for inconsistent label states
-            bad_label_state = session.execute(
-                text(
-                    """
+            bad_label_state = session.execute(text("""
                 SELECT COUNT(*)
                 FROM articles a
                 WHERE (
@@ -1122,9 +952,7 @@ class TestDataPipelineConsistency:
                     'opinion', 'obituary') AND a.primary_label IS NULL)
                 )
                 AND a.extracted_at >= NOW() - INTERVAL '24 hours'
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             assert bad_label_state == 0, (
                 f"Found {bad_label_state} articles with "
@@ -1132,9 +960,7 @@ class TestDataPipelineConsistency:
             )
 
             # Check for partial entity extraction
-            partial_entities = session.execute(
-                text(
-                    """
+            partial_entities = session.execute(text("""
                 SELECT a.id, COUNT(ae.id) as entity_count
                 FROM articles a
                 LEFT JOIN article_entities ae ON a.id = ae.article_id
@@ -1143,9 +969,7 @@ class TestDataPipelineConsistency:
                 AND a.extracted_at >= NOW() - INTERVAL '24 hours'
                 GROUP BY a.id
                 HAVING COUNT(ae.id) = 0
-            """
-                )
-            ).fetchall()
+            """)).fetchall()
 
             if partial_entities:
                 bad_count = len(partial_entities)
@@ -1158,18 +982,14 @@ class TestDataPipelineConsistency:
                     )
 
             # Check content vs status consistency
-            bad_content = session.execute(
-                text(
-                    """
+            bad_content = session.execute(text("""
                 SELECT COUNT(*)
                 FROM articles
                 WHERE status IN ('classified', 'local', 'wire',
                                 'opinion', 'obituary')
                 AND (content IS NULL OR LENGTH(TRIM(content)) < 100)
                 AND extracted_at >= NOW() - INTERVAL '24 hours'
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             assert bad_content == 0, (
                 f"Found {bad_content} classified articles without content - "
@@ -1188,9 +1008,7 @@ class TestDataPipelineConsistency:
         """
         with production_db.get_session() as session:
             # Check timestamp ordering for recently processed URLs
-            bad_order = session.execute(
-                text(
-                    """
+            bad_order = session.execute(text("""
                 SELECT COUNT(*)
                 FROM (
                     SELECT
@@ -1208,27 +1026,21 @@ class TestDataPipelineConsistency:
                     AND discovered_at <= verified_at
                     AND verified_at <= extracted_at
                 )
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             assert bad_order == 0, (
                 f"Found {bad_order} pipeline items with " f"out-of-order timestamps"
             )
 
             # Check for reasonable processing delays
-            slow_verification = session.execute(
-                text(
-                    """
+            slow_verification = session.execute(text("""
                 SELECT COUNT(*)
                 FROM candidate_links
                 WHERE status = 'article'
                 AND EXTRACT(EPOCH FROM
                     (status_updated_at - discovered_at)) > 86400
                 AND discovered_at >= NOW() - INTERVAL '7 days'
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             if slow_verification > 100:
                 logger.warning(
@@ -1237,18 +1049,14 @@ class TestDataPipelineConsistency:
                 )
 
             # Check extraction latency
-            slow_extraction = session.execute(
-                text(
-                    """
+            slow_extraction = session.execute(text("""
                 SELECT COUNT(*)
                 FROM candidate_links cl
                 JOIN articles a ON cl.id = a.candidate_link_id
                 WHERE EXTRACT(EPOCH FROM
                     (a.extracted_at - cl.status_updated_at)) > 3600
                 AND cl.status_updated_at >= NOW() - INTERVAL '7 days'
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             if slow_extraction > 50:
                 logger.warning(
@@ -1273,9 +1081,7 @@ class TestContentCleaningPipeline:
         """
         with production_db.get_session() as session:
             # Check articles with cleaned content from last 24 hours
-            result = session.execute(
-                text(
-                    """
+            result = session.execute(text("""
                 SELECT
                     COUNT(*) as total_extracted,
                     COUNT(CASE
@@ -1292,9 +1098,7 @@ class TestContentCleaningPipeline:
                 WHERE extracted_at >= NOW() - INTERVAL '24 hours'
                 AND status IN ('cleaned', 'classified', 'local', 'wire',
                                'opinion', 'obituary')
-            """
-                )
-            ).fetchone()
+            """)).fetchone()
 
             total_extracted, cleaned_count, avg_latency = result
 
@@ -1323,9 +1127,7 @@ class TestContentCleaningPipeline:
         """
         with production_db.get_session() as session:
             # Check content reduction statistics
-            result = session.execute(
-                text(
-                    """
+            result = session.execute(text("""
                 SELECT
                     COUNT(*) as cleaned_articles,
                     AVG(LENGTH(COALESCE(content, ''))) as avg_original_length,
@@ -1347,9 +1149,7 @@ class TestContentCleaningPipeline:
                                  'opinion', 'obituary')
                 AND extracted_at >= NOW() - INTERVAL '24 hours'
                 AND cleaned_content IS NOT NULL
-            """
-                )
-            ).fetchone()
+            """)).fetchone()
 
             cleaned_count, avg_orig, avg_clean, min_ratio, max_ratio = result
 
@@ -1389,9 +1189,7 @@ class TestContentCleaningPipeline:
         """
         with production_db.get_session() as session:
             # Check byline/author extraction quality
-            result = session.execute(
-                text(
-                    """
+            result = session.execute(text("""
                 SELECT
                     COUNT(*) as total_articles,
                     COUNT(CASE
@@ -1413,9 +1211,7 @@ class TestContentCleaningPipeline:
                 WHERE status IN ('cleaned', 'classified', 'local', 'wire',
                                  'opinion', 'obituary')
                 AND extracted_at >= NOW() - INTERVAL '24 hours'
-            """
-                )
-            ).fetchone()
+            """)).fetchone()
 
             total, valid_authors, avg_len, wire_in_author = result
 
@@ -1451,9 +1247,7 @@ class TestContentCleaningPipeline:
         """
         with production_db.get_session() as session:
             # Check wire service article classification
-            result = session.execute(
-                text(
-                    """
+            result = session.execute(text("""
                 SELECT
                     COUNT(CASE WHEN status = 'wire' THEN 1 END) as wire_articles,
                     COUNT(CASE WHEN status = 'local' THEN 1 END) as local_articles,
@@ -1475,9 +1269,7 @@ class TestContentCleaningPipeline:
                     END) as wire_correctly_labeled
                 FROM articles
                 WHERE extracted_at >= NOW() - INTERVAL '7 days'
-            """
-                )
-            ).fetchone()
+            """)).fetchone()
 
             wire_count, local_count, wire_with_svc, labeled = result
 
@@ -1514,9 +1306,7 @@ class TestContentCleaningPipeline:
         """
         with production_db.get_session() as session:
             # Check articles discovered via section URLs
-            result = session.execute(
-                text(
-                    """
+            result = session.execute(text("""
                 SELECT
                     COUNT(DISTINCT cl.id) as section_url_articles,
                     COUNT(CASE
@@ -1533,9 +1323,7 @@ class TestContentCleaningPipeline:
                 LEFT JOIN articles a ON cl.id = a.candidate_link_id
                 WHERE cl.source_type = 'section'
                 AND cl.created_at >= NOW() - INTERVAL '7 days'
-            """
-                )
-            ).fetchone()
+            """)).fetchone()
 
             section_articles, with_cleaned, processed = result
 
@@ -1571,9 +1359,7 @@ class TestMLPipeline:
         """
         with production_db.get_session() as session:
             # Check entity extraction statistics
-            result = session.execute(
-                text(
-                    """
+            result = session.execute(text("""
                 SELECT
                     COUNT(DISTINCT ae.article_id) as articles_with_entities,
                     COUNT(DISTINCT ae.extractor_version) as extractor_versions,
@@ -1586,9 +1372,7 @@ class TestMLPipeline:
                     MAX(ae.match_score) as max_match_score
                 FROM article_entities ae
                 WHERE ae.created_at >= NOW() - INTERVAL '24 hours'
-            """
-                )
-            ).fetchone()
+            """)).fetchone()
 
             articles_ents, versions, with_match, avg_score, min_score, max_score = (
                 result
@@ -1630,9 +1414,7 @@ class TestMLPipeline:
         """
         with production_db.get_session() as session:
             # Check label distribution by article status
-            result = session.execute(
-                text(
-                    """
+            result = session.execute(text("""
                 SELECT
                     a.status,
                     COUNT(DISTINCT a.id) as total_articles,
@@ -1648,9 +1430,7 @@ class TestMLPipeline:
                 WHERE a.extracted_at >= NOW() - INTERVAL '7 days'
                 GROUP BY a.status
                 ORDER BY total_articles DESC
-            """
-                )
-            ).fetchall()
+            """)).fetchall()
 
             status_distribution = {}
             for status, total, labeled, unique, labels in result:
@@ -1699,9 +1479,7 @@ class TestMLPipeline:
         """
         with production_db.get_session() as session:
             # Check entity extractor versions
-            ent_result = session.execute(
-                text(
-                    """
+            ent_result = session.execute(text("""
                 SELECT
                     extractor_version,
                     COUNT(*) as entity_count,
@@ -1712,9 +1490,7 @@ class TestMLPipeline:
                 WHERE created_at >= NOW() - INTERVAL '7 days'
                 GROUP BY extractor_version
                 ORDER BY last_used DESC
-            """
-                )
-            ).fetchall()
+            """)).fetchall()
 
             extractor_versions = {}
             for version, count, articles, first_used, last_used in ent_result:
@@ -1735,9 +1511,7 @@ class TestMLPipeline:
                 ), f"Invalid entity extractor version: {version}"
 
             # Check classification model versions
-            label_result = session.execute(
-                text(
-                    """
+            label_result = session.execute(text("""
                 SELECT
                     label_version,
                     COUNT(*) as label_count,
@@ -1750,9 +1524,7 @@ class TestMLPipeline:
                 GROUP BY label_version
                 ORDER BY last_used DESC
                 LIMIT 5
-            """
-                )
-            ).fetchall()
+            """)).fetchall()
 
             label_versions = {}
             for (
@@ -1793,9 +1565,7 @@ class TestMLPipeline:
         """
         with production_db.get_session() as session:
             # Check entity confidence distribution
-            result = session.execute(
-                text(
-                    """
+            result = session.execute(text("""
                 SELECT
                     entity_label,
                     COUNT(*) as entity_count,
@@ -1814,9 +1584,7 @@ class TestMLPipeline:
                 WHERE created_at >= NOW() - INTERVAL '24 hours'
                 GROUP BY entity_label
                 ORDER BY entity_count DESC
-            """
-                )
-            ).fetchall()
+            """)).fetchall()
 
             for (
                 entity_label,
@@ -1863,9 +1631,7 @@ class TestMLPipeline:
         """
         with production_db.get_session() as session:
             # Check pipeline progression
-            result = session.execute(
-                text(
-                    """
+            result = session.execute(text("""
                 SELECT
                     COUNT(CASE
                         WHEN a.status IN ('extracted', 'cleaned')
@@ -1910,9 +1676,7 @@ class TestMLPipeline:
                 WHERE a.extracted_at >= NOW() - INTERVAL '7 days'
                 AND a.status IN ('cleaned', 'classified', 'local', 'wire',
                                  'opinion', 'obituary')
-            """
-                )
-            ).fetchone()
+            """)).fetchone()
 
             (
                 total_extract,
@@ -1965,9 +1729,7 @@ class TestPerformance:
         """Verify extraction maintains reasonable throughput."""
         with production_db.get_session() as session:
             # Get extractions per hour for last 24 hours
-            result = session.execute(
-                text(
-                    """
+            result = session.execute(text("""
                 SELECT
                     DATE_TRUNC('hour', extracted_at) as hour,
                     COUNT(*) as articles_per_hour
@@ -1976,9 +1738,7 @@ class TestPerformance:
                 GROUP BY hour
                 ORDER BY hour DESC
                 LIMIT 24
-            """
-                )
-            ).fetchall()
+            """)).fetchall()
 
             if result:
                 hourly_rates = [row[1] for row in result]
@@ -1994,16 +1754,12 @@ class TestPerformance:
         """Verify URL verification maintains reasonable throughput."""
         with production_db.get_session() as session:
             # Get verifications in last hour
-            result = session.execute(
-                text(
-                    """
+            result = session.execute(text("""
                 SELECT COUNT(*)
                 FROM candidate_links
                 WHERE status_updated_at >= NOW() - INTERVAL '1 hour'
                 AND status IN ('article', 'non-article')
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             # Should verify at least 100 URLs per hour
             assert (

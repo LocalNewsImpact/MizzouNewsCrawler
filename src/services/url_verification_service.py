@@ -64,16 +64,12 @@ class URLVerificationService:
         ):
             return self._url_path_filters
 
-        result = session.execute(
-            text(
-                """
+        result = session.execute(text("""
                 SELECT path_pattern, filter_type, reason
                 FROM url_path_filters
                 WHERE active = true
                 ORDER BY path_pattern
-            """
-            )
-        )
+            """))
         self._url_path_filters = [
             {"pattern": row[0], "type": row[1], "reason": row[2]}
             for row in result.fetchall()
@@ -367,15 +363,13 @@ class URLVerificationService:
 
         cutoff_time = datetime.now() - timedelta(minutes=1)
 
-        verification_query = text(
-            """
+        verification_query = text("""
             SELECT v.url, v.storysniffer_result, v.verification_error, cl.source_name
             FROM url_verifications v
             JOIN candidate_links cl ON v.candidate_link_id = cl.id
             WHERE v.verification_job_id = :job_id
             AND v.verified_at >= :cutoff_time
-        """
-        )
+        """)
 
         results = safe_session_execute(
             session,

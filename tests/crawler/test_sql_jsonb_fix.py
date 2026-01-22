@@ -53,14 +53,12 @@ class TestJsonbIntegration:
         existing = [failure_record]
 
         # This is the SQL pattern from source_processing.py after fix
-        update_sql = text(
-            """
+        update_sql = text("""
             UPDATE sources SET
                 rss_transient_failures = :val,
                 rss_consecutive_failures = 0
             WHERE id = :id
-            """
-        )
+            """)
 
         # Execute the update - should NOT cause SQL syntax error
         cloud_sql_session.execute(
@@ -109,14 +107,12 @@ class TestJsonbIntegration:
         }
 
         # This is the SQL pattern from source_processing.py
-        update_sql = text(
-            """
+        update_sql = text("""
             UPDATE sources SET
                 discovered_sections = :sections,
                 section_last_updated = :updated_at
             WHERE id = :id
-            """
-        )
+            """)
 
         # Execute the update - should NOT cause SQL syntax error
         cloud_sql_session.execute(

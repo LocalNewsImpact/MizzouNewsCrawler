@@ -1227,16 +1227,14 @@ class NewsDiscovery:
                                 len(recent),
                                 RSS_TRANSIENT_WINDOW_DAYS,
                             )
-                        stmt = text(
-                            """
+                        stmt = text("""
                             UPDATE sources
                             SET rss_transient_failures = :failures,
                                 rss_consecutive_failures = 0,
                                 rss_last_failed_at = :last_failed,
                                 rss_missing_at = :missing
                             WHERE id = :id
-                            """
-                        ).bindparams(bindparam("failures", type_=SA_JSON))
+                            """).bindparams(bindparam("failures", type_=SA_JSON))
                         safe_execute(
                             local_conn,
                             stmt,
@@ -1268,16 +1266,14 @@ class NewsDiscovery:
                         len(recent),
                         RSS_TRANSIENT_WINDOW_DAYS,
                     )
-                stmt = text(
-                    """
+                stmt = text("""
                     UPDATE sources
                     SET rss_transient_failures = :failures,
                         rss_consecutive_failures = 0,
                         rss_last_failed_at = :last_failed,
                         rss_missing_at = :missing
                     WHERE id = :id
-                    """
-                ).bindparams(bindparam("failures", type_=SA_JSON))
+                    """).bindparams(bindparam("failures", type_=SA_JSON))
                 safe_execute(
                     conn,
                     stmt,

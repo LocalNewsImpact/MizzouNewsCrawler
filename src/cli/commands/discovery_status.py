@@ -83,15 +83,13 @@ def handle_discovery_status_command(args) -> int:
             if dataset_label:
                 result = safe_execute(
                     conn,
-                    text(
-                        """
+                    text("""
                         SELECT COUNT(DISTINCT s.id)
                         FROM sources s
                         JOIN dataset_sources ds ON s.id = ds.source_id
                         JOIN datasets d ON ds.dataset_id = d.id
                         WHERE d.label = :label
-                        """
-                    ),
+                        """),
                     {"label": dataset_label},
                 ).fetchone()
                 scope = f" (dataset: {dataset_label})"
@@ -163,8 +161,7 @@ def handle_discovery_status_command(args) -> int:
         with db.engine.connect() as conn:
             recent = safe_execute(
                 conn,
-                text(
-                    """
+                text("""
                     SELECT
                         DATE(discovered_at) as discovery_date,
                         COUNT(*) as url_count
@@ -173,8 +170,7 @@ def handle_discovery_status_command(args) -> int:
                     GROUP BY DATE(discovered_at)
                     ORDER BY discovery_date DESC
                     LIMIT 7
-                    """
-                ),
+                    """),
             ).fetchall()
 
             if recent:

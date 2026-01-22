@@ -101,8 +101,7 @@ def handle_extraction_command(args) -> int:
 
             # Build query for articles to extract
             # Optimized: NOT EXISTS is 20-40x faster than NOT IN
-            query = text(
-                """
+            query = text("""
                 SELECT cl.id, cl.url, cl.source, cl.status
                 FROM candidate_links cl
                 WHERE cl.status = 'article'
@@ -110,8 +109,7 @@ def handle_extraction_command(args) -> int:
                     SELECT 1 FROM articles a
                     WHERE a.candidate_link_id = cl.id
                 )
-                """
-            )
+                """)
 
             if hasattr(args, "source") and args.source:
                 query = text(f"{query.text} AND source = '{args.source}'")
@@ -307,8 +305,7 @@ def _process_batch(articles, extractor, byline_cleaner, session, batch_num):
 
                     safe_session_execute(
                         session,
-                        text(
-                            """
+                        text("""
                             INSERT INTO articles (
                                 id,
                                 candidate_link_id,
@@ -346,8 +343,7 @@ def _process_batch(articles, extractor, byline_cleaner, session, batch_num):
                                 :created_at,
                                 :extraction_version
                             )
-                            """
-                        ),
+                            """),
                         {
                             "id": article_id,
                             "candidate_link_id": str(url_id),

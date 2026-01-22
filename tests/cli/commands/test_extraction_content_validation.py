@@ -935,8 +935,7 @@ class TestContentValidationWithPersistentPatterns:
 
         # Insert persistent boilerplate pattern for this domain
         cloud_sql_session.execute(
-            text(
-                """
+            text("""
                 INSERT INTO persistent_boilerplate_patterns (
                     id, domain, pattern_type, pattern_text, pattern_text_hash,
                     occurrence_count, is_active
@@ -944,8 +943,7 @@ class TestContentValidationWithPersistentPatterns:
                     :id, :domain, :pattern_type, :pattern_text, :pattern_text_hash,
                     :occurrences, :is_active
                 )
-                """
-            ),
+                """),
             {
                 "id": "pattern-login-form",
                 "domain": "testboilerplate.com",

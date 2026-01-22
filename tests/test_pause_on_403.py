@@ -48,9 +48,7 @@ def db_manager(tmp_path):
             )
         )
         if not res.fetchone():
-            conn.execute(
-                text(
-                    """
+            conn.execute(text("""
                     CREATE TABLE candidate_links (
                         id TEXT PRIMARY KEY,
                         url TEXT,
@@ -61,9 +59,7 @@ def db_manager(tmp_path):
                         created_at TEXT,
                         discovered_at TEXT
                     )
-                    """
-                )
-            )
+                    """))
 
         res = conn.execute(
             text(
@@ -71,16 +67,12 @@ def db_manager(tmp_path):
             )
         )
         if not res.fetchone():
-            conn.execute(
-                text(
-                    """
+            conn.execute(text("""
                     CREATE TABLE articles (
                         id TEXT PRIMARY KEY,
                         candidate_link_id TEXT
                     )
-                    """
-                )
-            )
+                    """))
 
     return dm
 

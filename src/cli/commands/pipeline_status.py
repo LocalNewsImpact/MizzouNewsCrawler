@@ -133,13 +133,11 @@ def _check_discovery_status(session, hours, detailed):
     # Sources discovered from recently
     result = safe_session_execute(
         session,
-        text(
-            """
+        text("""
             SELECT COUNT(DISTINCT source_host_id)
             FROM candidate_links
             WHERE discovered_at >= :cutoff
-        """
-        ),
+        """),
         {"cutoff": cutoff},
     )
     sources_discovered = _to_int(result.scalar(), 0)
@@ -147,13 +145,11 @@ def _check_discovery_status(session, hours, detailed):
     # Total URLs discovered
     result = safe_session_execute(
         session,
-        text(
-            """
+        text("""
             SELECT COUNT(*)
             FROM candidate_links
             WHERE discovered_at >= :cutoff
-        """
-        ),
+        """),
         {"cutoff": cutoff},
     )
     urls_discovered = _to_int(result.scalar(), 0)
@@ -162,8 +158,7 @@ def _check_discovery_status(session, hours, detailed):
     # Optimized with LEFT JOIN: 1.5s vs 62s NOT IN (40x faster)
     result = safe_session_execute(
         session,
-        text(
-            """
+        text("""
             SELECT COUNT(*)
             FROM sources s
             LEFT JOIN (
@@ -173,8 +168,7 @@ def _check_discovery_status(session, hours, detailed):
             ) recent ON s.id = recent.source_host_id
             WHERE s.host IS NOT NULL
             AND recent.source_host_id IS NULL
-        """
-        ),
+        """),
     )
     sources_due = _to_int(result.scalar(), 0)
 
@@ -192,8 +186,7 @@ def _check_discovery_status(session, hours, detailed):
     if detailed and sources_discovered > 0:
         result = safe_session_execute(
             session,
-            text(
-                """
+            text("""
                 SELECT s.canonical_name, COUNT(*) as url_count
                 FROM candidate_links cl
                 JOIN sources s ON cl.source_host_id = s.id
@@ -201,8 +194,7 @@ def _check_discovery_status(session, hours, detailed):
                 GROUP BY s.canonical_name
                 ORDER BY url_count DESC
                 LIMIT 10
-            """
-            ),
+            """),
             {"cutoff": cutoff},
         )
         print("\n  Top 10 sources by URLs discovered:")
@@ -230,13 +222,11 @@ def _check_verification_status(session, hours, detailed):
     cutoff = datetime.utcnow() - timedelta(hours=hours)
     result = safe_session_execute(
         session,
-        text(
-            """
+        text("""
             SELECT COUNT(*)
             FROM candidate_links
             WHERE processed_at >= :cutoff
-        """
-        ),
+        """),
         {"cutoff": cutoff},
     )
     verified_recent = _to_int(result.scalar(), 0)
@@ -262,8 +252,7 @@ def _check_extraction_status(session, hours, detailed):
     # Optimized query: NOT EXISTS is 20x faster than LEFT JOIN (0.26s vs 5.23s)
     result = safe_session_execute(
         session,
-        text(
-            """
+        text("""
             SELECT COUNT(*)
             FROM candidate_links cl
             WHERE cl.status = 'article'
@@ -271,8 +260,7 @@ def _check_extraction_status(session, hours, detailed):
                 SELECT 1 FROM articles a
                 WHERE a.candidate_link_id = cl.id
             )
-        """
-        ),
+        """),
     )
     ready_for_extraction = _to_int(result.scalar(), 0)
 
@@ -317,15 +305,13 @@ def _check_extraction_status(session, hours, detailed):
 
         result = safe_session_execute(
             session,
-            text(
-                """
+            text("""
                 SELECT status, COUNT(*) as count
                 FROM articles
                 WHERE status IS NOT NULL
                 GROUP BY status
                 ORDER BY count DESC
-            """
-            ),
+            """),
         )
         status_breakdown = list(result)
         if status_breakdown:
@@ -341,8 +327,7 @@ def _check_entity_extraction_status(session, hours, detailed):
     # Optimized query: NOT EXISTS is 4x faster than LEFT JOIN (0.23s vs 1.01s)
     result = safe_session_execute(
         session,
-        text(
-            """
+        text("""
             SELECT COUNT(*)
             FROM articles a
             WHERE a.status IN ('extracted', 'classified')
@@ -351,8 +336,7 @@ def _check_entity_extraction_status(session, hours, detailed):
                 SELECT 1 FROM article_entities ae
                 WHERE ae.article_id = a.id
             )
-        """
-        ),
+        """),
     )
     ready_for_entities = _to_int(result.scalar(), 0)
 
@@ -369,13 +353,11 @@ def _check_entity_extraction_status(session, hours, detailed):
     cutoff = datetime.utcnow() - timedelta(hours=hours)
     result = safe_session_execute(
         session,
-        text(
-            """
+        text("""
             SELECT COUNT(DISTINCT article_id)
             FROM article_entities
             WHERE created_at >= :cutoff
-        """
-        ),
+        """),
         {"cutoff": cutoff},
     )
     entities_recent = _to_int(result.scalar(), 0)
@@ -401,8 +383,7 @@ def _check_analysis_status(session, hours, detailed):
         # Optimized query: NOT EXISTS is 12x faster than LEFT JOIN (0.24s vs 3.01s)
         result = safe_session_execute(
             session,
-            text(
-                """
+            text("""
                 SELECT COUNT(*)
                 FROM articles a
                 WHERE a.status = 'extracted'
@@ -410,8 +391,7 @@ def _check_analysis_status(session, hours, detailed):
                     SELECT 1 FROM article_labels al
                     WHERE al.article_id = a.id
                 )
-            """
-            ),
+            """),
         )
         ready_for_analysis = _to_int(result.scalar(), 0)
 
@@ -425,13 +405,11 @@ def _check_analysis_status(session, hours, detailed):
         cutoff = datetime.utcnow() - timedelta(hours=hours)
         result = safe_session_execute(
             session,
-            text(
-                """
+            text("""
                 SELECT COUNT(DISTINCT article_id)
                 FROM article_labels
                 WHERE applied_at >= :cutoff
-            """
-            ),
+            """),
             {"cutoff": cutoff},
         )
         analyzed_recent = _to_int(result.scalar(), 0)
@@ -477,12 +455,10 @@ def _check_overall_health(session, hours):
     # Verification
     result = safe_session_execute(
         session,
-        text(
-            """
+        text("""
             SELECT COUNT(*) FROM candidate_links
             WHERE processed_at >= :cutoff
-        """
-        ),
+        """),
         {"cutoff": cutoff},
     )
     if _to_int(result.scalar(), 0) > 0:
@@ -500,12 +476,10 @@ def _check_overall_health(session, hours):
     # Entity extraction
     result = safe_session_execute(
         session,
-        text(
-            """
+        text("""
             SELECT COUNT(DISTINCT article_id) FROM article_entities
             WHERE created_at >= :cutoff
-        """
-        ),
+        """),
         {"cutoff": cutoff},
     )
     if _to_int(result.scalar(), 0) > 0:
@@ -515,12 +489,10 @@ def _check_overall_health(session, hours):
     try:
         result = safe_session_execute(
             session,
-            text(
-                """
+            text("""
                 SELECT COUNT(DISTINCT article_id) FROM article_labels
                 WHERE created_at >= :cutoff
-            """
-            ),
+            """),
             {"cutoff": cutoff},
         )
         if _to_int(result.scalar(), 0) > 0:
@@ -550,9 +522,7 @@ def _check_statistics_freshness(session):
     This monitors tables with high write volume.
     """
     # Use direct execute for PostgreSQL system tables (not compatible with SQLite)
-    result = session.execute(
-        text(
-            """
+    result = session.execute(text("""
             SELECT
                 schemaname || '.' || relname as table_name,
                 n_tup_ins + n_tup_upd + n_tup_del as modifications,
@@ -565,9 +535,7 @@ def _check_statistics_freshness(session):
             WHERE schemaname = 'public'
             AND relname IN ('article_entities', 'candidate_links', 'articles', 'sources')
             ORDER BY modifications DESC
-        """
-        )
-    )
+        """))
 
     rows = result.fetchall()
     if not rows:

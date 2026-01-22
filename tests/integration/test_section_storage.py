@@ -47,9 +47,7 @@ def test_section_columns_exist(db_manager):
         dialect = conn.dialect.name
 
         if dialect == "postgresql":
-            result = conn.execute(
-                text(
-                    """
+            result = conn.execute(text("""
                     SELECT column_name
                     FROM information_schema.columns
                     WHERE table_name = 'sources'
@@ -58,9 +56,7 @@ def test_section_columns_exist(db_manager):
                         'section_discovery_enabled',
                         'section_last_updated'
                     )
-                    """
-                )
-            )
+                    """))
             columns = {row[0] for row in result.fetchall()}
         else:
             # SQLite
@@ -78,14 +74,12 @@ def test_store_section_data(db_manager, test_source_id):
     unique_host = f"example-{uuid.uuid4()}.com"
     with db_manager.engine.begin() as conn:
         conn.execute(
-            text(
-                """
+            text("""
                 INSERT INTO sources (
                     id, host, host_norm, section_discovery_enabled,
                     rss_consecutive_failures, rss_transient_failures, no_effective_methods_consecutive)
                     VALUES (:id, :host, :host_norm, :enabled, 0, '[]', 0)
-                """
-            ),
+                """),
             {
                 "id": test_source_id,
                 "host": unique_host,
@@ -118,14 +112,12 @@ def test_store_section_data(db_manager, test_source_id):
         if dialect == "postgresql":
             # PostgreSQL uses JSONB
             conn.execute(
-                text(
-                    """
+                text("""
                     UPDATE sources
                     SET discovered_sections = :sections::jsonb,
                         section_last_updated = :updated
                     WHERE id = :id
-                    """
-                ),
+                    """),
                 {
                     "sections": json.dumps(sections),
                     "updated": datetime.utcnow(),
@@ -135,14 +127,12 @@ def test_store_section_data(db_manager, test_source_id):
         else:
             # SQLite stores JSON as TEXT
             conn.execute(
-                text(
-                    """
+                text("""
                     UPDATE sources
                     SET discovered_sections = :sections,
                         section_last_updated = :updated
                     WHERE id = :id
-                    """
-                ),
+                    """),
                 {
                     "sections": json.dumps(sections),
                     "updated": datetime.utcnow().isoformat(),
@@ -152,12 +142,10 @@ def test_store_section_data(db_manager, test_source_id):
 
         # Verify data was stored
         result = conn.execute(
-            text(
-                """
+            text("""
                 SELECT discovered_sections, section_discovery_enabled, section_last_updated
                 FROM sources WHERE id = :id
-                """
-            ),
+                """),
             {"id": test_source_id},
         ).fetchone()
 
@@ -202,8 +190,7 @@ def test_retrieve_section_data(db_manager, test_source_id):
         dialect = conn.dialect.name
         if dialect == "postgresql":
             conn.execute(
-                text(
-                    """
+                text("""
                     INSERT INTO sources (
                         id, host, host_norm, discovered_sections,
                         section_discovery_enabled, section_last_updated,
@@ -212,8 +199,7 @@ def test_retrieve_section_data(db_manager, test_source_id):
                     VALUES (
                         :id, :host, :host_norm, :sections::jsonb, :enabled, :updated, 0, 0
                     )
-                    """
-                ),
+                    """),
                 {
                     "id": test_source_id,
                     "host": unique_host,
@@ -225,8 +211,7 @@ def test_retrieve_section_data(db_manager, test_source_id):
             )
         else:
             conn.execute(
-                text(
-                    """
+                text("""
                     INSERT INTO sources (
                         id, host, host_norm, discovered_sections,
                         section_discovery_enabled, section_last_updated,
@@ -235,8 +220,7 @@ def test_retrieve_section_data(db_manager, test_source_id):
                     VALUES (
                         :id, :host, :host_norm, :sections, :enabled, :updated, 0, '[]', 0
                     )
-                    """
-                ),
+                    """),
                 {
                     "id": test_source_id,
                     "host": unique_host,
@@ -275,12 +259,10 @@ def test_section_discovery_enabled_flag(db_manager, test_source_id):
         # Test enabled (default)
         if dialect == "postgresql":
             conn.execute(
-                text(
-                    """
+                text("""
                     INSERT INTO sources (id, host, host_norm, rss_consecutive_failures, rss_transient_failures, no_effective_methods_consecutive, section_discovery_enabled)
                     VALUES (:id, :host, :host_norm, 0, '[]', 0, 1)
-                    """
-                ),
+                    """),
                 {
                     "id": test_source_id,
                     "host": "enabled.com",
@@ -289,12 +271,10 @@ def test_section_discovery_enabled_flag(db_manager, test_source_id):
             )
         else:
             conn.execute(
-                text(
-                    """
+                text("""
                     INSERT INTO sources (id, host, host_norm, rss_consecutive_failures, rss_transient_failures, no_effective_methods_consecutive, section_discovery_enabled)
                     VALUES (:id, :host, :host_norm, 0, '[]', 0, 1)
-                    """
-                ),
+                    """),
                 {
                     "id": test_source_id,
                     "host": "enabled.com",
@@ -314,15 +294,13 @@ def test_section_discovery_enabled_flag(db_manager, test_source_id):
         test_source_id_2 = f"test-section-{uuid.uuid4()}"
         if dialect == "postgresql":
             conn.execute(
-                text(
-                    """
+                text("""
                     INSERT INTO sources (
                         id, host, host_norm, section_discovery_enabled,
                         rss_consecutive_failures, rss_transient_failures, no_effective_methods_consecutive
                     )
                     VALUES (:id, :host, :host_norm, :enabled, 0, '[]', 0)
-                    """
-                ),
+                    """),
                 {
                     "id": test_source_id_2,
                     "host": "disabled.com",
@@ -332,15 +310,13 @@ def test_section_discovery_enabled_flag(db_manager, test_source_id):
             )
         else:
             conn.execute(
-                text(
-                    """
+                text("""
                     INSERT INTO sources (
                         id, host, host_norm, section_discovery_enabled,
                         rss_consecutive_failures, rss_transient_failures, no_effective_methods_consecutive
                     )
                     VALUES (:id, :host, :host_norm, :enabled, 0, '[]', 0)
-                    """
-                ),
+                    """),
                 {
                     "id": test_source_id_2,
                     "host": "disabled.com",
@@ -368,12 +344,10 @@ def test_null_sections(db_manager, test_source_id):
     with db_manager.engine.begin() as conn:
         # Create source with NULL sections
         conn.execute(
-            text(
-                """
+            text("""
                 INSERT INTO sources (id, host, host_norm, rss_consecutive_failures, rss_transient_failures, no_effective_methods_consecutive, section_discovery_enabled)
                     VALUES (:id, :host, :host_norm, 0, '[]', 0, 1)
-                """
-            ),
+                """),
             {
                 "id": test_source_id,
                 "host": "null-sections.com",
@@ -402,12 +376,10 @@ def test_update_sections(db_manager, test_source_id):
         dialect = conn.dialect.name
         if dialect == "postgresql":
             conn.execute(
-                text(
-                    """
+                text("""
                     INSERT INTO sources (id, host, host_norm, discovered_sections)
                     VALUES (:id, :host, :host_norm, :sections::jsonb)
-                    """
-                ),
+                    """),
                 {
                     "id": test_source_id,
                     "host": "update-test.com",
@@ -417,12 +389,10 @@ def test_update_sections(db_manager, test_source_id):
             )
         else:
             conn.execute(
-                text(
-                    """
+                text("""
                     INSERT INTO sources (id, host, host_norm, discovered_sections, rss_consecutive_failures, rss_transient_failures, no_effective_methods_consecutive, section_discovery_enabled)
                     VALUES (:id, :host, :host_norm, :sections, 0, '[]', 0, 1)
-                    """
-                ),
+                    """),
                 {
                     "id": test_source_id,
                     "host": "update-test.com",
@@ -439,13 +409,11 @@ def test_update_sections(db_manager, test_source_id):
 
         if dialect == "postgresql":
             conn.execute(
-                text(
-                    """
+                text("""
                     UPDATE sources
                     SET discovered_sections = :sections::jsonb
                     WHERE id = :id
-                    """
-                ),
+                    """),
                 {
                     "sections": json.dumps(updated_sections),
                     "id": test_source_id,
@@ -453,13 +421,11 @@ def test_update_sections(db_manager, test_source_id):
             )
         else:
             conn.execute(
-                text(
-                    """
+                text("""
                     UPDATE sources
                     SET discovered_sections = :sections
                     WHERE id = :id
-                    """
-                ),
+                    """),
                 {
                     "sections": json.dumps(updated_sections),
                     "id": test_source_id,

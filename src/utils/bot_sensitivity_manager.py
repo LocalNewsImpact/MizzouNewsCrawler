@@ -239,8 +239,7 @@ class BotSensitivityManager:
         try:
             with self.db.get_session() as session:
                 # Insert bot detection event
-                insert_event = text(
-                    """
+                insert_event = text("""
                     INSERT INTO bot_detection_events (
                         id, source_id, host, url, event_type,
                         http_status_code, response_indicators,
@@ -252,8 +251,7 @@ class BotSensitivityManager:
                         :prev_sensitivity, :new_sensitivity,
                         :reason, CURRENT_TIMESTAMP
                     )
-                    """
-                )
+                    """)
                 safe_session_execute(
                     session,
                     insert_event,
@@ -277,16 +275,14 @@ class BotSensitivityManager:
 
                 # Update source sensitivity if it changed
                 if new_sensitivity != current_sensitivity:
-                    update_source = text(
-                        """
+                    update_source = text("""
                         UPDATE sources
                         SET bot_sensitivity = :new_sensitivity,
                             bot_sensitivity_updated_at = CURRENT_TIMESTAMP,
                             bot_encounters = bot_encounters + 1,
                             last_bot_detection_at = CURRENT_TIMESTAMP
                         WHERE id = :source_id
-                        """
-                    )
+                        """)
                     safe_session_execute(
                         session,
                         update_source,
@@ -303,14 +299,12 @@ class BotSensitivityManager:
                     )
                 else:
                     # Still increment encounter count even if sensitivity didn't change
-                    update_encounters = text(
-                        """
+                    update_encounters = text("""
                         UPDATE sources
                         SET bot_encounters = bot_encounters + 1,
                             last_bot_detection_at = CURRENT_TIMESTAMP
                         WHERE id = :source_id
-                        """
-                    )
+                        """)
                     safe_session_execute(
                         session, update_encounters, {"source_id": source_id}
                     )
@@ -386,14 +380,12 @@ class BotSensitivityManager:
         """
         try:
             with self.db.get_session() as session:
-                query = text(
-                    """
+                query = text("""
                     SELECT bot_sensitivity_updated_at
                     FROM sources
                     WHERE host = :host OR host_norm = :host_norm
                     LIMIT 1
-                    """
-                )
+                    """)
                 result = safe_session_execute(
                     session, query, {"host": host, "host_norm": host.lower()}
                 )
@@ -421,13 +413,11 @@ class BotSensitivityManager:
         try:
             with self.db.get_session() as session:
                 # Try to find existing source
-                query = text(
-                    """
+                query = text("""
                     SELECT id FROM sources
                     WHERE host = :host OR host_norm = :host_norm
                     LIMIT 1
-                    """
-                )
+                    """)
                 result = safe_session_execute(
                     session, query, {"host": host, "host_norm": host.lower()}
                 )
@@ -489,8 +479,7 @@ class BotSensitivityManager:
         try:
             with self.db.get_session() as session:
                 if host:
-                    query = text(
-                        """
+                    query = text("""
                         SELECT
                             COUNT(*) as total_events,
                             COUNT(DISTINCT event_type) as event_types,
@@ -498,20 +487,17 @@ class BotSensitivityManager:
                             AVG(new_sensitivity) as avg_new_sensitivity
                         FROM bot_detection_events
                         WHERE host = :host
-                        """
-                    )
+                        """)
                     result = safe_session_execute(session, query, {"host": host})
                 else:
-                    query = text(
-                        """
+                    query = text("""
                         SELECT
                             COUNT(*) as total_events,
                             COUNT(DISTINCT host) as affected_hosts,
                             COUNT(DISTINCT event_type) as event_types,
                             MAX(detected_at) as last_detection
                         FROM bot_detection_events
-                        """
-                    )
+                        """)
                     result = safe_session_execute(session, query)
 
                 row = result.fetchone()
@@ -562,8 +548,7 @@ class BotSensitivityManager:
                 # - Have sensitivity > min_sensitivity
                 # - Haven't had bot detection in X days
                 # - Either never had detection or last one was X+ days ago
-                query = text(
-                    """
+                query = text("""
                     SELECT s.id, s.host, s.bot_sensitivity, s.last_bot_detection_at
                     FROM sources s
                     WHERE s.bot_sensitivity > :min_sensitivity
@@ -571,11 +556,9 @@ class BotSensitivityManager:
                         s.last_bot_detection_at IS NULL
                         OR s.last_bot_detection_at < NOW() - INTERVAL :days DAY
                     )
-                    """
-                )
+                    """)
                 # PostgreSQL uses different interval syntax
-                pg_query = text(
-                    """
+                pg_query = text("""
                     SELECT s.id, s.host, s.bot_sensitivity, s.last_bot_detection_at
                     FROM sources s
                     WHERE s.bot_sensitivity > :min_sensitivity
@@ -583,9 +566,7 @@ class BotSensitivityManager:
                         s.last_bot_detection_at IS NULL
                         OR s.last_bot_detection_at < NOW() - INTERVAL '%s days'
                     )
-                    """
-                    % days_without_detection
-                )
+                    """ % days_without_detection)
 
                 # Try PostgreSQL syntax first, fall back to generic
                 try:
@@ -616,14 +597,12 @@ class BotSensitivityManager:
 
                     if new_sensitivity < old_sensitivity:
                         # Update sensitivity
-                        update_query = text(
-                            """
+                        update_query = text("""
                             UPDATE sources
                             SET bot_sensitivity = :new_sensitivity,
                                 bot_sensitivity_updated_at = CURRENT_TIMESTAMP
                             WHERE id = :source_id
-                            """
-                        )
+                            """)
                         safe_session_execute(
                             session,
                             update_query,

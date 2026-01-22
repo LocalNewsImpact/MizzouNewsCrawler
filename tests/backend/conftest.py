@@ -367,17 +367,13 @@ def cloud_sql_engine():
             conn.execute(text("SELECT 1"))
 
             # Check if new typed RSS columns exist; if not, run Alembic upgrade
-            col_check = conn.execute(
-                text(
-                    """
+            col_check = conn.execute(text("""
                     SELECT 1
                     FROM information_schema.columns
                     WHERE table_name = 'sources'
                       AND column_name = 'rss_consecutive_failures'
                     LIMIT 1
-                    """
-                )
-            ).fetchone()
+                    """)).fetchone()
 
         if not col_check:
             # Point Alembic at the test database URL and upgrade to head

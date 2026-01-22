@@ -59,18 +59,14 @@ def handle_cleanup_candidates_command(args):
 
         with db.get_session() as session:
             # Find expired candidates
-            expired = session.execute(
-                text(
-                    f"""
+            expired = session.execute(text(f"""
                 SELECT id, source, url, created_at,
                     EXTRACT(EPOCH FROM (NOW() - created_at))/86400 as age_days
                 FROM candidate_links
                 WHERE status = 'article'
                 AND created_at < NOW() - INTERVAL '{days_threshold} days'
                 ORDER BY created_at ASC
-            """
-                )
-            ).fetchall()
+            """)).fetchall()
 
             if not expired:
                 print(f"✓ No candidates older than {days_threshold} days found")
@@ -80,9 +76,7 @@ def handle_cleanup_candidates_command(args):
             print()
 
             # Show breakdown by source
-            breakdown_query = session.execute(
-                text(
-                    f"""
+            breakdown_query = session.execute(text(f"""
                 SELECT source, COUNT(*) as count,
                     MIN(created_at) as oldest
                 FROM candidate_links
@@ -90,9 +84,7 @@ def handle_cleanup_candidates_command(args):
                 AND created_at < NOW() - INTERVAL '{days_threshold} days'
                 GROUP BY source
                 ORDER BY count DESC
-            """
-                )
-            ).fetchall()
+            """)).fetchall()
 
             for source, count, oldest in breakdown_query:
                 now = session.execute(text("SELECT NOW()")).scalar()
@@ -106,16 +98,12 @@ def handle_cleanup_candidates_command(args):
                 return 0
 
             # Mark as paused
-            session.execute(
-                text(
-                    f"""
+            session.execute(text(f"""
                 UPDATE candidate_links
                 SET status = 'paused'
                 WHERE status = 'article'
                 AND created_at < NOW() - INTERVAL '{days_threshold} days'
-            """
-                )
-            )
+            """))
 
             session.commit()
 
@@ -124,20 +112,12 @@ def handle_cleanup_candidates_command(args):
             print()
 
             # Show final status
-            paused_count = session.execute(
-                text(
-                    """
+            paused_count = session.execute(text("""
                 SELECT COUNT(*) FROM candidate_links WHERE status = 'paused'
-            """
-                )
-            ).scalar()
-            article_count = session.execute(
-                text(
-                    """
+            """)).scalar()
+            article_count = session.execute(text("""
                 SELECT COUNT(*) FROM candidate_links WHERE status = 'article'
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             print("Pipeline status after cleanup:")
             print(f"  paused: {paused_count}")

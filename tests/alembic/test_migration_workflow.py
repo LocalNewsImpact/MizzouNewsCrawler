@@ -30,13 +30,11 @@ class TestMigrationWorkflow:
 
         # Insert test data to verify database is functional
         cloud_sql_session.execute(
-            text(
-                """
+            text("""
             INSERT INTO sources
                 (id, host, host_norm, canonical_name, city, county, type)
             VALUES (:id, :host, :host_norm, :name, :city, :county, :type)
-        """
-            ),
+        """),
             {
                 "id": "test-source-workflow-1",
                 "host": "test-workflow.com",
@@ -68,15 +66,13 @@ class TestMigrationWorkflow:
 
         # Insert test source
         result = cloud_sql_session.execute(
-            text(
-                """
+            text("""
             INSERT INTO sources
                 (id, host, host_norm, canonical_name, city, county, type)
             VALUES
                 (:id, :host, :host_norm, :name, :city, :county, :type)
             RETURNING id
-        """
-            ),
+        """),
             {
                 "id": "test-source-workflow-2",
                 "host": "testnews-workflow.com",
@@ -92,16 +88,14 @@ class TestMigrationWorkflow:
         # Insert test candidate_link
         candidate_link_id = str(uuid.uuid4())
         cloud_sql_session.execute(
-            text(
-                """
+            text("""
             INSERT INTO candidate_links (
                 id, url, source, source_host_id, status, discovered_at
             )
             VALUES (
                 :id, :url, :source, :source_id, :status, :discovered_at
             )
-        """
-            ),
+        """),
             {
                 "id": candidate_link_id,
                 "url": test_data["article_url"],
@@ -116,8 +110,7 @@ class TestMigrationWorkflow:
         article_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc)
         cloud_sql_session.execute(
-            text(
-                """
+            text("""
             INSERT INTO articles (
                 id, url, title, candidate_link_id, status,
                 extracted_at, created_at
@@ -126,8 +119,7 @@ class TestMigrationWorkflow:
                 :id, :url, :title, :candidate_link_id, :status,
                 :extracted_at, :created_at
             )
-        """
-            ),
+        """),
             {
                 "id": article_id,
                 "url": test_data["article_url"],
@@ -142,13 +134,11 @@ class TestMigrationWorkflow:
 
         # Verify data exists
         result = cloud_sql_session.execute(
-            text(
-                """
+            text("""
             SELECT canonical_name, host
             FROM sources
             WHERE canonical_name = :canonical_name
-        """
-            ),
+        """),
             {"canonical_name": test_data["source_name"]},
         )
         row = result.fetchone()
@@ -158,11 +148,9 @@ class TestMigrationWorkflow:
 
         # Check article data
         result = cloud_sql_session.execute(
-            text(
-                """
+            text("""
             SELECT url, title FROM articles WHERE url = :url
-        """
-            ),
+        """),
             {"url": test_data["article_url"]},
         )
         row = result.fetchone()

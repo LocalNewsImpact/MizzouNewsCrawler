@@ -648,8 +648,7 @@ class TestContentExtractor:
 
     def test_publish_date_detected_near_byline_text(self, extractor):
         content = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. " * 5
-        html = textwrap.dedent(
-            f"""
+        html = textwrap.dedent(f"""
             <html>
                 <body>
                     <div class="article-header">
@@ -661,8 +660,7 @@ class TestContentExtractor:
                     </div>
                 </body>
             </html>
-            """
-        )
+            """)
 
         result = extractor._extract_with_beautifulsoup(
             "https://www.kbia.org/example", html
@@ -673,8 +671,7 @@ class TestContentExtractor:
 
     def test_publish_date_detected_above_byline_text(self, extractor):
         content = "Sed ut perspiciatis unde omnis iste natus error sit voluptatem. " * 4
-        html = textwrap.dedent(
-            f"""
+        html = textwrap.dedent(f"""
             <html>
                 <body>
                     <div class="story-meta">
@@ -689,8 +686,7 @@ class TestContentExtractor:
                     </article>
                 </body>
             </html>
-            """
-        )
+            """)
 
         result = extractor._extract_with_beautifulsoup(
             "https://www.mexicoledger.com/example", html
@@ -703,8 +699,7 @@ class TestContentExtractor:
         content = (
             "Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit. "
         ) * 4
-        html = textwrap.dedent(
-            f"""
+        html = textwrap.dedent(f"""
             <html>
                 <body>
                     <div class="story-header">
@@ -716,8 +711,7 @@ class TestContentExtractor:
                     </article>
                 </body>
             </html>
-            """
-        )
+            """)
 
         result = extractor._extract_with_beautifulsoup(
             "https://www.maconhomepress.com/example", html

@@ -113,14 +113,12 @@ class TestTelemetryHTTPErrorsPostgres:
     def test_telemetry_http_errors_table_schema_postgres(self, cloud_sql_session):
         """Test that http_error_summary table exists and has correct schema."""
         # Check if table exists and get schema
-        query = text(
-            """
+        query = text("""
             SELECT column_name, data_type
             FROM information_schema.columns
             WHERE table_name = 'http_error_summary'
             ORDER BY ordinal_position
-        """
-        )
+        """)
 
         try:
             result = cloud_sql_session.execute(query)
@@ -148,15 +146,13 @@ class TestTelemetryHTTPErrorsPostgres:
         cutoff_time = datetime.now(timezone.utc) - timedelta(days=7)
 
         # This tests the fixed query (using parameterized cutoff instead of INTERVAL)
-        query = text(
-            """
+        query = text("""
             SELECT COUNT(*) as error_count
             FROM (
                 SELECT 1 as dummy_error
                 WHERE CURRENT_TIMESTAMP >= :cutoff_time
             ) dummy_errors
-        """
-        )
+        """)
 
         result = cloud_sql_session.execute(query, {"cutoff_time": cutoff_time})
         count = result.scalar()
@@ -170,14 +166,12 @@ class TestTelemetryMethodEffectivenessPostgres:
 
     def test_method_effectiveness_table_schema_postgres(self, cloud_sql_session):
         """Test extraction_telemetry table schema."""
-        query = text(
-            """
+        query = text("""
             SELECT column_name, data_type
             FROM information_schema.columns
             WHERE table_name = 'extraction_telemetry'
             ORDER BY ordinal_position
-        """
-        )
+        """)
 
         try:
             result = cloud_sql_session.execute(query)
@@ -194,8 +188,7 @@ class TestTelemetryMethodEffectivenessPostgres:
     def test_method_effectiveness_aggregation_postgres(self, cloud_sql_session):
         """Test method effectiveness aggregation queries."""
         # Test aggregation patterns used in telemetry
-        query = text(
-            """
+        query = text("""
             SELECT
                 COUNT(*) as total_attempts,
                 COUNT(CASE WHEN status = 'extracted' THEN 1 END) as successful,
@@ -203,8 +196,7 @@ class TestTelemetryMethodEffectivenessPostgres:
                 NULLIF(COUNT(*), 0) as success_rate
             FROM articles
             WHERE extracted_at >= :cutoff_time
-        """
-        )
+        """)
 
         cutoff_time = datetime.now(timezone.utc) - timedelta(days=7)
         result = cloud_sql_session.execute(query, {"cutoff_time": cutoff_time})
@@ -223,8 +215,7 @@ class TestTelemetryPublisherStatsPostgres:
         self, cloud_sql_session, telemetry_test_data
     ):
         """Test aggregating telemetry by publisher/source."""
-        query = text(
-            """
+        query = text("""
             SELECT
                 s.canonical_name as publisher,
                 COUNT(DISTINCT a.id) as article_count,
@@ -235,8 +226,7 @@ class TestTelemetryPublisherStatsPostgres:
             WHERE s.id IN :source_ids
             GROUP BY s.canonical_name
             ORDER BY article_count DESC
-        """
-        )
+        """)
 
         source_ids = tuple(s.id for s in telemetry_test_data["sources"])
         result = cloud_sql_session.execute(query, {"source_ids": source_ids})
@@ -255,8 +245,7 @@ class TestTelemetryPublisherStatsPostgres:
         self, cloud_sql_session, telemetry_test_data
     ):
         """Test publisher stats with timing aggregations."""
-        query = text(
-            """
+        query = text("""
             SELECT
                 s.canonical_name as publisher,
                 COUNT(a.id) as total_articles,
@@ -268,8 +257,7 @@ class TestTelemetryPublisherStatsPostgres:
             JOIN articles a ON cl.id = a.candidate_link_id
             WHERE s.id IN :source_ids
             GROUP BY s.canonical_name
-        """
-        )
+        """)
 
         source_ids = tuple(s.id for s in telemetry_test_data["sources"])
         recent_cutoff = datetime.now(timezone.utc) - timedelta(hours=1)
@@ -296,8 +284,7 @@ class TestTelemetryFieldExtractionPostgres:
         self, cloud_sql_session, telemetry_test_data
     ):
         """Test calculating field extraction success rates."""
-        query = text(
-            """
+        query = text("""
             SELECT
                 COUNT(*) as total_articles,
                 COUNT(title) as with_title,
@@ -309,8 +296,7 @@ class TestTelemetryFieldExtractionPostgres:
                 CAST(COUNT(content) AS FLOAT) / NULLIF(COUNT(*), 0) as content_rate
             FROM articles
             WHERE extracted_at >= :cutoff_time
-        """
-        )
+        """)
 
         cutoff_time = datetime.now(timezone.utc) - timedelta(hours=24)
         result = cloud_sql_session.execute(query, {"cutoff_time": cutoff_time})
@@ -330,8 +316,7 @@ class TestTelemetryFieldExtractionPostgres:
         self, cloud_sql_session, telemetry_test_data
     ):
         """Test field extraction success grouped by publisher."""
-        query = text(
-            """
+        query = text("""
             SELECT
                 s.canonical_name as publisher,
                 COUNT(a.id) as total_articles,
@@ -344,8 +329,7 @@ class TestTelemetryFieldExtractionPostgres:
             WHERE s.id IN :source_ids
             GROUP BY s.canonical_name
             ORDER BY total_articles DESC
-        """
-        )
+        """)
 
         source_ids = tuple(s.id for s in telemetry_test_data["sources"])
         result = cloud_sql_session.execute(query, {"source_ids": source_ids})
@@ -543,11 +527,9 @@ class TestTelemetryPostgresFeatures:
             expected_cutoff = datetime.now(timezone.utc) - delta
 
             # Query with parameterized cutoff (database-agnostic)
-            query = text(
-                """
+            query = text("""
                 SELECT :cutoff_time as cutoff
-            """
-            )
+            """)
 
             result = cloud_sql_session.execute(query, {"cutoff_time": expected_cutoff})
             cutoff = result.scalar()
@@ -559,8 +541,7 @@ class TestTelemetryPostgresFeatures:
         self, cloud_sql_session, telemetry_test_data
     ):
         """Test CASE statements in telemetry aggregations."""
-        query = text(
-            """
+        query = text("""
             SELECT
                 COUNT(*) as total,
                 COUNT(CASE WHEN title IS NOT NULL THEN 1 END) as with_title,
@@ -568,8 +549,7 @@ class TestTelemetryPostgresFeatures:
                 COUNT(CASE WHEN content IS NOT NULL THEN 1 END) as with_content
             FROM articles
             WHERE candidate_link_id IN :candidate_ids
-        """
-        )
+        """)
 
         candidate_ids = tuple(c.id for c in telemetry_test_data["candidates"])
         result = cloud_sql_session.execute(query, {"candidate_ids": candidate_ids})
@@ -585,16 +565,14 @@ class TestTelemetryPostgresFeatures:
         self, cloud_sql_session, telemetry_test_data
     ):
         """Test floating-point division in telemetry calculations."""
-        query = text(
-            """
+        query = text("""
             SELECT
                 COUNT(*) as total,
                 COUNT(title) as with_title,
                 CAST(COUNT(title) AS FLOAT) / NULLIF(CAST(COUNT(*) AS FLOAT), 0) as success_rate
             FROM articles
             WHERE candidate_link_id IN :candidate_ids
-        """
-        )
+        """)
 
         candidate_ids = tuple(c.id for c in telemetry_test_data["candidates"])
         result = cloud_sql_session.execute(query, {"candidate_ids": candidate_ids})

@@ -69,14 +69,12 @@ class TestTimeGatedFailurePersistence:
             Dict with counter and last_seen values
         """
         result = session.execute(
-            text(
-                """
+            text("""
                 SELECT no_effective_methods_consecutive,
                        no_effective_methods_last_seen
                 FROM sources
                 WHERE id = :source_id
-                """
-            ),
+                """),
             {"source_id": source_id},
         ).fetchone()
 
@@ -404,13 +402,11 @@ class TestTimeGatedFailurePersistence:
 
             # Manually update timestamp to simulate 8 days passing
             cloud_sql_session.execute(
-                text(
-                    """
+                text("""
                 UPDATE sources
                 SET no_effective_methods_last_seen = :past_date
                 WHERE id = :source_id
-                """
-                ),
+                """),
                 {
                     "past_date": datetime.utcnow() - timedelta(days=8),
                     "source_id": source_id,
@@ -430,13 +426,11 @@ class TestTimeGatedFailurePersistence:
 
             # Simulate another 8 days
             cloud_sql_session.execute(
-                text(
-                    """
+                text("""
                 UPDATE sources
                 SET no_effective_methods_last_seen = :past_date
                 WHERE id = :source_id
-                """
-                ),
+                """),
                 {
                     "past_date": datetime.utcnow() - timedelta(days=8),
                     "source_id": source_id,
@@ -587,15 +581,13 @@ class TestTimeGatedFailurePersistence:
 
             # Query both typed columns and metadata JSON
             result = cloud_sql_session.execute(
-                text(
-                    """
+                text("""
                 SELECT no_effective_methods_consecutive,
                        no_effective_methods_last_seen,
                        metadata
                 FROM sources
                 WHERE id = :source_id
-                """
-                ),
+                """),
                 {"source_id": source_id},
             ).fetchone()
 

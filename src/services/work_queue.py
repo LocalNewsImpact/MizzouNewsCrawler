@@ -174,8 +174,7 @@ class WorkQueueCoordinator:
         Returns:
             List of dicts with keys: source, canonical_name, article_count
         """
-        query = text(
-            """
+        query = text("""
             SELECT
                 cl.source,
                 s.canonical_name,
@@ -190,8 +189,7 @@ class WorkQueueCoordinator:
             GROUP BY cl.source, s.canonical_name
             HAVING COUNT(*) > 0
             ORDER BY COUNT(*) DESC
-        """
-        )
+        """)
 
         result = session.execute(query)
         domains = []
@@ -335,8 +333,7 @@ class WorkQueueCoordinator:
         # Single domain with max 3 articles (below bot thresholds)
         # Use FOR UPDATE SKIP LOCKED for parallel processing safety
         # LEFT JOIN more efficient than NOT IN for large articles table
-        query = text(
-            """
+        query = text("""
             SELECT cl.id, cl.url, cl.source, s.canonical_name
             FROM candidate_links cl
             LEFT JOIN sources s ON cl.source_id = s.id
@@ -347,8 +344,7 @@ class WorkQueueCoordinator:
             ORDER BY RANDOM()
             LIMIT :limit
             FOR UPDATE OF cl SKIP LOCKED
-        """
-        )
+        """)
 
         # Enforce max 3 articles per domain
         max_articles = min(
@@ -442,16 +438,14 @@ class WorkQueueCoordinator:
         with self.lock:
             session = self._get_session()
             # Get total available articles
-            available_query = text(
-                """
+            available_query = text("""
                 SELECT COUNT(*) FROM candidate_links cl
                 WHERE cl.status = 'article'
                 AND NOT EXISTS (
                     SELECT 1 FROM articles a
                     WHERE a.candidate_link_id = cl.id
                 )
-            """
-            )
+            """)
             total_available = session.execute(available_query).scalar()
 
             # Get paused articles (approximate - we don't have a paused status)
@@ -459,16 +453,14 @@ class WorkQueueCoordinator:
             total_paused = 0
 
             # Get unique domains
-            domain_query = text(
-                """
+            domain_query = text("""
                 SELECT COUNT(DISTINCT source) FROM candidate_links cl
                 WHERE cl.status = 'article'
                 AND NOT EXISTS (
                     SELECT 1 FROM articles a
                     WHERE a.candidate_link_id = cl.id
                 )
-            """
-            )
+            """)
             domains_available = session.execute(domain_query).scalar()
 
             # Calculate domains with active cooldowns

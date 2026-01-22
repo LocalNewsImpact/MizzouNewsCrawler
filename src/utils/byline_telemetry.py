@@ -97,8 +97,7 @@ class BylineCleaningTelemetry:
                 return
 
             with store.connection() as conn:
-                conn.execute(
-                    """
+                conn.execute("""
                     CREATE TABLE IF NOT EXISTS byline_cleaning_telemetry (
                         id TEXT PRIMARY KEY,
                         article_id TEXT,
@@ -133,11 +132,9 @@ class BylineCleaningTelemetry:
                         reviewed_at TIMESTAMP,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
-                    """
-                )
+                    """)
 
-                conn.execute(
-                    """
+                conn.execute("""
                     CREATE TABLE IF NOT EXISTS byline_transformation_steps (
                         id TEXT PRIMARY KEY,
                         telemetry_id TEXT NOT NULL,
@@ -156,15 +153,12 @@ class BylineCleaningTelemetry:
                         FOREIGN KEY (telemetry_id)
                             REFERENCES byline_cleaning_telemetry(id)
                     )
-                    """
-                )
+                    """)
 
-                conn.execute(
-                    """
+                conn.execute("""
                     CREATE INDEX IF NOT EXISTS idx_byline_steps_telemetry
                     ON byline_transformation_steps(telemetry_id)
-                    """
-                )
+                    """)
 
                 conn.commit()
         finally:

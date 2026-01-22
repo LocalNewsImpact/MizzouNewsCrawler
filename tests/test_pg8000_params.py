@@ -11,14 +11,12 @@ from sqlalchemy import create_engine, text
 
 def test_sqlalchemy_text_with_named_params():
     """Test that text() with :param syntax compiles correctly."""
-    query = text(
-        """
+    query = text("""
         SELECT id, name
         FROM sources
         WHERE host = :host_value
         LIMIT 5
-    """
-    )
+    """)
 
     # Verify the query object has the correct structure
     assert query is not None

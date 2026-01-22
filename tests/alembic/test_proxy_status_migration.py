@@ -136,8 +136,7 @@ class TestProxyStatusMigration:
         with engine.begin() as conn:
             # Insert using raw SQL with string proxy_status
             conn.execute(
-                text(
-                    """
+                text("""
                     INSERT INTO extraction_telemetry_v2 (
                         operation_id, article_id, url, publisher, host,
                         start_time, end_time, proxy_status, is_success, created_at
@@ -145,8 +144,7 @@ class TestProxyStatusMigration:
                         :operation_id, :article_id, :url, :publisher, :host,
                         :start_time, :end_time, :proxy_status, :is_success, :created_at
                     )
-                """
-                ),
+                """),
                 {
                     "operation_id": "raw-sql-test",
                     "article_id": "article-raw",

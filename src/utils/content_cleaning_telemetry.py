@@ -421,8 +421,7 @@ class ContentCleaningTelemetry:
         """Ensure the persistent boilerplate patterns table exists."""
         cursor = conn.cursor()
         try:
-            cursor.execute(
-                """
+            cursor.execute("""
             CREATE TABLE IF NOT EXISTS persistent_boilerplate_patterns (
                 id TEXT PRIMARY KEY,
                 domain TEXT NOT NULL,
@@ -439,37 +438,28 @@ class ContentCleaningTelemetry:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """
-            )
+        """)
 
             # Create indexes
-            cursor.execute(
-                """
+            cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_persistent_patterns_domain
             ON persistent_boilerplate_patterns(domain, is_active)
-        """
-            )
+        """)
 
-            cursor.execute(
-                """
+            cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_persistent_patterns_hash
             ON persistent_boilerplate_patterns(domain, text_hash)
-        """
-            )
+        """)
 
-            cursor.execute(
-                """
+            cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_persistent_patterns_type
             ON persistent_boilerplate_patterns(pattern_type, confidence_score)
-        """
-            )
+        """)
 
-            cursor.execute(
-                """
+            cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_persistent_patterns_ml_eligible
             ON persistent_boilerplate_patterns(is_ml_training_eligible, domain)
-        """
-            )
+        """)
         finally:
             cursor.close()
 
@@ -541,8 +531,7 @@ class ContentCleaningTelemetry:
                             (domain,),
                         )
                     else:
-                        cursor.execute(
-                            """
+                        cursor.execute("""
                             SELECT domain, pattern_type, text_content,
                                    confidence_score, occurrences_total,
                                    removal_reason
@@ -550,8 +539,7 @@ class ContentCleaningTelemetry:
                             WHERE is_active IS TRUE AND is_ml_training_eligible IS TRUE
                             ORDER BY domain, confidence_score DESC,
                                      occurrences_total DESC
-                            """
-                        )
+                            """)
 
                     patterns = []
                     for row in cursor.fetchall():
@@ -777,8 +765,7 @@ class ContentCleaningTelemetry:
         cursor = conn.cursor()
         try:
             # Sessions table
-            cursor.execute(
-                """
+            cursor.execute("""
             CREATE TABLE IF NOT EXISTS content_cleaning_sessions (
                 telemetry_id TEXT PRIMARY KEY,
                 session_id TEXT,
@@ -795,12 +782,10 @@ class ContentCleaningTelemetry:
                 removal_percentage REAL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """
-            )
+        """)
 
             # Segments table
-            cursor.execute(
-                """
+            cursor.execute("""
             CREATE TABLE IF NOT EXISTS content_cleaning_segments (
                 id TEXT PRIMARY KEY,
                 telemetry_id TEXT,
@@ -821,12 +806,10 @@ class ContentCleaningTelemetry:
                 FOREIGN KEY (telemetry_id)
                     REFERENCES content_cleaning_sessions(telemetry_id)
             )
-        """
-            )
+        """)
 
             # Wire detection events table
-            cursor.execute(
-                """
+            cursor.execute("""
             CREATE TABLE IF NOT EXISTS content_cleaning_wire_events (
                 id TEXT PRIMARY KEY,
                 telemetry_id TEXT,
@@ -845,12 +828,10 @@ class ContentCleaningTelemetry:
                 FOREIGN KEY (telemetry_id)
                     REFERENCES content_cleaning_sessions(telemetry_id)
             )
-        """
-            )
+        """)
 
             # Locality detection events table
-            cursor.execute(
-                """
+            cursor.execute("""
             CREATE TABLE IF NOT EXISTS content_cleaning_locality_events (
                 id TEXT PRIMARY KEY,
                 telemetry_id TEXT,
@@ -871,37 +852,28 @@ class ContentCleaningTelemetry:
                 FOREIGN KEY (telemetry_id)
                     REFERENCES content_cleaning_sessions(telemetry_id)
             )
-        """
-            )
+        """)
 
             # Indexes for performance
-            cursor.execute(
-                """
+            cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_content_cleaning_domain
             ON content_cleaning_sessions(domain)
-        """
-            )
+        """)
 
-            cursor.execute(
-                """
+            cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_content_segments_telemetry
             ON content_cleaning_segments(telemetry_id)
-        """
-            )
+        """)
 
-            cursor.execute(
-                """
+            cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_content_segments_pattern
             ON content_cleaning_segments(pattern_type)
-        """
-            )
+        """)
 
-            cursor.execute(
-                """
+            cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_content_segments_boundary_score
             ON content_cleaning_segments(boundary_score)
-        """
-            )
+        """)
         finally:
             cursor.close()
 

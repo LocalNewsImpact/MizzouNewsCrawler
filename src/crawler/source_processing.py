@@ -903,8 +903,7 @@ class SourceProcessor:
                             )
                         # Also update typed columns for reliability
                         try:
-                            update_sql = text(
-                                """
+                            update_sql = text("""
                                 UPDATE sources SET
                                   last_successful_method = :method,
                                   rss_consecutive_failures = 0,
@@ -912,8 +911,7 @@ class SourceProcessor:
                                   rss_missing_at = NULL,
                                   rss_last_failed_at = NULL
                                 WHERE id = :id
-                                """
-                            ).bindparams(bindparam("empty", type_=SA_JSON))
+                                """).bindparams(bindparam("empty", type_=SA_JSON))
                             safe_execute(
                                 conn,
                                 update_sql,

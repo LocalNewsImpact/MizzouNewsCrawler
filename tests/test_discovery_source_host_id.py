@@ -191,13 +191,11 @@ def test_discovery_populates_source_host_id():
 
         conn = sqlite3.connect(path)
         cursor = conn.cursor()
-        cursor.execute(
-            """
+        cursor.execute("""
             SELECT url, source_host_id, source_name, source_city, source_county
             FROM candidate_links
             WHERE url LIKE 'https://example.com/article%'
-            """
-        )
+            """)
         stored_links = cursor.fetchall()
         conn.close()
 
@@ -280,11 +278,9 @@ def test_discovery_populates_source_host_id():
 
             conn = sqlite3.connect(path)
             cursor = conn.cursor()
-            cursor.execute(
-                """
+            cursor.execute("""
                 SELECT url FROM candidate_links ORDER BY url
-                """
-            )
+                """)
             stored_links = {row[0] for row in cursor.fetchall()}
             conn.close()
 

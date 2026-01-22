@@ -51,16 +51,12 @@ class TestPostgreSQLAggregateTypes:
     def test_count_query_returns_convertible_type(self, cloud_sql_session):
         """Test COUNT(*) query returns a type that _to_int can handle."""
         # Create a test table
-        cloud_sql_session.execute(
-            text(
-                """
+        cloud_sql_session.execute(text("""
                 CREATE TEMPORARY TABLE test_counts (
                     id SERIAL PRIMARY KEY,
                     value TEXT
                 )
-                """
-            )
-        )
+                """))
 
         # Insert some test data
         for i in range(5):
@@ -82,16 +78,12 @@ class TestPostgreSQLAggregateTypes:
     def test_sum_query_returns_convertible_type(self, cloud_sql_session):
         """Test SUM() query returns a type that _to_int can handle."""
         # Create a test table with numeric values
-        cloud_sql_session.execute(
-            text(
-                """
+        cloud_sql_session.execute(text("""
                 CREATE TEMPORARY TABLE test_sums (
                     id SERIAL PRIMARY KEY,
                     amount INTEGER
                 )
-                """
-            )
-        )
+                """))
 
         # Insert test data
         for i in range(1, 6):  # 1, 2, 3, 4, 5
@@ -112,16 +104,12 @@ class TestPostgreSQLAggregateTypes:
 
     def test_max_query_returns_convertible_type(self, cloud_sql_session):
         """Test MAX() query returns a type that _to_int can handle."""
-        cloud_sql_session.execute(
-            text(
-                """
+        cloud_sql_session.execute(text("""
                 CREATE TEMPORARY TABLE test_max (
                     id SERIAL PRIMARY KEY,
                     score INTEGER
                 )
-                """
-            )
-        )
+                """))
 
         # Insert test data
         for score in [10, 25, 15, 30, 20]:
@@ -142,15 +130,11 @@ class TestPostgreSQLAggregateTypes:
 
     def test_aggregate_with_no_rows(self, cloud_sql_session):
         """Test COUNT(*) on empty table returns 0 correctly."""
-        cloud_sql_session.execute(
-            text(
-                """
+        cloud_sql_session.execute(text("""
                 CREATE TEMPORARY TABLE test_empty (
                     id SERIAL PRIMARY KEY
                 )
-                """
-            )
-        )
+                """))
         cloud_sql_session.commit()
 
         # Query count on empty table
@@ -163,16 +147,12 @@ class TestPostgreSQLAggregateTypes:
 
     def test_aggregate_with_null_result(self, cloud_sql_session):
         """Test SUM() with no rows returns NULL, converted to default."""
-        cloud_sql_session.execute(
-            text(
-                """
+        cloud_sql_session.execute(text("""
                 CREATE TEMPORARY TABLE test_null (
                     id SERIAL PRIMARY KEY,
                     amount INTEGER
                 )
-                """
-            )
-        )
+                """))
         cloud_sql_session.commit()
 
         # Query sum on empty table (returns NULL)
@@ -205,17 +185,13 @@ class TestPostgreSQLAggregateTypes:
 
     def test_row_tuple_indexing_with_aggregates(self, cloud_sql_session):
         """Test that row[1] with COUNT aggregate needs int conversion."""
-        cloud_sql_session.execute(
-            text(
-                """
+        cloud_sql_session.execute(text("""
                 CREATE TEMPORARY TABLE test_groups (
                     id SERIAL PRIMARY KEY,
                     category TEXT,
                     value INTEGER
                 )
-                """
-            )
-        )
+                """))
 
         # Insert test data
         for cat in ["A", "B", "C"]:
@@ -229,16 +205,12 @@ class TestPostgreSQLAggregateTypes:
         cloud_sql_session.commit()
 
         # Query with GROUP BY
-        result = cloud_sql_session.execute(
-            text(
-                """
+        result = cloud_sql_session.execute(text("""
                 SELECT category, COUNT(*) as count
                 FROM test_groups
                 GROUP BY category
                 ORDER BY category
-                """
-            )
-        )
+                """))
 
         rows = result.fetchall()
         assert len(rows) == 3

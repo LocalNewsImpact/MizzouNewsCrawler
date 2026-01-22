@@ -52,12 +52,10 @@ def test_load_sources_fails_on_duplicate_hosts(
     caplog,
     base_csv_headers,
 ):
-    csv_rows = dedent(
-        """
+    csv_rows = dedent("""
         1,Outlet One,Town A,County A,https://duplicate.example.com/a
         2,Outlet Two,Town B,County B,https://duplicate.example.com/b
-        """
-    ).strip()
+        """).strip()
 
     exit_code = _run_loader(
         tmp_path,
@@ -77,12 +75,10 @@ def test_load_sources_fails_on_duplicate_urls(
     base_csv_headers,
 ):
     duplicate_url = "https://unique.example.com/story"
-    csv_rows = dedent(
-        f"""
+    csv_rows = dedent(f"""
         10,Outlet Alpha,Metro,Metro County,{duplicate_url}
         11,Outlet Beta,Metro,Metro County,{duplicate_url}
-        """
-    ).strip()
+        """).strip()
 
     exit_code = _run_loader(
         tmp_path,

@@ -136,13 +136,11 @@ class TestDiscoveryCriticalSQL:
 
     def test_query_sources_for_discovery(self, test_db, test_source):
         """Test SQL query used to find sources for discovery."""
-        query = text(
-            """
+        query = text("""
             SELECT id, host, canonical_name
             FROM sources
             WHERE id = :source_id
-        """
-        )
+        """)
 
         with test_db.session as session:
             result = session.execute(query, {"source_id": test_source.id})
@@ -204,14 +202,12 @@ class TestVerificationCriticalSQL:
                 session.commit()
 
         # Query for pending
-        query = text(
-            """
+        query = text("""
             SELECT id, url
             FROM candidate_links
             WHERE status = 'discovered'
             LIMIT 10
-        """
-        )
+        """)
 
         with test_db.session as session:
             result = session.execute(query)
@@ -332,14 +328,12 @@ class TestExtractionCriticalSQL:
                 session.commit()
 
         # Query verified
-        query = text(
-            """
+        query = text("""
             SELECT id, url
             FROM candidate_links
             WHERE status = 'article'
             LIMIT 10
-        """
-        )
+        """)
 
         with test_db.session as session:
             result = session.execute(query)
@@ -429,14 +423,12 @@ class TestLabelingCriticalSQL:
                 session.commit()
 
         # Query cleaned
-        query = text(
-            """
+        query = text("""
             SELECT id, url, title
             FROM articles
             WHERE status = 'cleaned'
             LIMIT 10
-        """
-        )
+        """)
 
         with test_db.session as session:
             result = session.execute(query)

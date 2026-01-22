@@ -53,8 +53,7 @@ def _read_state(engine, source_id: str) -> dict[str, Any]:
     """Read typed RSS state columns for a source (PostgreSQL integration)."""
     with engine.connect() as conn:
         row = conn.execute(
-            text(
-                """
+            text("""
                 SELECT
                   rss_consecutive_failures,
                   rss_transient_failures,
@@ -64,8 +63,7 @@ def _read_state(engine, source_id: str) -> dict[str, Any]:
                   no_effective_methods_consecutive,
                   no_effective_methods_last_seen
                 FROM sources WHERE id = :id
-                """
-            ),
+                """),
             {"id": source_id},
         ).fetchone()
     if not row:

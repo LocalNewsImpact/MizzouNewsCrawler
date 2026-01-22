@@ -1687,8 +1687,7 @@ class BalancedBoundaryContentCleaner:
             with db.get_session() as session:
                 result = safe_session_execute(
                     session,
-                    sql_text(
-                        """
+                    sql_text("""
                     SELECT a.candidate_link_id,
                            cl.source,
                            cl.source_name,
@@ -1702,8 +1701,7 @@ class BalancedBoundaryContentCleaner:
                     LEFT JOIN candidate_links cl ON a.candidate_link_id = cl.id
                     LEFT JOIN sources s ON cl.source_id = s.id
                     WHERE a.id = :article_id
-                    """
-                    ),
+                    """),
                     {"article_id": article_id},
                 )
                 row = result.fetchone()
