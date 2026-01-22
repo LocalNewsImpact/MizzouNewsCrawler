@@ -828,6 +828,9 @@ class ContentExtractor:
             load_fingerprint_profile()
         )
 
+        # AMP support cache for tracking domain AMP compatibility
+        self._amp_support_cache: Dict[str, Optional[bool]] = {}
+
         # If fingerprint profile is loaded, use its UA for consistency
         if self._fingerprint_profile and self._fingerprint_profile.user_agent:
             self.current_user_agent = self._fingerprint_profile.user_agent
@@ -1722,11 +1725,8 @@ class ContentExtractor:
         """
         # Check in-memory cache first
         cache_key = f"amp_supported:{domain}"
-        if hasattr(self, "_amp_support_cache"):
-            if cache_key in self._amp_support_cache:
-                return self._amp_support_cache[cache_key]
-        else:
-            self._amp_support_cache = {}
+        if cache_key in self._amp_support_cache:
+            return self._amp_support_cache[cache_key]
 
         try:
             from sqlalchemy import text
