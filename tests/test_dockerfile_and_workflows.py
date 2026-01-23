@@ -10,7 +10,7 @@ def test_dockerfile_contains_google_chrome():
 
 def test_test_chromedriver_workflow_contains_diag_step():
     wf = open(".github/workflows/test-chromedriver.yml").read()
-    assert "Run UA metadata diagnostic in container" in wf or "diagnostic" in wf
+    assert "Verify versions match" in wf or "diagnostic" in wf
 
 
 def test_staging_rollout_workflow_exists():

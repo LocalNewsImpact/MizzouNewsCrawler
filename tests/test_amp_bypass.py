@@ -89,7 +89,8 @@ class TestAMPPageValidation:
     def test_validate_amp_page_with_amp_tag(self):
         """Test validation recognizes <html amp> tag."""
         extractor = ContentExtractor()
-        html = """
+        pad = "<!-- " + "x" * 501 + " -->\n"
+        html = pad + """
         <!DOCTYPE html>
         <html amp>
         <head><title>Test</title></head>
@@ -102,7 +103,8 @@ class TestAMPPageValidation:
     def test_validate_amp_page_with_lightning_emoji(self):
         """Test validation recognizes <html ⚡> tag."""
         extractor = ContentExtractor()
-        html = """
+        pad = "<!-- " + "x" * 501 + " -->\n"
+        html = pad + """
         <!DOCTYPE html>
         <html ⚡>
         <head><title>Test</title></head>
@@ -115,7 +117,8 @@ class TestAMPPageValidation:
     def test_validate_amp_page_with_ampproject_reference(self):
         """Test validation recognizes ampproject.org references."""
         extractor = ContentExtractor()
-        html = """
+        pad = "<!-- " + "x" * 501 + " -->\n"
+        html = pad + """
         <!DOCTYPE html>
         <html>
         <head>
@@ -130,7 +133,8 @@ class TestAMPPageValidation:
     def test_validate_amp_page_with_amp_boilerplate(self):
         """Test validation recognizes amp-boilerplate."""
         extractor = ContentExtractor()
-        html = """
+        pad = "<!-- " + "x" * 501 + " -->\n"
+        html = pad + """
         <!DOCTYPE html>
         <html>
         <head>
@@ -145,7 +149,8 @@ class TestAMPPageValidation:
     def test_validate_amp_page_with_amp_custom(self):
         """Test validation recognizes amp-custom."""
         extractor = ContentExtractor()
-        html = """
+        pad = "<!-- " + "x" * 501 + " -->\n"
+        html = pad + """
         <!DOCTYPE html>
         <html>
         <head>
@@ -160,7 +165,8 @@ class TestAMPPageValidation:
     def test_validate_amp_page_non_amp(self):
         """Test validation rejects non-AMP pages."""
         extractor = ContentExtractor()
-        html = """
+        pad = "<!-- " + "x" * 501 + " -->\n"
+        html = pad + """
         <!DOCTYPE html>
         <html>
         <head><title>Regular Page</title></head>
@@ -188,7 +194,7 @@ class TestAMPPageValidation:
 class TestAMPDatabaseOperations:
     """Test AMP support database operations."""
 
-    @patch("src.crawler.DatabaseManager")
+    @patch("src.models.database.DatabaseManager")
     def test_mark_domain_amp_supported_true(self, mock_db_class):
         """Test marking a domain as AMP-supported."""
         mock_session = MagicMock()
@@ -202,12 +208,14 @@ class TestAMPDatabaseOperations:
         # Verify UPDATE was executed
         mock_session.execute.assert_called_once()
         call_args = mock_session.execute.call_args
-        assert "amp_supported" in str(call_args)
+        # Access the SQL text directly from the TextClause object
+        sql_clause = call_args[0][0]
+        assert "amp_supported" in str(sql_clause)
         assert call_args[0][1]["supported"] is True
         assert call_args[0][1]["host"] == "fox4kc.com"
         mock_session.commit.assert_called_once()
 
-    @patch("src.crawler.DatabaseManager")
+    @patch("src.models.database.DatabaseManager")
     def test_mark_domain_amp_supported_false(self, mock_db_class):
         """Test marking a domain as NOT AMP-supported."""
         mock_session = MagicMock()
@@ -223,7 +231,7 @@ class TestAMPDatabaseOperations:
         assert call_args[0][1]["supported"] is False
         assert call_args[0][1]["host"] == "example.com"
 
-    @patch("src.crawler.DatabaseManager")
+    @patch("src.models.database.DatabaseManager")
     def test_get_domain_amp_support_known_true(self, mock_db_class):
         """Test getting AMP support for a domain known to support AMP."""
         mock_session = MagicMock()
@@ -241,7 +249,7 @@ class TestAMPDatabaseOperations:
 
         assert result is True
 
-    @patch("src.crawler.DatabaseManager")
+    @patch("src.models.database.DatabaseManager")
     def test_get_domain_amp_support_known_false(self, mock_db_class):
         """Test getting AMP support for a domain known NOT to support AMP."""
         mock_session = MagicMock()
@@ -259,7 +267,7 @@ class TestAMPDatabaseOperations:
 
         assert result is False
 
-    @patch("src.crawler.DatabaseManager")
+    @patch("src.models.database.DatabaseManager")
     def test_get_domain_amp_support_unknown(self, mock_db_class):
         """Test getting AMP support for an unknown domain."""
         mock_session = MagicMock()
@@ -275,7 +283,7 @@ class TestAMPDatabaseOperations:
 
         assert result is None
 
-    @patch("src.crawler.DatabaseManager")
+    @patch("src.models.database.DatabaseManager")
     def test_get_domain_amp_support_caching(self, mock_db_class):
         """Test that AMP support results are cached."""
         mock_session = MagicMock()

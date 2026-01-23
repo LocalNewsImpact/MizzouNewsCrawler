@@ -3226,6 +3226,8 @@ class ContentExtractor:
                                 self.proxy_manager.record_success(
                                     response_time=response_time
                                 )
+                                # Update default response object so downstream logic (status checks) sees success
+                                response = amp_response
                                 # Note: article.html already set above, will parse after this block
                             else:
                                 # AMP bypass failed, record and continue to fallback

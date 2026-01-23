@@ -22,12 +22,21 @@ Critical for production readiness:
 
 import json
 import os
+import platform
 import subprocess
 import time
 from pathlib import Path
 from typing import List
 
 import pytest
+
+# Detect if running on ARM64 (Apple Silicon)
+IS_ARM64 = platform.machine() in ("arm64", "aarch64")
+SKIP_CHROME_ARM64 = pytest.mark.skipif(
+    IS_ARM64,
+    reason="ChromeDriver not available for linux/aarch64 (Apple Silicon Docker). "
+    "This is not a production issue - GKE uses x86_64.",
+)
 
 # Get project root relative to this file (tests/docker/test_proxy_routing.py -> ../../)
 PROJECT_ROOT = Path(__file__).parent.parent.parent.absolute()
@@ -51,6 +60,7 @@ def run_docker_command(
     return result
 
 
+@SKIP_CHROME_ARM64
 @pytest.mark.docker
 class TestProxyConfiguration:
     """Test proxy configuration and environment variables."""
@@ -112,6 +122,7 @@ print('SQUID proxy type exists')
         )
 
 
+@SKIP_CHROME_ARM64
 @pytest.mark.docker
 class TestProxyRouting:
     """Test proxy routing logic in ContentExtractor."""
@@ -191,6 +202,7 @@ print('Header randomization pools OK')
         assert "Header randomization pools OK" in result.stdout
 
 
+@SKIP_CHROME_ARM64
 @pytest.mark.docker
 class TestProxyFallback:
     """Test proxy failure and fallback behavior."""
@@ -264,6 +276,7 @@ print('ProxyProvider enum OK')
         assert "ProxyProvider enum OK" in result.stdout
 
 
+@SKIP_CHROME_ARM64
 @pytest.mark.docker
 class TestPerimeterXSites:
     """Test specific PerimeterX-protected sites that caused production failure."""

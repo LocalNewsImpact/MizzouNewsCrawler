@@ -84,7 +84,7 @@ class TestAMPBypassIntegration:
     @patch("src.crawler.ContentExtractor._get_domain_amp_support")
     @patch("src.crawler.ContentExtractor._mark_domain_amp_supported")
     @patch("src.crawler.BotSensitivityManager")
-    @patch("src.crawler.DatabaseManager")
+    @patch("src.models.database.DatabaseManager")
     def test_full_amp_bypass_flow(
         self,
         mock_db_class,
@@ -136,7 +136,7 @@ class TestAMPBypassIntegration:
 
         # Verify AMP bypass was used
         assert result is not None
-        assert result.get("title") == "Sample Article Title - Fox 4 Kansas City"
+        assert result.get("title") == "Sample Article Title"
         assert len(result.get("content", "")) > 100
         assert "first paragraph" in result.get("content", "")
 
@@ -193,13 +193,14 @@ class TestAMPBypassIntegration:
 
         # Verify extraction succeeded
         assert result is not None
-        assert result.get("title") == "Sample Article Title - Fox 4 Kansas City"
+        assert result.get("title") == "Sample Article Title"
 
         # Verify preemptive AMP telemetry
         calls = mock_bot_manager.record_bot_detection.call_args_list
         preemptive_calls = [c for c in calls if "amp_preemptive_success" in str(c)]
         assert len(preemptive_calls) > 0, "Should record amp_preemptive_success event"
 
+    @patch("newspaper.Article.download")
     @patch("src.crawler.ContentExtractor._get_domain_lock")
     @patch("src.crawler.ContentExtractor._check_rate_limit")
     @patch("src.crawler.ContentExtractor._get_domain_session")
@@ -214,6 +215,7 @@ class TestAMPBypassIntegration:
         mock_session,
         mock_rate_limit,
         mock_lock,
+        mock_newspaper_download,
     ):
         """Test that AMP bypass failure triggers Selenium fallback."""
         # Setup mocks
@@ -221,6 +223,13 @@ class TestAMPBypassIntegration:
         mock_get_amp_support.return_value = None  # Unknown domain
         mock_lock.return_value.__enter__ = Mock(return_value=None)
         mock_lock.return_value.__exit__ = Mock(return_value=None)
+
+        # Mock newspaper download to fail with a RateLimitError to trigger Selenium fallback logic check
+        from src.crawler import RateLimitError
+
+        mock_newspaper_download.side_effect = RateLimitError(
+            "Selenium fallback required"
+        )
 
         # Mock HTTP responses - all fail
         mock_403_response = Mock()

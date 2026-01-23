@@ -107,6 +107,7 @@ class TestContainerEntrypoints:
         assert "ModuleNotFoundError" not in result.stderr
         assert "ImportError" not in result.stderr
 
+    @SKIP_CHROME_ARM64
     def test_crawler_can_import_extraction_modules(self):
         """Verify crawler container can import extraction code."""
         result = subprocess.run(
@@ -226,6 +227,7 @@ except Exception as e:
         assert "UNDETECTED_OK" in result.stdout
         assert result.returncode == 0
 
+    @SKIP_CHROME_ARM64
     def test_chromedriver_with_display_env(self):
         """Verify DISPLAY environment variable is set correctly for XVFB."""
         result = subprocess.run(
@@ -256,6 +258,7 @@ class TestExtractionMethodLogic:
     WOULD HAVE CAUGHT: _should_prioritize_selenium() returning False for unblock.
     """
 
+    @SKIP_CHROME_ARM64
     def test_should_prioritize_selenium_for_unblock(self):
         """WOULD HAVE CAUGHT: Logic bug causing unblock domains to skip Selenium.
 
@@ -306,6 +309,7 @@ print('LOGIC_OK')
         assert "LOGIC_OK" in result.stdout
         assert result.returncode == 0
 
+    @SKIP_CHROME_ARM64
     def test_extraction_method_configuration_affects_runtime(self):
         """Verify extraction_method config actually changes extractor behavior."""
         result = subprocess.run(
@@ -625,6 +629,7 @@ class TestTelemetrySystem:
     These tests verify it initializes and records data correctly.
     """
 
+    @SKIP_CHROME_ARM64
     def test_telemetry_store_can_initialize(self):
         """Verify telemetry store initializes without errors."""
         result = subprocess.run(
@@ -654,6 +659,7 @@ print('TELEMETRY_INIT_OK')
         ), f"Telemetry init failed:\n{result.stdout}\n{result.stderr}"
         assert result.returncode == 0
 
+    @SKIP_CHROME_ARM64
     def test_comprehensive_telemetry_initializes(self):
         """Verify ExtractionMetrics can initialize."""
         result = subprocess.run(
@@ -709,6 +715,7 @@ class TestBotSensitivityManager:
     database access. This caused crashes in production.
     """
 
+    @SKIP_CHROME_ARM64
     def test_bot_sensitivity_manager_can_initialize(self):
         """Verify BotSensitivityManager initializes in container."""
         result = subprocess.run(
@@ -738,8 +745,10 @@ print('BOT_MANAGER_OK')
         ), f"BotSensitivityManager init failed:\n{result.stdout}\n{result.stderr}"
         assert result.returncode == 0
 
+    @SKIP_CHROME_ARM64
     def test_content_extractor_with_bot_manager(self):
         """Verify ContentExtractor can initialize with BotSensitivityManager.
+
 
         This is the integration that failed in production - ContentExtractor
         initializes BotSensitivityManager which needs database.
@@ -782,6 +791,7 @@ class TestXVFBConfiguration:
     a virtual display. These tests verify it's configured correctly.
     """
 
+    @SKIP_CHROME_ARM64
     def test_xvfb_can_start(self):
         """Verify XVFB can start on display :99."""
         result = subprocess.run(
