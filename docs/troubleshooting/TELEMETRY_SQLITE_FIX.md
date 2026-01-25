@@ -3,7 +3,7 @@
 ## Problem History
 Production containers were incorrectly using SQLite for telemetry instead of PostgreSQL, causing errors:
 ```
-Telemetry store missing discovery tables; recorded outcome without source audit: 
+Telemetry store missing discovery tables; recorded outcome without source audit:
 (sqlite3.OperationalError) no such table: sources
 ```
 
@@ -56,7 +56,7 @@ Changed fallback logging from DEBUG to WARNING level to make SQLite fallback vis
 ```python
 def _determine_default_database_url() -> str:
     """Determine the PostgreSQL database URL for telemetry.
-    
+
     IMPORTANT: Telemetry MUST use PostgreSQL, never SQLite.
     If this function fails to find a database URL, it will raise an error
     rather than silently falling back to SQLite.
@@ -67,7 +67,7 @@ def _determine_default_database_url() -> str:
         if not candidate.startswith("postgresql"):
             raise ValueError("TELEMETRY_DATABASE_URL must be PostgreSQL")
         return candidate
-    
+
     # Try config import...
     # If all fails: RAISE ERROR instead of falling back to SQLite
     raise RuntimeError(

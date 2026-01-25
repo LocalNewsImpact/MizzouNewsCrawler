@@ -190,7 +190,7 @@ kubectl logs -n production deploy/mizzou-processor -f | \
   grep -E "(entity extraction|ML analysis|CAPTCHA|407|✓|✅)"
 ```
 
-**Expected**: 
+**Expected**:
 - See successful entity extraction completions
 - See successful ML analysis completions
 - See longer CAPTCHA backoff times (900s base, 7200s max)

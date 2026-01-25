@@ -29,9 +29,9 @@ def reset_last_articles(count=15):
 
         result = session.execute(
             text("""
-            SELECT id, candidate_link_id, url, title, author, created_at 
-            FROM articles 
-            ORDER BY created_at DESC 
+            SELECT id, candidate_link_id, url, title, author, created_at
+            FROM articles
+            ORDER BY created_at DESC
             LIMIT :count
         """),
             {"count": count},

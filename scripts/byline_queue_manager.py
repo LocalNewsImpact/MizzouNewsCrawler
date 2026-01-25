@@ -56,7 +56,7 @@ class BylineCleaningQueue:
             # Create index for efficient processing
             session.execute(
                 text("""
-                CREATE INDEX IF NOT EXISTS idx_byline_queue_status 
+                CREATE INDEX IF NOT EXISTS idx_byline_queue_status
                 ON byline_cleaning_queue(status, created_at)
             """)
             )
@@ -87,8 +87,8 @@ class BylineCleaningQueue:
             # Check if already in queue
             existing = session.execute(
                 text("""
-                    SELECT id FROM byline_cleaning_queue 
-                    WHERE article_id = :article_id 
+                    SELECT id FROM byline_cleaning_queue
+                    WHERE article_id = :article_id
                     AND status IN ('pending', 'processing')
                 """),
                 {"article_id": article_id},
@@ -101,7 +101,7 @@ class BylineCleaningQueue:
             # Add to queue
             session.execute(
                 text("""
-                    INSERT INTO byline_cleaning_queue 
+                    INSERT INTO byline_cleaning_queue
                     (article_id, raw_author, status, created_at)
                     VALUES (:article_id, :raw_author, 'pending', :created_at)
                 """),
@@ -140,8 +140,8 @@ class BylineCleaningQueue:
             # Get pending items from queue
             pending_items = session.execute(
                 text("""
-                    SELECT id, article_id, raw_author 
-                    FROM byline_cleaning_queue 
+                    SELECT id, article_id, raw_author
+                    FROM byline_cleaning_queue
                     WHERE status = 'pending'
                     ORDER BY created_at ASC
                     LIMIT :batch_size
@@ -181,8 +181,8 @@ class BylineCleaningQueue:
             # Mark as processing
             session.execute(
                 text("""
-                    UPDATE byline_cleaning_queue 
-                    SET status = 'processing' 
+                    UPDATE byline_cleaning_queue
+                    SET status = 'processing'
                     WHERE id = :queue_id
                 """),
                 {"queue_id": queue_id},
@@ -195,7 +195,7 @@ class BylineCleaningQueue:
             if cleaned_author != raw_author:
                 session.execute(
                     text("""
-                        UPDATE articles 
+                        UPDATE articles
                         SET author = :cleaned_author,
                             updated_at = :updated_at
                         WHERE id = :article_id
@@ -215,7 +215,7 @@ class BylineCleaningQueue:
             # Mark as completed
             session.execute(
                 text("""
-                    UPDATE byline_cleaning_queue 
+                    UPDATE byline_cleaning_queue
                     SET status = 'completed',
                         processed_at = :processed_at
                     WHERE id = :queue_id
@@ -229,7 +229,7 @@ class BylineCleaningQueue:
             # Mark as failed and increment retry count
             session.execute(
                 text("""
-                    UPDATE byline_cleaning_queue 
+                    UPDATE byline_cleaning_queue
                     SET status = 'failed',
                         error_message = :error,
                         retry_count = retry_count + 1,
@@ -253,10 +253,10 @@ class BylineCleaningQueue:
         try:
             status = session.execute(
                 text("""
-                SELECT 
+                SELECT
                     status,
                     COUNT(*) as count
-                FROM byline_cleaning_queue 
+                FROM byline_cleaning_queue
                 GROUP BY status
             """)
             ).fetchall()
@@ -276,8 +276,8 @@ class BylineCleaningQueue:
         try:
             result = session.execute(
                 text(f"""
-                    DELETE FROM byline_cleaning_queue 
-                    WHERE status = 'completed' 
+                    DELETE FROM byline_cleaning_queue
+                    WHERE status = 'completed'
                     AND processed_at < datetime('now', '-{days} days')
                 """)
             )
@@ -311,15 +311,15 @@ def auto_queue_new_articles():
         # Find articles with raw author data that haven't been queued
         articles = session.execute(
             text("""
-            SELECT a.id, a.author 
+            SELECT a.id, a.author
             FROM articles a
             LEFT JOIN byline_cleaning_queue q ON a.id = q.article_id
-            WHERE a.author IS NOT NULL 
+            WHERE a.author IS NOT NULL
             AND a.author != ''
             AND q.article_id IS NULL
             AND (
                 a.author LIKE '%Staff%' OR
-                a.author LIKE '%Editor%' OR  
+                a.author LIKE '%Editor%' OR
                 a.author LIKE '%Reporter%' OR
                 a.author LIKE '%@%' OR
                 a.author LIKE '%,%' OR

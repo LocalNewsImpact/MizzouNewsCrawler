@@ -24,7 +24,7 @@ VALIDATION_FAILED=0
 print_status() {
     local status=$1
     local message=$2
-    
+
     if [ "$status" == "OK" ]; then
         echo -e "${GREEN}✓${NC} $message"
     elif [ "$status" == "FAIL" ]; then
@@ -60,7 +60,7 @@ echo "2. Validating migration history..."
 # Check migration history
 if alembic history > /dev/null 2>&1; then
     print_status "OK" "Migration history is valid"
-    
+
     # Count migrations
     MIGRATION_COUNT=$(alembic history | grep -c "^[a-f0-9]" || echo "0")
     print_status "INFO" "Found $MIGRATION_COUNT migrations"
@@ -96,7 +96,7 @@ echo "   Using temporary database: $TEMP_DB"
 # Try to run migrations
 if alembic upgrade head 2>&1 | tee "$TEMP_DIR/migration.log"; then
     print_status "OK" "Migration to head succeeded"
-    
+
     # Check that alembic_version table exists
     if sqlite3 "$TEMP_DB" "SELECT version_num FROM alembic_version;" > /dev/null 2>&1; then
         VERSION=$(sqlite3 "$TEMP_DB" "SELECT version_num FROM alembic_version;")

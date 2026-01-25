@@ -44,7 +44,7 @@ echo -e ""
 run_entity_batch() {
     local batch_num=$1
     echo -e "${COLOR_YELLOW}[Entity Batch ${batch_num}/${ENTITY_BATCHES}] Starting...${COLOR_RESET}"
-    
+
     kubectl run entity-extraction-batch-${batch_num} \
         --namespace=${NAMESPACE} \
         --image=us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest \
@@ -80,7 +80,7 @@ run_entity_batch() {
             }]
           }
         }'
-    
+
     echo -e "${COLOR_GREEN}[Entity Batch ${batch_num}] Pod created${COLOR_RESET}"
 }
 
@@ -88,7 +88,7 @@ run_entity_batch() {
 run_classification_batch() {
     local batch_num=$1
     echo -e "${COLOR_YELLOW}[Classification Batch ${batch_num}/${CLASS_BATCHES}] Starting...${COLOR_RESET}"
-    
+
     kubectl run classification-batch-${batch_num} \
         --namespace=${NAMESPACE} \
         --image=us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest \
@@ -119,7 +119,7 @@ run_classification_batch() {
             }]
           }
         }'
-    
+
     echo -e "${COLOR_GREEN}[Classification Batch ${batch_num}] Pod created${COLOR_RESET}"
 }
 

@@ -228,7 +228,7 @@ class TestNoMetadataFound:
         <script>
             window.NXSTdata.content = Object.assign( window.NXSTdata.content, {
                 "title": "Test",
-                "broken": 
+                "broken":
             } )
         </script>
         """

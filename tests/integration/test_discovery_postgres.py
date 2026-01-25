@@ -99,8 +99,7 @@ class TestDiscoveryPostgreSQL:
 
             with db.engine.begin() as conn:
                 conn.execute(
-                    text(
-                        """
+                    text("""
                         INSERT INTO sources (
                             id, canonical_name, host, host_norm, city, county, type,
                             rss_consecutive_failures, rss_transient_failures,
@@ -110,8 +109,7 @@ class TestDiscoveryPostgreSQL:
                             :id, :name, :host, :host_norm, :city, :county, :type,
                             :rcf, :rtf, :nemc
                         )
-                        """
-                    ),
+                        """),
                     {
                         "id": source_id,
                         "name": f"Test Source {i+1}",
@@ -155,14 +153,12 @@ class TestDiscoveryPostgreSQL:
 
         with db.engine.begin() as conn:
             conn.execute(
-                text(
-                    """
+                text("""
                     INSERT INTO datasets (id, label, slug, ingested_at)
                     VALUES
                         (:id1, :label1, :slug1, NOW()),
                         (:id2, :label2, :slug2, NOW())
-                    """
-                ),
+                    """),
                 {
                     "id1": dataset1_id,
                     "label1": "Test-Dataset-1",
@@ -180,8 +176,7 @@ class TestDiscoveryPostgreSQL:
         with db.engine.begin() as conn:
             # Source 1 in Dataset 1
             conn.execute(
-                text(
-                    """
+                text("""
                     INSERT INTO sources (
                         id, canonical_name, host, host_norm, city, county, type,
                         rss_consecutive_failures, rss_transient_failures,
@@ -191,8 +186,7 @@ class TestDiscoveryPostgreSQL:
                         :id, :name, :host, :host_norm, :city, :county, :type,
                         :rcf, :rtf, :nemc
                     )
-                    """
-                ),
+                    """),
                 {
                     "id": source1_id,
                     "name": "Source 1",
@@ -207,12 +201,10 @@ class TestDiscoveryPostgreSQL:
                 },
             )
             conn.execute(
-                text(
-                    """
+                text("""
                     INSERT INTO dataset_sources (id, dataset_id, source_id)
                     VALUES (:id, :dataset_id, :source_id)
-                    """
-                ),
+                    """),
                 {
                     "id": str(uuid.uuid4()),
                     "dataset_id": dataset1_id,
@@ -222,8 +214,7 @@ class TestDiscoveryPostgreSQL:
 
             # Source 2 in Dataset 2
             conn.execute(
-                text(
-                    """
+                text("""
                     INSERT INTO sources (
                         id, canonical_name, host, host_norm, city, county, type,
                         rss_consecutive_failures, rss_transient_failures,
@@ -233,8 +224,7 @@ class TestDiscoveryPostgreSQL:
                         :id, :name, :host, :host_norm, :city, :county, :type,
                         :rcf, :rtf, :nemc
                     )
-                    """
-                ),
+                    """),
                 {
                     "id": source2_id,
                     "name": "Source 2",
@@ -249,12 +239,10 @@ class TestDiscoveryPostgreSQL:
                 },
             )
             conn.execute(
-                text(
-                    """
+                text("""
                     INSERT INTO dataset_sources (id, dataset_id, source_id)
                     VALUES (:id, :dataset_id, :source_id)
-                    """
-                ),
+                    """),
                 {
                     "id": str(uuid.uuid4()),
                     "dataset_id": dataset2_id,
@@ -294,8 +282,7 @@ class TestDiscoveryPostgreSQL:
         with db.engine.begin() as conn:
             # Source that has been attempted
             conn.execute(
-                text(
-                    """
+                text("""
                     INSERT INTO sources (
                         id, canonical_name, host, host_norm, city, county, type,
                         rss_consecutive_failures, rss_transient_failures,
@@ -305,8 +292,7 @@ class TestDiscoveryPostgreSQL:
                         :id, :name, :host, :host_norm, :city, :county, :type,
                         :rcf, :rtf, :nemc
                     )
-                    """
-                ),
+                    """),
                 {
                     "id": attempted_id,
                     "name": "Attempted Source",
@@ -323,8 +309,7 @@ class TestDiscoveryPostgreSQL:
 
             # Add a candidate link to mark as attempted
             conn.execute(
-                text(
-                    """
+                text("""
                     INSERT INTO candidate_links (
                         id, url, source, source_id, source_host_id,
                         dataset_id, status, discovered_at
@@ -333,8 +318,7 @@ class TestDiscoveryPostgreSQL:
                         :id, :url, :source, :source_id, :source_host_id,
                         :dataset_id, :status, NOW()
                     )
-                    """
-                ),
+                    """),
                 {
                     "id": str(uuid.uuid4()),
                     "url": "https://attempted.com/article-1",
@@ -348,8 +332,7 @@ class TestDiscoveryPostgreSQL:
 
             # Source that hasn't been attempted
             conn.execute(
-                text(
-                    """
+                text("""
                     INSERT INTO sources (
                         id, canonical_name, host, host_norm, city, county, type,
                         rss_consecutive_failures, rss_transient_failures,
@@ -359,8 +342,7 @@ class TestDiscoveryPostgreSQL:
                         :id, :name, :host, :host_norm, :city, :county, :type,
                         :rcf, :rtf, :nemc
                     )
-                    """
-                ),
+                    """),
                 {
                     "id": new_id,
                     "name": "New Source",
@@ -413,8 +395,7 @@ class TestDiscoveryPostgreSQL:
 
         with db.engine.begin() as conn:
             conn.execute(
-                text(
-                    """
+                text("""
                     INSERT INTO sources (
                         id, canonical_name, host, host_norm, city, county, type,
                         metadata, rss_consecutive_failures, rss_transient_failures,
@@ -424,8 +405,7 @@ class TestDiscoveryPostgreSQL:
                         :id, :name, :host, :host_norm, :city, :county, :type,
                         :metadata, :rcf, :rtf, :nemc
                     )
-                    """
-                ),
+                    """),
                 {
                     "id": due_source_id,
                     "name": "Due Source",
@@ -485,8 +465,7 @@ class TestDiscoveryPostgreSQL:
         for src in sources:
             with db.engine.begin() as conn:
                 conn.execute(
-                    text(
-                        """
+                    text("""
                         INSERT INTO sources (
                             id, canonical_name, host, host_norm, city, county, type,
                             rss_consecutive_failures, rss_transient_failures,
@@ -496,8 +475,7 @@ class TestDiscoveryPostgreSQL:
                             :id, :name, :host, :host_norm, :city, :county, :type,
                             :rcf, :rtf, :nemc
                         )
-                        """
-                    ),
+                        """),
                     {
                         "id": src["id"],
                         "name": src["name"],
@@ -538,12 +516,10 @@ class TestDiscoveryPostgreSQL:
         dataset_id = f"test-disc-{uuid.uuid4()}"
         with db.engine.begin() as conn:
             conn.execute(
-                text(
-                    """
+                text("""
                     INSERT INTO datasets (id, label, slug, ingested_at)
                     VALUES (:id, :label, :slug, NOW())
-                    """
-                ),
+                    """),
                 {
                     "id": dataset_id,
                     "label": "Valid-Dataset",

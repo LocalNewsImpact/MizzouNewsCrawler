@@ -13,12 +13,12 @@ patches:
   - path: patches/reduce-resources.yaml
     target:
       kind: Deployment
-  
+
   # Use staging database
   - path: patches/staging-database.yaml
     target:
       kind: Deployment
-  
+
   # Disable cron in staging (manual only)
   - path: patches/disable-cron.yaml
     target:

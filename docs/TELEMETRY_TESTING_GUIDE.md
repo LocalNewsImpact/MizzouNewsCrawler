@@ -31,7 +31,7 @@ python scripts/validate_telemetry_schema.py
 
 **Problem**: Unit tests using SQLite passed, but production PostgreSQL deployments failed due to schema mismatches.
 
-**Root Cause**: 
+**Root Cause**:
 1. Code's CREATE TABLE had 28 columns
 2. Alembic migration created 32 columns in PostgreSQL
 3. INSERT statements failed in production due to column count mismatch
@@ -83,7 +83,7 @@ See [WHY_TESTS_MISSED_TELEMETRY_ERRORS.md](../WHY_TESTS_MISSED_TELEMETRY_ERRORS.
 
 **Database**: PostgreSQL (requires `TEST_DATABASE_URL` env var)
 
-**Run**: 
+**Run**:
 ```bash
 TEST_DATABASE_URL="postgresql://user:pass@localhost/test_db" \
   pytest tests/integration/test_byline_telemetry_postgres.py
@@ -140,13 +140,13 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-    
+
     steps:
       - name: Run Alembic migrations
         run: alembic upgrade head
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/test_db
-      
+
       - name: Run PostgreSQL integration tests
         run: pytest tests/integration/test_byline_telemetry_postgres.py -v
         env:
@@ -208,7 +208,7 @@ jobs:
 
 ### Issue: "Schema drift detected"
 
-**Symptom**: 
+**Symptom**:
 ```
 ❌ Schema drift detected!
    Columns in Alembic but not in code: {'human_label', 'human_notes'}
@@ -223,7 +223,7 @@ jobs:
 
 **Symptom**:
 ```
-❌ INSERT statement has issues: INSERT column count (28) does not match 
+❌ INSERT statement has issues: INSERT column count (28) does not match
    CREATE TABLE column count (32)
 ```
 
@@ -237,7 +237,7 @@ jobs:
 
 **Symptom**:
 ```
-sqlalchemy.exc.ProgrammingError: (psycopg2.errors.UndefinedColumn) 
+sqlalchemy.exc.ProgrammingError: (psycopg2.errors.UndefinedColumn)
 column "human_label" of relation "byline_cleaning_telemetry" does not exist
 ```
 
@@ -299,7 +299,7 @@ For tables with >20 columns or frequent changes, consider SQLAlchemy ORM:
 
 **Likely cause**: Production database not migrated
 
-**Solution**: 
+**Solution**:
 1. Check production database: `alembic current`
 2. Run migrations: `alembic upgrade head`
 3. Verify schema: Connect to production and run `\d byline_cleaning_telemetry`

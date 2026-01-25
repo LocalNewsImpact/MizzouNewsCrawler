@@ -22,7 +22,7 @@ def upgrade() -> None:
     # Add e-edition URL path patterns to url_path_filters table
     op.execute("""
         INSERT INTO url_path_filters (path_pattern, filter_type, reason, active, notes)
-        VALUES 
+        VALUES
             ('/e-edition/', 'contains', 'E-edition pages', true, 'Digital newspaper replica pages'),
             ('/eedition/', 'contains', 'E-edition pages', true, 'Digital newspaper replica pages (no hyphen)')
         ON CONFLICT (path_pattern) DO NOTHING
@@ -33,6 +33,6 @@ def downgrade() -> None:
     """Downgrade schema."""
     # Remove e-edition patterns
     op.execute("""
-        DELETE FROM url_path_filters 
+        DELETE FROM url_path_filters
         WHERE path_pattern IN ('/e-edition/', '/eedition/')
     """)

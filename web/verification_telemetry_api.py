@@ -151,8 +151,7 @@ def get_verification_telemetry_stats() -> VerificationTelemetryStats:
     cursor = conn.cursor()
 
     # Get overall counts and accuracy
-    cursor.execute(
-        """
+    cursor.execute("""
         SELECT
             COUNT(*) as total,
             COUNT(CASE WHEN human_label IS NULL THEN 1 END) as pending,
@@ -164,14 +163,12 @@ def get_verification_telemetry_stats() -> VerificationTelemetryStats:
                 / COUNT(*) as article_rate
         FROM url_verifications
         WHERE storysniffer_result IS NOT NULL
-    """
-    )
+    """)
 
     row = cursor.fetchone()
 
     # Calculate StorySniffer accuracy based on human feedback
-    cursor.execute(
-        """
+    cursor.execute("""
         SELECT
             COUNT(CASE WHEN
                 (storysniffer_result = 1 AND human_label = 'correct') OR
@@ -179,20 +176,17 @@ def get_verification_telemetry_stats() -> VerificationTelemetryStats:
                 THEN 1 END) * 1.0 / COUNT(*) as accuracy
         FROM url_verifications
         WHERE human_label IN ('correct', 'incorrect')
-    """
-    )
+    """)
 
     accuracy_row = cursor.fetchone()
 
     # Get source count
-    cursor.execute(
-        """
+    cursor.execute("""
         SELECT COUNT(DISTINCT cl.source_name) as sources
         FROM url_verifications v
         LEFT JOIN candidate_links cl ON v.candidate_link_id = cl.id
         WHERE v.storysniffer_result IS NOT NULL
-    """
-    )
+    """)
 
     source_row = cursor.fetchone()
 

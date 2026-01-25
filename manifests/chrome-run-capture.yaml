@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: chrome-run-capture
+  namespace: production
+spec:
+  nodeName: gke-mizzou-cluster-standard-pool-d9a48e54-w8vp
+  restartPolicy: Never
+  containers:
+    - name: chrome
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/crawler:2b36d0a
+      imagePullPolicy: IfNotPresent
+      command:
+        - sh
+        - -c
+        - |
+          set -e
+          echo "Starting Chromium to fetch target (timeout 30s)..."
+          timeout 30 xvfb-run -a --server-args='-screen 0 1280x1024x24' /usr/bin/google-chrome \
+            --no-sandbox \
+            --user-agent 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.169 Safari/537.36' \
+            --incognito \
+            --disable-gpu \
+            --no-first-run \
+            --disable-dev-shm-usage \
+            --disable-extensions \
+            --disable-background-networking \
+            --disable-default-apps \
+            --disable-sync \
+            --disable-translate \
+            --disable-component-update \
+            "https://tools.scrapfly.io/api/fp/ja3" || true
+          echo "Chromium finished; sleeping briefly to flush connections"; sleep 2; echo "done"

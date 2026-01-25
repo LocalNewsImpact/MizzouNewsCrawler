@@ -1,6 +1,6 @@
 # PR #67 Merge Summary
 
-**Date**: October 11, 2025  
+**Date**: October 11, 2025
 **Status**: ✅ **MERGED INTO feature/gcp-kubernetes-deployment**
 
 ## What Was Merged
@@ -168,7 +168,7 @@ python scripts/launch_dataset_job.py \
 
 ---
 
-**Merge Commit**: 1a397a9 (with priority class fix)  
-**Status**: ✅ Ready for production use  
-**Conflicts**: None  
+**Merge Commit**: 1a397a9 (with priority class fix)
+**Status**: ✅ Ready for production use
+**Conflicts**: None
 **Breaking Changes**: None

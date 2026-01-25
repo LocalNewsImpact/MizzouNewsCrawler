@@ -24,7 +24,7 @@ def fix_discovery_status():
             WHERE cl.source_host_id IS NULL
         """, None, "Sources Never Attempted"),
     ]
-    
+
     for query, params, desc in queries:
         execute_query(query, params, desc)'''
 
@@ -43,7 +43,7 @@ def fix_discovery_status():
             WHERE discovery_attempted IS NULL
         """, None, "Sources Never Attempted"),
     ]
-    
+
     for query, params, desc in queries:
         execute_query(query, params, desc)'''
 

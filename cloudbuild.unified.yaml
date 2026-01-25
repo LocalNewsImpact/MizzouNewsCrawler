@@ -35,12 +35,12 @@ steps:
       - |
         if [ "${BRANCH_NAME}" = "main" ]; then
           echo "🔄 Running database migrations..."
-          
+
           # Get GKE credentials
           gcloud container clusters get-credentials mizzou-cluster \
             --zone=us-central1-a \
             --project=${PROJECT_ID}
-          
+
           # Create migration job using the UNIFIED image
           cat > /tmp/migration-job.yaml <<EOF
         apiVersion: batch/v1
@@ -76,13 +76,13 @@ steps:
       - |
         if [ "${BRANCH_NAME}" = "main" ]; then
           IMAGE_URL="us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-news-crawler/unified:${SHORT_SHA}"
-          
+
           gcloud deploy releases create release-${SHORT_SHA} \
             --delivery-pipeline=mizzou-news-crawler \
             --region=us-central1 \
             --annotations=commitId=${REVISION_ID} \
             --images=processor=${IMAGE_URL},api=${IMAGE_URL},crawler=${IMAGE_URL}
-            
+
           echo "✅ Created release using unified image: ${IMAGE_URL}"
         fi
     waitFor: ['push-unified']

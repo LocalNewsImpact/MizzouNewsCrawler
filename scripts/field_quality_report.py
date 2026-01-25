@@ -34,7 +34,7 @@ def generate_field_quality_report(operation_id=None, limit=50):
             where_clause = "WHERE timestamp > datetime('now', '-24 hours')"
 
         query = f"""
-            SELECT 
+            SELECT
                 url,
                 outcome,
                 title_quality_issues,
@@ -50,7 +50,7 @@ def generate_field_quality_report(operation_id=None, limit=50):
                 has_content,
                 has_author,
                 has_publish_date
-            FROM extraction_outcomes 
+            FROM extraction_outcomes
             {where_clause}
             ORDER BY timestamp DESC
             LIMIT :limit

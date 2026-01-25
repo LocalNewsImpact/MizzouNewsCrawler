@@ -1,7 +1,7 @@
 # Argo Workflows Deployment Status
 
-**Date**: October 15, 2025  
-**Branch**: `copilot/apply-changes-from-issue-82` (PR #83)  
+**Date**: October 15, 2025
+**Branch**: `copilot/apply-changes-from-issue-82` (PR #83)
 **Status**: ⚠️ **BLOCKED - Code Issue Found**
 
 ## ✅ Successfully Completed
@@ -96,7 +96,7 @@ WHERE s.host IS NOT NULL AND s.host != '' AND d.label = :dataset_label
 ### After Code Fix
 1. ✅ Verify Discovery step completes successfully
 2. ✅ Verify Verification step runs
-3. ✅ Verify Extraction step runs  
+3. ✅ Verify Extraction step runs
 4. ✅ Check database for extracted articles
 5. ✅ Suspend old CronJobs
 6. ✅ Monitor 24-hour operation (4 scheduled runs)
@@ -164,5 +164,5 @@ serviceAccount:mizzou-news-crawler.svc.id.goog[production/argo-workflow]
 
 ## 📞 Contact
 
-For questions about the Argo deployment: See Issue #82 and PR #83  
+For questions about the Argo deployment: See Issue #82 and PR #83
 For the SQL syntax fix: Create a separate issue or PR for code compatibility

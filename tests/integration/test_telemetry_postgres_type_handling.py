@@ -61,8 +61,7 @@ def test_discovery_method_effectiveness_query_returns_correct_types(
     """
     # Insert test data directly using the cloud_sql_session
     cloud_sql_session.execute(
-        text(
-            """
+        text("""
         INSERT INTO discovery_method_effectiveness (
             source_id, source_url, discovery_method, status,
             articles_found, success_rate, last_attempt, attempt_count,
@@ -72,8 +71,7 @@ def test_discovery_method_effectiveness_query_returns_correct_types(
             :articles_found, :success_rate, NOW(), :attempt_count,
             :avg_response_time_ms, :last_status_codes, :notes
         )
-        """
-        ),
+        """),
         {
             "source_id": test_source.id,
             "source_url": test_source.host,
@@ -91,15 +89,13 @@ def test_discovery_method_effectiveness_query_returns_correct_types(
 
     # Query back and simulate the type conversion code from telemetry.py
     result = cloud_sql_session.execute(
-        text(
-            """
+        text("""
         SELECT articles_found, attempt_count,
                success_rate, avg_response_time_ms
         FROM discovery_method_effectiveness
         WHERE source_id = :source_id
         AND discovery_method = :discovery_method
-        """
-        ),
+        """),
         {
             "source_id": test_source.id,
             "discovery_method": DiscoveryMethod.RSS_FEED.value,
@@ -139,8 +135,7 @@ def test_discovery_method_effectiveness_with_zero_values(
     """
     # Insert test data with zero values
     cloud_sql_session.execute(
-        text(
-            """
+        text("""
         INSERT INTO discovery_method_effectiveness (
             source_id, source_url, discovery_method, status,
             articles_found, success_rate, last_attempt, attempt_count,
@@ -150,8 +145,7 @@ def test_discovery_method_effectiveness_with_zero_values(
             :articles_found, :success_rate, NOW(), :attempt_count,
             :avg_response_time_ms, :last_status_codes, :notes
         )
-        """
-        ),
+        """),
         {
             "source_id": test_source.id,
             "source_url": test_source.host,
@@ -169,15 +163,13 @@ def test_discovery_method_effectiveness_with_zero_values(
 
     # Query back with type conversions
     result = cloud_sql_session.execute(
-        text(
-            """
+        text("""
         SELECT articles_found, attempt_count,
                success_rate, avg_response_time_ms
         FROM discovery_method_effectiveness
         WHERE source_id = :source_id
         AND discovery_method = :discovery_method
-        """
-        ),
+        """),
         {
             "source_id": test_source.id,
             "discovery_method": DiscoveryMethod.NEWSPAPER4K.value,
@@ -207,8 +199,7 @@ def test_discovery_method_effectiveness_with_large_numbers(
     """
     # Insert test data with large values
     cloud_sql_session.execute(
-        text(
-            """
+        text("""
         INSERT INTO discovery_method_effectiveness (
             source_id, source_url, discovery_method, status,
             articles_found, success_rate, last_attempt, attempt_count,
@@ -218,8 +209,7 @@ def test_discovery_method_effectiveness_with_large_numbers(
             :articles_found, :success_rate, NOW(), :attempt_count,
             :avg_response_time_ms, :last_status_codes, :notes
         )
-        """
-        ),
+        """),
         {
             "source_id": test_source.id,
             "source_url": test_source.host,
@@ -237,15 +227,13 @@ def test_discovery_method_effectiveness_with_large_numbers(
 
     # Query back with type conversions
     result = cloud_sql_session.execute(
-        text(
-            """
+        text("""
         SELECT articles_found, attempt_count,
                success_rate, avg_response_time_ms
         FROM discovery_method_effectiveness
         WHERE source_id = :source_id
         AND discovery_method = :discovery_method
-        """
-        ),
+        """),
         {
             "source_id": test_source.id,
             "discovery_method": DiscoveryMethod.STORYSNIFFER.value,
@@ -277,8 +265,7 @@ def test_sqlite_vs_postgres_type_behavior_difference(cloud_sql_session, test_sou
     """
     # Insert test data
     cloud_sql_session.execute(
-        text(
-            """
+        text("""
         INSERT INTO discovery_method_effectiveness (
             source_id, source_url, discovery_method, status,
             articles_found, success_rate, last_attempt, attempt_count,
@@ -288,8 +275,7 @@ def test_sqlite_vs_postgres_type_behavior_difference(cloud_sql_session, test_sou
             :articles_found, :success_rate, NOW(), :attempt_count,
             :avg_response_time_ms, :last_status_codes, :notes
         )
-        """
-        ),
+        """),
         {
             "source_id": test_source.id,
             "source_url": test_source.host,
@@ -307,15 +293,13 @@ def test_sqlite_vs_postgres_type_behavior_difference(cloud_sql_session, test_sou
 
     # Query raw row WITHOUT type conversions to see actual database behavior
     result = cloud_sql_session.execute(
-        text(
-            """
+        text("""
         SELECT articles_found, attempt_count,
                success_rate, avg_response_time_ms
         FROM discovery_method_effectiveness
         WHERE source_id = :source_id
         AND discovery_method = :discovery_method
-        """
-        ),
+        """),
         {
             "source_id": test_source.id,
             "discovery_method": DiscoveryMethod.RSS_FEED.value,

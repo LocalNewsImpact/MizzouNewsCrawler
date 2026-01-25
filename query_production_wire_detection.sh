@@ -44,14 +44,14 @@ def check_wire_detection(url, content):
     """Check if article would be detected as wire with updated logic."""
     if not url or not content:
         return {"is_wire": False, "reason": "missing_data"}
-    
+
     url_lower = url.lower()
-    
+
     # Check if from wire service's own domain
     for domain in OWN_SOURCE_DOMAINS.keys():
         if domain in url_lower:
             return {"is_wire": False, "reason": "own_source_domain"}
-    
+
     # Check weak URL patterns
     weak_url_match = False
     url_patterns_found = []
@@ -59,7 +59,7 @@ def check_wire_detection(url, content):
         if pattern in url_lower:
             weak_url_match = True
             url_patterns_found.append(pattern)
-    
+
     # Check for copyright in closing
     closing = content[-150:] if len(content) > 150 else content
     copyright_found = False
@@ -70,7 +70,7 @@ def check_wire_detection(url, content):
             copyright_found = True
             copyright_text = match.group(0)
             break
-    
+
     # Check for wire byline in opening
     opening = content[:150] if len(content) > 150 else content
     wire_byline_found = False
@@ -81,15 +81,15 @@ def check_wire_detection(url, content):
             wire_byline_found = True
             byline_text = match.group(0)
             break
-    
+
     # Apply conservative decision logic
     has_strong_evidence = wire_byline_found or copyright_found
-    
+
     # Determine if would be detected
     is_wire = False
     reason = None
     evidence = []
-    
+
     if wire_byline_found:
         is_wire = True
         reason = "wire_byline"
@@ -102,7 +102,7 @@ def check_wire_detection(url, content):
         is_wire = True
         reason = "weak_url_plus_content"
         evidence.extend([f"url: {p}" for p in url_patterns_found])
-    
+
     return {
         "is_wire": is_wire,
         "reason": reason,
@@ -134,11 +134,11 @@ print(f"Found {len(articles)} non-wire articles")
 newly_detected = []
 for article in articles:
     detection = check_wire_detection(article.url, article.content)
-    
+
     if detection["is_wire"]:
         candidate = article.candidate_link
         source_name = candidate.source_name if candidate else "Unknown"
-        
+
         newly_detected.append({
             "article_id": article.id,
             "url": article.url,

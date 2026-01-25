@@ -1083,10 +1083,10 @@ Source: KMOV CBS
 Domain: www.kmov.com
 Path: /news/black-history
 
-URL: https://www.kmov.com/news/education/back-to-school/ 
+URL: https://www.kmov.com/news/education/back-to-school/
 Source: KMOV CBS
 Domain: www.kmov.com
-Path: /news/education/back-to-school/ 
+Path: /news/education/back-to-school/
 
 URL: https://www.kmov.com/news/environment
 Source: KMOV CBS
@@ -1108,10 +1108,10 @@ Source: KMOV CBS
 Domain: www.kmov.com
 Path: /newsletter
 
-URL: https://www.kmov.com/newsletter/ 
+URL: https://www.kmov.com/newsletter/
 Source: KMOV CBS
 Domain: www.kmov.com
-Path: /newsletter/ 
+Path: /newsletter/
 
 URL: https://www.koamnewsnow.com/news/
 Source: KOAM
@@ -3530,4 +3530,3 @@ Domain: 4bcaonline.com
 URL: https://4bcaonline.com/michigan-house-approves-budget-cuts-targeting-u-m-and-msu-citing-ideological-concerns/
 Source: Barry County Advertiser
 Domain: 4bcaonline.com
-

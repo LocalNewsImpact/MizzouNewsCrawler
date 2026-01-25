@@ -136,21 +136,21 @@ echo -e "${YELLOW}Test 4: Validating service Dockerfiles...${NC}"
 
 for dockerfile in Dockerfile.api Dockerfile.processor Dockerfile.crawler; do
     echo "  Checking $dockerfile:"
-    
+
     if grep -q "ARG BASE_IMAGE" "$dockerfile"; then
         echo -e "    ${GREEN}✓${NC} Has BASE_IMAGE ARG"
     else
         echo -e "    ${RED}✗${NC} Missing BASE_IMAGE ARG"
         ((ERRORS++))
     fi
-    
+
     if grep -q 'FROM ${BASE_IMAGE}' "$dockerfile" || grep -q 'FROM \${BASE_IMAGE}' "$dockerfile"; then
         echo -e "    ${GREEN}✓${NC} Uses BASE_IMAGE variable"
     else
         echo -e "    ${RED}✗${NC} Doesn't use BASE_IMAGE variable"
         ((ERRORS++))
     fi
-    
+
     # Check if it installs service-specific requirements
     service=$(basename "$dockerfile" .Dockerfile | sed 's/Dockerfile.//')
     if grep -q "requirements-${service}.txt" "$dockerfile"; then
@@ -176,21 +176,21 @@ fi
 # Check service Cloud Build configs
 for config in gcp/cloudbuild/cloudbuild-api-only.yaml gcp/cloudbuild/cloudbuild-processor-only.yaml gcp/cloudbuild/cloudbuild-crawler-only.yaml; do
     echo "  Checking $config:"
-    
+
     if grep -q "_BASE_IMAGE" "$config"; then
         echo -e "    ${GREEN}✓${NC} Has BASE_IMAGE substitution"
     else
         echo -e "    ${RED}✗${NC} Missing BASE_IMAGE substitution"
         ((ERRORS++))
     fi
-    
+
     if grep -q "BASE_IMAGE=\${_BASE_IMAGE}" "$config" || grep -q 'BASE_IMAGE=${_BASE_IMAGE}' "$config"; then
         echo -e "    ${GREEN}✓${NC} Uses BASE_IMAGE build arg"
     else
         echo -e "    ${RED}✗${NC} Doesn't use BASE_IMAGE build arg"
         ((ERRORS++))
     fi
-    
+
     # Check if timeout was reduced (should be 300s instead of 900s)
     if grep -q "timeout.*300s" "$config" || grep -q "timeout.*'300s'" "$config"; then
         echo -e "    ${GREEN}✓${NC} Timeout reduced to 300s (5 min)"
@@ -230,7 +230,7 @@ if [ -f "docs/BASE_IMAGE_MAINTENANCE.md" ]; then
         echo -e "  ${YELLOW}⚠${NC} BASE_IMAGE_MAINTENANCE.md missing rebuild guide"
         ((WARNINGS++))
     fi
-    
+
     if grep -q "Rollback" docs/BASE_IMAGE_MAINTENANCE.md; then
         echo -e "  ${GREEN}✓${NC} BASE_IMAGE_MAINTENANCE.md has rollback procedure"
     else
@@ -266,7 +266,7 @@ if [ -f "scripts/build-base.sh" ]; then
         echo -e "  ${YELLOW}⚠${NC} build-base.sh not executable (run: chmod +x scripts/build-base.sh)"
         ((WARNINGS++))
     fi
-    
+
     if grep -q "docker build" scripts/build-base.sh && grep -q "DOCKERFILE.*base" scripts/build-base.sh; then
         echo -e "  ${GREEN}✓${NC} build-base.sh builds base image"
     else

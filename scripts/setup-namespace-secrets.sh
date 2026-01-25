@@ -16,7 +16,7 @@ Options:
     -i, --instance INSTANCE         Cloud SQL instance connection name
                                     (format: project:region:instance)
     -u, --user USER                 Database user
-    -p, --password PASSWORD         Database password  
+    -p, --password PASSWORD         Database password
     -d, --database DATABASE         Database name
     -c, --context CONTEXT          Kubernetes context (optional)
     -h, --help                     Show this help message

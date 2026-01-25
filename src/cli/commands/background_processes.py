@@ -181,14 +181,12 @@ def _print_database_status() -> int:
 def _print_candidate_link_status(conn) -> None:
     result = safe_execute(
         conn,
-        text(
-            """
+        text("""
             SELECT status, COUNT(*) as count
             FROM candidate_links
             GROUP BY status
             ORDER BY count DESC
-        """
-        ),
+        """),
     )
     print("\n=== Candidate Links Status ===")
     for row in result:
@@ -198,14 +196,12 @@ def _print_candidate_link_status(conn) -> None:
 def _print_article_status(conn) -> None:
     result = safe_execute(
         conn,
-        text(
-            """
+        text("""
             SELECT status, COUNT(*) as count
             FROM articles
             GROUP BY status
             ORDER BY count DESC
-        """
-        ),
+        """),
     )
     print("\n=== Articles Status ===")
     for row in result:
@@ -215,8 +211,7 @@ def _print_article_status(conn) -> None:
 def _print_top_sources(conn) -> None:
     result = safe_execute(
         conn,
-        text(
-            """
+        text("""
             SELECT
                 cl.source_name,
                 cl.source_county,
@@ -227,8 +222,7 @@ def _print_top_sources(conn) -> None:
             GROUP BY cl.source_name, cl.source_county, cl.source_city
             ORDER BY article_count DESC
             LIMIT 10
-        """
-        ),
+        """),
     )
     print("\n=== Top Sources by Article Count ===")
     for row in result:
@@ -238,8 +232,7 @@ def _print_top_sources(conn) -> None:
 def _print_geographic_distribution(conn) -> None:
     result = safe_execute(
         conn,
-        text(
-            """
+        text("""
             SELECT
                 cl.source_county,
                 COUNT(DISTINCT cl.id) as sources,
@@ -249,8 +242,7 @@ def _print_geographic_distribution(conn) -> None:
             GROUP BY cl.source_county
             ORDER BY sources DESC
             LIMIT 10
-        """
-        ),
+        """),
     )
     print("\n=== Geographic Distribution (Top Counties) ===")
     for row in result:

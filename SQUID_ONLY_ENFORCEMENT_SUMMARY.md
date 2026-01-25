@@ -1,7 +1,7 @@
 # Squid-Only Proxy Enforcement - Implementation Summary
 
-**Date:** January 4, 2026  
-**Critical Issue:** Production extraction bypassing Squid proxy after January 2, 2026 rollout  
+**Date:** January 4, 2026
+**Critical Issue:** Production extraction bypassing Squid proxy after January 2, 2026 rollout
 **Root Cause:** Optional proxy configuration allowed DIRECT mode and Selenium without proxy
 
 ## Critical Architectural Requirement
@@ -49,9 +49,9 @@ aliases = {
 ```python
 def _set_session_headers(self):
     # ...headers setup...
-    
+
     active_provider = self._resolve_active_proxy_provider()
-    
+
     if active_provider == ProxyProvider.SQUID:
         squid_proxies = {"http": squid_url, "https": squid_url}
         self.session.proxies.update(squid_proxies)
@@ -66,7 +66,7 @@ def _set_session_headers(self):
 ```python
 def _set_session_headers(self):
     # ...headers setup...
-    
+
     # CRITICAL: ALWAYS use Squid proxy for ALL connections
     squid_proxy_url = os.getenv("SQUID_PROXY_URL", "http://t9880447.eero.online:3128")
     squid_proxies = {"http": squid_proxy_url, "https": squid_proxy_url}
@@ -131,7 +131,7 @@ if selenium_proxy:  # ❌ Only if env var set
 ```python
 # CRITICAL: ALWAYS use Squid proxy - no direct connections allowed
 selenium_proxy = os.getenv(
-    "SELENIUM_PROXY", 
+    "SELENIUM_PROXY",
     os.getenv("SQUID_PROXY_URL", "http://t9880447.eero.online:3128")
 )
 
@@ -139,7 +139,7 @@ proxy_match = re.match(r"https?://(?:([^:]+):([^@]+)@)?([^:]+):(\d+)", selenium_
 
 if proxy_match:
     proxy_user, proxy_pass, proxy_host, proxy_port = proxy_match.groups()
-    
+
     if proxy_user and proxy_pass:
         # Create Chrome extension for authenticated proxy
         options.add_extension(proxy_extension_path)
@@ -171,7 +171,7 @@ if selenium_proxy:  # ❌ Only if env var set
 ```python
 # CRITICAL: ALWAYS use Squid proxy for Selenium - no direct connections allowed
 selenium_proxy = os.getenv(
-    "SELENIUM_PROXY", 
+    "SELENIUM_PROXY",
     os.getenv("SQUID_PROXY_URL", "http://t9880447.eero.online:3128")
 )
 chrome_options.add_argument(f"--proxy-server={selenium_proxy}")
@@ -219,13 +219,13 @@ python -m pytest tests/test_squid_only_proxy.py -v
 env:
 - name: PROXY_PROVIDER
   value: squid  # ✅ Set to squid
-  
+
 - name: SQUID_PROXY_URL
   valueFrom:
     secretKeyRef:
       key: squid-proxy-url
       name: squid-proxy-credentials
-      
+
 - name: SELENIUM_PROXY
   valueFrom:
     secretKeyRef:

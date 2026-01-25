@@ -112,11 +112,11 @@ if [ "$USE_MAIN_PIPELINE" = true ]; then
     echo -e "${COLOR_CYAN}Services:${COLOR_RESET}  ${SERVICES_TO_BUILD[*]}"
     echo -e "${COLOR_CYAN}Pipeline:${COLOR_RESET}  Build → Migrate → Deploy"
     echo -e "${COLOR_BLUE}========================================${COLOR_RESET}\n"
-    
+
     gcloud builds submit --config=gcp/cloudbuild/cloudbuild.yaml \
         --project=mizzou-news-crawler \
         --substitutions=BRANCH_NAME="${BRANCH}"
-    
+
     exit $?
 fi
 
@@ -148,20 +148,20 @@ should_build() {
 wait_for_build() {
     local build_id=$1
     local service_name=$2
-    
+
     echo -e "${COLOR_YELLOW}⏳ Waiting for ${service_name} build to complete...${COLOR_RESET}"
-    
+
     # Get project ID
     local project_id
     project_id=$(gcloud config get-value project 2>/dev/null)
-    
+
     while true; do
         if ! status=$(gcloud builds describe "$build_id" --project="$project_id" --format='value(status)' 2>&1); then
             echo -e "${COLOR_RED}❌ Error querying build status: ${status}${COLOR_RESET}"
             echo -e "${COLOR_YELLOW}View logs: gcloud builds log ${build_id} --project=${project_id}${COLOR_RESET}"
             return 1
         fi
-        
+
         if [ "$status" = "SUCCESS" ]; then
             echo -e "${COLOR_GREEN}✅ ${service_name} build completed successfully${COLOR_RESET}"
             return 0
@@ -170,7 +170,7 @@ wait_for_build() {
             echo -e "${COLOR_YELLOW}View logs: gcloud builds log ${build_id} --project=${project_id}${COLOR_RESET}"
             return 1
         fi
-        
+
         echo -e "${COLOR_YELLOW}   Status: ${status}... (checking again in 30s)${COLOR_RESET}"
         sleep 30
     done
@@ -181,25 +181,25 @@ trigger_build() {
     local trigger_name=$1
     local service_name=$2
     local branch=$3
-    
+
     echo -e "\n${COLOR_BLUE}🔨 Building: ${service_name}${COLOR_RESET}" >&2
-    
+
     local build_id
     local build_output
     # Redirect stderr to /dev/null to avoid capturing extra output
     build_output=$(gcloud builds triggers run "$trigger_name" --branch="$branch" --format='value(metadata.build.id)' 2>/dev/null)
     local exit_code=$?
-    
+
     if [ $exit_code -ne 0 ]; then
         echo -e "${COLOR_RED}❌ Failed to trigger ${service_name} build${COLOR_RESET}" >&2
         # Run again to show error
         gcloud builds triggers run "$trigger_name" --branch="$branch" >&2
         return 1
     fi
-    
+
     # Extract just the build ID (first line, trimmed)
     build_id=$(echo "$build_output" | grep -E '^[a-f0-9-]+$' | head -n 1 | tr -d '[:space:]')
-    
+
     echo -e "${COLOR_CYAN}Build ID:${COLOR_RESET} $build_id" >&2
     echo "$build_id"
 }
@@ -232,12 +232,12 @@ if should_build "ml"; then
     echo -e "\n${COLOR_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
     echo -e "${COLOR_BLUE}Phase 2: ML Base Image (Step ${STEP_COUNTER}/${TOTAL_STEPS})${COLOR_RESET}"
     echo -e "${COLOR_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
-    
+
     # Check if base was built or already exists
     if ! should_build "base"; then
         echo -e "${COLOR_YELLOW}⚠️  Building ML base without rebuilding base image (using existing base)${COLOR_RESET}"
     fi
-    
+
     ML_BASE_BUILD_ID=$(trigger_build "build-ml-base-manual" "ML Base Image" "$BRANCH")
     if ! wait_for_build "$ML_BASE_BUILD_ID" "ML Base Image"; then
         ((BUILD_FAILURES++))
@@ -262,11 +262,11 @@ if should_build "api"; then
     echo -e "\n${COLOR_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
     echo -e "${COLOR_BLUE}Phase 3a: API Service (Step ${STEP_COUNTER}/${TOTAL_STEPS})${COLOR_RESET}"
     echo -e "${COLOR_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
-    
+
     if ! should_build "base"; then
         echo -e "${COLOR_YELLOW}⚠️  Building API without rebuilding base image (using existing base)${COLOR_RESET}"
     fi
-    
+
     API_BUILD_ID=$(trigger_build "build-api-manual" "API Service" "$BRANCH")
     PARALLEL_BUILDS+=("$API_BUILD_ID")
     PARALLEL_SERVICES+=("API Service")
@@ -277,11 +277,11 @@ if should_build "crawler"; then
     echo -e "\n${COLOR_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
     echo -e "${COLOR_BLUE}Phase 3b: Crawler Service (Step ${STEP_COUNTER}/${TOTAL_STEPS})${COLOR_RESET}"
     echo -e "${COLOR_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
-    
+
     if ! should_build "base"; then
         echo -e "${COLOR_YELLOW}⚠️  Building Crawler without rebuilding base image (using existing base)${COLOR_RESET}"
     fi
-    
+
     CRAWLER_BUILD_ID=$(trigger_build "build-crawler-manual" "Crawler Service" "$BRANCH")
     PARALLEL_BUILDS+=("$CRAWLER_BUILD_ID")
     PARALLEL_SERVICES+=("Crawler Service")
@@ -303,11 +303,11 @@ if should_build "processor"; then
     echo -e "\n${COLOR_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
     echo -e "${COLOR_BLUE}Phase 4: Processor Service (Step ${STEP_COUNTER}/${TOTAL_STEPS})${COLOR_RESET}"
     echo -e "${COLOR_BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
-    
+
     if ! should_build "ml"; then
         echo -e "${COLOR_YELLOW}⚠️  Building Processor without rebuilding ML base (using existing ml-base)${COLOR_RESET}"
     fi
-    
+
     PROCESSOR_BUILD_ID=$(trigger_build "build-processor-manual" "Processor Service" "$BRANCH")
     if ! wait_for_build "$PROCESSOR_BUILD_ID" "Processor Service"; then
         ((BUILD_FAILURES++))
@@ -331,12 +331,12 @@ if [ $BUILD_FAILURES -eq 0 ]; then
     elif [ -n "${API_BUILD_ID:-}" ]; then
         COMMIT_SHA=$(gcloud builds describe "$API_BUILD_ID" --format='value(substitutions.SHORT_SHA)' 2>/dev/null || echo "unknown")
     fi
-    
+
     # Fallback to git if no builds were done (shouldn't happen in normal flow)
     if [ "$COMMIT_SHA" = "unknown" ]; then
         COMMIT_SHA=$(git rev-parse --short "origin/${BRANCH}" 2>/dev/null || git rev-parse --short HEAD 2>/dev/null || echo "unknown")
     fi
-    
+
     VERSIONS_FILE="k8s/versions.env"
 
     if [ "$COMMIT_SHA" != "unknown" ] && [ -f "$VERSIONS_FILE" ]; then
@@ -346,11 +346,11 @@ if [ $BUILD_FAILURES -eq 0 ]; then
         if should_build "processor"; then
             UPDATE_ARGS+=("--processor" "$COMMIT_SHA")
         fi
-        
+
         if should_build "crawler"; then
             UPDATE_ARGS+=("--crawler" "$COMMIT_SHA")
         fi
-        
+
         if should_build "api"; then
             UPDATE_ARGS+=("--api" "$COMMIT_SHA")
         fi

@@ -1,7 +1,7 @@
 # ML Model Reloading Issue Analysis
 
-**Date:** October 19, 2025  
-**Issue:** spaCy ML model loaded repeatedly, causing 2GB memory spikes  
+**Date:** October 19, 2025
+**Issue:** spaCy ML model loaded repeatedly, causing 2GB memory spikes
 **Impact:** OOM kills, inefficient memory usage, slower processing
 
 ---
@@ -20,7 +20,7 @@ The continuous processor (`orchestration/continuous_processor.py`) spawns a **ne
 # continuous_processor.py line 134-145
 def run_cli_command(command: list[str], description: str) -> bool:
     cmd = [sys.executable, "-m", CLI_MODULE, *command]
-    
+
     proc = subprocess.Popen(
         cmd,  # ← New Python process!
         cwd=PROJECT_ROOT,
@@ -66,7 +66,7 @@ Batch 1 process:
 
 Batch 2 process:
   0s:     Load model → 2.2GB memory spike AGAIN
-  2s:     Process articles (100) → Model cached in RAM  
+  2s:     Process articles (100) → Model cached in RAM
   30s:    Exit → Memory freed
 
 ... repeat forever
@@ -135,19 +135,19 @@ def process_entity_extraction(count: int) -> bool:
         return False
 
     limit = min(count, GAZETTEER_BATCH_SIZE)
-    
+
     # Create args namespace instead of CLI command
     args = Namespace(limit=limit, source=None)
-    
+
     # Inject the cached extractor to avoid reloading model
     try:
         logger.info("▶️  Entity extraction (%d pending, limit %d)", count, limit)
         extractor = get_entity_extractor()  # ← Uses cached model!
-        
+
         # Call the function directly
         # TODO: Refactor handle_entity_extraction_command to accept extractor
         result = handle_entity_extraction_command(args)
-        
+
         if result == 0:
             logger.info("✅ Entity extraction completed successfully")
             return True
@@ -201,13 +201,13 @@ class EntityExtractionWorker:
         # Load model ONCE at startup
         self.extractor = ArticleEntityExtractor()
         self.db = DatabaseManager()
-        
+
     def process_batch(self, limit: int):
         """Process a batch using the cached extractor."""
         # Same logic as handle_entity_extraction_command
         # but using self.extractor (already loaded!)
         pass
-    
+
     def run(self):
         """Main worker loop."""
         while True:
@@ -408,13 +408,13 @@ def handle_entity_extraction_command(args, extractor=None) -> int:
     """Execute entity extraction with optional pre-loaded extractor."""
     limit = getattr(args, "limit", 100)
     source = getattr(args, "source", None)
-    
+
     db = DatabaseManager()
-    
+
     # Use provided extractor or create new one
     if extractor is None:
         extractor = ArticleEntityExtractor()
-    
+
     # ... rest of logic unchanged
 ```
 
@@ -442,27 +442,27 @@ def process_entity_extraction(count: int) -> bool:
         return False
 
     limit = min(count, GAZETTEER_BATCH_SIZE)
-    
+
     try:
         from argparse import Namespace
         from src.cli.commands.entity_extraction import handle_entity_extraction_command
-        
+
         logger.info("▶️  Entity extraction (%d pending, limit %d)", count, limit)
-        
+
         # Get cached extractor (model already loaded!)
         extractor = get_cached_entity_extractor()
-        
+
         # Call directly instead of subprocess
         args = Namespace(limit=limit, source=None)
         result = handle_entity_extraction_command(args, extractor=extractor)
-        
+
         if result == 0:
             logger.info("✅ Entity extraction completed")
             return True
         else:
             logger.error("❌ Entity extraction failed")
             return False
-            
+
     except Exception as e:
         logger.exception("Entity extraction error: %s", e)
         return False
@@ -506,7 +506,7 @@ Process lifecycle (every 5 minutes):
   - Load model (2s, 2GB spike)
   - Process 100 articles (28s)
   - Exit, free memory
-  
+
 Memory pattern:
   ┌─────┐    ┌─────┐    ┌─────┐
   │ 2GB │    │ 2GB │    │ 2GB │
@@ -528,7 +528,7 @@ Process lifecycle (every 25 minutes):
   - Load model (2s, 2GB spike)
   - Process 500 articles (140s)
   - Exit, free memory
-  
+
 Memory pattern:
   ┌─────┐           ┌─────┐
   │ 2GB │           │ 2GB │
@@ -551,7 +551,7 @@ Process lifecycle (continuous):
   - Process batch 2 (500 articles, 140s)
   - Process batch 3 (500 articles, 140s)
   - ... forever, model stays loaded
-  
+
 Memory pattern (stable):
 ────────────────────────────────
         2.5GB constant
@@ -611,7 +611,7 @@ nlp = spacy.load("en_core_web_sm")
 
 ---
 
-**Status:** Ready for implementation  
-**Priority:** HIGH - Wastes 10min/day + causes memory pressure  
-**Effort:** Phase 1 = 5min, Phase 2 = 2-3 hours  
+**Status:** Ready for implementation
+**Priority:** HIGH - Wastes 10min/day + causes memory pressure
+**Effort:** Phase 1 = 5min, Phase 2 = 2-3 hours
 **Impact:** 80-99% reduction in model reload waste

@@ -8,12 +8,12 @@
 
 The manual BigQuery export code has been removed in favor of Google Cloud Datastream, which provides:
 
-✅ **Automatic replication** of ALL tables (articles, labels, entities)  
-✅ **Real-time sync** (seconds of latency instead of daily batch)  
-✅ **Automatic schema changes** handling  
-✅ **No custom code** to maintain  
-✅ **No batching, limits, or pagination** issues  
-✅ **Managed service** with built-in monitoring and retries  
+✅ **Automatic replication** of ALL tables (articles, labels, entities)
+✅ **Real-time sync** (seconds of latency instead of daily batch)
+✅ **Automatic schema changes** handling
+✅ **No custom code** to maintain
+✅ **No batching, limits, or pagination** issues
+✅ **Managed service** with built-in monitoring and retries
 
 For setup instructions, see: **[DATASTREAM_SETUP.md](../DATASTREAM_SETUP.md)**
 
@@ -55,7 +55,7 @@ BigQuery Dataset (mizzou_analytics)
 2. **cin_labels**: CIN classification results
    - Links to articles table
    - Includes: label, confidence, model version
-   
+
 3. **entities**: Named entity extraction results
    - Links to articles table
    - Includes: entity_type, entity_text, confidence
@@ -328,10 +328,10 @@ for i in {0..12}; do
   START=$((i * 7))
   END=$(((i + 1) * 7))
   echo "Exporting days $START to $END..."
-  
+
   kubectl exec -n production deployment/mizzou-cli -- \
     python -m src.cli.main bigquery-export --days-back $END
-    
+
   sleep 60  # Rate limiting
 done
 ```

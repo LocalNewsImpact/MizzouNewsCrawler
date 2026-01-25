@@ -9,7 +9,7 @@ This document describes the comprehensive Alembic migration testing framework ad
 ### Test Files
 
 - `tests/alembic/test_alembic_migrations.py` - Basic migration functionality tests
-- `tests/alembic/test_alembic_cloud_sql.py` - Cloud SQL Connector integration tests  
+- `tests/alembic/test_alembic_cloud_sql.py` - Cloud SQL Connector integration tests
 - `tests/alembic/test_migration_workflow.py` - End-to-end workflow tests
 
 ### Running Tests
@@ -75,7 +75,7 @@ This causes "table already exists" errors when running migrations from scratch.
 
 **Impact**: Some migration tests may fail when running against a fresh database.
 
-**Workaround**: 
+**Workaround**:
 1. Skip the problematic migration revision when testing
 2. Or fix the migration duplication (recommended for production)
 

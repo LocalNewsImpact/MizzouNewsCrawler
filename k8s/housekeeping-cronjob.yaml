@@ -58,7 +58,7 @@ spec:
               echo "🧹 Pipeline Housekeeping Started"
               echo "Timestamp: $(date -u)"
               echo ""
-              
+
               # Run housekeeping command
               # --candidate-expiration-days 7: Mark candidates in 'article' status older than 7 days as paused
               # --extraction-stall-hours 24: Warn about articles stuck in extraction for 24+ hours
@@ -71,7 +71,7 @@ spec:
                 --cleaning-stall-hours 24 \
                 --verification-stall-hours 24 \
                 --verbose
-              
+
               RESULT=$?
               echo ""
               echo "Housekeeping completed with exit code: $RESULT"

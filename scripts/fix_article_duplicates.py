@@ -20,7 +20,7 @@ def clean_duplicates():
     conn = db.engine.connect().execution_options(isolation_level='AUTOCOMMIT')
 
     print("Step 1: Deleting child records for duplicates...")
-    
+
     # Delete article_labels
     result = conn.execute(text('''
         DELETE FROM article_labels
@@ -32,10 +32,10 @@ def clean_duplicates():
         )
     '''))
     print(f"  Deleted {result.rowcount} article_labels")
-    
+
     # Delete article_entities
     result = conn.execute(text('''
-        DELETE FROM article_entities  
+        DELETE FROM article_entities
         WHERE article_id IN (
             SELECT id FROM (
                 SELECT id, ROW_NUMBER() OVER (PARTITION BY url ORDER BY extracted_at DESC) as rn
@@ -44,7 +44,7 @@ def clean_duplicates():
         )
     '''))
     print(f"  Deleted {result.rowcount} article_entities")
-    
+
     # Delete ml_results
     result = conn.execute(text('''
         DELETE FROM ml_results

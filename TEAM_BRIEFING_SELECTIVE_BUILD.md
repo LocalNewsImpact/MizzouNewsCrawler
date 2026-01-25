@@ -1,8 +1,8 @@
 # Selective Build System - Team Briefing & Rollout Plan
 
-> **Status**: Ready for immediate deployment  
-> **When**: After `fix/add-daily-housekeeping` merges to main  
-> **Impact**: 60% faster builds, 50-83% cost reduction  
+> **Status**: Ready for immediate deployment
+> **When**: After `fix/add-daily-housekeeping` merges to main
+> **Impact**: 60% faster builds, 50-83% cost reduction
 > **Action Required**: None (workflow runs automatically)
 
 ---
@@ -303,8 +303,8 @@ Everything is in place:
 
 ---
 
-**Created**: Today  
-**Status**: ✅ PRODUCTION READY  
+**Created**: Today
+**Status**: ✅ PRODUCTION READY
 **Action Required**: Merge PR to main
 
 Questions? See resources above or ask in #engineering-platform

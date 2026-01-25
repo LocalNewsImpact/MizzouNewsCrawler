@@ -17,10 +17,10 @@ def main():
     # Connect to production DB (via kubectl port-forward or exec)
     engine = get_engine()
     detector = ContentTypeDetector()
-    
+
     print("Testing wire reporter detection on KRCU.org articles...")
     print("=" * 80)
-    
+
     with Session(engine) as session:
         # Get non-wire KRCU articles with bylines
         stmt = (
@@ -30,10 +30,10 @@ def main():
             .where(Article.author.isnot(None))
             .limit(50)
         )
-        
+
         articles = session.scalars(stmt).all()
         print(f"\nFound {len(articles)} KRCU articles to test\n")
-        
+
         detected_count = 0
         for article in articles:
             result = detector.detect(
@@ -42,13 +42,13 @@ def main():
                 metadata={"byline": article.author} if article.author else None,
                 content=article.content[:500] if article.content else None
             )
-            
+
             if result and result.status == "wire":
                 detected_count += 1
                 print(f"✓ DETECTED: {article.author}")
                 print(f"  Evidence: {result.evidence}")
                 print()
-        
+
         print("=" * 80)
         print(f"Detection rate: {detected_count}/{len(articles)} ({detected_count/len(articles)*100:.1f}%)")
 

@@ -98,7 +98,7 @@ substitutions:
 steps:
   - name: 'gcr.io/cloud-builders/docker'
     args: ['build', '-f', 'Dockerfile.api', ...]    # Build API image
-  
+
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', '${_REGISTRY}/api']               # Push API to registry
 ```
@@ -161,7 +161,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - id: changes
         run: |
           # Detect which services changed since last commit
@@ -169,21 +169,21 @@ jobs:
             echo "api=true" >> $GITHUB_OUTPUT
           fi
           # ... repeat for other services
-  
+
   trigger-builds:
     needs: detect-changes
     runs-on: ubuntu-latest
     steps:
       - if: needs.detect-changes.outputs.build-api == 'true'
         run: gcloud builds triggers run build-api-manual --branch=main
-      
+
       - if: needs.detect-changes.outputs.build-processor == 'true'
         run: gcloud builds triggers run build-processor-manual --branch=main
 ```
 
 ### Option 2: Commit Message Triggers
 ```bash
-# User pushes with: git commit -m "build: api processor" 
+# User pushes with: git commit -m "build: api processor"
 # GitHub Actions detects keywords and triggers only those services
 
 if git log -1 --oneline | grep -i "api"; then
@@ -327,4 +327,3 @@ If you want to **optimize** this later:
 4. **Implement canary deployments**: Use Cloud Deploy traffic splitting
 
 But for now, **the current all-or-nothing approach is solid and reliable** ✅
-

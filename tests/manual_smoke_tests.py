@@ -119,7 +119,9 @@ def test_header_verification():
         result = extractor.extract_content("https://httpbin.org/headers")
 
         if result.get("status") == "error":
-            print(f"   ⚠️  SKIP: httpbin.org request failed: {result.get('error_type')}")
+            print(
+                f"   ⚠️  SKIP: httpbin.org request failed: {result.get('error_type')}"
+            )
             return None  # Skip, not a failure
 
         # The HTML content should contain the headers as JSON

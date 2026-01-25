@@ -71,8 +71,6 @@ spec:
               name: squid-proxy-credentials
               key: squid-proxy-url
               optional: true
-              optional: true
-              optional: true
         - name: SELENIUM_PROXY
           valueFrom:
             secretKeyRef:
@@ -117,4 +115,5 @@ spec:
       volumes:
       - name: chrome-profile
         secret:
-          secretName: chrome-profile-macos-default
+          persistentVolumeClaim:
+            claimName: chrome-profile-macos-default-pvc

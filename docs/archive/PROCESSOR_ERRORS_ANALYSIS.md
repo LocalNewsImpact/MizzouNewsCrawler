@@ -46,7 +46,7 @@ WHERE ...
 
 ### Error Message
 ```
-407 Client Error: PROXY AUTHENTICATION REQUIRED 
+407 Client Error: PROXY AUTHENTICATION REQUIRED
 for url: http://proxy.kiesow.net:23432/?url=https%3A%2F%2Fhuggingface.co%2Fdistilbert-base-uncased-finetuned-sst-2-english%2Fresolve%2Fmain%2Fconfig.json
 ```
 
@@ -129,7 +129,7 @@ Domain [domain] failed [N] times; skipping batch
 
 #### Pattern 3: Technical Failures
 ```
-Session fetch failed: Received response with content-encoding: gzip, 
+Session fetch failed: Received response with content-encoding: gzip,
 but failed to decode it
 ```
 

@@ -51,8 +51,8 @@ def get_telemetry_data() -> dict[str, dict]:
     cursor.execute("""
         SELECT article_id, raw_byline, source_name, source_canonical_name,
                candidate_link_id, source_id
-        FROM byline_cleaning_telemetry 
-        WHERE raw_byline IS NOT NULL 
+        FROM byline_cleaning_telemetry
+        WHERE raw_byline IS NOT NULL
         AND raw_byline != ''
         ORDER BY article_id, id
     """)

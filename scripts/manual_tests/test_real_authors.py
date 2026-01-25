@@ -16,10 +16,10 @@ def test_real_author_data():
 
         # Query articles with author data
         query = """
-        SELECT id, url, author, title 
-        FROM articles 
-        WHERE author IS NOT NULL 
-        AND author != '' 
+        SELECT id, url, author, title
+        FROM articles
+        WHERE author IS NOT NULL
+        AND author != ''
         AND author NOT LIKE '%None%'
         ORDER BY id DESC
         LIMIT 20

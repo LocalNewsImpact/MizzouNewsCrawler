@@ -131,28 +131,28 @@ echo ""
 # Push to registry if requested
 if [ "$PUSH" = true ]; then
   echo -e "${YELLOW}Step 5: Pushing to Artifact Registry...${NC}"
-  
+
   # Check if gcloud is configured
   if ! command -v gcloud &> /dev/null; then
     echo -e "${RED}Error: gcloud not found. Install Google Cloud SDK first.${NC}"
     exit 1
   fi
-  
+
   # Get project ID
   PROJECT_ID=$(gcloud config get-value project)
   if [ -z "$PROJECT_ID" ]; then
     echo -e "${RED}Error: No GCP project configured. Run: gcloud config set project PROJECT_ID${NC}"
     exit 1
   fi
-  
+
   REGISTRY_IMAGE="us-central1-docker.pkg.dev/${PROJECT_ID}/mizzou-crawler/base:${IMAGE_TAG}"
-  
+
   echo "Tagging image: ${REGISTRY_IMAGE}"
   docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${REGISTRY_IMAGE}
-  
+
   echo "Pushing to Artifact Registry..."
   docker push ${REGISTRY_IMAGE}
-  
+
   if [ $? -eq 0 ]; then
     echo -e "${GREEN}✓ Image pushed successfully${NC}"
   else

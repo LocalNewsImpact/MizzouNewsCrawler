@@ -116,7 +116,7 @@ db = DatabaseManager()
 with db.get_session() as session:
     ws_count = session.execute(text('SELECT COUNT(*) FROM wire_services WHERE active = true')).scalar()
     print(f'Wire services: {ws_count} (expected 31)')
-    
+
     lbc_count = session.execute(text(\"SELECT COUNT(*) FROM local_broadcaster_callsigns WHERE dataset = 'missouri'\")).scalar()
     print(f'Broadcaster callsigns: {lbc_count} (expected 5)')
 

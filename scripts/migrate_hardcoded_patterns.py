@@ -64,23 +64,23 @@ PATTERNS_TO_MIGRATE = [
 def migrate_patterns():
     """Migrate hardcoded patterns to database."""
     db = DatabaseManager()
-    
+
     with db.get_session() as session:
         # Check existing patterns
         existing = session.execute(text('''
             SELECT pattern_regex FROM verification_patterns WHERE is_active = true
         ''')).fetchall()
         existing_regexes = {row[0] for row in existing}
-        
+
         added = 0
         skipped = 0
-        
+
         for pattern_regex, pattern_type, description in PATTERNS_TO_MIGRATE:
             if pattern_regex in existing_regexes:
                 print(f"⊘ Skipping {pattern_regex:40s} (already exists)")
                 skipped += 1
                 continue
-            
+
             pattern = VerificationPattern(
                 id=str(uuid.uuid4()),
                 pattern_type=pattern_type,
@@ -94,9 +94,9 @@ def migrate_patterns():
             session.add(pattern)
             print(f"✓ Added   {pattern_regex:40s} ({pattern_type})")
             added += 1
-        
+
         session.commit()
-        
+
         print(f"\nMigration complete:")
         print(f"  Added: {added}")
         print(f"  Skipped: {skipped}")

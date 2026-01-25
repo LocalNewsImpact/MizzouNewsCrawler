@@ -187,14 +187,12 @@ class TestBylineTelemetryPostgreSQL:
 
         with store.connection() as conn:
             # Query the actual table schema
-            result = conn.execute(
-                """
-                SELECT column_name 
-                FROM information_schema.columns 
+            result = conn.execute("""
+                SELECT column_name
+                FROM information_schema.columns
                 WHERE table_name = 'byline_cleaning_telemetry'
                 ORDER BY ordinal_position
-            """
-            )
+            """)
             columns = [row["column_name"] for row in result.fetchall()]
 
             # Expected columns from Alembic migration (32 columns)

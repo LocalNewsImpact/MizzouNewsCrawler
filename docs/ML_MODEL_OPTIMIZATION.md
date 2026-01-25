@@ -1,7 +1,7 @@
 # ML Model Loading Optimization
 
-**Date:** October 19, 2025  
-**Status:** ✅ Implemented  
+**Date:** October 19, 2025
+**Status:** ✅ Implemented
 **Issue:** [#90 - Optimize ML Model Loading: Eliminate Repeated spaCy Reloads](https://github.com/LocalNewsImpact/MizzouNewsCrawler/issues/90)
 
 ## Summary
@@ -74,18 +74,18 @@ Modified `process_entity_extraction()` to use direct function call:
 ```python
 def process_entity_extraction(count: int) -> bool:
     # ... (count check)
-    
+
     try:
         from argparse import Namespace
         from src.cli.commands.entity_extraction import handle_entity_extraction_command
-        
+
         # Get cached extractor (model already loaded!)
         extractor = get_cached_entity_extractor()
-        
+
         # Call directly instead of subprocess
         args = Namespace(limit=limit, source=None)
         result = handle_entity_extraction_command(args, extractor=extractor)
-        
+
         return result == 0
     except Exception as e:
         logger.exception("Entity extraction error: %s", e)
@@ -98,18 +98,18 @@ Updated to accept optional extractor parameter:
 ```python
 def handle_entity_extraction_command(args, extractor=None) -> int:
     """Execute entity extraction with optional pre-loaded extractor.
-    
+
     Args:
         args: Command arguments containing limit and source filters
         extractor: Optional pre-loaded ArticleEntityExtractor instance.
                    If None, a new extractor will be created.
     """
     # ... (setup code)
-    
+
     # Use provided extractor or create new one
     if extractor is None:
         extractor = ArticleEntityExtractor()
-    
+
     # ... (rest of extraction logic)
 ```
 

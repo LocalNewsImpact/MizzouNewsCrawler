@@ -100,15 +100,15 @@ const CodeReviewInterface = () => {
         const newItems = [...pendingItems];
         newItems.splice(currentIndex, 1);
         setPendingItems(newItems);
-        
+
         // Adjust current index if necessary
         if (currentIndex >= newItems.length && newItems.length > 0) {
           setCurrentIndex(newItems.length - 1);
         }
-        
+
         // Clear notes for next review
         setReviewNotes('');
-        
+
         // Refresh stats
         fetchStats();
       } else {
@@ -138,7 +138,7 @@ const CodeReviewInterface = () => {
   const getPriorityColor = (priority) => {
     switch (priority) {
       case 'critical': return 'error';
-      case 'high': return 'warning'; 
+      case 'high': return 'warning';
       case 'medium': return 'info';
       case 'low': return 'success';
       default: return 'default';
@@ -251,16 +251,16 @@ const CodeReviewInterface = () => {
               Code Review ({currentIndex + 1} of {pendingItems.length})
             </Typography>
             <Stack direction="row" spacing={1}>
-              <Button 
-                size="small" 
-                onClick={goToPrevious} 
+              <Button
+                size="small"
+                onClick={goToPrevious}
                 disabled={currentIndex === 0}
               >
                 Previous
               </Button>
-              <Button 
-                size="small" 
-                onClick={goToNext} 
+              <Button
+                size="small"
+                onClick={goToNext}
                 disabled={currentIndex === pendingItems.length - 1}
               >
                 Next
@@ -280,12 +280,12 @@ const CodeReviewInterface = () => {
                     {currentItem.title}
                   </Typography>
                   <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-                    <Chip 
+                    <Chip
                       label={currentItem.priority}
                       color={getPriorityColor(currentItem.priority)}
                       size="small"
                     />
-                    <Chip 
+                    <Chip
                       icon={getChangeTypeIcon(currentItem.change_type)}
                       label={currentItem.change_type}
                       variant="outlined"
@@ -312,9 +312,9 @@ const CodeReviewInterface = () => {
                   <Typography variant="subtitle2" gutterBottom>
                     Description:
                   </Typography>
-                  <Typography variant="body2" sx={{ 
-                    p: 2, 
-                    bgcolor: 'grey.50', 
+                  <Typography variant="body2" sx={{
+                    p: 2,
+                    bgcolor: 'grey.50',
                     borderRadius: 1,
                     whiteSpace: 'pre-wrap'
                   }}>
@@ -349,11 +349,11 @@ const CodeReviewInterface = () => {
                     </AccordionSummary>
                     <AccordionDetails>
                       <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
-                        <Typography 
-                          variant="body2" 
-                          component="pre" 
-                          sx={{ 
-                            fontFamily: 'monospace', 
+                        <Typography
+                          variant="body2"
+                          component="pre"
+                          sx={{
+                            fontFamily: 'monospace',
                             whiteSpace: 'pre-wrap',
                             fontSize: '0.875rem',
                             lineHeight: 1.4
@@ -374,7 +374,7 @@ const CodeReviewInterface = () => {
                 <Typography variant="h6" gutterBottom>
                   Review Actions
                 </Typography>
-                
+
                 {/* Notes Input */}
                 <TextField
                   fullWidth
@@ -399,9 +399,9 @@ const CodeReviewInterface = () => {
                   >
                     Approve
                   </Button>
-                  
+
                   <Button
-                    variant="contained" 
+                    variant="contained"
                     color="warning"
                     startIcon={<EditNote />}
                     onClick={() => submitFeedback('needs_changes')}
@@ -410,7 +410,7 @@ const CodeReviewInterface = () => {
                   >
                     Request Changes
                   </Button>
-                  
+
                   <Button
                     variant="contained"
                     color="error"

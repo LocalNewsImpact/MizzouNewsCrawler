@@ -32,11 +32,11 @@ db = DatabaseManager()
 
 with db.get_session() as session:
     detector = ContentTypeDetector(session=session)
-    
+
     # Get labeled articles
     print("Fetching labeled articles from database...")
     result = session.execute(text('''
-        SELECT 
+        SELECT
             a.id,
             a.url,
             a.title,
@@ -52,20 +52,20 @@ with db.get_session() as session:
         ORDER BY a.publish_date DESC
         LIMIT 10000
     ''')).fetchall()
-    
+
     articles = result
     print(f"Found {len(articles)} labeled articles to check")
     print()
-    
+
     # Check each article
     wire_detected = []
     not_wire_count = 0
-    
+
     print("Checking articles with new wire detection...")
     for i, row in enumerate(articles, 1):
         if i % 500 == 0:
             print(f"  Processed {i}/{len(articles)}... (found {len(wire_detected)} wire so far)")
-        
+
         article_id = row[0]
         url = row[1]
         title = row[2]
@@ -73,18 +73,18 @@ with db.get_session() as session:
         author = row[4]
         source = row[5]
         publish_date = row[6]
-        
+
         # Run wire detection
         detection = detector._detect_wire_service(
             url=url,
             content=text or '',
             metadata={'author': author}
         )
-        
+
         if detection and detection.status == 'wire':
             detected_services = detection.evidence.get('detected_services', [])
             detection_tier = detection.evidence.get('detection_tier', 'unknown')
-            
+
             wire_detected.append({
                 'article_id': article_id,
                 'url': url,
@@ -100,7 +100,7 @@ with db.get_session() as session:
             })
         else:
             not_wire_count += 1
-    
+
     print()
     print("=" * 80)
     print("RESULTS")
@@ -109,22 +109,22 @@ with db.get_session() as session:
     print(f"Would be detected as wire: {len(wire_detected)} ({100*len(wire_detected)/len(articles) if articles else 0:.1f}%)")
     print(f"Would remain labeled: {not_wire_count} ({100*not_wire_count/len(articles) if articles else 0:.1f}%)")
     print()
-    
+
     # Export to CSV
     if wire_detected:
         with open(output_csv, 'w', newline='') as f:
             fieldnames = [
                 'article_id', 'url', 'title', 'author', 'source', 'publish_date',
-                'confidence', 'confidence_score', 'detected_services', 
+                'confidence', 'confidence_score', 'detected_services',
                 'detection_tier', 'reason'
             ]
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(wire_detected)
-        
+
         print(f"Exported {len(wire_detected)} wire detections to: {output_csv}")
         print()
-        
+
         # Show breakdown by service
         from collections import Counter
         service_counts = Counter()
@@ -135,23 +135,23 @@ with db.get_session() as session:
                 if service:
                     service_counts[service] += 1
             tier_counts[item['detection_tier']] += 1
-        
+
         print("Breakdown by wire service:")
         for service, count in service_counts.most_common(20):
             print(f"  {service}: {count}")
-        
+
         print()
         print("Breakdown by detection tier:")
         for tier, count in tier_counts.most_common():
             print(f"  {tier}: {count}")
-        
+
         print()
         print("Sample wire detections:")
         for item in wire_detected[:15]:
             print(f"  [{item['source']}] {item['title']}")
             print(f"    Service: {item['detected_services']} | Tier: {item['detection_tier']} | Confidence: {item['confidence']}")
             print()
-        
+
         print(f"\\nOutput file location: {output_csv}")
         print("To download: kubectl cp production/mizzou-api-<pod-id>:{output_csv} .")
     else:
@@ -159,24 +159,24 @@ with db.get_session() as session:
 
 print("\\nDRY RUN: No database changes were made")
 """
-    
+
     print("Running wire detection backfill check in production...")
     print("This may take several minutes for 10,000 articles...")
     print()
-    
+
     # Execute in production pod
     cmd = [
         "kubectl", "exec", "-n", "production",
         "deployment/mizzou-api", "--",
         "python", "-c", remote_script
     ]
-    
+
     try:
         subprocess.run(cmd, check=True)
     except subprocess.CalledProcessError as e:
         print(f"Error: Command failed with exit code {e.returncode}", file=sys.stderr)
         return 1
-    
+
     return 0
 
 

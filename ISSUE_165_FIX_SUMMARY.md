@@ -197,7 +197,7 @@ USING confidence::VARCHAR;
 4. **Set environment variables:**
    ```dockerfile
    ENV CHROMEDRIVER_PATH=/app/bin/chromedriver \
-       CHROME_BIN=/usr/bin/chromium
+       CHROME_BIN=/usr/bin/google-chrome
    ```
 
 **Fallback Handling:**

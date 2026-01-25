@@ -396,7 +396,7 @@ echo "=========================================="
 
 if [ "$SERVICE" = "processor" ] || [ "$SERVICE" = "all" ]; then
     echo "Checking processor-deployment.yaml..."
-    
+
     # Check PYTHONPATH includes /app
     if ! grep -q 'value: "/app:' k8s/processor-deployment.yaml; then
         echo "❌ PYTHONPATH does not include /app!"
@@ -408,7 +408,7 @@ if [ "$SERVICE" = "processor" ] || [ "$SERVICE" = "all" ]; then
         echo "   Expected: value: \"/app:/opt/origin-shim\""
         exit 1
     fi
-    
+
     # Check image is a placeholder (not :latest)
     if grep -q 'image:.*:latest' k8s/processor-deployment.yaml; then
         echo "❌ Deployment uses image:latest!"
@@ -416,16 +416,16 @@ if [ "$SERVICE" = "processor" ] || [ "$SERVICE" = "all" ]; then
         echo "   Use placeholder like 'image: processor' instead"
         exit 1
     fi
-    
+
     # Check CPU limits are reasonable
     if grep -q 'cpu:.*[0-9]\+m' k8s/processor-deployment.yaml; then
         cpu_request=$(grep -A1 "requests:" k8s/processor-deployment.yaml | grep "cpu:" | awk '{print $2}' | tr -d '"')
         cpu_limit=$(grep -A1 "limits:" k8s/processor-deployment.yaml | grep "cpu:" | awk '{print $2}' | tr -d '"')
-        
+
         echo "  CPU request: ${cpu_request}"
         echo "  CPU limit: ${cpu_limit}"
     fi
-    
+
     echo "✓ Deployment YAML validation passed"
     echo ""
 fi
@@ -443,13 +443,13 @@ if [ -f "skaffold.yaml" ]; then
         echo "❌ Skaffold config missing processor artifact!"
         exit 1
     fi
-    
+
     # Check that manifests are defined
     if ! grep -q 'rawYaml:' skaffold.yaml; then
         echo "❌ Skaffold config missing manifest paths!"
         exit 1
     fi
-    
+
     echo "✓ Skaffold configuration valid"
     echo ""
 else
@@ -469,14 +469,14 @@ if [ "$SERVICE" = "processor" ] || [ "$SERVICE" = "all" ]; then
         echo "❌ gcp/cloudbuild/cloudbuild-processor.yaml not found!"
         exit 1
     fi
-    
+
     # Check that it uses Skaffold rendering
     if ! grep -q '\-\-skaffold\-file' gcp/cloudbuild/cloudbuild-processor.yaml; then
         echo "❌ Cloud Build config doesn't use Skaffold rendering!"
         echo "   Add --skaffold-file=skaffold.yaml to release creation"
         exit 1
     fi
-    
+
     echo "✓ Cloud Build configuration valid"
     echo ""
 fi

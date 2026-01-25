@@ -35,7 +35,7 @@ jobs:
 
       - name: Build processor image via Cloud Build
         run: |
-          gcloud builds submit --config gcp/cloudbuild/cloudbuild-processor-v1.2.2.yaml --project=${{ secrets.GCP_PROJECT }} 
+          gcloud builds submit --config gcp/cloudbuild/cloudbuild-processor-v1.2.2.yaml --project=${{ secrets.GCP_PROJECT }}
 
       - name: Build crawler image via Cloud Build (if present)
         run: |

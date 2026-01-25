@@ -21,7 +21,7 @@ pytest tests/test_entity_extraction_command.py -v
 # Error: AssertionError: assert 'a.source_id' in query_str
 # Coverage: 13% (FAIL - requirement is 80%)
 
-# Pipeline-status tests  
+# Pipeline-status tests
 pytest tests/test_pipeline_status.py -v
 # Result: 12 PASSED, 0 FAILED
 # Coverage: 14% (FAIL - requirement is 80%)
@@ -97,7 +97,7 @@ addopts = --cov-fail-under=80
 # pytest.ini
 addopts = -p no:postgresql  # PostgreSQL plugin disabled
 
-# .github/workflows/ci.yml  
+# .github/workflows/ci.yml
 TELEMETRY_DATABASE_URL: "sqlite:///:memory:"
 ```
 
@@ -161,7 +161,7 @@ repos:
         pass_filenames: false
         always_run: true
         args: ["-x", "--tb=short", "--cov-fail-under=80"]
-      
+
       - id: pytest-coverage
         name: coverage-report
         entry: pytest
@@ -186,7 +186,7 @@ pre-commit install
 def test_entity_extraction_query_structure(self, mock_db_manager, mock_entity_extractor):
     """Test that the query correctly filters articles needing entity extraction."""
     # ...
-    
+
     # Should select required fields from correct tables
     assert "a.id" in query_str
     assert "a.text" in query_str
@@ -215,7 +215,7 @@ def test_db():
 def test_pipeline_status_sql_syntax(test_db):
     """Verify SQL queries use valid PostgreSQL syntax."""
     from src.cli.commands.pipeline_status import get_discovery_status
-    
+
     # This will fail if SQL contains SQLite-specific functions
     with test_db.connect() as conn:
         # Execute actual query fragments to validate syntax
@@ -235,7 +235,7 @@ strategy:
     database:
       - sqlite:///:memory:
       - postgresql://postgres:postgres@localhost:5432/test_db
-    
+
 steps:
   - name: Run tests
     env:
@@ -254,11 +254,11 @@ import pytest
 @pytest.mark.integration
 class TestSQLCompatibility:
     """Verify all SQL queries work against PostgreSQL."""
-    
+
     def test_entity_extraction_query_executes(self, postgresql_db):
         """Verify entity extraction query runs without syntax errors."""
         from src.cli.commands.entity_extraction import handle_entity_extraction_command
-        
+
         # This will fail fast if SQL has syntax errors
         result = handle_entity_extraction_command(args)
         assert result is not None

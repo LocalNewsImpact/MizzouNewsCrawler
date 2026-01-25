@@ -1,7 +1,7 @@
 # Proxy Telemetry Enhancement Summary
 
-**Date**: October 9, 2025  
-**Branch**: `feature/gcp-kubernetes-deployment`  
+**Date**: October 9, 2025
+**Branch**: `feature/gcp-kubernetes-deployment`
 **Commit**: `c8a2290`
 
 ## Overview
@@ -66,12 +66,12 @@ proxy_error TEXT
 
 **1. Proxy Success Rate by Domain:**
 ```sql
-SELECT 
+SELECT
     host,
     COUNT(*) as total_requests,
     SUM(CASE WHEN proxy_used = 1 THEN 1 ELSE 0 END) as proxy_requests,
     SUM(CASE WHEN proxy_status = 'success' THEN 1 ELSE 0 END) as proxy_success,
-    ROUND(100.0 * SUM(CASE WHEN proxy_status = 'success' THEN 1 ELSE 0 END) / 
+    ROUND(100.0 * SUM(CASE WHEN proxy_status = 'success' THEN 1 ELSE 0 END) /
           NULLIF(SUM(CASE WHEN proxy_used = 1 THEN 1 ELSE 0 END), 0), 2) as success_rate
 FROM extraction_telemetry_v2
 WHERE proxy_used = 1
@@ -82,7 +82,7 @@ LIMIT 20;
 
 **2. Authentication Status Tracking:**
 ```sql
-SELECT 
+SELECT
     DATE(created_at) as date,
     SUM(CASE WHEN proxy_authenticated = 1 THEN 1 ELSE 0 END) as authenticated,
     SUM(CASE WHEN proxy_authenticated = 0 AND proxy_used = 1 THEN 1 ELSE 0 END) as no_credentials,
@@ -95,7 +95,7 @@ ORDER BY date DESC;
 
 **3. Proxy Error Patterns:**
 ```sql
-SELECT 
+SELECT
     proxy_error,
     COUNT(*) as error_count,
     COUNT(DISTINCT host) as affected_domains
@@ -108,7 +108,7 @@ LIMIT 10;
 
 **4. Bot Detection with Proxy vs Direct:**
 ```sql
-SELECT 
+SELECT
     host,
     SUM(CASE WHEN proxy_used = 1 AND http_status_code = 403 THEN 1 ELSE 0 END) as proxy_403,
     SUM(CASE WHEN proxy_used = 0 AND http_status_code = 403 THEN 1 ELSE 0 END) as direct_403,
@@ -242,9 +242,9 @@ Set up alerts for:
 
 ## Success Criteria
 
-✅ Proxy metadata captured from responses  
-✅ Proxy info stored in telemetry database  
-✅ Historical proxy analysis possible via SQL  
-✅ No regressions in existing functionality  
-✅ All tests passing  
-✅ Documentation complete  
+✅ Proxy metadata captured from responses
+✅ Proxy info stored in telemetry database
+✅ Historical proxy analysis possible via SQL
+✅ No regressions in existing functionality
+✅ All tests passing
+✅ Documentation complete

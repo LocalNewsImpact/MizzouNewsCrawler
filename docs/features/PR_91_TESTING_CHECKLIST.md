@@ -1,7 +1,7 @@
 # PR #91 Testing Checklist: ML Model Optimization
 
-**PR:** [#91 - Optimize ML Model Loading: Eliminate 288 Daily spaCy Reloads](https://github.com/LocalNewsImpact/MizzouNewsCrawler/pull/91)  
-**Date:** October 19, 2025  
+**PR:** [#91 - Optimize ML Model Loading: Eliminate 288 Daily spaCy Reloads](https://github.com/LocalNewsImpact/MizzouNewsCrawler/pull/91)
+**Date:** October 19, 2025
 **Status:** Ready for Testing
 
 ---
@@ -84,15 +84,15 @@ def test_entity_extraction_integration_with_cached_model():
         session.add(article)
         session.commit()
         article_id = article.id
-    
+
     # Get cached extractor (this loads the model)
     extractor = get_cached_entity_extractor()
     assert extractor is not None
-    
+
     # Run entity extraction
     result = process_entity_extraction(1)
     assert result is True
-    
+
     # Verify entities were extracted
     with db.get_session() as session:
         from src.models.models import ArticleEntity
@@ -100,7 +100,7 @@ def test_entity_extraction_integration_with_cached_model():
             article_id=article_id
         ).all()
         assert len(entities) > 0
-    
+
     # Cleanup
     with db.get_session() as session:
         session.query(ArticleEntity).filter_by(article_id=article_id).delete()
@@ -112,19 +112,19 @@ def test_multiple_batches_reuse_cached_model():
     """Test that multiple batches reuse the same model instance."""
     # Get extractor
     extractor1 = get_cached_entity_extractor()
-    
+
     # Process first batch
     result1 = process_entity_extraction(10)
-    
+
     # Get extractor again
     extractor2 = get_cached_entity_extractor()
-    
+
     # Should be the SAME object
     assert extractor2 is extractor1
-    
+
     # Process second batch
     result2 = process_entity_extraction(10)
-    
+
     # Both should succeed
     assert result1 is True
     assert result2 is True
@@ -229,21 +229,21 @@ from src.models.database import DatabaseManager
 def test_multiple_batches_handle_db_connections_correctly():
     """Verify that multiple batches don't exhaust DB connection pool."""
     db = DatabaseManager()
-    
+
     # Run multiple batches in quick succession
     results = []
     for i in range(5):
         result = process_entity_extraction(10)
         results.append(result)
-    
+
     # All should succeed
     assert all(results)
-    
+
     # Verify DB connection pool is healthy
     # (no connection leaks)
     engine = db._engine
     pool = engine.pool
-    
+
     # Check pool stats
     assert pool.checkedout() < pool.size()  # Not all connections checked out
 ```
@@ -274,56 +274,56 @@ def benchmark_with_cached_model(num_batches=5):
     """Benchmark entity extraction with cached model."""
     # Prime the cache
     extractor = continuous_processor.get_cached_entity_extractor()
-    
+
     start_time = time.time()
-    
+
     for i in range(num_batches):
         # Use cached extractor
         result = continuous_processor.process_entity_extraction(10)
         assert result is True
-    
+
     elapsed = time.time() - start_time
     avg_per_batch = elapsed / num_batches
-    
+
     print(f"Cached model - {num_batches} batches:")
     print(f"  Total time: {elapsed:.2f}s")
     print(f"  Avg per batch: {avg_per_batch:.2f}s")
-    
+
     return avg_per_batch
 
 
 def benchmark_without_cached_model_simulation(num_batches=5):
     """Simulate old behavior (model reload per batch)."""
     from src.pipeline.entity_extraction import ArticleEntityExtractor
-    
+
     start_time = time.time()
-    
+
     for i in range(num_batches):
         # Create new extractor each time (simulates old behavior)
         extractor = ArticleEntityExtractor()  # This loads the model
         # Process would happen here
         time.sleep(0.1)  # Simulate processing time
-    
+
     elapsed = time.time() - start_time
     avg_per_batch = elapsed / num_batches
-    
+
     print(f"No cache (old behavior) - {num_batches} batches:")
     print(f"  Total time: {elapsed:.2f}s")
     print(f"  Avg per batch: {avg_per_batch:.2f}s")
-    
+
     return avg_per_batch
 
 
 if __name__ == "__main__":
     print("Benchmarking entity extraction performance...")
     print()
-    
+
     cached_time = benchmark_with_cached_model(5)
     print()
-    
+
     uncached_time = benchmark_without_cached_model_simulation(5)
     print()
-    
+
     improvement = ((uncached_time - cached_time) / uncached_time) * 100
     print(f"Performance improvement: {improvement:.1f}%")
     print(f"Time saved per batch: {uncached_time - cached_time:.2f}s")
@@ -365,17 +365,17 @@ def get_memory_usage_mb():
 def benchmark_memory_stability():
     """Monitor memory usage over multiple batches."""
     print("Measuring memory usage...")
-    
+
     # Baseline
     baseline = get_memory_usage_mb()
     print(f"Baseline: {baseline:.1f} MB")
-    
+
     # Load model (should spike)
     extractor = continuous_processor.get_cached_entity_extractor()
     after_load = get_memory_usage_mb()
     load_increase = after_load - baseline
     print(f"After model load: {after_load:.1f} MB (+{load_increase:.1f} MB)")
-    
+
     # Run batches
     memory_readings = [after_load]
     for i in range(5):
@@ -384,17 +384,17 @@ def benchmark_memory_stability():
         memory_readings.append(mem)
         print(f"After batch {i+1}: {mem:.1f} MB")
         time.sleep(1)
-    
+
     # Analysis
     avg_memory = sum(memory_readings) / len(memory_readings)
     max_memory = max(memory_readings)
     min_memory = min(memory_readings)
-    
+
     print(f"\nMemory Statistics:")
     print(f"  Average: {avg_memory:.1f} MB")
     print(f"  Range: {min_memory:.1f} - {max_memory:.1f} MB")
     print(f"  Variation: {max_memory - min_memory:.1f} MB")
-    
+
     # Success criteria
     variation = max_memory - min_memory
     assert variation < 500, f"Memory variation too high: {variation:.1f} MB"
@@ -506,11 +506,11 @@ def test_model_load_failure_is_handled():
     """Test that model load failures are handled gracefully."""
     # Reset cache
     continuous_processor._ENTITY_EXTRACTOR = None
-    
+
     with patch('src.pipeline.entity_extraction.ArticleEntityExtractor') as mock_class:
         # Simulate model load failure
         mock_class.side_effect = RuntimeError("Failed to load model")
-        
+
         # Should raise the error (let it propagate)
         with pytest.raises(RuntimeError):
             continuous_processor.get_cached_entity_extractor()
@@ -520,7 +520,7 @@ def test_entity_extraction_failure_returns_false():
     """Test that entity extraction failures return False."""
     with patch('orchestration.continuous_processor.handle_entity_extraction_command') as mock_handle:
         mock_handle.return_value = 1  # Failure exit code
-        
+
         result = continuous_processor.process_entity_extraction(10)
         assert result is False
 
@@ -529,7 +529,7 @@ def test_entity_extraction_exception_is_caught():
     """Test that exceptions during extraction are caught."""
     with patch('orchestration.continuous_processor.handle_entity_extraction_command') as mock_handle:
         mock_handle.side_effect = Exception("Database connection failed")
-        
+
         result = continuous_processor.process_entity_extraction(10)
         assert result is False  # Should not crash, just return False
 ```
@@ -586,7 +586,7 @@ def test_high_volume_entity_extraction():
     """Test entity extraction with many pending articles."""
     # Simulate 10,000 pending articles
     result = continuous_processor.process_entity_extraction(10000)
-    
+
     # Should process 500 articles (batch size)
     assert result is True
 
@@ -595,15 +595,15 @@ def test_concurrent_batch_processing():
     """Test that concurrent calls handle properly."""
     # Note: current implementation uses global cache,
     # so concurrent calls should share the same model
-    
+
     def process_batch(count):
         return continuous_processor.process_entity_extraction(count)
-    
+
     # Run multiple batches concurrently
     with ThreadPoolExecutor(max_workers=3) as executor:
         futures = [executor.submit(process_batch, 10) for _ in range(3)]
         results = [f.result() for f in futures]
-    
+
     # All should succeed (or handle gracefully)
     # Note: May need locking if database writes conflict
     assert len(results) == 3
@@ -756,6 +756,6 @@ For questions about testing:
 
 ---
 
-**Status:** 🟡 Testing In Progress  
-**Next Step:** Run unit tests and begin integration testing  
+**Status:** 🟡 Testing In Progress
+**Next Step:** Run unit tests and begin integration testing
 **Target Deployment:** After all tests pass and staging validated

@@ -4,7 +4,7 @@
 
 The `candidate_links.dataset_id` column contains **mixed data types**:
 - Some rows have dataset **names** (strings like "Mizzou Missouri State")
-- Some rows have dataset **slugs** (strings like "Mizzou-Missouri-State") 
+- Some rows have dataset **slugs** (strings like "Mizzou-Missouri-State")
 - Some rows should have dataset **UUIDs** (like "61ccd4d3-763f-4cc6-b85d-74b268e80a00")
 
 This causes:
@@ -58,42 +58,42 @@ WHERE dataset_id = (SELECT id FROM datasets WHERE slug = 'Mizzou Missouri State'
 # src/models/database.py or src/utils/dataset_utils.py
 
 def resolve_dataset_id(
-    engine, 
+    engine,
     dataset_identifier: str | None
 ) -> str | None:
     """Resolve dataset name, slug, or UUID to canonical UUID.
-    
+
     Args:
         dataset_identifier: Name, slug, or UUID of dataset
-        
+
     Returns:
         Dataset UUID or None if not found
-        
+
     Raises:
         ValueError: If identifier provided but dataset not found
     """
     if not dataset_identifier:
         return None
-        
+
     # Check if already a UUID
     try:
         uuid.UUID(dataset_identifier)
         return dataset_identifier  # Already a UUID
     except ValueError:
         pass
-    
+
     # Try to find by slug or name
     with engine.connect() as conn:
         result = conn.execute(text('''
-            SELECT id FROM datasets 
+            SELECT id FROM datasets
             WHERE slug = :identifier OR name = :identifier
             LIMIT 1
         '''), {'identifier': dataset_identifier})
-        
+
         row = result.fetchone()
         if row:
             return str(row[0])
-        
+
     raise ValueError(f"Dataset not found: {dataset_identifier}")
 ```
 
@@ -103,13 +103,13 @@ def resolve_dataset_id(
 
 def handle_discovery_command(args):
     db = DatabaseManager()
-    
+
     # Resolve dataset to UUID FIRST
     dataset_uuid = None
     if args.dataset:
         dataset_uuid = resolve_dataset_id(db.engine, args.dataset)
         logger.info(f"Resolved dataset '{args.dataset}' to UUID: {dataset_uuid}")
-    
+
     # Pass UUID to discovery, not name/slug
     discovery = NewsDiscovery(database_url=db.database_url)
     results = discovery.discover_sources(
@@ -128,7 +128,7 @@ def handle_extraction_command(args):
     if args.dataset:
         dataset_uuid = resolve_dataset_id(db.engine, args.dataset)
         logger.info(f"Using dataset UUID: {dataset_uuid}")
-        
+
         # Update query to use UUID directly
         q = q.replace(
             "WHERE cl.status = 'article'",
@@ -161,26 +161,26 @@ db = DatabaseManager()
 with db.engine.connect() as conn:
     # Get all datasets
     datasets = conn.execute(text('SELECT id, name, slug FROM datasets')).fetchall()
-    
+
     for dataset in datasets:
         dataset_id, name, slug = dataset
-        
+
         # Update rows with name
         result = conn.execute(text('''
-            UPDATE candidate_links 
-            SET dataset_id = :uuid 
+            UPDATE candidate_links
+            SET dataset_id = :uuid
             WHERE dataset_id = :name
         '''), {'uuid': dataset_id, 'name': name})
         print(f"Updated {result.rowcount} rows with name '{name}' to UUID")
-        
-        # Update rows with slug  
+
+        # Update rows with slug
         result = conn.execute(text('''
-            UPDATE candidate_links 
-            SET dataset_id = :uuid 
+            UPDATE candidate_links
+            SET dataset_id = :uuid
             WHERE dataset_id = :slug
         '''), {'uuid': dataset_id, 'slug': slug})
         print(f"Updated {result.rowcount} rows with slug '{slug}' to UUID")
-    
+
     conn.commit()
 ```
 
@@ -199,7 +199,7 @@ kubectl patch cronworkflow mizzou-news-pipeline -n production --type='json' -p='
 
 Fixed candidate_links to use correct UUID:
 ```sql
-UPDATE candidate_links 
+UPDATE candidate_links
 SET dataset_id = '61ccd4d3-763f-4cc6-b85d-74b268e80a00'
 WHERE dataset_id = 'Mizzou Missouri State'
 ```
@@ -218,12 +218,12 @@ After implementing fixes:
 
 ## Benefits
 
-✅ **Data integrity** - proper foreign keys enforced  
-✅ **No parsing issues** - UUIDs have no spaces/hyphens/special chars  
-✅ **Flexibility** - Users can specify name, slug, or UUID  
-✅ **Reliability** - Queries won't break due to naming changes  
-✅ **Performance** - UUID joins are efficient  
-✅ **Maintainability** - Single source of truth (UUID)  
+✅ **Data integrity** - proper foreign keys enforced
+✅ **No parsing issues** - UUIDs have no spaces/hyphens/special chars
+✅ **Flexibility** - Users can specify name, slug, or UUID
+✅ **Reliability** - Queries won't break due to naming changes
+✅ **Performance** - UUID joins are efficient
+✅ **Maintainability** - Single source of truth (UUID)
 
 ---
 

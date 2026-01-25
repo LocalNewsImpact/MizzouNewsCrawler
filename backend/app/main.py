@@ -103,10 +103,10 @@ def _db_writer_worker():
     from src.models.database import DatabaseManager
     from src.models.api_backend import Snapshot
     from src import config as app_config
-    
+
     # Create a dedicated DatabaseManager for the worker thread
     worker_db_manager = DatabaseManager(app_config.DATABASE_URL)
-    
+
     while not _worker_stop_event.is_set():
         try:
             item = snapshots_queue.get(timeout=1.0)
@@ -148,7 +148,7 @@ def _db_writer_worker():
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Lifespan context manager for the main FastAPI app.
-    
+
     This combines all startup and shutdown logic:
     - Structured logging configuration
     - Lifecycle handlers from backend.app.lifecycle module
@@ -157,9 +157,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     - Gazetteer tables initialization
     """
     global _worker_thread
-    
+
     # === STARTUP ===
-    
+
     # 0. Configure structured logging first
     global logger
     try:
@@ -174,15 +174,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         import logging as _logging
         logger = _logging.getLogger(__name__)
         logger.warning(f"Failed to initialize structured logging: {exc}")
-    
+
     logger.info("Starting main app initialization...")
-    
+
     # 1. Initialize centralized lifecycle handlers (telemetry, db, http session)
     from backend.app.lifecycle import startup_resources
-    
+
     await startup_resources(app)
     logger.info("Base lifecycle resources initialized")
-    
+
     # 2. Start DB writer thread
     logger.info("Starting DB writer thread...")
     _worker_stop_event.clear()
@@ -191,7 +191,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     _worker_thread.start()
     logger.info("DB writer thread started")
-    
+
     # 3. Initialize database tables
     logger.info("Initializing database tables...")
     try:
@@ -199,13 +199,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.info("Snapshot tables initialized")
     except Exception as exc:
         logger.exception("Failed to initialize snapshot tables", exc_info=exc)
-    
+
     try:
         init_db()
         logger.info("Database initialized")
     except Exception as exc:
         logger.exception("Failed to initialize database", exc_info=exc)
-    
+
     # 4. Initialize gazetteer tables
     logger.info("Initializing gazetteer tables...")
     try:
@@ -213,15 +213,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.info("Gazetteer tables initialized")
     except Exception as exc:
         logger.exception("Failed to initialize gazetteer tables", exc_info=exc)
-    
+
     logger.info("Main app initialization complete")
-    
+
     # === APPLICATION RUNS HERE ===
     yield
-    
+
     # === SHUTDOWN ===
     logger.info("Starting main app shutdown...")
-    
+
     # 1. Stop DB writer thread
     logger.info("Stopping DB writer thread...")
     _worker_stop_event.set()
@@ -231,13 +231,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.info("DB writer thread stopped")
     except Exception as exc:
         logger.exception("Error stopping DB writer thread", exc_info=exc)
-    
+
     # 2. Shut down base lifecycle resources (telemetry, db, http session)
     from backend.app.lifecycle import shutdown_resources
-    
+
     await shutdown_resources(app)
     logger.info("Base lifecycle resources shut down")
-    
+
     logger.info("Main app shutdown complete")
 
 
@@ -313,10 +313,10 @@ async def log_requests(request, call_next):
     """Middleware to log API requests with context."""
     import uuid
     import time
-    
+
     # Generate request ID
     request_id = str(uuid.uuid4())
-    
+
     # Bind request context for structured logging
     try:
         from src.utils.logging_config import bind_request_context, unbind_trace_context
@@ -327,13 +327,13 @@ async def log_requests(request, call_next):
         )
     except Exception:
         pass  # Continue even if context binding fails
-    
+
     # Process request
     start_time = time.time()
     try:
         response = await call_next(request)
         duration_ms = (time.time() - start_time) * 1000
-        
+
         # Log request completion
         logger.info(
             "request_completed",
@@ -343,10 +343,10 @@ async def log_requests(request, call_next):
             status_code=response.status_code,
             duration_ms=duration_ms,
         )
-        
+
         # Add request ID to response headers
         response.headers["X-Request-ID"] = request_id
-        
+
         return response
     except Exception as exc:
         duration_ms = (time.time() - start_time) * 1000
@@ -567,13 +567,13 @@ _ARTICLE_COUNT_CACHE_TTL = 300  # 5 minutes
 def _get_cached_article_count(reviewer: str | None = None) -> int | None:
     """Get cached article count if available and not expired."""
     import time
-    
+
     now = time.time()
     cache_age = now - _article_count_cache["timestamp"]
-    
+
     if cache_age > _ARTICLE_COUNT_CACHE_TTL:
         return None
-    
+
     if reviewer is None:
         return _article_count_cache.get("total")
     else:
@@ -583,9 +583,9 @@ def _get_cached_article_count(reviewer: str | None = None) -> int | None:
 def _cache_article_count(count: int, reviewer: str | None = None):
     """Cache article count with current timestamp."""
     import time
-    
+
     _article_count_cache["timestamp"] = time.time()
-    
+
     if reviewer is None:
         _article_count_cache["total"] = count
     else:
@@ -598,7 +598,7 @@ def list_articles(limit: int = 20, offset: int = 0, reviewer: str | None = None)
 
     Returns articles in a format compatible with the legacy CSV-based frontend.
     Uses article database ID as __idx for review posting.
-    
+
     Note: Total count is cached for 5 minutes to avoid expensive COUNT(*) queries
     on large tables (40K+ articles).
     """

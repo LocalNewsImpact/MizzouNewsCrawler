@@ -107,7 +107,7 @@ sections = [
 # Store in database (PostgreSQL)
 conn.execute(
     text("""
-        UPDATE sources 
+        UPDATE sources
         SET discovered_sections = :sections::jsonb,
             section_last_updated = :updated
         WHERE id = :id
@@ -170,7 +170,7 @@ pytest tests/crawler/test_section_discovery.py tests/integration/test_section_st
 # Run only unit tests
 pytest tests/crawler/test_section_discovery.py -v
 
-# Run only integration tests  
+# Run only integration tests
 pytest tests/integration/test_section_storage.py -v
 ```
 
@@ -198,18 +198,18 @@ Phase 1 implements detection and storage only. Future phases will:
 
 ### Migration Issues
 
-**Problem**: Migration fails with "column already exists"  
+**Problem**: Migration fails with "column already exists"
 **Solution**: The migration checks for existing columns - this is safe to ignore.
 
-**Problem**: NOT NULL constraint failed  
+**Problem**: NOT NULL constraint failed
 **Solution**: Ensure you're including all required columns (`rss_consecutive_failures`, `rss_transient_failures`, `no_effective_methods_consecutive`) in INSERT statements.
 
 ### Section Detection Issues
 
-**Problem**: No sections detected from HTML  
+**Problem**: No sections detected from HTML
 **Solution**: Verify the HTML contains navigation elements with links matching the section patterns.
 
-**Problem**: Too many/few sections detected  
+**Problem**: Too many/few sections detected
 **Solution**: Adjust section patterns or max limit (currently 10) in `_discover_section_urls()`.
 
 ## References

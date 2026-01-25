@@ -63,83 +63,107 @@ class BylineCleaningTelemetry:
         return self._store
 
     def _ensure_tables(self) -> None:
-        try:
-            store = self.store
-        except RuntimeError:
-            # Telemetry disabled or not supported (e.g., PostgreSQL)
+        """Ensure telemetry tables exist without triggering recursion.
+
+        Important: avoid calling the public ``store`` property here because it
+        will call ``_ensure_tables`` again when ``_tables_initialized`` is False,
+        leading to infinite recursion. Instead, use the existing ``_store`` if
+        present or acquire a temporary store directly via ``get_store``.
+        """
+        # Prevent re-entrant calls to _ensure_tables which can happen when
+        # creating a connection (engine.connect() may trigger dialect
+        # initialization that imports other modules). If re-entered, just
+        # return early to avoid infinite recursion.
+        if getattr(self, "_ensuring_tables", False):
             return
 
-        with store.connection() as conn:
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS byline_cleaning_telemetry (
-                    id TEXT PRIMARY KEY,
-                    article_id TEXT,
-                    candidate_link_id TEXT,
-                    source_id TEXT,
-                    source_name TEXT,
-                    raw_byline TEXT,
-                    raw_byline_length INTEGER,
-                    raw_byline_words INTEGER,
-                    extraction_timestamp TIMESTAMP,
-                    cleaning_method TEXT,
-                    source_canonical_name TEXT,
-                    final_authors_json TEXT,
-                    final_authors_count INTEGER,
-                    final_authors_display TEXT,
-                    confidence_score REAL,
-                    processing_time_ms REAL,
-                    has_wire_service BOOLEAN,
-                    has_email BOOLEAN,
-                    has_title BOOLEAN,
-                    has_organization BOOLEAN,
-                    source_name_removed BOOLEAN,
-                    duplicates_removed_count INTEGER,
-                    likely_valid_authors BOOLEAN,
-                    likely_noise BOOLEAN,
-                    requires_manual_review BOOLEAN,
-                    cleaning_errors TEXT,
-                    parsing_warnings TEXT,
-                    human_label TEXT,
-                    human_notes TEXT,
-                    reviewed_by TEXT,
-                    reviewed_at TIMESTAMP,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-                """
-            )
+        self._ensuring_tables = True
+        try:
+            try:
+                # Prefer using the already-initialized store to avoid re-entrancy
+                if self._store is not None:
+                    store = self._store
+                else:
+                    # Avoid using the property (self.store) which would call _ensure_tables
+                    from src.models.database import DatabaseManager
 
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS byline_transformation_steps (
-                    id TEXT PRIMARY KEY,
-                    telemetry_id TEXT NOT NULL,
-                    step_number INTEGER,
-                    step_name TEXT,
-                    input_text TEXT,
-                    output_text TEXT,
-                    transformation_type TEXT,
-                    removed_content TEXT,
-                    added_content TEXT,
-                    confidence_delta REAL,
-                    processing_time_ms REAL,
-                    notes TEXT,
-                    timestamp TIMESTAMP,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (telemetry_id)
-                        REFERENCES byline_cleaning_telemetry(id)
-                )
-                """
-            )
+                    db = DatabaseManager()
+                    try:
+                        store = get_store(self._database_url, engine=db.engine)
+                    except Exception:
+                        store = get_store(self._database_url)
+            except RuntimeError:
+                # Telemetry disabled or not supported (e.g., PostgreSQL)
+                return
 
-            conn.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_byline_steps_telemetry
-                ON byline_transformation_steps(telemetry_id)
-                """
-            )
+            with store.connection() as conn:
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS byline_cleaning_telemetry (
+                        id TEXT PRIMARY KEY,
+                        article_id TEXT,
+                        candidate_link_id TEXT,
+                        source_id TEXT,
+                        source_name TEXT,
+                        raw_byline TEXT,
+                        raw_byline_length INTEGER,
+                        raw_byline_words INTEGER,
+                        extraction_timestamp TIMESTAMP,
+                        cleaning_method TEXT,
+                        source_canonical_name TEXT,
+                        final_authors_json TEXT,
+                        final_authors_count INTEGER,
+                        final_authors_display TEXT,
+                        confidence_score REAL,
+                        processing_time_ms REAL,
+                        has_wire_service BOOLEAN,
+                        has_email BOOLEAN,
+                        has_title BOOLEAN,
+                        has_organization BOOLEAN,
+                        source_name_removed BOOLEAN,
+                        duplicates_removed_count INTEGER,
+                        likely_valid_authors BOOLEAN,
+                        likely_noise BOOLEAN,
+                        requires_manual_review BOOLEAN,
+                        cleaning_errors TEXT,
+                        parsing_warnings TEXT,
+                        human_label TEXT,
+                        human_notes TEXT,
+                        reviewed_by TEXT,
+                        reviewed_at TIMESTAMP,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """)
 
-            conn.commit()
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS byline_transformation_steps (
+                        id TEXT PRIMARY KEY,
+                        telemetry_id TEXT NOT NULL,
+                        step_number INTEGER,
+                        step_name TEXT,
+                        input_text TEXT,
+                        output_text TEXT,
+                        transformation_type TEXT,
+                        removed_content TEXT,
+                        added_content TEXT,
+                        confidence_delta REAL,
+                        processing_time_ms REAL,
+                        notes TEXT,
+                        timestamp TIMESTAMP,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (telemetry_id)
+                            REFERENCES byline_cleaning_telemetry(id)
+                    )
+                    """)
+
+                conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_byline_steps_telemetry
+                    ON byline_transformation_steps(telemetry_id)
+                    """)
+
+                conn.commit()
+        finally:
+            # Always clear the re-entrancy guard
+            self._ensuring_tables = False
 
     def start_cleaning_session(
         self,
@@ -440,10 +464,13 @@ class BylineCleaningTelemetry:
             # Telemetry disabled or not supported
             pass
         except Exception as exc:  # pragma: no cover - telemetry best effort
-            # Get just the exception type and first line of message
-            exc_msg = str(exc).split("\n")[0][:80]
+            # Get full traceback for debugging intermittent failures
+            import traceback
+
             exc_name = type(exc).__name__
-            print(f"Warning: Failed telemetry: {exc_name}: {exc_msg}")
+            exc_msg = str(exc)
+            tb = traceback.format_exc()
+            print(f"Warning: Failed telemetry: {exc_name}: {exc_msg}\n{tb}")
             # Don't fail the cleaning process due to telemetry issues
 
     def flush(self) -> None:

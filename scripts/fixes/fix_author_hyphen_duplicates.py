@@ -142,8 +142,8 @@ def update_articles_with_hyphen_duplicates(db_path: str, dry_run: bool = True) -
                 fixed_json = json.dumps(article["fixed_authors"])
                 cursor.execute(
                     """
-                    UPDATE articles 
-                    SET author = ? 
+                    UPDATE articles
+                    SET author = ?
                     WHERE id = ?
                 """,
                     (fixed_json, article["id"]),
@@ -167,20 +167,20 @@ def update_articles_with_hyphen_duplicates(db_path: str, dry_run: bool = True) -
         # Verify the changes
         logger.info("\n=== Verifying changes ===")
         cursor.execute("""
-            SELECT COUNT(*) 
-            FROM articles 
-            WHERE author IS NOT NULL 
-            AND author != '[]' 
+            SELECT COUNT(*)
+            FROM articles
+            WHERE author IS NOT NULL
+            AND author != '[]'
             AND author != 'null'
         """)
         total_with_authors = cursor.fetchone()[0]
 
         # Count remaining duplicates
         cursor.execute("""
-            SELECT id, author 
-            FROM articles 
-            WHERE author IS NOT NULL 
-            AND author != '[]' 
+            SELECT id, author
+            FROM articles
+            WHERE author IS NOT NULL
+            AND author != '[]'
             AND author != 'null'
         """)
 

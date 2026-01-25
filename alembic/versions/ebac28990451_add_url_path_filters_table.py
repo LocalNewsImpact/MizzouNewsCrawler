@@ -35,15 +35,15 @@ def upgrade() -> None:
         sa.UniqueConstraint('path_pattern'),
         comment='URL path filters for non-article content'
     )
-    
+
     # Create indexes
     op.create_index('ix_url_path_filters_path_pattern', 'url_path_filters', ['path_pattern'])
     op.create_index('ix_url_path_filters_active', 'url_path_filters', ['active'])
-    
+
     # Seed with common non-article path patterns
     op.execute("""
         INSERT INTO url_path_filters (path_pattern, filter_type, reason, active, notes)
-        VALUES 
+        VALUES
             ('/video/', 'prefix', 'Video content', true, 'Filter top-level /video/ paths'),
             ('/videos/', 'prefix', 'Video content', true, 'Filter top-level /videos/ paths'),
             ('/gallery/', 'prefix', 'Photo galleries', true, 'Filter photo gallery pages'),

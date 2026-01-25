@@ -1,7 +1,7 @@
 # Manual Workflow Issue: Wrong Configuration
 
-**Date**: October 20, 2025  
-**Issue**: `mizzou-news-pipeline-manual-2zstf` failing with `CreateContainerConfigError`  
+**Date**: October 20, 2025
+**Issue**: `mizzou-news-pipeline-manual-2zstf` failing with `CreateContainerConfigError`
 **Status**: 🔴 IDENTIFIED - Needs cleanup
 
 ---
@@ -87,7 +87,7 @@ spec:
         template: entity-extraction
     - - name: analyze
         template: analysis
-  
+
   - name: discovery
     container:
       image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest

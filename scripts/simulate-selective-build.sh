@@ -47,7 +47,7 @@ else
     echo -e "${RED}Invalid choice${NC}"
     exit 1
   fi
-  
+
   IFS=':' read -r scenario_name scenario_files <<< "${scenarios[$((choice-1))]}"
 fi
 

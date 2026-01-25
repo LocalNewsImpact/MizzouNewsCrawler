@@ -2,11 +2,11 @@
 -- Run this query in BigQuery console to clean up historical proxy challenge records
 
 -- First, check how many records match
-SELECT 
+SELECT
   COUNT(*) as total_proxy_challenges,
   COUNT(DISTINCT source) as affected_sources
 FROM `mizzou-news-crawler.news_data.articles`
-WHERE 
+WHERE
   title LIKE '%Access to this page has been denied%'
   OR title LIKE '%Attention Required%'
   OR title LIKE '%Just a moment%'
@@ -15,7 +15,7 @@ WHERE
   OR title LIKE '%Access Denied%';
 
 -- Preview records to be deleted
-SELECT 
+SELECT
   id,
   url,
   title,
@@ -23,7 +23,7 @@ SELECT
   status,
   wire_check_status
 FROM `mizzou-news-crawler.news_data.articles`
-WHERE 
+WHERE
   title LIKE '%Access to this page has been denied%'
   OR title LIKE '%Attention Required%'
   OR title LIKE '%Just a moment%'
@@ -37,7 +37,7 @@ LIMIT 50;
 -- UNCOMMENT THE FOLLOWING TO EXECUTE DELETION:
 /*
 DELETE FROM `mizzou-news-crawler.news_data.articles`
-WHERE 
+WHERE
   title LIKE '%Access to this page has been denied%'
   OR title LIKE '%Attention Required%'
   OR title LIKE '%Just a moment%'
@@ -47,10 +47,10 @@ WHERE
 */
 
 -- After deletion, verify removal
-SELECT 
+SELECT
   COUNT(*) as remaining_proxy_challenges
 FROM `mizzou-news-crawler.news_data.articles`
-WHERE 
+WHERE
   title LIKE '%Access to this page has been denied%'
   OR title LIKE '%Attention Required%'
   OR title LIKE '%Just a moment%'

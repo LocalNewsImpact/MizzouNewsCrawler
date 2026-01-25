@@ -25,9 +25,7 @@ def sqlite_db(tmp_path: Path) -> str:
 
     with db.engine.begin() as conn:
         # Create sources table (include typed columns with sane defaults)
-        conn.execute(
-            text(
-                """
+        conn.execute(text("""
             CREATE TABLE IF NOT EXISTS sources (
                 id TEXT PRIMARY KEY,
                 canonical_name TEXT,
@@ -56,42 +54,30 @@ def sqlite_db(tmp_path: Path) -> str:
                 last_bot_detection_at TEXT,
                 bot_detection_metadata TEXT
             )
-            """
-            )
-        )
+            """))
 
         # Create datasets table
-        conn.execute(
-            text(
-                """
+        conn.execute(text("""
             CREATE TABLE IF NOT EXISTS datasets (
                 id TEXT PRIMARY KEY,
                 label TEXT UNIQUE,
                 slug TEXT,
                 created_at TEXT
             )
-            """
-            )
-        )
+            """))
 
         # Create dataset_sources junction table (include id column for inserts)
-        conn.execute(
-            text(
-                """
+        conn.execute(text("""
             CREATE TABLE IF NOT EXISTS dataset_sources (
                 id TEXT,
                 dataset_id TEXT,
                 source_id TEXT,
                 PRIMARY KEY (dataset_id, source_id)
             )
-            """
-            )
-        )
+            """))
 
         # Create candidate_links table
-        conn.execute(
-            text(
-                """
+        conn.execute(text("""
             CREATE TABLE IF NOT EXISTS candidate_links (
                 id TEXT PRIMARY KEY,
                 source_id TEXT,
@@ -100,48 +86,34 @@ def sqlite_db(tmp_path: Path) -> str:
                 discovered_at TEXT,
                 processed_at TEXT
             )
-            """
-            )
-        )
+            """))
 
         # Create telemetry tables (minimal)
-        conn.execute(
-            text(
-                """
+        conn.execute(text("""
             CREATE TABLE IF NOT EXISTS operations (
                 id TEXT PRIMARY KEY,
                 operation_type TEXT,
                 created_at TEXT
             )
-            """
-            )
-        )
+            """))
 
-        conn.execute(
-            text(
-                """
+        conn.execute(text("""
             CREATE TABLE IF NOT EXISTS discovery_outcomes (
                 id TEXT PRIMARY KEY,
                 operation_id TEXT,
                 source_id TEXT,
                 created_at TEXT
             )
-            """
-            )
-        )
+            """))
 
-        conn.execute(
-            text(
-                """
+        conn.execute(text("""
             CREATE TABLE IF NOT EXISTS discovery_method_effectiveness (
                 id TEXT PRIMARY KEY,
                 source_id TEXT,
                 discovery_method TEXT,
                 created_at TEXT
             )
-            """
-            )
-        )
+            """))
 
     return database_url
 
@@ -154,12 +126,10 @@ def test_get_sources_query_works_on_sqlite(sqlite_db: str):
     dataset_id = str(uuid.uuid4())
     with db.engine.begin() as conn:
         conn.execute(
-            text(
-                """
+            text("""
             INSERT INTO datasets (id, label, slug, created_at)
             VALUES (:dataset_id, :label, :slug, datetime('now'))
-            """
-            ),
+            """),
             {"dataset_id": dataset_id, "label": "test-dataset", "slug": "test-dataset"},
         )
 
@@ -171,8 +141,7 @@ def test_get_sources_query_works_on_sqlite(sqlite_db: str):
 
         with db.engine.begin() as conn:
             conn.execute(
-                text(
-                    """
+                text("""
                 INSERT INTO sources (
                     id, canonical_name, host, host_norm, city, county,
                     rss_consecutive_failures, rss_transient_failures,
@@ -182,8 +151,7 @@ def test_get_sources_query_works_on_sqlite(sqlite_db: str):
                     :id, :name, :host, :host_norm, :city, :county,
                     :rcf, :rtf, :nemc
                 )
-                """
-                ),
+                """),
                 {
                     "id": source_id,
                     "name": f"Test Source {i+1}",
@@ -199,12 +167,10 @@ def test_get_sources_query_works_on_sqlite(sqlite_db: str):
 
             # Link to dataset
             conn.execute(
-                text(
-                    """
+                text("""
                 INSERT INTO dataset_sources (id, dataset_id, source_id)
                 VALUES (:id, :dataset_id, :source_id)
-                """
-                ),
+                """),
                 {
                     "id": str(uuid.uuid4()),
                     "dataset_id": dataset_id,
@@ -242,21 +208,17 @@ def test_dataset_filtering_works_on_sqlite(sqlite_db: str):
 
     with db.engine.begin() as conn:
         conn.execute(
-            text(
-                """
+            text("""
             INSERT INTO datasets (id, label, slug, created_at)
             VALUES (:id1, :label1, :slug1, datetime('now'))
-            """
-            ),
+            """),
             {"id1": dataset1_id, "label1": "Dataset-1", "slug1": "dataset-1"},
         )
         conn.execute(
-            text(
-                """
+            text("""
             INSERT INTO datasets (id, label, slug, created_at)
             VALUES (:id2, :label2, :slug2, datetime('now'))
-            """
-            ),
+            """),
             {"id2": dataset2_id, "label2": "Dataset-2", "slug2": "dataset-2"},
         )
 
@@ -267,8 +229,7 @@ def test_dataset_filtering_works_on_sqlite(sqlite_db: str):
     with db.engine.begin() as conn:
         # Source 1 in Dataset 1
         conn.execute(
-            text(
-                """
+            text("""
             INSERT INTO sources (
                 id, canonical_name, host, host_norm,
                 rss_consecutive_failures, rss_transient_failures,
@@ -277,8 +238,7 @@ def test_dataset_filtering_works_on_sqlite(sqlite_db: str):
             VALUES (
                 :id, :name, :host, :host_norm, :rcf, :rtf, :nemc
             )
-            """
-            ),
+            """),
             {
                 "id": source1_id,
                 "name": "Source 1",
@@ -290,12 +250,10 @@ def test_dataset_filtering_works_on_sqlite(sqlite_db: str):
             },
         )
         conn.execute(
-            text(
-                """
+            text("""
             INSERT INTO dataset_sources (id, dataset_id, source_id)
             VALUES (:id, :dataset_id, :source_id)
-            """
-            ),
+            """),
             {
                 "id": str(uuid.uuid4()),
                 "dataset_id": dataset1_id,
@@ -305,8 +263,7 @@ def test_dataset_filtering_works_on_sqlite(sqlite_db: str):
 
         # Source 2 in Dataset 2
         conn.execute(
-            text(
-                """
+            text("""
             INSERT INTO sources (
                 id, canonical_name, host, host_norm,
                 rss_consecutive_failures, rss_transient_failures,
@@ -315,8 +272,7 @@ def test_dataset_filtering_works_on_sqlite(sqlite_db: str):
             VALUES (
                 :id, :name, :host, :host_norm, :rcf, :rtf, :nemc
             )
-            """
-            ),
+            """),
             {
                 "id": source2_id,
                 "name": "Source 2",
@@ -328,12 +284,10 @@ def test_dataset_filtering_works_on_sqlite(sqlite_db: str):
             },
         )
         conn.execute(
-            text(
-                """
+            text("""
             INSERT INTO dataset_sources (id, dataset_id, source_id)
             VALUES (:id, :dataset_id, :source_id)
-            """
-            ),
+            """),
             {
                 "id": str(uuid.uuid4()),
                 "dataset_id": dataset2_id,
@@ -363,12 +317,10 @@ def test_invalid_dataset_returns_empty_with_error(sqlite_db: str, caplog):
     dataset_id = str(uuid.uuid4())
     with db.engine.begin() as conn:
         conn.execute(
-            text(
-                """
+            text("""
             INSERT INTO datasets (id, label, slug, created_at)
             VALUES (:id, :label, :slug, datetime('now'))
-            """
-            ),
+            """),
             {"id": dataset_id, "label": "Valid-Dataset", "slug": "valid-dataset"},
         )
 
@@ -402,8 +354,7 @@ def test_due_only_filtering_on_sqlite(sqlite_db: str):
 
     with db.engine.begin() as conn:
         conn.execute(
-            text(
-                """
+            text("""
             INSERT INTO sources (
                 id, canonical_name, host, host_norm, metadata,
                 rss_consecutive_failures, rss_transient_failures,
@@ -413,8 +364,7 @@ def test_due_only_filtering_on_sqlite(sqlite_db: str):
                 :id, :name, :host, :host_norm, :metadata,
                 :rcf, :rtf, :nemc
             )
-            """
-            ),
+            """),
             {
                 "id": source_id,
                 "name": "Test Source",
@@ -454,8 +404,7 @@ def test_database_dialect_detection(sqlite_db: str):
     source_id = str(uuid.uuid4())
     with db.engine.begin() as conn:
         conn.execute(
-            text(
-                """
+            text("""
             INSERT INTO sources (
                 id, canonical_name, host, host_norm,
                 rss_consecutive_failures, rss_transient_failures,
@@ -464,8 +413,7 @@ def test_database_dialect_detection(sqlite_db: str):
             VALUES (
                 :id, :name, :host, :host_norm, :rcf, :rtf, :nemc
             )
-            """
-            ),
+            """),
             {
                 "id": source_id,
                 "name": "Test",

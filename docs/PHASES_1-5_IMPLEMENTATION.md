@@ -95,10 +95,10 @@ pytest tests/test_crawler.py -v
   ```python
   def create_engine_from_env():
       """Create SQLAlchemy engine from DATABASE_URL environment variable.
-      
+
       This is the recommended way to create database engines in the application,
       as it respects the centralized configuration in src/config.py.
-      
+
       Returns:
           Engine: Configured SQLAlchemy engine
       """
@@ -196,7 +196,7 @@ with tracker.track_operation(
     # Your operation code here
     for i in range(100):
         # ... process item ...
-        
+
         # Update progress
         if i % 10 == 0:
             metrics = OperationMetrics(

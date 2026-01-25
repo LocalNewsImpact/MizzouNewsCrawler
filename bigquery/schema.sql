@@ -13,44 +13,44 @@ CREATE TABLE IF NOT EXISTS `mizzou-news-crawler.mizzou_analytics.articles` (
   id INT64 NOT NULL,
   url STRING NOT NULL,
   source_id INT64,
-  
+
   -- Article metadata
   title STRING,
   authors ARRAY<STRING>,
   published_date DATE,
   discovered_date TIMESTAMP,
   extracted_date TIMESTAMP,
-  
+
   -- Content
   text STRING,
   summary STRING,
   word_count INT64,
-  
+
   -- Geographic data
   county STRING,
   state STRING,
-  
+
   -- Classification data
   cin_labels ARRAY<STRUCT<
     label STRING,
     confidence FLOAT64,
     version STRING
   >>,
-  
+
   -- Entities
   people ARRAY<STRING>,
   organizations ARRAY<STRING>,
   locations ARRAY<STRING>,
-  
+
   -- Source information
   source_name STRING,
   source_url STRING,
   source_type STRING,
-  
+
   -- Processing metadata
   extraction_status STRING,
   extraction_method STRING,
-  
+
   -- Timestamps
   created_at TIMESTAMP,
   updated_at TIMESTAMP
@@ -67,18 +67,18 @@ CREATE TABLE IF NOT EXISTS `mizzou-news-crawler.mizzou_analytics.cin_labels` (
   -- Composite key
   article_id INT64 NOT NULL,
   label STRING NOT NULL,
-  
+
   -- Label metadata
   confidence FLOAT64,
   version STRING,
   model STRING,
-  
+
   -- Article reference data (denormalized for performance)
   article_url STRING,
   article_title STRING,
   published_date DATE,
   county STRING,
-  
+
   -- Timestamps
   labeled_at TIMESTAMP,
   created_at TIMESTAMP
@@ -95,17 +95,17 @@ CREATE TABLE IF NOT EXISTS `mizzou-news-crawler.mizzou_analytics.entities` (
   article_id INT64 NOT NULL,
   entity_type STRING NOT NULL,  -- 'PERSON', 'ORG', 'LOCATION'
   entity_text STRING NOT NULL,
-  
+
   -- Entity metadata
   confidence FLOAT64,
   model STRING,
-  
+
   -- Article reference data
   article_url STRING,
   article_title STRING,
   published_date DATE,
   county STRING,
-  
+
   -- Timestamps
   extracted_at TIMESTAMP,
   created_at TIMESTAMP
@@ -124,15 +124,15 @@ CREATE TABLE IF NOT EXISTS `mizzou-news-crawler.mizzou_analytics.sources` (
   type STRING,  -- 'news', 'government', 'community'
   county STRING,
   state STRING,
-  
+
   -- Source metadata
   is_active BOOLEAN,
   crawl_frequency STRING,
-  
+
   -- Statistics
   total_articles INT64,
   last_article_date DATE,
-  
+
   -- Timestamps
   created_at TIMESTAMP,
   updated_at TIMESTAMP
@@ -146,17 +146,17 @@ CREATE TABLE IF NOT EXISTS `mizzou-news-crawler.mizzou_analytics.pipeline_metric
   -- Metric identifiers
   metric_type STRING NOT NULL,  -- 'discovery', 'extraction', 'classification'
   metric_name STRING NOT NULL,
-  
+
   -- Metric values
   value FLOAT64,
   count INT64,
-  
+
   -- Dimensions
   source_id INT64,
   source_name STRING,
   county STRING,
   status STRING,
-  
+
   -- Timestamps
   metric_date DATE,
   metric_timestamp TIMESTAMP,

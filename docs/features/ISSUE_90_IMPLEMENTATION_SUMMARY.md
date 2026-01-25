@@ -1,7 +1,7 @@
 # Issue #90 Implementation Summary
 
-**Date:** October 19, 2025  
-**Issue:** [#90 - Optimize ML Model Loading: Eliminate Repeated spaCy Reloads](https://github.com/LocalNewsImpact/MizzouNewsCrawler/issues/90)  
+**Date:** October 19, 2025
+**Issue:** [#90 - Optimize ML Model Loading: Eliminate Repeated spaCy Reloads](https://github.com/LocalNewsImpact/MizzouNewsCrawler/issues/90)
 **Status:** ✅ Complete - Ready for Review
 
 ## Overview
@@ -56,18 +56,18 @@ def get_cached_entity_extractor():
 ```python
 def process_entity_extraction(count: int) -> bool:
     # ... count check ...
-    
+
     try:
         from argparse import Namespace
         from src.cli.commands.entity_extraction import handle_entity_extraction_command
-        
+
         # Get cached extractor (model already loaded!)
         extractor = get_cached_entity_extractor()
-        
+
         # Call directly instead of subprocess
         args = Namespace(limit=limit, source=None)
         result = handle_entity_extraction_command(args, extractor=extractor)
-        
+
         return result == 0
     except Exception as e:
         logger.exception("Entity extraction error: %s", e)
@@ -79,11 +79,11 @@ def process_entity_extraction(count: int) -> bool:
 def handle_entity_extraction_command(args, extractor=None) -> int:
     """Execute entity extraction with optional pre-loaded extractor."""
     # ... setup code ...
-    
+
     # Use provided extractor or create new one
     if extractor is None:
         extractor = ArticleEntityExtractor()
-    
+
     # ... rest of extraction logic ...
 ```
 
@@ -274,6 +274,6 @@ For questions or issues:
 
 ---
 
-**Implementation Date:** October 19, 2025  
-**Implemented By:** GitHub Copilot Coding Agent  
+**Implementation Date:** October 19, 2025
+**Implemented By:** GitHub Copilot Coding Agent
 **Status:** ✅ Complete - Ready for Review and Deployment

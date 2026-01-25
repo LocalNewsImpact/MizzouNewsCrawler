@@ -43,13 +43,13 @@ get_queue_stats() {
 check_health() {
     local service=$1
     local url=$2
-    
+
     # For postgres, use pg_isready
     if [[ "$service" == "mizzou-postgres" ]]; then
         docker exec "$service" pg_isready -U mizzou_user > /dev/null 2>&1
         return $?
     fi
-    
+
     # For other services, try curl (may not be installed)
     docker exec "$service" curl -sf "$url" > /dev/null 2>&1
 }
@@ -145,9 +145,9 @@ with db.get_session() as session:
         )
         session.add(source)
         sources.append(source)
-    
+
     session.commit()
-    
+
     # Create 20 candidate_links per source (200 total)
     for source in sources:
         for j in range(20):
@@ -160,7 +160,7 @@ with db.get_session() as session:
                 discovered_by='test-setup'
             )
             session.add(link)
-    
+
     session.commit()
     print(f'Created {len(sources)} sources with 200 total candidate_links')
 " || {
@@ -265,15 +265,15 @@ done
 echo "Monitoring extraction progress (60s)..."
 for i in {1..12}; do
     sleep 5
-    
+
     # Check articles extracted
     CURRENT_ARTICLES=$(run_query "SELECT COUNT(*) FROM articles")
     NEW_ARTICLES=$((CURRENT_ARTICLES - BEFORE_ARTICLES))
-    
+
     # Check worker assignments
     STATS=$(get_queue_stats)
     ACTIVE_WORKERS=$(echo "$STATS" | jq -r '.worker_assignments | length' 2>/dev/null || echo "?")
-    
+
     echo "  [${i}] Articles: $NEW_ARTICLES extracted, Active workers: $ACTIVE_WORKERS"
 done
 
@@ -459,7 +459,7 @@ echo ""
 if [ $EXTRACTED_WITH_QUEUE -gt 0 ] && [ $EXTRACTED_FALLBACK -gt 0 ]; then
     WQ_RATE=$(echo "scale=2; $EXTRACTED_WITH_QUEUE / 1.5" | bc)  # ~90s runtime
     FB_RATE=$(echo "scale=2; $EXTRACTED_FALLBACK / 1.5" | bc)
-    
+
     echo "Throughput comparison:"
     echo "  Work Queue:  ~${WQ_RATE} articles/min"
     echo "  Fallback:    ~${FB_RATE} articles/min"

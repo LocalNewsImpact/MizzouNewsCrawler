@@ -1,13 +1,13 @@
 # Cleanup of Failed Extractions - Summary
 
-**Date:** October 13, 2025  
+**Date:** October 13, 2025
 **Issue:** 606 articles appeared "pending" for ML analysis, but only 4 were actually eligible
 
 ## Root Cause Analysis
 
 The "606 pending" count was misleading because it counted ALL articles with `primary_label IS NULL`, which included:
 - **361 wire** articles (correctly excluded from ML classification)
-- **76 obituary** articles (correctly excluded from ML classification)  
+- **76 obituary** articles (correctly excluded from ML classification)
 - **47 opinion** articles (correctly excluded from ML classification)
 - **118 extracted** articles without content (failed extractions)
 - **22 extracted** articles without content but WITH invalid article_labels
@@ -30,7 +30,7 @@ These articles needed to be:
 ```sql
 DELETE FROM article_labels
 WHERE article_id IN (
-    SELECT id FROM articles 
+    SELECT id FROM articles
     WHERE status = 'extracted' AND content IS NULL
 )
 AND label_version = 'default'
@@ -39,7 +39,7 @@ AND label_version = 'default'
 
 ### Step 2: Delete Failed Article Records
 ```sql
-DELETE FROM articles 
+DELETE FROM articles
 WHERE status = 'extracted' AND content IS NULL
 ```
 **Result:** Deleted 140 article records (22 with labels + 118 without)
@@ -73,7 +73,7 @@ Top domains with failed extractions that will be retried:
 - **426 candidate_links** with status=`article` (includes 140 reset links)
 - Ready for re-extraction with automatic 404 detection
 
-### Cleaning Queue  
+### Cleaning Queue
 - **0 articles** with status=`extracted` and content (clear)
 
 ### ML Analysis Queue

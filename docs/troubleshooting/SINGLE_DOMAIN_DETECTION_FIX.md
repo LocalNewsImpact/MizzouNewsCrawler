@@ -1,7 +1,7 @@
 # Single-Domain Detection Fix
 
-**Date**: October 14, 2025  
-**Commit**: 7b9e9a5  
+**Date**: October 14, 2025
+**Commit**: 7b9e9a5
 **Issue**: False positive single-domain detection causing unnecessary long pauses
 
 ## Problem
@@ -137,7 +137,7 @@ Reason: Same domain hit 4 times (exhausted rotation)
    ```bash
    kubectl logs -f deployment/mizzou-processor -n production
    ```
-   
+
    Look for:
    - `✓ Multiple domains available (X rate-limited) - minimal 5s pause` when domains are skipped
    - `⏸️ Single-domain dataset - waiting Xs...` only for true single-domain datasets

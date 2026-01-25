@@ -1,7 +1,7 @@
 # Auto-Update CronJob Images on Build
 
-**Date**: October 15, 2025  
-**Issue**: CronJobs were pinned to old SHA tags and not updating when new images were built  
+**Date**: October 15, 2025
+**Issue**: CronJobs were pinned to old SHA tags and not updating when new images were built
 **Status**: ✅ **FIXED**
 
 ---

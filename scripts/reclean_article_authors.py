@@ -192,7 +192,7 @@ class ArticleAuthorRecleaner:
             FROM articles a
             JOIN byline_cleaning_telemetry bct ON a.id = bct.article_id
             LEFT JOIN candidate_links cl ON a.candidate_link_id = cl.id
-            WHERE bct.raw_byline IS NOT NULL 
+            WHERE bct.raw_byline IS NOT NULL
             AND bct.raw_byline != ''
             AND a.author IS NOT NULL
             AND a.author != ''
@@ -320,8 +320,8 @@ class ArticleAuthorRecleaner:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute(
                     """
-                    UPDATE articles 
-                    SET author = ?, processed_at = CURRENT_TIMESTAMP 
+                    UPDATE articles
+                    SET author = ?, processed_at = CURRENT_TIMESTAMP
                     WHERE id = ?
                 """,
                     (new_author_json, article_id),

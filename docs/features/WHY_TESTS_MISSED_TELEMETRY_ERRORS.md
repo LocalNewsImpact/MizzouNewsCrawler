@@ -1,6 +1,6 @@
 # Why Unit Tests Didn't Catch Telemetry Errors
 
-**Date**: October 20, 2025  
+**Date**: October 20, 2025
 **Issue**: `created_at` missing from byline_cleaning_telemetry INSERT
 
 ## Root Causes of Test Gaps
@@ -43,7 +43,7 @@ def test_byline_telemetry_postgres_insert(postgres_db_uri):
     """Test byline telemetry INSERT against actual PostgreSQL database."""
     store = TelemetryStore(database=postgres_db_uri, async_writes=False)
     telemetry = BylineCleaningTelemetry(store=store)
-    
+
     telemetry.start_cleaning_session(raw_byline="Test")
     telemetry.finalize_cleaning_session(["Author"], cleaning_method="test")
     telemetry.flush()  # Would fail with constraint violation
@@ -134,7 +134,7 @@ def test_byline_telemetry_full_workflow_postgres():
     """Test complete byline telemetry workflow against PostgreSQL."""
     store = TelemetryStore(database=POSTGRES_URL, async_writes=False)
     telemetry = BylineCleaningTelemetry(store=store)
-    
+
     # Test actual INSERT path that production uses
     telemetry_id = telemetry.start_cleaning_session(
         raw_byline="By John Doe",
@@ -143,15 +143,15 @@ def test_byline_telemetry_full_workflow_postgres():
         source_id="test-source",
         source_name="Test Source"
     )
-    
+
     telemetry.finalize_cleaning_session(
         ["John Doe"],
         cleaning_method="standard_pipeline"
     )
-    
+
     # This would catch the missing created_at error
     telemetry.flush()
-    
+
     # Verify data was inserted correctly
     with store.connection() as conn:
         result = conn.execute(
@@ -232,7 +232,7 @@ conn.execute(stmt)
     entry: sqlfluff lint
     language: python
     files: \\.py$
-    
+
   - id: placeholder-count
     name: Validate SQL Placeholder Count
     entry: python scripts/validate_sql.py

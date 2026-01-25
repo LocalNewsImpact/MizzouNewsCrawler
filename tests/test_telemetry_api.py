@@ -536,8 +536,7 @@ class TestAPIErrorHandling:
 
         conn = sqlite3.connect(db_path)
         cur = conn.cursor()
-        cur.execute(
-            """
+        cur.execute("""
         CREATE TABLE sources (
             id VARCHAR PRIMARY KEY,
             host VARCHAR NOT NULL,
@@ -549,8 +548,7 @@ class TestAPIErrorHandling:
             rss_transient_failures TEXT NOT NULL DEFAULT '[]',
             no_effective_methods_consecutive INTEGER NOT NULL DEFAULT 0
         )
-        """
-        )
+        """)
         conn.commit()
         conn.close()
 
@@ -637,8 +635,7 @@ class TestCompleteAPIWorkflow:
 
         # Create a source entry for the problematic site
         connection.execute(
-            text(
-                """
+            text("""
                 INSERT INTO sources (
                   id, host, host_norm, status,
                   rss_consecutive_failures, rss_transient_failures,
@@ -647,8 +644,7 @@ class TestCompleteAPIWorkflow:
                   :id, :host, :host_norm, :status,
                   :rss_cf, :rss_tf, :nem_cf
                 )
-            """
-            ),
+            """),
             {
                 "id": "problem-site-test-workflow-com",
                 "host": test_host,
@@ -665,8 +661,7 @@ class TestCompleteAPIWorkflow:
         for i in range(10):
             created_at = now - timedelta(hours=i)
             connection.execute(
-                text(
-                    """
+                text("""
                     INSERT INTO extraction_telemetry_v2
                     (operation_id, article_id, url, publisher, host, start_time,
                      end_time, http_status_code, http_error_type, is_success,
@@ -674,8 +669,7 @@ class TestCompleteAPIWorkflow:
                     VALUES (:op_id, :art_id, :url, :publisher, :host, :start_time,
                             :end_time, :status_code, :error_type, :is_success,
                             :duration, :created_at)
-                """
-                ),
+                """),
                 {
                     "op_id": f"workflow-op{i}",
                     "art_id": f"workflow-art{i}",
@@ -694,14 +688,12 @@ class TestCompleteAPIWorkflow:
 
         # Add HTTP error summary
         connection.execute(
-            text(
-                """
+            text("""
                 INSERT INTO http_error_summary
                 (host, status_code, error_type, count, first_seen, last_seen)
                 VALUES (:host, :status_code, :error_type, :count,
                         :first_seen, :last_seen)
-            """
-            ),
+            """),
             {
                 "host": test_host,
                 "status_code": 403,

@@ -7,7 +7,7 @@ The proxy system has been completely migrated from Decodo to Squid-only implemen
 ### Active Test Files
 
 - **`tests/test_squid_only_proxy.py`** - Complete test coverage for Squid proxy system
-  - Provider override validation  
+  - Provider override validation
   - Unblock method integration
   - Error handling and fallbacks
   - Session proxy configuration
@@ -33,7 +33,7 @@ Key test scenarios:
 ⚠️ **Deprecated (marked as skipped)**
 
 - **`tests/test_unblock_proxy_extraction.py`** - Legacy Decodo proxy tests (1294 lines)
-  - Marked with `pytest.mark.skip` 
+  - Marked with `pytest.mark.skip`
   - Contains deprecation warnings
   - Preserved for reference only
 
@@ -41,7 +41,7 @@ Key test scenarios:
 
 The original tests verified Decodo API integration including:
 - X-SU-* header authentication
-- Challenge page detection  
+- Challenge page detection
 - API POST fallback mechanisms
 - Rotating proxy management
 - Complex metadata extraction
@@ -97,7 +97,7 @@ from src.crawler.proxy_config import ProxyProvider
 
 When adding proxy features:
 1. ✅ Add tests to `test_squid_only_proxy.py`
-2. ❌ Do NOT modify deprecated test files  
+2. ❌ Do NOT modify deprecated test files
 3. ✅ Update this README with new test scenarios
 
 The Squid-only approach prioritizes simplicity and maintainability over complex proxy management features.

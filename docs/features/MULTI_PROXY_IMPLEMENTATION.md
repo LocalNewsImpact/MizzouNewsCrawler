@@ -1,7 +1,7 @@
 # Multi-Proxy System Implementation Summary
 
-**Date:** October 10, 2025  
-**Branch:** feature/gcp-kubernetes-deployment  
+**Date:** October 10, 2025
+**Branch:** feature/gcp-kubernetes-deployment
 **Status:** ✅ Implemented, Ready for Testing
 
 ---
@@ -119,8 +119,8 @@ from sqlalchemy import text
 db = DatabaseManager()
 session = db.get_session().__enter__()
 recent = session.execute(text('''
-    SELECT COUNT(*) FROM articles 
-    WHERE status = 'extracted' 
+    SELECT COUNT(*) FROM articles
+    WHERE status = 'extracted'
     AND created_at >= NOW() - INTERVAL '30 minutes'
 ''')).scalar()
 print(f'Extracted in last 30 min: {recent}')

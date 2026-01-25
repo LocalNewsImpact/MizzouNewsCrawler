@@ -1,8 +1,8 @@
 # Critical Discovery: Selenium Was Installed But Not Being Used
 
-**Date:** October 10, 2025  
-**Issue:** "Why is Selenium not being deployed against these sites?"  
-**Discovery:** Critical bug in rate limit checking logic  
+**Date:** October 10, 2025
+**Issue:** "Why is Selenium not being deployed against these sites?"
+**Discovery:** Critical bug in rate limit checking logic
 **Status:** ✅ FIXED - Build triggered (37469c9c-7fec-4d8d-83b5-5bca679c81b6)
 
 ---
@@ -103,10 +103,10 @@ else:
 
 ### Key Improvements
 
-✅ **Selenium no longer checks requests backoffs** - can attempt CAPTCHA bypass even when requests are rate-limited  
-✅ **Separate failure tracking** - Selenium only skipped after 3 Selenium-specific failures  
-✅ **Success resets counter** - Domain gets fresh chances after Selenium succeeds  
-✅ **Clear logging** - ✅/❌ indicators show Selenium success/failure  
+✅ **Selenium no longer checks requests backoffs** - can attempt CAPTCHA bypass even when requests are rate-limited
+✅ **Separate failure tracking** - Selenium only skipped after 3 Selenium-specific failures
+✅ **Success resets counter** - Domain gets fresh chances after Selenium succeeds
+✅ **Clear logging** - ✅/❌ indicators show Selenium success/failure
 
 ---
 
@@ -181,7 +181,7 @@ kubectl logs -n production -l app=mizzou-processor --tail=100 -f | grep -i selen
 
 **Phase 1 (30 minutes after deployment):**
 ```sql
-SELECT 
+SELECT
   COUNT(*) as total,
   SUM(CASE WHEN is_success THEN 1 ELSE 0 END) as successes,
   ROUND(100.0 * SUM(CASE WHEN is_success THEN 1 ELSE 0 END) / COUNT(*), 2) as success_rate,
@@ -194,7 +194,7 @@ WHERE created_at >= NOW() - INTERVAL '30 minutes';
 
 **Phase 2 (domain breakdown):**
 ```sql
-SELECT 
+SELECT
   host,
   COUNT(*) as attempts,
   SUM(CASE WHEN is_success THEN 1 ELSE 0 END) as successes,
@@ -214,19 +214,19 @@ ORDER BY success_rate DESC;
 ## Success Criteria
 
 ### Immediate Validation
-✅ Build completes successfully  
-✅ Logs show "✅ Selenium extraction succeeded" for some URLs  
-✅ **NO MORE** "Domain X is rate limited; skip Selenium" messages  
+✅ Build completes successfully
+✅ Logs show "✅ Selenium extraction succeeded" for some URLs
+✅ **NO MORE** "Domain X is rate limited; skip Selenium" messages
 
 ### Phase 1 (30 min - 2 hours)
-✅ Extraction success rate **>10%** (up from 0%)  
-✅ At least some extractions using `primary_method = 'selenium'`  
-✅ PerimeterX/Cloudflare domains successfully extracted  
+✅ Extraction success rate **>10%** (up from 0%)
+✅ At least some extractions using `primary_method = 'selenium'`
+✅ PerimeterX/Cloudflare domains successfully extracted
 
 ### Phase 2 (24 hours)
-✅ Extraction success rate **>25%**  
-✅ Clear pattern: requests works for simple domains, Selenium works for CAPTCHA domains  
-✅ Selenium failure tracking working (domains with 3+ failures skipped appropriately)  
+✅ Extraction success rate **>25%**
+✅ Clear pattern: requests works for simple domains, Selenium works for CAPTCHA domains
+✅ Selenium failure tracking working (domains with 3+ failures skipped appropriately)
 
 ---
 
@@ -241,17 +241,17 @@ ORDER BY success_rate DESC;
 
 ### How This Was Discovered
 
-✅ **User asked the right question** - "Why is Selenium not being deployed?"  
-✅ **Checked logs thoroughly** - found "rate limited; skip Selenium" messages  
-✅ **Traced code flow** - identified rate limit check in Selenium fallback  
-✅ **Understood intent** - realized Selenium SHOULD bypass rate limits  
+✅ **User asked the right question** - "Why is Selenium not being deployed?"
+✅ **Checked logs thoroughly** - found "rate limited; skip Selenium" messages
+✅ **Traced code flow** - identified rate limit check in Selenium fallback
+✅ **Understood intent** - realized Selenium SHOULD bypass rate limits
 
 ### Prevention for Future
 
-✅ **Separate tracking for each extraction method** - requests vs Selenium vs newspaper4k  
-✅ **Test full fallback chains** - ensure fallbacks can run when primary methods fail  
-✅ **Monitor method usage** - track why methods are skipped vs failed vs succeeded  
-✅ **Clear logging** - distinguish "skipped because rate limited" vs "skipped because failed 3 times"  
+✅ **Separate tracking for each extraction method** - requests vs Selenium vs newspaper4k
+✅ **Test full fallback chains** - ensure fallbacks can run when primary methods fail
+✅ **Monitor method usage** - track why methods are skipped vs failed vs succeeded
+✅ **Clear logging** - distinguish "skipped because rate limited" vs "skipped because failed 3 times"
 
 ---
 
@@ -275,5 +275,5 @@ ORDER BY success_rate DESC;
 
 **Expected Impact:** Extraction success rate should jump from 0% to 10-50% on PerimeterX/Cloudflare-protected domains once this fix is deployed.
 
-**Build Status:** ✅ Triggered (37469c9c-7fec-4d8d-83b5-5bca679c81b6)  
+**Build Status:** ✅ Triggered (37469c9c-7fec-4d8d-83b5-5bca679c81b6)
 **Next Step:** Monitor build → promote to production → verify Selenium actually runs

@@ -101,10 +101,10 @@ def test_against_telemetry():
 
     # Get sample of real telemetry data to test
     cursor.execute("""
-        SELECT DISTINCT raw_byline, final_authors_display, final_authors_json, 
+        SELECT DISTINCT raw_byline, final_authors_display, final_authors_json,
                has_wire_service, likely_valid_authors
-        FROM byline_cleaning_telemetry 
-        WHERE raw_byline IS NOT NULL 
+        FROM byline_cleaning_telemetry
+        WHERE raw_byline IS NOT NULL
         AND raw_byline != ''
         ORDER BY RANDOM()
         LIMIT 50

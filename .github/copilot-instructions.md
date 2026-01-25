@@ -62,15 +62,15 @@ with db.get_session() as session:
 ```python
 # Check unextracted articles for a source
 result = session.execute(text('''
-    SELECT COUNT(*) FROM candidate_links 
-    WHERE source = 'example.com' 
+    SELECT COUNT(*) FROM candidate_links
+    WHERE source = 'example.com'
     AND status = 'article'
     AND id NOT IN (SELECT candidate_link_id FROM articles WHERE candidate_link_id IS NOT NULL)
 ''')).scalar()
 
 # Table counts
 result = session.execute(text('''
-    SELECT 
+    SELECT
         (SELECT COUNT(*) FROM candidate_links) as candidates,
         (SELECT COUNT(*) FROM articles) as articles,
         (SELECT COUNT(*) FROM sources) as sources

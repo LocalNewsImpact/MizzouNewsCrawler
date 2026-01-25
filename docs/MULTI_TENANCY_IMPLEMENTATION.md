@@ -123,27 +123,27 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
         )
         user_id: str = payload.get("sub")
         email: str = payload.get("email")
-        
+
         if user_id is None or email is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid authentication credentials"
             )
-        
+
         # Get or create user in database
         user = get_or_create_user(user_id, email, payload.get("name"))
-        
+
         if not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="User account is inactive"
             )
-        
+
         # Update last login
         update_last_login(user_id)
-        
+
         return user
-    
+
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -172,7 +172,7 @@ from typing import List, Set
 def get_accessible_source_ids(user: User, session: Session) -> Set[int]:
     """
     Get all source IDs the user can access.
-    
+
     Access rules:
     1. Admin users can access ALL sources
     2. Regular users can access:
@@ -184,12 +184,12 @@ def get_accessible_source_ids(user: User, session: Session) -> Set[int]:
         # Admins see everything
         result = session.execute(select(Source.source_id))
         return {row[0] for row in result}
-    
+
     # Sources user owns
     owned_sources = select(Source.source_id).where(
         Source.owner_id == user.user_id
     )
-    
+
     # Sources with explicit permissions (not revoked)
     permitted_sources = select(SourcePermission.source_id).where(
         and_(
@@ -197,16 +197,16 @@ def get_accessible_source_ids(user: User, session: Session) -> Set[int]:
             SourcePermission.revoked_at.is_(None)
         )
     )
-    
+
     # Public sources
     public_sources = select(Source.source_id).where(
         Source.is_public == True
     )
-    
+
     # Combine all
     combined_query = owned_sources.union(permitted_sources, public_sources)
     result = session.execute(combined_query)
-    
+
     return {row[0] for row in result}
 
 def check_source_access(
@@ -217,27 +217,27 @@ def check_source_access(
 ) -> bool:
     """
     Check if user has access to a specific source.
-    
+
     Args:
         user: Current user
         source_id: Source to check
         required_level: read, write, or admin
-    
+
     Returns:
         True if user has required access level
     """
     if user.role == Role.ADMIN:
         return True
-    
+
     # Check ownership
     source = session.get(Source, source_id)
     if source and source.owner_id == user.user_id:
         return True
-    
+
     # Check if public (read-only)
     if source and source.is_public and required_level == "read":
         return True
-    
+
     # Check explicit permissions
     permission = session.execute(
         select(SourcePermission).where(
@@ -248,10 +248,10 @@ def check_source_access(
             )
         )
     ).scalar_one_or_none()
-    
+
     if not permission:
         return False
-    
+
     # Check access level
     access_hierarchy = {"read": 1, "write": 2, "admin": 3}
     return access_hierarchy.get(permission.access_level, 0) >= access_hierarchy.get(required_level, 0)
@@ -283,16 +283,16 @@ async def get_articles(
 ):
     """
     Get articles filtered by user's source access.
-    
+
     Users only see articles from sources they have access to.
     """
     # Start with base query
     query = select(Article)
-    
+
     # Filter by county if provided
     if county:
         query = query.where(Article.county == county)
-    
+
     # Filter by source if provided AND user has access
     if source_id:
         if not check_source_access(current_user, source_id, session):
@@ -301,16 +301,16 @@ async def get_articles(
                 detail="You don't have access to this source"
             )
         query = query.where(Article.source_id == source_id)
-    
+
     # Apply source access filtering
     query = filter_query_by_sources(query, current_user, session)
-    
+
     # Apply pagination
     query = query.offset(offset).limit(limit)
-    
+
     result = session.execute(query)
     articles = result.scalars().all()
-    
+
     return articles
 
 @router.get("/{article_id}", response_model=ArticleResponse)
@@ -321,16 +321,16 @@ async def get_article(
 ):
     """Get single article if user has access to its source."""
     article = session.get(Article, article_id)
-    
+
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
-    
+
     if not check_source_access(current_user, article.source_id, session):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have access to this article's source"
         )
-    
+
     return article
 
 @router.get("/sources/accessible", response_model=List[SourceResponse])
@@ -340,11 +340,11 @@ async def get_accessible_sources(
 ):
     """Get all sources the user can access."""
     source_ids = get_accessible_source_ids(current_user, session)
-    
+
     sources = session.execute(
         select(Source).where(Source.source_id.in_(source_ids))
     ).scalars().all()
-    
+
     return sources
 ```
 
@@ -366,19 +366,19 @@ async def grant_source_permission(
 ):
     """
     Grant a user access to a source.
-    
+
     Only admins can grant permissions.
     """
     # Validate source exists
     source = session.get(Source, source_id)
     if not source:
         raise HTTPException(status_code=404, detail="Source not found")
-    
+
     # Validate user exists
     target_user = session.get(User, user_id)
     if not target_user:
         raise HTTPException(status_code=404, detail="User not found")
-    
+
     # Check if permission already exists
     existing = session.execute(
         select(SourcePermission).where(
@@ -389,7 +389,7 @@ async def grant_source_permission(
             )
         )
     ).scalar_one_or_none()
-    
+
     if existing:
         # Update existing permission
         existing.access_level = access_level
@@ -404,7 +404,7 @@ async def grant_source_permission(
             granted_by=current_user.user_id
         )
         session.add(permission)
-    
+
     # Log the action
     audit_entry = PermissionAuditLog(
         action="grant",
@@ -414,9 +414,9 @@ async def grant_source_permission(
         details={"access_level": access_level}
     )
     session.add(audit_entry)
-    
+
     session.commit()
-    
+
     return {"status": "success", "message": f"Granted {access_level} access to user {user_id}"}
 
 @router.delete("/permissions/revoke")
@@ -436,13 +436,13 @@ async def revoke_source_permission(
             )
         )
     ).scalar_one_or_none()
-    
+
     if not permission:
         raise HTTPException(status_code=404, detail="Permission not found")
-    
+
     # Soft delete (revoke)
     permission.revoked_at = datetime.utcnow()
-    
+
     # Log the action
     audit_entry = PermissionAuditLog(
         action="revoke",
@@ -451,9 +451,9 @@ async def revoke_source_permission(
         performed_by=current_user.user_id
     )
     session.add(audit_entry)
-    
+
     session.commit()
-    
+
     return {"status": "success", "message": f"Revoked access for user {user_id}"}
 
 @router.patch("/sources/{source_id}/public")
@@ -467,9 +467,9 @@ async def toggle_source_public(
     source = session.get(Source, source_id)
     if not source:
         raise HTTPException(status_code=404, detail="Source not found")
-    
+
     source.is_public = is_public
-    
+
     # Log the action
     audit_entry = PermissionAuditLog(
         action="modify",
@@ -478,9 +478,9 @@ async def toggle_source_public(
         details={"is_public": is_public}
     )
     session.add(audit_entry)
-    
+
     session.commit()
-    
+
     return {"status": "success", "message": f"Source is now {'public' if is_public else 'private'}"}
 
 @router.get("/permissions/audit")
@@ -493,14 +493,14 @@ async def get_permission_audit_log(
 ):
     """Get audit log of permission changes."""
     query = select(PermissionAuditLog)
-    
+
     if user_id:
         query = query.where(PermissionAuditLog.user_id == user_id)
     if source_id:
         query = query.where(PermissionAuditLog.source_id == source_id)
-    
+
     query = query.order_by(PermissionAuditLog.timestamp.desc()).limit(limit)
-    
+
     result = session.execute(query)
     return result.scalars().all()
 ```
@@ -547,13 +547,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         if (response.ok) {
           const userData = await response.json();
-          
+
           // Fetch accessible sources
           const sourcesResponse = await fetch('/api/articles/sources/accessible', {
             credentials: 'include'
           });
           const sources = await sourcesResponse.json();
-          
+
           setUser({
             ...userData,
             accessibleSources: sources.map((s: any) => s.source_id),
@@ -613,9 +613,9 @@ interface ProtectedRouteProps {
   requireAdmin?: boolean;
 }
 
-export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
-  children, 
-  requireAdmin = false 
+export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
+  children,
+  requireAdmin = false
 }) => {
   const { user, loading } = useAuth();
 
@@ -694,7 +694,7 @@ export const PermissionManager: React.FC = () => {
 
   const revokeAccess = async (userId: string, sourceId: number) => {
     if (!confirm('Are you sure you want to revoke this access?')) return;
-    
+
     setLoading(true);
     try {
       await fetch('/api/admin/permissions/revoke', {
@@ -714,7 +714,7 @@ export const PermissionManager: React.FC = () => {
   return (
     <div className="permission-manager">
       <h2>Source Permission Management</h2>
-      
+
       {/* Grant new permission form */}
       <div className="grant-form">
         <h3>Grant Access</h3>
@@ -733,7 +733,7 @@ export const PermissionManager: React.FC = () => {
           <option value="write">Write</option>
           <option value="admin">Admin</option>
         </select>
-        <button 
+        <button
           onClick={() => {
             const userId = (document.getElementById('user-select') as HTMLSelectElement).value;
             const sourceId = parseInt((document.getElementById('source-select') as HTMLSelectElement).value);
@@ -767,7 +767,7 @@ export const PermissionManager: React.FC = () => {
                 <td>{p.accessLevel}</td>
                 <td>{new Date(p.grantedAt).toLocaleDateString()}</td>
                 <td>
-                  <button 
+                  <button
                     onClick={() => revokeAccess(p.userId, p.sourceId)}
                     disabled={loading}
                   >
@@ -809,7 +809,7 @@ export const ArticleList: React.FC = () => {
     const response = await fetch(`/api/articles?${params}`, {
       credentials: 'include'
     });
-    
+
     if (response.ok) {
       const data = await response.json();
       setArticles(data);
@@ -821,8 +821,8 @@ export const ArticleList: React.FC = () => {
   return (
     <div className="article-list">
       <div className="filters">
-        <select 
-          value={selectedCounty} 
+        <select
+          value={selectedCounty}
           onChange={(e) => setSelectedCounty(e.target.value)}
         >
           <option value="">All Counties</option>
@@ -832,8 +832,8 @@ export const ArticleList: React.FC = () => {
         </select>
 
         {/* Only show sources user has access to */}
-        <select 
-          value={selectedSource ?? ''} 
+        <select
+          value={selectedSource ?? ''}
           onChange={(e) => setSelectedSource(e.target.value ? parseInt(e.target.value) : null)}
         >
           <option value="">All Sources</option>
@@ -845,8 +845,8 @@ export const ArticleList: React.FC = () => {
 
       <div className="articles">
         {articles.map((article: any) => (
-          <ArticleCard 
-            key={article.article_id} 
+          <ArticleCard
+            key={article.article_id}
             article={article}
             canEdit={user?.isAdmin || checkSourceAccess(article.source_id)}
           />
@@ -880,19 +880,19 @@ from sqlalchemy.orm import Session
 
 def backfill_source_ownership(admin_user_id: str):
     engine = create_engine(os.environ['DATABASE_URL'])
-    
+
     with Session(engine) as session:
         # Get all sources without owner
         sources = session.execute(
             "SELECT source_id FROM sources WHERE owner_id IS NULL"
         ).fetchall()
-        
+
         for (source_id,) in sources:
             session.execute(
                 "UPDATE sources SET owner_id = :user_id, created_by = :user_id WHERE source_id = :source_id",
                 {"user_id": admin_user_id, "source_id": source_id}
             )
-        
+
         session.commit()
         print(f"Backfilled {len(sources)} sources to admin user {admin_user_id}")
 

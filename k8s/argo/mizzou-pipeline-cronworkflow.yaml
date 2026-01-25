@@ -24,7 +24,7 @@ spec:
         dataset: mizzou-missouri-state
         pipeline-type: scheduled
         schedule: every-6-hours
-    
+
     templates:
     # Wrapper that calls the reusable template
     - name: mizzou-pipeline-wrapper

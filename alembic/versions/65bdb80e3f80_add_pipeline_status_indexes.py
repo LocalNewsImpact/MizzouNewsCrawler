@@ -27,7 +27,7 @@ def upgrade() -> None:
         ['processed_at'],
         unique=False
     )
-    
+
     # Index on candidate_links.discovered_at for Discovery/Verification queries
     # These queries filter: discovered_at >= :cutoff
     op.create_index(
@@ -36,7 +36,7 @@ def upgrade() -> None:
         ['discovered_at'],
         unique=False
     )
-    
+
     # Index on articles.extracted_at for Extraction and Overall Health queries
     # These queries filter: extracted_at >= :cutoff
     op.create_index(
@@ -45,7 +45,7 @@ def upgrade() -> None:
         ['extracted_at'],
         unique=False
     )
-    
+
     # Index on article_entities.created_at for Entity Extraction recent activity query
     # This query was taking 39.5s without index: created_at >= :cutoff
     op.create_index(

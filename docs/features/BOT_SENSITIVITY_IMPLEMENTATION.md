@@ -254,13 +254,13 @@ apply_inter_request_delay(config["inter_request_min"], config["inter_request_max
 # 3. Attempt extraction
 try:
     content = extract_content(url)
-    
+
     # Track successful extraction
     increment_success_counter(source_id)
-    
+
     # Check for sensitivity decay opportunity
     check_sensitivity_decay(source_id)
-    
+
 except BotDetectionError as e:
     # 4. Handle bot detection
     log_bot_detection_event(
@@ -269,14 +269,14 @@ except BotDetectionError as e:
         event_type=e.type,  # '403', 'captcha', etc.
         indicators=e.indicators
     )
-    
+
     # 5. Adjust sensitivity
     new_sensitivity = adjust_bot_sensitivity(
         source_id=source_id,
         current_sensitivity=bot_sensitivity,
         event_type=e.type
     )
-    
+
     # 6. Apply adjusted backoff
     adjusted_backoff = calculate_backoff(new_sensitivity, e.type)
     domain_backoff_until[domain] = time.time() + adjusted_backoff
@@ -287,19 +287,19 @@ except BotDetectionError as e:
 ```python
 def adjust_bot_sensitivity(source_id, current_sensitivity, event_type):
     """Increase bot sensitivity based on detection event."""
-    
+
     # Get adjustment rules for event type
     increase, max_cap, cooldown_hours = SENSITIVITY_ADJUSTMENT_RULES[event_type]
-    
+
     # Check cooldown
     last_adjustment = get_last_sensitivity_adjustment(source_id)
     if last_adjustment and (datetime.utcnow() - last_adjustment) < timedelta(hours=cooldown_hours):
         logger.info(f"Sensitivity adjustment in cooldown for {source_id}")
         return current_sensitivity
-    
+
     # Calculate new sensitivity
     new_sensitivity = min(current_sensitivity + increase, max_cap)
-    
+
     if new_sensitivity != current_sensitivity:
         update_source_sensitivity(
             source_id=source_id,
@@ -307,12 +307,12 @@ def adjust_bot_sensitivity(source_id, current_sensitivity, event_type):
             reason=f"Bot detection: {event_type}",
             increment_encounters=True
         )
-        
+
         logger.warning(
             f"Increased bot sensitivity for {source_id}: "
             f"{current_sensitivity} -> {new_sensitivity} (event: {event_type})"
         )
-    
+
     return new_sensitivity
 ```
 

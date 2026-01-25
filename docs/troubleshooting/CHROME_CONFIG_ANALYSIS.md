@@ -39,7 +39,7 @@ Both driver creation methods share these configurations:
 #### Container-Specific Flags (Recently Added)
 ```python
 "--disable-software-rasterizer"  # ✅ New
-"--disable-setuid-sandbox"       # ✅ New  
+"--disable-setuid-sandbox"       # ✅ New
 "--remote-debugging-port=9222"   # ✅ New
 ```
 
@@ -138,16 +138,24 @@ All tests use mocks - no actual Chrome instances:
 ### Docker Image
 **File:** `Dockerfile.processor`
 
-Chrome installation:
+Chrome installation (recommended):
 ```dockerfile
-RUN apt-get install -y chromium chromium-driver \
-    fonts-liberation libnss3 libxss1 xdg-utils
+# Add Google Chrome repo and install stable, then download matching ChromeDriver
+RUN apt-get update && apt-get install -y wget ca-certificates gnupg unzip curl && \
+    wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google-chrome-archive-keyring.gpg && \
+    sh -c 'echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome-archive-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list' && \
+    apt-get update && apt-get install -y google-chrome-stable && \
+    CHROME_VERSION=$(google-chrome --version | awk '{print $3}') && \
+    CHROME_MAJOR=$(echo $CHROME_VERSION | cut -d. -f1) && \
+    CHROMEDRIVER_VERSION=$(curl -sS https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_MAJOR}) && \
+    wget -q -O /tmp/chromedriver_linux64.zip https://chromedriver.storage.googleapis.com/${CHROMEDRIVER_VERSION}/chromedriver_linux64.zip && \
+    unzip /tmp/chromedriver_linux64.zip -d /usr/local/bin && chmod +x /usr/local/bin/chromedriver
 ```
 
 Environment variables set:
 ```dockerfile
-ENV CHROME_BIN=/usr/bin/chromium \
-    GOOGLE_CHROME_BIN=/usr/bin/chromium \
+ENV CHROME_BIN=/usr/bin/google-chrome \
+    GOOGLE_CHROME_BIN=/usr/bin/google-chrome \
     CHROMEDRIVER_PATH=/app/bin/chromedriver
 ```
 
@@ -199,7 +207,7 @@ Modified **only** `src/crawler/__init__.py` (Lines 1842-1908):
        "--disable-gpu",
        "--headless=new",
    ]
-   
+
    CHROME_CONTAINER_FLAGS = [
        "--disable-software-rasterizer",
        "--disable-setuid-sandbox",

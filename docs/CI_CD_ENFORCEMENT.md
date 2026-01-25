@@ -158,7 +158,7 @@ Pre-Deployment Validation / validation (pull_request)
 Validate deployment configurations
 ❌ PYTHONPATH does not include /app!
    This will cause ModuleNotFoundError for src imports
-   
+
    Current: value: "/opt/origin-shim"
    Expected: value: "/app:/opt/origin-shim"
 ```

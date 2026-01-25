@@ -78,12 +78,12 @@ def print_time_range_report(telemetry: ExtractionTelemetry, hours: int):
         # Basic stats
         result = conn.execute(
             """
-            SELECT 
+            SELECT
                 COUNT(*) as total_extractions,
                 COUNT(DISTINCT operation_id) as operations,
                 AVG(extraction_time_ms) as avg_time,
                 AVG(content_quality_score) as avg_quality
-            FROM extraction_outcomes 
+            FROM extraction_outcomes
             WHERE timestamp > ?
         """,
             (cutoff_time.isoformat(),),
@@ -101,12 +101,12 @@ def print_time_range_report(telemetry: ExtractionTelemetry, hours: int):
         # Outcome distribution
         outcomes = conn.execute(
             """
-            SELECT 
+            SELECT
                 outcome,
                 COUNT(*) as count,
                 AVG(extraction_time_ms) as avg_time,
                 AVG(content_quality_score) as avg_quality
-            FROM extraction_outcomes 
+            FROM extraction_outcomes
             WHERE timestamp > ?
             GROUP BY outcome
             ORDER BY count DESC
@@ -127,11 +127,11 @@ def print_time_range_report(telemetry: ExtractionTelemetry, hours: int):
         # Error analysis for failures
         errors = conn.execute(
             """
-            SELECT 
+            SELECT
                 http_status_code,
                 COUNT(*) as count
-            FROM extraction_outcomes 
-            WHERE timestamp > ? 
+            FROM extraction_outcomes
+            WHERE timestamp > ?
             AND outcome != 'CONTENT_EXTRACTED'
             AND http_status_code IS NOT NULL
             GROUP BY http_status_code
@@ -165,7 +165,7 @@ def print_summary_report(telemetry: ExtractionTelemetry):
 
         # Overall stats
         result = conn.execute("""
-            SELECT 
+            SELECT
                 COUNT(*) as total_extractions,
                 COUNT(DISTINCT operation_id) as total_operations,
                 MIN(timestamp) as first_extraction,
@@ -189,7 +189,7 @@ def print_summary_report(telemetry: ExtractionTelemetry):
         # Success rate
         success = conn.execute("""
             SELECT COUNT(*) as successful
-            FROM extraction_outcomes 
+            FROM extraction_outcomes
             WHERE outcome = 'CONTENT_EXTRACTED'
         """).fetchone()
 
@@ -201,10 +201,10 @@ def print_summary_report(telemetry: ExtractionTelemetry):
 
         # Top failure reasons
         failures = conn.execute("""
-            SELECT 
+            SELECT
                 outcome,
                 COUNT(*) as count
-            FROM extraction_outcomes 
+            FROM extraction_outcomes
             WHERE outcome != 'CONTENT_EXTRACTED'
             GROUP BY outcome
             ORDER BY count DESC

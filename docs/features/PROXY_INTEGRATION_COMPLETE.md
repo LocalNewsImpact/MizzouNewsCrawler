@@ -1,12 +1,12 @@
 # ProxyManager Integration Complete
 
-**Date:** October 10, 2025  
+**Date:** October 10, 2025
 **Commits:**
 - c66d92b: Multi-proxy system implementation
 - d71f627: ProxyManager integration into ContentExtractor
 
-**Build:** f197ae93-6f10-4e74-81bd-f51ac59d8d92  
-**Status:** ✅ Building  
+**Build:** f197ae93-6f10-4e74-81bd-f51ac59d8d92
+**Status:** ✅ Building
 **Images:**
 - `processor:d71f627`
 - `processor:v1.3.1`
@@ -198,8 +198,8 @@ from src.models.database import DatabaseManager
 from sqlalchemy import text
 session = DatabaseManager().get_session().__enter__()
 recent = session.execute(text(
-    \"SELECT COUNT(*) FROM articles 
-     WHERE status='extracted' 
+    \"SELECT COUNT(*) FROM articles
+     WHERE status='extracted'
      AND created_at >= NOW() - INTERVAL '30 minutes'\"
 )).scalar()
 print(f'Extracted (last 30 min): {recent}')
@@ -402,6 +402,6 @@ The ProxyManager is now integrated into the ContentExtractor. Once deployed, you
 3. **Test Decodo** to see if it solves bot blocking
 4. **Roll back easily** if issues arise
 
-**Current Status:** Building (f197ae93)  
-**Next Action:** Wait for build completion, then promote to production  
+**Current Status:** Building (f197ae93)
+**Next Action:** Wait for build completion, then promote to production
 **Expected:** Within 15 minutes, ready to test Decodo proxy

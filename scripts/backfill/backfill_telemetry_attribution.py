@@ -74,8 +74,8 @@ def backfill_telemetry_attribution(
     try:
         # Get entries that need backfilling
         cursor.execute("""
-            SELECT id, field_extraction, extracted_fields 
-            FROM extraction_telemetry_v2 
+            SELECT id, field_extraction, extracted_fields
+            FROM extraction_telemetry_v2
             WHERE final_field_attribution IS NULL
             AND field_extraction IS NOT NULL
             ORDER BY id
@@ -108,8 +108,8 @@ def backfill_telemetry_attribution(
                     # Update the database
                     cursor.execute(
                         """
-                        UPDATE extraction_telemetry_v2 
-                        SET final_field_attribution = ? 
+                        UPDATE extraction_telemetry_v2
+                        SET final_field_attribution = ?
                         WHERE id = ?
                     """,
                         (attribution_json, entry_id),
@@ -135,8 +135,8 @@ def backfill_telemetry_attribution(
         if dry_run and backfilled_count > 0:
             logger.info("Sample attributions that would be created:")
             cursor.execute("""
-                SELECT id, field_extraction, extracted_fields 
-                FROM extraction_telemetry_v2 
+                SELECT id, field_extraction, extracted_fields
+                FROM extraction_telemetry_v2
                 WHERE final_field_attribution IS NULL
                 AND field_extraction IS NOT NULL
                 LIMIT 3

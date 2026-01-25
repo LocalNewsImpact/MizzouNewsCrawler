@@ -7,21 +7,21 @@ import sys
 
 def test_decodo_proxy():
     """Test the Decodo proxy configuration."""
-    
+
     # Decodo configuration
     username = os.getenv('DECODO_USERNAME', 'your-decodo-username')
     password = os.getenv('DECODO_PASSWORD', 'your-decodo-password')
     host = os.getenv('DECODO_HOST', 'isp.decodo.com')
     port = os.getenv('DECODO_PORT', '10000')
-    
+
     # Build proxy URL (HTTP, not HTTPS for proxy protocol)
     proxy_url = f"http://{username}:{password}@{host}:{port}"
-    
+
     proxies = {
         'http': proxy_url,
         'https': proxy_url
     }
-    
+
     print("=" * 70)
     print("DECODO PROXY TEST")
     print("=" * 70)
@@ -30,7 +30,7 @@ def test_decodo_proxy():
     print(f"Country: {os.getenv('DECODO_COUNTRY', 'us')}")
     print("=" * 70)
     print()
-    
+
     # Test 1: Check IP address
     print("Test 1: Checking IP address through proxy...")
     try:
@@ -47,7 +47,7 @@ def test_decodo_proxy():
         print(f"❌ Failed: {e}")
         print()
         return False
-    
+
     # Test 2: Check if we can access a news site
     print("Test 2: Accessing a news website through proxy...")
     try:
@@ -67,7 +67,7 @@ def test_decodo_proxy():
         print(f"❌ Failed: {e}")
         print()
         return False
-    
+
     # Test 3: Check if content extraction would work
     print("Test 3: Testing content extraction simulation...")
     try:
@@ -83,7 +83,7 @@ def test_decodo_proxy():
         print(f"   Content Length: {len(response.content)} bytes")
         print(f"   Response Time: {response.elapsed.total_seconds():.2f}s")
         print()
-        
+
         # Check for bot blocking indicators
         content = response.text.lower()
         bot_indicators = [
@@ -94,19 +94,19 @@ def test_decodo_proxy():
             'please verify',
             'are you a robot'
         ]
-        
+
         found_indicators = [ind for ind in bot_indicators if ind in content]
         if found_indicators:
             print(f"⚠️  Warning: Possible bot blocking detected: {found_indicators}")
         else:
             print("✅ No bot blocking indicators detected")
         print()
-        
+
     except Exception as e:
         print(f"❌ Failed: {e}")
         print()
         return False
-    
+
     print("=" * 70)
     print("ALL TESTS PASSED! ✅")
     print("=" * 70)
@@ -114,7 +114,7 @@ def test_decodo_proxy():
     print("To use Decodo proxy in production:")
     print("  kubectl set env deployment/mizzou-processor -n production PROXY_PROVIDER=decodo")
     print()
-    
+
     return True
 
 

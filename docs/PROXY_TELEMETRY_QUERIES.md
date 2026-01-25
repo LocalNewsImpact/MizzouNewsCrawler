@@ -7,14 +7,14 @@ Example queries for analyzing proxy performance and patterns in the telemetry da
 ### 1. Proxy Usage Summary (Last 7 Days)
 
 ```sql
-SELECT 
+SELECT
     COUNT(*) as total_requests,
     SUM(CASE WHEN proxy_used = 1 THEN 1 ELSE 0 END) as proxy_requests,
     SUM(CASE WHEN proxy_used = 0 THEN 1 ELSE 0 END) as direct_requests,
     ROUND(100.0 * SUM(CASE WHEN proxy_used = 1 THEN 1 ELSE 0 END) / COUNT(*), 2) as proxy_percentage,
     SUM(CASE WHEN proxy_status = 'success' THEN 1 ELSE 0 END) as proxy_successes,
     SUM(CASE WHEN proxy_status = 'failed' THEN 1 ELSE 0 END) as proxy_failures,
-    ROUND(100.0 * SUM(CASE WHEN proxy_status = 'success' THEN 1 ELSE 0 END) / 
+    ROUND(100.0 * SUM(CASE WHEN proxy_status = 'success' THEN 1 ELSE 0 END) /
           NULLIF(SUM(CASE WHEN proxy_used = 1 THEN 1 ELSE 0 END), 0), 2) as proxy_success_rate
 FROM extraction_telemetry_v2
 WHERE created_at >= datetime('now', '-7 days');
@@ -23,11 +23,11 @@ WHERE created_at >= datetime('now', '-7 days');
 ### 2. Daily Proxy Trends
 
 ```sql
-SELECT 
+SELECT
     DATE(created_at) as date,
     COUNT(*) as total_requests,
     SUM(CASE WHEN proxy_used = 1 THEN 1 ELSE 0 END) as proxy_requests,
-    ROUND(100.0 * SUM(CASE WHEN proxy_status = 'success' THEN 1 ELSE 0 END) / 
+    ROUND(100.0 * SUM(CASE WHEN proxy_status = 'success' THEN 1 ELSE 0 END) /
           NULLIF(SUM(CASE WHEN proxy_used = 1 THEN 1 ELSE 0 END), 0), 2) as success_rate,
     SUM(CASE WHEN proxy_authenticated = 0 AND proxy_used = 1 THEN 1 ELSE 0 END) as missing_auth
 FROM extraction_telemetry_v2
@@ -41,14 +41,14 @@ ORDER BY date DESC;
 ### 3. Top Domains by Proxy Usage
 
 ```sql
-SELECT 
+SELECT
     host,
     COUNT(*) as total_requests,
     SUM(CASE WHEN proxy_used = 1 THEN 1 ELSE 0 END) as proxy_requests,
     SUM(CASE WHEN proxy_status = 'success' THEN 1 ELSE 0 END) as successes,
     SUM(CASE WHEN proxy_status = 'failed' THEN 1 ELSE 0 END) as failures,
     SUM(CASE WHEN proxy_status = 'bypassed' THEN 1 ELSE 0 END) as bypassed,
-    ROUND(100.0 * SUM(CASE WHEN proxy_status = 'success' THEN 1 ELSE 0 END) / 
+    ROUND(100.0 * SUM(CASE WHEN proxy_status = 'success' THEN 1 ELSE 0 END) /
           NULLIF(SUM(CASE WHEN proxy_used = 1 THEN 1 ELSE 0 END), 0), 2) as success_rate
 FROM extraction_telemetry_v2
 WHERE created_at >= datetime('now', '-7 days')
@@ -61,7 +61,7 @@ LIMIT 20;
 ### 4. Domains with High Proxy Failure Rates
 
 ```sql
-SELECT 
+SELECT
     host,
     COUNT(*) as proxy_requests,
     SUM(CASE WHEN proxy_status = 'success' THEN 1 ELSE 0 END) as successes,
@@ -80,15 +80,15 @@ LIMIT 20;
 ### 5. Domains Requiring Proxy (High Bot Detection)
 
 ```sql
-SELECT 
+SELECT
     host,
     SUM(CASE WHEN proxy_used = 1 AND http_status_code = 403 THEN 1 ELSE 0 END) as proxy_403s,
     SUM(CASE WHEN proxy_used = 0 AND http_status_code = 403 THEN 1 ELSE 0 END) as direct_403s,
     SUM(CASE WHEN proxy_used = 1 THEN 1 ELSE 0 END) as proxy_total,
     SUM(CASE WHEN proxy_used = 0 THEN 1 ELSE 0 END) as direct_total,
-    ROUND(100.0 * SUM(CASE WHEN proxy_used = 1 AND http_status_code = 403 THEN 1 ELSE 0 END) / 
+    ROUND(100.0 * SUM(CASE WHEN proxy_used = 1 AND http_status_code = 403 THEN 1 ELSE 0 END) /
           NULLIF(SUM(CASE WHEN proxy_used = 1 THEN 1 ELSE 0 END), 0), 2) as proxy_403_rate,
-    ROUND(100.0 * SUM(CASE WHEN proxy_used = 0 AND http_status_code = 403 THEN 1 ELSE 0 END) / 
+    ROUND(100.0 * SUM(CASE WHEN proxy_used = 0 AND http_status_code = 403 THEN 1 ELSE 0 END) /
           NULLIF(SUM(CASE WHEN proxy_used = 0 THEN 1 ELSE 0 END), 0), 2) as direct_403_rate
 FROM extraction_telemetry_v2
 WHERE created_at >= datetime('now', '-7 days')
@@ -104,13 +104,13 @@ LIMIT 20;
 ### 6. Common Proxy Errors
 
 ```sql
-SELECT 
+SELECT
     SUBSTR(proxy_error, 1, 100) as error_pattern,
     COUNT(*) as occurrence_count,
     COUNT(DISTINCT host) as affected_domains,
     GROUP_CONCAT(DISTINCT host, ', ') as sample_domains
 FROM extraction_telemetry_v2
-WHERE proxy_status = 'failed' 
+WHERE proxy_status = 'failed'
   AND proxy_error IS NOT NULL
   AND created_at >= datetime('now', '-7 days')
 GROUP BY SUBSTR(proxy_error, 1, 100)
@@ -121,7 +121,7 @@ LIMIT 15;
 ### 7. ContentDecodingError Domains
 
 ```sql
-SELECT 
+SELECT
     host,
     COUNT(*) as gzip_errors,
     SUM(CASE WHEN is_success = 1 THEN 1 ELSE 0 END) as eventual_successes,
@@ -137,7 +137,7 @@ LIMIT 20;
 ### 8. Recent Proxy Failures with Details
 
 ```sql
-SELECT 
+SELECT
     created_at,
     host,
     url,
@@ -157,12 +157,12 @@ LIMIT 50;
 ### 9. Authentication Status Over Time
 
 ```sql
-SELECT 
+SELECT
     DATE(created_at) as date,
     SUM(CASE WHEN proxy_authenticated = 1 THEN 1 ELSE 0 END) as with_auth,
     SUM(CASE WHEN proxy_authenticated = 0 AND proxy_used = 1 THEN 1 ELSE 0 END) as without_auth,
     SUM(CASE WHEN proxy_used = 1 THEN 1 ELSE 0 END) as total_proxy_requests,
-    ROUND(100.0 * SUM(CASE WHEN proxy_authenticated = 1 THEN 1 ELSE 0 END) / 
+    ROUND(100.0 * SUM(CASE WHEN proxy_authenticated = 1 THEN 1 ELSE 0 END) /
           NULLIF(SUM(CASE WHEN proxy_used = 1 THEN 1 ELSE 0 END), 0), 2) as auth_percentage
 FROM extraction_telemetry_v2
 WHERE created_at >= datetime('now', '-30 days')
@@ -173,23 +173,23 @@ ORDER BY date DESC;
 ### 10. Missing Authentication Impact
 
 ```sql
-SELECT 
+SELECT
     'With Auth' as auth_status,
     COUNT(*) as requests,
     SUM(CASE WHEN proxy_status = 'success' THEN 1 ELSE 0 END) as successes,
     ROUND(100.0 * SUM(CASE WHEN proxy_status = 'success' THEN 1 ELSE 0 END) / COUNT(*), 2) as success_rate
 FROM extraction_telemetry_v2
-WHERE proxy_used = 1 
+WHERE proxy_used = 1
   AND proxy_authenticated = 1
   AND created_at >= datetime('now', '-7 days')
 UNION ALL
-SELECT 
+SELECT
     'Without Auth' as auth_status,
     COUNT(*) as requests,
     SUM(CASE WHEN proxy_status = 'success' THEN 1 ELSE 0 END) as successes,
     ROUND(100.0 * SUM(CASE WHEN proxy_status = 'success' THEN 1 ELSE 0 END) / COUNT(*), 2) as success_rate
 FROM extraction_telemetry_v2
-WHERE proxy_used = 1 
+WHERE proxy_used = 1
   AND proxy_authenticated = 0
   AND created_at >= datetime('now', '-7 days');
 ```
@@ -199,8 +199,8 @@ WHERE proxy_used = 1
 ### 11. Proxy vs Direct Connection Success Rates
 
 ```sql
-SELECT 
-    CASE 
+SELECT
+    CASE
         WHEN proxy_used = 1 THEN 'Proxy'
         ELSE 'Direct'
     END as connection_type,
@@ -219,13 +219,13 @@ ORDER BY connection_type;
 ### 12. Response Time Comparison by Domain
 
 ```sql
-SELECT 
+SELECT
     host,
     COUNT(CASE WHEN proxy_used = 1 THEN 1 END) as proxy_requests,
     COUNT(CASE WHEN proxy_used = 0 THEN 1 END) as direct_requests,
     ROUND(AVG(CASE WHEN proxy_used = 1 THEN response_time_ms END), 2) as avg_proxy_time_ms,
     ROUND(AVG(CASE WHEN proxy_used = 0 THEN response_time_ms END), 2) as avg_direct_time_ms,
-    ROUND(AVG(CASE WHEN proxy_used = 1 THEN response_time_ms END) - 
+    ROUND(AVG(CASE WHEN proxy_used = 1 THEN response_time_ms END) -
           AVG(CASE WHEN proxy_used = 0 THEN response_time_ms END), 2) as proxy_overhead_ms
 FROM extraction_telemetry_v2
 WHERE created_at >= datetime('now', '-7 days')
@@ -242,7 +242,7 @@ LIMIT 20;
 ### 13. Proxy Status Breakdown
 
 ```sql
-SELECT 
+SELECT
     proxy_status,
     COUNT(*) as count,
     ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 2) as percentage,
@@ -257,7 +257,7 @@ ORDER BY count DESC;
 ### 14. HTTP Status Codes with Proxy Usage
 
 ```sql
-SELECT 
+SELECT
     http_status_code,
     COUNT(*) as total_occurrences,
     SUM(CASE WHEN proxy_used = 1 THEN 1 ELSE 0 END) as with_proxy,
@@ -276,14 +276,14 @@ LIMIT 15;
 ### 15. Proxy Usage by Extraction Method
 
 ```sql
-SELECT 
+SELECT
     successful_method,
     COUNT(*) as total_extractions,
     SUM(CASE WHEN proxy_used = 1 THEN 1 ELSE 0 END) as with_proxy,
     SUM(CASE WHEN proxy_used = 0 THEN 1 ELSE 0 END) as without_proxy,
-    ROUND(100.0 * SUM(CASE WHEN proxy_used = 1 AND is_success = 1 THEN 1 ELSE 0 END) / 
+    ROUND(100.0 * SUM(CASE WHEN proxy_used = 1 AND is_success = 1 THEN 1 ELSE 0 END) /
           NULLIF(SUM(CASE WHEN proxy_used = 1 THEN 1 ELSE 0 END), 0), 2) as proxy_success_rate,
-    ROUND(100.0 * SUM(CASE WHEN proxy_used = 0 AND is_success = 1 THEN 1 ELSE 0 END) / 
+    ROUND(100.0 * SUM(CASE WHEN proxy_used = 0 AND is_success = 1 THEN 1 ELSE 0 END) /
           NULLIF(SUM(CASE WHEN proxy_used = 0 THEN 1 ELSE 0 END), 0), 2) as direct_success_rate
 FROM extraction_telemetry_v2
 WHERE created_at >= datetime('now', '-7 days')
@@ -297,11 +297,11 @@ ORDER BY total_extractions DESC;
 ### 16. Recent Authentication Issues (Alert)
 
 ```sql
-SELECT 
+SELECT
     COUNT(*) as missing_auth_requests,
     COUNT(DISTINCT host) as affected_domains
 FROM extraction_telemetry_v2
-WHERE proxy_used = 1 
+WHERE proxy_used = 1
   AND proxy_authenticated = 0
   AND created_at >= datetime('now', '-1 hour');
 -- Alert if missing_auth_requests > 10
@@ -311,21 +311,21 @@ WHERE proxy_used = 1
 
 ```sql
 WITH recent AS (
-    SELECT 
-        ROUND(100.0 * SUM(CASE WHEN proxy_status = 'failed' THEN 1 ELSE 0 END) / 
+    SELECT
+        ROUND(100.0 * SUM(CASE WHEN proxy_status = 'failed' THEN 1 ELSE 0 END) /
               NULLIF(SUM(CASE WHEN proxy_used = 1 THEN 1 ELSE 0 END), 0), 2) as failure_rate
     FROM extraction_telemetry_v2
     WHERE created_at >= datetime('now', '-1 hour')
 ),
 baseline AS (
-    SELECT 
-        ROUND(100.0 * SUM(CASE WHEN proxy_status = 'failed' THEN 1 ELSE 0 END) / 
+    SELECT
+        ROUND(100.0 * SUM(CASE WHEN proxy_status = 'failed' THEN 1 ELSE 0 END) /
               NULLIF(SUM(CASE WHEN proxy_used = 1 THEN 1 ELSE 0 END), 0), 2) as failure_rate
     FROM extraction_telemetry_v2
     WHERE created_at >= datetime('now', '-7 days')
       AND created_at < datetime('now', '-1 hour')
 )
-SELECT 
+SELECT
     recent.failure_rate as current_failure_rate,
     baseline.failure_rate as baseline_failure_rate,
     recent.failure_rate - baseline.failure_rate as spike

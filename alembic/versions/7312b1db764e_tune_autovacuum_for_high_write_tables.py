@@ -19,11 +19,11 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Tune autovacuum settings for high-write tables.
-    
+
     Default autovacuum_analyze_scale_factor = 0.1 (10% of rows must change).
     For article_entities (830k rows), this requires 83k changes before ANALYZE runs.
     We observed 8-day stale statistics with only 66k modifications.
-    
+
     These table-specific settings trigger ANALYZE more frequently:
     - article_entities: 2% = 16.6k changes (was 83k)
     - candidate_links: 5% = 2.5k changes (was 5k)
@@ -35,14 +35,14 @@ def upgrade() -> None:
             autovacuum_analyze_scale_factor = 0.02
         )
     """)
-    
+
     op.execute("""
         ALTER TABLE candidate_links SET (
             autovacuum_vacuum_scale_factor = 0.1,
             autovacuum_analyze_scale_factor = 0.05
         )
     """)
-    
+
     op.execute("""
         ALTER TABLE articles SET (
             autovacuum_analyze_scale_factor = 0.05

@@ -47,7 +47,7 @@ StorySniffer is accurately filtering out:
 ### Sample Non-Articles (Most Recent)
 
 1. **West Plains Daily Quill** - Newsletter signup page
-2. **West Plains Daily Quill** - News category page  
+2. **West Plains Daily Quill** - News category page
 3. **Boone County Journal** - Opinion pieces
 4. **KMBC News 9** - News team pages
 5. **KFVS 12** - Administrative pages
@@ -64,7 +64,7 @@ StorySniffer is accurately filtering out:
 
 The complete verification workflow is operational:
 1. **Discovery Phase:** URLs collected from RSS feeds ✅
-2. **Verification Phase:** StorySniffer verification ✅  
+2. **Verification Phase:** StorySniffer verification ✅
 3. **Status Updates:** `discovered` → `article`/`not_article` ✅
 4. **Telemetry Logging:** JSON metrics tracking ✅
 

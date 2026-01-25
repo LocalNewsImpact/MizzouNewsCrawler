@@ -39,7 +39,7 @@ for col in columns:
 
 # Get a sample article
 result = session.execute(text("""
-    SELECT 
+    SELECT
         a.*,
         cl.url as candidate_url,
         cl.source_name,
@@ -77,7 +77,7 @@ column_names = article._mapping.keys()
 with open(output_file, 'w', newline='', encoding='utf-8') as f:
     writer = csv.DictWriter(f, fieldnames=column_names)
     writer.writeheader()
-    
+
     # Convert row to dict
     row_dict = {}
     for col in column_names:
@@ -92,7 +92,7 @@ with open(output_file, 'w', newline='', encoding='utf-8') as f:
         if col in ('content', 'text') and value and len(str(value)) > 1000:
             value = str(value)[:1000] + f'... [truncated, total length: {len(str(value))}]'
         row_dict[col] = value
-    
+
     writer.writerow(row_dict)
 
 print(f"\n✅ Exported to: {output_file}")

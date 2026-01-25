@@ -11,28 +11,28 @@ with open("src/utils/telemetry.py") as f:
 old_pattern = """            with self.db_engine.connect() as conn:
                 conn.execute(text(insert_sql), outcome_data)
                 conn.commit()
-                
+
                 # Update discovery_attempted timestamp in sources table
                 # This ensures sources are marked as attempted even if they failed
                 sources_update_sql = \"\"\"
-                UPDATE sources 
-                SET discovery_attempted = CURRENT_TIMESTAMP 
+                UPDATE sources
+                SET discovery_attempted = CURRENT_TIMESTAMP
                 WHERE id = :source_id
                 \"\"\"
                 conn.execute(text(sources_update_sql), {"source_id": source_id})"""
 
 new_pattern = """            with self.db_engine.connect() as conn:
                 conn.execute(text(insert_sql), outcome_data)
-                
+
                 # Update discovery_attempted timestamp in sources table
                 # This ensures sources are marked as attempted even if they failed
                 sources_update_sql = \"\"\"
-                UPDATE sources 
-                SET discovery_attempted = CURRENT_TIMESTAMP 
+                UPDATE sources
+                SET discovery_attempted = CURRENT_TIMESTAMP
                 WHERE id = :source_id
                 \"\"\"
                 conn.execute(text(sources_update_sql), {"source_id": source_id})
-                
+
                 conn.commit()"""
 
 # Replace the pattern

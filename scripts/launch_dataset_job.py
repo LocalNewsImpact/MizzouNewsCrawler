@@ -19,7 +19,7 @@ Usage:
 
 Features:
 - Isolated pod per dataset with independent logging
-- Failure isolation (won't affect other datasets)  
+- Failure isolation (won't affect other datasets)
 - Resource limits per dataset
 - Easy monitoring with kubectl labels
 - TTL-based cleanup after job completion
@@ -60,6 +60,8 @@ DEFAULT_MEMORY_REQUEST = "1Gi"
 DEFAULT_MEMORY_LIMIT = "3Gi"
 DEFAULT_TTL_SECONDS = 86400  # 24 hours
 CHROME_PROFILE_SECRET_NAME = "chrome-profile-macos-default"
+# PVC to persistently store Chrome profile (preferred for large profiles)
+CHROME_PROFILE_PVC_NAME = "chrome-profile-macos-default-pvc"
 CHROME_PROFILE_MOUNT_PATH = "/var/selenium/profile"
 
 
@@ -68,14 +70,14 @@ def get_current_processor_image(
     namespace: str = DEFAULT_NAMESPACE,
 ) -> str:
     """Get current processor image from deployment.
-    
+
     Args:
         deployment: Name of the deployment to query
         namespace: Kubernetes namespace
-        
+
     Returns:
         Image string (e.g., 'us-central1-docker.pkg.dev/...')
-        
+
     Raises:
         RuntimeError: If kubectl command fails
     """
@@ -125,7 +127,7 @@ def create_job_manifest(
     ttl_seconds: int = DEFAULT_TTL_SECONDS,
 ) -> dict[str, Any]:
     """Generate K8s Job manifest for dataset extraction.
-    
+
     Args:
         dataset_slug: Dataset identifier (slug)
         batches: Number of extraction batches to run
@@ -138,7 +140,7 @@ def create_job_manifest(
         memory_request: Memory request (e.g., '1Gi')
         memory_limit: Memory limit (e.g., '3Gi')
         ttl_seconds: TTL for job cleanup after completion
-        
+
     Returns:
         Dictionary representing the K8s Job manifest
     """
@@ -297,8 +299,8 @@ def create_job_manifest(
                     "volumes": [
                         {
                             "name": "chrome-profile",
-                            "secret": {
-                                "secretName": CHROME_PROFILE_SECRET_NAME,
+                            "persistentVolumeClaim": {
+                                "claimName": CHROME_PROFILE_PVC_NAME,
                             },
                         }
                     ],
@@ -319,7 +321,7 @@ def launch_job(
     **kwargs: Any,
 ) -> int:
     """Launch extraction job for dataset.
-    
+
     Args:
         dataset_slug: Dataset identifier
         batches: Number of extraction batches
@@ -327,7 +329,7 @@ def launch_job(
         namespace: Kubernetes namespace
         dry_run: If True, print manifest without applying
         **kwargs: Additional arguments passed to create_job_manifest
-        
+
     Returns:
         0 on success, 1 on failure
     """

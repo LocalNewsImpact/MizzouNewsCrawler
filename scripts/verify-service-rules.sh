@@ -9,30 +9,30 @@ run_test() {
     local test_name="$1"
     local files="$2"
     local expected_services="$3"
-    
+
     echo "------------------------------------------------"
     echo "Test: $test_name"
     echo "Files: $files"
-    
+
     # Run detection script with mocked files
     output=$(TEST_FILES="$files" ./scripts/test-service-detection.sh)
-    
+
     # Check results
     local failed=0
-    
+
     # Parse expected services (comma separated)
     IFS=',' read -ra EXPECTED <<< "$expected_services"
-    
+
     for service in "${EXPECTED[@]}"; do
         if ! echo "$output" | grep -q "✅ $service: YES"; then
             echo -e "${RED}FAIL: Expected $service to be detected${NC}"
             failed=1
         fi
     done
-    
+
     # Check for unexpected services (simple check: if we expect "Base", we shouldn't see "YES" for others unless specified)
     # This is a bit loose, but good enough for a smoke test
-    
+
     if [ $failed -eq 0 ]; then
         echo -e "${GREEN}PASS${NC}"
     else
@@ -51,7 +51,7 @@ run_test "Base Requirements" "requirements-base.txt" "Base"
 run_test "ML Requirements" "requirements-ml.txt" "ML Base"
 
 # Test 3: Processor Code
-run_test "Processor Code" "src/processor/main.py" "Processor,API,Crawler" 
+run_test "Processor Code" "src/processor/main.py" "Processor,API,Crawler"
 # Note: src/ changes trigger Processor, API, and Crawler because they all share src/
 
 # Test 4: API Specific

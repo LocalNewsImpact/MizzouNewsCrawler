@@ -196,13 +196,11 @@ def analyze_domains(
             (f"%{domain}%",),
         )
     else:
-        cursor.execute(
-            """
+        cursor.execute("""
             SELECT url, id, content, LENGTH(content) as content_length
             FROM articles
             ORDER BY url
-            """
-        )
+            """)
 
     articles = cursor.fetchall()
 

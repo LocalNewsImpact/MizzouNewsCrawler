@@ -127,7 +127,7 @@ def test_source_location():
             text(
                 """
             SELECT canonical_name, city, county, state
-            FROM sources 
+            FROM sources
             WHERE canonical_name = 'Columbia Daily Tribune'
         """
             )

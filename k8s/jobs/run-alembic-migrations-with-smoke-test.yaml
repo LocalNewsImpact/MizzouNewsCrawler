@@ -53,7 +53,7 @@ spec:
             limits:
               memory: "512Mi"
               cpu: "500m"
-      
+
       containers:
         - name: smoke-test
           # Use same migrator image which has smoke test script
@@ -91,10 +91,10 @@ spec:
             limits:
               memory: "256Mi"
               cpu: "200m"
-      
+
       # In case your cluster requires imagePullSecrets, add them below
       # imagePullSecrets:
       #   - name: artifact-registry-secret
-  
+
   # Keep job around for 24 hours for inspection, then auto-delete
   ttlSecondsAfterFinished: 86400

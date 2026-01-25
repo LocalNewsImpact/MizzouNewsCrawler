@@ -430,8 +430,7 @@ class TestUnblockProxyMethod:
 
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.text = (
-            """
+        mock_response.text = """
         <html>
         <head>
             <title>Test Article Title</title>
@@ -446,9 +445,7 @@ class TestUnblockProxyMethod:
             </article>
         </body>
         </html>
-        """
-            * 100
-        )  # Make it large enough (>UNBLOCK_MIN_HTML_BYTES bytes)
+        """ * 100  # Make it large enough (>UNBLOCK_MIN_HTML_BYTES bytes)
 
         with patch("requests.get", return_value=mock_response):
             result = extractor._extract_with_unblock_proxy("https://test.com/article")
@@ -692,8 +689,7 @@ class TestFieldLevelExtractionAndFallbacks:
 
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.text = (
-            """
+        mock_response.text = """
         <html>
         <head>
             <title>Complete Article</title>
@@ -706,9 +702,7 @@ class TestFieldLevelExtractionAndFallbacks:
             </article>
         </body>
         </html>
-        """
-            * 100
-        )
+        """ * 100
 
         with patch("requests.get", return_value=mock_response):
             result = extractor._extract_with_unblock_proxy("https://test.com/article")
@@ -1013,16 +1007,13 @@ class TestEdgeCases:
         extractor = ContentExtractor()
         monkeypatch.setenv("UNBLOCK_PREFER_API_POST", "false")
 
-        malformed_html = (
-            """
+        malformed_html = """
         <html>
         <head><title>Malformed</head>
         <body>
         <p>Unclosed paragraph
         <div>Unclosed div
-        """
-            * 100
-        )
+        """ * 100
 
         mock_response = Mock()
         mock_response.status_code = 200
@@ -1092,16 +1083,12 @@ class TestPostgreSQLIntegration:
     @pytest.mark.integration
     def test_extraction_method_column_exists_in_database(self, cloud_sql_session):
         """Verify extraction_method column exists in PostgreSQL sources table."""
-        result = cloud_sql_session.execute(
-            text(
-                """
+        result = cloud_sql_session.execute(text("""
             SELECT column_name, data_type, column_default
             FROM information_schema.columns
             WHERE table_name = 'sources'
             AND column_name = 'extraction_method'
-        """
-            )
-        ).fetchone()
+        """)).fetchone()
 
         assert result is not None, "extraction_method column should exist"
         assert result[1] == "character varying", "Should be varchar type"
@@ -1110,16 +1097,12 @@ class TestPostgreSQLIntegration:
     @pytest.mark.integration
     def test_extraction_method_index_exists_in_database(self, cloud_sql_session):
         """Verify index on extraction_method exists for query performance."""
-        result = cloud_sql_session.execute(
-            text(
-                """
+        result = cloud_sql_session.execute(text("""
             SELECT indexname
             FROM pg_indexes
             WHERE tablename = 'sources'
             AND indexname = 'ix_sources_extraction_method'
-        """
-            )
-        ).fetchone()
+        """)).fetchone()
 
         assert result is not None, "Index on extraction_method should exist"
 
@@ -1130,18 +1113,14 @@ class TestPostgreSQLIntegration:
         from unittest.mock import patch
 
         # Insert test domain with unblock method
-        cloud_sql_session.execute(
-            text(
-                """
+        cloud_sql_session.execute(text("""
             INSERT INTO sources (id, host, host_norm, canonical_name, extraction_method, bot_protection_type)
-            VALUES ('test-integration-unblock', 'integration-test.com', 'integration-test.com', 
+            VALUES ('test-integration-unblock', 'integration-test.com', 'integration-test.com',
                     'Integration Test', 'unblock', 'perimeterx')
             ON CONFLICT (host_norm) DO UPDATE SET
                 extraction_method = 'unblock',
                 bot_protection_type = 'perimeterx'
-        """
-            )
-        )
+        """))
         # No need to commit if we share the session, but flushing is good practice
         cloud_sql_session.flush()
 
@@ -1174,16 +1153,12 @@ class TestPostgreSQLIntegration:
         from unittest.mock import patch
 
         # Insert test domain with http method
-        cloud_sql_session.execute(
-            text(
-                """
+        cloud_sql_session.execute(text("""
             INSERT INTO sources (id, host, host_norm, canonical_name, extraction_method)
-            VALUES ('test-integration-mark', 'mark-test.com', 'mark-test.com', 
+            VALUES ('test-integration-mark', 'mark-test.com', 'mark-test.com',
                     'Mark Test', 'http')
             ON CONFLICT (host_norm) DO UPDATE SET extraction_method = 'http'
-        """
-            )
-        )
+        """))
         cloud_sql_session.flush()
 
         with patch("src.models.database.DatabaseManager") as MockDBManager:
@@ -1196,15 +1171,11 @@ class TestPostgreSQLIntegration:
             extractor._mark_domain_special_extraction("mark-test.com", "perimeterx")
 
             # Verify database was updated
-            result = cloud_sql_session.execute(
-                text(
-                    """
+            result = cloud_sql_session.execute(text("""
                 SELECT extraction_method, bot_protection_type, selenium_only
                 FROM sources
                 WHERE host = 'mark-test.com'
-            """
-                )
-            ).fetchone()
+            """)).fetchone()
 
             assert result is not None
             assert (
@@ -1216,26 +1187,18 @@ class TestPostgreSQLIntegration:
     @pytest.mark.integration
     def test_default_extraction_method_is_http_in_database(self, cloud_sql_session):
         """Test new sources default to extraction_method='http' in PostgreSQL."""
-        cloud_sql_session.execute(
-            text(
-                """
+        cloud_sql_session.execute(text("""
             INSERT INTO sources (id, host, host_norm, canonical_name)
             VALUES ('test-integration-default', 'default-test.com', 'default-test.com', 'Default Test')
             ON CONFLICT (host_norm) DO UPDATE SET extraction_method = DEFAULT
-        """
-            )
-        )
+        """))
         cloud_sql_session.commit()
 
-        result = cloud_sql_session.execute(
-            text(
-                """
+        result = cloud_sql_session.execute(text("""
             SELECT extraction_method
             FROM sources
             WHERE host = 'default-test.com'
-        """
-            )
-        ).fetchone()
+        """)).fetchone()
 
         assert result is not None
         # Handle potential quoting in default value
@@ -1248,18 +1211,14 @@ class TestPostgreSQLIntegration:
         from unittest.mock import patch
 
         # Insert test domain
-        cloud_sql_session.execute(
-            text(
-                """
+        cloud_sql_session.execute(text("""
             INSERT INTO sources (id, host, host_norm, canonical_name, extraction_method, bot_protection_type)
-            VALUES ('test-integration-cache', 'cache-test.com', 'cache-test.com', 
+            VALUES ('test-integration-cache', 'cache-test.com', 'cache-test.com',
                     'Cache Test', 'selenium', 'cloudflare')
             ON CONFLICT (host_norm) DO UPDATE SET
                 extraction_method = 'selenium',
                 bot_protection_type = 'cloudflare'
-        """
-            )
-        )
+        """))
         cloud_sql_session.flush()
 
         with patch("src.models.database.DatabaseManager") as MockDBManager:
@@ -1299,16 +1258,12 @@ class TestPostgreSQLIntegration:
     def test_migration_updated_perimeterx_domains_to_unblock(self, cloud_sql_session):
         """Verify migration set existing PerimeterX domains to extraction_method='unblock'."""
         # Query for domains that should have been migrated
-        result = cloud_sql_session.execute(
-            text(
-                """
+        result = cloud_sql_session.execute(text("""
             SELECT COUNT(*)
             FROM sources
             WHERE bot_protection_type = 'perimeterx'
             AND extraction_method = 'unblock'
-        """
-            )
-        ).scalar()
+        """)).scalar()
 
         # Should have at least the 4 Nexstar domains that were migrated
         assert result >= 0, "Migration should have set PerimeterX domains to 'unblock'"

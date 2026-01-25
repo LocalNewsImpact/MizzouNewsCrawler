@@ -1,7 +1,7 @@
 # Telemetry Cloud SQL Integration Fix
 
-**Date:** October 19, 2025  
-**Commits:** bc638eb  
+**Date:** October 19, 2025
+**Commits:** bc638eb
 **Issue:** RecursionError when storing telemetry with Cloud SQL Connector
 
 ## Problem
@@ -10,7 +10,7 @@ Telemetry was failing with `RecursionError: maximum recursion depth exceeded` wh
 
 ### Root Cause
 
-The `TelemetryStore` class was creating its **own SQLAlchemy engine** from a database URL string, independent of the application's `DatabaseManager`. 
+The `TelemetryStore` class was creating its **own SQLAlchemy engine** from a database URL string, independent of the application's `DatabaseManager`.
 
 When using Cloud SQL Connector:
 1. `DatabaseManager` creates an engine with Cloud SQL Connector properly configured

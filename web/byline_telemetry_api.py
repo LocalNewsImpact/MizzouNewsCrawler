@@ -145,8 +145,7 @@ def get_byline_telemetry_stats() -> BylineTelemetryStats:
     cursor = conn.cursor()
 
     # Get overall counts
-    cursor.execute(
-        """
+    cursor.execute("""
         SELECT
             COUNT(*) as total,
             COUNT(CASE WHEN human_label IS NULL THEN 1 END) as pending,
@@ -156,8 +155,7 @@ def get_byline_telemetry_stats() -> BylineTelemetryStats:
             AVG(confidence_score) as avg_confidence,
             COUNT(DISTINCT source_name) as sources
         FROM byline_cleaning_telemetry
-    """
-    )
+    """)
 
     row = cursor.fetchone()
 

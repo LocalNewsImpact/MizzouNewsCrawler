@@ -1,15 +1,15 @@
 # Proxy Bandwidth Usage Analysis
 
-**Date:** October 10, 2025  
-**Analysis Period:** Last 30 days  
+**Date:** October 10, 2025
+**Analysis Period:** Last 30 days
 **Data Source:** Production database (4,226 articles)
 
 ---
 
 ## Executive Summary
 
-**Daily Bandwidth (Extraction Only):** ~2-3 MB/day  
-**Monthly Bandwidth (Extraction Only):** ~0.06-0.08 GB/month  
+**Daily Bandwidth (Extraction Only):** ~2-3 MB/day
+**Monthly Bandwidth (Extraction Only):** ~0.06-0.08 GB/month
 **Yearly Projection:** ~0.9-1.2 GB/year
 
 **With All Overhead (Discovery, Verification, Selenium):** ~3-6 MB/day (~0.15-0.18 GB/month)
@@ -239,7 +239,7 @@ Yearly:   45 GB
 ## Recommendations
 
 ### 1. Optimize Selenium Usage
-**Current:** Selenium attempts all bot-blocked sites  
+**Current:** Selenium attempts all bot-blocked sites
 **Recommendation:** Use Selenium selectively
 - Only for high-value articles
 - Only after requests fails
@@ -247,21 +247,21 @@ Yearly:   45 GB
 - **Potential savings:** 50-80% of Selenium bandwidth
 
 ### 2. Implement Intelligent Backoff
-**Current:** Retry failed domains  
+**Current:** Retry failed domains
 **Recommendation:** Skip persistently blocked domains
 - Exponential backoff for CAPTCHA
 - Daily/weekly retry for persistent blocks
 - **Potential savings:** 30-50% of failed attempt bandwidth
 
 ### 3. Cache Discovery Results
-**Current:** Daily RSS/sitemap fetches  
+**Current:** Daily RSS/sitemap fetches
 **Recommendation:** Cache feed content
 - Only fetch if Last-Modified/ETag changed
 - Use HTTP 304 Not Modified
 - **Potential savings:** 20-40% of discovery bandwidth
 
 ### 4. Monitor Bandwidth Usage
-**Current:** No direct bandwidth monitoring  
+**Current:** No direct bandwidth monitoring
 **Recommendation:** Add telemetry
 - Track response_size_bytes for all requests
 - Alert on unusual spikes
@@ -318,7 +318,7 @@ The following are NOT included in the bandwidth estimates above:
 
 ### Check Daily Bandwidth
 ```sql
-SELECT 
+SELECT
     DATE(created_at) as date,
     COUNT(*) as articles,
     AVG(LENGTH(content))::numeric * 2.5 / 1024 as avg_kb,
@@ -332,7 +332,7 @@ ORDER BY date DESC;
 
 ### Track Extraction Attempts
 ```sql
-SELECT 
+SELECT
     DATE(created_at) as date,
     COUNT(*) as total_attempts,
     SUM(CASE WHEN is_success THEN 1 ELSE 0 END) as successful,
@@ -345,7 +345,7 @@ ORDER BY date DESC;
 
 ### Selenium Usage
 ```sql
-SELECT 
+SELECT
     DATE(created_at) as date,
     COUNT(*) FILTER (WHERE primary_method = 'selenium') as selenium_used,
     COUNT(*) as total_extractions,
@@ -376,7 +376,7 @@ With the cleaning command now deployed, we should see extraction success rates i
 
 ---
 
-**Analysis Date:** October 10, 2025  
-**Data Source:** Production PostgreSQL database  
-**Sample Size:** 4,226 articles over 12 days  
+**Analysis Date:** October 10, 2025
+**Data Source:** Production PostgreSQL database
+**Sample Size:** 4,226 articles over 12 days
 **Next Review:** After cleaning command deployed and pipeline stabilizes

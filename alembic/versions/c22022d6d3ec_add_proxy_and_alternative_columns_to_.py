@@ -20,7 +20,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Add proxy columns to extraction_telemetry_v2.
-    
+
     Note: alternative_extractions already exists from migration a1b2c3d4e5f6,
     so we don't add it again.
     """
@@ -42,7 +42,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Remove proxy columns from extraction_telemetry_v2.
-    
+
     Note: We don't drop alternative_extractions as it was created in
     migration a1b2c3d4e5f6, not this migration.
     """

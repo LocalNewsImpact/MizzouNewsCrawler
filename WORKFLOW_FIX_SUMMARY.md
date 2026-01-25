@@ -1,7 +1,7 @@
 # GitHub Actions Workflow Orchestration - Complete Summary
 
-**Last Updated:** 2025-01-16  
-**Status:** Critical fixes merged to main, deployment testing pending  
+**Last Updated:** 2025-01-16
+**Status:** Critical fixes merged to main, deployment testing pending
 **Key Reference:** PR #204, PR #206
 
 ---
@@ -39,13 +39,13 @@ When code was pushed to the main branch, the GitHub Actions workflow (`build-and
 
 ### Issue #1: E2E Tests Running Before Deployment (PR #204)
 
-**Problem:**  
+**Problem:**
 The `production-smoke-tests` job ran immediately after Cloud Build jobs were submitted, without waiting for them to complete. Tests would fail trying to connect to old version of services.
 
-**Root Cause:**  
+**Root Cause:**
 Workflow had no synchronization point between "submit builds" and "run tests". GitHub Actions ran jobs in parallel if they were independent.
 
-**Solution:**  
+**Solution:**
 Added `wait-for-builds` job that runs after all build jobs complete. It:
 
 - Polls Cloud Build for job status using `gcloud builds log`
@@ -64,7 +64,7 @@ Added `wait-for-builds` job that runs after all build jobs complete. It:
 
 ### Issue #2: Argo Workflow Update Failures (PR #206) - CRITICAL
 
-**Problem:**  
+**Problem:**
 When Cloud Build jobs completed, the workflow ran `update-workflow-template.sh` to update Argo with new image versions. The script failed with:
 
 ```text
@@ -74,7 +74,7 @@ SyntaxError: invalid syntax
                  ^
 ```
 
-**Root Cause:**  
+**Root Cause:**
 Line 88 of `update-workflow-template.sh` had an errant command after the here-document closing delimiter. Here-documents are closed with `EOF` on its own line, and nothing should follow it.
 
 ```bash
@@ -86,7 +86,7 @@ PYTHON_EOF "$SERVICE_TYPE" "$NEW_SHA" "$REGISTRY"  # <- This line is invalid!
 
 The intent was to pass parameters to the here-document, but the syntax was incorrect. In bash, here-document parameters go on the opening line, not closing.
 
-**Solution:**  
+**Solution:**
 Moved parameters to the here-document opening line using correct bash syntax:
 
 ```bash
@@ -122,17 +122,17 @@ python3 << PYTHON_EOF "$SERVICE_TYPE" "$NEW_SHA" "$REGISTRY"
 
 ### Issue #3: Service Change Detection (In Progress)
 
-**Problem:**  
+**Problem:**
 The workflow detects which services changed using git diff. However:
 
 - `git diff-tree` doesn't work reliably with squash merges
 - GitHub Actions provides `event.before` and `event.after`, but the detection script only tried one diff method
 - When all detection methods failed, the workflow would skip all service builds
 
-**Root Cause:**  
+**Root Cause:**
 Squash merges combine all commits from a branch into a single commit. Some git commands (like diff-tree) have different behavior with merge commits vs. regular commits.
 
-**Solution:**  
+**Solution:**
 Improved change detection to use multiple methods:
 
 1. **Method 1: `git diff-tree`** - Standard approach, works for regular commits
@@ -157,7 +157,7 @@ fi
 CHANGED_FILES=$(printf "%s\n%s" "$METHOD1" "$METHOD2" | grep -v '^$' | sort -u)
 ```
 
-**Service Detection Rules:**  
+**Service Detection Rules:**
 Once changed files are detected, the workflow uses pattern matching:
 
 | Service | Rebuilds When | Pattern |

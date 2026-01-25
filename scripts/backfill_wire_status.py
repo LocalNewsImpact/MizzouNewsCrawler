@@ -25,7 +25,7 @@ def backfill_wire_status(
 ):
     """
     Backfill wire detection on existing articles.
-    
+
     Args:
         batch_size: Number of articles to process per batch
         dry_run: If True, don't update database
@@ -33,31 +33,31 @@ def backfill_wire_status(
     """
     db = DatabaseManager()
     detector = ContentTypeDetector()
-    
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_path = Path(output_dir)
-    
+
     # Output files
     wire_articles_csv = output_path / f"wire_articles_to_remove_{timestamp}.csv"
     backfill_log = output_path / f"backfill_log_{timestamp}.txt"
-    
+
     print(f"Starting wire detection backfill...")
     print(f"Dry run: {dry_run}")
     print(f"Output directory: {output_path}")
     print()
-    
+
     total_processed = 0
     total_wire_detected = 0
     total_updated = 0
-    
+
     # Track articles moved to wire
     wire_articles = []
-    
+
     with open(backfill_log, "w") as log_file:
         log_file.write(f"Wire Detection Backfill - {timestamp}\n")
         log_file.write(f"Dry run: {dry_run}\n")
         log_file.write("=" * 80 + "\n\n")
-        
+
         with db.get_session() as session:
             # Get total count - extracted and wire articles
             total_count = session.execute(text("""
@@ -67,12 +67,12 @@ def backfill_wire_status(
                 WHERE cl.status IN ('extracted', 'wire')
                 AND a.candidate_link_id IS NOT NULL
             """)).scalar()
-            
+
             print(f"Total articles to process: {total_count:,}")
             log_file.write(f"Total articles to process: {total_count:,}\n\n")
-            
+
             offset = 0
-            
+
             while offset < total_count:
                 # Get batch of extracted and wire articles
                 results = session.execute(text("""
@@ -90,33 +90,33 @@ def backfill_wire_status(
                     ORDER BY a.id
                     LIMIT :batch_size OFFSET :offset
                 """), {"batch_size": batch_size, "offset": offset}).fetchall()
-                
+
                 if not results:
                     break
-                
+
                 batch_wire_detected = 0
-                
+
                 for row in results:
                     total_processed += 1
-                    (candidate_link_id, url, source, article_id, 
+                    (candidate_link_id, url, source, article_id,
                      title, author, article_text) = row
-                    
+
                     # Run wire detection
                     result = detector._detect_wire_service(
                         url=url,
                         content=article_text or title or "",
                         metadata={"author": author}
                     )
-                    
+
                     if result and result.status == "wire":
                         total_wire_detected += 1
                         batch_wire_detected += 1
-                        
+
                         services = result.evidence.get("detected_services", [])
                         service = services[0] if services else "Unknown"
                         tier = result.evidence.get("detection_tier", "unknown")
                         confidence = result.confidence
-                        
+
                         # Track for BigQuery removal
                         wire_articles.append({
                             "candidate_link_id": str(candidate_link_id),
@@ -129,7 +129,7 @@ def backfill_wire_status(
                             "detection_tier": tier,
                             "confidence": confidence,
                         })
-                        
+
                         # Update status in database
                         if not dry_run:
                             session.execute(text("""
@@ -138,21 +138,21 @@ def backfill_wire_status(
                                 WHERE id = :candidate_link_id
                             """), {"candidate_link_id": candidate_link_id})
                             total_updated += 1
-                
+
                 if not dry_run:
                     session.commit()
-                
+
                 offset += batch_size
-                
+
                 # Progress update
                 progress_pct = 100.0 * offset / total_count
                 print(f"Progress: {offset:,}/{total_count:,} "
                       f"({progress_pct:.1f}%) | "
                       f"Batch wire: {batch_wire_detected} | "
                       f"Total wire: {total_wire_detected:,}")
-        
+
         # Write summary to log
-        wire_pct = (100.0 * total_wire_detected / total_processed 
+        wire_pct = (100.0 * total_wire_detected / total_processed
                     if total_processed > 0 else 0)
         log_file.write(f"\nBackfill Complete\n")
         log_file.write("=" * 80 + "\n")
@@ -163,19 +163,19 @@ def backfill_wire_status(
         log_file.write(f"\nOutput files:\n")
         log_file.write(f"  - {wire_articles_csv}\n")
         log_file.write(f"  - {backfill_log}\n")
-    
+
     # Write BigQuery removal CSV
     with open(wire_articles_csv, "w", newline="") as f:
         if wire_articles:
             writer = csv.DictWriter(f, fieldnames=wire_articles[0].keys())
             writer.writeheader()
             writer.writerows(wire_articles)
-    
+
     print()
     print("=" * 80)
     print("Backfill Summary:")
     print(f"  Total processed: {total_processed:,}")
-    wire_pct = (100.0 * total_wire_detected / total_processed 
+    wire_pct = (100.0 * total_wire_detected / total_processed
                 if total_processed > 0 else 0)
     print(f"  Wire detected: {total_wire_detected:,} ({wire_pct:.2f}%)")
     print(f"  Database updated: {total_updated:,}")
@@ -184,16 +184,16 @@ def backfill_wire_status(
     print(f"  - {wire_articles_csv} ({len(wire_articles):,} articles)")
     print(f"  - {backfill_log}")
     print()
-    
+
     if dry_run:
         print("DRY RUN: No database changes were made")
-    
+
     return wire_articles
 
 
 if __name__ == "__main__":
     import argparse
-    
+
     parser = argparse.ArgumentParser(
         description="Backfill wire detection status"
     )
@@ -214,9 +214,9 @@ if __name__ == "__main__":
         default=".",
         help="Output directory (default: current directory)"
     )
-    
+
     args = parser.parse_args()
-    
+
     backfill_wire_status(
         batch_size=args.batch_size,
         dry_run=args.dry_run,

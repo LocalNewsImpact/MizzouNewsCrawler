@@ -14,33 +14,33 @@ def send_daily_report(request):
     """
     Cloud Function triggered by Cloud Scheduler to send daily article statistics.
     Uses Gmail API (free) instead of SendGrid.
-    
+
     Environment variables required:
     - GMAIL_CREDENTIALS_JSON: Service account JSON (base64 encoded)
     - GMAIL_DELEGATED_USER: Email to send from
     - REPORT_TO_EMAIL: Recipient email address (comma-separated)
     - BQ_PROJECT_ID: BigQuery project ID
     """
-    
+
     # Get configuration from environment
     credentials_json = os.environ.get('GMAIL_CREDENTIALS_JSON')
     delegated_user = os.environ.get('GMAIL_DELEGATED_USER')
     to_emails = os.environ.get('REPORT_TO_EMAIL', '').split(',')
     project_id = os.environ.get('BQ_PROJECT_ID')
-    
+
     if not credentials_json:
         return {'error': 'GMAIL_CREDENTIALS_JSON not configured'}, 500
     if not delegated_user:
         return {'error': 'GMAIL_DELEGATED_USER not configured'}, 500
     if not to_emails or not to_emails[0]:
         return {'error': 'REPORT_TO_EMAIL not configured'}, 500
-    
+
     # Initialize BigQuery client
     client = bigquery.Client(project=project_id)
-    
+
     # Daily BigQuery sync check - last 60 days of extractions
     query_daily_import = f"""
-        SELECT 
+        SELECT
             DATE(extracted_at) as extraction_date,
             COUNT(*) as article_count,
             COUNT(DISTINCT candidate_link_id) as unique_links,
@@ -52,17 +52,17 @@ def send_daily_report(request):
         ORDER BY extraction_date DESC
         LIMIT 60
     """
-    
+
     try:
         # Execute query
         results = list(client.query(query_daily_import).result())
-        
+
         if not results:
             return {'error': 'No data returned from query'}, 500
-        
+
         # Get today's date for report title
         today = datetime.utcnow().strftime('%Y-%m-%d')
-        
+
         # Calculate summary stats
         total_articles = sum(row.article_count for row in results)
         last_7_days = [
@@ -72,7 +72,7 @@ def send_daily_report(request):
             ).date()
         ]
         last_7_articles = sum(row.article_count for row in last_7_days)
-        
+
         # Build HTML email
         html = f"""
         <html>
@@ -120,7 +120,7 @@ def send_daily_report(request):
         </head>
         <body>
             <h1>Daily BigQuery Import Check - {today}</h1>
-            
+
             <div class="summary">
                 <h3>Summary</h3>
                 <span class="summary-stat">
@@ -136,7 +136,7 @@ def send_daily_report(request):
                     {len(results)}
                 </span>
             </div>
-            
+
             <h2>Articles by Extraction Date (Last 60 Days)</h2>
             <table>
                 <tr>
@@ -147,7 +147,7 @@ def send_daily_report(request):
                     <th>Latest</th>
                 </tr>
         """
-        
+
         for i, row in enumerate(results):
             row_class = ' class="recent"' if i < 7 else ''
             earliest = row.earliest_extraction.strftime('%Y-%m-%d %H:%M')
@@ -161,10 +161,10 @@ def send_daily_report(request):
                     <td>{latest}</td>
                 </tr>
             """
-        
+
         html += f"""
             </table>
-            
+
             <p style="color: #666; font-size: 12px; margin-top: 40px;">
                 Generated at {
                     datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
@@ -173,44 +173,44 @@ def send_daily_report(request):
         </body>
         </html>
         """
-        
+
         # Send email via Gmail API
         # Decode service account credentials
         creds_dict = json.loads(
             base64.b64decode(credentials_json).decode('utf-8')
         )
-        
+
         # Create credentials with delegated user
         credentials = service_account.Credentials.from_service_account_info(
             creds_dict,
             scopes=['https://www.googleapis.com/auth/gmail.send']
         )
         delegated_credentials = credentials.with_subject(delegated_user)
-        
+
         # Build Gmail service
         service = build('gmail', 'v1', credentials=delegated_credentials)
-        
+
         # Create email message
         message = MIMEMultipart('alternative')
         message['Subject'] = f'Daily BigQuery Import Check - {today}'
         message['From'] = delegated_user
         message['To'] = ', '.join([email.strip() for email in to_emails])
-        
+
         # Attach HTML content
         html_part = MIMEText(html, 'html')
         message.attach(html_part)
-        
+
         # Send via Gmail API
         raw_message = base64.urlsafe_b64encode(
             message.as_bytes()
         ).decode('utf-8')
         send_message = {'raw': raw_message}
-        
+
         service.users().messages().send(
             userId='me',
             body=send_message
         ).execute()
-        
+
         return {
             'status': 'success',
             'date': today,
@@ -219,7 +219,7 @@ def send_daily_report(request):
             'days_with_data': len(results),
             'email_sent_to': to_emails
         }, 200
-        
+
     except Exception as e:
         print(f"Error: {str(e)}")
         return {'error': str(e)}, 500

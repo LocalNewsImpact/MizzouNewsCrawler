@@ -13,7 +13,7 @@ else
 
     echo "🔍 Testing Service Detection Logic"
     echo "Range: $BEFORE...$AFTER"
-    
+
     # Get changed files
     CHANGED_FILES=$(git diff --name-only "$BEFORE" "$AFTER")
 fi

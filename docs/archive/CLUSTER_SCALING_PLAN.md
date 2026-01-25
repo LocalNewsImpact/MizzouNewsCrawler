@@ -1,7 +1,7 @@
 # Cluster Scaling Plan - Upgrade to Larger Nodes
 
-**Date:** October 19, 2025  
-**Status:** 🟡 Ready for Execution  
+**Date:** October 19, 2025
+**Status:** 🟡 Ready for Execution
 **Priority:** HIGH - Resolves immediate capacity constraints
 
 ---
@@ -364,8 +364,8 @@ Set up alerts:
 
 ---
 
-**Status:** ✅ Ready to execute  
-**Risk Level:** 🟢 Low (tested migration procedure)  
-**Estimated Downtime:** None (rolling migration)  
-**Approval Required:** Yes (cost increase)  
+**Status:** ✅ Ready to execute
+**Risk Level:** 🟢 Low (tested migration procedure)
+**Estimated Downtime:** None (rolling migration)
+**Approval Required:** Yes (cost increase)
 **Timeline:** 15 minutes execution + 30 minutes monitoring

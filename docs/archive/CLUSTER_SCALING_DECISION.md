@@ -1,6 +1,6 @@
 # Cluster Scaling Decision - URGENT
 
-**Date:** October 19, 2025  
+**Date:** October 19, 2025
 **Status:** 🔴 CRITICAL - Processor cannot schedule, insufficient resources
 
 ---
@@ -21,7 +21,7 @@ After increasing processor memory request to 2.5Gi:
 
 **Our workload needs:**
 - Processor: 2.5GB request
-- Argo discovery: 2GB request  
+- Argo discovery: 2GB request
 - Argo verification: 1GB request
 - API: 256MB request
 
@@ -267,7 +267,7 @@ This gives us:
      --num-nodes=1 \
      --disk-size=50 \
      --node-labels=workload=ml
-   
+
    # Update processor to use ML node
    kubectl patch deployment mizzou-processor -n production -p '
    spec:
@@ -276,7 +276,7 @@ This gives us:
          nodeSelector:
            workload: ml
    '
-   
+
    # Restore proper memory request
    kubectl set resources deployment mizzou-processor -n production \
      --requests=memory=2.5Gi,cpu=500m \

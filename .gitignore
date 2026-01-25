@@ -162,3 +162,18 @@ new_detector_*.txt
 # Local debugging artifacts
 capture-downloads/
 debug/
+
+# Local Go build caches
+.go_mod_cache/
+.go_build_cache/
+
+# Local utls-client binaries
+utls-client
+utls-client-amd64
+
+# Local debug/temp files
+tmp_braces.txt
+
+# Local helper folders
+inspect_clienthello/
+utls/

@@ -2,7 +2,7 @@
 -- Run this against production database after deploying the code
 
 UPDATE sources
-SET 
+SET
   extraction_method = 'unblock',
   bot_protection_type = 'perimeterx',
   bot_protection_detected_at = NOW()
@@ -15,7 +15,7 @@ WHERE host IN (
 AND (extraction_method = 'http' OR extraction_method = 'selenium' OR extraction_method IS NULL);
 
 -- Verify update
-SELECT 
+SELECT
   host,
   extraction_method,
   selenium_only,

@@ -55,7 +55,7 @@ spec:
       # In case your cluster requires imagePullSecrets, add them below
       # imagePullSecrets:
       #   - name: artifact-registry-secret
-      
+
   # Optional: TTL after finish to keep job for inspection then auto-delete (k8s >=1.21)
   # Keep job around for 24 hours for inspection, then auto-delete
   ttlSecondsAfterFinished: 86400

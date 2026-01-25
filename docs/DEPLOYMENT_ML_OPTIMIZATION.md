@@ -220,7 +220,7 @@ rate(log_messages{message=~".*Loading spaCy model.*"}[1h])
 container_memory_usage_bytes{container="mizzou-processor"}
 
 # Entity extraction batch size (should be 500)
-histogram_quantile(0.95, 
+histogram_quantile(0.95,
   rate(entity_extraction_batch_size_bucket[5m])
 )
 ```

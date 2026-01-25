@@ -31,16 +31,12 @@ def test_export_snapshot_postgres(tmp_path):
     # create a simple table to export
     table_name = "test_articles"
     with engine.begin() as conn:
-        conn.execute(
-            text(
-                """
+        conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS test_articles (
                     id SERIAL PRIMARY KEY,
                     title TEXT
                 )
-                """
-            )
-        )
+                """))
         # clear and insert sample rows
         conn.execute(text("TRUNCATE TABLE test_articles"))
         conn.execute(

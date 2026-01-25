@@ -29,37 +29,37 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Ensure confidence column is String type, not numeric."""
-    
+
     # Check if table exists
     conn = op.get_bind()
     inspector = inspect(conn)
-    
+
     if 'content_type_detection_telemetry' not in inspector.get_table_names():
         # Table doesn't exist, parent migration will create it with correct schema
         return
-    
+
     # Table exists - check if confidence column has wrong type
     columns = inspector.get_columns('content_type_detection_telemetry')
     confidence_col = next((col for col in columns if col['name'] == 'confidence'), None)
-    
+
     if not confidence_col:
         # Column doesn't exist (shouldn't happen), skip
         return
-    
+
     # Check if column type is numeric (needs fixing)
     col_type_str = str(confidence_col['type']).lower()
     is_numeric = any(t in col_type_str for t in ['float', 'double', 'real', 'numeric'])
-    
+
     if is_numeric:
         # Column has wrong type - need to alter it
         # For PostgreSQL, we need to convert existing data
-        
+
         # First, check if there's existing data
         result = conn.execute(text(
             "SELECT COUNT(*) FROM content_type_detection_telemetry"
         ))
         row_count = result.scalar()
-        
+
         if row_count > 0:
             # Convert numeric values to string labels
             # Map: 0.95 -> 'very_high', 0.85 -> 'high', 0.5 -> 'medium', 0.25 -> 'low'
@@ -73,7 +73,7 @@ def upgrade() -> None:
                 END
                 WHERE confidence IS NOT NULL
             """))
-        
+
         # Now alter the column type using PostgreSQL-specific syntax
         # Using ALTER COLUMN with USING clause to handle conversion
         conn.execute(text("""
@@ -81,7 +81,7 @@ def upgrade() -> None:
             ALTER COLUMN confidence TYPE VARCHAR
             USING confidence::VARCHAR
         """))
-        
+
         print("✅ Fixed confidence column type from numeric to VARCHAR")
     else:
         print("ℹ️  confidence column already has correct String type")
@@ -89,17 +89,17 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Downgrade: Convert confidence back to numeric type.
-    
+
     WARNING: This will lose the semantic meaning of confidence labels.
     Only use if absolutely necessary.
     """
-    
+
     conn = op.get_bind()
     inspector = inspect(conn)
-    
+
     if 'content_type_detection_telemetry' not in inspector.get_table_names():
         return
-    
+
     # Convert string labels back to numeric values
     conn.execute(text("""
         UPDATE content_type_detection_telemetry
@@ -112,12 +112,12 @@ def downgrade() -> None:
         END
         WHERE confidence IS NOT NULL
     """))
-    
+
     # Alter column type to DOUBLE PRECISION
     conn.execute(text("""
         ALTER TABLE content_type_detection_telemetry
         ALTER COLUMN confidence TYPE DOUBLE PRECISION
         USING confidence::DOUBLE PRECISION
     """))
-    
+
     print("⚠️  Reverted confidence column to DOUBLE PRECISION type")

@@ -87,7 +87,7 @@ The proxy telemetry endpoints query these columns in `extraction_telemetry_v2`:
 
 - `proxy_used` (BOOLEAN) - Whether proxy was enabled
 - `proxy_url` (TEXT) - Proxy URL (without credentials)
-- `proxy_authenticated` (BOOLEAN) - Whether credentials were provided  
+- `proxy_authenticated` (BOOLEAN) - Whether credentials were provided
 - `proxy_status` (TEXT) - "success", "failed", "bypassed", or "disabled"
 - `proxy_error` (TEXT) - Error message if proxy failed
 

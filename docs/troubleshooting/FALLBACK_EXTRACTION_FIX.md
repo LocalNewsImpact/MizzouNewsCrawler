@@ -1,7 +1,7 @@
 # Fix: HTTP Error Responses Triggering Unnecessary Fallback Methods
 
-**Date**: October 14, 2025  
-**Commits**: 615f8f9 (404/410), c59124a (all HTTP errors)  
+**Date**: October 14, 2025
+**Commits**: 615f8f9 (404/410), c59124a (all HTTP errors)
 **Issue**: HTTP error responses (4xx/5xx) were allowing fallback to BeautifulSoup and Selenium
 
 ---
@@ -420,13 +420,13 @@ Together, these commits provide comprehensive HTTP error handling:
 
 1. **404/410 Rate**: How many articles return 404/410
    ```sql
-   SELECT COUNT(*) FROM articles 
+   SELECT COUNT(*) FROM articles
    WHERE metadata->>'http_status' IN ('404', '410')
    ```
 
 2. **Fallback Method Usage**: Should decrease after this fix
    ```sql
-   SELECT 
+   SELECT
        metadata->>'extraction_method' as method,
        COUNT(*) as count
    FROM articles
@@ -476,10 +476,10 @@ kubectl logs -n production deployment/mizzou-processor --tail=50
 
 ## Summary
 
-✅ **Fixed**: 404/410 responses now stop all fallback attempts immediately  
-✅ **Performance**: ~15 seconds saved per dead URL  
-✅ **Reliability**: Reduced load on rate-limited domains  
-✅ **Code Quality**: Explicit exception handling for clarity  
+✅ **Fixed**: 404/410 responses now stop all fallback attempts immediately
+✅ **Performance**: ~15 seconds saved per dead URL
+✅ **Reliability**: Reduced load on rate-limited domains
+✅ **Code Quality**: Explicit exception handling for clarity
 
 **Next Steps**:
 1. Deploy fix with other pending commits (8276768, 7b9e9a5)

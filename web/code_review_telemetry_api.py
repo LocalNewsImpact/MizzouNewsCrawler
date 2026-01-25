@@ -68,8 +68,7 @@ def init_code_review_tables():
         cur = conn.cursor()
 
         # Create code review telemetry table
-        cur.execute(
-            """
+        cur.execute("""
         CREATE TABLE IF NOT EXISTS code_review_telemetry (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             review_id TEXT UNIQUE NOT NULL,
@@ -88,8 +87,7 @@ def init_code_review_tables():
             reviewed_by TEXT,
             reviewed_at TIMESTAMP
         )
-        """
-        )
+        """)
 
         conn.commit()
         conn.close()
@@ -236,26 +234,22 @@ def get_code_review_stats() -> CodeReviewStats:
         needs_changes = cur.fetchone()[0]
 
         # Get average review time (in hours)
-        cur.execute(
-            """
+        cur.execute("""
         SELECT AVG(
             (julianday(reviewed_at) - julianday(created_at)) * 24
         ) as avg_hours
         FROM code_review_telemetry
         WHERE reviewed_at IS NOT NULL AND created_at IS NOT NULL
-        """
-        )
+        """)
         avg_result = cur.fetchone()[0]
         avg_review_time_hours = round(avg_result, 2) if avg_result else None
 
         # Get count of active reviewers (reviewers in last 30 days)
-        cur.execute(
-            """
+        cur.execute("""
         SELECT COUNT(DISTINCT reviewed_by)
         FROM code_review_telemetry
         WHERE reviewed_at >= datetime('now', '-30 days')
-        """
-        )
+        """)
         reviewers_active = cur.fetchone()[0]
 
         conn.close()

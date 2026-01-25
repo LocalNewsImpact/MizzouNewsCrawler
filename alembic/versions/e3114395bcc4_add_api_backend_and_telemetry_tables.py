@@ -1,7 +1,7 @@
 """Add API backend and telemetry tables
 
 Revision ID: e3114395bcc4
-Revises: 
+Revises:
 Create Date: 2025-10-04 21:50:46.449816
 
 """

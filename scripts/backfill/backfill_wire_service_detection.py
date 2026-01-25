@@ -50,10 +50,10 @@ def backfill_wire_service_detection(dry_run=True, limit=None):
     try:
         # Find articles with status="extracted" that have author information
         query = """
-        SELECT id, author, url, candidate_link_id 
-        FROM articles 
-        WHERE status = 'extracted' 
-        AND author IS NOT NULL 
+        SELECT id, author, url, candidate_link_id
+        FROM articles
+        WHERE status = 'extracted'
+        AND author IS NOT NULL
         AND author != '[]'
         AND author != ''
         ORDER BY created_at DESC

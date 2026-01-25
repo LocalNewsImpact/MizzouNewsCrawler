@@ -84,7 +84,7 @@ from sqlalchemy import text
 db = DatabaseManager()
 with db.get_session() as session:
     result = session.execute(text('''
-        SELECT 
+        SELECT
             status,
             COUNT(*) as count
         FROM candidate_links
@@ -176,6 +176,6 @@ kubectl delete job lehigh-extraction -n production
 
 ---
 
-**Job Started**: 2025-10-11 19:36:29 UTC  
-**Expected Completion**: 2025-10-12 00:00:00 - 02:00:00 UTC (4-6 hours)  
+**Job Started**: 2025-10-11 19:36:29 UTC
+**Expected Completion**: 2025-10-12 00:00:00 - 02:00:00 UTC (4-6 hours)
 **Git Commit**: df76080

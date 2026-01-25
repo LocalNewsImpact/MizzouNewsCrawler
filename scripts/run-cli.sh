@@ -38,11 +38,11 @@ ensure_deployment_exists() {
 
 ensure_pod_ready() {
     local replicas=$(kubectl get deployment "$DEPLOYMENT" -n "$NAMESPACE" -o jsonpath='{.status.replicas}' 2>/dev/null || echo "0")
-    
+
     if [ "$replicas" = "0" ] || [ -z "$replicas" ]; then
         echo -e "${YELLOW}⚙️  Scaling CLI deployment to 1 replica...${NC}"
         kubectl scale deployment "$DEPLOYMENT" --replicas=1 -n "$NAMESPACE"
-        
+
         echo "⏳ Waiting for pod to be ready..."
         kubectl wait --for=condition=ready pod -l app="$DEPLOYMENT" -n "$NAMESPACE" --timeout=60s
         echo -e "${GREEN}✓ CLI pod ready${NC}"

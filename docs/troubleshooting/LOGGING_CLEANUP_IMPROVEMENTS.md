@@ -14,7 +14,7 @@ Improved logging visibility for entity extraction and added automated cleanup of
 
 **Changes:**
 - Replaced `print()` statements with `logger.info()` for better log capture
-- Added explicit `flush=True` to all logger calls for real-time visibility  
+- Added explicit `flush=True` to all logger calls for real-time visibility
 - Removed duplicate print/logger pairs
 - Added progress logs every 10 articles with `sys.stdout.flush()`
 
@@ -44,7 +44,7 @@ sys.stdout.flush()  # Force immediate output
 **What It Does:**
 - Runs every 30 minutes automatically
 - Cleans up completed jobs older than 1 hour
-- Cleans up failed jobs older than 6 hours  
+- Cleans up failed jobs older than 6 hours
 - Cleans up evicted/failed pods older than 1 hour
 - Cleans up succeeded pods older than 30 minutes
 
@@ -95,9 +95,9 @@ Timestamp: Sun Oct 19 16:28:45 UTC 2025
 
 ### Improved Logging Deployment
 
-**Image:** `us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:5f98af6`  
-**Commit:** 5f98af6  
-**Status:** ✅ Deployed to production  
+**Image:** `us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:5f98af6`
+**Commit:** 5f98af6
+**Status:** ✅ Deployed to production
 **Pod:** `mizzou-processor-584775c48d-7gpzt`
 
 **Current State:**
@@ -108,8 +108,8 @@ Timestamp: Sun Oct 19 16:28:45 UTC 2025
 
 ### Cleanup CronJob Deployment
 
-**Status:** ✅ Deployed and tested  
-**Next Run:** Within 30 minutes  
+**Status:** ✅ Deployed and tested
+**Next Run:** Within 30 minutes
 **Manual Test:** Passed
 
 ---
@@ -221,6 +221,6 @@ kubectl logs -n production -l app=mizzou-processor | grep -iE "error|exception|f
 
 ---
 
-**Status:** ✅ Deployed and monitoring  
-**Next Review:** When entity extraction completes  
+**Status:** ✅ Deployed and monitoring
+**Next Review:** When entity extraction completes
 **Issue:** Need timer-based progress logging (not just article-count-based)

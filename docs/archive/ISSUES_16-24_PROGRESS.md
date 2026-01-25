@@ -21,12 +21,12 @@
 **Verification**:
 ```bash
 $ bq ls mizzou_analytics
-  tableId      Type   
- ------------ ------- 
-  articles     TABLE  
-  cin_labels   TABLE  
-  entities     TABLE  
-  sources      TABLE  
+  tableId      Type
+ ------------ -------
+  articles     TABLE
+  cin_labels   TABLE
+  entities     TABLE
+  sources      TABLE
 ```
 
 ### Issue #17: Kubernetes Documentation ✅ COMPLETE
@@ -59,18 +59,18 @@ $ bq ls mizzou_analytics
   - Exports articles, CIN labels, entities from PostgreSQL to BigQuery
   - Batch processing with configurable size
   - Comprehensive error handling and logging
-  
+
 - Added CLI command: `bigquery-export`
   - Registered in `src/cli/cli_modular.py`
   - Command handler: `src/cli/commands/bigquery_export.py`
   - Options: `--days-back`, `--batch-size`
-  
+
 - Deployed Kubernetes CronJob:
   - File: `k8s/bigquery-export-cronjob.yaml`
   - Schedule: Daily at 2 AM UTC
   - Service account: `mizzou-app`
   - Resources: 512Mi-1Gi memory, 250m-500m CPU
-  
+
 - Documentation: `docs/BIGQUERY_EXPORT.md`
   - Architecture and data flow
   - Deployment procedures
@@ -131,7 +131,7 @@ Dashboards will be created manually via Cloud Console UI and exported for versio
 - Protected routes
 
 ### Issue #21: Backend OAuth & RBAC
-**Status**: Not Started  
+**Status**: Not Started
 **Priority**: High (blocks Issue #20)
 
 - Implement OAuth 2.0 in FastAPI backend
@@ -203,7 +203,7 @@ Dashboards will be created manually via Cloud Console UI and exported for versio
 
 This enables:
 - County-level news coverage analysis
-- CIN classification trend analysis  
+- CIN classification trend analysis
 - Source performance tracking
 - Named entity analytics
 - Data-driven decision making

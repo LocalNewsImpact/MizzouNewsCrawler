@@ -127,13 +127,11 @@ class TestPipelineDiscoveryStatusPostgres:
 
     def test_discovery_total_sources_postgres(self, cloud_sql_session, test_sources):
         """Test counting total sources in PostgreSQL."""
-        query = text(
-            """
-            SELECT COUNT(*) 
-            FROM sources 
+        query = text("""
+            SELECT COUNT(*)
+            FROM sources
             WHERE host IS NOT NULL
-        """
-        )
+        """)
 
         result = cloud_sql_session.execute(query)
         total_sources = result.scalar()
@@ -147,13 +145,11 @@ class TestPipelineDiscoveryStatusPostgres:
         """Test querying recent discovery activity with PostgreSQL INTERVAL."""
         cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
 
-        query = text(
-            """
+        query = text("""
             SELECT COUNT(DISTINCT source_host_id)
             FROM candidate_links
             WHERE discovered_at >= :cutoff
-        """
-        )
+        """)
 
         result = cloud_sql_session.execute(query, {"cutoff": cutoff})
         sources_discovered = result.scalar()
@@ -167,13 +163,11 @@ class TestPipelineDiscoveryStatusPostgres:
         """Test counting URLs discovered in time window."""
         cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
 
-        query = text(
-            """
+        query = text("""
             SELECT COUNT(*)
             FROM candidate_links
             WHERE discovered_at >= :cutoff
-        """
-        )
+        """)
 
         result = cloud_sql_session.execute(query, {"cutoff": cutoff})
         urls_discovered = result.scalar()
@@ -187,8 +181,7 @@ class TestPipelineDiscoveryStatusPostgres:
         """Test detailed discovery breakdown by source."""
         cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
 
-        query = text(
-            """
+        query = text("""
             SELECT s.canonical_name, COUNT(*) as url_count
             FROM candidate_links cl
             JOIN sources s ON cl.source_host_id = s.id
@@ -196,8 +189,7 @@ class TestPipelineDiscoveryStatusPostgres:
             GROUP BY s.canonical_name
             ORDER BY url_count DESC
             LIMIT 10
-        """
-        )
+        """)
 
         result = cloud_sql_session.execute(query, {"cutoff": cutoff})
         top_sources = list(result)
@@ -218,13 +210,11 @@ class TestPipelineVerificationStatusPostgres:
         self, cloud_sql_session, pipeline_test_data
     ):
         """Test counting pending verification URLs."""
-        query = text(
-            """
-            SELECT COUNT(*) 
-            FROM candidate_links 
+        query = text("""
+            SELECT COUNT(*)
+            FROM candidate_links
             WHERE status = 'discovered'
-        """
-        )
+        """)
 
         result = cloud_sql_session.execute(query)
         pending = result.scalar()
@@ -236,13 +226,11 @@ class TestPipelineVerificationStatusPostgres:
         self, cloud_sql_session, pipeline_test_data
     ):
         """Test counting verified articles."""
-        query = text(
-            """
-            SELECT COUNT(*) 
-            FROM candidate_links 
+        query = text("""
+            SELECT COUNT(*)
+            FROM candidate_links
             WHERE status = 'article'
-        """
-        )
+        """)
 
         result = cloud_sql_session.execute(query)
         articles = result.scalar()
@@ -256,13 +244,11 @@ class TestPipelineVerificationStatusPostgres:
         """Test counting recent verification activity with INTERVAL."""
         cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
 
-        query = text(
-            """
+        query = text("""
             SELECT COUNT(*)
             FROM candidate_links
             WHERE processed_at >= :cutoff
-        """
-        )
+        """)
 
         result = cloud_sql_session.execute(query, {"cutoff": cutoff})
         verified_recent = result.scalar()
@@ -278,18 +264,16 @@ class TestPipelineExtractionStatusPostgres:
         self, cloud_sql_session, pipeline_test_data
     ):
         """Test counting articles ready for extraction."""
-        query = text(
-            """
+        query = text("""
             SELECT COUNT(*)
             FROM candidate_links
             WHERE status = 'article'
             AND id NOT IN (
-                SELECT candidate_link_id 
-                FROM articles 
+                SELECT candidate_link_id
+                FROM articles
                 WHERE candidate_link_id IS NOT NULL
             )
-        """
-        )
+        """)
 
         result = cloud_sql_session.execute(query)
         ready_for_extraction = result.scalar()
@@ -301,12 +285,10 @@ class TestPipelineExtractionStatusPostgres:
         self, cloud_sql_session, pipeline_test_data
     ):
         """Test counting total extracted articles."""
-        query = text(
-            """
-            SELECT COUNT(*) 
+        query = text("""
+            SELECT COUNT(*)
             FROM articles
-        """
-        )
+        """)
 
         result = cloud_sql_session.execute(query)
         total_extracted = result.scalar()
@@ -320,13 +302,11 @@ class TestPipelineExtractionStatusPostgres:
         """Test counting recent extraction activity."""
         cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
 
-        query = text(
-            """
-            SELECT COUNT(*) 
-            FROM articles 
+        query = text("""
+            SELECT COUNT(*)
+            FROM articles
             WHERE extracted_at >= :cutoff
-        """
-        )
+        """)
 
         result = cloud_sql_session.execute(query, {"cutoff": cutoff})
         extracted_recent = result.scalar()
@@ -338,14 +318,12 @@ class TestPipelineExtractionStatusPostgres:
         self, cloud_sql_session, pipeline_test_data
     ):
         """Test extraction status breakdown with GROUP BY."""
-        query = text(
-            """
+        query = text("""
             SELECT status, COUNT(*) as count
             FROM articles
             GROUP BY status
             ORDER BY count DESC
-        """
-        )
+        """)
 
         result = cloud_sql_session.execute(query)
         status_breakdown = list(result)
@@ -365,19 +343,17 @@ class TestPipelineEntityExtractionStatusPostgres:
         self, cloud_sql_session, pipeline_test_data
     ):
         """Test counting articles ready for entity extraction."""
-        query = text(
-            """
+        query = text("""
             SELECT COUNT(*)
             FROM articles a
             WHERE a.content IS NOT NULL
             AND a.text IS NOT NULL
             AND a.status NOT IN ('wire', 'opinion', 'obituary', 'error')
             AND NOT EXISTS (
-                SELECT 1 FROM article_entities ae 
+                SELECT 1 FROM article_entities ae
                 WHERE ae.article_id = a.id
             )
-        """
-        )
+        """)
 
         result = cloud_sql_session.execute(query)
         ready_for_entities = result.scalar()
@@ -390,17 +366,15 @@ class TestPipelineEntityExtractionStatusPostgres:
     ):
         """Test NOT EXISTS subquery works in PostgreSQL."""
         # This tests a PostgreSQL-specific optimization
-        query = text(
-            """
+        query = text("""
             SELECT a.id, a.title
             FROM articles a
             WHERE NOT EXISTS (
-                SELECT 1 FROM article_entities ae 
+                SELECT 1 FROM article_entities ae
                 WHERE ae.article_id = a.id
                 LIMIT 1
             )
-        """
-        )
+        """)
 
         result = cloud_sql_session.execute(query)
         articles_without_entities = list(result)
@@ -415,13 +389,11 @@ class TestPipelineAnalysisStatusPostgres:
     def test_analysis_ready_count_postgres(self, cloud_sql_session, pipeline_test_data):
         """Test counting articles ready for classification."""
         # This tests that the query doesn't fail even if article_labels doesn't exist
-        query = text(
-            """
+        query = text("""
             SELECT COUNT(*)
             FROM articles a
             WHERE a.status IN ('extracted', 'cleaned', 'local')
-        """
-        )
+        """)
 
         result = cloud_sql_session.execute(query)
         ready_for_analysis = result.scalar()
@@ -578,11 +550,9 @@ class TestPipelinePostgresSpecificFeatures:
         ]
 
         for interval in intervals:
-            query = text(
-                f"""
+            query = text(f"""
                 SELECT CURRENT_TIMESTAMP - {interval} as cutoff_time
-            """
-            )
+            """)
 
             result = cloud_sql_session.execute(query)
             cutoff = result.scalar()
@@ -596,16 +566,14 @@ class TestPipelinePostgresSpecificFeatures:
     ):
         """Test COALESCE with SUM in PostgreSQL."""
         # This pattern is used in pipeline metrics
-        query = text(
-            """
-            SELECT 
+        query = text("""
+            SELECT
                 status,
                 COUNT(*) as count,
                 COALESCE(SUM(CASE WHEN processed_at IS NOT NULL THEN 1 ELSE 0 END), 0) as processed
             FROM candidate_links
             GROUP BY status
-        """
-        )
+        """)
 
         result = cloud_sql_session.execute(query)
         metrics = list(result)
@@ -621,10 +589,9 @@ class TestPipelinePostgresSpecificFeatures:
         self, cloud_sql_session, pipeline_test_data
     ):
         """Test CASE statements in aggregate queries."""
-        query = text(
-            """
-            SELECT 
-                CASE 
+        query = text("""
+            SELECT
+                CASE
                     WHEN status = 'discovered' THEN 'pending'
                     WHEN status = 'article' THEN 'verified'
                     ELSE 'other'
@@ -633,8 +600,7 @@ class TestPipelinePostgresSpecificFeatures:
             FROM candidate_links
             GROUP BY status_category
             ORDER BY count DESC
-        """
-        )
+        """)
 
         result = cloud_sql_session.execute(query)
         categories = list(result)
@@ -650,17 +616,15 @@ class TestPipelinePostgresSpecificFeatures:
         self, cloud_sql_session, pipeline_test_data
     ):
         """Test DISTINCT COUNT in complex subqueries."""
-        query = text(
-            """
-            SELECT 
-                (SELECT COUNT(DISTINCT source_host_id) 
-                 FROM candidate_links 
+        query = text("""
+            SELECT
+                (SELECT COUNT(DISTINCT source_host_id)
+                 FROM candidate_links
                  WHERE discovered_at >= CURRENT_TIMESTAMP - INTERVAL '24 hours') as sources_discovered,
-                (SELECT COUNT(*) 
-                 FROM candidate_links 
+                (SELECT COUNT(*)
+                 FROM candidate_links
                  WHERE discovered_at >= CURRENT_TIMESTAMP - INTERVAL '24 hours') as urls_discovered
-        """
-        )
+        """)
 
         result = cloud_sql_session.execute(query)
         row = result.fetchone()

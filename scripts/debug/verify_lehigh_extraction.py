@@ -11,7 +11,7 @@ session = db.session
 
 # Get dataset
 result = session.execute(text("""
-    SELECT id, slug, name FROM source_lists 
+    SELECT id, slug, name FROM source_lists
     WHERE slug = 'Penn-State-Lehigh'
 """))
 dataset = result.fetchone()
@@ -26,7 +26,7 @@ print(f"ID: {dataset.id}")
 
 # Count total articles
 result2 = session.execute(text("""
-    SELECT COUNT(*) FROM candidate_links 
+    SELECT COUNT(*) FROM candidate_links
     WHERE dataset_id = :did AND status = 'article'
 """), {"did": dataset.id})
 total = result2.scalar()
@@ -34,8 +34,8 @@ print(f"\nTotal articles marked as 'article': {total}")
 
 # Count extracted articles
 result3 = session.execute(text("""
-    SELECT COUNT(*) FROM articles a 
-    JOIN candidate_links cl ON a.candidate_link_id = cl.id 
+    SELECT COUNT(*) FROM articles a
+    JOIN candidate_links cl ON a.candidate_link_id = cl.id
     WHERE cl.dataset_id = :did
 """), {"did": dataset.id})
 extracted = result3.scalar()
@@ -44,11 +44,11 @@ print(f"Unextracted: {total - extracted}")
 
 # Show recent extractions
 result4 = session.execute(text("""
-    SELECT a.title, a.url, a.created_at 
-    FROM articles a 
-    JOIN candidate_links cl ON a.candidate_link_id = cl.id 
-    WHERE cl.dataset_id = :did 
-    ORDER BY a.created_at DESC 
+    SELECT a.title, a.url, a.created_at
+    FROM articles a
+    JOIN candidate_links cl ON a.candidate_link_id = cl.id
+    WHERE cl.dataset_id = :did
+    ORDER BY a.created_at DESC
     LIMIT 5
 """), {"did": dataset.id})
 

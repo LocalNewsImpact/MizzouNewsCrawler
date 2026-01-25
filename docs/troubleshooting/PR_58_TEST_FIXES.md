@@ -19,11 +19,11 @@ The tests in `tests/test_pipeline_status.py` were failing due to:
 - Added `pytestmark = pytest.mark.unit` to mark all tests as unit tests
 - Fixed `test_check_discovery_status_with_sources_due`:
   - Changed mock to return 0 for sources discovered (to trigger WARNING)
-  
+
 - Fixed `test_check_extraction_status_active`:
   - Created proper iterable mock for status breakdown query
   - Used `__iter__` mock to return iterator over test data
-  
+
 - Fixed `test_command_runs_without_error`:
   - Created proper context manager mock using `MagicMock`
   - Added `execute_side_effect` function that detects `GROUP BY` queries and returns iterable mocks

@@ -17,7 +17,7 @@ Created comprehensive bot sensitivity manager with:
   - CAPTCHA backoff timers (300-21600s)
 - **Automatic sensitivity adjustment** based on detection events
   - 429 rate limits → +1 sensitivity
-  - 403 forbidden → +2 sensitivity  
+  - 403 forbidden → +2 sensitivity
   - CAPTCHA/Cloudflare detection → +3 sensitivity
 - **Adaptive cooldown periods** to prevent excessive sensitivity spikes
   - Low sensitivity (1-4): 30min - 2hr base cooldown
@@ -138,7 +138,7 @@ These sites start at configured sensitivity instead of default 5.
 - Test cooldown enforcement
 - Test config loading for different sensitivity levels
 
-### Integration Tests  
+### Integration Tests
 - Mock bot responses (403, CAPTCHA page)
 - Verify sensitivity increases appropriately
 - Verify rate limits applied correctly

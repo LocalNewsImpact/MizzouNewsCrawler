@@ -54,10 +54,10 @@ def get_candidates_for_backfill(session, limit: int = None) -> list[tuple]:
         AND a.content != ''
         ORDER BY a.publish_date DESC
     """)
-    
+
     if limit:
         query = text(str(query) + f" LIMIT {limit}")
-    
+
     result = session.execute(query)
     return result.fetchall()
 
@@ -70,7 +70,7 @@ def detect_wire_for_article(article_id: int, url: str, title: str,
     Returns (is_wire, detection_result_dict)
     """
     detector = ContentTypeDetector()
-    
+
     # Run detection
     result = detector.detect(
         url=url,
@@ -78,16 +78,16 @@ def detect_wire_for_article(article_id: int, url: str, title: str,
         content=content,
         byline=author or ""
     )
-    
+
     # Check if detected as wire
     is_wire = result.status == "wire"
-    
+
     detection_info = {
         "status": result.status,
         "confidence": result.confidence,
         "evidence": result.evidence
     }
-    
+
     return is_wire, detection_info
 
 
@@ -98,7 +98,7 @@ def apply_wire_label(session, article_id: int, evidence: str, dry_run: bool = Tr
     if dry_run:
         logger.info(f"[DRY RUN] Would update article {article_id} to status='wire'")
         return
-    
+
     update_query = text("""
         UPDATE article_labels
         SET
@@ -107,7 +107,7 @@ def apply_wire_label(session, article_id: int, evidence: str, dry_run: bool = Tr
             notes = :notes
         WHERE article_id = :article_id
     """)
-    
+
     session.execute(update_query, {
         "article_id": article_id,
         "applied_at": datetime.utcnow(),
@@ -136,12 +136,12 @@ def main():
         type=int,
         help="Limit number of articles to process"
     )
-    
+
     args = parser.parse_args()
-    
+
     # Default to dry-run unless --apply is specified
     dry_run = not args.apply
-    
+
     if dry_run:
         logger.info("=" * 80)
         logger.info("DRY RUN MODE - No changes will be made to the database")
@@ -150,32 +150,32 @@ def main():
         logger.warning("=" * 80)
         logger.warning("APPLY MODE - Changes WILL be made to the database")
         logger.warning("=" * 80)
-    
+
     # Connect to database
     db = DatabaseManager()
-    
+
     with db.get_session() as session:
         try:
             # Get candidates
             logger.info("Fetching articles labeled as 'labeled'...")
             candidates = get_candidates_for_backfill(session, limit=args.limit)
             logger.info(f"Found {len(candidates)} articles to check")
-            
+
             # Track results
             wire_detected = []
             not_wire = []
-            
+
             # Process each candidate
             for idx, (article_id, url, title, content, author) in enumerate(
                 candidates, 1
             ):
                 if idx % 100 == 0:
                     logger.info(f"Processed {idx}/{len(candidates)} articles...")
-                
+
                 is_wire, detection_info = detect_wire_for_article(
                     article_id, url, title, content, author
                 )
-                
+
                 if is_wire:
                     wire_detected.append({
                         "article_id": article_id,
@@ -184,7 +184,7 @@ def main():
                         "confidence": detection_info["confidence"],
                         "evidence": detection_info["evidence"]
                     })
-                    
+
                     # Apply label if not dry-run
                     apply_wire_label(
                         session,
@@ -197,7 +197,7 @@ def main():
                         "article_id": article_id,
                         "title": title
                     })
-            
+
             # Report results
             logger.info("\n" + "=" * 80)
             logger.info("BACKFILL RESULTS")
@@ -205,18 +205,18 @@ def main():
             logger.info(f"Total articles checked: {len(candidates)}")
             logger.info(f"Wire service articles detected: {len(wire_detected)}")
             logger.info(f"Local/other articles: {len(not_wire)}")
-            
+
             if wire_detected:
                 logger.info("\n" + "-" * 80)
                 logger.info("WIRE SERVICE ARTICLES DETECTED:")
                 logger.info("-" * 80)
-                
+
                 for item in wire_detected:
                     logger.info(f"\nTitle: {item['title'][:100]}...")
                     logger.info(f"URL: {item['url']}")
                     logger.info(f"Confidence: {item['confidence']}")
                     logger.info(f"Evidence: {item['evidence']}")
-            
+
             if dry_run:
                 logger.info("\n" + "=" * 80)
                 logger.info("DRY RUN COMPLETE - No changes were made")
@@ -226,7 +226,7 @@ def main():
                 logger.info("\n" + "=" * 80)
                 logger.info("BACKFILL COMPLETE - Changes applied to database")
                 logger.info("=" * 80)
-                    
+
         except Exception as e:
             logger.error(f"Error during backfill: {e}", exc_info=True)
             session.rollback()

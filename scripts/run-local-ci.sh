@@ -38,7 +38,7 @@ check_postgres() {
         return 1
     fi
     echo -e "${GREEN}✓ PostgreSQL is running${NC}"
-    
+
     # Check if test database exists
     if ! psql -h localhost -U "$USER" -d postgres -c "SELECT 1 FROM pg_database WHERE datname='news_crawler_test'" | grep -q 1; then
         echo -e "${YELLOW}Creating test database...${NC}"
@@ -54,7 +54,7 @@ run_unit_tests() {
     echo -e "${BLUE}Running Unit Tests${NC}"
     echo -e "${BLUE}========================================${NC}"
     echo ""
-    
+
     pytest \
         --override-ini='addopts=' \
         -m "not integration and not postgres and not slow" \
@@ -69,12 +69,12 @@ run_integration_tests() {
     echo -e "${BLUE}Running Integration Tests (SQLite)${NC}"
     echo -e "${BLUE}========================================${NC}"
     echo ""
-    
+
     # Clear environment variables that might interfere
     unset DATABASE_URL
     unset TEST_DATABASE_URL
     unset TELEMETRY_DATABASE_URL
-    
+
     pytest \
         --override-ini='addopts=' \
         -m "not postgres" \
@@ -89,23 +89,23 @@ run_postgres_tests() {
     echo -e "${BLUE}Running PostgreSQL Integration Tests${NC}"
     echo -e "${BLUE}========================================${NC}"
     echo ""
-    
+
     if ! check_postgres; then
         return 1
     fi
-    
+
     # Set environment variables for PostgreSQL tests
     export TEST_DATABASE_URL="postgresql://$USER@localhost/news_crawler_test"
     export DATABASE_URL="postgresql://$USER@localhost/news_crawler_test"
     export TELEMETRY_DATABASE_URL="postgresql://$USER@localhost/news_crawler_test"
     export PYTEST_KEEP_DB_ENV="true"
-    
+
     # Run migrations
     echo -e "${YELLOW}Running database migrations...${NC}"
     alembic upgrade head
     echo -e "${GREEN}✓ Migrations complete${NC}"
     echo ""
-    
+
     pytest \
         --override-ini='addopts=' \
         -m "integration" \
@@ -121,24 +121,24 @@ run_full_ci() {
     echo -e "${BLUE}(Unit + Integration + PostgreSQL)${NC}"
     echo -e "${BLUE}========================================${NC}"
     echo ""
-    
+
     if ! check_postgres; then
         return 1
     fi
-    
+
     # Step 1: Run unit + integration tests (SQLite, no postgres marker)
     echo -e "${BLUE}========================================${NC}"
     echo -e "${BLUE}Step 1/2: Unit + Integration Tests${NC}"
     echo -e "${BLUE}(Matches 'integration' job in CI)${NC}"
     echo -e "${BLUE}========================================${NC}"
     echo ""
-    
+
     # Clear environment variables for SQLite tests
     unset DATABASE_URL
     unset TEST_DATABASE_URL
     unset TELEMETRY_DATABASE_URL
     unset PYTEST_KEEP_DB_ENV
-    
+
     pytest \
         -m 'not postgres' \
         --cov=src \
@@ -147,36 +147,36 @@ run_full_ci() {
         --cov-report=term-missing \
         --cov-fail-under=78 \
         tests/
-    
+
     echo ""
     echo -e "${GREEN}✓ Unit + Integration tests passed${NC}"
     echo ""
-    
+
     # Step 2: Run PostgreSQL integration tests
     echo -e "${BLUE}========================================${NC}"
     echo -e "${BLUE}Step 2/2: PostgreSQL Integration Tests${NC}"
     echo -e "${BLUE}(Matches 'postgres-integration' job in CI)${NC}"
     echo -e "${BLUE}========================================${NC}"
     echo ""
-    
+
     # Set environment variables for PostgreSQL tests
     export TEST_DATABASE_URL="postgresql://$USER@localhost/news_crawler_test"
     export DATABASE_URL="postgresql://$USER@localhost/news_crawler_test"
     export TELEMETRY_DATABASE_URL="postgresql://$USER@localhost/news_crawler_test"
     export PYTEST_KEEP_DB_ENV="true"
-    
+
     # Run migrations
     echo -e "${YELLOW}Running database migrations...${NC}"
     alembic upgrade head
     echo -e "${GREEN}✓ Migrations complete${NC}"
     echo ""
-    
+
     pytest \
         -m integration \
         --tb=short \
         --no-cov \
         tests/
-    
+
     echo ""
     echo -e "${GREEN}✓ PostgreSQL integration tests passed${NC}"
 }
@@ -195,16 +195,16 @@ case "${1:-all}" in
     all|full)
         echo -e "${YELLOW}Running all test suites...${NC}"
         echo ""
-        
+
         run_unit_tests
         echo ""
-        
+
         run_integration_tests
         echo ""
-        
+
         run_postgres_tests
         echo ""
-        
+
         echo -e "${GREEN}========================================${NC}"
         echo -e "${GREEN}All test suites passed! ✓${NC}"
         echo -e "${GREEN}========================================${NC}"

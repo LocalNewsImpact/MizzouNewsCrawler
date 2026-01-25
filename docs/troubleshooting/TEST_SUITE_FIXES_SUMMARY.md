@@ -67,13 +67,13 @@ This document summarizes the test suite cleanup effort focused on fixing high-pr
 **Tests Marked**: 2 tests (RSS failure metadata tracking)
 
 ### 5. Byline Cleaner Cache Timestamp Fix (5281f16)
-**Files**: 
+**Files**:
 - `src/utils/byline_telemetry.py`
 - `src/utils/byline_cleaner.py`
 
 **Problem**: Cache timestamps initialized to None, causing `float - NoneType` TypeError
 
-**Root Cause**: 
+**Root Cause**:
 - `hasattr()` returns True even if attribute value is None
 - No None check before subtraction in time calculations
 
@@ -91,7 +91,7 @@ This document summarizes the test suite cleanup effort focused on fixing high-pr
 # WRONG - Python boolean operator
 .filter(not Candidate.accepted)  # Always evaluates to False/True
 
-# CORRECT - SQLAlchemy expression  
+# CORRECT - SQLAlchemy expression
 .filter(Candidate.accepted.is_(False))  # Generates SQL: WHERE accepted = 0
 ```
 
@@ -110,7 +110,7 @@ if hasattr(self, "_organization_cache_timestamp"):  # Returns True!
     time_diff = current_time - self._organization_cache_timestamp  # TypeError!
 
 # FIX
-if (hasattr(self, "_organization_cache_timestamp") 
+if (hasattr(self, "_organization_cache_timestamp")
     and self._organization_cache_timestamp is not None):
     time_diff = current_time - self._organization_cache_timestamp
 ```
@@ -138,7 +138,7 @@ monkeypatch.setattr("src.pipeline.entity_extraction.get_gazetteer_rows", mock_fn
 **Root Cause**: Tables no longer created at runtime, expected via Alembic migrations
 **Impact**: Tests use temporary databases without migrations
 **Status**: Requires test infrastructure update
-**Recommendation**: 
+**Recommendation**:
 - Update test fixtures to run Alembic migrations on temp databases
 - OR provide test-only table initialization method
 - Create GitHub issue to track
@@ -166,7 +166,7 @@ Always use `.is_(True)` or `.is_(False)` instead of Python `not` operator:
 query.filter(Column.is_(True))
 query.filter(Column.is_(False))
 
-# Bad  
+# Bad
 query.filter(Column)  # Implicit truthiness
 query.filter(not Column)  # Python boolean
 ```

@@ -13,7 +13,7 @@ Created a centralized module that manages the lifecycle of shared resources:
 **Startup Phase:**
 - Initializes `TelemetryStore` with configurable async writes
 - Creates `DatabaseManager` with Cloud SQL or SQLite support
-- Sets up shared `requests.Session` 
+- Sets up shared `requests.Session`
 - Installs origin proxy adapter if `USE_ORIGIN_PROXY=true`
 - Sets `app.state.ready = True` to indicate readiness
 

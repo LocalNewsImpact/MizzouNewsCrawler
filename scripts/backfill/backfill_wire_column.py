@@ -237,8 +237,8 @@ class WireBackfillProcessor:
             # Get the candidate_link_id for this article
             cursor.execute(
                 """
-                SELECT candidate_link_id 
-                FROM articles 
+                SELECT candidate_link_id
+                FROM articles
                 WHERE id = ?
             """,
                 (article_id,),
@@ -253,8 +253,8 @@ class WireBackfillProcessor:
             # Get the source_id from candidate_links
             cursor.execute(
                 """
-                SELECT source_id 
-                FROM candidate_links 
+                SELECT source_id
+                FROM candidate_links
                 WHERE id = ?
             """,
                 (candidate_link_id,),
@@ -313,10 +313,10 @@ class WireBackfillProcessor:
 
             # Get articles to process
             query = """
-                SELECT id, author, wire 
-                FROM articles 
-                WHERE author IS NOT NULL 
-                AND author != 'null' 
+                SELECT id, author, wire
+                FROM articles
+                WHERE author IS NOT NULL
+                AND author != 'null'
                 AND author != '[]'
                 ORDER BY created_at DESC
             """
@@ -413,8 +413,8 @@ class WireBackfillProcessor:
 
             cursor.execute(
                 """
-                UPDATE articles 
-                SET author = ?, wire = ? 
+                UPDATE articles
+                SET author = ?, wire = ?
                 WHERE id = ?
             """,
                 (authors_json, update["final_wire"], update["article_id"]),

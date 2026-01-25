@@ -26,8 +26,7 @@ def read_source_state(engine: Engine, source_id: str) -> dict[str, Any]:
     """
     with engine.connect() as conn:
         row = conn.execute(
-            text(
-                """
+            text("""
                 SELECT
                   rss_consecutive_failures,
                   rss_transient_failures,
@@ -37,8 +36,7 @@ def read_source_state(engine: Engine, source_id: str) -> dict[str, Any]:
                   no_effective_methods_consecutive,
                   no_effective_methods_last_seen
                 FROM sources WHERE id = :id
-                """
-            ),
+                """),
             {"id": source_id},
         ).fetchone()
     if not row:

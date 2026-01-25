@@ -93,7 +93,7 @@ In addition to telemetry tables, the `sources.metadata` JSONB column tracks RSS-
 ### Check Discovery Effectiveness for a Source
 
 ```sql
-SELECT 
+SELECT
     discovery_method,
     status,
     articles_found,
@@ -119,7 +119,7 @@ ORDER BY s.canonical_name;
 ### Check HTTP Request Patterns
 
 ```sql
-SELECT 
+SELECT
     source_url,
     discovery_method,
     status_code,
@@ -134,7 +134,7 @@ ORDER BY request_count DESC;
 ### Find Sources with RSS Marked as Missing
 
 ```sql
-SELECT 
+SELECT
     id,
     canonical_name,
     url,
@@ -149,7 +149,7 @@ LIMIT 50;
 ### Check Discovery Outcomes Over Time
 
 ```sql
-SELECT 
+SELECT
     DATE(timestamp) as date,
     outcome,
     COUNT(*) as outcome_count,
@@ -304,8 +304,8 @@ If you need to manually create telemetry tables:
 
 3. Check if `rss_missing` timestamp is recent:
    ```sql
-   SELECT 
-       id, 
+   SELECT
+       id,
        metadata->>'rss_missing' as rss_missing,
        NOW() - (metadata->>'rss_missing')::timestamp as age
    FROM sources

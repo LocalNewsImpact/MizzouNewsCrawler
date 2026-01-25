@@ -44,8 +44,7 @@ def test_extraction_query_has_dialect_detection():
 def test_skip_locked_syntax_is_valid_postgres(cloud_sql_session):
     """Test the SKIP LOCKED query syntax works with PostgreSQL."""
     # This is the actual query pattern from extraction.py
-    query = sql_text(
-        """
+    query = sql_text("""
         SELECT cl.id, cl.url, cl.source, cl.status
         FROM candidate_links cl
         WHERE cl.status = 'article'
@@ -56,8 +55,7 @@ def test_skip_locked_syntax_is_valid_postgres(cloud_sql_session):
         ORDER BY RANDOM()
         LIMIT 10
         FOR UPDATE OF cl SKIP LOCKED
-    """
-    )
+    """)
 
     # Should execute without syntax error
     result = cloud_sql_session.execute(query)
@@ -151,8 +149,7 @@ def test_parallel_extraction_no_duplicates(cloud_sql_engine):
                 # In the real implementation, this would call
                 # extractor.extract_content()
                 # But for this test, we just need to verify row locking works
-                query = sql_text(
-                    """
+                query = sql_text("""
                     SELECT cl.id, cl.url, cl.source, cl.status
                     FROM candidate_links cl
                     WHERE cl.status = 'article'
@@ -163,8 +160,7 @@ def test_parallel_extraction_no_duplicates(cloud_sql_engine):
                     ORDER BY cl.discovered_at
                     LIMIT 20
                     FOR UPDATE OF cl SKIP LOCKED
-                """
-                )
+                """)
 
                 result = worker_session.execute(query)
                 rows = result.fetchall()

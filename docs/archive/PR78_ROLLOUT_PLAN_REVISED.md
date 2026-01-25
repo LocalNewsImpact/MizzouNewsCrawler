@@ -1,8 +1,8 @@
 # PR #78 Rollout Plan - REVISED (After Infrastructure Review)
 
-**Date**: October 15, 2025  
-**PR**: #78 - Refactor orchestration: Split dataset jobs from continuous processor  
-**Status**: REVISED after infrastructure review  
+**Date**: October 15, 2025
+**PR**: #78 - Refactor orchestration: Split dataset jobs from continuous processor
+**Status**: REVISED after infrastructure review
 
 ## Critical Findings from Infrastructure Review
 
@@ -44,7 +44,7 @@ env:
   - name: ENABLE_VERIFICATION
     value: "true"   # Keep enabled
   - name: ENABLE_EXTRACTION
-    value: "true"   # Keep enabled  
+    value: "true"   # Keep enabled
   - name: ENABLE_CLEANING
     value: "true"
   - name: ENABLE_ML_ANALYSIS
@@ -148,11 +148,11 @@ with db.get_session() as session:
     print('Article counts:')
     for row in result:
         print(f'  {row[0]}: {row[1]}')
-    
+
     # Query 2: Extraction rate (24h)
     result = session.execute(text(\"SELECT COUNT(*) FROM articles WHERE created_at >= NOW() - INTERVAL '24 hours'\"))
     print(f'New articles (24h): {result.scalar()}')
-    
+
     # Query 3: Queue depths
     result = session.execute(text(\"SELECT COUNT(*) FROM articles WHERE status = 'cleaning_pending'\"))
     cleaning = result.scalar()
@@ -187,7 +187,7 @@ git checkout copilot/refactor-pipeline-orchestration
 
 # Edit k8s/processor-deployment.yaml
 # Change ENABLE_EXTRACTION from "false" to "true"
-# Change ENABLE_VERIFICATION from "false" to "true"  
+# Change ENABLE_VERIFICATION from "false" to "true"
 # Change ENABLE_DISCOVERY from "false" to "true"
 
 git add k8s/processor-deployment.yaml

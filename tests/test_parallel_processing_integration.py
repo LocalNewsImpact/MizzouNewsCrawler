@@ -165,8 +165,7 @@ def test_parallel_entity_extraction_with_skip_locked(cloud_sql_session):
     trans1 = conn1.begin()
     try:
         # Worker 1 selects with FOR UPDATE SKIP LOCKED (like production)
-        query_worker1 = sql_text(
-            """
+        query_worker1 = sql_text("""
             SELECT a.id, a.text
             FROM articles a
             JOIN candidate_links cl ON a.candidate_link_id = cl.id
@@ -176,8 +175,7 @@ def test_parallel_entity_extraction_with_skip_locked(cloud_sql_session):
             ORDER BY a.id
             LIMIT 5
             FOR UPDATE OF a SKIP LOCKED
-        """
-        )
+        """)
         result1 = conn1.execute(query_worker1, {"pattern": pattern})
         worker1_ids = [row[0] for row in result1.fetchall()]
         assert len(worker1_ids) == 5, "Worker 1 should lock 5 articles"

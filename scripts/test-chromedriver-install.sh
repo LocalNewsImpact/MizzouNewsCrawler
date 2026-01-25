@@ -48,10 +48,10 @@ echo
 echo "Verifying installation..."
 if [ -f "$TEST_DIR/chromedriver" ]; then
     echo "✓ ChromeDriver binary exists"
-    
+
     if [ -x "$TEST_DIR/chromedriver" ]; then
         echo "✓ ChromeDriver is executable"
-        
+
         if "$TEST_DIR/chromedriver" --version >/dev/null 2>&1; then
             VERSION=$("$TEST_DIR/chromedriver" --version 2>&1)
             echo "✓ ChromeDriver runs successfully"
@@ -73,7 +73,7 @@ echo
 # Test with undetected-chromedriver (if available)
 if command -v python3 >/dev/null 2>&1; then
     echo "Testing with undetected-chromedriver..."
-    
+
     # Create a simple Python test
     cat > "$TEST_DIR/test_uc.py" << 'EOF'
 import os
@@ -85,16 +85,16 @@ os.environ['CHROMEDRIVER_PATH'] = sys.argv[1] if len(sys.argv) > 1 else '/tmp/ch
 try:
     import undetected_chromedriver as uc
     print("✓ undetected-chromedriver imported successfully")
-    
+
     # Try to create options (doesn't require Chrome to be installed)
     options = uc.ChromeOptions()
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     print("✓ ChromeOptions created successfully")
-    
+
     print("\nNote: Full driver test skipped (requires Chrome installation)")
     print("ChromeDriver binary is ready for container use")
-    
+
 except ImportError:
     print("ℹ undetected-chromedriver not installed, skipping integration test")
     print("  (This is OK - Docker container will have it installed)")
@@ -102,7 +102,7 @@ except Exception as e:
     print(f"⚠ Integration test error: {e}")
     print("  (This may be OK if Chrome browser is not installed)")
 EOF
-    
+
     if python3 "$TEST_DIR/test_uc.py" "$TEST_DIR/chromedriver" 2>/dev/null; then
         echo "✓ Integration test passed"
     else

@@ -116,10 +116,10 @@ Before deploying to production:
    ```bash
    # Test reviews
    curl https://api.domain.com/api/reviews
-   
+
    # Test snapshots
    curl https://api.domain.com/api/snapshots
-   
+
    # Test domain feedback
    curl https://api.domain.com/api/domain_feedback
    ```

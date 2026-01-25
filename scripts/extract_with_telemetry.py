@@ -112,7 +112,7 @@ def update_candidate_status(
         update_data["error_message"] = error_message
 
     update_query = f"""
-        UPDATE candidate_links 
+        UPDATE candidate_links
         SET {", ".join(set_clauses)}
         WHERE id = :candidate_id
     """

@@ -141,7 +141,7 @@ post_deployment:
     run: |
       kubectl exec -n production deployment/mizzou-processor -- \
         pytest tests/e2e/test_production_smoke.py -v --tb=short
-      
+
       # Fail deployment if tests don't pass
       if [ $? -ne 0 ]; then
         echo "Production E2E tests failed"
@@ -240,4 +240,3 @@ Potential additions to test suite (not in current scope):
 - **Local**: Before creating PR (optional, requires prod access)
 - **CI/CD**: Post-deployment to production
 - **On-Call**: Run if investigating production issues
-

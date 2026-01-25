@@ -51,7 +51,7 @@ strategy:
 #### 2. **Modern Dependencies**
 All major dependencies support Python 3.11:
 - ✅ **sqlalchemy 2.x**: Full support
-- ✅ **fastapi**: Full support  
+- ✅ **fastapi**: Full support
 - ✅ **spacy 3.7+**: Full support
 - ✅ **torch 2.1+**: Full support
 - ✅ **transformers**: Full support
@@ -70,7 +70,7 @@ All major dependencies support Python 3.11:
 #### 1. **Development Environment Setup**
 - Need to recreate virtual environment
 - All developers need Python 3.11 installed
-- **Mitigation**: 
+- **Mitigation**:
   - Document in README
   - Update `.python-version` file
   - Keep 3.10 working temporarily
@@ -78,7 +78,7 @@ All major dependencies support Python 3.11:
 #### 2. **Potential Edge Cases**
 - Some C extensions might behave slightly differently
 - Rare: Unicode handling edge cases
-- **Mitigation**: 
+- **Mitigation**:
   - Run full test suite (you have 837 tests)
   - Check coverage (currently 82.98%)
   - Test critical paths manually
@@ -87,7 +87,7 @@ All major dependencies support Python 3.11:
 - Production environment needs Python 3.11
 - Docker images need updating
 - System packages might need rebuilding
-- **Mitigation**: 
+- **Mitigation**:
   - Update Dockerfile if used
   - Test in staging environment
   - Plan deployment window

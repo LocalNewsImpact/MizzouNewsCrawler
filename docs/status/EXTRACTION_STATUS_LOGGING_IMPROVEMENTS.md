@@ -1,6 +1,6 @@
 # Extraction Status Logging Improvements
 
-**Date:** October 19, 2025  
+**Date:** October 19, 2025
 **Branch:** feature/gcp-kubernetes-deployment
 
 ## Overview
@@ -25,7 +25,7 @@ Enhanced the extraction command logging to provide better visibility into articl
 ```python
 def _get_status_counts(args, session):
     """Get counts of candidate links by status for the current dataset/source.
-    
+
     Returns:
         dict mapping status -> count (e.g., {'article': 207, 'extracted': 4445, ...})
     """
@@ -87,7 +87,7 @@ The `_get_status_counts()` function:
    ```bash
    # Run extraction and verify status output
    python -m src.cli.main extract --dataset <uuid> --batches 1
-   
+
    # Expected output:
    # ✓ Batch 1 complete: X articles extracted (Y remaining with status='article')
    #   📊 Status breakdown: article=Y, extracted=Z, wire=W, ...

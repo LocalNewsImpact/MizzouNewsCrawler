@@ -1,9 +1,9 @@
 # Merge to Feature Branch Complete
 
-**Date:** October 10, 2025  
-**Time:** 19:59 UTC  
-**Source Branch:** copilot/investigate-fix-bot-blocking-issues  
-**Target Branch:** feature/gcp-kubernetes-deployment  
+**Date:** October 10, 2025
+**Time:** 19:59 UTC
+**Source Branch:** copilot/investigate-fix-bot-blocking-issues
+**Target Branch:** feature/gcp-kubernetes-deployment
 **Merge Commit:** 8873f59
 
 ---
@@ -56,7 +56,7 @@ Successfully merged all bot blocking fixes and pipeline improvements into the `f
 ## Critical Fixes Included
 
 ### 1. Selenium Fallback Fix (Commit d868b99)
-**Problem:** Selenium blocked by rate limit check after CAPTCHA detection  
+**Problem:** Selenium blocked by rate limit check after CAPTCHA detection
 **Impact:** 0% extraction success rate, Selenium never running
 
 **Fix:**
@@ -68,7 +68,7 @@ Successfully merged all bot blocking fixes and pipeline improvements into the `f
 **Result:** Selenium attempting extractions (was 0 attempts)
 
 ### 2. Entity Extraction Sentinel Fix (Commit df12220)
-**Problem:** Articles with 0 entities infinitely reprocessed  
+**Problem:** Articles with 0 entities infinitely reprocessed
 **Impact:** 1,815 articles stuck, same 50 reprocessed every cycle
 
 **Fix:**
@@ -80,7 +80,7 @@ Successfully merged all bot blocking fixes and pipeline improvements into the `f
 **Result:** Queue decreasing (1,815 → ~1,600), 812 entities extracted
 
 ### 3. Standalone Cleaning Command (Commits c933832, b5166f8)
-**Problem:** 1,439 articles stuck at "extracted" status  
+**Problem:** 1,439 articles stuck at "extracted" status
 **Impact:** Pipeline stalled since October 2, 2025
 
 **Root Cause:** Cleaning only ran during extraction for successfully extracted articles. With 0 successful extractions, no cleaning happened.
@@ -96,7 +96,7 @@ Successfully merged all bot blocking fixes and pipeline improvements into the `f
 **Result:** Backlog can now progress independently of extraction
 
 ### 4. ML Labeling Status Fix
-**Problem:** ML labeling only looking for "cleaned"/"local" status  
+**Problem:** ML labeling only looking for "cleaned"/"local" status
 **Impact:** 0 articles labeled despite 1,787 pending
 
 **Fix:**
@@ -110,12 +110,12 @@ Successfully merged all bot blocking fixes and pipeline improvements into the `f
 ## Deployment Status
 
 ### Already Deployed (Production)
-✅ **Bot blocking improvements** (5f8ff4b) - Deployed Oct 10, 15:56 UTC  
-✅ **Selenium fallback fix** (d868b99) - Deployed Oct 10, 16:26 UTC  
-✅ **Entity extraction sentinels** (df12220) - Deployed Oct 10, 17:41 UTC  
+✅ **Bot blocking improvements** (5f8ff4b) - Deployed Oct 10, 15:56 UTC
+✅ **Selenium fallback fix** (d868b99) - Deployed Oct 10, 16:26 UTC
+✅ **Entity extraction sentinels** (df12220) - Deployed Oct 10, 17:41 UTC
 
 ### Currently Deploying
-🚧 **Cleaning command fix** (b5166f8) - Building now (Build ID: e1e2ab51)  
+🚧 **Cleaning command fix** (b5166f8) - Building now (Build ID: e1e2ab51)
 ⏳ Expected completion: 20:00 UTC
 
 ### Production Results So Far
@@ -296,7 +296,7 @@ Successfully merged all critical fixes into feature branch. The merge brings:
 
 ---
 
-**Merge Completed By:** GitHub Copilot  
-**Merge Time:** October 10, 2025 19:59 UTC  
-**Verification Status:** Pending cleaning deployment validation  
+**Merge Completed By:** GitHub Copilot
+**Merge Time:** October 10, 2025 19:59 UTC
+**Verification Status:** Pending cleaning deployment validation
 **Next Review:** After cleaning verified (~20:30 UTC)

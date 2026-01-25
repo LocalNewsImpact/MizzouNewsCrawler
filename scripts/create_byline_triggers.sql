@@ -12,10 +12,10 @@ CREATE TRIGGER clean_author_on_insert
     AFTER INSERT ON articles
     WHEN NEW.author IS NOT NULL AND NEW.author != ''
 BEGIN
-    UPDATE articles 
+    UPDATE articles
     SET author = (
         -- Basic cleaning: remove common prefixes and normalize case
-        CASE 
+        CASE
             WHEN LOWER(NEW.author) LIKE 'by %' THEN
                 TRIM(SUBSTR(NEW.author, 4))
             WHEN LOWER(NEW.author) LIKE 'written by %' THEN
@@ -40,10 +40,10 @@ CREATE TRIGGER clean_author_on_update
     AFTER UPDATE OF author ON articles
     WHEN NEW.author IS NOT NULL AND NEW.author != '' AND NEW.author != OLD.author
 BEGIN
-    UPDATE articles 
+    UPDATE articles
     SET author = (
         -- Basic cleaning: remove common prefixes and normalize case
-        CASE 
+        CASE
             WHEN LOWER(NEW.author) LIKE 'by %' THEN
                 TRIM(SUBSTR(NEW.author, 4))
             WHEN LOWER(NEW.author) LIKE 'written by %' THEN

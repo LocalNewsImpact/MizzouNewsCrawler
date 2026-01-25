@@ -153,7 +153,7 @@ Sequential Phase:
 └──────┬──────────┬─────────┬──────────┐
        │          │         │          │
        ▼          ▼         ▼          ▼
-  
+
 Parallel Phase (AFTER sequential):
 ┌────────────────┐  ┌────────────────┐  ┌────────────────┐
 │4a. processor   │  │4b. api         │  │4c. crawler     │

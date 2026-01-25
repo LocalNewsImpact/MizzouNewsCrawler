@@ -44,16 +44,16 @@ Go to: https://console.cloud.google.com/datastream/connection-profiles?project=m
    - **Connection profile name**: `cloudsql-postgres-source`
    - **Connection profile ID**: `cloudsql-postgres-source`
    - **Region**: `us-central1`
-   
+
 4. **Connection method**: Select **IP allowlisting** (since no private IP)
-   
+
 5. **Connectivity details**:
    - **Hostname or IP address**: `34.61.162.107`
    - **Port**: `5432`
    - **Username**: `datastream_user`
    - **Password**: (retrieve from Kubernetes secret or set new one)
    - **Database**: `mizzou_prod`
-   
+
 6. Click **CONTINUE**
 7. Click **CREATE**
 
@@ -65,7 +65,7 @@ Go to: https://console.cloud.google.com/datastream/connection-profiles?project=m
    - **Connection profile name**: `bigquery-mizzou-analytics`
    - **Connection profile ID**: `bigquery-mizzou-analytics`
    - **Region**: `us-central1`
-   
+
 4. Click **CREATE**
 
 ### Step 5: Create Datastream Stream
@@ -150,11 +150,11 @@ gcloud sql users set-password datastream_user \
 
 ## Benefits After Migration
 
-✅ **Real-time replication** - Changes appear in BigQuery within seconds  
-✅ **All tables synced** - No more batch size limits or partial exports  
-✅ **Automatic schema changes** - No code updates needed  
-✅ **Zero maintenance** - Managed service with built-in monitoring  
-✅ **No 413 errors** - Handles data of any size  
+✅ **Real-time replication** - Changes appear in BigQuery within seconds
+✅ **All tables synced** - No more batch size limits or partial exports
+✅ **Automatic schema changes** - No code updates needed
+✅ **Zero maintenance** - Managed service with built-in monitoring
+✅ **No 413 errors** - Handles data of any size
 
 ## Estimated Cost
 

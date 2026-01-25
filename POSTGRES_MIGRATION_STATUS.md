@@ -1,7 +1,7 @@
 # PostgreSQL Migration Status Report
 
-**Date**: 2025-11-03  
-**Branch**: `copilot/continue-postgres-migration`  
+**Date**: 2025-11-03
+**Branch**: `copilot/continue-postgres-migration`
 **Goal**: Migrate all testing and production code from SQLite to PostgreSQL exclusively
 
 ## Executive Summary

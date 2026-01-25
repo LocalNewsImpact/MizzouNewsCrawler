@@ -362,8 +362,7 @@ def _create_sqlite_tables(store: TelemetryStore) -> None:
     """Provision minimal telemetry tables for SQLite-backed tests."""
 
     with store.connection() as conn:
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE extraction_telemetry_v2 (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 operation_id TEXT,
@@ -399,11 +398,9 @@ def _create_sqlite_tables(store: TelemetryStore) -> None:
                 error_type TEXT,
                 created_at TIMESTAMP
             )
-            """
-        )
+            """)
 
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE http_error_summary (
                 host TEXT NOT NULL,
                 status_code INTEGER NOT NULL,
@@ -413,11 +410,9 @@ def _create_sqlite_tables(store: TelemetryStore) -> None:
                 last_seen TIMESTAMP,
                 PRIMARY KEY (host, status_code)
             )
-            """
-        )
+            """)
 
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE content_type_detection_telemetry (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 article_id TEXT,
@@ -436,17 +431,14 @@ def _create_sqlite_tables(store: TelemetryStore) -> None:
                 detected_at TIMESTAMP,
                 created_at TIMESTAMP
             )
-            """
-        )
+            """)
 
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE sources (
                 host TEXT PRIMARY KEY,
                 bot_protection_type TEXT
             )
-            """
-        )
+            """)
         conn.commit()
 
 

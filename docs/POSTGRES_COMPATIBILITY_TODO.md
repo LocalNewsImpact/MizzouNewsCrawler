@@ -41,13 +41,13 @@
   ```python
   # BROKEN on PostgreSQL:
   total_sources = result.scalar() or 0  # Returns "42" not 42
-  
+
   # FIX:
   total_sources = _to_int(result.scalar(), 0)
   ```
 
 - `src/cli/commands/discovery_status.py`
-- `src/cli/commands/extraction.py` 
+- `src/cli/commands/extraction.py`
 - `src/cli/commands/background_processes.py`
 - `src/services/url_verification.py`
 - `src/services/url_verification_service.py`

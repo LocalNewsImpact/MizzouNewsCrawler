@@ -66,7 +66,7 @@ def get_articles_to_reclean(db_path, limit=None):
         FROM articles a
         JOIN byline_cleaning_telemetry bct ON a.id = bct.article_id
         LEFT JOIN candidate_links cl ON a.candidate_link_id = cl.id
-        WHERE bct.raw_byline IS NOT NULL 
+        WHERE bct.raw_byline IS NOT NULL
         AND bct.raw_byline != ''
         AND a.author IS NOT NULL
         AND a.author != ''
@@ -148,8 +148,8 @@ def update_article_author(db_path, article_id, new_author_json, dry_run=False):
     with sqlite3.connect(db_path) as conn:
         conn.execute(
             """
-            UPDATE articles 
-            SET author = ?, processed_at = CURRENT_TIMESTAMP 
+            UPDATE articles
+            SET author = ?, processed_at = CURRENT_TIMESTAMP
             WHERE id = ?
         """,
             (new_author_json, article_id),

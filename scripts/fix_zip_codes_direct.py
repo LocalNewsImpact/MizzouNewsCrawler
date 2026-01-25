@@ -95,11 +95,11 @@ def main():
         logger.info("ZIP code samples after fix:")
         cursor.execute(
             """
-            SELECT 
+            SELECT
                 canonical_name,
                 json_extract(metadata, '$.zip') as zip_code
-            FROM sources 
-            WHERE json_extract(metadata, '$.zip') IS NOT NULL 
+            FROM sources
+            WHERE json_extract(metadata, '$.zip') IS NOT NULL
                 AND json_extract(metadata, '$.zip') != ''
             LIMIT 5
         """

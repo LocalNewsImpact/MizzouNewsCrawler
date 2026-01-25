@@ -18,8 +18,7 @@ from src.utils.content_cleaner_balanced import BalancedBoundaryContentCleaner
 
 logger = logging.getLogger(__name__)
 
-ARTICLE_UPDATE_SQL = text(
-    """
+ARTICLE_UPDATE_SQL = text("""
     UPDATE articles
     SET content = :content,
         text = :text,
@@ -27,8 +26,7 @@ ARTICLE_UPDATE_SQL = text(
         text_excerpt = :excerpt,
         status = :status
     WHERE id = :id
-"""
-)
+""")
 
 
 def add_cleaning_parser(subparsers) -> argparse.ArgumentParser:
@@ -82,8 +80,7 @@ def handle_cleaning_command(args) -> int:
             status_placeholders = ", ".join(
                 [f":status{i}" for i in range(len(statuses))]
             )
-            query = text(
-                f"""
+            query = text(f"""
                 SELECT a.id, a.content, a.status, cl.url
                 FROM articles a
                 JOIN candidate_links cl ON a.candidate_link_id = cl.id
@@ -91,8 +88,7 @@ def handle_cleaning_command(args) -> int:
                 AND a.content IS NOT NULL
                 AND a.content != ''
                 LIMIT :limit
-            """
-            )
+            """)
 
             params = {"limit": limit}
             for i, status in enumerate(statuses):

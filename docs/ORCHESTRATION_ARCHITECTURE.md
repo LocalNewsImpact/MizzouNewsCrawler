@@ -321,7 +321,7 @@ JOIN articles a ON cl.id = a.candidate_link_id
 GROUP BY d.slug;
 
 -- Check pipeline status by dataset
-SELECT 
+SELECT
   d.slug,
   COUNT(CASE WHEN cl.status = 'discovered' THEN 1 END) as discovered,
   COUNT(CASE WHEN cl.status = 'article' THEN 1 END) as verified,

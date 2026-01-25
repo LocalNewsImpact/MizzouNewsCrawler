@@ -58,7 +58,7 @@ class GazetteerMonitor:
             result = conn.execute(
                 text(
                     """
-                SELECT COUNT(DISTINCT source_id) as count 
+                SELECT COUNT(DISTINCT source_id) as count
                 FROM gazetteer
             """
                 )
@@ -332,13 +332,13 @@ def main():
 Examples:
     # Check current status
     python scripts/gazetteer_monitor.py --check
-    
+
     # Backfill up to 10 sources
     python scripts/gazetteer_monitor.py --backfill --limit 10
-    
+
     # Dry run to see what would be processed
     python scripts/gazetteer_monitor.py --backfill --dry-run
-    
+
     # Continuous monitoring (check every 30 minutes)
     python scripts/gazetteer_monitor.py --monitor --interval 1800
         """,

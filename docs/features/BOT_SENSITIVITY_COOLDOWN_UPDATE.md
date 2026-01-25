@@ -7,7 +7,7 @@ Updated the bot sensitivity system to use **adaptive cooldowns** that scale base
 ## Previous Behavior (Too Aggressive)
 
 - HTTP 429: 12 hour cooldown
-- HTTP 403: 24 hour cooldown  
+- HTTP 403: 24 hour cooldown
 - CAPTCHA: 48 hour cooldown
 
 **Problem:** These long cooldowns prevented quick adjustments for low-sensitivity publishers, making the system too slow to respond to changing conditions.
@@ -43,7 +43,7 @@ The base cooldown is multiplied based on current sensitivity:
 
 4. **Event-Specific**: Different event types have different base cooldowns:
    - Quick events (timeouts, 429s): 30min base
-   - Moderate events (403s): 1hr base  
+   - Moderate events (403s): 1hr base
    - Severe events (CAPTCHA): 2hr base
 
 ## Example Scenarios

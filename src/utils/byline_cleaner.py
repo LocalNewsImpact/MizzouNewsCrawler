@@ -1894,14 +1894,12 @@ class BylineCleaner:
             cursor = conn.cursor()
 
             # Get clean author names from the database
-            cursor.execute(
-                """
+            cursor.execute("""
                 SELECT clean_authors FROM articles
                 WHERE clean_authors IS NOT NULL
                 AND clean_authors != '[]'
                 AND clean_authors != ''
-            """
-            )
+            """)
 
             name_patterns = {}
             for (clean_authors_json,) in cursor.fetchall():
@@ -2377,14 +2375,12 @@ class BylineCleaner:
             # Get all canonical names from sources
             result = safe_session_execute(
                 session,
-                text(
-                    """
+                text("""
                 SELECT DISTINCT canonical_name
                 FROM sources
                 WHERE canonical_name IS NOT NULL
                 AND canonical_name != ''
-            """
-                ),
+            """),
             )
 
             for row in result:
@@ -2471,8 +2467,7 @@ class BylineCleaner:
             from sqlalchemy import text
 
             # Query gazetteer for organization-type entities
-            query = text(
-                """
+            query = text("""
                 SELECT DISTINCT name FROM gazetteer
                 WHERE category IN (
                     'schools',
@@ -2481,8 +2476,7 @@ class BylineCleaner:
                     'businesses'
                 )
                 AND name IS NOT NULL
-                """
-            )
+                """)
 
             result = safe_session_execute(db_manager.session, query)
             for row in result:

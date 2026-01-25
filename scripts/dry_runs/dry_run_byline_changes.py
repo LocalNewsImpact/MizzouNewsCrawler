@@ -29,7 +29,7 @@ def analyze_byline_changes():
 
     # Get all articles with telemetry data
     cursor.execute("""
-        SELECT a.id, a.author, bct.raw_byline, bct.source_name, 
+        SELECT a.id, a.author, bct.raw_byline, bct.source_name,
                bct.final_authors_json, bct.cleaning_method
         FROM articles a
         INNER JOIN byline_cleaning_telemetry bct ON a.id = bct.article_id

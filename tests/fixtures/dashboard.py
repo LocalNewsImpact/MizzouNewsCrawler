@@ -432,15 +432,13 @@ def _seed_dashboard_tables(db_path: Path) -> None:
 
 
 def _create_dashboard_tables(conn: sqlite3.Connection) -> None:
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS snapshots (
             id TEXT PRIMARY KEY,
             host TEXT NOT NULL,
             reviewed_at TEXT
         )
-        """
-    )
+        """)
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS candidates (
@@ -457,8 +455,7 @@ def _create_dashboard_tables(conn: sqlite3.Connection) -> None:
         )
         """,
     )
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS dedupe_audit (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             article_uid TEXT,
@@ -468,8 +465,7 @@ def _create_dashboard_tables(conn: sqlite3.Connection) -> None:
             dedupe_flag INTEGER,
             created_at TEXT
         )
-        """
-    )
+        """)
     conn.commit()
 
 

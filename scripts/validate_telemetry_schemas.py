@@ -262,7 +262,7 @@ class SchemaValidator:
                     full_match_start = match.start()
                     # Look ahead for ON CONFLICT or similar clauses
                     remaining = content[match.end():match.end() + 500]
-                    
+
                     # Count total placeholders in the entire statement
                     # including VALUES and any ON CONFLICT clauses
                     statement_end = match.end()
@@ -276,9 +276,9 @@ class SchemaValidator:
                                     continue
                             statement_end = match.end() + i
                             break
-                    
+
                     full_statement = content[full_match_start:statement_end]
-                    
+
                     # Count placeholders - both ? and :name style
                     question_mark_count = full_statement.count("?")
                     # Named parameters: :param_name

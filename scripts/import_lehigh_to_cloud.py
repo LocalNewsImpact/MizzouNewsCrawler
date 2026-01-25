@@ -19,9 +19,9 @@ from src.models import Dataset, Source, CandidateLink
 
 def import_lehigh_valley():
     """Import Lehigh Valley dataset and URLs to Cloud SQL."""
-    
+
     db = DatabaseManager()
-    
+
     # Lehigh Valley data
     dataset_data = {
         'id': '3c4db976-e30f-4ba5-8b48-0b1c99902003',
@@ -29,7 +29,7 @@ def import_lehigh_valley():
         'name': 'Penn State Lehigh Valley News',
         'description': 'News sources from Lehigh Valley, Pennsylvania region'
     }
-    
+
     source_data = {
         'id': 'b9033f21-1110-4be7-aa93-15ff48bce725',
         'name': 'Lehigh Valley News',
@@ -40,16 +40,16 @@ def import_lehigh_valley():
         'zip_code': '18015',
         'county': 'Northampton'
     }
-    
+
     # Read URLs from file (created from Excel export)
     urls_file = project_root / 'data' / 'lehigh_urls.txt'
-    
+
     with db.get_session() as session:
         print("🔍 Checking if dataset already exists...")
-        
+
         # Check if dataset exists
         existing_dataset = session.query(Dataset).filter_by(id=dataset_data['id']).first()
-        
+
         if existing_dataset:
             print(f"✅ Dataset '{dataset_data['name']}' already exists")
             dataset = existing_dataset
@@ -65,10 +65,10 @@ def import_lehigh_valley():
             session.add(dataset)
             session.flush()
             print(f"✅ Dataset created: {dataset.slug}")
-        
+
         # Check if source exists
         existing_source = session.query(Source).filter_by(id=source_data['id']).first()
-        
+
         if existing_source:
             print(f"✅ Source '{source_data['name']}' already exists")
             source = existing_source
@@ -88,7 +88,7 @@ def import_lehigh_valley():
             session.add(source)
             session.flush()
             print(f"✅ Source created: {source.name}")
-        
+
         # Import URLs
         if not urls_file.exists():
             print(f"❌ URLs file not found: {urls_file}")
@@ -102,18 +102,18 @@ def import_lehigh_valley():
             print("      with open('data/lehigh_urls.txt', 'w') as f:")
             print("        for row in urls: f.write(row[0] + '\\\\n')\"")
             return
-        
+
         print(f"\n📄 Reading URLs from {urls_file}")
         with open(urls_file) as f:
             urls = [line.strip() for line in f if line.strip()]
-        
+
         print(f"📥 Found {len(urls)} URLs to import")
-        
+
         # Check for existing URLs
         existing_count = session.query(CandidateLink).filter(
             CandidateLink.dataset_id == dataset.id
         ).count()
-        
+
         if existing_count > 0:
             print(f"⚠️  Found {existing_count} existing URLs for this dataset")
             response = input("Delete existing URLs and re-import? (yes/no): ")
@@ -126,20 +126,20 @@ def import_lehigh_valley():
             else:
                 print("Skipping import")
                 return
-        
+
         # Import URLs
         print("\n💾 Importing URLs...")
         imported = 0
         skipped = 0
-        
+
         for i, url in enumerate(urls, 1):
             # Check if URL already exists
             existing = session.query(CandidateLink).filter_by(url=url).first()
-            
+
             if existing:
                 skipped += 1
                 continue
-            
+
             # Create candidate link
             candidate = CandidateLink(
                 id=str(uuid.uuid4()),
@@ -151,25 +151,25 @@ def import_lehigh_valley():
             )
             session.add(candidate)
             imported += 1
-            
+
             # Commit in batches
             if i % 100 == 0:
                 session.commit()
                 print(f"  ✓ Imported {imported}/{len(urls)} URLs...")
-        
+
         session.commit()
-        
+
         print(f"\n✅ Import complete!")
         print(f"   Imported: {imported}")
         print(f"   Skipped (duplicates): {skipped}")
         print(f"   Total: {len(urls)}")
-        
+
         # Verify
         total_count = session.query(CandidateLink).filter(
             CandidateLink.dataset_id == dataset.id,
             CandidateLink.status == 'article'
         ).count()
-        
+
         print(f"\n🔍 Verification: {total_count} URLs ready for extraction")
 
 
@@ -178,9 +178,9 @@ if __name__ == '__main__':
     print("Lehigh Valley Cloud SQL Import")
     print("=" * 60)
     print()
-    
+
     import_lehigh_valley()
-    
+
     print("\n" + "=" * 60)
     print("Done!")
     print("=" * 60)

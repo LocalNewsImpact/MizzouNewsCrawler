@@ -136,7 +136,7 @@ Changed file: src/utils/byline_cleaner.py
 
 Detection:
   ✅ Matches CRAWLER pattern: src/utils/
-  
+
 Build plan:
   ✅ migrator (always on main)
   ✅ crawler (typo fix affects extraction)
@@ -153,7 +153,7 @@ Changed files:
 
 Detection:
   ✅ Matches PROCESSOR patterns: src/ml/, src/services/classification_service.py, src/cli/commands/analysis.py, requirements-processor.txt
-  
+
 Build plan:
   ✅ migrator (always on main)
   ✅ processor (all changed files match processor)
@@ -167,7 +167,7 @@ Changed file: requirements-ml.txt
 Detection:
   ✅ Matches ML-BASE: requirements-ml.txt
   ✅ Processor depends on ML-BASE
-  
+
 Build plan:
   ✅ ml-base (PyTorch upgrade)
   ✅ migrator (always on main)
@@ -181,12 +181,12 @@ Changed file: alembic/versions/001_add_new_table.py
 
 Detection:
   ✅ Matches PROCESSOR: alembic/versions/
-  
+
 Build plan:
   ✅ migrator (always on main)
   ✅ processor (contains migration script)
   ⏭️  base, ml-base, api, crawler (skipped)
-  
+
 Result: Only processor and migrator rebuild (migrations run via processor lifecycle)
 ```
 
@@ -199,7 +199,7 @@ Changed files:
 Detection:
   ✅ Matches PROCESSOR: alembic/versions/
   ✅ Matches API: backend/app/main.py
-  
+
 Build plan:
   ✅ migrator (always on main)
   ✅ processor (migration script)
@@ -214,7 +214,7 @@ Changed file: requirements-base.txt (upgrade to major Python version)
 Detection:
   ✅ Matches BASE: requirements-base.txt
   ✅ All services depend on BASE
-  
+
 Build plan:
   ✅ base (core dependency)
   ✅ ml-base (depends on base)
@@ -222,7 +222,7 @@ Build plan:
   ✅ processor (depends on base and ml-base)
   ✅ api (depends on base)
   ✅ crawler (depends on base)
-  
+
 Result: Full rebuild (all 6 services)
 ```
 
@@ -236,7 +236,7 @@ Changed file: docs/README.md
 
 Detection:
   ❌ No service patterns match
-  
+
 Build plan:
   ✅ migrator (always on main - mandatory)
   ⏭️  base, ml-base, processor, api, crawler (skipped)
@@ -248,11 +248,11 @@ Changed file: k8s/deployment.yaml (K8s config)
 
 Detection:
   ❌ K8s configs don't affect service code
-  
+
 Build plan:
   ✅ migrator (always on main)
   ⏭️  base, ml-base, processor, api, crawler (skipped)
-  
+
 Note: To deploy config changes without rebuilding, use manual K8s apply
 ```
 
@@ -267,7 +267,7 @@ Detection:
   ✅ Matches CRAWLER: src/crawler/
   ✅ Matches PROCESSOR: src/services/classification_service.py
   ✅ Matches API: backend/app/main.py
-  
+
 Build plan:
   ✅ migrator (always on main)
   ✅ processor (classification service changed)
@@ -353,10 +353,9 @@ If you think the wrong services are being rebuilt:
    ```bash
    # Get files that would change
    git diff --name-only HEAD~1 HEAD
-   
+
    # Test pattern matching manually
    echo "src/crawler/__init__.py" | grep -qE '(Dockerfile\.crawler|requirements-crawler\.txt|src/crawler/)' && echo "MATCHES" || echo "NO MATCH"
    ```
 
 3. **Review patterns** - Open `.github/workflows/selective-service-build.yml` and verify regex patterns
-

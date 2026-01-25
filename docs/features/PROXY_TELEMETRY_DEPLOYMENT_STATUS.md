@@ -1,6 +1,6 @@
 # Proxy Telemetry System - Deployment Status & Action Items
 
-**Date:** October 10, 2025  
+**Date:** October 10, 2025
 **Status:** ✅ **DEPLOYED TO PRODUCTION**
 
 ## Deployment Summary
@@ -134,7 +134,7 @@ curl 'http://localhost:8000/telemetry/proxy/recent-failures?hours=24&limit=50'
 
 # Option 2: Query database directly (if psql is available)
 gcloud sql connect mizzou-db-prod --user=postgres --database=news_crawler
-SELECT 
+SELECT
   COUNT(*) as total,
   SUM(CASE WHEN proxy_used THEN 1 ELSE 0 END) as with_proxy,
   SUM(CASE WHEN proxy_status = 'failed' THEN 1 ELSE 0 END) as proxy_failed,
@@ -172,7 +172,7 @@ kubectl logs -n production -l app=mizzou-processor --tail=200 | grep -E "(proxy_
 **Analysis queries:**
 ```sql
 -- Get response HTML patterns for 403s
-SELECT 
+SELECT
   host,
   COUNT(*) as blocks,
   LEFT(error_message, 100) as error_preview
@@ -183,7 +183,7 @@ GROUP BY host, LEFT(error_message, 100)
 ORDER BY blocks DESC;
 
 -- Check if proxy helps or hurts
-SELECT 
+SELECT
   host,
   proxy_used,
   COUNT(*) as attempts,
@@ -285,7 +285,7 @@ ORDER BY host, proxy_used;
 
 1. **Blocking rate by domain (last 7 days)**
    ```sql
-   SELECT 
+   SELECT
      host,
      COUNT(*) as total_attempts,
      SUM(CASE WHEN http_status_code = 403 THEN 1 ELSE 0 END) as blocked_403,
@@ -303,7 +303,7 @@ ORDER BY host, proxy_used;
 
 2. **Blocking timeline (when did it start?)**
    ```sql
-   SELECT 
+   SELECT
      DATE(created_at) as date,
      COUNT(*) as attempts,
      SUM(CASE WHEN http_status_code = 403 THEN 1 ELSE 0 END) as blocked,
@@ -342,7 +342,7 @@ ORDER BY host, proxy_used;
    # Check current resource usage
    kubectl top nodes
    kubectl top pods -n production
-   
+
    # Identify temporary scale-down candidates
    kubectl get deployments -n production
    kubectl get cronjobs -n production
@@ -352,7 +352,7 @@ ORDER BY host, proxy_used;
    ```bash
    # Scale down non-critical services
    kubectl scale deployment mizzou-cli -n production --replicas=0
-   
+
    # Suspend cronjobs
    kubectl patch cronjob mizzou-crawler -n production -p '{"spec":{"suspend":true}}'
    ```
@@ -361,7 +361,7 @@ ORDER BY host, proxy_used;
    ```bash
    # Trigger build
    gcloud builds triggers run build-processor-manual --branch=<branch>
-   
+
    # Promote release
    gcloud deploy releases promote --release=<release> --to-target=production
    ```
@@ -370,7 +370,7 @@ ORDER BY host, proxy_used;
    ```bash
    # Resume cronjobs
    kubectl patch cronjob mizzou-crawler -n production -p '{"spec":{"suspend":false}}'
-   
+
    # Restore CLI if needed
    kubectl scale deployment mizzou-cli -n production --replicas=1
    ```
@@ -457,6 +457,6 @@ gcloud deploy releases promote --release=processor-f2ba394 --to-target=productio
 
 ---
 
-**Document Version:** 1.0  
-**Last Updated:** October 10, 2025  
+**Document Version:** 1.0
+**Last Updated:** October 10, 2025
 **Next Review:** After bot blocking analysis (within 48 hours)

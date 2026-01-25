@@ -40,12 +40,12 @@ def run_migration():
                     result = conn.execute(
                         text(
                             """
-                            SELECT column_name 
-                            FROM information_schema.columns 
-                            WHERE table_name = 'sources' 
+                            SELECT column_name
+                            FROM information_schema.columns
+                            WHERE table_name = 'sources'
                             AND column_name IN (
                                 'discovered_sections',
-                                'section_discovery_enabled', 
+                                'section_discovery_enabled',
                                 'section_last_updated'
                             )
                             """
@@ -93,8 +93,8 @@ def run_migration():
                         conn.execute(
                             text(
                                 """
-                                ALTER TABLE sources 
-                                ADD COLUMN section_discovery_enabled BOOLEAN 
+                                ALTER TABLE sources
+                                ADD COLUMN section_discovery_enabled BOOLEAN
                                 NOT NULL DEFAULT TRUE
                                 """
                             )
@@ -103,8 +103,8 @@ def run_migration():
                         conn.execute(
                             text(
                                 """
-                                ALTER TABLE sources 
-                                ADD COLUMN section_discovery_enabled INTEGER 
+                                ALTER TABLE sources
+                                ADD COLUMN section_discovery_enabled INTEGER
                                 NOT NULL DEFAULT 1
                                 """
                             )

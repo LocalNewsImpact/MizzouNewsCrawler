@@ -1311,8 +1311,7 @@ class ComprehensiveExtractionTelemetry:
     def get_publisher_stats(self) -> list[dict[str, Any]]:
         """Get per-publisher performance statistics."""
         with self._store.connection() as conn:
-            cursor = conn.execute(
-                """
+            cursor = conn.execute("""
                 SELECT
                     publisher,
                     host,
@@ -1323,8 +1322,7 @@ class ComprehensiveExtractionTelemetry:
                 FROM extraction_telemetry_v2
                 GROUP BY publisher, host, successful_method
                 ORDER BY total_attempts DESC
-                """
-            )
+                """)
             try:
                 columns = [col[0] for col in cursor.description]
                 return [

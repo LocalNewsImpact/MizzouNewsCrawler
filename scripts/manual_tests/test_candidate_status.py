@@ -38,9 +38,9 @@ def test_candidate_status_update():
     with db.engine.connect() as conn:
         conn.execute(
             text(
-                """UPDATE candidate_links 
-               SET status = 'extracted', 
-                   processed_at = :processed_at, 
+                """UPDATE candidate_links
+               SET status = 'extracted',
+                   processed_at = :processed_at,
                    publish_date = '2024-01-15'
                WHERE id = :candidate_id"""
             ),

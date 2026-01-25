@@ -104,12 +104,12 @@ update_argo_workflow() {
     local service=$1
     local new_sha=$2
     local argo_file="k8s/argo/base-pipeline-workflow.yaml"
-    
+
     if [[ ! -f "$argo_file" ]]; then
         echo "⚠️  Argo workflow file not found: $argo_file"
         return
     fi
-    
+
     # Update image tags in Argo workflow (matches pattern: image:.../<service>:<sha>)
     # Use portable sed syntax (works on both macOS and Linux)
     if [[ "$OSTYPE" == "darwin"* ]]; then

@@ -329,8 +329,8 @@ The API operates with two data backends:
 
 ---
 
-**Issue:** #32  
-**PR Branch:** `copilot/fix-96cfcfa5-576d-4fee-9d02-6322f77c8f61`  
-**Target Branch:** `feature/gcp-kubernetes-deployment`  
-**Status:** ✅ Ready to merge  
+**Issue:** #32
+**PR Branch:** `copilot/fix-96cfcfa5-576d-4fee-9d02-6322f77c8f61`
+**Target Branch:** `feature/gcp-kubernetes-deployment`
+**Status:** ✅ Ready to merge
 **Deployment:** Can deploy immediately after merge

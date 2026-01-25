@@ -1,6 +1,6 @@
 # Telemetry Type Validation
 
-**Date:** October 19, 2025  
+**Date:** October 19, 2025
 **Issue:** Multiple telemetry SQL errors due to type mismatches
 
 ## Database Schema for extraction_telemetry_v2

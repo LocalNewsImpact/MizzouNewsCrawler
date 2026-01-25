@@ -37,13 +37,13 @@ jobs:
           # Capture commit range for logging
           BEFORE="${{ github.event.before }}"
           AFTER="${{ github.event.after }}"
-          
+
           echo "🔍 Change Detection Starting..."
           echo "Event: ${{ github.event_name }}"
           echo "Before: $BEFORE"
           echo "After: $AFTER"
           echo ""
-          
+
           # Get list of changed files since last commit (for push) or since workflow dispatch (manual override)
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             # Manual dispatch - use provided input or default to auto
@@ -63,7 +63,7 @@ jobs:
           # Get the commit range for change detection
           # Use multiple methods to ensure we catch all changes (works with squash merges, regular commits, etc.)
           CHANGED_FILES=""
-          
+
           if [ "${{ github.event_name }}" == "push" ]; then
             # For push events, try multiple methods to detect changes
             if [ "$BEFORE" == "0000000000000000000000000000000000000000" ]; then
@@ -73,13 +73,13 @@ jobs:
             else
               # Method 1: Standard diff-tree (works for regular commits)
               METHOD1=$(git diff-tree --no-commit-id --name-only -r $BEFORE $AFTER 2>/dev/null || true)
-              
+
               # Method 2: Direct diff (works for squash merges and edge cases)
               METHOD2=$(git diff --name-only $BEFORE...$AFTER 2>/dev/null || true)
-              
+
               # Combine results (remove duplicates)
               CHANGED_FILES=$(printf "%s\n%s" "$METHOD1" "$METHOD2" | grep -v '^$' | sort -u)
-              
+
               # If both methods failed, compare with previous commit
               if [ -z "$CHANGED_FILES" ]; then
                 echo "⚠️  Primary methods failed, using HEAD~1 fallback"
@@ -150,7 +150,7 @@ jobs:
         id: services
         run: |
           SERVICES=""
-          
+
           [ "${{ steps.detect.outputs.base }}" == "true" ] && SERVICES="${SERVICES}base "
           [ "${{ steps.detect.outputs.ml_base }}" == "true" ] && SERVICES="${SERVICES}ml-base "
           [ "${{ steps.detect.outputs.processor }}" == "true" ] && SERVICES="${SERVICES}processor "
@@ -397,7 +397,7 @@ jobs:
     needs: [detect-changes, build-base, build-ml-base, build-processor, build-api, build-crawler]
     if: needs.detect-changes.outputs.any_changed == 'true'
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
 
@@ -419,15 +419,15 @@ jobs:
         run: |
           echo "⏳ Waiting for Cloud Build jobs to complete..."
           echo ""
-          
+
           # Store build IDs from submitted jobs
           SERVICES="${{ needs.detect-changes.outputs.services_to_build }}"
-          
+
           if [ "$SERVICES" == "none" ]; then
             echo "ℹ️  No service rebuilds - skipping build wait"
             exit 0
           fi
-          
+
           declare -a BUILD_IDS=()
           declare -a BUILD_NAMES=()
 
@@ -462,10 +462,10 @@ jobs:
           MAX_WAIT=3600  # 60 minutes timeout
           ELAPSED=0
           POLL_INTERVAL=30
-          
+
           while [ $ELAPSED -lt $MAX_WAIT ]; do
             STILL_RUNNING=0
-            
+
             for idx in "${!BUILD_IDS[@]}"; do
               BUILD_ID=${BUILD_IDS[$idx]}
               SERVICE=${BUILD_NAMES[$idx]}
@@ -475,7 +475,7 @@ jobs:
               case $STATUS in
                 QUEUED|WORKING)
                   echo "⏳ [$SERVICE] Build $BUILD_ID still running (status: $STATUS)"
-                  ((STILL_RUNNING++))
+                  STILL_RUNNING=$((STILL_RUNNING + 1))
                   ;;
                 SUCCESS)
                   echo "✅ [$SERVICE] Build $BUILD_ID completed successfully"
@@ -501,18 +501,18 @@ jobs:
                   ;;
               esac
             done
-            
+
             if [ $STILL_RUNNING -eq 0 ]; then
               echo ""
               echo "✅ All tracked builds completed!"
               exit 0
             fi
-            
+
             echo "  Waiting $POLL_INTERVAL seconds before next check... ($ELAPSED/$MAX_WAIT seconds elapsed)"
             sleep $POLL_INTERVAL
-            ((ELAPSED += POLL_INTERVAL))
+            ELAPSED=$((ELAPSED + POLL_INTERVAL))
           done
-          
+
           echo "❌ Timeout waiting for builds (exceeded ${MAX_WAIT}s)"
           exit 1
 
@@ -527,7 +527,7 @@ jobs:
         run: |
           echo "=== Build and Deploy Summary ==="
           echo "Services targeted: ${{ needs.detect-changes.outputs.services_to_build }}"
-          
+
           if [ "${{ needs.detect-changes.outputs.services_to_build }}" == "none" ]; then
             echo "ℹ️  No service rebuilds detected (documentation/config-only changes)"
           else

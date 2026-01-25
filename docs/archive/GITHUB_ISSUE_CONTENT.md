@@ -95,7 +95,7 @@ def test_database_manager(tmp_path, monkeypatch):
     monkeypatch.setenv("USE_CLOUD_SQL_CONNECTOR", "false")
     db_path = tmp_path / "test.db"
     db_url = f"sqlite:///{db_path}"
-    
+
     dbm = DatabaseManager(database_url=db_url)
     yield dbm
     dbm.close()

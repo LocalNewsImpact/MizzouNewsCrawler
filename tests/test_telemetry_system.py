@@ -178,8 +178,7 @@ def create_telemetry_tables(db_path: str) -> None:
     cur = conn.cursor()
 
     # Create extraction_telemetry_v2 table
-    cur.execute(
-        """
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS extraction_telemetry_v2 (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             operation_id TEXT NOT NULL,
@@ -214,8 +213,7 @@ def create_telemetry_tables(db_path: str) -> None:
             proxy_status INTEGER,
             proxy_error TEXT
         )
-    """
-    )
+    """)
 
     # Create indexes
     cur.execute(
@@ -254,8 +252,7 @@ def create_telemetry_tables(db_path: str) -> None:
     # Create http_error_summary table
     # NOTE: UNIQUE(host, status_code) is required for ON CONFLICT to work.
     # This matches the production schema after migration 805164cd4665.
-    cur.execute(
-        """
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS http_error_summary (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             host TEXT NOT NULL,
@@ -266,8 +263,7 @@ def create_telemetry_tables(db_path: str) -> None:
             last_seen TIMESTAMP NOT NULL,
             UNIQUE(host, status_code)
         )
-    """
-    )
+    """)
 
     # Create indexes
     cur.execute(
@@ -284,8 +280,7 @@ def create_telemetry_tables(db_path: str) -> None:
     )
 
     # Create content_type_detection_telemetry table
-    cur.execute(
-        """
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS content_type_detection_telemetry (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             article_id TEXT NOT NULL,
@@ -302,8 +297,7 @@ def create_telemetry_tables(db_path: str) -> None:
             detected_at TIMESTAMP,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
-    """
-    )
+    """)
 
     # Create indexes
     cur.execute(
@@ -320,8 +314,7 @@ def create_telemetry_tables(db_path: str) -> None:
     )
 
     # Create byline_cleaning_telemetry table
-    cur.execute(
-        """
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS byline_cleaning_telemetry (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             session_id TEXT NOT NULL,
@@ -335,12 +328,10 @@ def create_telemetry_tables(db_path: str) -> None:
             extracted_names TEXT,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
-    """
-    )
+    """)
 
     # Create content_cleaning_sessions table
-    cur.execute(
-        """
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS content_cleaning_sessions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             session_id TEXT NOT NULL UNIQUE,
@@ -355,8 +346,7 @@ def create_telemetry_tables(db_path: str) -> None:
             removal_percentage REAL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
-    """
-    )
+    """)
 
     conn.commit()
     conn.close()
@@ -427,16 +417,12 @@ class TestComprehensiveExtractionTelemetry:
         telemetry, session = temp_db
 
         # Use PostgreSQL information_schema to check tables
-        result = session.execute(
-            text(
-                """
-            SELECT column_name 
-            FROM information_schema.columns 
+        result = session.execute(text("""
+            SELECT column_name
+            FROM information_schema.columns
             WHERE table_name = 'extraction_telemetry_v2'
             ORDER BY ordinal_position
-        """
-            )
-        )
+        """))
         columns = [row[0] for row in result.fetchall()]
 
         expected_columns = [
@@ -471,16 +457,12 @@ class TestComprehensiveExtractionTelemetry:
             assert col in columns
 
         # Check http_error_summary table exists
-        result = session.execute(
-            text(
-                """
-            SELECT column_name 
-            FROM information_schema.columns 
+        result = session.execute(text("""
+            SELECT column_name
+            FROM information_schema.columns
             WHERE table_name = 'http_error_summary'
             ORDER BY ordinal_position
-        """
-            )
-        )
+        """))
         columns = [row[0] for row in result.fetchall()]
 
         expected_columns = [
@@ -800,9 +782,7 @@ class TestContentExtractorIntegration:
         from sqlalchemy import text
 
         # Test method performance query - filter by our test hosts
-        result = session.execute(
-            text(
-                """
+        result = session.execute(text("""
             SELECT
                 COALESCE(successful_method, 'failed') as method,
                 host,
@@ -812,23 +792,17 @@ class TestContentExtractorIntegration:
             WHERE host LIKE 'test-extractor%' OR host LIKE 'blocked-extractor%'
             GROUP BY COALESCE(successful_method, 'failed'), host
             ORDER BY total_attempts DESC
-        """
-            )
-        )
+        """))
         method_results = result.fetchall()
         assert len(method_results) > 0
 
         # Test HTTP error summary query - filter by our test hosts
-        result = session.execute(
-            text(
-                """
+        result = session.execute(text("""
             SELECT host, status_code, count
             FROM http_error_summary
             WHERE host LIKE 'test-extractor%' OR host LIKE 'blocked-extractor%'
             ORDER BY count DESC
-        """
-            )
-        )
+        """))
         error_results = result.fetchall()
         assert len(error_results) > 0
 
@@ -840,9 +814,7 @@ class TestContentExtractorIntegration:
         assert blocked_errors[0][2] == 2  # count should be 2
 
         # Test publisher stats query - filter by our test hosts
-        result = session.execute(
-            text(
-                """
+        result = session.execute(text("""
             SELECT
                 host,
                 COUNT(*) as total_extractions,
@@ -851,9 +823,7 @@ class TestContentExtractorIntegration:
             FROM extraction_telemetry_v2
             WHERE host LIKE 'test-extractor%' OR host LIKE 'blocked-extractor%'
             GROUP BY host
-        """
-            )
-        )
+        """))
         publisher_results = result.fetchall()
         # test-extractor1.com, test-extractor2.com, blocked-extractor.com
         assert len(publisher_results) == 3
@@ -1018,17 +988,13 @@ class TestTelemetrySystemEndToEnd:
         from sqlalchemy import text
 
         # Overall success rate - filter by our unique hosts
-        result = session.execute(
-            text(
-                """
+        result = session.execute(text("""
             SELECT
                 COUNT(*) as total,
                 SUM(CASE WHEN is_success THEN 1 ELSE 0 END) as successful
             FROM extraction_telemetry_v2
             WHERE host LIKE 'e2e-%'
-        """
-            )
-        )
+        """))
         total, successful = result.fetchone()
         success_rate = (successful / total * 100) if total > 0 else 0
 
@@ -1037,16 +1003,12 @@ class TestTelemetrySystemEndToEnd:
         assert success_rate == 50.0
 
         # HTTP error breakdown - filter by our unique hosts
-        result = session.execute(
-            text(
-                """
+        result = session.execute(text("""
             SELECT status_code, COUNT(*)
             FROM http_error_summary
             WHERE host LIKE 'e2e-%'
             GROUP BY status_code
-        """
-            )
-        )
+        """))
         error_breakdown = dict(result.fetchall())
         assert 403 in error_breakdown
         assert 500 in error_breakdown

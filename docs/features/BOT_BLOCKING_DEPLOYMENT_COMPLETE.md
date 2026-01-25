@@ -1,9 +1,9 @@
 # Bot Blocking Improvements - Deployment Complete
 
-**Date:** October 10, 2025  
-**Time:** 16:00 UTC  
-**Deployment:** processor:5f8ff4b (Bot Blocking Fixes)  
-**Branch:** copilot/investigate-fix-bot-blocking-issues  
+**Date:** October 10, 2025
+**Time:** 16:00 UTC
+**Deployment:** processor:5f8ff4b (Bot Blocking Fixes)
+**Branch:** copilot/investigate-fix-bot-blocking-issues
 **Rollout:** processor-5f8ff4b-to-production-0002
 
 ---
@@ -54,8 +54,8 @@ mock-webhook:       1m CPU, 13Mi RAM
 
 ### Build Information
 
-**Build ID:** ba7c6717-5ba3-4a6e-a3a8-b45c3e527b15  
-**Status:** SUCCESS  
+**Build ID:** ba7c6717-5ba3-4a6e-a3a8-b45c3e527b15
+**Status:** SUCCESS
 **Duration:** ~3 minutes
 
 **Images Created:**
@@ -72,9 +72,9 @@ mock-webhook:       1m CPU, 13Mi RAM
 
 ### Release Information
 
-**Release Name:** processor-5f8ff4b  
-**Pipeline:** mizzou-news-crawler  
-**Region:** us-central1  
+**Release Name:** processor-5f8ff4b
+**Pipeline:** mizzou-news-crawler
+**Region:** us-central1
 **Target:** production
 
 **Images in Release:**
@@ -84,8 +84,8 @@ mock-webhook:       1m CPU, 13Mi RAM
 
 ### Rollout Information
 
-**Rollout ID:** processor-5f8ff4b-to-production-0002  
-**Status:** ✅ SUCCEEDED  
+**Rollout ID:** processor-5f8ff4b-to-production-0002
+**Status:** ✅ SUCCEEDED
 **Strategy:** Rolling update
 
 **Pod Deployment:**
@@ -191,7 +191,7 @@ entity_extraction_pending: 1,815
 
 1. **Check Success Rate:**
 ```sql
-SELECT 
+SELECT
   COUNT(*) as total,
   SUM(CASE WHEN is_success THEN 1 ELSE 0 END) as successful,
   ROUND(100.0 * SUM(CASE WHEN is_success THEN 1 ELSE 0 END) / COUNT(*), 1) as success_rate,
@@ -234,8 +234,8 @@ kubectl top pods -n production -l app=mizzou-processor
 
 2. **Bot Protection Detection Breakdown:**
 ```sql
-SELECT 
-  CASE 
+SELECT
+  CASE
     WHEN error_message ILIKE '%cloudflare%' THEN 'Cloudflare'
     WHEN error_message ILIKE '%bot protection%' THEN 'Generic Bot Protection'
     WHEN error_message ILIKE '%captcha%' THEN 'CAPTCHA'
@@ -252,7 +252,7 @@ ORDER BY occurrences DESC;
 
 3. **Domain-Specific Analysis:**
 ```sql
-SELECT 
+SELECT
   host,
   COUNT(*) as attempts,
   SUM(CASE WHEN is_success THEN 1 ELSE 0 END) as successes,
@@ -398,8 +398,8 @@ Bot blocking improvements are now live in production. The processor is running w
 
 ---
 
-**Deployed By:** AI Code Review & Deployment System  
-**Deployment Time:** October 10, 2025 16:04 UTC  
-**Related PR:** #65  
-**Related Issue:** #64  
+**Deployed By:** AI Code Review & Deployment System
+**Deployment Time:** October 10, 2025 16:04 UTC
+**Related PR:** #65
+**Related Issue:** #64
 **Commit:** 5f8ff4b47cf95548aa057cee73d0c8cb52b02c3d

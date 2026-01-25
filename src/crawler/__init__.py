@@ -828,6 +828,9 @@ class ContentExtractor:
             load_fingerprint_profile()
         )
 
+        # AMP support cache for tracking domain AMP compatibility
+        self._amp_support_cache: Dict[str, Optional[bool]] = {}
+
         # If fingerprint profile is loaded, use its UA for consistency
         if self._fingerprint_profile and self._fingerprint_profile.user_agent:
             self.current_user_agent = self._fingerprint_profile.user_agent
@@ -861,6 +864,12 @@ class ContentExtractor:
             )
         else:
             logger.info("ContentExtractor initialized with user agent rotation enabled")
+
+        # Enforce Selenium-first domain when set: block non-browser HTTP sessions
+        # to ensure the first network contact for a domain is via headful Selenium.
+        # Set `self._enforce_selenium_first_domain` to the domain string during
+        # an active Selenium-first attempt; other methods will skip HTTP for that domain.
+        self._enforce_selenium_first_domain: str | None = None
 
     def _create_new_session(self):
         """Create a new session with current user agent and clear cookies."""
@@ -940,6 +949,18 @@ class ContentExtractor:
                 f"{backoff_time:.0f} more seconds"
             )
             raise RateLimitError(f"Domain {domain} is rate limited")
+
+        # Enforce Selenium-first if requested for this domain: block HTTP session
+        # creation so the browser is the first client to contact the site.
+        enforce_domain = getattr(self, "_enforce_selenium_first_domain", None)
+        if enforce_domain and enforce_domain == domain:
+            logger.info(
+                "Selenium-first policy active for %s: blocking non-browser HTTP session until Selenium attempt",
+                domain,
+            )
+            raise Exception(
+                f"Selenium-first enforced for {domain}; blocking HTTP session to ensure headful Selenium is first contact"
+            )
 
         # Skip UA rotation if fingerprint profile is loaded (maintain consistency)
         if self._fingerprint_profile and self._fingerprint_profile.user_agent:
@@ -1468,8 +1489,7 @@ class ContentExtractor:
             db = DatabaseManager()
             with db.get_session() as session:
                 session.execute(
-                    text(
-                        """
+                    text("""
                         UPDATE sources
                         SET extraction_method = :method,
                             selenium_only = :is_selenium,
@@ -1477,8 +1497,7 @@ class ContentExtractor:
                             bot_protection_detected_at = :detected_at
                         WHERE host = :host
                         AND (extraction_method = 'http' OR extraction_method IS NULL)
-                    """
-                    ),
+                    """),
                     {
                         "host": domain,
                         "method": method,
@@ -1516,13 +1535,11 @@ class ContentExtractor:
             db = DatabaseManager()
             with db.get_session() as session:
                 row = session.execute(
-                    text(
-                        """
+                    text("""
                         SELECT COALESCE(extraction_method, 'http'), bot_protection_type
                         FROM sources
                         WHERE host = :host
-                    """
-                    ),
+                    """),
                     {"host": domain},
                 ).fetchone()
 
@@ -1542,6 +1559,195 @@ class ContentExtractor:
                 f"Failed to check extraction method for {domain}: {e}", exc_info=True
             )
             return ("http", None)
+
+    def _convert_to_amp_url(self, url: str) -> List[str]:
+        """Generate AMP URL variations for a given URL.
+
+        Returns list of AMP URLs to try, in priority order:
+        1. /amp/ suffix
+        2. ?amp=1 parameter
+        3. Google AMP Cache format
+
+        Args:
+            url: Original article URL
+
+        Returns:
+            List of AMP URL candidates to try
+        """
+        amp_urls = []
+
+        # Pattern 1: /amp/ suffix (most common)
+        base_url = url.rstrip("/")
+        amp_urls.append(f"{base_url}/amp/")
+
+        # Pattern 2: ?amp=1 query parameter
+        separator = "&" if "?" in url else "?"
+        amp_urls.append(f"{url}{separator}amp=1")
+
+        # Pattern 3: Google AMP Cache
+        # Format: https://domain-com.cdn.ampproject.org/c/s/domain.com/article
+        parsed = urlparse(url)
+        domain_escaped = parsed.netloc.replace(".", "-")
+        path_clean = parsed.path.lstrip("/")
+        scheme_prefix = "s" if parsed.scheme == "https" else ""
+        amp_cache_url = (
+            f"https://{domain_escaped}.cdn.ampproject.org/c/{scheme_prefix}/"
+            f"{parsed.netloc}/{path_clean}"
+        )
+        amp_urls.append(amp_cache_url)
+
+        logger.debug(f"Generated {len(amp_urls)} AMP URL candidates for {url}")
+        return amp_urls
+
+    def _validate_amp_page(self, html: str) -> bool:
+        """Check if HTML is a valid AMP page.
+
+        Args:
+            html: HTML content to validate
+
+        Returns:
+            True if page appears to be valid AMP
+        """
+        if not html or len(html) < 500:
+            return False
+
+        # Check for AMP indicators in HTML
+        html_lower = html.lower()
+
+        # Check for <html amp> or <html ⚡>
+        amp_indicators = [
+            "<html amp",
+            "<html ⚡",
+            "ampproject.org",
+            "amp-boilerplate",
+            "amp-custom",
+        ]
+
+        return any(indicator in html_lower for indicator in amp_indicators)
+
+    def _test_amp_support(self, domain: str, sample_url: Optional[str] = None) -> bool:
+        """Test if a domain supports AMP pages.
+
+        Tries to fetch an AMP version of a sample URL to determine if the
+        domain supports AMP. Updates the sources table with the result.
+
+        Args:
+            domain: Domain to test
+            sample_url: Optional specific URL to test (otherwise uses domain homepage)
+
+        Returns:
+            True if domain supports AMP
+        """
+        test_url = sample_url or f"https://{domain}"
+
+        try:
+            session = self._get_domain_session(test_url)
+            amp_urls = self._convert_to_amp_url(test_url)
+
+            # Try each AMP URL pattern
+            for amp_url in amp_urls:
+                try:
+                    logger.info(f"🔍 Testing AMP support: {amp_url}")
+                    response = session.get(amp_url, timeout=self.timeout)
+
+                    if response.status_code == 200:
+                        if self._validate_amp_page(response.text):
+                            logger.info(
+                                f"✅ AMP supported on {domain} (pattern: {amp_url})"
+                            )
+                            # Update sources table
+                            self._mark_domain_amp_supported(domain, True)
+                            return True
+                        else:
+                            logger.debug(f"URL succeeded but not valid AMP: {amp_url}")
+                    else:
+                        logger.debug(
+                            f"AMP URL returned {response.status_code}: {amp_url}"
+                        )
+
+                except Exception as e:
+                    logger.debug(f"AMP test failed for {amp_url}: {e}")
+                    continue
+
+            # No AMP URLs worked
+            logger.info(f"❌ AMP not supported on {domain}")
+            self._mark_domain_amp_supported(domain, False)
+            return False
+
+        except Exception as e:
+            logger.warning(f"Failed to test AMP support for {domain}: {e}")
+            return False
+
+    def _mark_domain_amp_supported(self, domain: str, supported: bool) -> None:
+        """Mark a domain as supporting or not supporting AMP.
+
+        Args:
+            domain: Domain to mark
+            supported: Whether AMP is supported
+        """
+        from sqlalchemy import text
+
+        from src.models.database import DatabaseManager
+
+        try:
+            db = DatabaseManager()
+            with db.get_session() as session:
+                session.execute(
+                    text("""
+                        UPDATE sources
+                        SET amp_supported = :supported
+                        WHERE host = :host
+                    """),
+                    {
+                        "host": domain,
+                        "supported": supported,
+                    },
+                )
+                session.commit()
+                logger.info(f"📝 Marked {domain} amp_supported={supported}")
+        except Exception as e:
+            logger.warning(f"Failed to mark {domain} AMP support: {e}")
+
+    def _get_domain_amp_support(self, domain: str) -> Optional[bool]:
+        """Check if a domain is known to support AMP.
+
+        Args:
+            domain: Domain to check
+
+        Returns:
+            True if known to support AMP, False if known not to support, None if unknown
+        """
+        # Check in-memory cache first
+        cache_key = f"amp_supported:{domain}"
+        if cache_key in self._amp_support_cache:
+            return self._amp_support_cache[cache_key]
+
+        try:
+            from sqlalchemy import text
+
+            from src.models.database import DatabaseManager
+
+            db = DatabaseManager()
+            with db.get_session() as session:
+                row = session.execute(
+                    text("""
+                        SELECT amp_supported
+                        FROM sources
+                        WHERE host = :host
+                    """),
+                    {"host": domain},
+                ).fetchone()
+
+                if row and row[0] is not None:
+                    result = bool(row[0])
+                    self._amp_support_cache[cache_key] = result
+                    return result
+                else:
+                    return None
+
+        except Exception as e:
+            logger.debug(f"Failed to check AMP support for {domain}: {e}")
+            return None
 
     def _handle_captcha_backoff(self, domain: str) -> None:
         """Apply extended backoff for CAPTCHA/challenge detections."""
@@ -1672,6 +1878,152 @@ class ContentExtractor:
             finally:
                 self._persistent_driver = None
                 self._driver_reuse_count = 0
+
+    def _maybe_import_selenium_cookies(self, driver, domain: str) -> bool:
+        """If a cookie file is present, import cookies into the Selenium session.
+
+        Behavior is optional and controlled via environment variables:
+        - SELENIUM_IMPORT_COOKIES_FILE: path to JSON cookie file (default: /tmp/selenium_import_cookies.json)
+        - SELENIUM_WAIT_FOR_COOKIES: if truthy, wait up to SELENIUM_COOKIE_WAIT_SECS for the file to appear
+        - SELENIUM_COOKIE_WAIT_SECS: seconds to wait when SELENIUM_WAIT_FOR_COOKIES is truthy (default: 60)
+
+        Returns True if at least one cookie was applied.
+        """
+        cookie_file = os.environ.get(
+            "SELENIUM_IMPORT_COOKIES_FILE", "/tmp/selenium_import_cookies.json"
+        )
+        wait_for_file = os.environ.get(
+            "SELENIUM_WAIT_FOR_COOKIES", "false"
+        ).lower() in (
+            "1",
+            "true",
+            "yes",
+        )
+        wait_secs = int(os.environ.get("SELENIUM_COOKIE_WAIT_SECS", "60"))
+
+        if not os.path.exists(cookie_file):
+            if not wait_for_file:
+                logger.debug("No cookie file at %s and wait disabled", cookie_file)
+                return False
+            # Wait for the file to appear
+            start = time.time()
+            while (time.time() - start) < wait_secs:
+                if os.path.exists(cookie_file):
+                    break
+                time.sleep(0.5)
+        if not os.path.exists(cookie_file):
+            logger.debug("Cookie file %s not found after wait", cookie_file)
+            return False
+
+        try:
+            with open(cookie_file, "r") as f:
+                cookie_list = json.load(f)
+        except Exception as e:
+            logger.warning("Failed to load cookie file %s: %s", cookie_file, e)
+            return False
+
+        imported = 0
+        try:
+            # Prefer CDP Network.setCookie which can set httpOnly and secure cookies
+            has_cdp = hasattr(driver, "execute_cdp_cmd")
+            if has_cdp:
+                try:
+                    driver.execute_cdp_cmd("Network.enable", {})
+                except Exception:
+                    pass
+
+                for c in cookie_list:
+                    cookie_domain = c.get("domain") or domain
+                    # Accept cookies that match the requested domain (including dot-prefixed domains)
+                    if not (
+                        cookie_domain == domain
+                        or cookie_domain == f".{domain}"
+                        or cookie_domain.endswith(domain)
+                    ):
+                        continue
+
+                    payload = {
+                        "name": c.get("name"),
+                        "value": c.get("value", ""),
+                        "path": c.get("path", "/"),
+                        "secure": bool(c.get("secure", False)),
+                        "httpOnly": bool(c.get("httpOnly", False)),
+                        "domain": cookie_domain,
+                        "url": f"https://{domain}{c.get('path','/')}",
+                    }
+                    expires = c.get("expires")
+                    if isinstance(expires, (int, float)) and expires > 0:
+                        payload["expires"] = int(expires)
+                    if c.get("sameSite"):
+                        payload["sameSite"] = c.get("sameSite")
+
+                    try:
+                        driver.execute_cdp_cmd("Network.setCookie", payload)
+                        imported += 1
+                    except Exception as e:
+                        logger.debug(
+                            "Network.setCookie failed for %s: %s",
+                            payload.get("name"),
+                            e,
+                        )
+
+            else:
+                # Fallback: load domain and use add_cookie (may reveal the challenge page during the load)
+                try:
+                    driver.set_page_load_timeout(20)
+                    driver.get(f"https://{domain}/")
+                except Exception:
+                    pass  # Domain load may fail if challenge appears; we still try adding cookies
+
+                for c in cookie_list:
+                    cookie_domain = c.get("domain") or domain
+                    if not (
+                        cookie_domain == domain
+                        or cookie_domain == f".{domain}"
+                        or cookie_domain.endswith(domain)
+                    ):
+                        continue
+
+                    cookie_payload = {
+                        "name": c.get("name"),
+                        "value": c.get("value", ""),
+                        "path": c.get("path", "/"),
+                    }
+                    if c.get("secure"):
+                        cookie_payload["secure"] = True
+                    if c.get("httpOnly"):
+                        cookie_payload["httpOnly"] = True
+                    if (
+                        isinstance(c.get("expires"), (int, float))
+                        and c.get("expires") > 0
+                    ):
+                        cookie_payload["expiry"] = int(c.get("expires"))
+
+                    try:
+                        driver.add_cookie(cookie_payload)
+                        imported += 1
+                    except Exception as e:
+                        logger.debug(
+                            "driver.add_cookie failed for %s: %s", c.get("name"), e
+                        )
+
+            # Record count of imported cookies (names omitted for privacy)
+            try:
+                rec_path = (
+                    f"/tmp/selenium_{domain.replace('.', '_')}_cookies_imported.json"
+                )
+                with open(rec_path, "w") as rf:
+                    json.dump({"imported": imported, "source": cookie_file}, rf)
+            except Exception:
+                pass
+
+            logger.info(
+                "Imported %d cookies for %s from %s", imported, domain, cookie_file
+            )
+            return imported > 0
+        except Exception as e:
+            logger.warning("Exception while importing cookies: %s", e)
+            return False
 
     def get_driver_stats(self) -> Dict[str, Any]:
         """Get statistics about driver usage."""
@@ -1845,13 +2197,36 @@ class ContentExtractor:
                 if extraction_method == "selenium"
                 else "headful_primary"
             )
-            attempted, success = self._run_selenium_extraction(
-                url, result, metrics, reason
-            )
-            selenium_attempted_primary = attempted
-            if success and not self._get_missing_fields(result):
-                skip_http_methods = True
-            self._apply_cms_metadata_fallback(result)
+            # Enforce Selenium-first: block HTTP session requests to this domain
+            # until Selenium has attempted the first contact. Also ensure the
+            # persistent ChromeDriver is created before any possible HTTP calls
+            # so the browser is the first network client the site sees.
+            self._enforce_selenium_first_domain = domain
+            try:
+                try:
+                    # Create persistent driver proactively (may be a no-op if exists)
+                    self.get_persistent_driver()
+                    logger.info(
+                        "Ensured persistent ChromeDriver created before first contact for %s",
+                        domain,
+                    )
+                except Exception as e:  # Non-fatal: still attempt Selenium extraction
+                    logger.warning(
+                        "Pre-creation of persistent driver failed for %s: %s",
+                        domain,
+                        e,
+                    )
+
+                attempted, success = self._run_selenium_extraction(
+                    url, result, metrics, reason
+                )
+                selenium_attempted_primary = attempted
+                if success and not self._get_missing_fields(result):
+                    skip_http_methods = True
+                self._apply_cms_metadata_fallback(result)
+            finally:
+                # Clear enforcement flag regardless of outcome
+                self._enforce_selenium_first_domain = None
 
         if extraction_method == "unblock":
             logger.info(
@@ -2052,6 +2427,24 @@ class ContentExtractor:
 
         # For domains marked as 'unblock', use Squid proxy instead of Selenium
         if extraction_method == "unblock" and missing_fields:
+            # If we already attempted Selenium as the primary method and it failed,
+            # do NOT fall back to unblock proxy (HTTP fetch) since it does NOT
+            # execute site JS and will not resemble a real browser. Instead, mark
+            # extraction as blocked to force retry/backoff and surface diagnostics.
+            if selenium_attempted_primary:
+                msg = (
+                    f"Selenium-first attempt failed for {domain}; "
+                    "skipping unblock HTTP fetch (won't emulate browser JS)."
+                )
+                logger.warning(msg)
+                if metrics:
+                    metrics.end_method(
+                        "unblock_proxy", False, "selenium_failed_no_fallback", {}
+                    )
+                raise ProxyChallengeError(
+                    f"Proxy challenge/block detected for {url}: selenium_failed_no_fallback"
+                )
+
             try:
                 logger.info(
                     f"Attempting unblock proxy extraction for {url} "
@@ -2647,9 +3040,73 @@ class ContentExtractor:
                         request_headers["Referer"] = referer
                         logger.debug(f"Using Referer: {referer}")
 
-                    response = session.get(
-                        url, timeout=self.timeout, headers=request_headers
-                    )
+                    # Check if domain is known to support AMP - try AMP first if so
+                    amp_supported = self._get_domain_amp_support(domain)
+                    if amp_supported is True:
+                        logger.info(
+                            f"🔄 Domain {domain} known to support AMP, trying AMP first"
+                        )
+                        amp_urls = self._convert_to_amp_url(url)
+
+                        for amp_url in amp_urls:
+                            try:
+                                logger.info(f"📡 Fetching AMP URL: {amp_url}")
+                                response = session.get(
+                                    amp_url,
+                                    timeout=self.timeout,
+                                    headers=request_headers,
+                                )
+
+                                if response.status_code == 200:
+                                    if self._validate_amp_page(response.text):
+                                        logger.info(
+                                            f"✅ Successfully fetched AMP page for {domain}"
+                                        )
+                                        http_status = 200
+                                        article.html = response.text
+
+                                        # Record AMP success
+                                        self.bot_sensitivity_manager.record_bot_detection(
+                                            host=domain,
+                                            url=url,
+                                            event_type="amp_preemptive_success",
+                                            http_status_code=200,
+                                            response_indicators={"amp_url": amp_url},
+                                        )
+
+                                        # Skip normal HTTP request, go directly to parsing
+                                        break
+                                    else:
+                                        logger.debug(
+                                            f"AMP URL succeeded but not valid AMP: {amp_url}"
+                                        )
+                                else:
+                                    logger.debug(
+                                        f"AMP URL returned {response.status_code}: {amp_url}"
+                                    )
+
+                            except Exception as amp_e:
+                                logger.debug(
+                                    f"AMP preemptive fetch failed: {amp_url} - {amp_e}"
+                                )
+                                continue
+
+                        # If we successfully got AMP HTML, skip the normal request
+                        if article.html:
+                            logger.info(f"✅ Using preemptive AMP fetch for {domain}")
+                        else:
+                            # AMP fetch failed, fall back to normal request
+                            logger.warning(
+                                f"AMP preemptive fetch failed, trying normal URL"
+                            )
+                            response = session.get(
+                                url, timeout=self.timeout, headers=request_headers
+                            )
+                    else:
+                        # Domain not known to support AMP or unknown, use normal flow
+                        response = session.get(
+                            url, timeout=self.timeout, headers=request_headers
+                        )
                 http_status = response.status_code
 
                 # Capture proxy metadata from response if available
@@ -2698,37 +3155,156 @@ class ContentExtractor:
                             source="newspaper",
                         )
 
-                        # If JS-required protection, mark domain with appropriate extraction method
-                        # Strong protections (PerimeterX, DataDome) use 'unblock', others use 'selenium'
-                        if self._is_js_required_protection(protection_type):
-                            self._mark_domain_special_extraction(
-                                domain, protection_type
+                        # Try AMP bypass for PerimeterX before marking domain or falling back
+                        if protection_type == "perimeterx":
+                            logger.info(
+                                f"🔄 Attempting AMP bypass for PerimeterX on {domain}"
                             )
 
-                        # Record bot detection event
-                        is_captcha = self._is_js_required_protection(protection_type)
-                        event_type = (
-                            "captcha_detected" if is_captcha else "403_forbidden"
-                        )
-                        self.bot_sensitivity_manager.record_bot_detection(
-                            host=domain,
-                            url=url,
-                            event_type=event_type,
-                            http_status_code=response.status_code,
-                            response_indicators={"protection_type": protection_type},
-                        )
+                            amp_urls = self._convert_to_amp_url(url)
+                            amp_success = False
 
-                        # Use CAPTCHA backoff for confirmed bot protection
-                        # Defer domain backoff until we know whether fallbacks
-                        # succeed. We only apply captcha/rate-limit delays if
-                        # every extraction path fails later in the pipeline.
+                            for amp_url in amp_urls:
+                                try:
+                                    logger.info(f"📡 Trying AMP URL: {amp_url}")
+                                    amp_response = session.get(
+                                        amp_url,
+                                        timeout=self.timeout,
+                                        headers=request_headers,
+                                    )
 
-                        # Raise regular Exception to allow Selenium fallback
-                        # Only raise RateLimitError if ALL methods fail
-                        raise Exception(
-                            f"Bot protection on {domain}: "
-                            f"{protection_type} ({response.status_code}) - will try Selenium"
-                        )
+                                    if amp_response.status_code == 200:
+                                        if self._validate_amp_page(amp_response.text):
+                                            logger.info(
+                                                f"✅ AMP bypass successful for {domain}!"
+                                            )
+
+                                            # Mark domain as AMP-supported
+                                            self._mark_domain_amp_supported(
+                                                domain, True
+                                            )
+
+                                            # Record AMP bypass success
+                                            self.bot_sensitivity_manager.record_bot_detection(
+                                                host=domain,
+                                                url=url,
+                                                event_type="amp_bypass_success",
+                                                http_status_code=200,
+                                                response_indicators={
+                                                    "protection_type": protection_type,
+                                                    "amp_url": amp_url,
+                                                },
+                                            )
+
+                                            # Use AMP HTML for extraction
+                                            article.html = amp_response.text
+                                            http_status = 200
+                                            amp_success = True
+                                            break
+                                        else:
+                                            logger.debug(
+                                                f"AMP URL succeeded but invalid AMP: {amp_url}"
+                                            )
+                                    else:
+                                        logger.debug(
+                                            f"AMP URL returned {amp_response.status_code}"
+                                        )
+
+                                except Exception as amp_e:
+                                    logger.debug(f"AMP URL failed: {amp_url} - {amp_e}")
+                                    continue
+
+                            if amp_success:
+                                # Successfully bypassed with AMP, continue to parsing
+                                logger.info(
+                                    f"✅ Successfully used AMP to bypass PerimeterX on {domain}"
+                                )
+                                # Reset error count on success
+                                self._reset_error_count(domain)
+                                # Record proxy success
+                                response_time = amp_response.elapsed.total_seconds()
+                                self.proxy_manager.record_success(
+                                    response_time=response_time
+                                )
+                                # Update default response object so downstream logic (status checks) sees success
+                                response = amp_response
+                                # Note: article.html already set above, will parse after this block
+                            else:
+                                # AMP bypass failed, record and continue to fallback
+                                logger.warning(
+                                    f"❌ AMP bypass failed for {domain}, trying Selenium"
+                                )
+                                self._mark_domain_amp_supported(domain, False)
+
+                                # Record AMP bypass failure
+                                self.bot_sensitivity_manager.record_bot_detection(
+                                    host=domain,
+                                    url=url,
+                                    event_type="amp_bypass_failure",
+                                    http_status_code=response.status_code,
+                                    response_indicators={
+                                        "protection_type": protection_type,
+                                    },
+                                )
+
+                                # Continue with normal fallback flow
+                                if self._is_js_required_protection(protection_type):
+                                    self._mark_domain_special_extraction(
+                                        domain, protection_type
+                                    )
+
+                                # Record bot detection event
+                                is_captcha = self._is_js_required_protection(
+                                    protection_type
+                                )
+                                event_type = (
+                                    "captcha_detected"
+                                    if is_captcha
+                                    else "403_forbidden"
+                                )
+                                self.bot_sensitivity_manager.record_bot_detection(
+                                    host=domain,
+                                    url=url,
+                                    event_type=event_type,
+                                    http_status_code=response.status_code,
+                                    response_indicators={
+                                        "protection_type": protection_type
+                                    },
+                                )
+
+                                raise Exception(
+                                    f"Bot protection on {domain}: "
+                                    f"{protection_type} ({response.status_code}) - will try Selenium"
+                                )
+                        else:
+                            # Non-PerimeterX protection, use normal flow
+                            if self._is_js_required_protection(protection_type):
+                                self._mark_domain_special_extraction(
+                                    domain, protection_type
+                                )
+
+                            # Record bot detection event
+                            is_captcha = self._is_js_required_protection(
+                                protection_type
+                            )
+                            event_type = (
+                                "captcha_detected" if is_captcha else "403_forbidden"
+                            )
+                            self.bot_sensitivity_manager.record_bot_detection(
+                                host=domain,
+                                url=url,
+                                event_type=event_type,
+                                http_status_code=response.status_code,
+                                response_indicators={
+                                    "protection_type": protection_type
+                                },
+                            )
+
+                            # Raise regular Exception to allow Selenium fallback
+                            raise Exception(
+                                f"Bot protection on {domain}: "
+                                f"{protection_type} ({response.status_code}) - will try Selenium"
+                            )
                     else:
                         # Generic server error without bot protection indicators
                         logger.warning(
@@ -3057,19 +3633,57 @@ class ContentExtractor:
 
             # Simple request through Squid proxy
             try:
-                response = requests.get(
-                    url,
-                    headers=headers,
-                    proxies={"http": proxy_url, "https": proxy_url},
-                    verify=False,
-                    timeout=30,
-                )
+                # Prefer tls_client (if available) to mimic Chrome-like TLS/HTTP2 fingerprints when making
+                # unblock proxy requests. Fall back to requests if tls_client is not installed or fails.
+                response = None
+                status_code = None
+                html = ""
+                try:
+                    import tls_client  # optional dependency; provides chrome-like TLS fingerprints
 
-                html = response.text
+                    logger.info(
+                        "Using tls_client for unblock extraction (Chrome-like TLS fingerprint)"
+                    )
+                    session = tls_client.Session(
+                        client_identifier="chrome_143", random_tls_extension_order=False
+                    )
+                    tls_resp = session.get(
+                        url,
+                        headers=headers,
+                        proxies={"http": proxy_url, "https": proxy_url},
+                        timeout=30,
+                        verify=False,
+                    )
+                    response = tls_resp
+                except (
+                    Exception
+                ) as exc:  # pragma: no cover - optional dependency/fallback
+                    logger.info(
+                        "tls_client not available or failed: %s; falling back to requests",
+                        exc,
+                    )
+
+                if response is None:
+                    response = requests.get(
+                        url,
+                        headers=headers,
+                        proxies={"http": proxy_url, "https": proxy_url},
+                        verify=False,
+                        timeout=30,
+                    )
+
+                # Normalize response properties for both tls_client and requests
+                try:
+                    html = response.text
+                except Exception:
+                    html = getattr(response, "content", b"").decode(
+                        "utf-8", errors="replace"
+                    )
+                status_code = getattr(response, "status_code", None)
                 html_len = len(html)
 
                 logger.info(
-                    f"Squid proxy returned {html_len} bytes for {url} (status: {response.status_code})"
+                    f"Squid proxy returned {html_len} bytes for {url} (status: {status_code})"
                 )
 
                 # Check for challenge page content patterns FIRST (before size check)
@@ -3099,18 +3713,18 @@ class ContentExtractor:
                     )
 
                 # Check if extraction was successful (accept any successful response, not just 200)
-                if response.status_code >= 400 or html_len < 1000:
+                if (status_code is not None and status_code >= 400) or html_len < 1000:
                     logger.warning(
-                        f"Squid proxy returned small/failed response for {url} (len={html_len}, status={response.status_code})"
+                        f"Squid proxy returned small/failed response for {url} (len={html_len}, status={status_code})"
                     )
                     raise ProxyChallengeError(
-                        f"Proxy challenge/block detected for {url}: status_{response.status_code}"
+                        f"Proxy challenge/block detected for {url}: status_{status_code}"
                     )
 
                 # Check for suspiciously short responses (often challenge pages)
-                if html_len < 500 and response.status_code in [403, 503]:
+                if html_len < 500 and status_code in [403, 503]:
                     logger.warning(
-                        f"Suspicious short response for {url} (len={html_len}, status={response.status_code})"
+                        f"Suspicious short response for {url} (len={html_len}, status={status_code})"
                     )
                     raise ProxyChallengeError(
                         f"Proxy challenge/block detected for {url}: suspicious_short_response"
@@ -3375,16 +3989,12 @@ class ContentExtractor:
         if not profile:
             return
 
-        payload: dict[str, Any] = {}
+        # Prefer the consolidated helper which implements cross-CDP fallbacks
         if profile.user_agent:
-            payload["userAgent"] = profile.user_agent
-        if profile.client_hints:
-            payload.update(profile.client_hints)
-        if payload:
             try:
-                driver.execute_cdp_cmd("Network.setUserAgentOverride", payload)
+                self._set_user_agent_override(driver, profile.user_agent)
             except Exception as exc:
-                logger.debug("CDP UA override failed: %s", exc)
+                logger.debug("CDP UA override failed in helper: %s", exc)
 
         if profile.accept_language:
             try:
@@ -3403,6 +4013,227 @@ class ContentExtractor:
                 )
             except Exception as exc:
                 logger.debug("Fingerprint init script registration failed: %s", exc)
+
+    def _set_user_agent_override(self, driver, user_agent: str) -> None:
+        """Set User-Agent and client-hints with robust fallbacks across CDP versions.
+
+        Some Chrome/ChromeDriver combinations reject the newer `userAgentMetadata`
+        field on `Network.setUserAgentOverride` (invalid parameters). To be
+        compatible, try the full payload first, then retry without
+        `userAgentMetadata`, fall back to `Emulation.setUserAgentOverride`, and
+        finally set explicit `sec-ch-*` headers via `Network.setExtraHTTPHeaders`.
+        All failures are non-fatal and logged at debug level.
+        """
+        client_hints = None
+        if self._fingerprint_profile and self._fingerprint_profile.client_hints:
+            client_hints = deepcopy(self._fingerprint_profile.client_hints)
+
+        def _try_network(payload: dict):
+            try:
+                driver.execute_cdp_cmd("Network.setUserAgentOverride", payload)
+                return True, None
+            except Exception as exc:
+                logger.debug(
+                    "Network.setUserAgentOverride failed for keys %s: %s",
+                    list(payload.keys()),
+                    exc,
+                )
+                return False, exc
+
+        # 1) Try full payload (may include userAgentMetadata)
+        full_payload = {"userAgent": user_agent}
+        if client_hints:
+            full_payload.update(client_hints)
+
+        # If we've previously discovered the driver doesn't support the newer
+        # userAgentMetadata parameter (cached on the driver), skip the full
+        # payload attempt to avoid noisy failures. Also proactively check the
+        # browser version once to opt-out of attempting a full payload for
+        # Chrome builds known to reject the parameter (e.g., Chrome/143).
+        if getattr(driver, "_supports_user_agent_metadata", True) is True:
+            # Perform a one-time version check to avoid noisy 'Invalid parameters'
+            # errors on known-broken browser builds (Chrome 143 observed rejecting the field).
+            if not getattr(driver, "_user_agent_metadata_version_checked", False):
+                try:
+                    ver = driver.execute_cdp_cmd("Browser.getVersion", {})
+                    prod = ver.get("product", "") if isinstance(ver, dict) else ""
+                    try:
+                        import re
+
+                        m = re.search(r"Chrome/(\d+)\.", prod)
+                        if m:
+                            major = int(m.group(1))
+                            # Chrome 143 was observed to reject any userAgentMetadata
+                            if major >= 143:
+                                try:
+                                    driver._supports_user_agent_metadata = False
+                                    logger.debug(
+                                        "Browser.getVersion indicates Chrome %s; skipping userAgentMetadata attempt",
+                                        major,
+                                    )
+                                except Exception:
+                                    pass
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+                try:
+                    driver._user_agent_metadata_version_checked = True
+                except Exception:
+                    pass
+
+            if getattr(driver, "_supports_user_agent_metadata", True) is True:
+                ok, net_exc = _try_network(full_payload)
+                if ok:
+                    # Also set extra HTTP headers (sec-ch-ua*, Accept-Language) if available
+                    try:
+                        extra_headers: dict[str, str] = {}
+                        if client_hints:
+                            if client_hints.get("acceptLanguage"):
+                                extra_headers["Accept-Language"] = client_hints[
+                                    "acceptLanguage"
+                                ]
+                            ua_meta = (
+                                client_hints.get("userAgentMetadata")
+                                if client_hints
+                                else None
+                            )
+                            if ua_meta:
+                                brands = ua_meta.get("brands", []) or []
+                                if brands:
+                                    extra_headers["sec-ch-ua"] = ", ".join(
+                                        f'"{b.get("brand")}";v="{b.get("version")}"'
+                                        for b in brands
+                                    )
+                                extra_headers["sec-ch-ua-mobile"] = (
+                                    "?1" if ua_meta.get("mobile") else "?0"
+                                )
+                                if client_hints.get("platform"):
+                                    extra_headers["sec-ch-ua-platform"] = (
+                                        f'"{client_hints["platform"]}"'
+                                    )
+                        if extra_headers:
+                            driver.execute_cdp_cmd(
+                                "Network.setExtraHTTPHeaders",
+                                {"headers": extra_headers},
+                            )
+                    except Exception as e:
+                        logger.debug(
+                            "Network.setExtraHTTPHeaders after full payload failed: %s",
+                            e,
+                        )
+                    return
+                else:
+                    # If the failure indicates 'Invalid parameters', mark the driver so
+                    # we don't try the full payload again on subsequent calls.
+                    try:
+                        if net_exc and "invalid parameters" in str(net_exc).lower():
+                            try:
+                                driver._supports_user_agent_metadata = False
+                                logger.debug(
+                                    "Marked driver as not supporting userAgentMetadata"
+                                )
+                            except Exception:
+                                pass
+                            # Also log Browser.getVersion for easier debugging
+                            try:
+                                ver = driver.execute_cdp_cmd("Browser.getVersion", {})
+                                logger.debug("Browser.getVersion reported: %s", ver)
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
+        else:
+            logger.debug(
+                "Skipping full Network.setUserAgentOverride because driver flagged no support for userAgentMetadata"
+            )
+
+        # 2) Retry without userAgentMetadata (some CDP implementations reject it)
+        reduced_payload = {"userAgent": user_agent}
+        if client_hints:
+            for k, v in client_hints.items():
+                if k == "userAgentMetadata":
+                    continue
+                reduced_payload[k] = v
+
+        ok, net_exc = _try_network(reduced_payload)
+        if ok:
+            try:
+                extra_headers = {}
+                ua_meta = (
+                    client_hints.get("userAgentMetadata") if client_hints else None
+                )
+                if ua_meta:
+                    brands = ua_meta.get("brands", []) or []
+                    if brands:
+                        extra_headers["sec-ch-ua"] = ", ".join(
+                            f'"{b.get("brand")}";v="{b.get("version")}"' for b in brands
+                        )
+                    extra_headers["sec-ch-ua-mobile"] = (
+                        "?1" if ua_meta.get("mobile") else "?0"
+                    )
+                if client_hints and client_hints.get("platform"):
+                    extra_headers["sec-ch-ua-platform"] = (
+                        f'"{client_hints["platform"]}"'
+                    )
+                if client_hints and client_hints.get("acceptLanguage"):
+                    extra_headers["Accept-Language"] = client_hints["acceptLanguage"]
+                if extra_headers:
+                    driver.execute_cdp_cmd(
+                        "Network.setExtraHTTPHeaders", {"headers": extra_headers}
+                    )
+            except Exception as e:
+                logger.debug(
+                    "Network.setExtraHTTPHeaders after reduced payload failed: %s", e
+                )
+            return
+
+        # 3) Try Emulation.setUserAgentOverride as another alternative
+        try:
+            emu_payload: dict[str, str] = {"userAgent": user_agent}
+            if client_hints and client_hints.get("platform"):
+                emu_payload["platform"] = client_hints["platform"]
+            driver.execute_cdp_cmd("Emulation.setUserAgentOverride", emu_payload)
+            try:
+                extra_headers = {}
+                if client_hints and client_hints.get("acceptLanguage"):
+                    extra_headers["Accept-Language"] = client_hints["acceptLanguage"]
+                ua_meta = (
+                    client_hints.get("userAgentMetadata") if client_hints else None
+                )
+                if ua_meta:
+                    brands = ua_meta.get("brands", []) or []
+                    if brands:
+                        extra_headers["sec-ch-ua"] = ", ".join(
+                            f'"{b.get("brand")}";v="{b.get("version")}"' for b in brands
+                        )
+                    extra_headers["sec-ch-ua-mobile"] = (
+                        "?1" if ua_meta.get("mobile") else "?0"
+                    )
+                if client_hints and client_hints.get("platform"):
+                    extra_headers["sec-ch-ua-platform"] = (
+                        f'"{client_hints["platform"]}"'
+                    )
+                if extra_headers:
+                    driver.execute_cdp_cmd(
+                        "Network.setExtraHTTPHeaders", {"headers": extra_headers}
+                    )
+            except Exception as e:
+                logger.debug(
+                    "Network.setExtraHTTPHeaders after emulation fallback failed: %s",
+                    e,
+                )
+            return
+        except Exception as e:
+            logger.debug("Emulation.setUserAgentOverride failed: %s", e)
+
+        # 4) Final best-effort: set only the User-Agent
+        try:
+            driver.execute_cdp_cmd(
+                "Network.setUserAgentOverride", {"userAgent": user_agent}
+            )
+        except Exception as e:
+            logger.debug("Final CDP UA override failed (non-fatal): %s", e)
 
     def _create_undetected_driver(self, *, headless: bool | None = None):
         """Create undetected-chromedriver instance with maximum stealth."""
@@ -3433,9 +4264,9 @@ class ContentExtractor:
         # Additional flags for containerized environments + Xvfb stability
         options.add_argument("--disable-software-rasterizer")
         options.add_argument("--disable-setuid-sandbox")
-        options.add_argument("--single-process")  # Prevent renderer subprocess issues
-        options.add_argument("--disable-software-rasterizer")
-        options.add_argument("--disable-setuid-sandbox")
+        # NOTE: --single-process removed - causes "Trace/breakpoint trap" crash in K8s
+        # The flag was intended to prevent renderer subprocess issues but actually
+        # crashes Chromium 143+ in containerized environments (discovered 2026-01-04)
         options.add_argument("--remote-debugging-port=9222")
         # Note: JavaScript and images enabled for modern news sites
 
@@ -3455,6 +4286,7 @@ class ContentExtractor:
             "SELENIUM_PROXY",
             os.getenv("SQUID_PROXY_URL", "http://t9880447.eero.online:3128"),
         )
+        logger.info(f"🔀 Selenium proxy URL from env: {selenium_proxy}")
         proxy_extension_path = None
 
         # Parse proxy URL: https://user:pass@host:port or http://host:port
@@ -3526,8 +4358,8 @@ class ContentExtractor:
             else:
                 # Proxy without authentication - use --proxy-server argument
                 options.add_argument(f"--proxy-server={selenium_proxy}")
-                logger.debug(
-                    f"Configured Squid proxy via --proxy-server: {selenium_proxy}"
+                logger.info(
+                    f"🔀 Selenium using Squid proxy via --proxy-server: {selenium_proxy}"
                 )
         else:
             logger.error(
@@ -3572,19 +4404,30 @@ class ContentExtractor:
                 except Exception:
                     pass  # Non-critical cleanup
 
-        # Set timeouts - reduced for faster extraction
-        driver.set_page_load_timeout(15)  # Reduced from 30
-        driver.implicitly_wait(5)  # Reduced from 10
+        # Set timeouts - use longer timeouts for headful to allow JS challenges to resolve
+        if headless_mode:
+            # Short, aggressive timeouts for headless runs to keep CI fast
+            driver.set_page_load_timeout(15)  # Reduced from 30
+            driver.implicitly_wait(5)
+            driver.command_executor._client_config.timeout = 30
+        else:
+            # Headful runs (real browser) need more time for heavy JS / challenge resolution
+            driver.set_page_load_timeout(60)
+            driver.implicitly_wait(5)
+            driver.command_executor._client_config.timeout = 90
+
+        # Enable collection of performance logs (CDP 'Network' events) for diagnostics
+        try:
+            options.set_capability("goog:loggingPrefs", {"performance": "ALL"})
+        except Exception:
+            pass
 
         self._apply_fingerprint_profile(driver)
 
         # CRITICAL: Override User-Agent via CDP to hide headless indicator
         # The command-line arg doesn't always take effect, CDP is more reliable
         try:
-            driver.execute_cdp_cmd(
-                "Network.setUserAgentOverride",
-                {"userAgent": realistic_ua},
-            )
+            self._set_user_agent_override(driver, realistic_ua)
         except Exception as e:
             logger.debug(f"CDP UA override failed (non-fatal): {e}")
 
@@ -3610,8 +4453,7 @@ class ContentExtractor:
             driver.execute_script(
                 "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
             )
-            driver.execute_script(
-                """
+            driver.execute_script("""
                 // Override plugins to appear more legitimate
                 Object.defineProperty(navigator, 'plugins', {
                     get: () => [1, 2, 3, 4, 5]
@@ -3629,8 +4471,7 @@ class ContentExtractor:
                         Promise.resolve({ state: Notification.permission }) :
                         originalQuery(parameters)
                 );
-                """
-            )
+                """)
         except Exception as e:
             logger.debug(f"Manual stealth enhancements failed (non-fatal): {e}")
 
@@ -3690,6 +4531,12 @@ class ContentExtractor:
         chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
         chrome_options.add_experimental_option("useAutomationExtension", False)
 
+        # Enable collection of performance logs (CDP 'Network' events) for diagnostics
+        try:
+            chrome_options.set_capability("goog:loggingPrefs", {"performance": "ALL"})
+        except Exception:
+            pass
+
         # Additional prefs
         prefs = {
             "profile.default_content_setting_values": {
@@ -3734,8 +4581,7 @@ class ContentExtractor:
             "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
         )
 
-        driver.execute_script(
-            """
+        driver.execute_script("""
             // Override plugins
             Object.defineProperty(navigator, 'plugins', {
                 get: () => [1, 2, 3, 4, 5]
@@ -3755,21 +4601,21 @@ class ContentExtractor:
             Object.defineProperty(navigator, 'permissions', {
                 get: () => undefined
             });
-        """
-        )
+        """)
 
-        # Set timeouts - reduced for faster extraction
-        driver.set_page_load_timeout(15)  # Reduced from 30
-        driver.implicitly_wait(5)  # Reduced from 10
+        # Set timeouts - use longer timeouts for headful to allow JS challenges to resolve
+        if headless_mode:
+            driver.set_page_load_timeout(15)  # Reduced from 30
+            driver.implicitly_wait(5)
+            driver.command_executor._client_config.timeout = 30
+        else:
+            driver.set_page_load_timeout(60)
+            driver.implicitly_wait(5)
+            driver.command_executor._client_config.timeout = 90
 
         self._apply_fingerprint_profile(driver)
 
-        # CRITICAL FIX: Set command executor timeout to prevent 147s delays
-        # Default timeout is 120s, but Selenium waits an additional ~27s
-        # somewhere, resulting in consistent 147s extractions. Setting to 30s
-        # reduces this to ~0.4s.
-        driver.command_executor._client_config.timeout = 30
-
+        # command executor timeout set above depending on headless/headful mode
         return driver
 
     def _navigate_with_human_behavior(self, driver, url: str) -> bool:
@@ -3777,36 +4623,234 @@ class ContentExtractor:
         try:
             # Navigate directly to target URL (no need for about:blank delay)
             domain = urlparse(url).netloc
-            # Ensure single Selenium navigation per domain
+            # Ensure single Selenium navigation per domain and perform FIRST-CONTACT via browser
             lock = self._get_domain_lock(domain)
-            with lock:
-                driver.get(url)
 
-            # Wait for basic page load with shorter timeout
-            WebDriverWait(driver, 5).until(  # Reduced from 10
-                EC.presence_of_element_located((By.TAG_NAME, "body"))
-            )
+            # Determine headless mode (used for retry wait heuristics)
+            headless_mode = self._is_headless_selenium_mode()
 
+            # Robust navigation: retry a few times with increasing timeouts so slow JS/verification
+            # pages can complete and we avoid falling back to unblock proxy prematurely.
+            max_attempts = 3
+            timeouts = [15, 30, 60]
+            success = False
+            for attempt in range(1, max_attempts + 1):
+                timeout = timeouts[min(attempt - 1, len(timeouts) - 1)]
+                logger.info(
+                    "FIRST-CONTACT: Selenium navigation attempt %d/%d to %s (timeout=%ds)",
+                    attempt,
+                    max_attempts,
+                    url,
+                    timeout,
+                )
+                try:
+                    try:
+                        driver.set_page_load_timeout(timeout)
+                    except Exception:
+                        pass  # Some driver implementations may not allow runtime change
+
+                    # If an external cookie JSON is provided, attempt to import cookies for this domain
+                    try:
+                        imported = self._maybe_import_selenium_cookies(driver, domain)
+                        if imported:
+                            logger.info(
+                                "Imported cookies for %s before navigation", domain
+                            )
+                    except Exception as e_c:
+                        logger.debug("Cookie import step failed: %s", e_c)
+
+                    with lock:
+                        driver.get(url)
+
+                    # Wait for basic page load; allow more time on later attempts
+                    wait_time = 5 if attempt == 1 else (10 if attempt == 2 else 15)
+                    WebDriverWait(driver, wait_time).until(
+                        EC.presence_of_element_located((By.TAG_NAME, "body"))
+                    )
+
+                    success = True
+                    logger.info("Selenium navigation succeeded on attempt %d", attempt)
+                    break
+
+                except Exception as nav_exc:
+                    logger.warning(
+                        "Selenium navigation attempt %d failed for %s: %s",
+                        attempt,
+                        url,
+                        nav_exc,
+                    )
+
+                    # Capture diagnostics: screenshot, browser logs, UA
+                    try:
+                        import base64
+                        import json
+
+                        ts = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+                        safe_domain = domain.replace(".", "_")
+                        try:
+                            b64 = driver.get_screenshot_as_base64()
+                            sshot_path = (
+                                f"/tmp/selenium_{safe_domain}_{ts}_attempt{attempt}.png"
+                            )
+                            with open(sshot_path, "wb") as f:
+                                f.write(base64.b64decode(b64))
+                            logger.info("Wrote screenshot to %s", sshot_path)
+                        except Exception as e_s:
+                            logger.debug("Failed to capture screenshot: %s", e_s)
+
+                        try:
+                            logs = driver.get_log("browser")
+                            log_path = f"/tmp/selenium_{safe_domain}_{ts}_attempt{attempt}_browser.log"
+                            with open(log_path, "w") as f:
+                                json.dump(logs, f)
+                            logger.info("Wrote browser logs to %s", log_path)
+                        except Exception as e_l:
+                            logger.debug("Failed to capture browser logs: %s", e_l)
+
+                        try:
+                            ua = driver.execute_script("return navigator.userAgent")
+                            ua_path = f"/tmp/selenium_{safe_domain}_{ts}_attempt{attempt}_ua.txt"
+                            with open(ua_path, "w") as f:
+                                f.write(str(ua))
+                            logger.info("Wrote UA snapshot to %s", ua_path)
+
+                            # Extended diagnostics: performance logs, cookies, localStorage, page HTML, navigator snapshot
+                            try:
+                                perf_logs = driver.get_log("performance")
+                                perf_path = f"/tmp/selenium_{safe_domain}_{ts}_attempt{attempt}_performance.log"
+                                with open(perf_path, "w") as f:
+                                    json.dump(perf_logs, f)
+                                logger.info("Wrote performance logs to %s", perf_path)
+                            except Exception as e_p:
+                                logger.debug(
+                                    "Failed to capture performance logs: %s", e_p
+                                )
+
+                            try:
+                                cookies = driver.get_cookies()
+                                cookies_path = f"/tmp/selenium_{safe_domain}_{ts}_attempt{attempt}_cookies.json"
+                                with open(cookies_path, "w") as f:
+                                    json.dump(cookies, f)
+                                logger.info("Wrote cookies to %s", cookies_path)
+                            except Exception as e_c:
+                                logger.debug("Failed to capture cookies: %s", e_c)
+
+                            try:
+                                local_storage = driver.execute_script(
+                                    "var s = {}; for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); s[k] = localStorage.getItem(k); } return s;"
+                                )
+                                ls_path = f"/tmp/selenium_{safe_domain}_{ts}_attempt{attempt}_localstorage.json"
+                                with open(ls_path, "w") as f:
+                                    json.dump(local_storage, f)
+                                logger.info("Wrote localStorage to %s", ls_path)
+                            except Exception as e_ls:
+                                logger.debug("Failed to capture localStorage: %s", e_ls)
+
+                            try:
+                                page_html = driver.page_source
+                                page_path = f"/tmp/selenium_{safe_domain}_{ts}_attempt{attempt}_page.html"
+                                with open(page_path, "w") as f:
+                                    f.write(str(page_html))
+                                logger.info("Wrote page HTML to %s", page_path)
+                            except Exception as e_ph:
+                                logger.debug("Failed to capture page HTML: %s", e_ph)
+
+                            try:
+                                nav = driver.execute_script(
+                                    "return {ua:navigator.userAgent, webdriver:navigator.webdriver, platform:navigator.platform, vendor:navigator.vendor, languages:navigator.languages};"
+                                )
+                                nav_path = f"/tmp/selenium_{safe_domain}_{ts}_attempt{attempt}_navigator.json"
+                                with open(nav_path, "w") as f:
+                                    json.dump(nav, f)
+                                logger.info("Wrote navigator snapshot to %s", nav_path)
+                            except Exception as e_n:
+                                logger.debug(
+                                    "Failed to capture navigator snapshot: %s", e_n
+                                )
+
+                        except Exception as e_u:
+                            logger.debug("Failed to capture UA: %s", e_u)
+
+                    except Exception:
+                        logger.debug(
+                            "Diagnostics capture failed for attempt %d", attempt
+                        )
+
+                    # If this was the last attempt, log and let function return False below
+                    if attempt == max_attempts:
+                        logger.error(
+                            "All Selenium navigation attempts failed for %s", url
+                        )
+
+            if not success:
+                # If Selenium couldn't navigate successfully, do not fall back to HTTP session
+                # for unblock domains - instead return False so the caller can decide to retry
+                return False
+
+            # If we reached here, navigation succeeded and we continue with standard checks
+            # (e.g., subscription wall detection, challenge bypass, etc.)
             # Quick wait for page to stabilize
             time.sleep(0.5)  # Reduced from 1.0-2.0 seconds
 
-            # NEW: Check for actual CAPTCHA or bot challenges BEFORE subscription wall
-            # This prevents false positive subscription wall detections on challenge pages
-            if self._detect_captcha_or_challenge(driver):
-                logger.warning(f"CAPTCHA or bot challenge detected on {url}")
+            # Wrap detection and bypass logic in a resilient block - some driver operations
+            # can raise low-level transport errors (HTTPConnectionPool read timeouts).
+            try:
+                # NEW: Check for actual CAPTCHA or bot challenges BEFORE subscription wall
+                # This prevents false positive subscription wall detections on challenge pages
+                if self._detect_captcha_or_challenge(driver):
+                    logger.warning(f"CAPTCHA or bot challenge detected on {url}")
 
-                # Try to bypass the challenge (click buttons, wait for JS)
-                if self._try_bypass_challenge(driver, url):
-                    logger.info(f"Successfully bypassed challenge on {url}")
-                    # After bypass, check if we're still on a subscription wall
-                    if not self._detect_subscription_wall(driver):
-                        return True
+                    # Try to bypass the challenge (click buttons, wait for JS)
+                    if self._try_bypass_challenge(driver, url):
+                        logger.info(f"Successfully bypassed challenge on {url}")
+                        # After bypass, check if we're still on a subscription wall
+                        if not self._detect_subscription_wall(driver):
+                            return True
 
-                # Try closing modals in case CAPTCHA is in a modal
-                if self._try_close_modals(driver, url):
-                    logger.info("Successfully closed CAPTCHA modal")
-                    if not self._detect_subscription_wall(driver):
-                        return True
+                    # Try closing modals in case CAPTCHA is in a modal
+                    if self._try_close_modals(driver, url):
+                        logger.info("Successfully closed CAPTCHA modal")
+                        if not self._detect_subscription_wall(driver):
+                            return True
+            except Exception as driver_exc:
+                logger.warning(
+                    "Driver operation raised exception during detection: %s; attempting one driver reset and retry",
+                    driver_exc,
+                )
+                try:
+                    self.close_persistent_driver()
+                    driver = self.get_persistent_driver()
+                    with lock:
+                        try:
+                            driver.get(url)
+                        except Exception as nav_err:
+                            logger.warning("Retry driver.get() failed: %s", nav_err)
+
+                    retry_wait = 60 if not headless_mode else 10
+                    try:
+                        WebDriverWait(driver, retry_wait).until(
+                            EC.presence_of_element_located((By.TAG_NAME, "body"))
+                        )
+                    except Exception as wex:
+                        logger.warning("Retry wait after driver reset failed: %s", wex)
+
+                    # Try detection and bypass again
+                    try:
+                        if self._detect_captcha_or_challenge(driver):
+                            if self._try_bypass_challenge(driver, url):
+                                logger.info("Bypassed after driver reset")
+                                if not self._detect_subscription_wall(driver):
+                                    return True
+                    except Exception as e2:
+                        logger.error(
+                            "Retry detection after driver reset also failed: %s", e2
+                        )
+                        return False
+
+                    return True
+                except Exception as reset_exc:
+                    logger.error("Driver reset attempt failed: %s", reset_exc)
+                    return False
 
             # Try to close subscription modals/popups
             # Prevents false positives from subscription walls
@@ -3885,15 +4929,13 @@ class ContentExtractor:
                 for _ in range(1):  # Reduced from 2 iterations
                     x = random.randint(100, 800)
                     y = random.randint(100, 600)
-                    driver.execute_script(
-                        f"""
+                    driver.execute_script(f"""
                         var event = new MouseEvent('mousemove', {{
                             clientX: {x},
                             clientY: {y}
                         }});
                         document.dispatchEvent(event);
-                    """
-                    )
+                    """)
                     time.sleep(0.1)  # Reduced from 0.1-0.3 seconds
 
         except Exception as e:

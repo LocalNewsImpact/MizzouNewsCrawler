@@ -23,9 +23,7 @@ def wire_patterns_session(tmp_path):
     db = DatabaseManager(database_url=db_url)
     with db.get_session() as session:
         # Create wire_services table
-        session.execute(
-            text(
-                """
+        session.execute(text("""
             CREATE TABLE IF NOT EXISTS wire_services (
                 id INTEGER PRIMARY KEY,
                 pattern TEXT NOT NULL,
@@ -37,32 +35,22 @@ def wire_patterns_session(tmp_path):
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
-        """
-            )
-        )
+        """))
 
         # Insert Daypop patterns
-        session.execute(
-            text(
-                """
+        session.execute(text("""
             INSERT INTO wire_services (pattern, service_name, pattern_type, case_sensitive, priority, active, created_at, updated_at)
-            VALUES 
+            VALUES
                 ('Powered by Daypop', 'Daypop', 'content', 0, 50, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
                 ('Daypop', 'Daypop', 'content', 0, 50, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
                 ('© .* Daypop', 'Daypop', 'copyright', 0, 50, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        """
-            )
-        )
+        """))
 
         # Insert AP pattern for other tests
-        session.execute(
-            text(
-                """
+        session.execute(text("""
             INSERT INTO wire_services (pattern, service_name, pattern_type, case_sensitive, priority, active, created_at, updated_at)
             VALUES ('© .* The Associated Press', 'AP', 'copyright', 0, 50, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        """
-            )
-        )
+        """))
 
         session.commit()
         yield session

@@ -64,13 +64,13 @@ class OldVsNewComparison:
 
             # Get diverse set of bylines including edge cases
             query = """
-            SELECT DISTINCT raw_byline 
-            FROM byline_cleaning_telemetry 
-            WHERE raw_byline IS NOT NULL 
-              AND raw_byline != '' 
+            SELECT DISTINCT raw_byline
+            FROM byline_cleaning_telemetry
+            WHERE raw_byline IS NOT NULL
+              AND raw_byline != ''
               AND LENGTH(raw_byline) > 3
               AND LENGTH(raw_byline) < 500
-            ORDER BY RANDOM() 
+            ORDER BY RANDOM()
             LIMIT 300
             """
 

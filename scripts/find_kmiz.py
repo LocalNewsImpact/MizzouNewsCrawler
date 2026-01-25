@@ -8,13 +8,13 @@ db = DatabaseManager()
 with db.get_session() as session:
     results = session.execute(text("""
         SELECT id, host, canonical_name, city, county
-        FROM sources 
+        FROM sources
         WHERE host ILIKE '%abc17%' OR host ILIKE '%kmiz%'
         OR canonical_name ILIKE '%abc 17%'
         ORDER BY canonical_name
         LIMIT 10
     """)).fetchall()
-    
+
     if not results:
         print("No ABC 17 / KMIZ sources found")
     else:

@@ -83,13 +83,13 @@ def _score_match(
     """Score fuzzy matches with logging for large candidate sets."""
     if len(candidates) > 100 and entity_text:
         logger.debug(f"🔍 Fuzzy matching '{entity_text}' against {len(candidates)} candidates")
-    
+
     for entry in candidates:
         # Use rapidfuzz (50-100x faster)
         score = fuzz.ratio(norm_entity, entry_norm) / 100.0
         if score >= 0.85:
             # Track best match
-    
+
     if best_match and entity_text:
         logger.debug(f"✅ Fuzzy match: '{entity_text}' → '{best_match.name}' (score: {best_match.score:.2f})")
 ```

@@ -66,7 +66,7 @@ missing_sources = []
 for item in csv_data:
     url = item['url']
     host = url_to_host.get(url, '')
-    
+
     if host and host not in db_host_set:
         missing_sources.append({
             'name': item['name'],
@@ -82,7 +82,7 @@ output_file = '/Users/kiesowd/VSCode/NewsCrawler/MizzouNewsCrawler-Scripts/missi
 with open(output_file, 'w', newline='', encoding='utf-8') as f:
     fieldnames = ['name', 'host', 'url', 'owner', 'working', 'host_id']
     writer = csv.DictWriter(f, fieldnames=fieldnames)
-    
+
     writer.writeheader()
     for source in sorted(missing_sources, key=lambda x: x['host']):
         writer.writerow(source)

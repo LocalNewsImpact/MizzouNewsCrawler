@@ -14,7 +14,7 @@ apply_file() {
         echo "❌ File not found: $file"
         return 1
     fi
-    
+
     echo "🚀 Applying $file with substitutions..."
     # Use envsubst to replace variables defined in versions.env
     # We only substitute variables that are defined to avoid breaking other $VARs in the yaml

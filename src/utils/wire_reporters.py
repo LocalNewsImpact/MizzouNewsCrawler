@@ -35,16 +35,14 @@ def _load_wire_reporters() -> dict[str, tuple[str, str]]:
         with db.get_session() as session:
             # Query bylines marked as wire service content
             # Group by final_authors_display to get unique wire reporters
-            query = text(
-                """
+            query = text("""
                 SELECT DISTINCT final_authors_display,
                        COALESCE(human_label, 'Wire Service') as service_name
                 FROM byline_cleaning_telemetry
                 WHERE has_wire_service = true
                   AND final_authors_display IS NOT NULL
                   AND final_authors_display != ''
-            """
-            )
+            """)
 
             results = session.execute(query).fetchall()
 

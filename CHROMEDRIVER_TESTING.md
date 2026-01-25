@@ -130,10 +130,23 @@ This handles cases where ChromeDriver releases lag behind Chrome releases.
 
 **Cause:** Build environment blocks external downloads
 
-**Solution:** 
+**Solution:**
 - Pre-cache ChromeDriver in base image
 - Use organization's artifact registry
 - Allow download domains in firewall
+
+### Issue: CDP rejects userAgentMetadata on Chrome 143
+
+**Symptom:**
+```
+full_payload: ok=False, exc=Message: invalid argument: Invalid parameters
+full_payload_exact: ok=False, exc=Message: invalid argument: Invalid parameters
+top_platform_only: ok=True
+```
+
+**Cause:** Chrome 143 in our containerized test environment rejects `Network.setUserAgentOverride` payloads that include `userAgentMetadata` (the call returns "Invalid parameters"). This appears to be a behavior in the Chrome build or the headless/containerized environment rather than a bug in our code.
+
+**Workaround:** Add and prefer `full_payload_exact` when possible, but treat `top_platform_only` as the canonical fallback for Chrome 143. See `scripts/diagnose_user_agent_metadata.py` and `scripts/test_ua_metadata_diag.sh` for reproduction and automated checks.
 
 ### Issue: Docker layer caching causes stale ChromeDriver
 

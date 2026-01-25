@@ -16,34 +16,34 @@ jobs:
     name: Validate GCP Cloud Build Triggers
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      
+
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v1
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
-      
+
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v1
         with:
           version: '418.0.0'
           project_id: ${{ secrets.GCP_PROJECT }}
-      
+
       - name: Validate all required triggers exist
         run: |
           set -e
-          
+
           echo "🔍 Validating GCP Cloud Build triggers..."
           echo ""
-          
+
           # Use the project ID that setup-gcloud configured
           PROJECT_ID=$(gcloud config get-value project)
           echo "Project: $PROJECT_ID"
           echo ""
-          
+
           TRIGGERS=(
             "build-base-manual"
             "build-ml-base-manual"
@@ -52,16 +52,16 @@ jobs:
             "build-api-manual"
             "build-crawler-manual"
           )
-          
+
           # Get list of all triggers (requires less permissions than describe)
           echo "Fetching trigger list..."
           ALL_TRIGGERS=$(gcloud builds triggers list --project="$PROJECT_ID" --format="value(name)")
           echo "Found triggers:"
           echo "$ALL_TRIGGERS"
           echo ""
-          
+
           MISSING=()
-          
+
           for TRIGGER in "${TRIGGERS[@]}"; do
             echo -n "Checking $TRIGGER... "
             if echo "$ALL_TRIGGERS" | grep -q "^${TRIGGER}$"; then
@@ -71,26 +71,26 @@ jobs:
               MISSING+=("$TRIGGER")
             fi
           done
-          
+
           echo ""
-          
+
           if [ ${#MISSING[@]} -gt 0 ]; then
             echo "❌ Missing triggers:"
             printf '  - %s\n' "${MISSING[@]}"
             exit 1
           fi
-          
+
           echo "✅ All required triggers exist and are accessible"
-      
+
       - name: Test trigger execution permissions
         run: |
           set -e
-          
+
           echo "🔐 Testing trigger execution permissions..."
           echo ""
-          
+
           # Just validate we CAN trigger (don't actually trigger)
           # gcloud builds triggers run returns exit code 0 if permissions are OK
-          
+
           echo "✅ Service account has necessary permissions to trigger builds"
           echo "   (validated via gcloud auth and triggers describe access)"

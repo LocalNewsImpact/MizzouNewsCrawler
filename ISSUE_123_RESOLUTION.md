@@ -1,8 +1,8 @@
 # Issue #123 Resolution: Telemetry PostgreSQL Schema Fix
 
 ## Issue Summary
-**Title**: CRITICAL: Telemetry PostgreSQL schema missing → SQLite fallback → data loss  
-**Status**: ✅ RESOLVED  
+**Title**: CRITICAL: Telemetry PostgreSQL schema missing → SQLite fallback → data loss
+**Status**: ✅ RESOLVED
 **Resolution Date**: 2025-10-31
 
 ## Problem Description
@@ -39,8 +39,8 @@ Created Alembic migration to change column type from Integer to String:
 
 **PostgreSQL**:
 ```sql
-ALTER TABLE extraction_telemetry_v2 
-ALTER COLUMN proxy_status TYPE VARCHAR 
+ALTER TABLE extraction_telemetry_v2
+ALTER COLUMN proxy_status TYPE VARCHAR
 USING proxy_status::VARCHAR
 ```
 
@@ -117,9 +117,9 @@ See detailed instructions in `docs/migrations/MIGRATION_d1e2f3a4b5c6_proxy_statu
 
 ### 1. Check Column Type
 ```sql
-SELECT column_name, data_type 
-FROM information_schema.columns 
-WHERE table_name = 'extraction_telemetry_v2' 
+SELECT column_name, data_type
+FROM information_schema.columns
+WHERE table_name = 'extraction_telemetry_v2'
   AND column_name = 'proxy_status';
 -- Expected: 'character varying'
 ```
@@ -134,7 +134,7 @@ INSERT INTO extraction_telemetry_v2 (
     NOW(), NOW(), 'success', true, NOW()
 );
 
-SELECT proxy_status FROM extraction_telemetry_v2 
+SELECT proxy_status FROM extraction_telemetry_v2
 WHERE operation_id = 'verify-fix';
 -- Expected: 'success'
 
@@ -164,7 +164,7 @@ After deployment, verify:
 ## Valid proxy_status Values
 The column now correctly accepts:
 - `"success"` - Proxy request succeeded
-- `"failed"` - Proxy request failed  
+- `"failed"` - Proxy request failed
 - `"bypassed"` - Proxy was bypassed
 - `"disabled"` - Proxy was disabled
 - `NULL` - Proxy not used
@@ -208,7 +208,7 @@ For questions or issues:
 - Review telemetry documentation in `docs/telemetry/`
 
 ---
-**Resolution Completed**: 2025-10-31  
-**Tested By**: Automated test suite + manual verification  
-**Reviewed By**: Code review completed, 0 security issues  
+**Resolution Completed**: 2025-10-31
+**Tested By**: Automated test suite + manual verification
+**Reviewed By**: Code review completed, 0 security issues
 **Status**: ✅ Ready for deployment

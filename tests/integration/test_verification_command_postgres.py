@@ -86,15 +86,13 @@ class TestVerificationStatusPostgres:
         # creates its own DatabaseManager. For this test, we'll test the
         # query directly.
         # Test the status summary query against PostgreSQL
-        query = text(
-            """
+        query = text("""
             SELECT status, COUNT(*) as count
             FROM candidate_links
             WHERE source_host_id = :source_id
             GROUP BY status
             ORDER BY count DESC
-        """
-        )
+        """)
 
         result = cloud_sql_session.execute(query, {"source_id": test_source.id})
         status_counts = {row[0]: row[1] for row in result}
@@ -108,13 +106,11 @@ class TestVerificationStatusPostgres:
     ):
         """Test counting pending verification URLs in PostgreSQL."""
         # Query for pending verification (discovered status)
-        query = text(
-            """
+        query = text("""
             SELECT COUNT(*)
             FROM candidate_links
             WHERE status = 'discovered'
-        """
-        )
+        """)
 
         result = cloud_sql_session.execute(query)
         count = result.scalar()
@@ -141,15 +137,13 @@ class TestVerificationStatusPostgres:
         cloud_sql_session.commit()
 
         # Query status breakdown
-        query = text(
-            """
+        query = text("""
             SELECT status, COUNT(*) as count
             FROM candidate_links
             WHERE source_host_id = :source_id
             GROUP BY status
             ORDER BY status
-        """
-        )
+        """)
 
         result = cloud_sql_session.execute(query, {"source_id": test_source.id})
         status_breakdown = list(result)
@@ -285,16 +279,14 @@ class TestVerificationPostgresFeatures:
     ):
         """Test that candidates are ordered correctly for verification."""
         # Query candidates in the order they would be processed
-        query = text(
-            """
+        query = text("""
             SELECT id, url, discovered_at
             FROM candidate_links
             WHERE status = 'discovered'
             AND source_host_id = :source_id
             ORDER BY discovered_at ASC, id ASC
             LIMIT 10
-        """
-        )
+        """)
 
         result = cloud_sql_session.execute(query, {"source_id": test_source.id})
         candidates = list(result)
@@ -316,8 +308,7 @@ class TestVerificationPostgresFeatures:
         """
         # Test the FOR UPDATE SKIP LOCKED query that would be used
         # in production for parallel verification workers
-        query = text(
-            """
+        query = text("""
             SELECT id, url, source_host_id, status
             FROM candidate_links
             WHERE status = 'discovered'
@@ -325,8 +316,7 @@ class TestVerificationPostgresFeatures:
             ORDER BY discovered_at ASC
             LIMIT 2
             FOR UPDATE SKIP LOCKED
-        """
-        )
+        """)
 
         # This should succeed without error in PostgreSQL
         result = cloud_sql_session.execute(query, {"source_id": test_source.id})
@@ -346,15 +336,13 @@ class TestVerificationPostgresFeatures:
         candidate = discovered_candidates[0]
 
         # Update using PostgreSQL CURRENT_TIMESTAMP
-        update_query = text(
-            """
+        update_query = text("""
             UPDATE candidate_links
             SET status = 'article',
                 processed_at = CURRENT_TIMESTAMP
             WHERE id = :candidate_id
             RETURNING processed_at
-        """
-        )
+        """)
 
         result = cloud_sql_session.execute(update_query, {"candidate_id": candidate.id})
         cloud_sql_session.commit()
@@ -404,15 +392,13 @@ class TestVerificationTelemetryPostgres:
         cloud_sql_session.commit()
 
         # Query telemetry aggregation
-        query = text(
-            """
+        query = text("""
             SELECT source_host_id, COUNT(*) as candidate_count
             FROM candidate_links
             WHERE status = 'discovered'
             GROUP BY source_host_id
             ORDER BY candidate_count DESC
-        """
-        )
+        """)
 
         result = cloud_sql_session.execute(query)
         telemetry = list(result)
@@ -433,30 +419,26 @@ class TestVerificationTelemetryPostgres:
         candidate = discovered_candidates[0]
 
         # Update with verification timing
-        update_query = text(
-            """
+        update_query = text("""
             UPDATE candidate_links
             SET status = 'article',
                 processed_at = CURRENT_TIMESTAMP,
                 error_message = NULL
             WHERE id = :candidate_id
             RETURNING processed_at
-        """
-        )
+        """)
 
         result = cloud_sql_session.execute(update_query, {"candidate_id": candidate.id})
         result.fetchone()  # Execute the query but don't store result
         cloud_sql_session.commit()
 
         # Query to find recently processed candidates (using INTERVAL)
-        recent_query = text(
-            """
+        recent_query = text("""
             SELECT id, url, processed_at
             FROM candidate_links
             WHERE processed_at >= CURRENT_TIMESTAMP - INTERVAL '5 minutes'
             AND source_host_id = :source_id
-        """
-        )
+        """)
 
         result = cloud_sql_session.execute(recent_query, {"source_id": test_source.id})
         recent_verifications = list(result)

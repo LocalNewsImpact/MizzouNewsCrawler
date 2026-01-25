@@ -94,15 +94,15 @@ const VerificationReviewInterface = () => {
         const newItems = [...pendingItems];
         newItems.splice(currentIndex, 1);
         setPendingItems(newItems);
-        
+
         // Adjust index if needed
         if (currentIndex >= newItems.length && newItems.length > 0) {
           setCurrentIndex(newItems.length - 1);
         }
-        
+
         // Clear notes for next item
         setReviewNotes('');
-        
+
         // Refresh stats
         fetchStats();
       } else {
@@ -214,7 +214,7 @@ const VerificationReviewInterface = () => {
             <Card variant="outlined">
               <CardContent sx={{ textAlign: 'center', py: 1 }}>
                 <Typography variant="h6">
-                  {stats.storysniffer_accuracy ? 
+                  {stats.storysniffer_accuracy ?
                     `${(stats.storysniffer_accuracy * 100).toFixed(1)}%` : 'N/A'}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
@@ -257,16 +257,16 @@ const VerificationReviewInterface = () => {
               URL Verification Review ({currentIndex + 1} of {pendingItems.length})
             </Typography>
             <Stack direction="row" spacing={1}>
-              <Button 
-                size="small" 
-                onClick={goToPrevious} 
+              <Button
+                size="small"
+                onClick={goToPrevious}
                 disabled={currentIndex === 0}
               >
                 Previous
               </Button>
-              <Button 
-                size="small" 
-                onClick={goToNext} 
+              <Button
+                size="small"
+                onClick={goToNext}
                 disabled={currentIndex === pendingItems.length - 1}
               >
                 Next
@@ -282,17 +282,17 @@ const VerificationReviewInterface = () => {
               <Typography variant="subtitle2" gutterBottom>
                 URL:
               </Typography>
-              <Box sx={{ 
-                p: 2, 
-                bgcolor: 'grey.100', 
-                borderRadius: 1, 
+              <Box sx={{
+                p: 2,
+                bgcolor: 'grey.100',
+                borderRadius: 1,
                 fontFamily: 'monospace',
                 fontSize: '0.9rem',
                 wordBreak: 'break-all'
               }}>
-                <MuiLink 
-                  href={currentItem.url} 
-                  target="_blank" 
+                <MuiLink
+                  href={currentItem.url}
+                  target="_blank"
                   rel="noopener noreferrer"
                   sx={{ textDecoration: 'none' }}
                 >
@@ -305,10 +305,10 @@ const VerificationReviewInterface = () => {
               <Typography variant="subtitle2" gutterBottom>
                 StorySniffer Classification:
               </Typography>
-              <Box sx={{ 
-                p: 2, 
-                bgcolor: currentItem.storysniffer_result ? 'success.50' : 'warning.50', 
-                borderRadius: 1, 
+              <Box sx={{
+                p: 2,
+                bgcolor: currentItem.storysniffer_result ? 'success.50' : 'warning.50',
+                borderRadius: 1,
                 display: 'flex',
                 alignItems: 'center',
                 gap: 1
@@ -324,9 +324,9 @@ const VerificationReviewInterface = () => {
               <Typography variant="subtitle2" gutterBottom>
                 Content Preview:
               </Typography>
-              <Box sx={{ 
-                p: 2, 
-                bgcolor: 'grey.50', 
+              <Box sx={{
+                p: 2,
+                bgcolor: 'grey.50',
                 borderRadius: 1,
                 maxHeight: '150px',
                 overflow: 'auto'
@@ -353,13 +353,13 @@ const VerificationReviewInterface = () => {
           {/* Metadata */}
           <Box sx={{ mt: 3 }}>
             <Stack direction="row" spacing={2} flexWrap="wrap">
-              <Chip 
+              <Chip
                 icon={<Source />}
                 label={`Source: ${currentItem.source_name}`}
                 size="small"
               />
               {currentItem.verification_confidence !== null && (
-                <Chip 
+                <Chip
                   icon={<Speed />}
                   label={`Confidence: ${currentItem.verification_confidence.toFixed(2)}`}
                   size="small"
@@ -367,13 +367,13 @@ const VerificationReviewInterface = () => {
                 />
               )}
               {currentItem.verification_time_ms && (
-                <Chip 
+                <Chip
                   icon={<Schedule />}
                   label={`${currentItem.verification_time_ms.toFixed(1)}ms`}
                   size="small"
                 />
               )}
-              <Chip 
+              <Chip
                 icon={<LinkIcon />}
                 label={formatUrl(currentItem.url)}
                 size="small"
@@ -428,8 +428,8 @@ const VerificationReviewInterface = () => {
       {/* Help Text */}
       <Box sx={{ mt: 2, p: 2, bgcolor: 'info.50', borderRadius: 1 }}>
         <Typography variant="body2" color="text.secondary">
-          <strong>Review Instructions:</strong> Verify if StorySniffer correctly classified this URL. 
-          Click "Correct" if the classification matches what you see when visiting the URL. 
+          <strong>Review Instructions:</strong> Verify if StorySniffer correctly classified this URL.
+          Click "Correct" if the classification matches what you see when visiting the URL.
           Click "Wrong" if StorySniffer misclassified it (e.g., marked a calendar page as an article).
         </Typography>
       </Box>

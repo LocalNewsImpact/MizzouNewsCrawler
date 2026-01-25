@@ -27,7 +27,7 @@ def get_domain_issues(
             .limit(limit)\
             .offset(offset)\
             .all()
-        
+
         return {
             "issues": [
                 {
@@ -63,7 +63,7 @@ def get_domain_issues(
             status_code=503,
             detail="Database temporarily unavailable"
         )
-    
+
     # Use injected db instead of module-level db_manager
     with db.get_session() as session:
         issues = session.query(DomainFeedback)\
@@ -72,7 +72,7 @@ def get_domain_issues(
             .limit(limit)\
             .offset(offset)\
             .all()
-        
+
         return {
             "issues": [
                 {
@@ -90,7 +90,7 @@ def get_domain_issues(
 
 ## Key Changes
 
-1. **Import the dependency function**: 
+1. **Import the dependency function**:
    ```python
    from backend.app.lifecycle import get_db_manager
    ```
@@ -126,7 +126,7 @@ from backend.app.lifecycle import get_db_manager
 def test_domain_issues():
     # Create test database
     test_db = DatabaseManager("sqlite:///:memory:")
-    
+
     # Populate test data
     with test_db.get_session() as session:
         session.add(DomainFeedback(
@@ -136,15 +136,15 @@ def test_domain_issues():
             description="Blocked by server"
         ))
         session.commit()
-    
+
     # Override dependency
     app.dependency_overrides[get_db_manager] = lambda: test_db
-    
+
     try:
         # Test the endpoint
         client = TestClient(app)
         response = client.get("/api/domain_issues")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert len(data["issues"]) == 1
@@ -213,14 +213,14 @@ def submit_review(
     telemetry: TelemetryStore | None = Depends(get_telemetry_store),
 ):
     # ... business logic ...
-    
+
     # Optional telemetry submission
     if telemetry:
         telemetry.submit(lambda conn: conn.execute(
             "INSERT INTO review_log (article_id, reviewer, timestamp) VALUES (?, ?, ?)",
             (idx, review.reviewer, datetime.now())
         ))
-    
+
     return {"status": "success"}
 ```
 
@@ -238,11 +238,11 @@ def fetch_article(
 ):
     if not session:
         raise HTTPException(503, "HTTP client unavailable")
-    
+
     # Session may have origin proxy adapter installed
     response = session.get(url, timeout=10)
     response.raise_for_status()
-    
+
     return {"content": response.text}
 ```
 

@@ -960,7 +960,7 @@ export default function App(){
             // keep missingLocations empty unless there are explicit missing_locations
             setSelectedLocations(optsLoc.map(o=>({ id: o.id, label: o.label })))
             setMissingLocations([])
-          
+
           // Populate inferred tags and tag-related state from cached canonical if available
           try{
             const cachedInferred = Array.isArray(p.inferred_tags) ? p.inferred_tags.map(String) : (art && art.inferred_tags_set1 ? String(art.inferred_tags_set1).split(',').map(s=>s.trim()).filter(Boolean) : [])
@@ -1998,8 +1998,8 @@ export default function App(){
   return (
     <div className="page root">
       <div className="card">
-  
-        
+
+
         {error && <div style={{color: 'crimson', marginBottom: 8}}>Error: {error}</div>}
 
         {/* Simple top tabs */}
@@ -2253,7 +2253,7 @@ export default function App(){
                 <div style={{fontSize:12, color: autosaveStatus === 'error' ? '#d9534f' : (autosaveStatus === 'saving' || autosaveStatus === 'pending' ? '#f0ad4e' : (autosaveStatus === 'saved' ? '#5cb85c' : '#666'))}}>
                   {autosaveStatus === 'pending' ? 'Autosave pending…' : (autosaveStatus === 'saving' ? 'Autosaving…' : (autosaveStatus === 'saved' ? 'Autosaved' : (autosaveStatus === 'error' ? 'Autosave failed' : '')))}
                 </div>
-                <button id="save" className={saveStatus==='saved' ? 'btn-saved' : (saveStatus==='edited' ? 'btn-edited' : (saveStatus==='saving' ? 'btn-saving' : (saveStatus==='error' ? 'btn-error' : 'btn-unsaved')))} onClick={async ()=>{ 
+                <button id="save" className={saveStatus==='saved' ? 'btn-saved' : (saveStatus==='edited' ? 'btn-edited' : (saveStatus==='saving' ? 'btn-saving' : (saveStatus==='error' ? 'btn-error' : 'btn-unsaved')))} onClick={async ()=>{
                  // clear any legacy saveTimer
                  if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
                  // clear pending autosave debounce to avoid duplicate/overlapping saves

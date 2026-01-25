@@ -1,7 +1,7 @@
 # Multi-Proxy Configuration System
 
-**Status:** ✅ Implemented  
-**Date:** October 10, 2025  
+**Status:** ✅ Implemented
+**Date:** October 10, 2025
 **Branch:** feature/gcp-kubernetes-deployment
 
 ---
@@ -450,7 +450,7 @@ env:
   # Existing vars...
   - name: PROXY_PROVIDER
     value: "origin"  # or "brightdata" to make it active
-  
+
   # BrightData configuration
   - name: BRIGHTDATA_PROXY_URL
     valueFrom:
@@ -574,6 +574,6 @@ kubectl rollout restart deployment/mizzou-processor -n production
 
 ## Support
 
-**Documentation:** This file  
-**CLI Help:** `python -m src.cli.cli_modular proxy --help`  
+**Documentation:** This file
+**CLI Help:** `python -m src.cli.cli_modular proxy --help`
 **Code:** `src/crawler/proxy_config.py`, `src/cli/commands/proxy.py`

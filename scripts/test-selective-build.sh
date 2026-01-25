@@ -47,7 +47,7 @@ REBUILD_CRAWLER="false"
 check_pattern() {
   local service_name=$1
   local patterns=$2
-  
+
   if echo "$CHANGED_FILES" | grep -qE "$patterns"; then
     return 0  # Match found
   fi

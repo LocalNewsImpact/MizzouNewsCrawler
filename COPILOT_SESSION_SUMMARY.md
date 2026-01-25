@@ -44,7 +44,7 @@ Analyze and fix multiple critical errors in the Argo extraction workflow:
 4. **Schema Analysis**
    - Reviewed migration `a9957c3054a4_add_remaining_telemetry_tables.py`
    - Confirmed correct schema: `confidence = sa.Column(String, nullable=True)`
-   - Verified `confidence_score = sa.Column(Float, nullable=True)` 
+   - Verified `confidence_score = sa.Column(Float, nullable=True)`
    - Understood modern vs legacy schema differences
 
 5. **Code Flow Analysis**
@@ -90,10 +90,10 @@ Analyze and fix multiple critical errors in the Argo extraction workflow:
 ```python
 def _get_column_type(self, conn, table_name: str, column_name: str) -> str | None:
     """Get the data type of a specific column.
-    
+
     Returns the column type in lowercase (e.g., 'character varying', 'double precision').
     Returns None if the column doesn't exist or type cannot be determined.
-    
+
     Note: table_name is validated to prevent SQL injection.
     """
     # Validate table_name to prevent SQL injection
@@ -101,7 +101,7 @@ def _get_column_type(self, conn, table_name: str, column_name: str) -> str | Non
     if not re.match(r'^[a-zA-Z0-9_-]+$', table_name):
         logger.warning(f"Invalid table name: {table_name}")
         return None
-    
+
     # ... implementation for SQLite and PostgreSQL ...
 ```
 

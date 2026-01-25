@@ -129,7 +129,7 @@ Node Pools:
       min-nodes: 1
       max-nodes: 3
       auto-scaling: true
-      
+
   - crawler-pool:
       machine-type: e2-standard-4  # Higher CPU for crawlers
       preemptible: true  # Cost savings for bursty workloads
@@ -137,7 +137,7 @@ Node Pools:
       max-nodes: 10
       auto-scaling: true
       taints: [workload=crawler:NoSchedule]
-      
+
   - processor-pool:
       machine-type: n2-highmem-2  # Higher memory for ML models
       min-nodes: 0
@@ -166,12 +166,12 @@ mizzou-raw-assets:
   Storage Class: Standard
   Lifecycle: Move to Nearline after 90 days
   Versioning: Disabled
-  
+
 mizzou-ml-models:
   Location: us-central1
   Storage Class: Standard
   Public access: Disabled
-  
+
 mizzou-frontend-prod:
   Location: multi-region US
   Storage Class: Standard
@@ -554,39 +554,39 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - id: auth
       uses: google-github-actions/auth@v2
       with:
         workload_identity_provider: '${{ secrets.WIF_PROVIDER }}'
         service_account: '${{ secrets.WIF_SERVICE_ACCOUNT }}'
-    
+
     - name: Set up Cloud SDK
       uses: google-github-actions/setup-gcloud@v2
-    
+
     - name: Build images
       run: |
         gcloud builds submit \
           --tag us-central1-docker.pkg.dev/mizzou-news/images/api:${{ github.sha }} \
           --tag us-central1-docker.pkg.dev/mizzou-news/images/api:latest \
           -f Dockerfile.api .
-        
+
         gcloud builds submit \
           --tag us-central1-docker.pkg.dev/mizzou-news/images/crawler:${{ github.sha }} \
           -f Dockerfile.crawler .
-        
+
         gcloud builds submit \
           --tag us-central1-docker.pkg.dev/mizzou-news/images/processor:${{ github.sha }} \
           -f Dockerfile.processor .
-    
+
     - name: Get GKE credentials
       run: |
         gcloud container clusters get-credentials mizzou-crawler-cluster \
           --region us-central1
-    
+
     - name: Deploy with Helm
       run: |
         helm upgrade --install mizzou-crawler ./helm/mizzou-crawler \
@@ -595,7 +595,7 @@ jobs:
           --values ./helm/mizzou-crawler/values-prod.yaml \
           --set image.tag=${{ github.sha }} \
           --wait
-    
+
     - name: Verify deployment
       run: |
         kubectl rollout status deployment/mizzou-api -n mizzou-prod
@@ -621,28 +621,28 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - uses: actions/setup-node@v4
       with:
         node-version: '20'
         cache: 'npm'
         cache-dependency-path: web/package-lock.json
-    
+
     - name: Build React app
       run: |
         cd web
         npm ci
         npm run build
-    
+
     - id: auth
       uses: google-github-actions/auth@v2
       with:
         workload_identity_provider: '${{ secrets.WIF_PROVIDER }}'
         service_account: '${{ secrets.WIF_SERVICE_ACCOUNT }}'
-    
+
     - name: Deploy to Cloud Storage
       run: |
         gsutil -m rsync -r -d web/build gs://mizzou-frontend-prod
@@ -652,7 +652,7 @@ jobs:
           gs://mizzou-frontend-prod/**/*.js
         gsutil -m setmeta -h "Cache-Control:public, max-age=31536000" \
           gs://mizzou-frontend-prod/**/*.css
-    
+
     - name: Invalidate CDN cache
       run: |
         gcloud compute url-maps invalidate-cdn-cache mizzou-frontend-lb \
@@ -709,19 +709,19 @@ def migrate_to_postgres():
     # Export from SQLite
     sqlite_conn = sqlite3.connect('data/mizzou.db')
     sqlite_conn.row_factory = sqlite3.Row
-    
+
     # Import to Postgres
     pg_engine = create_engine(os.environ['DATABASE_URL'])
-    
+
     tables = ['sources', 'articles', 'candidate_links', 'article_entities', ...]
-    
+
     for table in tables:
         print(f"Migrating {table}...")
         rows = sqlite_conn.execute(f"SELECT * FROM {table}").fetchall()
-        
+
         # Batch insert into Postgres
         df = pd.DataFrame([dict(row) for row in rows])
-        df.to_sql(table, pg_engine, if_exists='append', index=False, 
+        df.to_sql(table, pg_engine, if_exists='append', index=False,
                   method='multi', chunksize=1000)
 ```
 
@@ -743,10 +743,10 @@ from google.cloud import bigquery
 def export_to_bigquery():
     # Export articles to BigQuery
     client = bigquery.Client()
-    
+
     # Load from Postgres
     df = pd.read_sql("""
-        SELECT 
+        SELECT
             article_id,
             source_id,
             url,
@@ -758,7 +758,7 @@ def export_to_bigquery():
         FROM articles
         WHERE extracted_at >= NOW() - INTERVAL '1 day'
     """, pg_engine)
-    
+
     # Write to BigQuery
     table_ref = client.dataset('mizzou_analytics').table('articles')
     job_config = bigquery.LoadJobConfig(
@@ -769,7 +769,7 @@ def export_to_bigquery():
         ),
         clustering_fields=['county', 'source_id']
     )
-    
+
     job = client.load_table_from_dataframe(df, table_ref, job_config=job_config)
     job.result()
 ```
@@ -814,14 +814,14 @@ from google.cloud import storage
 def upload_raw_asset(url, content, content_type):
     client = storage.Client()
     bucket = client.bucket('mizzou-raw-assets')
-    
+
     # Use content hash as filename
     content_hash = hashlib.sha256(content.encode()).hexdigest()
     blob_name = f"{content_type}/{content_hash[:2]}/{content_hash}.html"
-    
+
     blob = bucket.blob(blob_name)
     blob.upload_from_string(content, content_type='text/html')
-    
+
     return f"gs://mizzou-raw-assets/{blob_name}"
 ```
 
@@ -1075,7 +1075,7 @@ from google.cloud import logging
 def log_audit_event(user_id, action, resource, result):
     client = logging.Client()
     logger = client.logger('audit-log')
-    
+
     logger.log_struct({
         'user_id': user_id,
         'action': action,
@@ -1146,19 +1146,19 @@ from google.cloud import monitoring_v3
 def record_metric(metric_name, value, labels=None):
     client = monitoring_v3.MetricServiceClient()
     project_name = f"projects/{PROJECT_ID}"
-    
+
     series = monitoring_v3.TimeSeries()
     series.metric.type = f"custom.googleapis.com/{metric_name}"
     series.resource.type = "k8s_pod"
-    
+
     if labels:
         for key, value in labels.items():
             series.metric.labels[key] = value
-    
+
     point = series.points.add()
     point.value.int64_value = value
     point.interval.end_time.seconds = int(time.time())
-    
+
     client.create_time_series(name=project_name, time_series=[series])
 
 # Usage
@@ -1287,7 +1287,7 @@ def test_postgres_connection():
 # Test BigQuery export
 def test_bigquery_export():
     export_to_bigquery()
-    
+
     client = bigquery.Client()
     query = """
         SELECT COUNT(*) as count
@@ -1306,20 +1306,20 @@ def test_bigquery_export():
 @pytest.mark.e2e
 def test_full_pipeline():
     # 1. Discover URLs
-    subprocess.run(["python", "-m", "src.cli.main", "discover-urls", 
+    subprocess.run(["python", "-m", "src.cli.main", "discover-urls",
                     "--source-limit", "1"], check=True)
-    
+
     # 2. Extract content
-    subprocess.run(["python", "-m", "src.cli.main", "extract", 
+    subprocess.run(["python", "-m", "src.cli.main", "extract",
                     "--limit", "1"], check=True)
-    
+
     # 3. Verify in database
     with engine.connect() as conn:
         result = conn.execute(text(
             "SELECT COUNT(*) FROM articles WHERE extracted_at >= NOW() - INTERVAL '5 minutes'"
         ))
         assert result.scalar() > 0
-    
+
     # 4. Verify in BigQuery
     # ... check BigQuery
 ```
@@ -1332,11 +1332,11 @@ from locust import HttpUser, task, between
 
 class TelemetryAPIUser(HttpUser):
     wait_time = between(1, 3)
-    
+
     @task
     def get_metrics(self):
         self.client.get("/telemetry/metrics")
-    
+
     @task(3)
     def get_articles(self):
         self.client.get("/articles?county=Boone&limit=20")
@@ -1594,7 +1594,7 @@ class Source:
     owner_id: str  # FK to User
     created_by: str  # FK to User
     is_public: bool = False  # Admin can make sources visible to all
-    
+
 class SourcePermission:
     permission_id: int
     source_id: int  # FK to Source
@@ -1617,18 +1617,18 @@ def get_accessible_sources(user: User) -> List[int]:
     if user.role == Role.ADMIN:
         # Admins see everything
         return db.query(Source.source_id).all()
-    
+
     # Get sources user owns
     owned = db.query(Source.source_id).filter(Source.owner_id == user.user_id)
-    
+
     # Get sources with explicit permissions
     permitted = db.query(SourcePermission.source_id).filter(
         SourcePermission.user_id == user.user_id
     )
-    
+
     # Get public sources
     public = db.query(Source.source_id).filter(Source.is_public == True)
-    
+
     return list(set(owned + permitted + public))
 
 @app.get("/articles")
@@ -1638,12 +1638,12 @@ async def get_articles(
 ):
     """Articles filtered by user's source access."""
     accessible_sources = get_accessible_sources(current_user)
-    
+
     articles = db.query(Article).filter(
         Article.county == county,
         Article.source_id.in_(accessible_sources)
     ).all()
-    
+
     return articles
 ```
 
@@ -1662,7 +1662,7 @@ interface UserContext {
 const SourcePermissionsManager = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
-  
+
   const grantAccess = async (userId: string, sourceId: number, accessLevel: string) => {
     await api.post('/admin/permissions', {
       user_id: userId,
@@ -1670,7 +1670,7 @@ const SourcePermissionsManager = () => {
       access_level: accessLevel
     });
   };
-  
+
   // UI for admins to grant/revoke source access
 };
 ```
@@ -1712,17 +1712,17 @@ CREATE INDEX idx_articles_source ON articles(source_id);
 
 **Benefits of This Approach:**
 
-✅ **Simple**: Single database, single namespace, no operational complexity  
-✅ **Cost-effective**: Shared resources, no per-tenant overhead  
-✅ **Flexible**: Easy to add more sources and users  
-✅ **Secure**: Row-level filtering prevents data leakage  
-✅ **Scalable**: Can handle slow growth without infrastructure changes  
-✅ **Admin-friendly**: Clear permission management UI  
+✅ **Simple**: Single database, single namespace, no operational complexity
+✅ **Cost-effective**: Shared resources, no per-tenant overhead
+✅ **Flexible**: Easy to add more sources and users
+✅ **Secure**: Row-level filtering prevents data leakage
+✅ **Scalable**: Can handle slow growth without infrastructure changes
+✅ **Admin-friendly**: Clear permission management UI
 
 **No need for:**
-❌ Separate Kubernetes namespaces per user  
-❌ Separate databases per user  
-❌ Complex tenant isolation  
+❌ Separate Kubernetes namespaces per user
+❌ Separate databases per user
+❌ Complex tenant isolation
 ❌ Per-tenant resource quotas
 
 ---

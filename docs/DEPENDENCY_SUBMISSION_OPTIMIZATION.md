@@ -1,7 +1,7 @@
 # Automatic Dependency Submission Analysis
 
-**Date**: October 2, 2025  
-**Workflow**: "Automatic Dependency Submission (Python)"  
+**Date**: October 2, 2025
+**Workflow**: "Automatic Dependency Submission (Python)"
 **Type**: GitHub-managed automatic workflow (event: `dynamic`)
 
 ## Current Behavior
@@ -247,7 +247,7 @@ Since you're already installing dependencies, add security checks:
 ### Risk 1: Missing Dependency Updates
 **Concern**: What if a new vulnerability is discovered?
 
-**Mitigation**: 
+**Mitigation**:
 - Weekly scheduled run catches new vulnerabilities
 - Manual trigger available for urgent scans
 - Dependabot still monitors the dependency graph

@@ -77,7 +77,7 @@ def _wrapped_request(self, method, url, *args, **kwargs):
     use = os.getenv("USE_ORIGIN_PROXY", "").lower() in ("1", "true", "yes")
     original_url = str(url)
     proxy_used = False
-    
+
     if use:
         if _should_bypass(url):
             logger.debug(f"Origin proxy bypassed for {original_url[:80]}")
@@ -88,7 +88,7 @@ def _wrapped_request(self, method, url, *args, **kwargs):
                 f"🔀 Proxying {method} {domain} via {proxy_base} "
                 f"(auth: {'yes' if has_auth else 'NO - MISSING CREDENTIALS'})"
             )
-    
+
     try:
         response = session._origin_original_request(method, url, *args, **kwargs)
         if proxy_used:

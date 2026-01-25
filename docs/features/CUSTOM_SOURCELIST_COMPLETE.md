@@ -123,11 +123,11 @@ python scripts/custom_sourcelist_workflow.py export \
 
 ## Why CSV Method?
 
-✅ **Complete Metadata** - Captures city, county, state, address, ZIP, type, owner  
-✅ **Gazetteer Support** - City/county/state enable geographic entity matching  
-✅ **Reproducible** - CSV in version control tracks all source info  
-✅ **Easy to Update** - Just edit CSV and re-run  
-✅ **Documentation** - CSV serves as project documentation  
+✅ **Complete Metadata** - Captures city, county, state, address, ZIP, type, owner
+✅ **Gazetteer Support** - City/county/state enable geographic entity matching
+✅ **Reproducible** - CSV in version control tracks all source info
+✅ **Easy to Update** - Just edit CSV and re-run
+✅ **Documentation** - CSV serves as project documentation
 
 ## Isolation Guarantees
 
@@ -175,7 +175,7 @@ db = DatabaseManager()
 session = db.get_session().__enter__()
 
 result = session.execute(text('''
-    SELECT 
+    SELECT
         COALESCE(d.slug, 'no-dataset') as dataset,
         COUNT(*) as articles
     FROM articles a
@@ -308,14 +308,14 @@ python scripts/custom_sourcelist_workflow.py export \
 
 ## Key Advantages
 
-✅ **Uses Existing Infrastructure** - Leverages Dataset model, CLI, pipeline  
-✅ **Complete Isolation** - Database-level separation via dataset_id  
-✅ **Full Metadata Support** - City, county, state, address, ZIP, type, owner  
-✅ **Gazetteer Ready** - Geographic entity matching enabled  
-✅ **Full Pipeline** - Extraction → Cleaning → Wire → ML Classification  
-✅ **Excel Export** - Professional reporting with all fields  
-✅ **Reusable** - Same dataset for multiple imports  
-✅ **Production Ready** - Error handling, logging, validation  
+✅ **Uses Existing Infrastructure** - Leverages Dataset model, CLI, pipeline
+✅ **Complete Isolation** - Database-level separation via dataset_id
+✅ **Full Metadata Support** - City, county, state, address, ZIP, type, owner
+✅ **Gazetteer Ready** - Geographic entity matching enabled
+✅ **Full Pipeline** - Extraction → Cleaning → Wire → ML Classification
+✅ **Excel Export** - Professional reporting with all fields
+✅ **Reusable** - Same dataset for multiple imports
+✅ **Production Ready** - Error handling, logging, validation
 
 ## Support
 

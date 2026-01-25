@@ -2,10 +2,10 @@
 
 ## Executive Summary
 
-**PR**: #136 - Fix telemetry default database resolution  
-**Risk Level**: Low  
-**Deployment Type**: Code change only (no schema changes)  
-**Downtime Required**: None  
+**PR**: #136 - Fix telemetry default database resolution
+**Risk Level**: Low
+**Deployment Type**: Code change only (no schema changes)
+**Downtime Required**: None
 **Rollback Complexity**: Simple (revert commit)
 
 This deployment fixes a critical bug where telemetry data was being written to local SQLite instead of production Cloud SQL database, causing data loss and inconsistent system state.
@@ -22,10 +22,10 @@ This deployment fixes a critical bug where telemetry data was being written to l
 - [ ] Verify Cloud SQL instance is running
 - [ ] Verify telemetry tables exist in Cloud SQL:
   ```sql
-  SELECT table_name 
-  FROM information_schema.tables 
-  WHERE table_schema = 'public' 
-  AND (table_name LIKE '%telemetry%' 
+  SELECT table_name
+  FROM information_schema.tables
+  WHERE table_schema = 'public'
+  AND (table_name LIKE '%telemetry%'
        OR table_name IN ('operations', 'discovery_http_status_tracking', 'discovery_method_effectiveness'));
   ```
 - [ ] If tables missing, run migrations:
@@ -78,7 +78,7 @@ kubectl exec -it <crawler-pod> -- ls -lh /data/mizzou.db
    gcloud builds list --limit=1
 
    # Or monitor via GitHub Actions
-   # Check workflow status at: 
+   # Check workflow status at:
    # https://github.com/LocalNewsImpact/MizzouNewsCrawler/actions
    ```
 
@@ -96,13 +96,13 @@ kubectl exec -it <crawler-pod> -- ls -lh /data/mizzou.db
    ```bash
    # Trigger a discovery run
    kubectl exec -it <staging-crawler-pod> -- python -m src.cli.commands.discovery --limit 1
-   
+
    # Verify telemetry data in Cloud SQL
    # Connect to Cloud SQL and check:
    ```
    ```sql
-   SELECT COUNT(*), MAX(created_at) 
-   FROM operations 
+   SELECT COUNT(*), MAX(created_at)
+   FROM operations
    WHERE operation_type = 'crawl_discovery'
    AND created_at > NOW() - INTERVAL '10 minutes';
    ```
@@ -147,7 +147,7 @@ kubectl exec -it <crawler-pod> -- ls -lh /data/mizzou.db
 -- Connect to Cloud SQL production database
 
 -- Check recent telemetry data (should start appearing immediately)
-SELECT 
+SELECT
     COUNT(*) as total_operations,
     MAX(created_at) as latest_operation,
     operation_type
@@ -157,14 +157,14 @@ GROUP BY operation_type
 ORDER BY latest_operation DESC;
 
 -- Check HTTP status tracking
-SELECT 
+SELECT
     COUNT(*) as total_requests,
     MAX(timestamp) as latest_request
 FROM discovery_http_status_tracking
 WHERE timestamp > NOW() - INTERVAL '30 minutes';
 
 -- Check method effectiveness tracking
-SELECT 
+SELECT
     COUNT(*) as total_methods,
     MAX(last_attempt) as latest_attempt
 FROM discovery_method_effectiveness
@@ -209,7 +209,7 @@ Set up alerts for:
 1. **Telemetry data ingestion rate**:
    ```sql
    -- Should be > 0 when discovery is running
-   SELECT COUNT(*) FROM operations 
+   SELECT COUNT(*) FROM operations
    WHERE created_at > NOW() - INTERVAL '5 minutes';
    ```
 
@@ -275,7 +275,7 @@ The deployment is considered successful when:
 
 ### Scenario 1: Cloud SQL Connection Failures
 
-**Symptoms**: 
+**Symptoms**:
 - Error logs: "Cannot connect to Cloud SQL"
 - Telemetry errors in logs
 - Discovery may still work (separate connection)
@@ -339,13 +339,13 @@ The deployment is considered successful when:
 
 ### Pre-Deployment
 
-**Audience**: Engineering team, DevOps  
+**Audience**: Engineering team, DevOps
 **Message**: "Deploying fix for telemetry database resolution (PR #136). Low risk, no downtime expected. Telemetry will start writing to Cloud SQL instead of local SQLite."
 
 ### During Deployment
 
-**Audience**: Engineering team  
-**Channel**: Slack #deployments  
+**Audience**: Engineering team
+**Channel**: Slack #deployments
 **Updates**:
 - Deployment started
 - Staging verification complete
@@ -354,7 +354,7 @@ The deployment is considered successful when:
 
 ### Post-Deployment
 
-**Audience**: All stakeholders  
+**Audience**: All stakeholders
 **Message**: "PR #136 deployed successfully. Telemetry data now persisting to Cloud SQL. Monitor dashboards available at [link]."
 
 ## Contacts
@@ -386,5 +386,5 @@ The deployment is considered successful when:
 - [ ] Monitoring configured
 - [ ] Communication plan ready
 
-**Approved by**: ________________  
+**Approved by**: ________________
 **Date**: ________________

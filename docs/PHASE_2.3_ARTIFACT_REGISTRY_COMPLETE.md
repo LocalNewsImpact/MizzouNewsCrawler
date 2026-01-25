@@ -1,7 +1,7 @@
 # Phase 2.3 Complete: Docker Images in Artifact Registry
 
-**Status**: ✅ **COMPLETE**  
-**Date**: October 3, 2025  
+**Status**: ✅ **COMPLETE**
+**Date**: October 3, 2025
 **Duration**: ~15 minutes
 
 ## Summary
@@ -87,7 +87,7 @@ docker pull us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/api:v1
 ## Total Storage Used
 
 - **API**: 698.38 MB
-- **Crawler**: 674.11 MB  
+- **Crawler**: 674.11 MB
 - **Processor**: 665.90 MB
 - **Total**: ~2.04 GB (compressed in registry)
 

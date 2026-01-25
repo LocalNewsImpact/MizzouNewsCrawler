@@ -1,6 +1,6 @@
 #!/bin/bash
 # ChromeDriver Installation Script
-# 
+#
 # This script installs ChromeDriver to match the installed Chromium version.
 # It's designed to be testable independently of the Docker build.
 #
@@ -49,7 +49,7 @@ log_info "Install directory: $INSTALL_DIR"
 # Strategy 1: Detect Chromium version and download matching ChromeDriver
 detect_chromium_version() {
     local version
-    
+
     # Try different methods to get Chromium version
     if command -v chromium >/dev/null 2>&1; then
         version=$(chromium --version 2>/dev/null | grep -oP '\d+\.\d+\.\d+\.\d+' | head -1)
@@ -58,36 +58,24 @@ detect_chromium_version() {
     elif command -v google-chrome >/dev/null 2>&1; then
         version=$(google-chrome --version 2>/dev/null | grep -oP '\d+\.\d+\.\d+\.\d+' | head -1)
     fi
-    
+
     echo "$version"
 }
 
-# Download ChromeDriver from Chrome for Testing
-# Tries the requested version, then falls back to recent versions
+# Download ChromeDriver from Chrome for Testing (CFT)
+# Tries the exact Chrome version first (most deterministic)
 download_chromedriver_cft() {
-    local major_version="$1"
-    
-    # Try exact version first
-    local url="https://storage.googleapis.com/chrome-for-testing-public/${major_version}.0.0.0/linux64/chromedriver-linux64.zip"
+    local chrome_version="$1"
+
+    # Try exact full Chrome version (e.g., 143.0.7499.192)
+    local url="https://storage.googleapis.com/chrome-for-testing-public/${chrome_version}/linux64/chromedriver-linux64.zip"
     log_info "Attempting Chrome for Testing download: $url"
-    
+
     if wget -q --spider "$url" 2>/dev/null; then
         wget -q -O "$TEMP_DIR/chromedriver.zip" "$url" && return 0
     fi
-    
-    # If exact version not found, try recent versions (ChromeDriver often lags behind Chrome)
-    # ChromeDriver N-3 typically works with Chrome N (e.g., ChromeDriver 139 works with Chrome 142)
-    log_warn "Chrome for Testing doesn't have v${major_version}, trying recent versions..."
-    for fallback_version in $((major_version - 1)) $((major_version - 2)) $((major_version - 3)) $((major_version - 4)); do
-        url="https://storage.googleapis.com/chrome-for-testing-public/${fallback_version}.0.0.0/linux64/chromedriver-linux64.zip"
-        log_info "Trying fallback v${fallback_version}..."
-        
-        if wget -q --spider "$url" 2>/dev/null; then
-            log_info "Found compatible version: v${fallback_version}"
-            wget -q -O "$TEMP_DIR/chromedriver.zip" "$url" && return 0
-        fi
-    done
-    
+
+    log_warn "CFT asset not found for exact Chrome version: $chrome_version"
     return 1
 }
 
@@ -95,67 +83,67 @@ download_chromedriver_cft() {
 # Tries the requested version, then falls back to recent versions
 download_chromedriver_legacy() {
     local major_version="$1"
-    
+
     log_info "Attempting legacy ChromeDriver storage..."
-    
+
     # Try exact version first
     local latest_url="https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${major_version}"
     local version=$(wget -qO- "$latest_url" 2>/dev/null)
-    
+
     if [ -n "$version" ]; then
         local download_url="https://chromedriver.storage.googleapis.com/${version}/chromedriver_linux64.zip"
         log_info "Found version: $version"
         wget -q -O "$TEMP_DIR/chromedriver.zip" "$download_url" && return 0
     fi
-    
+
     # Try recent versions as fallback
     log_warn "Legacy storage doesn't have v${major_version}, trying recent versions..."
     for fallback_version in $((major_version - 1)) $((major_version - 2)) $((major_version - 3)) $((major_version - 4)); do
         latest_url="https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${fallback_version}"
         version=$(wget -qO- "$latest_url" 2>/dev/null)
-        
+
         if [ -n "$version" ]; then
             local download_url="https://chromedriver.storage.googleapis.com/${version}/chromedriver_linux64.zip"
             log_info "Found compatible fallback version: $version"
             wget -q -O "$TEMP_DIR/chromedriver.zip" "$download_url" && return 0
         fi
     done
-    
+
     return 1
 }
 
 # Download latest stable ChromeDriver (fallback)
 download_chromedriver_latest() {
     log_info "Attempting latest stable ChromeDriver download..."
-    
+
     local latest_version=$(wget -qO- "https://chromedriver.storage.googleapis.com/LATEST_RELEASE" 2>/dev/null)
-    
+
     if [ -n "$latest_version" ]; then
         local download_url="https://chromedriver.storage.googleapis.com/${latest_version}/chromedriver_linux64.zip"
         log_info "Latest version: $latest_version"
         wget -q -O "$TEMP_DIR/chromedriver.zip" "$download_url" && return 0
     fi
-    
+
     return 1
 }
 
 # Extract ChromeDriver from zip
 extract_chromedriver() {
     local zip_file="$TEMP_DIR/chromedriver.zip"
-    
+
     if [ ! -f "$zip_file" ]; then
         log_error "Zip file not found: $zip_file"
         return 1
     fi
-    
+
     log_info "Extracting ChromeDriver..."
-    
+
     # Install unzip if not available
     if ! command -v unzip >/dev/null 2>&1; then
         log_info "Installing unzip..."
         apt-get update -qq && apt-get install -y -qq unzip >/dev/null 2>&1
     fi
-    
+
     # Try extracting with different patterns
     if unzip -j "$zip_file" '*/chromedriver' -d "$TEMP_DIR" >/dev/null 2>&1; then
         log_info "Extracted with subdirectory pattern"
@@ -167,13 +155,13 @@ extract_chromedriver() {
         log_error "Failed to extract ChromeDriver"
         return 1
     fi
-    
+
     # Verify extraction
     if [ ! -f "$TEMP_DIR/chromedriver" ]; then
         log_error "ChromeDriver binary not found after extraction"
         return 1
     fi
-    
+
     return 0
 }
 
@@ -181,24 +169,24 @@ extract_chromedriver() {
 install_chromedriver() {
     local source="$TEMP_DIR/chromedriver"
     local target="$INSTALL_DIR/chromedriver"
-    
+
     if [ ! -f "$source" ]; then
         log_error "Source file not found: $source"
         return 1
     fi
-    
+
     log_info "Installing ChromeDriver to $target"
-    
+
     # Copy and set permissions
     cp "$source" "$target" || return 1
     chmod +x "$target" || return 1
-    
+
     # Verify installation
     if [ ! -x "$target" ]; then
         log_error "ChromeDriver not executable: $target"
         return 1
     fi
-    
+
     # Test execution
     if "$target" --version >/dev/null 2>&1; then
         local version=$("$target" --version 2>&1 | head -1)
@@ -215,62 +203,62 @@ main() {
     local chromium_version=$(detect_chromium_version)
     local major_version=""
     local success=false
-    
+
     if [ -n "$chromium_version" ]; then
         major_version=$(echo "$chromium_version" | cut -d. -f1)
         log_info "Detected Chromium version: $chromium_version (major: $major_version)"
     else
         log_warn "Could not detect Chromium version, will try latest stable"
     fi
-    
+
     # Try multiple download strategies
     for attempt in $(seq 1 $MAX_RETRIES); do
         log_info "Download attempt $attempt/$MAX_RETRIES"
-        
+
         if [ -n "$major_version" ]; then
             # Strategy 1: Chrome for Testing (preferred for newer versions)
             if download_chromedriver_cft "$major_version"; then
                 success=true
                 break
             fi
-            
+
             # Strategy 2: Legacy ChromeDriver storage
             if download_chromedriver_legacy "$major_version"; then
                 success=true
                 break
             fi
         fi
-        
-        # Strategy 3: Latest stable (fallback)
-        if download_chromedriver_latest; then
-            success=true
-            break
-        fi
-        
-        log_warn "Attempt $attempt failed, retrying..."
+
+        # Strat[ -n "$chromium_version" ] && download_chromedriver_cft "$chromium_version"; then
+                success=true
+                break
+            fi
+
+            # Strategy 2: Legacy ChromeDriver storage (falls back to major-version heuristics)
+            if [ -n "$major_version" ] &&rn "Attempt $attempt failed, retrying..."
         sleep 2
     done
-    
+
     if [ "$success" = false ]; then
         log_error "Failed to download ChromeDriver after $MAX_RETRIES attempts"
         log_error "This will cause Selenium fallback to fail at runtime"
         return 1
     fi
-    
+
     # Extract and install
     if ! extract_chromedriver; then
         log_error "Failed to extract ChromeDriver"
         return 1
     fi
-    
+
     if ! install_chromedriver; then
         log_error "Failed to install ChromeDriver"
         return 1
     fi
-    
+
     # Cleanup
     rm -rf "$TEMP_DIR"
-    
+
     log_info "✓ ChromeDriver installation complete"
     return 0
 }

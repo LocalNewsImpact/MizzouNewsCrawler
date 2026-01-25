@@ -48,29 +48,29 @@ def main():
     """Populate the table."""
     print("Populating local_broadcaster_callsigns table")
     print("=" * 80)
-    
+
     db = DatabaseManager()
     with db.get_session() as session:
         for bc in MISSOURI_BROADCASTERS:
             # Check if already exists
             existing = session.execute(
                 text("""
-                    SELECT id FROM local_broadcaster_callsigns 
+                    SELECT id FROM local_broadcaster_callsigns
                     WHERE callsign = :callsign AND dataset = 'missouri'
                 """),
                 {"callsign": bc["callsign"]},
             ).first()
-            
+
             if existing:
                 print(f"{bc['callsign']}: Already exists (ID: {existing[0]})")
                 continue
-            
+
             # Insert new record
             session.execute(
                 text("""
-                    INSERT INTO local_broadcaster_callsigns 
+                    INSERT INTO local_broadcaster_callsigns
                     (callsign, dataset, market_name, station_type, notes, created_at, updated_at)
-                    VALUES 
+                    VALUES
                     (:callsign, 'missouri', :market, :type, :notes, NOW(), NOW())
                 """),
                 {
@@ -81,9 +81,9 @@ def main():
                 },
             )
             print(f"{bc['callsign']}: ✅ Inserted")
-        
+
         session.commit()
-    
+
     print("\n✅ Done!")
     print(f"Populated {len(MISSOURI_BROADCASTERS)} callsigns for Missouri dataset")
 

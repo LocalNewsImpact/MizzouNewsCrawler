@@ -11,12 +11,12 @@ def add_extraction_function():
 
     # Define the function to add
     function_code = '''
-    def record_extraction_outcome(self, operation_id: str, article_id: int, 
+    def record_extraction_outcome(self, operation_id: str, article_id: int,
                                   url: str, extraction_result):
         """Record detailed extraction outcome."""
         from src.utils.extraction_outcomes import ExtractionResult
         import json
-        
+
         if not isinstance(extraction_result, ExtractionResult):
             self.logger.warning(f"Expected ExtractionResult, got {type(extraction_result)}")
             return
@@ -63,19 +63,19 @@ def add_extraction_function():
             # Use direct SQLite connection for simplicity
             import sqlite3
             db_path = Path(__file__).parent.parent / "data" / "mizzou.db"
-            
+
             with sqlite3.connect(db_path) as conn:
                 conn.execute(insert_query, tuple(outcome_data.values()))
-                
+
                 # Update articles table status
-                article_status = ('extracted' if extraction_result.is_success 
+                article_status = ('extracted' if extraction_result.is_success
                                 else 'error')
                 conn.execute(
                     """UPDATE articles SET status = ?, error_message = ?
                        WHERE id = ?""",
                     (article_status, extraction_result.error_message, article_id)
                 )
-                
+
                 conn.commit()
 
             self.logger.debug(f"Recorded extraction outcome: {extraction_result.outcome.value}")
@@ -98,7 +98,7 @@ This adds the record_extraction_outcome method to TelemetryReporter.
 def add_extraction_telemetry_to_class(cls):
     """Add extraction telemetry method to TelemetryReporter class."""
     {function_code}
-    
+
     # Add the method to the class
     cls.record_extraction_outcome = record_extraction_outcome
     return cls

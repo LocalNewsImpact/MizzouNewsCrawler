@@ -225,14 +225,10 @@ def _handle_null_text_articles(session, dry_run: bool, verbose: bool) -> int:
     print("1️⃣  Checking for articles with NULL text...")
     print()
 
-    count = session.execute(
-        text(
-            """
+    count = session.execute(text("""
         SELECT COUNT(*) FROM articles
         WHERE status = 'extracted' AND text IS NULL
-    """
-        )
-    ).scalar()
+    """)).scalar()
 
     if count == 0:
         print("   ✓ No articles with NULL text found")
@@ -242,18 +238,14 @@ def _handle_null_text_articles(session, dry_run: bool, verbose: bool) -> int:
 
     if verbose:
         # Show sample articles
-        samples = session.execute(
-            text(
-                """
+        samples = session.execute(text("""
             SELECT a.id, a.url, a.created_at, cl.source
             FROM articles a
             JOIN candidate_links cl ON a.candidate_link_id = cl.id
             WHERE a.status = 'extracted' AND a.text IS NULL
             ORDER BY a.created_at ASC
             LIMIT 5
-        """
-            )
-        ).fetchall()
+        """)).fetchall()
         for article_id, url, created_at, source in samples:
             age_days = (datetime.now() - created_at).days
             print(f"     - {source} ({age_days}d): {url[:60]}...")
@@ -263,9 +255,7 @@ def _handle_null_text_articles(session, dry_run: bool, verbose: bool) -> int:
         return count
 
     # Mark as paused with telemetry
-    session.execute(
-        text(
-            """
+    session.execute(text("""
         UPDATE articles
         SET status = 'paused',
             metadata = jsonb_set(
@@ -274,9 +264,7 @@ def _handle_null_text_articles(session, dry_run: bool, verbose: bool) -> int:
                 '"null_text"'
             )
         WHERE status = 'extracted' AND text IS NULL
-    """
-        )
-    )
+    """))
     session.commit()
 
     print(f"   ✅ Marked {count} articles as paused")
@@ -301,15 +289,11 @@ def _handle_expired_candidates(
     print(f"2️⃣  Checking for expired candidates (older than {days_threshold} days)...")
     print()
 
-    count = session.execute(
-        text(
-            f"""
+    count = session.execute(text(f"""
         SELECT COUNT(*) FROM candidate_links
         WHERE status = 'article'
         AND created_at < NOW() - INTERVAL '{days_threshold} days'
-    """
-        )
-    ).scalar()
+    """)).scalar()
 
     if count == 0:
         print(f"   ✓ No candidates older than {days_threshold} days found")
@@ -319,9 +303,7 @@ def _handle_expired_candidates(
 
     if verbose:
         # Show breakdown by source
-        breakdown = session.execute(
-            text(
-                f"""
+        breakdown = session.execute(text(f"""
             SELECT source, COUNT(*) as cnt,
                 MIN(EXTRACT(EPOCH FROM (NOW() - created_at))/86400)::INT as oldest_days
             FROM candidate_links
@@ -330,9 +312,7 @@ def _handle_expired_candidates(
             GROUP BY source
             ORDER BY cnt DESC
             LIMIT 10
-        """
-            )
-        ).fetchall()
+        """)).fetchall()
         for source, cnt, oldest_days in breakdown:
             print(f"     - {source}: {cnt} (oldest {oldest_days}d)")
 
@@ -341,16 +321,12 @@ def _handle_expired_candidates(
         return count
 
     # Mark as paused
-    session.execute(
-        text(
-            f"""
+    session.execute(text(f"""
         UPDATE candidate_links
         SET status = 'paused'
         WHERE status = 'article'
         AND created_at < NOW() - INTERVAL '{days_threshold} days'
-    """
-        )
-    )
+    """))
     session.commit()
 
     print(f"   ✅ Marked {count} candidates as paused")
@@ -373,15 +349,11 @@ def _check_stuck_extraction_articles(session, stall_hours: int, verbose: bool) -
     print(f"3️⃣  Checking for articles stuck in extraction ({stall_hours}h+)...")
     print()
 
-    count = session.execute(
-        text(
-            f"""
+    count = session.execute(text(f"""
         SELECT COUNT(*) FROM articles
         WHERE status = 'extracted'
         AND extracted_at < NOW() - INTERVAL '{stall_hours} hours'
-    """
-        )
-    ).scalar()
+    """)).scalar()
 
     if count == 0:
         print("   ✓ No articles stuck in extraction found")
@@ -391,9 +363,7 @@ def _check_stuck_extraction_articles(session, stall_hours: int, verbose: bool) -
 
     if verbose:
         # Show sample articles and their age
-        samples = session.execute(
-            text(
-                f"""
+        samples = session.execute(text(f"""
             SELECT a.id, a.url, a.extracted_at, cl.source,
                 EXTRACT(EPOCH FROM (NOW() - a.extracted_at))/3600::INT as hours_stuck
             FROM articles a
@@ -402,9 +372,7 @@ def _check_stuck_extraction_articles(session, stall_hours: int, verbose: bool) -
             AND a.extracted_at < NOW() - INTERVAL '{stall_hours} hours'
             ORDER BY a.extracted_at ASC
             LIMIT 5
-        """
-            )
-        ).fetchall()
+        """)).fetchall()
         for article_id, url, extracted_at, source, hours_stuck in samples:
             print(f"     - {source} ({hours_stuck}h): " f"{url[:50]}...")
 
@@ -427,15 +395,11 @@ def _check_stuck_cleaning_articles(session, stall_hours: int, verbose: bool) -> 
     print(f"4️⃣  Checking for articles stuck in cleaning ({stall_hours}h+)...")
     print()
 
-    count = session.execute(
-        text(
-            f"""
+    count = session.execute(text(f"""
         SELECT COUNT(*) FROM articles
         WHERE status = 'cleaned'
         AND extracted_at < NOW() - INTERVAL '{stall_hours} hours'
-    """
-        )
-    ).scalar()
+    """)).scalar()
 
     if count == 0:
         print("   ✓ No articles stuck in cleaning found")
@@ -445,9 +409,7 @@ def _check_stuck_cleaning_articles(session, stall_hours: int, verbose: bool) -> 
 
     if verbose:
         # Show sample articles and their age
-        samples = session.execute(
-            text(
-                f"""
+        samples = session.execute(text(f"""
             SELECT a.id, a.url, a.extracted_at, cl.source,
                 EXTRACT(EPOCH FROM (NOW() - a.extracted_at))/3600::INT as hours_stuck
             FROM articles a
@@ -456,9 +418,7 @@ def _check_stuck_cleaning_articles(session, stall_hours: int, verbose: bool) -> 
             AND a.extracted_at < NOW() - INTERVAL '{stall_hours} hours'
             ORDER BY a.extracted_at ASC
             LIMIT 5
-        """
-            )
-        ).fetchall()
+        """)).fetchall()
         for article_id, url, extracted_at, source, hours_stuck in samples:
             print(f"     - {source} ({hours_stuck}h): " f"{url[:50]}...")
 
@@ -483,15 +443,11 @@ def _check_stuck_verification_candidates(
     print(f"5️⃣  Checking for candidates stuck in verification ({stall_hours}h+)...")
     print()
 
-    count = session.execute(
-        text(
-            f"""
+    count = session.execute(text(f"""
         SELECT COUNT(*) FROM candidate_links
         WHERE status = 'verified'
         AND fetched_at < NOW() - INTERVAL '{stall_hours} hours'
-    """
-        )
-    ).scalar()
+    """)).scalar()
 
     if count == 0:
         print("   ✓ No candidates stuck in verification found")
@@ -501,9 +457,7 @@ def _check_stuck_verification_candidates(
 
     if verbose:
         # Show sample candidates and their age
-        samples = session.execute(
-            text(
-                f"""
+        samples = session.execute(text(f"""
             SELECT source, url, fetched_at,
                 EXTRACT(EPOCH FROM (NOW() - fetched_at))/3600::INT as hours_stuck
             FROM candidate_links
@@ -511,9 +465,7 @@ def _check_stuck_verification_candidates(
             AND fetched_at < NOW() - INTERVAL '{stall_hours} hours'
             ORDER BY fetched_at ASC
             LIMIT 5
-        """
-            )
-        ).fetchall()
+        """)).fetchall()
         for source, url, fetched_at, hours_stuck in samples:
             print(f"     - {source} ({hours_stuck}h): " f"{url[:50]}...")
 
@@ -547,9 +499,7 @@ def _decay_bot_sensitivity(decay_days: int, dry_run: bool, verbose: bool) -> int
         if dry_run:
             # In dry run, just check what would be decayed
             with bot_manager.db.get_session() as session:
-                count = session.execute(
-                    text(
-                        f"""
+                count = session.execute(text(f"""
                         SELECT COUNT(*)
                         FROM sources
                         WHERE bot_sensitivity > 3
@@ -557,9 +507,7 @@ def _decay_bot_sensitivity(decay_days: int, dry_run: bool, verbose: bool) -> int
                             last_bot_detection_at IS NULL
                             OR last_bot_detection_at < NOW() - INTERVAL '{decay_days} days'
                         )
-                        """
-                    )
-                ).scalar()
+                        """)).scalar()
 
             if count == 0:
                 print("   ✓ No domains eligible for sensitivity decay")

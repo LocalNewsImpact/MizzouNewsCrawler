@@ -7,7 +7,7 @@ from src.utils.content_type_detector import ContentTypeDetector
 def test_wire_detection():
     """Test wire service detection with sample content."""
     detector = ContentTypeDetector()
-    
+
     # Test 1: CNN URL pattern
     print("\n=== Test 1: CNN URL Pattern ===")
     result = detector.detect(
@@ -19,7 +19,7 @@ def test_wire_detection():
     print(f"Status: {result.status if result else 'None'}")
     print(f"Confidence: {result.confidence if result else 'N/A'}")
     print(f"Evidence: {result.evidence if result else 'N/A'}")
-    
+
     # Test 2: AP dateline in content
     print("\n=== Test 2: AP Dateline in Content ===")
     content_with_ap = """WASHINGTON (AP) — The president announced today a new policy initiative that will affect millions of Americans. The announcement came during a press conference at the White House."""
@@ -32,7 +32,7 @@ def test_wire_detection():
     print(f"Status: {result.status if result else 'None'}")
     print(f"Confidence: {result.confidence if result else 'N/A'}")
     print(f"Evidence: {result.evidence if result else 'N/A'}")
-    
+
     # Test 3: Reuters closing attribution
     print("\n=== Test 3: Reuters Closing Attribution ===")
     content_with_reuters = """This is a long article about international news that goes on for many paragraphs and covers various topics related to global affairs and economics.
@@ -47,7 +47,7 @@ Additional reporting by Reuters. ©2025 Reuters. All rights reserved."""
     print(f"Status: {result.status if result else 'None'}")
     print(f"Confidence: {result.confidence if result else 'N/A'}")
     print(f"Evidence: {result.evidence if result else 'N/A'}")
-    
+
     # Test 4: Combined URL + content detection
     print("\n=== Test 4: Combined URL + Content ===")
     result = detector.detect(
@@ -59,7 +59,7 @@ Additional reporting by Reuters. ©2025 Reuters. All rights reserved."""
     print(f"Status: {result.status if result else 'None'}")
     print(f"Confidence: {result.confidence if result else 'N/A'}")
     print(f"Evidence: {result.evidence if result else 'N/A'}")
-    
+
     # Test 5: Non-wire article (should return None or other type)
     print("\n=== Test 5: Local Article (No Wire) ===")
     result = detector.detect(

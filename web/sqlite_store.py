@@ -27,8 +27,7 @@ def get_conn(path: Path | None = None):
 def init_db(path: Path | None = None):
     conn = get_conn(path)
     with conn:
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS site_specs (
                 id INTEGER PRIMARY KEY,
                 domain TEXT UNIQUE NOT NULL,
@@ -45,10 +44,8 @@ def init_db(path: Path | None = None):
                 force_include_patterns TEXT,
                 notes TEXT
             )
-            """
-        )
-        conn.execute(
-            """
+            """)
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS feedback (
                 id TEXT PRIMARY KEY,
                 field TEXT,
@@ -58,10 +55,8 @@ def init_db(path: Path | None = None):
                 reviewer TEXT,
                 created_at TEXT DEFAULT (datetime('now'))
             )
-            """
-        )
-        conn.execute(
-            """
+            """)
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS articleslabelled (
                 id TEXT PRIMARY KEY,
                 domain TEXT,
@@ -69,8 +64,7 @@ def init_db(path: Path | None = None):
                 news TEXT,
                 label TEXT
             )
-            """
-        )
+            """)
     conn.close()
 
 

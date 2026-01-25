@@ -22,10 +22,10 @@ def fix_duplicate_authors(db_path: str, dry_run: bool = True):
     try:
         # Find articles with duplicate names in author field
         cursor = conn.execute("""
-            SELECT id, author 
-            FROM articles 
-            WHERE author IS NOT NULL 
-            AND author LIKE '%,%' 
+            SELECT id, author
+            FROM articles
+            WHERE author IS NOT NULL
+            AND author LIKE '%,%'
             AND author != 'Isabella Volmert, Obed Lamy'
         """)
 
@@ -60,7 +60,7 @@ def fix_duplicate_authors(db_path: str, dry_run: bool = True):
                     if not dry_run:
                         conn.execute(
                             """
-                            UPDATE articles 
+                            UPDATE articles
                             SET author = ?, processed_at = CURRENT_TIMESTAMP
                             WHERE id = ?
                         """,

@@ -172,7 +172,7 @@ The new housekeeping command **complements** the existing `cleanup-candidates` c
 - **`cleanup-candidates`**: Targeted, on-demand cleanup of expired candidates
   - Manual invocation
   - Specific to one check (expired candidates)
-  
+
 - **`housekeeping`**: Comprehensive, scheduled maintenance
   - Daily automated execution
   - Runs all five checks
@@ -287,7 +287,7 @@ kubectl logs -n production job/test-housekeeping-1234567890
 ## Performance Impact
 
 - **CPU**: 100-500m (request-limit)
-- **Memory**: 512Mi-1Gi (request-limit)  
+- **Memory**: 512Mi-1Gi (request-limit)
 - **Duration**: <1 minute per run
 - **Database load**: Minimal (read-heavy with some writes)
 - **Frequency**: Once daily at 2 AM UTC (off-peak)
