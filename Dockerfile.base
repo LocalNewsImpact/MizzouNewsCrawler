@@ -2,7 +2,7 @@
 # Contains common dependencies used by all services (API, Processor, Crawler)
 # This image is built infrequently and speeds up service builds from 15min to 2-3min
 
-FROM python:3.11-slim AS base
+FROM python:3.11-slim-bookworm AS base
 
 # Install system dependencies (retry with --fix-missing on hash errors)
 # These are needed for building Python packages (gcc, g++) and PostgreSQL (libpq-dev)

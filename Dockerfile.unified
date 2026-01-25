@@ -12,7 +12,7 @@
 #   docker run -e SERVICE_ROLE=api mizzou-unified
 #   docker run -e SERVICE_ROLE=crawler mizzou-unified
 
-FROM python:3.11-slim AS base
+FROM python:3.11-slim-bookworm AS base
 
 # -----------------------------------------------------------------------------
 # 1. OS Layer: System Dependencies & Chrome
