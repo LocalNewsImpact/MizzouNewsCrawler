@@ -12,7 +12,7 @@ FROM ${BASE_IMAGE} AS base-crawler
 # Using Debian APT packages for both Chromium and ChromeDriver ensures version compatibility
 # chromium-driver package is maintained to match chromium version in Debian repos
 #
-# WebGL Support: libegl1-mesa, libgl1-mesa-dri, libgles2-mesa enable software rendering
+# WebGL Support: libegl1, libgl1-mesa-dri, libgles2 enable software rendering
 # This is CRITICAL for bypassing bot detection - WebGL "Not Supported" is a major red flag
 #
 # Audio Support: libasound2, libpulse0 enable AudioContext API fingerprinting
