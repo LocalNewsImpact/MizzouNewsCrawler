@@ -56,3 +56,11 @@ models/
 # requirements-dev.txt
 # Dockerfile.*
 # cloudbuild*.yaml
+
+# Added by Copilot
+.venv/
+artifacts/
+htmlcov/
+node_modules/
+
+models/

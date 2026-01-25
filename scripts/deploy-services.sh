@@ -113,9 +113,12 @@ if [ "$USE_MAIN_PIPELINE" = true ]; then
     echo -e "${COLOR_CYAN}Pipeline:${COLOR_RESET}  Build → Migrate → Deploy"
     echo -e "${COLOR_BLUE}========================================${COLOR_RESET}\n"
 
+    # Calculate SHORT_SHA for manual builds (required for image tagging)
+    SHORT_SHA=$(git rev-parse --short HEAD)
+
     gcloud builds submit --config=gcp/cloudbuild/cloudbuild.yaml \
         --project=mizzou-news-crawler \
-        --substitutions=BRANCH_NAME="${BRANCH}"
+        --substitutions=BRANCH_NAME="${BRANCH}",SHORT_SHA="${SHORT_SHA}"
 
     exit $?
 fi
