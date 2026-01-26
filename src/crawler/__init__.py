@@ -1761,6 +1761,66 @@ class ContentExtractor:
         self.domain_backoff_until[domain] = now + delay
         logger.warning(f"CAPTCHA backoff for {domain}: {int(delay)}s (attempt {count})")
 
+    def _fetch_amp_html(self, url: str) -> Optional[str]:
+        """Attempt to fetch the AMP version of a page."""
+        try:
+            domain = urlparse(url).netloc
+            session = self._get_domain_session(url)
+
+            amp_urls = self._convert_to_amp_url(url)
+            if not amp_urls:
+                return None
+
+            request_headers = {}
+            referer = self._generate_referer(url)
+            if referer:
+                request_headers["Referer"] = referer
+
+            # Try each AMP URL candidate
+            for amp_url in amp_urls:
+                try:
+                    with self._get_domain_lock(domain):
+                        logger.info(f"📡 Fetching AMP URL: {amp_url}")
+                        response = session.get(
+                            amp_url,
+                            timeout=self.timeout,
+                            headers=request_headers,
+                        )
+
+                    if response.status_code == 200:
+                        if self._validate_amp_page(response.text):
+                            logger.info(
+                                f"✅ Successfully fetched AMP page for {domain}"
+                            )
+
+                            # Record success
+                            if getattr(self, "bot_sensitivity_manager", None):
+                                self.bot_sensitivity_manager.record_bot_detection(
+                                    host=domain,
+                                    url=url,
+                                    event_type="amp_preemptive_success",
+                                    http_status_code=200,
+                                    response_indicators={"amp_url": amp_url},
+                                )
+                            return response.text
+                        else:
+                            logger.debug(
+                                f"AMP URL succeeded but not valid AMP: {amp_url}"
+                            )
+                    else:
+                        logger.debug(
+                            f"AMP URL returned {response.status_code}: {amp_url}"
+                        )
+
+                except Exception as e:
+                    logger.debug(f"AMP fetch failed for {amp_url}: {e}")
+                    continue
+
+        except Exception as e:
+            logger.warning(f"Error in AMP extraction: {e}")
+
+        return None
+
     def _create_error_result(
         self, url: str, error_msg: str, metadata: Dict = None
     ) -> Dict[str, Any]:
@@ -2187,6 +2247,22 @@ class ContentExtractor:
         domain = urlparse(url).netloc
         extraction_method, protection_type = self._get_domain_extraction_method(domain)
         skip_http_methods = extraction_method in {"selenium", "unblock"}
+
+        # Check for preemptive AMP fetch (allows bypassing Selenium/blocking)
+        if not html_for_methods and self._get_domain_amp_support(domain):
+            amp_html = self._fetch_amp_html(url)
+            if amp_html:
+                logger.info(f"⚡️ Preemptively fetched AMP content for {domain}")
+                html_for_methods = amp_html
+                skip_http_methods = False  # Enable standard parsers on this HTML
+                # Mark as handled to avoid expensive Selenium fallback
+                if extraction_method == "selenium":
+                    logger.info(
+                        f"✅ AMP success overrides Selenium requirement for {domain}"
+                    )
+                    extraction_method = (
+                        "http"  # downgrade to http (handled via amp html)
+                    )
 
         selenium_first = self._should_prioritize_selenium(extraction_method)
         selenium_attempted_primary = False

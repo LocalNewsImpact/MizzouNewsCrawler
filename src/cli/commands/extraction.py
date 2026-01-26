@@ -2096,7 +2096,8 @@ def _run_post_extraction_cleaning(domains_to_articles, db=None):
             cleaner_kwargs["db"] = db
 
     cleaner = cleaner_cls(**cleaner_kwargs)
-    session = db.session
+    # Handle both DatabaseManager objects and raw Sessions
+    session = db.session if hasattr(db, "session") else db
     articles_for_entities: set[str] = set()
 
     try:

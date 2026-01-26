@@ -28,6 +28,20 @@ steps:
       - 'mizzou-cluster'
       - '--zone=us-central1-a'
 
+  # Update CronJob image in production
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'update-crawler-cronjob'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=us-central1-a'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=mizzou-cluster'
+    args:
+      - 'set'
+      - 'image'
+      - 'cronjob/mizzou-crawler'
+      - 'crawler=${_REGISTRY}/crawler:${SHORT_SHA}'
+      - '--namespace=production'
+    waitFor: ['get-gke-credentials']
+
   # Update Argo WorkflowTemplate to use new crawler image SHA
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'update-argo-workflow-template'
