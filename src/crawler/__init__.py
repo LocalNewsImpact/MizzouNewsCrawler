@@ -1789,7 +1789,9 @@ class ContentExtractor:
 
                     if response.status_code == 200:
                         if self._validate_amp_page(response.text):
-                            logger.info(f"✅ Successfully fetched AMP page for {domain}")
+                            logger.info(
+                                f"✅ Successfully fetched AMP page for {domain}"
+                            )
 
                             # Record success
                             if getattr(self, "bot_sensitivity_manager", None):
@@ -2258,7 +2260,9 @@ class ContentExtractor:
                     logger.info(
                         f"✅ AMP success overrides Selenium requirement for {domain}"
                     )
-                    extraction_method = "http"  # downgrade to http (handled via amp html)
+                    extraction_method = (
+                        "http"  # downgrade to http (handled via amp html)
+                    )
 
         selenium_first = self._should_prioritize_selenium(extraction_method)
         selenium_attempted_primary = False
