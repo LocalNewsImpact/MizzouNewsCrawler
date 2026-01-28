@@ -401,6 +401,29 @@ class SourceProcessor:
 
         methods = self._prioritize_last_success(methods)
 
+        # If we have effective methods but are hitting repeated failures,
+        # expand the list to include standard fallbacks (RSS + Newspaper)
+        # to ensure we don't get stuck in a "single method" death spiral.
+        if methods and counter >= 2:
+            defaults = [
+                DiscoveryMethod.RSS_FEED,
+                DiscoveryMethod.NEWSPAPER4K,
+            ]
+            expanded = False
+            for d in defaults:
+                if d not in methods:
+                    methods.append(d)
+                    expanded = True
+
+            if expanded:
+                logger.warning(
+                    "Source %s has %d consecutive failures; expanded effective "
+                    "methods to include defaults: %s",
+                    self.source_name,
+                    counter,
+                    [m.value for m in methods],
+                )
+
         if not methods:
             if has_historical_data:
                 logger.info(
