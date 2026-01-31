@@ -1133,6 +1133,62 @@ class ContentExtractor:
             logger.info(f"Assigned proxy for {domain}")
         return proxy
 
+    def _handle_connection_error_with_proxy_escalation(
+        self, domain: str, error: Exception
+    ) -> None:
+        """Handle connection errors (DNS, timeout, network) with proxy escalation.
+        
+        When a domain experiences connection errors (DNS failures, timeouts, etc.),
+        escalate to try different proxies on retry. This is particularly useful
+        for sites experiencing network-level blocking or accessibility issues.
+        
+        Args:
+            domain: Domain that experienced the connection error
+            error: The original exception/error
+        """
+        error_str = str(error).lower()
+        is_connection_error = any(
+            indicator in error_str
+            for indicator in [
+                "connection",
+                "timeout",
+                "namenotfound",
+                "gaierror",
+                "getaddrinfo",
+                "hostname",
+                "unable to resolve",
+                "dns",
+                "refused",
+                "reset by peer",
+            ]
+        )
+
+        if not is_connection_error:
+            return  # Not a connection error, skip escalation
+
+        logger.warning(
+            f"🚀 ESCALATION: Connection error for {domain}: {error}. "
+            f"Marking for proxy rotation on retry."
+        )
+
+        # Mark domain for proxy escalation
+        if domain not in self.domain_proxies:
+            logger.info(f"Assigning new proxy to {domain} for connection retry")
+            self._choose_proxy_for_domain(domain)  # Will pick a new proxy
+        else:
+            # Force rotation to a different proxy on next retry
+            logger.info(f"Rotating proxy for {domain} due to connection error")
+            if self.proxy_pool:
+                current_proxy = self.domain_proxies.get(domain)
+                available = [p for p in self.proxy_pool if p != current_proxy]
+                if available:
+                    new_proxy = random.choice(available)
+                    self.domain_proxies[domain] = new_proxy
+                    logger.info(
+                        f"Escalated proxy for {domain}: "
+                        f"{current_proxy} → {new_proxy}"
+                    )
+
     def _generate_referer(self, url: str) -> Optional[str]:
         """Generate a realistic Referer header for the target URL.
 
@@ -2246,7 +2302,31 @@ class ContentExtractor:
         # Check if domain requires special extraction method
         domain = urlparse(url).netloc
         extraction_method, protection_type = self._get_domain_extraction_method(domain)
+        
+        # ESCALATION STRATEGY: For Cloudflare-protected sites marked as 'selenium',
+        # try cloudscraper first before falling back to Selenium. CloudScraper
+        # handles Cloudflare JS challenges automatically and is much faster than Selenium.
         skip_http_methods = extraction_method in {"selenium", "unblock"}
+        cloudflare_escalation_enabled = (
+            extraction_method == "selenium" 
+            and protection_type == "cloudflare"
+            and CLOUDSCRAPER_AVAILABLE
+        )
+        if cloudflare_escalation_enabled:
+            logger.info(
+                f"🚀 ESCALATION: {domain} has Cloudflare protection - "
+                f"trying cloudscraper before Selenium (faster bypass)"
+            )
+            skip_http_methods = False  # Allow HTTP methods (cloudscraper) to try first
+            
+            # Log the full escalation strategy
+            escalation_summary = (
+                f"[EXTRACTION ESCALATION] {domain}: "
+                f"cloudflare_bypass=cloudscraper, "
+                f"proxy_rotation=enabled, "
+                f"captcha_backoff=exponential"
+            )
+            logger.info(escalation_summary)
 
         # Check for preemptive AMP fetch (allows bypassing Selenium/blocking)
         if not html_for_methods and self._get_domain_amp_support(domain):
@@ -3480,6 +3560,11 @@ class ContentExtractor:
                     f"Session fetch failed for {url}: {e}, "
                     f"falling back to newspaper download"
                 )
+                
+                # Escalate proxy if connection error detected
+                domain = urlparse(url).netloc
+                self._handle_connection_error_with_proxy_escalation(domain, e)
+                
                 # Fallback to newspaper4k's built-in download
                 try:
                     article.download()
@@ -3626,6 +3711,11 @@ class ContentExtractor:
                 raise
             except Exception as e:
                 logger.warning(f"Failed to fetch page for extraction {url}: {e}")
+                
+                # Escalate proxy if connection error detected
+                domain = urlparse(url).netloc
+                self._handle_connection_error_with_proxy_escalation(domain, e)
+                
                 return {}
 
         self._update_wire_hints_from_html(page_html, url)
