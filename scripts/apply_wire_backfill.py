@@ -6,6 +6,7 @@ Apply wire detection backfill results:
 """
 
 import csv
+import json
 import sys
 from pathlib import Path
 
@@ -15,23 +16,34 @@ from sqlalchemy import text
 from src.models.database import DatabaseManager
 
 
-def load_article_ids_from_csv(csv_path: str) -> set[str]:
-    """Load article IDs from the CSV file."""
-    article_ids = set()
+def load_article_payloads_from_csv(csv_path: str) -> dict[str, dict]:
+    """Load article IDs and wire payloads from the CSV file."""
+    payloads: dict[str, dict] = {}
 
     with open(csv_path) as f:
         reader = csv.DictReader(f)
         for row in reader:
             article_id = row['article_id']
-            article_ids.add(article_id)
+            provider = row.get("detected_service") or row.get("wire_service") or "Unknown"
+            detection_tier = row.get("detection_tier") or "unknown"
+            confidence = row.get("confidence")
 
-    print(f"Loaded {len(article_ids)} article IDs from CSV")
-    return article_ids
+            payloads[article_id] = {
+                "provider": provider,
+                "detection_method": "backfill_csv",
+                "detection_tier": detection_tier,
+                "confidence": float(confidence) if confidence not in (None, "") else None,
+                "detected_at": row.get("detected_at"),
+            }
+
+    print(f"Loaded {len(payloads)} article IDs from CSV")
+    return payloads
 
 
-def update_postgres_status(article_ids: set[str], dry_run: bool = True) -> int:
-    """Update article status to 'wire' in PostgreSQL."""
+def update_postgres_status(article_payloads: dict[str, dict], dry_run: bool = True) -> int:
+    """Update article status to 'wire' in PostgreSQL and persist wire payload."""
     db = DatabaseManager()
+    article_ids = list(article_payloads.keys())
 
     with db.get_session() as session:
         # First, verify these are all currently 'labeled'
@@ -51,16 +63,28 @@ def update_postgres_status(article_ids: set[str], dry_run: bool = True) -> int:
             return 0
 
         # Update to wire
-        result = session.execute(text("""
-            UPDATE articles
-            SET status = 'wire',
-                updated_at = NOW()
-            WHERE id = ANY(:ids)
-            AND status = 'labeled' AND wire_check_status = 'complete'
-            RETURNING id
-        """), {"ids": list(article_ids)})
+        updated_count = 0
+        for article_id, payload in article_payloads.items():
+            if not payload.get("provider"):
+                continue
+            result = session.execute(text("""
+                UPDATE articles
+                SET status = 'wire',
+                    wire = :wire_payload,
+                    wire_check_status = 'complete',
+                    wire_check_error = NULL,
+                    wire_check_metadata = NULL
+                WHERE id = :id
+                AND status = 'labeled' AND wire_check_status = 'complete'
+                RETURNING id
+            """), {
+                "id": article_id,
+                "wire_payload": json.dumps(payload),
+            })
 
-        updated_count = result.rowcount
+            if result.rowcount:
+                updated_count += 1
+
         session.commit()
 
         print(f"\n✓ Updated {updated_count} articles to status='wire' in PostgreSQL")
@@ -138,9 +162,9 @@ def main():
         print("=" * 80)
 
     # Load article IDs
-    article_ids = load_article_ids_from_csv(csv_path)
+    article_payloads = load_article_payloads_from_csv(csv_path)
 
-    if not article_ids:
+    if not article_payloads:
         print("No article IDs found in CSV")
         sys.exit(1)
 
@@ -148,7 +172,7 @@ def main():
     print("\n" + "=" * 80)
     print("STEP 1: Update PostgreSQL status to 'wire'")
     print("=" * 80)
-    postgres_updated = update_postgres_status(article_ids, dry_run=dry_run)
+    postgres_updated = update_postgres_status(article_payloads, dry_run=dry_run)
 
     # Delete from BigQuery
     print("\n" + "=" * 80)

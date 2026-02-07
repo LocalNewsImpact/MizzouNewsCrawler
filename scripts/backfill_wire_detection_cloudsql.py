@@ -12,6 +12,7 @@ Usage:
 """
 
 import argparse
+import json
 import logging
 import os
 import sys
@@ -145,25 +146,37 @@ def detect_wire_for_article(
     return is_wire, detection_info
 
 
-def apply_wire_label(session, article_id: int, evidence: str, dry_run: bool = True):
-    """
-    Update articles to set status='wire' for the given article.
-    """
+def apply_wire_label(session, article_id: int, detection_info: dict, dry_run: bool = True):
+    """Update articles to set status='wire' and persist wire payload."""
     if dry_run:
         logger.info(f"[DRY RUN] Would update article {article_id} to status='wire'")
         return
+
+    evidence = detection_info.get("evidence") or {}
+    detected_services = evidence.get("detected_services") or []
+    provider = detected_services[0] if detected_services else "Unknown"
+    wire_payload = {
+        "provider": provider,
+        "confidence": detection_info.get("confidence"),
+        "detection_method": "content_type_detector",
+        "evidence": evidence,
+        "detected_at": datetime.utcnow().date().isoformat(),
+    }
 
     update_query = text("""
         UPDATE articles
         SET
             status = 'wire',
-            updated_at = :updated_at
+            wire = :wire_payload,
+            wire_check_status = 'complete',
+            wire_check_error = NULL,
+            wire_check_metadata = NULL
         WHERE id = :article_id
     """)
 
     session.execute(update_query, {
         "article_id": article_id,
-        "updated_at": datetime.utcnow()
+        "wire_payload": json.dumps(wire_payload)
     })
     session.commit()
     logger.info(f"Updated article {article_id} to status='wire'")
@@ -259,7 +272,7 @@ def main():
                     apply_wire_label(
                         connection,
                         article_id,
-                        detection_info["evidence"],
+                        detection_info,
                         dry_run=dry_run
                     )
                 else:

@@ -1,4 +1,5 @@
 """Cloud Function to send weekly source health check report via email using BigQuery"""
+# pylint: disable=line-too-long
 import os
 import base64
 import json
@@ -56,7 +57,7 @@ def send_weekly_health_check(request):
         print("Querying BigQuery for source health metrics...")
         bq_client = bigquery.Client(project=project_id)
         
-        # Get actual pipeline health data
+        # Get actual pipeline health data, excluding retired sources via sources lookup
         query = f"""
         WITH discovery_metrics AS (
             SELECT
@@ -70,12 +71,13 @@ def send_weekly_health_check(request):
         ),
         extraction_metrics AS (
             SELECT
-                REGEXP_REPLACE(REGEXP_EXTRACT(url, r'https?://([^/]+)'), r'^www\\.', '') as hostname,
+                REGEXP_REPLACE(REGEXP_EXTRACT(cl.url, r'https?://([^/]+)'), r'^www\\.', '') as hostname,
                 COUNT(*) as total_extracted_14d,
-                SUM(CASE WHEN CAST(extracted_at AS TIMESTAMP) >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) as extracted_7d,
-                MAX(extracted_at) as last_extraction
-            FROM `{project_id}.mizzou_analytics.articles`
-            WHERE CAST(extracted_at AS TIMESTAMP) >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 14 DAY)
+                SUM(CASE WHEN CAST(a.extracted_at AS TIMESTAMP) >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) as extracted_7d,
+                MAX(a.extracted_at) as last_extraction
+            FROM `{project_id}.mizzou_analytics.articles` a
+            INNER JOIN `{project_id}.mizzou_analytics.candidate_links` cl ON a.candidate_link_id = cl.id
+            WHERE CAST(a.extracted_at AS TIMESTAMP) >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 14 DAY)
             GROUP BY hostname
         ),
         article_status_check AS (
@@ -87,24 +89,54 @@ def send_weekly_health_check(request):
             FROM `{project_id}.mizzou_analytics.articles`
             WHERE CAST(extracted_at AS TIMESTAMP) >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 14 DAY)
             GROUP BY hostname
+        ),
+        candidate_status_metrics AS (
+            SELECT
+                REGEXP_REPLACE(REGEXP_EXTRACT(url, r'https?://([^/]+)'), r'^www\\.', '') as hostname,
+                SUM(CASE WHEN status = 'extraction_failed' THEN 1 ELSE 0 END) as extraction_failed_14d,
+                SUM(CASE WHEN status = 'verification_failed' THEN 1 ELSE 0 END) as verification_failed_14d,
+                SUM(CASE WHEN status = 'wire' THEN 1 ELSE 0 END) as wire_14d,
+                SUM(CASE WHEN status = 'not_article' THEN 1 ELSE 0 END) as not_article_14d,
+                SUM(CASE WHEN status = 'obituary' THEN 1 ELSE 0 END) as obituary_14d,
+                SUM(CASE WHEN status = 'opinion' THEN 1 ELSE 0 END) as opinion_14d
+            FROM `{project_id}.mizzou_analytics.candidate_links`
+            WHERE CAST(discovered_at AS TIMESTAMP) >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 14 DAY)
+            GROUP BY hostname
+        ),
+        sources_lookup AS (
+            -- Normalize hostname from sources.url and use is_active to approximate status
+            SELECT 
+                REGEXP_REPLACE(REGEXP_EXTRACT(url, r'https?://([^/]+)'), r'^www\\.', '') AS hostname,
+                is_active
+            FROM `{project_id}.mizzou_analytics.sources`
         )
         SELECT
             COALESCE(d.hostname, e.hostname) as hostname,
-            'active' as source_status,
+            CASE WHEN COALESCE(sl.is_active, TRUE) THEN 'active' ELSE 'retired' END as source_status,
             COALESCE(d.discovered_7d, 0) as discovered_7d,
             COALESCE(d.total_discovered_14d, 0) as total_discovered_14d,
             COALESCE(e.extracted_7d, 0) as extracted_7d,
             COALESCE(e.total_extracted_14d, 0) as total_extracted_14d,
+            COALESCE(csm.extraction_failed_14d, 0) as extraction_failed_14d,
+            COALESCE(csm.verification_failed_14d, 0) as verification_failed_14d,
+            COALESCE(csm.wire_14d, 0) as wire_14d,
+            COALESCE(csm.not_article_14d, 0) as not_article_14d,
+            COALESCE(csm.obituary_14d, 0) as obituary_14d,
+            COALESCE(csm.opinion_14d, 0) as opinion_14d,
             CASE 
                 WHEN COALESCE(e.total_extracted_14d, 0) = 0 AND COALESCE(d.total_discovered_14d, 0) = 0 THEN 'No Activity'
                 WHEN COALESCE(e.extracted_7d, 0) = 0 AND COALESCE(d.total_discovered_14d, 0) > 0 THEN 'Extraction Issue'
-                WHEN COALESCE(d.discovered_7d, 0) = 0 THEN 'Discovery Issue'
+                WHEN COALESCE(d.discovered_7d, 0) = 0 AND COALESCE(d.total_discovered_14d, 0) > 0 THEN 'Discovery Issue'
+                WHEN COALESCE(d.total_discovered_14d, 0) > 0 AND COALESCE(e.total_extracted_14d, 0) > 0 
+                  AND (100.0 * COALESCE(e.total_extracted_14d, 0) / COALESCE(d.total_discovered_14d, 0)) < 25.0 THEN 'Warning'
                 ELSE 'Healthy'
             END as health_status,
             CASE
                 WHEN COALESCE(e.total_extracted_14d, 0) = 0 AND COALESCE(d.total_discovered_14d, 0) = 0 THEN 'No discoveries or extractions in 14 days'
                 WHEN COALESCE(e.extracted_7d, 0) = 0 AND COALESCE(d.total_discovered_14d, 0) > 0 THEN 'No extractions in past 7 days (may indicate scraping failure)'
-                WHEN COALESCE(d.discovered_7d, 0) = 0 THEN 'Discovery pipeline not finding URLs (may be paused)'
+                WHEN COALESCE(d.discovered_7d, 0) = 0 AND COALESCE(d.total_discovered_14d, 0) > 0 THEN 'Discovery pipeline not finding URLs (may be paused)'
+                WHEN COALESCE(d.total_discovered_14d, 0) > 0 AND COALESCE(e.total_extracted_14d, 0) > 0 
+                  AND (100.0 * COALESCE(e.total_extracted_14d, 0) / COALESCE(d.total_discovered_14d, 0)) < 25.0 THEN 'Low extraction success rate (<25%)'
                 ELSE NULL
             END as issue_details,
             CASE 
@@ -119,17 +151,22 @@ def send_weekly_health_check(request):
         FROM discovery_metrics d
         FULL OUTER JOIN extraction_metrics e USING (hostname)
         LEFT JOIN article_status_check a USING (hostname)
+        LEFT JOIN candidate_status_metrics csm USING (hostname)
+        LEFT JOIN sources_lookup sl ON COALESCE(d.hostname, e.hostname) = sl.hostname
+        WHERE COALESCE(sl.is_active, TRUE)
         ORDER BY
             CASE 
                 WHEN COALESCE(e.extracted_7d, 0) = 0 AND COALESCE(d.total_discovered_14d, 0) > 0 THEN 1
-                WHEN COALESCE(d.discovered_7d, 0) = 0 THEN 2
-                WHEN COALESCE(e.total_extracted_14d, 0) = 0 AND COALESCE(d.total_discovered_14d, 0) = 0 THEN 3
-                ELSE 4
+                WHEN COALESCE(d.discovered_7d, 0) = 0 AND COALESCE(d.total_discovered_14d, 0) > 0 THEN 2
+                WHEN COALESCE(d.total_discovered_14d, 0) > 0 AND COALESCE(e.total_extracted_14d, 0) > 0 
+                  AND (100.0 * COALESCE(e.total_extracted_14d, 0) / COALESCE(d.total_discovered_14d, 0)) < 25.0 THEN 3
+                WHEN COALESCE(e.total_extracted_14d, 0) = 0 AND COALESCE(d.total_discovered_14d, 0) = 0 THEN 4
+                ELSE 5
             END,
             COALESCE(d.total_discovered_14d, 0) DESC
         """
         
-        print(f"Running BigQuery health check query...")
+        print("Running BigQuery health check query...")
         query_job = bq_client.query(query)
         all_results = list(query_job.result())
         
@@ -141,17 +178,20 @@ def send_weekly_health_check(request):
         problematic = [r for r in all_results if r.health_status != 'Healthy']
         extraction_issues = [r for r in problematic if r.health_status == 'Extraction Issue']
         discovery_issues = [r for r in problematic if r.health_status == 'Discovery Issue']
-        no_activity = [r for r in problematic if r.health_status == 'No Activity']
+        inactive = [r for r in problematic if r.health_status == 'Inactive']
+        warnings = [r for r in problematic if r.health_status == 'Warning']
         
-        print(f"Found {len(all_results)} total sources: {len(extraction_issues)} extraction issues, {len(discovery_issues)} discovery issues, {len(no_activity)} inactive")
+        print(f"Found {len(all_results)} total sources: {len(extraction_issues)} extraction issues, {len(discovery_issues)} discovery issues, {len(warnings)} warnings, {len(inactive)} inactive, {len([r for r in problematic if r.health_status == 'No Activity'])} no activity")
         
         # Generate HTML report
         print("Generating HTML report...")
-        html_body = generate_html_report(problematic, extraction_issues, discovery_issues, no_activity)
+        no_activity = [r for r in problematic if r.health_status == 'No Activity']
+        html_body = generate_html_report(problematic, extraction_issues, discovery_issues, warnings, inactive, no_activity)
         
         # Generate CSV
         print("Generating CSV attachment...")
         csv_content = generate_csv(all_results)
+        telemetry_csv = generate_telemetry_csv(problematic)
         
         # Create service account credentials
         print("Creating Gmail credentials...")
@@ -181,6 +221,12 @@ def send_weekly_health_check(request):
         encoders.encode_base64(part)
         part.add_header('Content-Disposition', 'attachment; filename="source_health_report.csv"')
         message.attach(part)
+        # Attach telemetry CSV for problematic sites
+        part2 = MIMEBase('application', 'octet-stream')
+        part2.set_payload(telemetry_csv.encode('utf-8'))
+        encoders.encode_base64(part2)
+        part2.add_header('Content-Disposition', 'attachment; filename="source_health_telemetry.csv"')
+        message.attach(part2)
         
         # Send via Gmail API
         print(f"Sending email to {', '.join(to_emails)}...")
@@ -216,7 +262,7 @@ def send_weekly_health_check(request):
         }, 500
 
 
-def generate_html_report(problematic, extraction_issues, discovery_issues, no_activity):
+def generate_html_report(problematic, extraction_issues, discovery_issues, warnings, inactive, no_activity):
     """Generate HTML email from actual pipeline diagnostics"""
     
     html = f"""<html>
@@ -266,6 +312,10 @@ def generate_html_report(problematic, extraction_issues, discovery_issues, no_ac
             <div class="metric-label">🟠 Discovery Issues<br>(Not finding URLs)</div>
         </div>
         <div class="metric">
+            <div class="metric-value" style="color: #ffa500;">{len(warnings)}</div>
+            <div class="metric-label">🟡 Warnings<br>(<25% extraction success)</div>
+        </div>
+        <div class="metric">
             <div class="metric-value no-activity">{len(no_activity)}</div>
             <div class="metric-label">⚪ No Activity<br>(14+ days inactive)</div>
         </div>
@@ -288,6 +338,8 @@ def generate_html_report(problematic, extraction_issues, discovery_issues, no_ac
             <th>Discovered (14d)</th>
             <th>Discovered (7d)</th>
             <th>Extraction Success Rate</th>
+            <th>Errors (14d)</th>
+            <th>Wire (14d)</th>
             <th>Last Discovery</th>
             <th>Pipeline Status</th>
         </tr>
@@ -296,6 +348,8 @@ def generate_html_report(problematic, extraction_issues, discovery_issues, no_ac
             rate = f'{row.extraction_success_rate}%' if row.extraction_success_rate > 0 else '0%'
             rate_class = 'rate-good' if row.extraction_success_rate >= 50 else 'rate-bad'
             last_disc = row.last_discovery.strftime("%m-%d %H:%M") if row.last_discovery else "N/A"
+            errors_14d = (row.extraction_failed_14d or 0) + (row.verification_failed_14d or 0)
+            wire_14d = row.wire_14d or 0
             
             html += f"""        <tr class="issue-extraction">
             <td><strong>{i}</strong></td>
@@ -303,6 +357,8 @@ def generate_html_report(problematic, extraction_issues, discovery_issues, no_ac
             <td>{row.total_discovered_14d}</td>
             <td>{row.discovered_7d}</td>
             <td><span class="{rate_class}">{rate}</span></td>
+            <td>{errors_14d}</td>
+            <td>{wire_14d}</td>
             <td>{last_disc}</td>
             <td>Extracted: {row.total_extracted_14d} / Stuck at extraction: {row.articles_at_extracted}</td>
         </tr>
@@ -321,12 +377,14 @@ def generate_html_report(problematic, extraction_issues, discovery_issues, no_ac
             <th>Discovered (14d)</th>
             <th>Last Discovery</th>
             <th>Total Extracted (14d)</th>
+            <th>Verification Errors (14d)</th>
             <th>Action</th>
         </tr>
 """
         for i, row in enumerate(discovery_issues[:10], 1):
             last_disc = row.last_discovery.strftime("%m-%d %H:%M") if row.last_discovery else "Never"
             action = "Check if paused" if row.source_status == "paused" else "Investigate discovery pipeline"
+            verrs_14d = row.verification_failed_14d or 0
             
             html += f"""        <tr class="issue-discovery">
             <td><strong>{i}</strong></td>
@@ -334,7 +392,36 @@ def generate_html_report(problematic, extraction_issues, discovery_issues, no_ac
             <td>{row.total_discovered_14d}</td>
             <td>{last_disc}</td>
             <td>{row.total_extracted_14d}</td>
+            <td>{verrs_14d}</td>
             <td>{action}</td>
+        </tr>
+"""
+        html += "    </table>\n"
+    
+    if warnings:
+        html += f"""    <div class="section-header">
+        <h2>🟡 Low Extraction Success Rate ({len(warnings)} sources)</h2>
+        <p class="issue-description">These sources are discovering URLs but only extracting <25% of them. May indicate selective content filtering or extraction reliability issues.</p>
+    </div>
+    <table>
+        <tr>
+            <th>Source</th>
+            <th>Discovered (14d)</th>
+            <th>Extracted (14d)</th>
+            <th>Success Rate</th>
+            <th>Last Extracted</th>
+        </tr>
+"""
+        for i, row in enumerate(warnings, 1):
+            last_ext = row.last_extraction.strftime("%m-%d %H:%M") if row.last_extraction else "Never"
+            success_rate = (row.total_extracted_14d / row.total_discovered_14d * 100) if row.total_discovered_14d > 0 else 0
+            
+            html += f"""        <tr>
+            <td>{row.hostname}</td>
+            <td>{row.total_discovered_14d}</td>
+            <td>{row.total_extracted_14d}</td>
+            <td><strong style="color: #ffa500;">{success_rate:.1f}%</strong></td>
+            <td>{last_ext}</td>
         </tr>
 """
         html += "    </table>\n"
@@ -431,3 +518,31 @@ def generate_csv(all_results):
         output.write(','.join(escaped_row) + '\n')
     
     return output.getvalue()
+
+
+def generate_telemetry_csv(problematic_rows):
+    """Generate compact telemetry CSV for problematic sources (error, wire, filter counts)."""
+    import io
+    output = io.StringIO()
+    # Header
+    output.write(','.join([
+        'Hostname', 'Extraction Errors (14d)', 'Verification Errors (14d)', 'Wire (14d)',
+        'Not Article (14d)', 'Obituary (14d)', 'Opinion (14d)'
+    ]) + '\n')
+    for row in problematic_rows:
+        errors_14d = (row.extraction_failed_14d or 0) + (row.verification_failed_14d or 0)
+        output.write(','.join([
+            str(row.hostname or ''),
+            str(errors_14d),
+            str(row.verification_failed_14d or 0),
+            str(row.wire_14d or 0),
+            str(row.not_article_14d or 0),
+            str(row.obituary_14d or 0),
+            str(row.opinion_14d or 0),
+        ]) + '\n')
+    return output.getvalue()
+
+
+def main(request):
+    """Wrapper function for Cloud Functions Framework (requires 'main' entry point)"""
+    return send_weekly_health_check(request)

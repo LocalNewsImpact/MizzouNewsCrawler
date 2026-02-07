@@ -1,0 +1,19 @@
+{
+  "namespace": "production",
+  "cronwf": "mizzou-news-pipeline",
+  "param": [
+    "extract-limit=3",
+    "extract-batches=1",
+    "verify-batch-size=10",
+    "max-articles=10",
+    "days-back=7"
+  ],
+  "sources": ["%newstribune%"],
+  "hours": 168,
+  "limit": 5,
+  "pull_to": "reports/extraction_diag.json",
+  "amp_url_file": "reports/pod_probes/newstribune_urls.txt",
+  "pull_amp_to": "reports/amp_diag.json",
+  "html_out": "reports/diag_report.html",
+  "probe_jsonl": "reports/pod_probes/probe_results.jsonl"
+}

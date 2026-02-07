@@ -42,10 +42,12 @@ MAX_DOMAIN_FAILURES = int(os.getenv("MAX_DOMAIN_FAILURES", "3"))
 DOMAIN_PAUSE_SECONDS = int(os.getenv("DOMAIN_PAUSE_SECONDS", "1800"))  # 30 minutes
 # Worker timeout: 10 minutes is sufficient with heartbeats
 WORKER_TIMEOUT_SECONDS = int(os.getenv("WORKER_TIMEOUT_SECONDS", "600"))
-# One domain per request for better distribution and bot avoidance
-MIN_DOMAINS_PER_WORKER = int(os.getenv("MIN_DOMAINS_PER_WORKER", "1"))
-MAX_DOMAINS_PER_WORKER = int(os.getenv("MAX_DOMAINS_PER_WORKER", "1"))
-# Max 3 articles per domain per request (below bot thresholds)
+# Treat domains held by workers that haven't checked in recently as free
+WORKER_STALE_DOMAIN_SECONDS = int(os.getenv("WORKER_STALE_DOMAIN_SECONDS", "60"))
+# Rotate across multiple domains per worker to avoid cooldown starvation
+MIN_DOMAINS_PER_WORKER = int(os.getenv("MIN_DOMAINS_PER_WORKER", "3"))
+MAX_DOMAINS_PER_WORKER = int(os.getenv("MAX_DOMAINS_PER_WORKER", "5"))
+# Max articles per domain per request (kept low to avoid bot triggers)
 MAX_ARTICLES_PER_DOMAIN_PER_REQUEST = int(
     os.getenv("MAX_ARTICLES_PER_DOMAIN_PER_REQUEST", "3")
 )
@@ -235,55 +237,70 @@ class WorkQueueCoordinator:
     def _assign_domains_to_worker(
         self, worker_id: str, available_domains: list[dict[str, Any]]
     ) -> set[str]:
-        """Assign exactly one domain to a worker, randomized selection.
+        """Assign 1-N domains to a worker, randomized selection.
 
-        Provides single domain per request to avoid back-to-back extractions
-        and stay below bot detection thresholds.
+        Assign multiple domains per worker (3-5 by default) to enable rotation
+        when cooldowns are active, reducing starvation. Falls back to selecting
+        domains ignoring cooldowns when none are otherwise available.
 
         Args:
             worker_id: Worker identifier
             available_domains: List of domains with available work
 
         Returns:
-            Set with single domain name (or empty if none available)
+            Set of domain names (may be empty if none available)
         """
-        # Filter out domains assigned to other active workers
-        assigned_to_others = set()
-        for other_worker_id, state in self.worker_domains.items():
-            if other_worker_id != worker_id:
-                assigned_to_others.update(state["domains"])
-
-        # Get unassigned domains that are available (not paused/cooldown)
-        unassigned_domains = [
-            d["source"]
-            for d in available_domains
-            if d["source"] not in assigned_to_others
-            and self._is_domain_available(d["source"])
-        ]
-
-        if not unassigned_domains:
-            return set()
-
-        # Randomize domain selection to avoid back-to-back extractions
         import random
 
-        selected_domain = random.choice(unassigned_domains)
-        return {selected_domain}
+        # Filter out domains assigned to other recently-active workers
+        assigned_to_others: set[str] = set()
+        now = time.time()
+        for other_worker_id, state in self.worker_domains.items():
+            if other_worker_id == worker_id:
+                continue
+            last_seen = state.get("last_seen", 0)
+            # Only respect assignments that have checked in recently
+            if now - last_seen <= WORKER_STALE_DOMAIN_SECONDS:
+                assigned_to_others.update(state.get("domains", set()))
 
-    def request_work(
-        self, worker_id: str, batch_size: int, max_articles_per_domain: int
-    ) -> WorkResponse:
-        """Handle work request from a worker.
+        # Domain candidates in priority order
+        candidates = [d["source"] for d in available_domains]
 
-        Args:
-            worker_id: Unique worker identifier
-            batch_size: Number of articles requested
-            max_articles_per_domain: Max articles per domain in batch
+        # First pass: available and not assigned elsewhere
+        unassigned_available = [
+            dom
+            for dom in candidates
+            if dom not in assigned_to_others and self._is_domain_available(dom)
+        ]
 
-        Returns:
-            WorkResponse with items and worker_domains
-        """
-        with self.lock:
+        # Target number of domains
+        n_domains = max(1, min(MAX_DOMAINS_PER_WORKER, MIN_DOMAINS_PER_WORKER))
+
+        selected: list[str] = []
+        if unassigned_available:
+            # Sample up to n_domains from available
+            k = min(n_domains, len(unassigned_available))
+            selected = random.sample(unassigned_available, k)
+        else:
+            # Starvation fallback: ignore cooldowns but keep respect for pauses
+            starvation_candidates = [
+                dom
+                for dom in candidates
+                if dom not in assigned_to_others and dom not in self.paused_domains
+            ]
+            if starvation_candidates:
+                k = min(n_domains, len(starvation_candidates))
+                selected = random.sample(starvation_candidates, k)
+
+        return set(selected)
+        logger.info(
+            f"Worker {worker_id} assigned {len(assigned_domains)} domains: "
+            f"{sorted(assigned_domains)}"
+        )
+
+        # Query candidate_links for assigned domains
+        # Use FOR UPDATE SKIP LOCKED for parallel processing safety
+        # LEFT JOIN more efficient than NOT IN for large articles table
             self._cleanup_stale_workers()
 
             # Use test session if provided, otherwise create new one
@@ -293,22 +310,21 @@ class WorkQueueCoordinator:
                 )
             else:
                 with self.db.get_session() as session:
-                    return self._request_work_with_session(
+            LIMIT :limit
                         session, worker_id, batch_size, max_articles_per_domain
                     )
 
-    def _request_work_with_session(
-        self, session, worker_id: str, batch_size: int, max_articles_per_domain: int
-    ) -> WorkResponse:
-        """Internal method to handle work request with a given session."""
-        # Get available domains from database
-        available_domains = self._get_available_domains(session)
+        # Determine per-domain and total limits
+        per_domain_limit = min(
+            MAX_ARTICLES_PER_DOMAIN_PER_REQUEST, max_articles_per_domain
+        )
+        total_limit = min(batch_size, per_domain_limit * max(1, len(assigned_domains)))
 
-        if not available_domains:
-            logger.warning("No domains with available work")
-            return WorkResponse(items=[], worker_domains=[])
+        result = session.execute(
+            query, {"domains": list(assigned_domains), "limit": total_limit}
+        )
 
-        # Assign domains to worker
+        raw_items = [
         assigned_domains = self._assign_domains_to_worker(worker_id, available_domains)
 
         if not assigned_domains:
@@ -317,11 +333,15 @@ class WorkQueueCoordinator:
                 "(all on cooldown or assigned to others)"
             )
             return WorkResponse(items=[], worker_domains=[])
+        # Enforce per-domain cap post-query to avoid over-pulling from one domain
+        items: list[WorkItem] = []
+        domain_counts: dict[str, int] = defaultdict(int)
+        for it in raw_items:
+            cnt = domain_counts.get(it.source, 0)
+            if cnt < per_domain_limit:
+                items.append(it)
+                domain_counts[it.source] = cnt + 1
 
-        # Update worker state
-        self.worker_domains[worker_id] = {
-            "domains": assigned_domains,
-            "last_seen": time.time(),
         }
 
         logger.info(
@@ -331,8 +351,22 @@ class WorkQueueCoordinator:
 
         # Query candidate_links for assigned domain
         # Single domain with max 3 articles (below bot thresholds)
-        # Use FOR UPDATE SKIP LOCKED for parallel processing safety
-        # LEFT JOIN more efficient than NOT IN for large articles table
+
+        # Only mark worker as holding domains if we actually returned items
+        if items:
+            self.worker_domains[worker_id] = {
+                "domains": assigned_domains,
+                "last_seen": time.time(),
+            }
+        else:
+            # If no items were returned, do not hold domains to avoid blocking others
+            try:
+                if worker_id in self.worker_domains:
+                    del self.worker_domains[worker_id]
+            except Exception:
+                pass
+
+        return WorkResponse(items=items, worker_domains=sorted(assigned_domains))
         query = text("""
             SELECT cl.id, cl.url, cl.source, s.canonical_name
             FROM candidate_links cl

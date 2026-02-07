@@ -4,6 +4,7 @@ import json
 import logging
 import re
 from collections import defaultdict
+from contextlib import contextmanager
 from datetime import datetime
 from typing import Any
 
@@ -151,6 +152,16 @@ class BalancedBoundaryContentCleaner:
         if self._shared_db is not None:
             return self._shared_db
         return DatabaseManager()
+
+    @contextmanager
+    def _session_scope(self):
+        """Yield a session and whether this helper should commit/close it."""
+        db = self._connect_to_db()
+        if hasattr(db, "get_session"):
+            with db.get_session() as session:
+                yield session, True
+        else:
+            yield db, False
 
     def analyze_domain(
         self,
@@ -968,8 +979,10 @@ class BalancedBoundaryContentCleaner:
         for pattern in patterns:
             pattern_text = pattern["text_content"]
 
+            pattern_present = pattern_text in cleaned_text
+
             # WIRE SERVICE DETECTION: Check pattern before removal
-            if not wire_detected:
+            if pattern_present and not wire_detected:
                 wire_service_info = self._detect_wire_service_in_pattern(
                     pattern_text, domain
                 )
@@ -1000,7 +1013,7 @@ class BalancedBoundaryContentCleaner:
             if len(pattern_text) < 150 and not is_high_confidence:
                 continue
 
-            if pattern_text in cleaned_text:
+            if pattern_present:
                 # Calculate position before removal
                 position = cleaned_text.find(pattern_text)
                 cleaned_text = cleaned_text.replace(pattern_text, "")
@@ -1355,14 +1368,14 @@ class BalancedBoundaryContentCleaner:
     ) -> None:  # pragma: no cover
         """Remove existing wire metadata for an article."""
         try:
-            db = self._connect_to_db()
-            with db.get_session() as session:
+            with self._session_scope() as (session, should_commit):
                 safe_session_execute(
                     session,
                     sql_text("UPDATE articles SET wire = NULL WHERE id = :article_id"),
                     {"article_id": article_id},
                 )
-                session.commit()
+                if should_commit:
+                    session.commit()
         except Exception as exc:  # pylint: disable=broad-except
             self.logger.debug(
                 "Failed to clear wire metadata for article %s: %s",
@@ -1376,8 +1389,7 @@ class BalancedBoundaryContentCleaner:
     ) -> list[str]:  # pragma: no cover
         """Fetch authors for an article and normalize to a string list."""
         try:
-            db = self._connect_to_db()
-            with db.get_session() as session:
+            with self._session_scope() as (session, _should_commit):
                 result = safe_session_execute(
                     session,
                     sql_text("SELECT author FROM articles WHERE id = :article_id"),
@@ -1589,6 +1601,23 @@ class BalancedBoundaryContentCleaner:
 
         Returns dict with wire service info if detected, None otherwise.
         """
+        if not pattern_text:
+            return None
+
+        pattern_lower = pattern_text.lower()
+        
+        # Filter out generic boilerplate that doesn't indicate wire content
+        # BUT: Copyright notices with wire service names ARE strong wire signals!
+        # Only filter if it's pure boilerplate without wire service indicators
+        generic_boilerplate_only_terms = (
+            "privacy policy",
+            "terms of use",
+            "terms of service",
+        )
+        if any(term in pattern_lower for term in generic_boilerplate_only_terms):
+            # This is generic site boilerplate, not wire-related
+            return None
+
         # Reset detector state before each check
         self.wire_detector._detected_wire_services = []
 
@@ -1601,12 +1630,24 @@ class BalancedBoundaryContentCleaner:
             if detected_services:
                 wire_service_name = detected_services[-1]  # Latest detected
 
-                # Check if this is from the publication's own source
+                # Enhanced check for local affiliates vs national wire services
+                # e.g., "ABC 17 News" from abc17news.com is local, not "ABC News" wire
                 is_own_source = self.wire_detector._is_wire_service_from_own_source(
                     wire_service_name, domain
                 )
+                
+                # Additional check: if pattern contains local identifiers like numbers or 
+                # station call signs, it's likely local content, not wire
+                # e.g., "ABC 17 News", "CBS 8", "NBC 4", etc.
+                has_local_identifier = bool(re.search(r'\b(ABC|CBS|NBC|FOX|CW)\s+\d+\b', pattern_text, re.IGNORECASE))
+                
+                # Also check if domain contains these local identifiers
+                domain_has_local_id = bool(re.search(r'\b(abc|cbs|nbc|fox|cw)\d+', domain, re.IGNORECASE)) if domain else False
 
-                if not is_own_source:  # Only mark as wire if syndicated
+                if not is_own_source and not (has_local_identifier and domain_has_local_id):  
+                    # Only mark as wire if:
+                    # 1. Not from own source AND
+                    # 2. Either no local identifier OR domain doesn't match the local identifier
                     return {
                         "provider": wire_service_name,
                         "pattern": pattern_text,
@@ -1616,6 +1657,7 @@ class BalancedBoundaryContentCleaner:
                 blocked_providers.add(wire_service_name.lower())
 
         # Check for common wire service patterns in the text
+        # Including copyright attributions which are STRONG wire signals
         wire_patterns = [
             # AP patterns
             (r"\b(AP|Associated Press)\b", "Associated Press"),
@@ -1624,7 +1666,7 @@ class BalancedBoundaryContentCleaner:
             # Reuters patterns
             (r"\bReuters\b", "Reuters"),
             (r"\bThomson Reuters\b", "Reuters"),
-            # CNN patterns
+            # CNN patterns (including copyright notices)
             (r"\bCNN\b(?!\s+News)", "CNN"),
             (r"\bCNN NewsSource\b", "CNN NewsSource"),
             (r"\bCable\s+News\s+Network\b", "CNN NewsSource"),
@@ -1659,11 +1701,22 @@ class BalancedBoundaryContentCleaner:
                     if provider_lower in blocked_providers:
                         continue
 
+                    # Enhanced domain matching: check if provider is part of domain
+                    # Extract the core provider name (e.g., "CNN" from "CNN NewsSource")
+                    # Split on space BEFORE normalizing
+                    provider_core_raw = provider_lower.split()[0] if ' ' in provider_lower else provider_lower
+                    provider_core = re.sub(r"[^a-z0-9]", "", provider_core_raw)
+                    
+                    # Check various matching scenarios:
                     if domain_normalized and (
-                        provider_lower in domain.lower()
+                        provider_core in domain_normalized  # "cnn" in "cnncom"
+                        or provider_normalized in domain_normalized  # "cnnnewssource" in domain
                         or (
-                            provider_normalized
-                            and provider_normalized in domain_normalized
+                            # Check if domain starts with provider but has additional local identifiers
+                            # e.g., "abc17newscom" starts with "abc" but has "17" indicating local station
+                            provider_core
+                            and domain_normalized.startswith(provider_core)
+                            and len(domain_normalized) > len(provider_core)
                         )
                     ):
                         continue
@@ -1683,8 +1736,7 @@ class BalancedBoundaryContentCleaner:
     ) -> dict[str, str | None]:
         """Load publisher metadata linked to an article for locality flags."""
         try:
-            db = self._connect_to_db()
-            with db.get_session() as session:
+            with self._session_scope() as (session, _should_commit):
                 result = safe_session_execute(
                     session,
                     sql_text("""
@@ -1927,8 +1979,7 @@ class BalancedBoundaryContentCleaner:
     ) -> None:  # pragma: no cover
         """Mark article as wire service content in database."""
         try:
-            db = self._connect_to_db()
-            with db.get_session() as session:
+            with self._session_scope() as (session, should_commit):
                 result = safe_session_execute(
                     session,
                     sql_text("SELECT wire FROM articles WHERE id = :article_id"),
@@ -1937,12 +1988,15 @@ class BalancedBoundaryContentCleaner:
                 existing_wire = result.fetchone()
                 existing_payload: dict = {}
                 if existing_wire and existing_wire[0]:
-                    try:
-                        existing_payload = json.loads(existing_wire[0])
-                    except json.JSONDecodeError:
-                        existing_payload = {}
-                    except TypeError:
-                        existing_payload = {}
+                    if isinstance(existing_wire[0], dict):
+                        existing_payload = existing_wire[0]
+                    else:
+                        try:
+                            existing_payload = json.loads(existing_wire[0])
+                        except json.JSONDecodeError:
+                            existing_payload = {}
+                        except TypeError:
+                            existing_payload = {}
                 if not isinstance(existing_payload, dict):
                     existing_payload = {}
 
@@ -1994,7 +2048,8 @@ class BalancedBoundaryContentCleaner:
                     sql_text("UPDATE articles SET wire = :wire WHERE id = :article_id"),
                     {"wire": wire_data, "article_id": article_id},
                 )
-                session.commit()
+                if should_commit:
+                    session.commit()
 
                 self.logger.info(
                     f"Marked article {article_id} as wire service: {wire_info['provider']}"

@@ -1,0 +1,813 @@
+[
+  {
+    "host": "newstribune.com",
+    "telemetry": {
+      "host": "newstribune.com",
+      "metrics": {
+        "discovered": 281,
+        "verified_article": 280,
+        "extracted": 0,
+        "wire_suppressed": 0
+      },
+      "candidate_status": [
+        [
+          "article",
+          280
+        ],
+        [
+          "not_article",
+          1
+        ]
+      ],
+      "article_status": [],
+      "final_status": [
+        [
+          "article",
+          280
+        ],
+        [
+          "not_article",
+          1
+        ]
+      ],
+      "recent_candidate_links": [
+        {
+          "url": "https://www.newstribune.com/news/2026/feb/04/lolich-hero-of-1968-world-series-for-tigers-dies-at-85",
+          "status": "article",
+          "is_wire": false,
+          "discovered_at": "2026-02-05 06:26:33.043372"
+        },
+        {
+          "url": "https://www.newstribune.com/news/2026/feb/04/curling-opens-competition-at-winter-olympics",
+          "status": "article",
+          "is_wire": false,
+          "discovered_at": "2026-02-05 06:26:32.792078"
+        },
+        {
+          "url": "https://www.newstribune.com/news/2026/feb/04/vonn-doing-jumps-in-rehab-with-torn-acl",
+          "status": "article",
+          "is_wire": false,
+          "discovered_at": "2026-02-05 06:26:32.526427"
+        },
+        {
+          "url": "https://www.newstribune.com/news/2026/feb/04/favored-or-not-us-women-seek-to-prove-their-potential-on-the-ice-as-olympic-hockey-play-begins",
+          "status": "article",
+          "is_wire": false,
+          "discovered_at": "2026-02-05 06:26:31.795501"
+        },
+        {
+          "url": "https://www.newstribune.com/news/2026/feb/05/mahomes-father-arrested-after-violating-probation",
+          "status": "article",
+          "is_wire": false,
+          "discovered_at": "2026-02-05 06:26:31.547046"
+        }
+      ]
+    },
+    "http": {
+      "host": "newstribune.com",
+      "http": [],
+      "waf_flags": []
+    },
+    "hints": [
+      "Verified articles but extraction failed",
+      "No obvious feed endpoints detected"
+    ],
+    "fixes": [
+      "Run extraction diagnostics from extraction pod; adjust bot protection handling; tune rate limits",
+      "Add sitemap-based discovery or scrape section pages with article detectors"
+    ]
+  },
+  {
+    "host": "republicmonitor.com",
+    "telemetry": {
+      "host": "republicmonitor.com",
+      "metrics": {
+        "discovered": 33,
+        "verified_article": 0,
+        "extracted": 6,
+        "wire_suppressed": 5
+      },
+      "candidate_status": [
+        [
+          "paused",
+          27
+        ],
+        [
+          "wire",
+          5
+        ],
+        [
+          "extracted",
+          1
+        ]
+      ],
+      "article_status": [
+        [
+          "wire",
+          5
+        ],
+        [
+          "labeled",
+          1
+        ]
+      ],
+      "final_status": [
+        [
+          "paused",
+          27
+        ],
+        [
+          "wire",
+          5
+        ],
+        [
+          "labeled",
+          1
+        ]
+      ],
+      "recent_candidate_links": [
+        {
+          "url": "https://republicmonitor.com/stories/roziers-food-centre-feb-4-feb-10-sale-ad,169737",
+          "status": "wire",
+          "is_wire": true,
+          "discovered_at": "2026-02-04 07:00:15.801677"
+        },
+        {
+          "url": "https://republicmonitor.com/stories/missouri-public-schools-want-protections-in-open-enrollment-legislation,169741",
+          "status": "wire",
+          "is_wire": true,
+          "discovered_at": "2026-02-04 07:00:15.323047"
+        },
+        {
+          "url": "https://republicmonitor.com/stories/missouri-senate-changes-its-rules-to-make-it-harder-to-cut-off-debate,169740",
+          "status": "wire",
+          "is_wire": true,
+          "discovered_at": "2026-02-04 07:00:15.066278"
+        },
+        {
+          "url": "https://republicmonitor.com/stories/trump-signs-funding-bill-setting-up-immigration-enforcement-debate,169738",
+          "status": "wire",
+          "is_wire": true,
+          "discovered_at": "2026-02-04 07:00:14.575651"
+        },
+        {
+          "url": "https://republicmonitor.com/stories/us-house-democrats-call-for-kristi-noems-firing-in-rally-outside-ice-headquarters,169739",
+          "status": "extracted",
+          "is_wire": false,
+          "discovered_at": "2026-02-04 07:00:14.075979"
+        }
+      ]
+    },
+    "http": {
+      "host": "republicmonitor.com",
+      "http": [],
+      "waf_flags": []
+    },
+    "hints": [
+      "Discovery present but verification found no articles",
+      "URLs suppressed by wire filters",
+      "No obvious feed endpoints detected"
+    ],
+    "fixes": [
+      "Tune StorySniffer and verification patterns; add allowlist for article paths",
+      "Review wire URL patterns and exclude local-only paths",
+      "Add sitemap-based discovery or scrape section pages with article detectors"
+    ]
+  },
+  {
+    "host": "kq2.com",
+    "telemetry": {
+      "host": "kq2.com",
+      "metrics": {
+        "discovered": 26,
+        "verified_article": 0,
+        "extracted": 26,
+        "wire_suppressed": 14
+      },
+      "candidate_status": [
+        [
+          "wire",
+          17
+        ],
+        [
+          "extracted",
+          8
+        ],
+        [
+          "obituary",
+          1
+        ]
+      ],
+      "article_status": [
+        [
+          "wire",
+          14
+        ],
+        [
+          "labeled",
+          11
+        ],
+        [
+          "obituary",
+          1
+        ]
+      ],
+      "final_status": [
+        [
+          "wire",
+          14
+        ],
+        [
+          "labeled",
+          11
+        ],
+        [
+          "obituary",
+          1
+        ]
+      ],
+      "recent_candidate_links": [
+        {
+          "url": "https://kq2.com/news/savannah-mom-looking-to-help-students-in-need/article_1dfae12b-2730-4793-a51e-d5335a4e59b4.html",
+          "status": "extracted",
+          "is_wire": false,
+          "discovered_at": "2026-02-04 06:35:49.264547"
+        },
+        {
+          "url": "https://kq2.com/news/st-joseph-broadcaster-retires-after-45-year-career/article_c368af3e-e1c6-5d71-a38d-2f5913025a57.html",
+          "status": "wire",
+          "is_wire": true,
+          "discovered_at": "2026-02-04 06:35:48.751184"
+        },
+        {
+          "url": "https://kq2.com/news/one-dead-in-single-vehicle-crash-in-atchison-county/article_5b6745de-eb42-51ca-9c23-79f458ba0f45.html",
+          "status": "wire",
+          "is_wire": true,
+          "discovered_at": "2026-02-04 06:35:48.499183"
+        },
+        {
+          "url": "https://kq2.com/news/longtime-high-school-coach-passes-away-at-the-age-of-83/article_7e9d7b7d-e35b-4db8-8bf1-44ea8e107509.html",
+          "status": "obituary",
+          "is_wire": false,
+          "discovered_at": "2026-02-04 06:35:48.007861"
+        },
+        {
+          "url": "https://kq2.com/news/longtime-st-joseph-resident-frederick-martin-runs-for-seat-on-city-council/article_7cfc9ade-fd21-4f95-a5e5-53c3811163aa.html",
+          "status": "extracted",
+          "is_wire": false,
+          "discovered_at": "2026-02-04 06:35:47.267536"
+        }
+      ]
+    },
+    "http": {
+      "host": "kq2.com",
+      "http": [],
+      "waf_flags": []
+    },
+    "hints": [
+      "Discovery present but verification found no articles",
+      "URLs suppressed by wire filters",
+      "No obvious feed endpoints detected"
+    ],
+    "fixes": [
+      "Tune StorySniffer and verification patterns; add allowlist for article paths",
+      "Review wire URL patterns and exclude local-only paths",
+      "Add sitemap-based discovery or scrape section pages with article detectors"
+    ]
+  },
+  {
+    "host": "jamesporttricountyweekly.com",
+    "telemetry": {
+      "host": "jamesporttricountyweekly.com",
+      "metrics": {
+        "discovered": 15,
+        "verified_article": 0,
+        "extracted": 0,
+        "wire_suppressed": 0
+      },
+      "candidate_status": [
+        [
+          "not_article",
+          15
+        ]
+      ],
+      "article_status": [],
+      "final_status": [
+        [
+          "not_article",
+          15
+        ]
+      ],
+      "recent_candidate_links": [
+        {
+          "url": "https://www.jamesporttricountyweekly.com/articles/12374",
+          "status": "not_article",
+          "is_wire": false,
+          "discovered_at": "2026-02-04 07:31:46.070214"
+        },
+        {
+          "url": "https://www.jamesporttricountyweekly.com/articles/12375",
+          "status": "not_article",
+          "is_wire": false,
+          "discovered_at": "2026-02-04 07:31:45.355503"
+        },
+        {
+          "url": "https://www.jamesporttricountyweekly.com/articles/12376",
+          "status": "not_article",
+          "is_wire": false,
+          "discovered_at": "2026-02-04 07:31:44.847250"
+        },
+        {
+          "url": "https://www.jamesporttricountyweekly.com/articles/12377",
+          "status": "not_article",
+          "is_wire": false,
+          "discovered_at": "2026-02-04 07:31:44.322797"
+        },
+        {
+          "url": "https://www.jamesporttricountyweekly.com/articles/12378",
+          "status": "not_article",
+          "is_wire": false,
+          "discovered_at": "2026-02-04 07:31:43.581145"
+        }
+      ]
+    },
+    "http": {
+      "host": "jamesporttricountyweekly.com",
+      "http": [],
+      "waf_flags": []
+    },
+    "hints": [
+      "Discovery present but verification found no articles",
+      "No obvious feed endpoints detected"
+    ],
+    "fixes": [
+      "Tune StorySniffer and verification patterns; add allowlist for article paths",
+      "Add sitemap-based discovery or scrape section pages with article detectors"
+    ]
+  },
+  {
+    "host": "comobuz.com",
+    "telemetry": {
+      "host": "comobuz.com",
+      "metrics": {
+        "discovered": 14,
+        "verified_article": 0,
+        "extracted": 9,
+        "wire_suppressed": 4
+      },
+      "candidate_status": [
+        [
+          "extracted",
+          9
+        ],
+        [
+          "wire",
+          4
+        ],
+        [
+          "not_article",
+          1
+        ]
+      ],
+      "article_status": [
+        [
+          "labeled",
+          9
+        ]
+      ],
+      "final_status": [
+        [
+          "labeled",
+          9
+        ],
+        [
+          "wire",
+          4
+        ],
+        [
+          "not_article",
+          1
+        ]
+      ],
+      "recent_candidate_links": [
+        {
+          "url": "https://comobuz.com/lifestyles/entertainment/are-these-the-6-most-iconic-super-bowl-halftime-shows/article_4c5753ef-1a8e-52d6-8d17-6cc6e8bb8fef.html",
+          "status": "not_article",
+          "is_wire": false,
+          "discovered_at": "2026-02-04 06:20:30.390262"
+        },
+        {
+          "url": "https://comobuz.com/news/national/millennials-want-homes-but-won-t-give-up-coffee-concerts-or-travel-to-get-one/article_91c2e364-75df-5368-bb17-0463f1142342.html",
+          "status": "wire",
+          "is_wire": true,
+          "discovered_at": "2026-02-04 06:20:30.120222"
+        },
+        {
+          "url": "https://comobuz.com/news/national/february-mortgage-outlook-at-least-mortgage-rates-are-calm/article_b5e2f7a0-01be-513a-95fe-e8540c9c37c0.html",
+          "status": "wire",
+          "is_wire": true,
+          "discovered_at": "2026-02-04 06:20:29.856680"
+        },
+        {
+          "url": "https://comobuz.com/news/national/what-is-streamflation-and-will-streaming-prices-keep-rising/article_b24cfcb9-021c-58a2-82eb-a0ff12664c60.html",
+          "status": "wire",
+          "is_wire": true,
+          "discovered_at": "2026-02-04 06:20:29.381290"
+        },
+        {
+          "url": "https://comobuz.com/news/national/gov-shapiro-unveils-budget-proposal/article_92928dac-4387-5b35-8327-96be0768df08.html",
+          "status": "wire",
+          "is_wire": true,
+          "discovered_at": "2026-02-04 06:20:28.881929"
+        }
+      ]
+    },
+    "http": {
+      "host": "comobuz.com",
+      "http": [],
+      "waf_flags": []
+    },
+    "hints": [
+      "Discovery present but verification found no articles",
+      "URLs suppressed by wire filters",
+      "No obvious feed endpoints detected"
+    ],
+    "fixes": [
+      "Tune StorySniffer and verification patterns; add allowlist for article paths",
+      "Review wire URL patterns and exclude local-only paths",
+      "Add sitemap-based discovery or scrape section pages with article detectors"
+    ]
+  },
+  {
+    "host": "lamardemocrat.com",
+    "telemetry": {
+      "host": "lamardemocrat.com",
+      "metrics": {
+        "discovered": 15,
+        "verified_article": 0,
+        "extracted": 0,
+        "wire_suppressed": 0
+      },
+      "candidate_status": [
+        [
+          "not_article",
+          14
+        ],
+        [
+          "extracted",
+          1
+        ]
+      ],
+      "article_status": [],
+      "final_status": [
+        [
+          "not_article",
+          14
+        ],
+        [
+          "extracted",
+          1
+        ]
+      ],
+      "recent_candidate_links": [
+        {
+          "url": "https://www.lamardemocrat.com/articles/24801",
+          "status": "not_article",
+          "is_wire": false,
+          "discovered_at": "2026-02-04 06:44:20.890790"
+        },
+        {
+          "url": "https://www.lamardemocrat.com/articles/24802",
+          "status": "not_article",
+          "is_wire": false,
+          "discovered_at": "2026-02-04 06:44:20.613243"
+        },
+        {
+          "url": "https://www.lamardemocrat.com/articles/24803",
+          "status": "not_article",
+          "is_wire": false,
+          "discovered_at": "2026-02-04 06:44:20.340258"
+        },
+        {
+          "url": "https://www.lamardemocrat.com/articles/24804",
+          "status": "not_article",
+          "is_wire": false,
+          "discovered_at": "2026-02-04 06:44:20.145905"
+        },
+        {
+          "url": "https://www.lamardemocrat.com/articles/24805",
+          "status": "not_article",
+          "is_wire": false,
+          "discovered_at": "2026-02-04 06:44:20.090656"
+        }
+      ]
+    },
+    "http": {
+      "host": "lamardemocrat.com",
+      "http": [],
+      "waf_flags": []
+    },
+    "hints": [
+      "Discovery present but verification found no articles",
+      "No obvious feed endpoints detected"
+    ],
+    "fixes": [
+      "Tune StorySniffer and verification patterns; add allowlist for article paths",
+      "Add sitemap-based discovery or scrape section pages with article detectors"
+    ]
+  },
+  {
+    "host": "griffonnews.com",
+    "telemetry": {
+      "host": "griffonnews.com",
+      "metrics": {
+        "discovered": 69,
+        "verified_article": 0,
+        "extracted": 28,
+        "wire_suppressed": 29
+      },
+      "candidate_status": [
+        [
+          "wire",
+          57
+        ],
+        [
+          "not_article",
+          8
+        ],
+        [
+          "opinion",
+          4
+        ]
+      ],
+      "article_status": [
+        [
+          "labeled",
+          28
+        ]
+      ],
+      "final_status": [
+        [
+          "wire",
+          29
+        ],
+        [
+          "labeled",
+          28
+        ],
+        [
+          "not_article",
+          8
+        ],
+        [
+          "opinion",
+          4
+        ]
+      ],
+      "recent_candidate_links": [
+        {
+          "url": "https://www.griffonnews.com/news/nation/state-prosecutor-sturla-henriksboe-spoke-at-the-opening-of-the-trial/image_6c9923a3-2a29-5f45-b2ec-3974cbf116c9.html",
+          "status": "wire",
+          "is_wire": true,
+          "discovered_at": "2026-02-04 00:39:40.953729"
+        },
+        {
+          "url": "https://www.griffonnews.com/news/nation/marius-borg-hoiby-faces-38-charges-including-four-of-rape/image_2d63efd6-b743-5bfe-bd2f-3aff5bf16c9d.html",
+          "status": "wire",
+          "is_wire": true,
+          "discovered_at": "2026-02-04 00:39:39.977843"
+        },
+        {
+          "url": "https://www.griffonnews.com/news/nation/experts-say-it-is-crucial-for-more-older-people-to-stay-in-work-longer-in/image_5b06ff89-c0a3-52b1-8a00-1274ed870240.html",
+          "status": "wire",
+          "is_wire": true,
+          "discovered_at": "2026-02-04 00:39:37.465957"
+        },
+        {
+          "url": "https://www.griffonnews.com/news/nation/lindsey-vonn-says-she-will-still-compete-at-the-winter-olympics-despite-rupturing-an-anterior/image_eb244e5c-e1c4-50af-aaf8-013c5574e62c.html",
+          "status": "wire",
+          "is_wire": true,
+          "discovered_at": "2026-02-04 00:39:36.962396"
+        },
+        {
+          "url": "https://www.griffonnews.com/news/nation/trucks-carrying-who-aid-preparing-to-cross-a-checkpoint-in-the-central-gaza-strip/image_17922195-b93a-5a46-939d-5cb7c9904901.html",
+          "status": "wire",
+          "is_wire": true,
+          "discovered_at": "2026-02-04 00:39:36.703263"
+        },
+        {
+          "url": "https://thegriffonnews.com/news/nation/how-will-new-tax-laws-affect-refunds/article_c7b32912-fa15-5dd8-855f-76530ab77ced.html",
+          "status": "wire",
+          "is_wire": true,
+          "discovered_at": "2026-01-31 21:01:07.984064"
+        },
+        {
+          "url": "https://thegriffonnews.com/news/state/missouri-governor-withdraws-ethics-nominees-amid-fight-over-gerrymandered-map/article_d629c762-4158-5ea9-9c6e-72f457aede5a.html",
+          "status": "wire",
+          "is_wire": true,
+          "discovered_at": "2026-01-31 21:01:07.761194"
+        },
+        {
+          "url": "https://thegriffonnews.com/news/state/schmitt-says-dhs-agents-in-minnesota-are-heroes/article_8a9d5e13-939d-5f34-8b53-bb51ea7f4add.html",
+          "status": "wire",
+          "is_wire": true,
+          "discovered_at": "2026-01-31 21:01:07.727206"
+        },
+        {
+          "url": "https://thegriffonnews.com/news/state/missourians-call-for-justice-in-capitol-rally/article_167e87b0-c45b-51b0-9ed1-dc5d144d2996.html",
+          "status": "wire",
+          "is_wire": true,
+          "discovered_at": "2026-01-31 21:01:07.512880"
+        },
+        {
+          "url": "https://thegriffonnews.com/news/state/a-resolution-heard-by-the-house-could-allow-counties-to-eliminate-some-property-taxes/article_c3c23f04-ec0c-584d-8714-9aa447ce2313.html",
+          "status": "wire",
+          "is_wire": true,
+          "discovered_at": "2026-01-31 21:01:07.478769"
+        }
+      ]
+    },
+    "http": {
+      "host": "griffonnews.com",
+      "http": [],
+      "waf_flags": []
+    },
+    "hints": [
+      "Discovery present but verification found no articles",
+      "URLs suppressed by wire filters",
+      "No obvious feed endpoints detected"
+    ],
+    "fixes": [
+      "Tune StorySniffer and verification patterns; add allowlist for article paths",
+      "Review wire URL patterns and exclude local-only paths",
+      "Add sitemap-based discovery or scrape section pages with article detectors"
+    ]
+  },
+  {
+    "host": "greenfieldvedette.com",
+    "telemetry": {
+      "host": "greenfieldvedette.com",
+      "metrics": {
+        "discovered": 15,
+        "verified_article": 0,
+        "extracted": 0,
+        "wire_suppressed": 0
+      },
+      "candidate_status": [
+        [
+          "not_article",
+          14
+        ],
+        [
+          "extracted",
+          1
+        ]
+      ],
+      "article_status": [],
+      "final_status": [
+        [
+          "not_article",
+          14
+        ],
+        [
+          "extracted",
+          1
+        ]
+      ],
+      "recent_candidate_links": [
+        {
+          "url": "https://www.greenfieldvedette.com/articles/6079",
+          "status": "extracted",
+          "is_wire": false,
+          "discovered_at": "2026-02-04 06:29:16.670511"
+        },
+        {
+          "url": "https://www.greenfieldvedette.com/articles/6080",
+          "status": "not_article",
+          "is_wire": false,
+          "discovered_at": "2026-02-04 06:29:16.161944"
+        },
+        {
+          "url": "https://www.greenfieldvedette.com/articles/6081",
+          "status": "not_article",
+          "is_wire": false,
+          "discovered_at": "2026-02-04 06:29:15.903508"
+        },
+        {
+          "url": "https://www.greenfieldvedette.com/articles/6082",
+          "status": "not_article",
+          "is_wire": false,
+          "discovered_at": "2026-02-04 06:29:15.725965"
+        },
+        {
+          "url": "https://www.greenfieldvedette.com/articles/6083",
+          "status": "not_article",
+          "is_wire": false,
+          "discovered_at": "2026-02-04 06:29:15.658833"
+        }
+      ]
+    },
+    "http": {
+      "host": "greenfieldvedette.com",
+      "http": [],
+      "waf_flags": []
+    },
+    "hints": [
+      "Discovery present but verification found no articles",
+      "No obvious feed endpoints detected"
+    ],
+    "fixes": [
+      "Tune StorySniffer and verification patterns; add allowlist for article paths",
+      "Add sitemap-based discovery or scrape section pages with article detectors"
+    ]
+  },
+  {
+    "host": "missouribusinessalert.com",
+    "telemetry": {
+      "host": "missouribusinessalert.com",
+      "metrics": {
+        "discovered": 11,
+        "verified_article": 0,
+        "extracted": 11,
+        "wire_suppressed": 7
+      },
+      "candidate_status": [
+        [
+          "wire",
+          9
+        ],
+        [
+          "extracted",
+          2
+        ]
+      ],
+      "article_status": [
+        [
+          "wire",
+          7
+        ],
+        [
+          "labeled",
+          4
+        ]
+      ],
+      "final_status": [
+        [
+          "wire",
+          7
+        ],
+        [
+          "labeled",
+          4
+        ]
+      ],
+      "recent_candidate_links": [
+        {
+          "url": "https://missouribusinessalert.com/government/democrats-question-250k-budget-earmark-for-former-missouri-governor-s-foundation/article_7f46009e-3537-4016-9337-6ed00db35358.html",
+          "status": "wire",
+          "is_wire": true,
+          "discovered_at": "2026-02-04 06:51:17.791181"
+        },
+        {
+          "url": "https://missouribusinessalert.com/series/missouri-minute-cannabis-companies-sue-smoke-shops-cardinals-royals-ink-mlb-broadcast-deal/article_ca129ffe-fe7a-4479-b267-95ac6bba367c.html",
+          "status": "extracted",
+          "is_wire": false,
+          "discovered_at": "2026-02-04 06:51:17.295581"
+        },
+        {
+          "url": "https://missouribusinessalert.com/news/new-tax-policy-may-impact-taxpayers-what-to-know-before-filing-your-taxes/article_31d298a4-2714-5990-9588-959fdb368e48.html",
+          "status": "wire",
+          "is_wire": true,
+          "discovered_at": "2026-02-04 06:51:16.827048"
+        },
+        {
+          "url": "https://missouribusinessalert.com/government/medicare-advantage-insurers-face-new-curbs-on-overcharges-in-trump-plan-that-reins-in-payments/article_5dc5ab7e-46a0-467d-95c4-7c4022c850da.html",
+          "status": "wire",
+          "is_wire": true,
+          "discovered_at": "2026-02-04 06:51:16.553941"
+        },
+        {
+          "url": "https://missouribusinessalert.com/government/everyone-is-worried-battle-brews-over-how-kansas-city-spends-health-levy-dollars/article_a5c341bf-97ea-44ad-a6fe-4a7afafdc53e.html",
+          "status": "wire",
+          "is_wire": true,
+          "discovered_at": "2026-02-04 06:51:16.041207"
+        }
+      ]
+    },
+    "http": {
+      "host": "missouribusinessalert.com",
+      "http": [],
+      "waf_flags": []
+    },
+    "hints": [
+      "Discovery present but verification found no articles",
+      "URLs suppressed by wire filters",
+      "No obvious feed endpoints detected"
+    ],
+    "fixes": [
+      "Tune StorySniffer and verification patterns; add allowlist for article paths",
+      "Review wire URL patterns and exclude local-only paths",
+      "Add sitemap-based discovery or scrape section pages with article detectors"
+    ]
+  }
+]

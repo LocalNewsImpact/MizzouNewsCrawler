@@ -10,12 +10,9 @@ Usage:
     python -m src.cli.cli_modular test-domain --domain example.com --verbose
 """
 
-import argparse
 import logging
 import json
-import sys
 from datetime import datetime
-from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, asdict
 from urllib.parse import urlparse
 
@@ -34,13 +31,13 @@ class DomainTestResult:
     domain: str
     url: str
     status: str  # "success", "partial", "failure"
-    methods_attempted: List[str]
-    methods_passed: Dict[str, bool]
-    methods_errors: Dict[str, str]
-    fields_extracted: Dict[str, bool]
-    missing_fields: List[str]
+    methods_attempted: list[str]
+    methods_passed: dict[str, bool]
+    methods_errors: dict[str, str]
+    fields_extracted: dict[str, bool]
+    missing_fields: list[str]
     final_content_length: int
-    recommendations: List[str]
+    recommendations: list[str]
     timestamp: str
     
     def to_dict(self):
@@ -71,7 +68,7 @@ def categorize_error(error_msg: str) -> str:
         return "OTHER_ERROR"
 
 
-def get_recommendation(error_category: str, domain: str) -> List[str]:
+def get_recommendation(error_category: str, domain: str) -> list[str]:
     """Get actionable recommendations based on error type."""
     recommendations = []
     
@@ -216,7 +213,7 @@ def test_domain(args):
     # Get URLs from database for this domain
     try:
         with db.get_session() as session:
-            query = text(f"""
+            query = text("""
                 SELECT id, url, source FROM candidate_links
                 WHERE (source ILIKE :domain OR url ILIKE :domain_pattern)
                 AND status = 'article'
@@ -244,13 +241,13 @@ def test_domain(args):
         return 1
     
     # Test each URL
-    test_results: List[DomainTestResult] = []
+    test_results: list[DomainTestResult] = []
     extractor = ContentExtractor()
     # Reuse persistent ChromeDriver if available (already running in extraction pod)
     # This avoids creating a new Chrome instance and uses the pod's existing one.
     # DO NOT disable Selenium - we are testing production to verify Chrome/Selenium works.
     # If Chrome fails, that's what we need to diagnose.
-    all_errors: Dict[str, int] = {}
+    all_errors: dict[str, int] = {}
     all_recommendations: set = set()
     
     for idx, row in enumerate(results, 1):
@@ -308,10 +305,10 @@ def test_domain(args):
                 print(f"⚠️ PARTIAL - Extracted {result.final_content_length} chars")
                 print(f"   Missing: {', '.join(result.missing_fields)}")
             else:
-                print(f"❌ FAILURE - Could not extract content")
+                print("❌ FAILURE - Could not extract content")
             
             # Extract fields for display
-            print(f"\n   Extracted fields:")
+            print("\n   Extracted fields:")
             for field in required_fields:
                 status = "✓" if result.fields_extracted[field] else "✗"
                 value = extraction_result.get(field, "")
@@ -355,7 +352,7 @@ def test_domain(args):
     print(f"Results: {success_count} success, {partial_count} partial, {failure_count} failure")
     
     if all_errors:
-        print(f"\nError types encountered:")
+        print("\nError types encountered:")
         for error_type, count in sorted(all_errors.items(), key=lambda x: -x[1]):
             print(f"  • {error_type}: {count}")
     
