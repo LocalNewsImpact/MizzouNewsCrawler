@@ -25,25 +25,33 @@ class TestWireDetectionInPersistentPatterns:
         """ABC 17 News footer on abc17news.com should NOT be wire."""
         pattern = "ABC 17 News is committed to providing a forum for civil and constructive conversation."
         result = cleaner._detect_wire_service_in_pattern(pattern, "abc17news.com")
-        assert result is None, "Local ABC affiliate footer should not trigger wire detection"
+        assert (
+            result is None
+        ), "Local ABC affiliate footer should not trigger wire detection"
 
     def test_cbs_local_affiliate_footer_not_wire(self, cleaner):
         """CBS 8 News footer on cbs8.com should NOT be wire."""
         pattern = "CBS 8 News is your trusted source for local news and weather."
         result = cleaner._detect_wire_service_in_pattern(pattern, "cbs8.com")
-        assert result is None, "Local CBS affiliate footer should not trigger wire detection"
+        assert (
+            result is None
+        ), "Local CBS affiliate footer should not trigger wire detection"
 
     def test_nbc_local_affiliate_footer_not_wire(self, cleaner):
         """NBC 4 footer on nbc4.com should NOT be wire."""
         pattern = "NBC 4 provides breaking news and weather for your community."
         result = cleaner._detect_wire_service_in_pattern(pattern, "nbc4.com")
-        assert result is None, "Local NBC affiliate footer should not trigger wire detection"
+        assert (
+            result is None
+        ), "Local NBC affiliate footer should not trigger wire detection"
 
     def test_fox_local_affiliate_footer_not_wire(self, cleaner):
         """FOX 2 footer on fox2now.com should NOT be wire."""
         pattern = "FOX 2 is your source for breaking news in Missouri."
         result = cleaner._detect_wire_service_in_pattern(pattern, "fox2now.com")
-        assert result is None, "Local FOX affiliate footer should not trigger wire detection"
+        assert (
+            result is None
+        ), "Local FOX affiliate footer should not trigger wire detection"
 
     # ========================================================================
     # Copyright Attribution Tests - SHOULD trigger wire detection
@@ -53,7 +61,9 @@ class TestWireDetectionInPersistentPatterns:
         """CNN copyright notice on abc17news.com SHOULD be wire."""
         pattern = "™ & © 2025 Cable News Network, Inc., a Warner Bros. Discovery Company. All rights reserved."
         result = cleaner._detect_wire_service_in_pattern(pattern, "abc17news.com")
-        assert result is not None, "CNN copyright on local site should trigger wire detection"
+        assert (
+            result is not None
+        ), "CNN copyright on local site should trigger wire detection"
         assert result["provider"] == "CNN NewsSource"
         assert result["confidence"] == 0.8
         assert result["detection_method"] == "regex_pattern"
@@ -62,7 +72,9 @@ class TestWireDetectionInPersistentPatterns:
         """CNN copyright notice on cnn.com should NOT be wire (own content)."""
         pattern = "™ & © 2025 Cable News Network, Inc., a Warner Bros. Discovery Company. All rights reserved."
         result = cleaner._detect_wire_service_in_pattern(pattern, "cnn.com")
-        assert result is None, "CNN copyright on CNN's own site should not trigger wire detection"
+        assert (
+            result is None
+        ), "CNN copyright on CNN's own site should not trigger wire detection"
 
     def test_ap_copyright_is_wire(self, cleaner):
         """AP copyright notice should trigger wire detection."""
@@ -86,13 +98,17 @@ class TestWireDetectionInPersistentPatterns:
         """Generic privacy policy text should NOT trigger wire detection."""
         pattern = "Read our privacy policy and terms of use for more information."
         result = cleaner._detect_wire_service_in_pattern(pattern, "localsite.com")
-        assert result is None, "Generic privacy policy should not trigger wire detection"
+        assert (
+            result is None
+        ), "Generic privacy policy should not trigger wire detection"
 
     def test_generic_terms_of_service_not_wire(self, cleaner):
         """Generic terms of service text should NOT trigger wire detection."""
         pattern = "By using this site, you agree to our terms of service."
         result = cleaner._detect_wire_service_in_pattern(pattern, "localsite.com")
-        assert result is None, "Generic terms of service should not trigger wire detection"
+        assert (
+            result is None
+        ), "Generic terms of service should not trigger wire detection"
 
     # ========================================================================
     # Domain Matching Edge Cases
@@ -122,7 +138,9 @@ class TestWireDetectionInPersistentPatterns:
         """Washington Post content on washingtonpost.com should NOT be wire."""
         pattern = "© 2025 The Washington Post. All rights reserved."
         result = cleaner._detect_wire_service_in_pattern(pattern, "washingtonpost.com")
-        assert result is None, "WaPo on their own domain should not trigger wire detection"
+        assert (
+            result is None
+        ), "WaPo on their own domain should not trigger wire detection"
 
     # ========================================================================
     # Syndication Indicator Tests
@@ -132,7 +150,9 @@ class TestWireDetectionInPersistentPatterns:
         """Explicit wire service indicators should trigger detection."""
         pattern = "This story was provided via wire service."
         result = cleaner._detect_wire_service_in_pattern(pattern, "localsite.com")
-        assert result is not None, "Explicit wire service indicator should trigger detection"
+        assert (
+            result is not None
+        ), "Explicit wire service indicator should trigger detection"
         assert "Wire Service" in result["provider"]
 
     def test_syndicated_content_indicator(self, cleaner):
@@ -156,7 +176,9 @@ class TestWireDetectionInPersistentPatterns:
         """Local reporter byline mentioning network affiliation should not trigger."""
         pattern = "Reporter John Smith, ABC 7 News"
         result = cleaner._detect_wire_service_in_pattern(pattern, "abc7news.com")
-        assert result is None, "Local reporter with network affiliation should not trigger wire"
+        assert (
+            result is None
+        ), "Local reporter with network affiliation should not trigger wire"
 
     # ========================================================================
     # Mixed Content Tests
@@ -166,7 +188,9 @@ class TestWireDetectionInPersistentPatterns:
         """Explicit CNN NewsSource attribution should trigger wire."""
         pattern = "This content provided by CNN NewsSource."
         result = cleaner._detect_wire_service_in_pattern(pattern, "localsite.com")
-        assert result is not None, "CNN NewsSource attribution should trigger wire detection"
+        assert (
+            result is not None
+        ), "CNN NewsSource attribution should trigger wire detection"
         assert result["provider"] == "CNN NewsSource"
 
     def test_ap_attribution_on_local_site_is_wire(self, cleaner):
@@ -225,9 +249,9 @@ class TestRemovePersistentPatternsWireDetection:
     def test_wire_detected_in_copyright_pattern(self, cleaner):
         """CNN copyright pattern should be detected as wire."""
         cnn_pattern = "™ & © 2025 Cable News Network, Inc., a Warner Bros. Discovery Company. All rights reserved. This material may not be published, broadcast, rewritten, or redistributed."
-        
+
         result = cleaner._detect_wire_service_in_pattern(cnn_pattern, "localsite.com")
-        
+
         assert result is not None, "Should detect wire from CNN copyright"
         assert result["provider"] == "CNN NewsSource"
         assert result["confidence"] == 0.8
@@ -236,15 +260,17 @@ class TestRemovePersistentPatternsWireDetection:
     def test_wire_not_detected_on_own_domain(self, cleaner):
         """CNN copyright on CNN's own domain should NOT be wire."""
         cnn_pattern = "™ & © 2025 Cable News Network, Inc., a Warner Bros. Discovery Company. All rights reserved."
-        
+
         result = cleaner._detect_wire_service_in_pattern(cnn_pattern, "cnn.com")
-        
+
         assert result is None, "CNN copyright on cnn.com should not be wire"
 
     def test_local_affiliate_pattern_not_wire_detection(self, cleaner):
         """Local affiliate patterns should not trigger wire detection."""
         abc_pattern = "ABC 17 News is committed to providing a forum for civil and constructive conversation. Please keep your comments respectful and follow our community guidelines. We reserve the right to remove any comments."
-        
+
         result = cleaner._detect_wire_service_in_pattern(abc_pattern, "abc17news.com")
-        
-        assert result is None, "Local affiliate pattern should not trigger wire detection"
+
+        assert (
+            result is None
+        ), "Local affiliate pattern should not trigger wire detection"

@@ -530,7 +530,7 @@ class NewsCrawler:
 
 class ContentExtractor:
     """Extracts structured content from HTML pages."""
-    
+
     # Class-level (shared) persistent Chrome driver for reuse across all instances in the pod
     # This prevents multiple Chrome processes from starting when multiple ContentExtractor
     # instances exist in the same process (e.g., during diagnostics)
@@ -613,7 +613,7 @@ class ContentExtractor:
             ContentExtractor._shared_driver_reuse_limit = int(
                 os.environ.get("SELENIUM_DRIVER_REUSE_LIMIT", "10")
             )
-        
+
         # Note: This instance does NOT have its own _persistent_driver anymore.
         # Instead, all instances share ContentExtractor._shared_persistent_driver.
         # This prevents creating multiple Chrome instances when multiple ContentExtractor
@@ -882,19 +882,17 @@ class ContentExtractor:
         # Diagnostics/override: allow HTTP unblock fallback even if Selenium-first failed.
         # Default disabled; can be enabled via env ALLOW_UNBLOCK_AFTER_SELENIUM_FAIL=true
         try:
-            self._allow_unblock_after_selenium_fail = (
-                os.getenv("ALLOW_UNBLOCK_AFTER_SELENIUM_FAIL", "false").lower()
-                in ("1", "true", "yes", "on")
-            )
+            self._allow_unblock_after_selenium_fail = os.getenv(
+                "ALLOW_UNBLOCK_AFTER_SELENIUM_FAIL", "false"
+            ).lower() in ("1", "true", "yes", "on")
         except Exception:
             self._allow_unblock_after_selenium_fail = False
-        
+
         # Diagnostics: disable Selenium entirely and use HTTP methods only (for force_all_methods mode)
         try:
-            self._disable_selenium_for_diagnostics = (
-                os.getenv("DISABLE_SELENIUM_FOR_DIAGNOSTICS", "false").lower()
-                in ("1", "true", "yes", "on")
-            )
+            self._disable_selenium_for_diagnostics = os.getenv(
+                "DISABLE_SELENIUM_FOR_DIAGNOSTICS", "false"
+            ).lower() in ("1", "true", "yes", "on")
         except Exception:
             self._disable_selenium_for_diagnostics = False
 
@@ -1164,11 +1162,11 @@ class ContentExtractor:
         self, domain: str, error: Exception
     ) -> None:
         """Handle connection errors (DNS, timeout, network) with proxy escalation.
-        
+
         When a domain experiences connection errors (DNS failures, timeouts, etc.),
         escalate to try different proxies on retry. This is particularly useful
         for sites experiencing network-level blocking or accessibility issues.
-        
+
         Args:
             domain: Domain that experienced the connection error
             error: The original exception/error
@@ -1954,7 +1952,8 @@ class ContentExtractor:
         # Check if driver needs recreation due to reuse limit
         if (
             ContentExtractor._shared_persistent_driver is not None
-            and ContentExtractor._shared_driver_reuse_count >= ContentExtractor._shared_driver_reuse_limit
+            and ContentExtractor._shared_driver_reuse_count
+            >= ContentExtractor._shared_driver_reuse_limit
         ):
             logger.info(
                 f"Driver reached reuse limit ({ContentExtractor._shared_driver_reuse_limit}), "
@@ -1963,13 +1962,15 @@ class ContentExtractor:
             self.close_persistent_driver()
 
         if ContentExtractor._shared_persistent_driver is None:
-            logger.info("Creating new persistent ChromeDriver for reuse (shared across all instances)")
+            logger.info(
+                "Creating new persistent ChromeDriver for reuse (shared across all instances)"
+            )
             try:
                 # Try undetected-chromedriver first (most advanced)
                 if can_use_undetected:
                     try:
-                        ContentExtractor._shared_persistent_driver = self._create_undetected_driver(
-                            headless=headless_mode
+                        ContentExtractor._shared_persistent_driver = (
+                            self._create_undetected_driver(headless=headless_mode)
                         )
                         self._driver_method = "undetected-chromedriver"
                     except Exception as uc_err:
@@ -1978,15 +1979,15 @@ class ContentExtractor:
                             "falling back to selenium-stealth"
                         )
                         if can_use_stealth:
-                            ContentExtractor._shared_persistent_driver = self._create_stealth_driver(
-                                headless=headless_mode
+                            ContentExtractor._shared_persistent_driver = (
+                                self._create_stealth_driver(headless=headless_mode)
                             )
                             self._driver_method = "selenium-stealth"
                         else:
                             raise
                 elif can_use_stealth:
-                    ContentExtractor._shared_persistent_driver = self._create_stealth_driver(
-                        headless=headless_mode
+                    ContentExtractor._shared_persistent_driver = (
+                        self._create_stealth_driver(headless=headless_mode)
                     )
                     self._driver_method = "selenium-stealth"
                 else:
@@ -2172,7 +2173,8 @@ class ContentExtractor:
     def get_driver_stats(self) -> Dict[str, Any]:
         """Get statistics about driver usage."""
         return {
-            "has_persistent_driver": ContentExtractor._shared_persistent_driver is not None,
+            "has_persistent_driver": ContentExtractor._shared_persistent_driver
+            is not None,
             "driver_creation_count": ContentExtractor._shared_driver_creation_count,
             "driver_reuse_count": ContentExtractor._shared_driver_reuse_count,
             "driver_reuse_limit": ContentExtractor._shared_driver_reuse_limit,
@@ -2349,7 +2351,7 @@ class ContentExtractor:
         # Check if domain requires special extraction method
         domain = urlparse(url).netloc
         extraction_method, protection_type = self._get_domain_extraction_method(domain)
-        
+
         # ESCALATION STRATEGY: For Cloudflare-protected sites marked as 'selenium',
         # try cloudscraper first before falling back to Selenium. CloudScraper
         # handles Cloudflare JS challenges automatically and is much faster than Selenium.
@@ -2365,7 +2367,7 @@ class ContentExtractor:
                 f"trying cloudscraper before Selenium (faster bypass)"
             )
             skip_http_methods = False  # Allow HTTP methods (cloudscraper) to try first
-            
+
             # Log the full escalation strategy
             escalation_summary = (
                 f"[EXTRACTION ESCALATION] {domain}: "
@@ -3617,11 +3619,11 @@ class ContentExtractor:
                     f"Session fetch failed for {url}: {e}, "
                     f"falling back to newspaper download"
                 )
-                
+
                 # Escalate proxy if connection error detected
                 domain = urlparse(url).netloc
                 self._handle_connection_error_with_proxy_escalation(domain, e)
-                
+
                 # Fallback to newspaper4k's built-in download
                 try:
                     article.download()
@@ -3768,11 +3770,11 @@ class ContentExtractor:
                 raise
             except Exception as e:
                 logger.warning(f"Failed to fetch page for extraction {url}: {e}")
-                
+
                 # Escalate proxy if connection error detected
                 domain = urlparse(url).netloc
                 self._handle_connection_error_with_proxy_escalation(domain, e)
-                
+
                 return {}
 
         self._update_wire_hints_from_html(page_html, url)
@@ -4648,11 +4650,15 @@ class ContentExtractor:
                     os.getenv("SQUID_PROXY_URL", "http://t9880447.eero.online:3128"),
                 )
                 import re as _re
-                pm = _re.match(r"https?://(?:([^:]+):([^@]+)@)?([^:]+):(\d+)", selenium_proxy)
+
+                pm = _re.match(
+                    r"https?://(?:([^:]+):([^@]+)@)?([^:]+):(\d+)", selenium_proxy
+                )
                 if pm:
                     pu, pp, ph, pport = pm.groups()
                     if pu and pp:
                         import tempfile, zipfile
+
                         proxy_ext_path_fb = tempfile.mktemp(suffix=".zip")
                         manifest_json = """{
                             \"version\": \"1.0.0\",
@@ -4814,7 +4820,9 @@ class ContentExtractor:
         chrome_options.add_argument("--disable-notifications")
         chrome_options.add_argument("--no-first-run")
         chrome_options.add_argument("--no-default-browser-check")
-        chrome_options.add_argument("--disable-features=NetworkService,NetworkServiceInProcess")
+        chrome_options.add_argument(
+            "--disable-features=NetworkService,NetworkServiceInProcess"
+        )
         chrome_options.add_argument("--disable-background-timer-throttling")
         chrome_options.add_argument("--disable-backgrounding-occluded-windows")
         chrome_options.add_argument("--disable-renderer-backgrounding")
@@ -4872,7 +4880,9 @@ class ContentExtractor:
                 tmp_dir.mkdir(parents=True, exist_ok=True)
                 chrome_options.add_argument(f"--user-data-dir={tmp_dir}")
             except Exception as e_ud:
-                logger.debug("Failed to create ephemeral user-data-dir (stealth): %s", e_ud)
+                logger.debug(
+                    "Failed to create ephemeral user-data-dir (stealth): %s", e_ud
+                )
 
         if driver_path:
             service = ChromeService(executable_path=str(driver_path))
@@ -5345,9 +5355,11 @@ class ContentExtractor:
                 # Capture screenshot for diagnostics
                 try:
                     import os
+
                     screenshot_dir = "/tmp/paywall_screenshots"
                     os.makedirs(screenshot_dir, exist_ok=True)
                     from datetime import datetime
+
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                     screenshot_path = f"{screenshot_dir}/paywall_{timestamp}.png"
                     driver.save_screenshot(screenshot_path)
@@ -5574,11 +5586,16 @@ class ContentExtractor:
                 "articles remaining",
                 "monthly limit",
             ]
-            
-            has_subscription_keywords = sum(
-                1 for keyword in subscription_modal_keywords if keyword in page_source
-            ) >= 2
-            
+
+            has_subscription_keywords = (
+                sum(
+                    1
+                    for keyword in subscription_modal_keywords
+                    if keyword in page_source
+                )
+                >= 2
+            )
+
             # 2. Check for actual CAPTCHA elements (high confidence)
             # BUT: if it's part of a subscription modal, treat it as non-blocking
             captcha_selectors = [
@@ -5604,20 +5621,26 @@ class ContentExtractor:
                             )
                             # Still extract what we can - this is a promo modal, not a blocker
                             return False  # Not a blocking challenge
-                        
+
                         logger.info(f"Detected CAPTCHA element: {selector}")
                         # Capture screenshot for diagnostics
                         try:
                             import os
+
                             screenshot_dir = "/tmp/captcha_screenshots"
                             os.makedirs(screenshot_dir, exist_ok=True)
                             from datetime import datetime
+
                             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                            screenshot_path = f"{screenshot_dir}/captcha_{timestamp}.png"
+                            screenshot_path = (
+                                f"{screenshot_dir}/captcha_{timestamp}.png"
+                            )
                             driver.save_screenshot(screenshot_path)
                             logger.info(f"Saved CAPTCHA screenshot: {screenshot_path}")
                         except Exception as ss_err:
-                            logger.warning(f"Failed to save CAPTCHA screenshot: {ss_err}")
+                            logger.warning(
+                                f"Failed to save CAPTCHA screenshot: {ss_err}"
+                            )
                         return True
                 except Exception:
                     continue

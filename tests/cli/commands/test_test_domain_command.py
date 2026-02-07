@@ -21,11 +21,13 @@ class TestDomainCommand:
         """Verify database query for domain URLs is constructed correctly."""
         # Mock database should be called to fetch URLs by domain
         mock_session = mock.MagicMock()
-        mock_db_manager.return_value.get_session.return_value.__enter__.return_value = mock_session
-        
+        mock_db_manager.return_value.get_session.return_value.__enter__.return_value = (
+            mock_session
+        )
+
         # The query should select from candidate_links by domain
         mock_session.execute.return_value.fetchall.return_value = []
-        
+
         assert mock_db_manager.called or not mock_db_manager.called  # Placeholder
 
     @mock.patch("src.cli.commands.test_domain.ContentExtractor")
@@ -33,7 +35,7 @@ class TestDomainCommand:
         """Verify test-domain creates ContentExtractor for testing."""
         mock_extractor_instance = mock.MagicMock()
         mock_extractor.return_value = mock_extractor_instance
-        
+
         # Should be able to instantiate extractor
         assert mock_extractor.return_value == mock_extractor_instance
 
@@ -49,7 +51,7 @@ class TestDomainCommand:
             "CHROME_DRIVER_ERROR",
             "CONNECTION_ERROR",
         ]
-        
+
         for category in error_categories:
             # Each category should be a valid string
             assert isinstance(category, str)
@@ -60,7 +62,7 @@ class TestDomainCommand:
         """Verify default limit for test-domain is 1 URL."""
         # The command should use limit=1 by default for fast iteration
         mock_test_domain.return_value = None
-        
+
         # Default limit should be 1 (changed from 3)
         # This would be verified in the actual args parsing
         assert True  # Placeholder for actual implementation
@@ -68,7 +70,7 @@ class TestDomainCommand:
     def test_domain_extraction_success_status(self):
         """Verify extraction success status is correctly reported."""
         success_statuses = ["success", "partial", "failure"]
-        
+
         for status in success_statuses:
             assert isinstance(status, str)
             assert status in success_statuses
@@ -76,7 +78,7 @@ class TestDomainCommand:
     def test_domain_field_extraction_results(self):
         """Verify extracted fields are reported in results."""
         extracted_fields = ["title", "author", "content", "publish_date"]
-        
+
         for field in extracted_fields:
             assert isinstance(field, str)
             assert len(field) > 0
@@ -90,7 +92,7 @@ class TestDomainCommand:
             "content": "Test content",
             "publish_date": None,
         }
-        
+
         missing = [k for k, v in fields.items() if not v]
         assert "author" in missing
         assert "publish_date" in missing
@@ -101,13 +103,13 @@ class TestDomainCommand:
         """Verify test-domain calls ContentExtractor for each URL."""
         mock_instance = mock.MagicMock()
         mock_extractor.return_value = mock_instance
-        
+
         # Should create an extractor instance
         extractor = mock_extractor(
             url="http://example.com",
             proxy_url="http://localhost:3128",
         )
-        
+
         assert extractor == mock_instance
 
     def test_domain_recommendation_generation(self):
@@ -122,7 +124,7 @@ class TestDomainCommand:
             "CHROME_DRIVER_ERROR": "Chrome initialization",
             "CONNECTION_ERROR": "network connectivity",
         }
-        
+
         for error_type, recommendation_type in error_types.items():
             assert isinstance(error_type, str)
             assert isinstance(recommendation_type, str)
@@ -138,17 +140,19 @@ class TestDomainCommandIntegration:
         """Verify full test-domain workflow with mocks."""
         # Setup mock database
         mock_session = mock.MagicMock()
-        mock_db.return_value.get_session.return_value.__enter__.return_value = mock_session
-        
+        mock_db.return_value.get_session.return_value.__enter__.return_value = (
+            mock_session
+        )
+
         # Setup mock candidate links
         mock_candidate = mock.MagicMock()
         mock_candidate.url = "http://example.com/article"
         mock_session.execute.return_value.fetchall.return_value = [mock_candidate]
-        
+
         # Setup mock extractor
         mock_extractor_instance = mock.MagicMock()
         mock_extractor.return_value = mock_extractor_instance
-        
+
         # Verify workflow components exist
         assert mock_session.execute.return_value.fetchall() == [mock_candidate]
 
@@ -166,10 +170,10 @@ class TestDomainCommandIntegration:
             "content": "Article content here...",
             "publish_date": None,  # Missing
         }
-        
+
         extracted_count = sum(1 for v in extraction_result.values() if v)
         total_count = len(extraction_result)
-        
+
         assert extracted_count == 3
         assert total_count == 4
         assert extracted_count < total_count  # Partial

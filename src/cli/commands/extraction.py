@@ -1568,9 +1568,7 @@ def _process_batch(
                             or metadata_value.get("content_type_detection")
                         )
                         byline_is_wire = bool(
-                            (metadata_value.get("byline") or {}).get(
-                                "is_wire_content"
-                            )
+                            (metadata_value.get("byline") or {}).get("is_wire_content")
                         )
                         has_wire_payload = bool(wire_service_info)
 

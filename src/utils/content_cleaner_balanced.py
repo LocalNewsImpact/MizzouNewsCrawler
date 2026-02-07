@@ -1605,7 +1605,7 @@ class BalancedBoundaryContentCleaner:
             return None
 
         pattern_lower = pattern_text.lower()
-        
+
         # Filter out generic boilerplate that doesn't indicate wire content
         # BUT: Copyright notices with wire service names ARE strong wire signals!
         # Only filter if it's pure boilerplate without wire service indicators
@@ -1635,16 +1635,26 @@ class BalancedBoundaryContentCleaner:
                 is_own_source = self.wire_detector._is_wire_service_from_own_source(
                     wire_service_name, domain
                 )
-                
-                # Additional check: if pattern contains local identifiers like numbers or 
+
+                # Additional check: if pattern contains local identifiers like numbers or
                 # station call signs, it's likely local content, not wire
                 # e.g., "ABC 17 News", "CBS 8", "NBC 4", etc.
-                has_local_identifier = bool(re.search(r'\b(ABC|CBS|NBC|FOX|CW)\s+\d+\b', pattern_text, re.IGNORECASE))
-                
-                # Also check if domain contains these local identifiers
-                domain_has_local_id = bool(re.search(r'\b(abc|cbs|nbc|fox|cw)\d+', domain, re.IGNORECASE)) if domain else False
+                has_local_identifier = bool(
+                    re.search(
+                        r"\b(ABC|CBS|NBC|FOX|CW)\s+\d+\b", pattern_text, re.IGNORECASE
+                    )
+                )
 
-                if not is_own_source and not (has_local_identifier and domain_has_local_id):  
+                # Also check if domain contains these local identifiers
+                domain_has_local_id = (
+                    bool(re.search(r"\b(abc|cbs|nbc|fox|cw)\d+", domain, re.IGNORECASE))
+                    if domain
+                    else False
+                )
+
+                if not is_own_source and not (
+                    has_local_identifier and domain_has_local_id
+                ):
                     # Only mark as wire if:
                     # 1. Not from own source AND
                     # 2. Either no local identifier OR domain doesn't match the local identifier
@@ -1704,13 +1714,18 @@ class BalancedBoundaryContentCleaner:
                     # Enhanced domain matching: check if provider is part of domain
                     # Extract the core provider name (e.g., "CNN" from "CNN NewsSource")
                     # Split on space BEFORE normalizing
-                    provider_core_raw = provider_lower.split()[0] if ' ' in provider_lower else provider_lower
+                    provider_core_raw = (
+                        provider_lower.split()[0]
+                        if " " in provider_lower
+                        else provider_lower
+                    )
                     provider_core = re.sub(r"[^a-z0-9]", "", provider_core_raw)
-                    
+
                     # Check various matching scenarios:
                     if domain_normalized and (
                         provider_core in domain_normalized  # "cnn" in "cnncom"
-                        or provider_normalized in domain_normalized  # "cnnnewssource" in domain
+                        or provider_normalized
+                        in domain_normalized  # "cnnnewssource" in domain
                         or (
                             # Check if domain starts with provider but has additional local identifiers
                             # e.g., "abc17newscom" starts with "abc" but has "17" indicating local station

@@ -30,7 +30,10 @@ class TestSharedChromeDriver:
         extractor2 = ContentExtractor()
 
         # Both should reference the same class variable
-        assert extractor1.__class__._shared_persistent_driver is extractor2.__class__._shared_persistent_driver
+        assert (
+            extractor1.__class__._shared_persistent_driver
+            is extractor2.__class__._shared_persistent_driver
+        )
 
     def test_driver_reuse_limit_from_env(self):
         """Verify driver reuse limit is read from environment."""
@@ -69,8 +72,14 @@ class TestSubscriptionWallDetection:
 
     def test_subscription_keywords_detected(self):
         """Verify subscription keywords are recognized."""
-        keywords = ["subscribe", "membership", "paywall", "registration", "limited free"]
-        
+        keywords = [
+            "subscribe",
+            "membership",
+            "paywall",
+            "registration",
+            "limited free",
+        ]
+
         for keyword in keywords:
             html_content = f"<p>Please {keyword} to continue</p>"
             # This is a simple sanity check - actual detection happens in _detect_subscription_wall()
@@ -136,7 +145,7 @@ class TestScreenshotCapture:
         screenshot_dir = "/tmp/captcha_screenshots"
         # This verifies the directory creation pattern
         mock_makedirs(screenshot_dir, exist_ok=True)
-        
+
         mock_makedirs.assert_called_with(screenshot_dir, exist_ok=True)
 
     @mock.patch("os.makedirs")
@@ -146,7 +155,7 @@ class TestScreenshotCapture:
         screenshot_dir = "/tmp/paywall_screenshots"
         # This verifies the directory creation pattern
         mock_makedirs(screenshot_dir, exist_ok=True)
-        
+
         mock_makedirs.assert_called_with(screenshot_dir, exist_ok=True)
 
 
@@ -166,7 +175,7 @@ class TestExtractionWithSubscriptionWall:
         extractor = ContentExtractor()
 
         result = extractor._extract_with_selenium()
-        
+
         assert result["title"] == "Test Article"
         assert result["author"] == "Test Author"
         assert result["text"] == "Test content here"
@@ -199,10 +208,10 @@ class TestGetDriverStats:
     def test_driver_stats_reset_on_close(self):
         """Verify driver stats can be reset."""
         ContentExtractor._shared_driver_reuse_count = 15
-        
+
         # Simulate reset (as done in close_persistent_driver)
         ContentExtractor._shared_driver_reuse_count = 0
-        
+
         assert ContentExtractor._shared_driver_reuse_count == 0
 
 
@@ -217,8 +226,8 @@ class TestChromeDriverNoConflicts:
 
         # They should share the same class-level driver reference
         assert (
-            extractor1.__class__._shared_persistent_driver is
-            extractor2.__class__._shared_persistent_driver
+            extractor1.__class__._shared_persistent_driver
+            is extractor2.__class__._shared_persistent_driver
         )
 
     def test_driver_not_instance_specific(self):

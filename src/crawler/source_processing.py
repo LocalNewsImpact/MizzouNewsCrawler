@@ -592,14 +592,16 @@ class SourceProcessor:
             exclusion_patterns = []
             try:
                 from src.models.database import DatabaseManager
-                
-                with DatabaseManager(self.discovery.database_url).engine.connect() as conn:
+
+                with DatabaseManager(
+                    self.discovery.database_url
+                ).engine.connect() as conn:
                     source_row = safe_execute(
                         conn,
                         "SELECT metadata FROM sources WHERE id = :id",
                         {"id": self.source_id},
                     ).fetchone()
-                    
+
                     if source_row and source_row[0]:
                         metadata = source_row[0]
                         if isinstance(metadata, str):
@@ -611,31 +613,38 @@ class SourceProcessor:
                     self.source_name,
                     e,
                 )
-            
+
             # Filter sections: reject any that match exclusion patterns or date patterns
             import re
-            date_pattern = re.compile(r'/(\d{4})(/(0?[1-9]|1[0-2])?)?/?$')  # Matches /YYYY/ or /YYYY/MM/
-            
+
+            date_pattern = re.compile(
+                r"/(\d{4})(/(0?[1-9]|1[0-2])?)?/?$"
+            )  # Matches /YYYY/ or /YYYY/MM/
+
             for section_url in section_urls:
                 url_lower = section_url.lower()
-                
+
                 # Reject if matches exclusion patterns
                 if any(pattern in url_lower for pattern in exclusion_patterns):
                     continue
-                
+
                 # Reject if matches date pattern (archive URLs like /2026/ or /2026/01/)
                 if date_pattern.search(section_url):
                     continue
-                
+
                 filtered_sections.append(section_url)
-            
+
             if filtered_sections != section_urls:
                 logger.info(
                     "Filtered %d section(s) for %s (excluded %d date archive URLs, %d exclusion pattern matches)",
                     len(section_urls) - len(filtered_sections),
                     self.source_name,
                     sum(1 for s in section_urls if date_pattern.search(s)),
-                    sum(1 for s in section_urls if any(p in s.lower() for p in exclusion_patterns)),
+                    sum(
+                        1
+                        for s in section_urls
+                        if any(p in s.lower() for p in exclusion_patterns)
+                    ),
                 )
 
         # Deduplicate and store
