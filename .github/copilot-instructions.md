@@ -49,6 +49,28 @@ BigQuery Export → analytics datasets
 - Changes are deployed via PR merge to main branch
 - Ask user to merge if they want deployment, don't assume you can deploy
 
+### 3. **Always implement minimum code changes to accomplish the task**
+- Each change should be surgical and focused
+- No extraneous refactoring or "improvements"
+- No removing unused code unless explicitly asked
+- No reorganizing imports or formatting unless necessary for the feature
+
+### 4. **NEVER disable, remove, or bypass a broken feature**
+- If Selenium is broken → FIX the Chrome crash (diagnose why Chrome exits)
+- If a method fails → DEBUG and fix it, don't remove it
+- If a feature is slow → OPTIMIZE it, don't disable it
+- Only disable/remove/bypass if explicitly requested by the user
+- Workarounds hide bugs; fixes solve them
+
+### 5. **NEVER push with --no-verify to bypass CI/CD checks**
+- Pre-push hooks exist to prevent broken code from reaching the repository
+- **NEVER** use `git push --no-verify` regardless of whether errors seem "unrelated"
+- If linting/testing fails, fix the errors in the codebase BEFORE pushing
+- Pre-existing errors in other files are NOT a reason to bypass CI/CD
+- The pre-push hook checks ALL files, not just your changes - this is intentional
+- Work with the user to fix root causes, don't hide problems with bypass flags
+- If you can't fix an error, explain it to the user and ask for guidance
+
 ## Database Query Protocol
 
 ### Production Database Access (PostgreSQL via Cloud SQL)
