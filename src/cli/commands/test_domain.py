@@ -10,17 +10,16 @@ Usage:
     python -m src.cli.cli_modular test-domain --domain example.com --verbose
 """
 
-import logging
 import json
+import logging
+from dataclasses import asdict, dataclass
 from datetime import datetime
-from dataclasses import dataclass, asdict
 from urllib.parse import urlparse
 
 from sqlalchemy import text
 
-from src.models.database import DatabaseManager
 from src.crawler import ContentExtractor
-
+from src.models.database import DatabaseManager
 
 logger = logging.getLogger(__name__)
 

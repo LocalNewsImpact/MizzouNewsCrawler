@@ -4657,7 +4657,8 @@ class ContentExtractor:
                 if pm:
                     pu, pp, ph, pport = pm.groups()
                     if pu and pp:
-                        import tempfile, zipfile
+                        import tempfile
+                        import zipfile
 
                         proxy_ext_path_fb = tempfile.mktemp(suffix=".zip")
                         manifest_json = """{
