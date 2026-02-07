@@ -98,6 +98,19 @@ backend/reviews.db*
 exports/
 
 # Test databases
+
+# One-off scripts and development files (not part of production pipeline)
+scripts/
+read_excel.py
+configure_ky3_production.py
+convert_to_articleurls.py
+aggregate_phase1.py
+fix_papermill_warnings.py
+run_phase5_*.py
+run_crawler_batch.sh
+run_*.sh
+debug_*.py
+test_*.py
 *.db
 *.db-*
 test_*.db
