@@ -523,7 +523,7 @@ def process_wire_detection(count: int) -> bool:
         return False
 
     # Start telemetry session for wire detection
-    telemetry_id = telemetry.start_cleaning_session(
+    _ = telemetry.start_cleaning_session(
         domain="mediacloud_wire_detection",
         article_count=count,
     )
