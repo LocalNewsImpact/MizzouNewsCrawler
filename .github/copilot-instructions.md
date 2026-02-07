@@ -71,6 +71,15 @@ BigQuery Export → analytics datasets
 - Work with the user to fix root causes, don't hide problems with bypass flags
 - If you can't fix an error, explain it to the user and ask for guidance
 
+### 6. **ALWAYS use local Docker for local CI/CD validation**
+- Docker is set up and running in the local environment
+- When pushing code, the pre-push hook runs Docker-based tests locally (./scripts/test-production-readiness.sh)
+- **NEVER skip Docker tests** with environment variables like `NO_DOCKER_BUILD=1` or `SKIP_DOCKER_TESTS=1`
+- Docker containers ensure consistent test environment matching production
+- If Docker tests fail locally, diagnose and fix the issue FIRST before pushing
+- Local Docker validation catches issues before they reach GitHub CI
+- Do NOT rely on "it will work in CI" - fix all Docker test failures locally
+
 ## Database Query Protocol
 
 ### Production Database Access (PostgreSQL via Cloud SQL)
