@@ -9,7 +9,6 @@ from pathlib import Path
 import pytest
 from coverage import Coverage
 from coverage.exceptions import CoverageException
-from sqlalchemy import create_engine
 
 from src.telemetry.store import TelemetryStore
 
@@ -251,6 +250,8 @@ def telemetry_store_with_migrations(tmp_path):
     Returns:
         TelemetryStore: A store with all tables properly created.
     """
+    from sqlalchemy import create_engine
+
     from src.models.telemetry_orm import Base as TelemetryBase
 
     db_path = tmp_path / "telemetry.db"
