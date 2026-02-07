@@ -10,8 +10,6 @@ import pytest
 from coverage import Coverage
 from coverage.exceptions import CoverageException
 
-from src.telemetry.store import TelemetryStore
-
 # Force tests to use SQLite instead of PostgreSQL/Cloud SQL
 # Set BEFORE any imports of src.config to prevent loading production settings
 # Tests that need Cloud SQL/PostgreSQL can set PYTEST_KEEP_DB_ENV=true
@@ -253,6 +251,7 @@ def telemetry_store_with_migrations(tmp_path):
     from sqlalchemy import create_engine
 
     from src.models.telemetry_orm import Base as TelemetryBase
+    from src.telemetry.store import TelemetryStore
 
     db_path = tmp_path / "telemetry.db"
     db_url = f"sqlite:///{db_path}"
