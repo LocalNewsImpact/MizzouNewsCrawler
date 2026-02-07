@@ -22,6 +22,9 @@ wheels/
 .venv/
 venv/
 env/
+tests/__pycache__/
+tests/*/__pycache__/
+tests/*/*/__pycache__/
 
 # IDEs and Editors
 .vscode
@@ -171,8 +174,11 @@ debug/
 utls-client
 utls-client-amd64
 
+# Temporary/one-off diagnostic files and xlsx exports
+tmp/
+*.xlsx
+
 # Local debug/temp files
-tmp_braces.txt
 
 # Local helper folders
 inspect_clienthello/
