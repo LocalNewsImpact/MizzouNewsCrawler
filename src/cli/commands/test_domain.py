@@ -169,8 +169,8 @@ def add_test_domain_parser(subparsers):
     parser.add_argument(
         "--limit",
         type=int,
-        default=3,
-        help="Number of URLs to test from this domain (default: 3)",
+        default=1,
+        help="Number of URLs to test from this domain (default: 1 for faster debugging)",
     )
     parser.add_argument(
         "--verbose",
@@ -236,7 +236,7 @@ def test_domain(args):
                 print("   Try: python -m src.cli.cli_modular list-sources")
                 return 0
             
-            print(f"✓ Found {len(results)} articles to test\n")
+            print(f"✓ Found {len(results)} articles available (testing {min(limit, len(results))} URL)\n")
     except Exception as e:
         print(f"❌ Database error: {e}")
         import traceback
@@ -246,6 +246,10 @@ def test_domain(args):
     # Test each URL
     test_results: List[DomainTestResult] = []
     extractor = ContentExtractor()
+    # Reuse persistent ChromeDriver if available (already running in extraction pod)
+    # This avoids creating a new Chrome instance and uses the pod's existing one.
+    # DO NOT disable Selenium - we are testing production to verify Chrome/Selenium works.
+    # If Chrome fails, that's what we need to diagnose.
     all_errors: Dict[str, int] = {}
     all_recommendations: set = set()
     
@@ -269,7 +273,7 @@ def test_domain(args):
         )
         
         try:
-            # Test extraction
+            # Test extraction with Selenium disabled (HTTP methods only)
             extraction_result = extractor.extract_content(url)
             
             if not extraction_result:
@@ -321,7 +325,16 @@ def test_domain(args):
             result.status = "failure"
             error_msg = str(e)
             result.methods_errors["extraction"] = error_msg
-            print(f"❌ EXTRACTION ERROR: {error_msg}\n")
+            print(f"❌ EXTRACTION ERROR: {error_msg}")
+            
+            # Show full traceback for Chrome/Selenium errors
+            if "chrome" in error_msg.lower() or "selenium" in error_msg.lower():
+                import traceback
+                print("\n--- Full Error Traceback ---")
+                print(traceback.format_exc())
+                print("--- End Traceback ---\n")
+            else:
+                print()
             
             error_cat = categorize_error(error_msg)
             all_errors[error_cat] = all_errors.get(error_cat, 0) + 1

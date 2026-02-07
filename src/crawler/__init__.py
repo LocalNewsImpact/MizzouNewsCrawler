@@ -530,6 +530,14 @@ class NewsCrawler:
 
 class ContentExtractor:
     """Extracts structured content from HTML pages."""
+    
+    # Class-level (shared) persistent Chrome driver for reuse across all instances in the pod
+    # This prevents multiple Chrome processes from starting when multiple ContentExtractor
+    # instances exist in the same process (e.g., during diagnostics)
+    _shared_persistent_driver = None
+    _shared_driver_creation_count = 0
+    _shared_driver_reuse_count = 0
+    _shared_driver_reuse_limit = None  # Will be initialized from env var
 
     def __init__(
         self,
@@ -600,15 +608,16 @@ class ContentExtractor:
                 "mcmetadata requested but package not available; disabling integration"
             )
 
-        # Persistent driver for reuse across multiple extractions
-        self._persistent_driver = None
-        self._driver_creation_count = 0
-        self._driver_reuse_count = 0
-        # Max number of reuses before recreating driver to prevent memory leak
-        # from accumulated Chrome renderer processes
-        self._driver_reuse_limit = int(
-            os.environ.get("SELENIUM_DRIVER_REUSE_LIMIT", "10")
-        )
+        # Initialize class-level driver reuse limit from env var (only once)
+        if ContentExtractor._shared_driver_reuse_limit is None:
+            ContentExtractor._shared_driver_reuse_limit = int(
+                os.environ.get("SELENIUM_DRIVER_REUSE_LIMIT", "10")
+            )
+        
+        # Note: This instance does NOT have its own _persistent_driver anymore.
+        # Instead, all instances share ContentExtractor._shared_persistent_driver.
+        # This prevents creating multiple Chrome instances when multiple ContentExtractor
+        # instances are created in the same pod (e.g., for diagnostics)
 
         # User agent pool for rotation - updated with latest browser versions
         # for better anti-detection (October 2025)
@@ -870,6 +879,24 @@ class ContentExtractor:
         # Set `self._enforce_selenium_first_domain` to the domain string during
         # an active Selenium-first attempt; other methods will skip HTTP for that domain.
         self._enforce_selenium_first_domain: str | None = None
+        # Diagnostics/override: allow HTTP unblock fallback even if Selenium-first failed.
+        # Default disabled; can be enabled via env ALLOW_UNBLOCK_AFTER_SELENIUM_FAIL=true
+        try:
+            self._allow_unblock_after_selenium_fail = (
+                os.getenv("ALLOW_UNBLOCK_AFTER_SELENIUM_FAIL", "false").lower()
+                in ("1", "true", "yes", "on")
+            )
+        except Exception:
+            self._allow_unblock_after_selenium_fail = False
+        
+        # Diagnostics: disable Selenium entirely and use HTTP methods only (for force_all_methods mode)
+        try:
+            self._disable_selenium_for_diagnostics = (
+                os.getenv("DISABLE_SELENIUM_FOR_DIAGNOSTICS", "false").lower()
+                in ("1", "true", "yes", "on")
+            )
+        except Exception:
+            self._disable_selenium_for_diagnostics = False
 
     def _create_new_session(self):
         """Create a new session with current user agent and clear cookies."""
@@ -1401,7 +1428,6 @@ class ContentExtractor:
             return None
 
         text_lower = response.text.lower()
-        text_original = response.text
 
         # PerimeterX / Human Security - requires JS execution + captcha
         # These sites MUST use Selenium, HTTP will never work
@@ -1912,6 +1938,8 @@ class ContentExtractor:
     def get_persistent_driver(self):
         """Get or create a persistent Selenium driver for reuse.
 
+        Uses a class-level (shared) driver across all ContentExtractor instances
+        in the same process to avoid creating multiple Chrome instances in pods.
         Automatically recreates the driver after reaching the reuse limit
         to prevent memory leaks from accumulated Chrome renderer processes.
         """
@@ -1925,22 +1953,22 @@ class ContentExtractor:
 
         # Check if driver needs recreation due to reuse limit
         if (
-            self._persistent_driver is not None
-            and self._driver_reuse_count >= self._driver_reuse_limit
+            ContentExtractor._shared_persistent_driver is not None
+            and ContentExtractor._shared_driver_reuse_count >= ContentExtractor._shared_driver_reuse_limit
         ):
             logger.info(
-                f"Driver reached reuse limit ({self._driver_reuse_limit}), "
+                f"Driver reached reuse limit ({ContentExtractor._shared_driver_reuse_limit}), "
                 f"recreating to clean up renderer processes"
             )
             self.close_persistent_driver()
 
-        if self._persistent_driver is None:
-            logger.info("Creating new persistent ChromeDriver for reuse")
+        if ContentExtractor._shared_persistent_driver is None:
+            logger.info("Creating new persistent ChromeDriver for reuse (shared across all instances)")
             try:
                 # Try undetected-chromedriver first (most advanced)
                 if can_use_undetected:
                     try:
-                        self._persistent_driver = self._create_undetected_driver(
+                        ContentExtractor._shared_persistent_driver = self._create_undetected_driver(
                             headless=headless_mode
                         )
                         self._driver_method = "undetected-chromedriver"
@@ -1950,50 +1978,50 @@ class ContentExtractor:
                             "falling back to selenium-stealth"
                         )
                         if can_use_stealth:
-                            self._persistent_driver = self._create_stealth_driver(
+                            ContentExtractor._shared_persistent_driver = self._create_stealth_driver(
                                 headless=headless_mode
                             )
                             self._driver_method = "selenium-stealth"
                         else:
                             raise
                 elif can_use_stealth:
-                    self._persistent_driver = self._create_stealth_driver(
+                    ContentExtractor._shared_persistent_driver = self._create_stealth_driver(
                         headless=headless_mode
                     )
                     self._driver_method = "selenium-stealth"
                 else:
                     raise Exception("No Selenium implementation available")
 
-                self._driver_creation_count += 1
+                ContentExtractor._shared_driver_creation_count += 1
                 logger.info(f"Created persistent driver using {self._driver_method}")
 
             except Exception as e:
                 logger.error(f"Failed to create persistent driver: {e}")
-                self._persistent_driver = None
+                ContentExtractor._shared_persistent_driver = None
                 raise
         else:
-            self._driver_reuse_count += 1
+            ContentExtractor._shared_driver_reuse_count += 1
             logger.debug(
-                f"Reusing persistent driver (reuse count: {self._driver_reuse_count})"
+                f"Reusing persistent driver (reuse count: {ContentExtractor._shared_driver_reuse_count})"
             )
 
-        return self._persistent_driver
+        return ContentExtractor._shared_persistent_driver
 
     def close_persistent_driver(self):
         """Close the persistent driver and clean up resources."""
-        if self._persistent_driver is not None:
+        if ContentExtractor._shared_persistent_driver is not None:
             try:
                 logger.info(
                     f"Closing persistent driver after "
-                    f"{self._driver_reuse_count + 1} uses "
-                    f"(created {self._driver_creation_count} times)"
+                    f"{ContentExtractor._shared_driver_reuse_count + 1} uses "
+                    f"(created {ContentExtractor._shared_driver_creation_count} times)"
                 )
-                self._persistent_driver.quit()
+                ContentExtractor._shared_persistent_driver.quit()
             except Exception as e:
                 logger.warning(f"Error closing persistent driver: {e}")
             finally:
-                self._persistent_driver = None
-                self._driver_reuse_count = 0
+                ContentExtractor._shared_persistent_driver = None
+                ContentExtractor._shared_driver_reuse_count = 0
 
     def _maybe_import_selenium_cookies(self, driver, domain: str) -> bool:
         """If a cookie file is present, import cookies into the Selenium session.
@@ -2144,10 +2172,10 @@ class ContentExtractor:
     def get_driver_stats(self) -> Dict[str, Any]:
         """Get statistics about driver usage."""
         return {
-            "has_persistent_driver": self._persistent_driver is not None,
-            "driver_creation_count": self._driver_creation_count,
-            "driver_reuse_count": self._driver_reuse_count,
-            "driver_reuse_limit": self._driver_reuse_limit,
+            "has_persistent_driver": ContentExtractor._shared_persistent_driver is not None,
+            "driver_creation_count": ContentExtractor._shared_driver_creation_count,
+            "driver_reuse_count": ContentExtractor._shared_driver_reuse_count,
+            "driver_reuse_limit": ContentExtractor._shared_driver_reuse_limit,
             "driver_method": getattr(self, "_driver_method", None),
             "selenium_mode": self.selenium_mode,
         }
@@ -2165,7 +2193,26 @@ class ContentExtractor:
         return instance_func is not class_func
 
     def _is_headless_selenium_mode(self) -> bool:
-        return self.selenium_mode == "headless"
+        # Allow explicit override via env var
+        force_headless = os.getenv("SELENIUM_FORCE_HEADLESS", "").lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        )
+        if force_headless:
+            return True
+
+        if self.selenium_mode == "headless":
+            return True
+
+        # If headful is requested but no DISPLAY is available (typical in containers),
+        # fall back to headless to avoid Chrome startup failures.
+        if self.selenium_mode == "headful" and not os.getenv("DISPLAY"):
+            logger.warning("No DISPLAY detected; forcing headless Selenium mode")
+            return True
+
+        return False
 
     def get_driver_telemetry_snapshot(
         self, domain: str | None = None
@@ -2308,7 +2355,7 @@ class ContentExtractor:
         # handles Cloudflare JS challenges automatically and is much faster than Selenium.
         skip_http_methods = extraction_method in {"selenium", "unblock"}
         cloudflare_escalation_enabled = (
-            extraction_method == "selenium" 
+            extraction_method == "selenium"
             and protection_type == "cloudflare"
             and CLOUDSCRAPER_AVAILABLE
         )
@@ -2346,6 +2393,14 @@ class ContentExtractor:
 
         selenium_first = self._should_prioritize_selenium(extraction_method)
         selenium_attempted_primary = False
+
+        # DIAGNOSTIC: Skip Selenium if disabled for diagnostics (force_all_methods mode)
+        if self._disable_selenium_for_diagnostics:
+            logger.info(
+                "Selenium disabled for diagnostics; skipping Selenium-first attempt for %s",
+                domain,
+            )
+            selenium_first = False
 
         if selenium_first and SELENIUM_AVAILABLE:
             reason = (
@@ -2583,11 +2638,13 @@ class ContentExtractor:
 
         # For domains marked as 'unblock', use Squid proxy instead of Selenium
         if extraction_method == "unblock" and missing_fields:
-            # If we already attempted Selenium as the primary method and it failed,
-            # do NOT fall back to unblock proxy (HTTP fetch) since it does NOT
-            # execute site JS and will not resemble a real browser. Instead, mark
-            # extraction as blocked to force retry/backoff and surface diagnostics.
-            if selenium_attempted_primary:
+            # If Selenium was attempted as the primary method and failed, the default
+            # policy skips HTTP unblock fallback because it won't emulate site JS.
+            # For diagnostics or incident mitigation, this can be overridden via
+            # self._allow_unblock_after_selenium_fail or env ALLOW_UNBLOCK_AFTER_SELENIUM_FAIL.
+            if selenium_attempted_primary and not getattr(
+                self, "_allow_unblock_after_selenium_fail", False
+            ):
                 msg = (
                     f"Selenium-first attempt failed for {domain}; "
                     "skipping unblock HTTP fetch (won't emulate browser JS)."
@@ -3253,7 +3310,7 @@ class ContentExtractor:
                         else:
                             # AMP fetch failed, fall back to normal request
                             logger.warning(
-                                f"AMP preemptive fetch failed, trying normal URL"
+                                "AMP preemptive fetch failed, trying normal URL"
                             )
                             response = session.get(
                                 url, timeout=self.timeout, headers=request_headers
@@ -3992,7 +4049,7 @@ class ContentExtractor:
                     "stealth_mode": True,
                     "stealth_method": stealth_method,
                     "page_source_length": len(html),
-                    "driver_reused": self._driver_reuse_count > 0,
+                    "driver_reused": ContentExtractor._shared_driver_reuse_count > 0,
                 },
                 "extracted_at": datetime.utcnow().isoformat(),
             }
@@ -4418,23 +4475,17 @@ class ContentExtractor:
         # Basic stealth options
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--disable-gpu")
-        options.add_argument("--window-size=1920,1080")
-        options.add_argument("--disable-web-security")
-        options.add_argument("--disable-features=VizDisplayCompositor")
-        # Don't disable extensions - we use proxy auth extension
-        # options.add_argument("--disable-extensions")
+        options.add_argument("--disable-gpu")  # CRITICAL: Prevents GPU crash in K8s
+        options.add_argument("--no-first-run")
+        options.add_argument("--no-default-browser-check")
         options.add_argument("--disable-plugins")
         if headless_mode:
             options.add_argument("--headless=new")
-        # Additional flags for containerized environments + Xvfb stability
-        options.add_argument("--disable-software-rasterizer")
+        # Additional stability flags for containerized environments
         options.add_argument("--disable-setuid-sandbox")
         # NOTE: --single-process removed - causes "Trace/breakpoint trap" crash in K8s
         # The flag was intended to prevent renderer subprocess issues but actually
         # crashes Chromium 143+ in containerized environments (discovered 2026-01-04)
-        options.add_argument("--remote-debugging-port=9222")
-        # Note: JavaScript and images enabled for modern news sites
 
         width, height = self._resolve_window_size()
         options.add_argument(f"--window-size={width},{height}")
@@ -4532,7 +4583,13 @@ class ContentExtractor:
                 f"Could not parse proxy URL: {mask_proxy_url(selenium_proxy)} - Selenium connections will FAIL"
             )
 
-        self._maybe_configure_user_data_dir(options)
+        # Use ephemeral user-data-dir per attempt to avoid profile locks
+        try:
+            tmp_dir = Path(f"/tmp/uc-profile-{uuid.uuid4().hex}")
+            tmp_dir.mkdir(parents=True, exist_ok=True)
+            options.add_argument(f"--user-data-dir={tmp_dir}")
+        except Exception as e_ud:
+            logger.debug("Failed to create ephemeral user-data-dir: %s", e_ud)
 
         # Read optional binary paths from environment
         # Common envs: CHROME_BIN, GOOGLE_CHROME_BIN, CHROMEDRIVER_PATH
@@ -4545,23 +4602,102 @@ class ContentExtractor:
 
         # Create driver with version management
         try:
+            # Try with subprocess first
             uc_kwargs = {
                 "options": options,
-                "version_main": None,  # Auto-detect
+                "version_main": None,
                 "headless": headless_mode,
-                # Changed to False for container stability
-                "use_subprocess": False,
-                "log_level": 3,  # Suppress logs
+                "use_subprocess": True,
+                "log_level": 3,
             }
             if driver_path:
                 uc_kwargs["driver_executable_path"] = str(driver_path)
             if chrome_bin:
                 uc_kwargs["browser_executable_path"] = str(chrome_bin)
-
             driver = uc.Chrome(**uc_kwargs)
-        except Exception as e:
-            logger.warning(f"Failed to create undetected driver: {e}")
-            raise
+        except Exception as e_primary:
+            logger.warning(
+                f"Failed to create undetected driver (use_subprocess=True): {e_primary}"
+            )
+            # Fallback: rebuild options fresh and try without subprocess; also try headless
+            try:
+                options_fb = uc.ChromeOptions()
+                options_fb.page_load_strategy = "eager"
+                for arg in [
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-gpu",
+                    "--disable-web-security",
+                    "--disable-features=VizDisplayCompositor",
+                    "--remote-allow-origins=*",
+                    "--disable-notifications",
+                    "--no-first-run",
+                    "--no-default-browser-check",
+                    "--disable-features=NetworkService,NetworkServiceInProcess",
+                    "--disable-software-rasterizer",
+                    "--disable-setuid-sandbox",
+                ]:
+                    options_fb.add_argument(arg)
+                width, height = self._resolve_window_size()
+                options_fb.add_argument(f"--window-size={width},{height}")
+                realistic_ua_fb = self._resolve_selenium_user_agent()
+                options_fb.add_argument(f"--user-agent={realistic_ua_fb}")
+                # Proxy
+                selenium_proxy = os.getenv(
+                    "SELENIUM_PROXY",
+                    os.getenv("SQUID_PROXY_URL", "http://t9880447.eero.online:3128"),
+                )
+                import re as _re
+                pm = _re.match(r"https?://(?:([^:]+):([^@]+)@)?([^:]+):(\d+)", selenium_proxy)
+                if pm:
+                    pu, pp, ph, pport = pm.groups()
+                    if pu and pp:
+                        import tempfile, zipfile
+                        proxy_ext_path_fb = tempfile.mktemp(suffix=".zip")
+                        manifest_json = """{
+                            \"version\": \"1.0.0\",
+                            \"manifest_version\": 2,
+                            \"name\": \"Chrome Proxy Auth\",
+                            \"permissions\": [\"proxy\", \"tabs\", \"unlimitedStorage\", \"storage\", \"<all_urls>\", \"webRequest\", \"webRequestBlocking\"],
+                            \"background\": {\"scripts\": [\"background.js\"]},
+                            \"minimum_chrome_version\": \"76.0.0\"
+                        }"""
+                        background_js = f"""
+                        var config = {{ mode: \"fixed_servers\", rules: {{ singleProxy: {{ scheme: \"http\", host: \"{ph}\", port: parseInt({pport}) }}, bypassList: [\"localhost\"] }} }};
+                        chrome.proxy.settings.set({{value: config, scope: \"regular\"}}, function() {{}});
+                        function callbackFn(details) {{ return {{ authCredentials: {{ username: \"{pu}\", password: \"{pp}\" }} }}; }}
+                        chrome.webRequest.onAuthRequired.addListener(callbackFn, {{urls: [\"<all_urls>\"]}}, ['blocking']);
+                        """
+                        with zipfile.ZipFile(proxy_ext_path_fb, "w") as zp:
+                            zp.writestr("manifest.json", manifest_json)
+                            zp.writestr("background.js", background_js)
+                        options_fb.add_extension(proxy_ext_path_fb)
+                    else:
+                        options_fb.add_argument(f"--proxy-server={selenium_proxy}")
+                # Ephemeral profile
+                try:
+                    tmp_dir_fb = Path(f"/tmp/uc-profile-{uuid.uuid4().hex}")
+                    tmp_dir_fb.mkdir(parents=True, exist_ok=True)
+                    options_fb.add_argument(f"--user-data-dir={tmp_dir_fb}")
+                except Exception:
+                    pass
+                uc_kwargs_fb = {
+                    "options": options_fb,
+                    "version_main": None,
+                    "headless": True,  # Force headless on fallback
+                    "use_subprocess": False,
+                    "log_level": 3,
+                }
+                if driver_path:
+                    uc_kwargs_fb["driver_executable_path"] = str(driver_path)
+                if chrome_bin:
+                    uc_kwargs_fb["browser_executable_path"] = str(chrome_bin)
+                driver = uc.Chrome(**uc_kwargs_fb)
+            except Exception as e_fallback:
+                logger.warning(
+                    f"Failed to create undetected driver (fallback use_subprocess=False, headless): {e_fallback}"
+                )
+                raise
         finally:
             # Clean up temporary proxy extension file
             if proxy_extension_path and os.path.exists(proxy_extension_path):
@@ -4674,6 +4810,11 @@ class ContentExtractor:
         chrome_options.add_argument("--allow-running-insecure-content")
         chrome_options.add_argument("--disable-features=TranslateUI")
         chrome_options.add_argument("--disable-ipc-flooding-protection")
+        chrome_options.add_argument("--remote-allow-origins=*")
+        chrome_options.add_argument("--disable-notifications")
+        chrome_options.add_argument("--no-first-run")
+        chrome_options.add_argument("--no-default-browser-check")
+        chrome_options.add_argument("--disable-features=NetworkService,NetworkServiceInProcess")
         chrome_options.add_argument("--disable-background-timer-throttling")
         chrome_options.add_argument("--disable-backgrounding-occluded-windows")
         chrome_options.add_argument("--disable-renderer-backgrounding")
@@ -4722,7 +4863,16 @@ class ContentExtractor:
         if chrome_bin:
             chrome_options.binary_location = str(chrome_bin)
 
-        self._maybe_configure_user_data_dir(chrome_options)
+        # Prefer configured profile; else use ephemeral per attempt to avoid locks
+        if self._selenium_user_data_dir:
+            self._maybe_configure_user_data_dir(chrome_options)
+        else:
+            try:
+                tmp_dir = Path(f"/tmp/selenium-profile-{uuid.uuid4().hex}")
+                tmp_dir.mkdir(parents=True, exist_ok=True)
+                chrome_options.add_argument(f"--user-data-dir={tmp_dir}")
+            except Exception as e_ud:
+                logger.debug("Failed to create ephemeral user-data-dir (stealth): %s", e_ud)
 
         if driver_path:
             service = ChromeService(executable_path=str(driver_path))
@@ -5040,14 +5190,15 @@ class ContentExtractor:
                     if not self._detect_subscription_wall(driver):
                         return True
 
-                # Still paywalled: track but DON'T apply aggressive backoff
-                # Subscription walls can be persistent (days/months)
-                # Note: Unlike CAPTCHA, we don't backoff the domain
+                # Still paywalled: DON'T STOP extraction
+                # We can still extract headline, byline, and partial content
+                # even with subscription modal present
                 logger.info(
-                    f"Subscription wall blocking content on {url} - "
-                    "this may persist for days/months"
+                    f"Subscription modal present on {url} - "
+                    "will extract headline and available text"
                 )
-                return False
+                # Continue with extraction instead of returning False
+                return True
 
             return True
 
@@ -5191,6 +5342,18 @@ class ContentExtractor:
 
             if matches >= 2:  # At least 2 subscription indicators
                 logger.info(f"Detected subscription wall ({matches} indicators found)")
+                # Capture screenshot for diagnostics
+                try:
+                    import os
+                    screenshot_dir = "/tmp/paywall_screenshots"
+                    os.makedirs(screenshot_dir, exist_ok=True)
+                    from datetime import datetime
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    screenshot_path = f"{screenshot_dir}/paywall_{timestamp}.png"
+                    driver.save_screenshot(screenshot_path)
+                    logger.info(f"Saved paywall screenshot: {screenshot_path}")
+                except Exception as ss_err:
+                    logger.warning(f"Failed to save paywall screenshot: {ss_err}")
                 return True
 
             # Check for common paywall provider elements
@@ -5393,12 +5556,31 @@ class ContentExtractor:
         """Detect if page contains CAPTCHA or other bot challenges.
 
         Returns True only for actual CAPTCHAs/bot challenges,
-        NOT subscription modals.
+        NOT subscription modals or promotional CAPTCHAs.
         """
         try:
             page_source = driver.page_source.lower()
 
-            # 1. Check for actual CAPTCHA elements (high confidence)
+            # 1. Check for subscription/paywall modals (these are NOT blockers)
+            # If reCAPTCHA is inside a subscription modal, content is still accessible
+            subscription_modal_keywords = [
+                "subscribe",
+                "membership",
+                "paywall",
+                "registration",
+                "sign up",
+                "create account",
+                "limited free",
+                "articles remaining",
+                "monthly limit",
+            ]
+            
+            has_subscription_keywords = sum(
+                1 for keyword in subscription_modal_keywords if keyword in page_source
+            ) >= 2
+            
+            # 2. Check for actual CAPTCHA elements (high confidence)
+            # BUT: if it's part of a subscription modal, treat it as non-blocking
             captcha_selectors = [
                 "iframe[src*='recaptcha']",  # reCAPTCHA
                 "iframe[src*='hcaptcha']",  # hCaptcha
@@ -5415,7 +5597,27 @@ class ContentExtractor:
             for selector in captcha_selectors:
                 try:
                     if driver.find_elements(By.CSS_SELECTOR, selector):
+                        # If this is a subscription modal with a CAPTCHA, it's NOT blocking
+                        if has_subscription_keywords and "recaptcha" in selector:
+                            logger.info(
+                                f"Detected reCAPTCHA in subscription promo (not blocking): {selector}"
+                            )
+                            # Still extract what we can - this is a promo modal, not a blocker
+                            return False  # Not a blocking challenge
+                        
                         logger.info(f"Detected CAPTCHA element: {selector}")
+                        # Capture screenshot for diagnostics
+                        try:
+                            import os
+                            screenshot_dir = "/tmp/captcha_screenshots"
+                            os.makedirs(screenshot_dir, exist_ok=True)
+                            from datetime import datetime
+                            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                            screenshot_path = f"{screenshot_dir}/captcha_{timestamp}.png"
+                            driver.save_screenshot(screenshot_path)
+                            logger.info(f"Saved CAPTCHA screenshot: {screenshot_path}")
+                        except Exception as ss_err:
+                            logger.warning(f"Failed to save CAPTCHA screenshot: {ss_err}")
                         return True
                 except Exception:
                     continue
