@@ -35,6 +35,20 @@ BigQuery Export → analytics datasets
 - **Build System**: Cloud Build with selective service detection (only rebuilds changed services)
 - **Orchestration**: Argo Workflows with dataset-specific CronWorkflows
 
+## Critical Rules - DO NOT VIOLATE
+
+### 1. **NEVER look for production data in the local database**
+- The local database is EMPTY or STALE
+- Production data is ONLY in Cloud SQL (mizzou-db-prod)
+- Always access production data via `kubectl exec` into a production pod
+- If you try to test against local data, you're wasting everyone's time
+
+### 2. **NEVER rebuild/deploy services manually**
+- ALL deployments go through CI/CD ONLY (GitHub Actions → Cloud Build → Cloud Deploy)
+- Do NOT run `./scripts/deploy-services.sh` from your machine
+- Changes are deployed via PR merge to main branch
+- Ask user to merge if they want deployment, don't assume you can deploy
+
 ## Database Query Protocol
 
 ### Production Database Access (PostgreSQL via Cloud SQL)
