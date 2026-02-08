@@ -13,6 +13,10 @@ alembic>=1.12.0
 psycopg2-binary>=2.9.0  # PostgreSQL adapter for production
 cloud-sql-python-connector[pg8000]>=1.11.0  # Google Cloud SQL connector (replaces proxy sidecar)
 google-cloud-bigquery[pandas]>=3.13.0  # BigQuery client for analytics export
+google-api-python-client>=2.100.0  # Google API client for Sheets/Docs
+
+# Logging & Telemetry
+structlog>=24.0.0  # Structured logging for production
 
 # Papermill
 papermill>=2.4.0
@@ -37,20 +41,16 @@ storysniffer>=1.0.9  # Compatible version (skops-based models)
 feedparser>=6.0.10
 cloudscraper>=1.2.71  # Bypass Cloudflare protection
 
-# Web APIs
-fastapi>=0.103.0
-uvicorn[standard]>=0.23.0
-
-# Text processing
-ftfy>=6.1.0
-textblob>=0.17.0
-python-dateutil>=2.8.0
-rapidfuzz>=3.0.0  # Fast fuzzy string matching (10-100x faster than difflib)
-
-# Testing
-pytest>=7.4.0
-pytest-cov>=4.1.0
-pytest-mock
+# Content extraction & processing (mcmetadata dependencies)
+readability-lxml>=0.8.1  # Article content extraction
+trafilatura>=1.6.0  # Web content extraction
+boilerpy3>=1.0.8  # Boilerplate removal
+goose3>=3.1.9  # Content extraction
+htmldate>=1.4.0  # HTML date extraction
+py3langid>=0.2.2  # Language detection
+dateparser>=1.1.0  # Flexible date parsing
+url-normalize>=1.4.3  # URL normalization
+furl>=2.1.3  # URL manipulation
 nbformat
 nbconvert
 requests-mock

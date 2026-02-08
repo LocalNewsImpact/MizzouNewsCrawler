@@ -554,13 +554,13 @@ jobs:
       - name: Create data directory for tests
         run: mkdir -p data
 
-      - name: Run tests with coverage (excludes PostgreSQL-specific tests)
+      - name: Run tests with coverage (excludes PostgreSQL-specific and local dev tests)
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
             us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-            /bin/bash -c "git config --global --add safe.directory /workspace && pytest -m 'not postgres and not docker' --ignore=tests/docker --cov=src --cov-report=xml --cov-report=html --cov-report=term-missing --cov-fail-under=78"
+            /bin/bash -c "git config --global --add safe.directory /workspace && pytest -m 'not postgres and not docker and not local_scripts' --ignore=tests/docker --cov=src --cov-report=xml --cov-report=html --cov-report=term-missing --cov-fail-under=78"
 
       - name: Generate coverage summary
         if: success()
