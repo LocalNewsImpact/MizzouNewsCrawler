@@ -1,0 +1,26 @@
+HTTP/2 200 
+date: Sat, 07 Feb 2026 02:48:08 GMT
+content-type: text/html; charset=utf-8
+cache-control: max-age=60
+set-cookie: AWSALB=aDcAgv+IKHMJj1fQAD64aob6Mvhli3vcyNsBfSvT/1vj0ZobICsU9muI37xJ8c36xlQYQjBeCLnfSLhPGhm2Ud6Ev1y1HQ6WL8onmqZo9zyUI/sPUDBIncotbXs3; Expires=Sat, 14 Feb 2026 02:48:08 GMT; Path=/
+set-cookie: AWSALBCORS=aDcAgv+IKHMJj1fQAD64aob6Mvhli3vcyNsBfSvT/1vj0ZobICsU9muI37xJ8c36xlQYQjBeCLnfSLhPGhm2Ud6Ev1y1HQ6WL8onmqZo9zyUI/sPUDBIncotbXs3; Expires=Sat, 14 Feb 2026 02:48:08 GMT; Path=/; SameSite=None; Secure
+set-cookie: blaize_session=6369d855-c09d-46b3-af76-16f8bf2dbc1d; Expires=Sat, 27 Jun 2026 02:48:08 GMT; Path=/;
+set-cookie: blaize_tracking_id=378ed038-c19a-49a1-8557-5803318e852b; Expires=Sun, 14 Mar 2027 02:48:08 GMT; Path=/;
+server: cloudflare
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+expires: Sat, 07 Feb 2026 02:47:34 GMT
+x-beatles: ellington4-app-24.epublishing.internal
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=Gih7BPtLqsw%2BoxnqNNkyNvTLBytF8Ij0np5fh1b7gNnRfBHlSV9x5QDHCliD9qAkEezOy04hi2Xk4Rq0NtyLFF7VklUExaebzagGDEJgDsd1gaEe5mdpvA%3D%3D"}]}
+x-varnish: 1017253653 1012605623
+via: 1.1 varnish (Varnish/6.0), 1.1 48c3dcc6f4ecefeb16cbe76f18d43568.cloudfront.net (CloudFront)
+x-frame-options: Allow-From https://wehco-news-tribune.preview.zephr.com
+x-cache-hits: 2
+cf-cache-status: DYNAMIC
+age: 94
+x-zephr-cache: miss
+vary: Accept-Encoding,Cookie
+x-cache: Miss from cloudfront
+x-amz-cf-pop: ORD56-P13
+x-amz-cf-id: 6YeLuVTqk0dIVaf7G_kqu2OQ_43MY1w7C1memMMQC4sGAWeXS6n3fA==
+cf-ray: 9c9f910e1903eacc-ORD
+

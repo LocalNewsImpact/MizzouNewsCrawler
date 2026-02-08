@@ -1,0 +1,51 @@
+HTTP/2 301 
+date: Sat, 07 Feb 2026 03:22:15 GMT
+content-type: text/html; charset=utf-8
+x-zephr-cache: miss
+set-cookie: AWSALB=+e4XcbSjnUtXo0G8K7oX1EqjoY391soJuHfG1kV6ydEj0ur4JnPheSHvkkh1/79huEMeHgzGs8GLyDAgRIohYiVgeLKI3WY92yVsuTM8hiLW2aA1HSJ2ovusCtPB; Expires=Sat, 14 Feb 2026 03:22:15 GMT; Path=/
+set-cookie: AWSALBCORS=+e4XcbSjnUtXo0G8K7oX1EqjoY391soJuHfG1kV6ydEj0ur4JnPheSHvkkh1/79huEMeHgzGs8GLyDAgRIohYiVgeLKI3WY92yVsuTM8hiLW2aA1HSJ2ovusCtPB; Expires=Sat, 14 Feb 2026 03:22:15 GMT; Path=/; SameSite=None; Secure
+set-cookie: blaize_session=fc1822c4-214b-46a9-ab96-51582365d20b; Expires=Sat, 27 Jun 2026 03:22:15 GMT; Path=/;
+set-cookie: blaize_tracking_id=6e11eb92-536a-4d71-9996-7038100a9171; Expires=Sun, 14 Mar 2027 03:22:15 GMT; Path=/;
+server: cloudflare
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+location: /news/2026/feb/06/musk-vows-to-put-data-centers-in-space-run-them/
+x-beatles: ellington4-app-23.epublishing.internal
+x-varnish: 1019612992 1010871477
+via: 1.1 varnish (Varnish/6.0), 1.1 b4011ac432e4f034161d5cccc8a4ac80.cloudfront.net (CloudFront)
+x-frame-options: Allow-From https://wehco-news-tribune.preview.zephr.com
+vary: accept-encoding
+x-cache-hits: 2
+cf-cache-status: DYNAMIC
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=SVGZ%2FAGHBt9jJi9wcFQx3mn7j6%2FT4zHsiUQraGe0RpYxffc3ZKI3fbVtpmkDNQQIUG%2BPzjcO9ZNt5rQs05oT7aRB2I0A6H4wGWh%2BNB59S1kRr87S6y%2BazQ%3D%3D"}]}
+age: 703
+x-cache: Miss from cloudfront
+x-amz-cf-pop: IAD61-P10
+x-amz-cf-id: XLpRyvzn7IUU54-QM4GKnDiQ60xGrlPp2b0GE8T2ww53o6fhLRZqGw==
+cf-ray: 9c9fc308496c55fa-ORD
+
+HTTP/2 200 
+date: Sat, 07 Feb 2026 03:22:15 GMT
+content-type: text/html; charset=utf-8
+cache-control: no-store, no-transform
+set-cookie: AWSALB=p/pjmzwEWGwk2IpX3yn2ho9hztO8bTHgyzNjmiZXchaH5srMlFpsdtG+Ss53j74ccaAPhV0m/tCJu1dQ13ARe/F7MDKu7klNp1JC/dLA19I7po2DyvQhNtfAmW1y; Expires=Sat, 14 Feb 2026 03:22:15 GMT; Path=/
+set-cookie: AWSALBCORS=p/pjmzwEWGwk2IpX3yn2ho9hztO8bTHgyzNjmiZXchaH5srMlFpsdtG+Ss53j74ccaAPhV0m/tCJu1dQ13ARe/F7MDKu7klNp1JC/dLA19I7po2DyvQhNtfAmW1y; Expires=Sat, 14 Feb 2026 03:22:15 GMT; Path=/; SameSite=None; Secure
+set-cookie: blaize_session=72476dcb-a907-4235-9f17-df591bd100c4; Expires=Sat, 27 Jun 2026 03:22:15 GMT; Path=/;
+set-cookie: blaize_tracking_id=49fe7d24-07f1-4bb3-8304-fe593f78db3c; Expires=Sun, 14 Mar 2027 03:22:15 GMT; Path=/;
+server: cloudflare
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+expires: Sat, 07 Feb 2026 03:15:34 GMT
+x-beatles: ellington4-app-22.epublishing.internal
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=%2BkMT0bzvWjkrXR65qUv2XT1HwDkmc56p69szU3cI6hrmuiJc%2FNOnHmc081Snc1qxmW2vmnjhyfY74yyexdJ1Nx9L5PgRmNh6Y4%2F39X6S8hOsFdwv67GeDw%3D%3D"}]}
+x-varnish: 1014703861 1009175787
+via: 1.1 varnish (Varnish/6.0), 1.1 b4011ac432e4f034161d5cccc8a4ac80.cloudfront.net (CloudFront)
+x-frame-options: Allow-From https://wehco-news-tribune.preview.zephr.com
+x-cache-hits: 1
+cf-cache-status: DYNAMIC
+age: 461
+x-zephr-cache: miss
+vary: Accept-Encoding,Cookie
+x-cache: Miss from cloudfront
+x-amz-cf-pop: IAD61-P10
+x-amz-cf-id: E9mJZDqVBKcMzqkVmGVYEvkCkq3B_-qi-XXIpvoVnY65o0zs3LL7_Q==
+cf-ray: 9c9fc3095c6b55fa-ORD
+

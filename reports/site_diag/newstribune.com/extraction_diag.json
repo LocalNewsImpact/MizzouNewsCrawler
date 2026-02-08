@@ -1,0 +1,31 @@
+{
+  "generated_at": "2026-02-07T17:09:07.281797",
+  "results": [
+    {
+      "candidate_id": "40fff852-7765-40b5-a416-0df3550f82a5",
+      "url": "https://www.newstribune.com/news/2026/feb/07/trumps-racist-post-about-obamas-gets-deleted",
+      "source": "Jefferson City News Tribune/News Tribune",
+      "source_flags": {
+        "extraction_method": null,
+        "bot_protection_type": null,
+        "selenium_only": null
+      },
+      "methods_attempted": [
+        "selenium"
+      ],
+      "method_success": {
+        "selenium": false,
+        "unblock_proxy": false
+      },
+      "method_errors": {
+        "selenium": "No content extracted",
+        "unblock_proxy": "selenium_failed_no_fallback"
+      },
+      "successful_method": null,
+      "final_field_attribution": {},
+      "is_success": false,
+      "http_status_code": null,
+      "error": "Proxy challenge/block detected for https://www.newstribune.com/news/2026/feb/07/trumps-racist-post-about-obamas-gets-deleted: selenium_failed_no_fallback"
+    }
+  ]
+}

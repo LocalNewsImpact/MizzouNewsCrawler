@@ -1,0 +1,74 @@
+{
+  "results": [
+    {
+      "input_url": "https://www.newstribune.com/news/2026/feb/06/musk-vows-to-put-data-centers-in-space-run-them",
+      "original_status": "200",
+      "original_server": "cloudflare",
+      "amp_url": "",
+      "status": null,
+      "server": null,
+      "content_type": null,
+      "is_amp": false,
+      "title": "",
+      "publish_date": "",
+      "text_len": 0,
+      "no_amp": true
+    },
+    {
+      "input_url": "https://www.newstribune.com/news/2026/feb/06/lamonte-mclemore-founding-member-of-the-5th",
+      "original_status": "200",
+      "original_server": "cloudflare",
+      "amp_url": "",
+      "status": null,
+      "server": null,
+      "content_type": null,
+      "is_amp": false,
+      "title": "",
+      "publish_date": "",
+      "text_len": 0,
+      "no_amp": true
+    },
+    {
+      "input_url": "https://www.newstribune.com/news/2026/feb/06/sheriff-holding-out-hope-that-guthries-missing",
+      "original_status": "200",
+      "original_server": "cloudflare",
+      "amp_url": "",
+      "status": null,
+      "server": null,
+      "content_type": null,
+      "is_amp": false,
+      "title": "",
+      "publish_date": "",
+      "text_len": 0,
+      "no_amp": true
+    },
+    {
+      "input_url": "https://www.newstribune.com/news/2026/feb/06/new-bloomfield-school-district-to-boost-security",
+      "original_status": "200",
+      "original_server": "cloudflare",
+      "amp_url": "",
+      "status": null,
+      "server": null,
+      "content_type": null,
+      "is_amp": false,
+      "title": "",
+      "publish_date": "",
+      "text_len": 0,
+      "no_amp": true
+    },
+    {
+      "input_url": "https://www.newstribune.com/news/2026/feb/06/missouri-has-nations-fourth-highest-pay-for",
+      "original_status": "200",
+      "original_server": "cloudflare",
+      "amp_url": "",
+      "status": null,
+      "server": null,
+      "content_type": null,
+      "is_amp": false,
+      "title": "",
+      "publish_date": "",
+      "text_len": 0,
+      "no_amp": true
+    }
+  ]
+}
