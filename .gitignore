@@ -116,6 +116,9 @@ test_*.py
 test_*.db
 logs/pre-push/*.log
 
+# EXCEPT: Pre-push hook test script (production CI/CD validation)
+!scripts/test-production-readiness.sh
+
 # ============================================
 # Exported data files (should not be committed)
 # ============================================
