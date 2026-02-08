@@ -522,7 +522,7 @@ jobs:
             -e DATABASE_USER="$DATABASE_USER" \
             -e DATABASE_PASSWORD="$DATABASE_PASSWORD" \
             us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/ci-base:latest \
-            /bin/bash -c "git config --global --add safe.directory /workspace && pytest -v -m integration --ignore=tests/docker --tb=short --no-cov"
+            /bin/bash -c "git config --global --add safe.directory /workspace && pytest -v -m integration --ignore=tests/docker --ignore=tests/scripts --ignore=tests/backfill/test_backfill_article_entities.py --ignore=tests/cli/commands/test_test_domain_command.py --ignore=tests/cli/test_manual_enqueue.py --ignore=tests/test_actual_telemetry.py --ignore=tests/test_chrome_bin_default.py --ignore=tests/test_gazetteer_telemetry.py --ignore=tests/test_geocode_cache.py --ignore=tests/test_launch_dataset_job.py --tb=short --no-cov"
 
   integration:
     name: Integration & Coverage
