@@ -383,8 +383,3 @@ def handle_test_domain_command(args):
     print(f"{'='*80}\n")
     
     return 0 if failure_count == 0 else 1
-
-
-def handle_test_domain_command(args):
-    """Entry point for test-domain command."""
-    return test_domain(args)
