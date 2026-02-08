@@ -2207,7 +2207,7 @@ class ContentExtractor:
 
         if self.selenium_mode == "headful":
             return False
-        
+
         if self.selenium_mode == "headless":
             return True
 
