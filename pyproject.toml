@@ -149,6 +149,22 @@ omit = [
     "src/utils/extraction_telemetry.py",  # Only used in scripts, superseded by comprehensive_telemetry
     # Vendored third-party library - exercised via integration tests upstream
     "src/mcmetadata/*",
+    # Non-production scripts and utilities
+    "scripts/*",
+    "test_*.py",
+    "*_test.py",
+    "debug*.py",
+    "repro*.py",
+    "check_*.py",
+    "configure_*.py",
+    "set_*.py",
+    "query_*.py",
+    "scan_*.py",
+    "read_*.py",
+    "extract_*.py",
+    "backfill*.py",
+    "convert_*.py",
+    "aggregate*.py",
 ]
 
 [tool.coverage.report]

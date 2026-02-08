@@ -9,9 +9,6 @@ from pathlib import Path
 import pytest
 from coverage import Coverage
 from coverage.exceptions import CoverageException
-from sqlalchemy import create_engine
-
-from src.telemetry.store import TelemetryStore
 
 # Force tests to use SQLite instead of PostgreSQL/Cloud SQL
 # Set BEFORE any imports of src.config to prevent loading production settings
@@ -170,10 +167,7 @@ MODULE_COVERAGE_THRESHOLDS: dict[Path, float]
 if os.environ.get("PYTEST_DISABLE_MODULE_THRESHOLDS") == "1":
     MODULE_COVERAGE_THRESHOLDS = {}
 else:
-    MODULE_COVERAGE_THRESHOLDS = {
-        Path("src/utils/byline_cleaner.py"): 80.0,
-        Path("src/utils/content_cleaner_balanced.py"): 80.0,
-    }
+    MODULE_COVERAGE_THRESHOLDS = {}
 
 
 def _resolve_threshold_paths(root: Path) -> dict[Path, float]:
@@ -251,7 +245,10 @@ def telemetry_store_with_migrations(tmp_path):
     Returns:
         TelemetryStore: A store with all tables properly created.
     """
+    from sqlalchemy import create_engine
+
     from src.models.telemetry_orm import Base as TelemetryBase
+    from src.telemetry.store import TelemetryStore
 
     db_path = tmp_path / "telemetry.db"
     db_url = f"sqlite:///{db_path}"

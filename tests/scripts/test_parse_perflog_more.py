@@ -1,7 +1,11 @@
 import json
 import tempfile
 
+import pytest
+
 from scripts.parse_perflog import parse_perflog
+
+pytestmark = pytest.mark.local_scripts
 
 
 def make_entry(method, params):

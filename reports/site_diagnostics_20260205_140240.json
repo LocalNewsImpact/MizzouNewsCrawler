@@ -1,0 +1,182 @@
+[
+  {
+    "host": "newstribune.com",
+    "telemetry": {
+      "host": "newstribune.com",
+      "error": "(pg8000.exceptions.DatabaseError) {'S': 'ERROR', 'V': 'ERROR', 'C': '42703', 'M': 'column cl.wire_filtered does not exist', 'P': '465', 'F': 'parse_relation.c', 'L': '3727', 'R': 'errorMissingColumn'}\n[SQL: \n                SELECT\n                    %s AS host,\n                    COUNT(*) FILTER (WHERE cl.discovered_at >= NOW() - INTERVAL '168 hours') AS discovered,\n                    COUNT(*) FILTER (WHERE cl.status = 'article' AND cl.discovered_at >= NOW() - INTERVAL '168 hours') AS verified_article,\n                    COUNT(a.id) FILTER (WHERE a.extracted_at >= NOW() - INTERVAL '168 hours') AS extracted,\n                    COUNT(*) FILTER (WHERE COALESCE(cl.wire_filtered, false) AND cl.discovered_at >= NOW() - INTERVAL '168 hours') AS wire_suppressed\n                FROM candidate_links cl\n                LEFT JOIN articles a ON a.candidate_link_id = cl.id\n                WHERE cl.source_id = %s\n            ]\n[parameters: ('newstribune.com', '009f8695-a4d1-4732-bcfc-f74efba1b6bb')]\n(Background on this error at: https://sqlalche.me/e/20/4xp6)"
+    },
+    "http": {
+      "host": "newstribune.com",
+      "http": [],
+      "waf_flags": []
+    },
+    "hints": [
+      "No discovery in last 7 days",
+      "No obvious feed endpoints detected"
+    ],
+    "fixes": [
+      "Verify RSS/sitemap endpoints; add source-specific feeds; increase days-back in discovery",
+      "Add sitemap-based discovery or scrape section pages with article detectors"
+    ]
+  },
+  {
+    "host": "republicmonitor.com",
+    "telemetry": {
+      "host": "republicmonitor.com",
+      "error": "(pg8000.exceptions.DatabaseError) {'S': 'ERROR', 'V': 'ERROR', 'C': '25P02', 'M': 'current transaction is aborted, commands ignored until end of transaction block', 'F': 'postgres.c', 'L': '1516', 'R': 'exec_parse_message'}\n[SQL: \n                SELECT\n                    %s AS host,\n                    COUNT(*) FILTER (WHERE cl.discovered_at >= NOW() - INTERVAL '168 hours') AS discovered,\n                    COUNT(*) FILTER (WHERE cl.status = 'article' AND cl.discovered_at >= NOW() - INTERVAL '168 hours') AS verified_article,\n                    COUNT(a.id) FILTER (WHERE a.extracted_at >= NOW() - INTERVAL '168 hours') AS extracted,\n                    COUNT(*) FILTER (WHERE COALESCE(cl.wire_filtered, false) AND cl.discovered_at >= NOW() - INTERVAL '168 hours') AS wire_suppressed\n                FROM candidate_links cl\n                LEFT JOIN articles a ON a.candidate_link_id = cl.id\n                WHERE cl.source_id = %s\n            ]\n[parameters: ('republicmonitor.com', '0ed7f387-ffb2-4444-954a-debf99d1f8be')]\n(Background on this error at: https://sqlalche.me/e/20/4xp6)"
+    },
+    "http": {
+      "host": "republicmonitor.com",
+      "http": [],
+      "waf_flags": []
+    },
+    "hints": [
+      "No discovery in last 7 days",
+      "No obvious feed endpoints detected"
+    ],
+    "fixes": [
+      "Verify RSS/sitemap endpoints; add source-specific feeds; increase days-back in discovery",
+      "Add sitemap-based discovery or scrape section pages with article detectors"
+    ]
+  },
+  {
+    "host": "kq2.com",
+    "telemetry": {
+      "host": "kq2.com",
+      "error": "(pg8000.exceptions.DatabaseError) {'S': 'ERROR', 'V': 'ERROR', 'C': '25P02', 'M': 'current transaction is aborted, commands ignored until end of transaction block', 'F': 'postgres.c', 'L': '1516', 'R': 'exec_parse_message'}\n[SQL: \n                SELECT\n                    %s AS host,\n                    COUNT(*) FILTER (WHERE cl.discovered_at >= NOW() - INTERVAL '168 hours') AS discovered,\n                    COUNT(*) FILTER (WHERE cl.status = 'article' AND cl.discovered_at >= NOW() - INTERVAL '168 hours') AS verified_article,\n                    COUNT(a.id) FILTER (WHERE a.extracted_at >= NOW() - INTERVAL '168 hours') AS extracted,\n                    COUNT(*) FILTER (WHERE COALESCE(cl.wire_filtered, false) AND cl.discovered_at >= NOW() - INTERVAL '168 hours') AS wire_suppressed\n                FROM candidate_links cl\n                LEFT JOIN articles a ON a.candidate_link_id = cl.id\n                WHERE cl.source_id = %s\n            ]\n[parameters: ('kq2.com', 'e902d2e6-a708-433e-9c25-c20fb46b217b')]\n(Background on this error at: https://sqlalche.me/e/20/4xp6)"
+    },
+    "http": {
+      "host": "kq2.com",
+      "http": [],
+      "waf_flags": []
+    },
+    "hints": [
+      "No discovery in last 7 days",
+      "No obvious feed endpoints detected"
+    ],
+    "fixes": [
+      "Verify RSS/sitemap endpoints; add source-specific feeds; increase days-back in discovery",
+      "Add sitemap-based discovery or scrape section pages with article detectors"
+    ]
+  },
+  {
+    "host": "jamesporttricountyweekly.com",
+    "telemetry": {
+      "host": "jamesporttricountyweekly.com",
+      "error": "(pg8000.exceptions.DatabaseError) {'S': 'ERROR', 'V': 'ERROR', 'C': '25P02', 'M': 'current transaction is aborted, commands ignored until end of transaction block', 'F': 'postgres.c', 'L': '1516', 'R': 'exec_parse_message'}\n[SQL: \n                SELECT\n                    %s AS host,\n                    COUNT(*) FILTER (WHERE cl.discovered_at >= NOW() - INTERVAL '168 hours') AS discovered,\n                    COUNT(*) FILTER (WHERE cl.status = 'article' AND cl.discovered_at >= NOW() - INTERVAL '168 hours') AS verified_article,\n                    COUNT(a.id) FILTER (WHERE a.extracted_at >= NOW() - INTERVAL '168 hours') AS extracted,\n                    COUNT(*) FILTER (WHERE COALESCE(cl.wire_filtered, false) AND cl.discovered_at >= NOW() - INTERVAL '168 hours') AS wire_suppressed\n                FROM candidate_links cl\n                LEFT JOIN articles a ON a.candidate_link_id = cl.id\n                WHERE cl.source_id = %s\n            ]\n[parameters: ('jamesporttricountyweekly.com', '46c8baa9-065f-479f-aece-1ce6e4c7f889')]\n(Background on this error at: https://sqlalche.me/e/20/4xp6)"
+    },
+    "http": {
+      "host": "jamesporttricountyweekly.com",
+      "http": [],
+      "waf_flags": []
+    },
+    "hints": [
+      "No discovery in last 7 days",
+      "No obvious feed endpoints detected"
+    ],
+    "fixes": [
+      "Verify RSS/sitemap endpoints; add source-specific feeds; increase days-back in discovery",
+      "Add sitemap-based discovery or scrape section pages with article detectors"
+    ]
+  },
+  {
+    "host": "comobuz.com",
+    "telemetry": {
+      "host": "comobuz.com",
+      "error": "(pg8000.exceptions.DatabaseError) {'S': 'ERROR', 'V': 'ERROR', 'C': '25P02', 'M': 'current transaction is aborted, commands ignored until end of transaction block', 'F': 'postgres.c', 'L': '1516', 'R': 'exec_parse_message'}\n[SQL: \n                SELECT\n                    %s AS host,\n                    COUNT(*) FILTER (WHERE cl.discovered_at >= NOW() - INTERVAL '168 hours') AS discovered,\n                    COUNT(*) FILTER (WHERE cl.status = 'article' AND cl.discovered_at >= NOW() - INTERVAL '168 hours') AS verified_article,\n                    COUNT(a.id) FILTER (WHERE a.extracted_at >= NOW() - INTERVAL '168 hours') AS extracted,\n                    COUNT(*) FILTER (WHERE COALESCE(cl.wire_filtered, false) AND cl.discovered_at >= NOW() - INTERVAL '168 hours') AS wire_suppressed\n                FROM candidate_links cl\n                LEFT JOIN articles a ON a.candidate_link_id = cl.id\n                WHERE cl.source_id = %s\n            ]\n[parameters: ('comobuz.com', '1f3e9a9d-7f4d-4c85-9ef2-6c9a14a8e180')]\n(Background on this error at: https://sqlalche.me/e/20/4xp6)"
+    },
+    "http": {
+      "host": "comobuz.com",
+      "http": [],
+      "waf_flags": []
+    },
+    "hints": [
+      "No discovery in last 7 days",
+      "No obvious feed endpoints detected"
+    ],
+    "fixes": [
+      "Verify RSS/sitemap endpoints; add source-specific feeds; increase days-back in discovery",
+      "Add sitemap-based discovery or scrape section pages with article detectors"
+    ]
+  },
+  {
+    "host": "lamardemocrat.com",
+    "telemetry": {
+      "host": "lamardemocrat.com",
+      "error": "(pg8000.exceptions.DatabaseError) {'S': 'ERROR', 'V': 'ERROR', 'C': '25P02', 'M': 'current transaction is aborted, commands ignored until end of transaction block', 'F': 'postgres.c', 'L': '1516', 'R': 'exec_parse_message'}\n[SQL: \n                SELECT\n                    %s AS host,\n                    COUNT(*) FILTER (WHERE cl.discovered_at >= NOW() - INTERVAL '168 hours') AS discovered,\n                    COUNT(*) FILTER (WHERE cl.status = 'article' AND cl.discovered_at >= NOW() - INTERVAL '168 hours') AS verified_article,\n                    COUNT(a.id) FILTER (WHERE a.extracted_at >= NOW() - INTERVAL '168 hours') AS extracted,\n                    COUNT(*) FILTER (WHERE COALESCE(cl.wire_filtered, false) AND cl.discovered_at >= NOW() - INTERVAL '168 hours') AS wire_suppressed\n                FROM candidate_links cl\n                LEFT JOIN articles a ON a.candidate_link_id = cl.id\n                WHERE cl.source_id = %s\n            ]\n[parameters: ('lamardemocrat.com', 'c8ca1509-62ba-4d85-83b9-cbf840c1aa67')]\n(Background on this error at: https://sqlalche.me/e/20/4xp6)"
+    },
+    "http": {
+      "host": "lamardemocrat.com",
+      "http": [],
+      "waf_flags": []
+    },
+    "hints": [
+      "No discovery in last 7 days",
+      "No obvious feed endpoints detected"
+    ],
+    "fixes": [
+      "Verify RSS/sitemap endpoints; add source-specific feeds; increase days-back in discovery",
+      "Add sitemap-based discovery or scrape section pages with article detectors"
+    ]
+  },
+  {
+    "host": "griffonnews.com",
+    "telemetry": {
+      "host": "griffonnews.com",
+      "error": "(pg8000.exceptions.DatabaseError) {'S': 'ERROR', 'V': 'ERROR', 'C': '25P02', 'M': 'current transaction is aborted, commands ignored until end of transaction block', 'F': 'postgres.c', 'L': '1516', 'R': 'exec_parse_message'}\n[SQL: \n                SELECT\n                    %s AS host,\n                    COUNT(*) FILTER (WHERE cl.discovered_at >= NOW() - INTERVAL '168 hours') AS discovered,\n                    COUNT(*) FILTER (WHERE cl.status = 'article' AND cl.discovered_at >= NOW() - INTERVAL '168 hours') AS verified_article,\n                    COUNT(a.id) FILTER (WHERE a.extracted_at >= NOW() - INTERVAL '168 hours') AS extracted,\n                    COUNT(*) FILTER (WHERE COALESCE(cl.wire_filtered, false) AND cl.discovered_at >= NOW() - INTERVAL '168 hours') AS wire_suppressed\n                FROM candidate_links cl\n                LEFT JOIN articles a ON a.candidate_link_id = cl.id\n                WHERE cl.source_id = %s\n            ]\n[parameters: ('griffonnews.com', '8deda390-4464-4be9-82c8-4ded6959cc67')]\n(Background on this error at: https://sqlalche.me/e/20/4xp6)"
+    },
+    "http": {
+      "host": "griffonnews.com",
+      "http": [],
+      "waf_flags": []
+    },
+    "hints": [
+      "No discovery in last 7 days",
+      "No obvious feed endpoints detected"
+    ],
+    "fixes": [
+      "Verify RSS/sitemap endpoints; add source-specific feeds; increase days-back in discovery",
+      "Add sitemap-based discovery or scrape section pages with article detectors"
+    ]
+  },
+  {
+    "host": "greenfieldvedette.com",
+    "telemetry": {
+      "host": "greenfieldvedette.com",
+      "error": "(pg8000.exceptions.DatabaseError) {'S': 'ERROR', 'V': 'ERROR', 'C': '25P02', 'M': 'current transaction is aborted, commands ignored until end of transaction block', 'F': 'postgres.c', 'L': '1516', 'R': 'exec_parse_message'}\n[SQL: \n                SELECT\n                    %s AS host,\n                    COUNT(*) FILTER (WHERE cl.discovered_at >= NOW() - INTERVAL '168 hours') AS discovered,\n                    COUNT(*) FILTER (WHERE cl.status = 'article' AND cl.discovered_at >= NOW() - INTERVAL '168 hours') AS verified_article,\n                    COUNT(a.id) FILTER (WHERE a.extracted_at >= NOW() - INTERVAL '168 hours') AS extracted,\n                    COUNT(*) FILTER (WHERE COALESCE(cl.wire_filtered, false) AND cl.discovered_at >= NOW() - INTERVAL '168 hours') AS wire_suppressed\n                FROM candidate_links cl\n                LEFT JOIN articles a ON a.candidate_link_id = cl.id\n                WHERE cl.source_id = %s\n            ]\n[parameters: ('greenfieldvedette.com', '50a9107b-a3c7-4a91-a956-d70e5669cb81')]\n(Background on this error at: https://sqlalche.me/e/20/4xp6)"
+    },
+    "http": {
+      "host": "greenfieldvedette.com",
+      "http": [],
+      "waf_flags": []
+    },
+    "hints": [
+      "No discovery in last 7 days",
+      "No obvious feed endpoints detected"
+    ],
+    "fixes": [
+      "Verify RSS/sitemap endpoints; add source-specific feeds; increase days-back in discovery",
+      "Add sitemap-based discovery or scrape section pages with article detectors"
+    ]
+  },
+  {
+    "host": "missouribusinessalert.com",
+    "telemetry": {
+      "host": "missouribusinessalert.com",
+      "error": "(pg8000.exceptions.DatabaseError) {'S': 'ERROR', 'V': 'ERROR', 'C': '25P02', 'M': 'current transaction is aborted, commands ignored until end of transaction block', 'F': 'postgres.c', 'L': '1516', 'R': 'exec_parse_message'}\n[SQL: \n                SELECT\n                    %s AS host,\n                    COUNT(*) FILTER (WHERE cl.discovered_at >= NOW() - INTERVAL '168 hours') AS discovered,\n                    COUNT(*) FILTER (WHERE cl.status = 'article' AND cl.discovered_at >= NOW() - INTERVAL '168 hours') AS verified_article,\n                    COUNT(a.id) FILTER (WHERE a.extracted_at >= NOW() - INTERVAL '168 hours') AS extracted,\n                    COUNT(*) FILTER (WHERE COALESCE(cl.wire_filtered, false) AND cl.discovered_at >= NOW() - INTERVAL '168 hours') AS wire_suppressed\n                FROM candidate_links cl\n                LEFT JOIN articles a ON a.candidate_link_id = cl.id\n                WHERE cl.source_id = %s\n            ]\n[parameters: ('missouribusinessalert.com', '25002514-86d1-4ce0-9d28-fd9e5995666a')]\n(Background on this error at: https://sqlalche.me/e/20/4xp6)"
+    },
+    "http": {
+      "host": "missouribusinessalert.com",
+      "http": [],
+      "waf_flags": []
+    },
+    "hints": [
+      "No discovery in last 7 days",
+      "No obvious feed endpoints detected"
+    ],
+    "fixes": [
+      "Verify RSS/sitemap endpoints; add source-specific feeds; increase days-back in discovery",
+      "Add sitemap-based discovery or scrape section pages with article detectors"
+    ]
+  }
+]

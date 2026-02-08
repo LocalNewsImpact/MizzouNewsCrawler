@@ -12,6 +12,8 @@ import pytest
 SCRIPTS_DIR = Path(__file__).parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
+pytestmark = pytest.mark.local_scripts
+
 from launch_dataset_job import (  # noqa: E402
     CHROME_PROFILE_MOUNT_PATH,
     CHROME_PROFILE_PVC_NAME,

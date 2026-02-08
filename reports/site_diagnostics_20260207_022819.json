@@ -1,0 +1,162 @@
+[
+  {
+    "host": "newstribune.com",
+    "telemetry": {
+      "host": "newstribune.com",
+      "metrics": {
+        "discovered": 274,
+        "verified_article": 273,
+        "extracted": 0,
+        "wire_suppressed": 0
+      },
+      "candidate_status": [
+        [
+          "article",
+          273
+        ],
+        [
+          "not_article",
+          1
+        ]
+      ],
+      "article_status": [],
+      "final_status": [
+        [
+          "article",
+          273
+        ],
+        [
+          "not_article",
+          1
+        ]
+      ],
+      "recent_candidate_links": [
+        {
+          "url": "https://www.newstribune.com/news/2026/feb/06/musk-vows-to-put-data-centers-in-space-run-them",
+          "status": "article",
+          "is_wire": false,
+          "discovered_at": "2026-02-06 18:08:08.743259"
+        },
+        {
+          "url": "https://www.newstribune.com/news/2026/feb/06/lamonte-mclemore-founding-member-of-the-5th",
+          "status": "article",
+          "is_wire": false,
+          "discovered_at": "2026-02-06 18:08:08.697024"
+        },
+        {
+          "url": "https://www.newstribune.com/news/2026/feb/06/sheriff-holding-out-hope-that-guthries-missing",
+          "status": "article",
+          "is_wire": false,
+          "discovered_at": "2026-02-06 18:08:07.725616"
+        },
+        {
+          "url": "https://www.newstribune.com/news/2026/feb/06/new-bloomfield-school-district-to-boost-security",
+          "status": "article",
+          "is_wire": false,
+          "discovered_at": "2026-02-06 18:08:06.456346"
+        },
+        {
+          "url": "https://www.newstribune.com/news/2026/feb/06/missouri-has-nations-fourth-highest-pay-for",
+          "status": "article",
+          "is_wire": false,
+          "discovered_at": "2026-02-06 18:08:05.720465"
+        }
+      ]
+    },
+    "http": {
+      "host": "newstribune.com",
+      "http": [
+        {
+          "url": "https://newstribune.com/",
+          "status": 200,
+          "final_url": "https://www.newstribune.com/",
+          "robots_block_all": false,
+          "waf_hints": [],
+          "has_feed_link": false
+        },
+        {
+          "url": "http://newstribune.com/",
+          "status": 200,
+          "final_url": "https://www.newstribune.com/",
+          "robots_block_all": false,
+          "waf_hints": [],
+          "has_feed_link": false
+        },
+        {
+          "url": "https://newstribune.com/robots.txt",
+          "status": 200,
+          "final_url": "https://www.newstribune.com/robots.txt",
+          "robots_block_all": true,
+          "waf_hints": [
+            "cloudflare",
+            "bot"
+          ],
+          "has_feed_link": false
+        },
+        {
+          "url": "https://newstribune.com/sitemap.xml",
+          "status": 200,
+          "final_url": "https://www.newstribune.com/sitemap.xml",
+          "robots_block_all": false,
+          "waf_hints": [],
+          "has_feed_link": false
+        },
+        {
+          "url": "https://newstribune.com/rss",
+          "status": 404,
+          "final_url": "https://www.newstribune.com/rss/",
+          "robots_block_all": false,
+          "waf_hints": [],
+          "has_feed_link": false
+        },
+        {
+          "url": "https://newstribune.com/rss.xml",
+          "status": 404,
+          "final_url": "https://www.newstribune.com/rss.xml/",
+          "robots_block_all": false,
+          "waf_hints": [],
+          "has_feed_link": false
+        },
+        {
+          "url": "https://newstribune.com/feed",
+          "status": 404,
+          "final_url": "https://www.newstribune.com/feed/",
+          "robots_block_all": false,
+          "waf_hints": [],
+          "has_feed_link": false
+        }
+      ],
+      "waf_flags": [
+        "bot",
+        "cloudflare"
+      ]
+    },
+    "hints": [
+      "Verified articles but extraction failed",
+      "WAF/anti-bot detected: bot, cloudflare",
+      "robots.txt reports block-all (informational)",
+      "No obvious feed endpoints detected"
+    ],
+    "fixes": [
+      "Run extraction diagnostics from extraction pod; adjust bot protection handling; tune rate limits",
+      "Use extraction pod for site-access tests; adjust headers/proxies; consider TLS fingerprint alignment",
+      "Use sitemap-based discovery or section pages + article detectors (robots-agnostic)"
+    ],
+    "article_diagnostics": {
+      "http": {
+        "status": 200,
+        "elapsed_ms": 387,
+        "content_len": 146517,
+        "waf_hints": [
+          "cloudflare",
+          "blocked",
+          "bot"
+        ]
+      },
+      "extraction": {
+        "paragraphs": 39,
+        "preview": "--> --> Subscribe Sign&nbsp;In Manage Subscription Sign Out Today's Paper News Sports Newsletters Obituaries Things to do Puzzles Classifieds Contact Us --> --> --> --> FILE - A SpaceX logo is displayed on a building, May 26, 2020, at the Kennedy Space Center in Cape Canaveral, Fla. (AP Photo/David J. Phillip, File) NEW YORK (AP) -- Elon Musk vowed this week to upend another industry just as he did with cars and rockets -- and once again he's taking on long odds. The world's richest man said he wants to put as many as a million satellites into orbit to form vast, solar-powered data centers in space -- a move to allow expanded use of artificial intelligence and chatbots without triggering blackouts and sending utility bills soaring. To finance that effort, Musk combined SpaceX with his AI business on Monday and plans a big initial public offering of the combined company. \"Space-based AI is obviously the only way to scale,\" Musk wrote on SpaceX's website Monday, adding about his solar am"
+      }
+    }
+  }
+]

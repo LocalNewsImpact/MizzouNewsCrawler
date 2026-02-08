@@ -1,4 +1,8 @@
+import pytest
+
 import scripts.headful_client_hints_probe as probe
+
+pytestmark = pytest.mark.local_scripts
 
 
 def test_make_payload_defaults():

@@ -1,0 +1,51 @@
+HTTP/2 301 
+date: Sat, 07 Feb 2026 03:15:37 GMT
+content-type: text/html; charset=utf-8
+x-zephr-cache: miss
+set-cookie: AWSALB=dlGz+9B5U/CiHQZ5zHGx8b1evl4WnaFIJZASJbDLk1v5P85FfnNBMG9QLUB35EJ6YlTSaTnfsAhtzlZQ+fAnX7eAnNyF2uxvb6KiINa8kvKsKXS7F40xjzb52Ots; Expires=Sat, 14 Feb 2026 03:15:37 GMT; Path=/
+set-cookie: AWSALBCORS=dlGz+9B5U/CiHQZ5zHGx8b1evl4WnaFIJZASJbDLk1v5P85FfnNBMG9QLUB35EJ6YlTSaTnfsAhtzlZQ+fAnX7eAnNyF2uxvb6KiINa8kvKsKXS7F40xjzb52Ots; Expires=Sat, 14 Feb 2026 03:15:37 GMT; Path=/; SameSite=None; Secure
+set-cookie: blaize_session=8bc8f323-0e03-40de-b405-0eed4d77df9a; Expires=Sat, 27 Jun 2026 03:15:37 GMT; Path=/;
+set-cookie: blaize_tracking_id=dfb77449-01eb-4f9f-90f6-806725cfa223; Expires=Sun, 14 Mar 2027 03:15:37 GMT; Path=/;
+server: cloudflare
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+location: /news/2026/feb/06/new-bloomfield-school-district-to-boost-security/
+x-beatles: ellington4-app-24.epublishing.internal
+x-varnish: 1011140016 1019351308
+via: 1.1 varnish (Varnish/6.0), 1.1 d6e1b026ffb06ff442130924aa69934a.cloudfront.net (CloudFront)
+x-frame-options: Allow-From https://wehco-news-tribune.preview.zephr.com
+vary: accept-encoding
+x-cache-hits: 2
+cf-cache-status: DYNAMIC
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=4h12cGwvZgkHXRt1CftWGf%2Fp%2FMuTV76c7zt0%2B0TNEvlh8eq5nktUguqXx6tM9NeBiYS5JaSGbnN0qiJ2fMiXcXy7NqhsPTMii6ULyeKzXhJ5%2BgcaTpuKYQ%3D%3D"}]}
+age: 18
+x-cache: Miss from cloudfront
+x-amz-cf-pop: ORD56-P13
+x-amz-cf-id: B3v35WGWq-XgZnM1PSULLLKclvGMvzVLuJgK9LTt7IiR66dDlJVypg==
+cf-ray: 9c9fb94e1d500040-ORD
+
+HTTP/2 200 
+date: Sat, 07 Feb 2026 03:15:37 GMT
+content-type: text/html; charset=utf-8
+cache-control: no-store, no-transform
+set-cookie: AWSALB=9C7b//eBvk7T9SV/WDK1y2uiQg1o1KsAHyaYxQQ1qHGzQX5Fs57ZC0aZCCfM3XI2ZoMe2AMAiRwzgodcuhqf3lNz5zFcXm7NPRn86RdXzh3pgk6cfQKMZKkwTM73; Expires=Sat, 14 Feb 2026 03:15:37 GMT; Path=/
+set-cookie: AWSALBCORS=9C7b//eBvk7T9SV/WDK1y2uiQg1o1KsAHyaYxQQ1qHGzQX5Fs57ZC0aZCCfM3XI2ZoMe2AMAiRwzgodcuhqf3lNz5zFcXm7NPRn86RdXzh3pgk6cfQKMZKkwTM73; Expires=Sat, 14 Feb 2026 03:15:37 GMT; Path=/; SameSite=None; Secure
+set-cookie: blaize_session=13c222f8-e1bc-4629-8315-a81ba04acea8; Expires=Sat, 27 Jun 2026 03:15:37 GMT; Path=/;
+set-cookie: blaize_tracking_id=c2d5c013-079f-4cf1-bc2b-887a78a2028e; Expires=Sun, 14 Mar 2027 03:15:37 GMT; Path=/;
+server: cloudflare
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+expires: Sat, 07 Feb 2026 02:58:45 GMT
+x-beatles: ellington4-app-23.epublishing.internal
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=g9H%2BtLKDnf%2FGbG0luRjuBsnQRXLBVfW7dHj4AlCr9KoXTwEskLCm48ZpyXswb1i6d3EBl4Q%2FIzC1sT9SPOiwEf78ZUZD7rDXOZp4PodWiiId%2F6EvgD6O7g%3D%3D"}]}
+x-varnish: 1013135817 1019415316
+via: 1.1 varnish (Varnish/6.0), 1.1 d6e1b026ffb06ff442130924aa69934a.cloudfront.net (CloudFront)
+x-frame-options: Allow-From https://wehco-news-tribune.preview.zephr.com
+x-cache-hits: 1
+cf-cache-status: DYNAMIC
+age: 1071
+x-zephr-cache: miss
+vary: Accept-Encoding,Cookie
+x-cache: Miss from cloudfront
+x-amz-cf-pop: ORD56-P13
+x-amz-cf-id: qpAPzkASVpt7vEB-vOj3XZdGbJMvWkSL7-TdaWPYiLv7RERE7O-kIQ==
+cf-ray: 9c9fb94ebded0040-ORD
+

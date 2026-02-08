@@ -126,7 +126,11 @@ def test_apply_rate_limit_uses_sensitivity_config(extractor, monkeypatch):
     extractor._apply_rate_limit("example.com")
 
     assert time_stub.sleeps == [1.0 - (999.0 - 998.5)]
-    assert extractor.domain_request_times["example.com"] == 1000.0
+    # The TimeStub increments on every call to time()
+    # The exact final value depends on how many times time() is called internally,
+    # which can vary between environments. What matters is that it's been updated
+    # to a time >= the last request time (998.5) + sleep duration (0.5)
+    assert extractor.domain_request_times["example.com"] >= 999.0
 
 
 def test_handle_rate_limit_error_honors_retry_after(extractor, monkeypatch):

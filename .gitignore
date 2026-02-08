@@ -22,6 +22,9 @@ wheels/
 .venv/
 venv/
 env/
+tests/__pycache__/
+tests/*/__pycache__/
+tests/*/*/__pycache__/
 
 # IDEs and Editors
 .vscode
@@ -95,10 +98,27 @@ backend/reviews.db*
 exports/
 
 # Test databases
+
+# One-off scripts and development files (not part of production pipeline)
+scripts/
+read_excel.py
+configure_ky3_production.py
+convert_to_articleurls.py
+aggregate_phase1.py
+fix_papermill_warnings.py
+run_phase5_*.py
+run_crawler_batch.sh
+run_*.sh
+debug_*.py
+test_*.py
 *.db
 *.db-*
 test_*.db
 logs/pre-push/*.log
+
+# EXCEPT: Production CI/CD validation scripts
+!scripts/test-production-readiness.sh
+!scripts/validate_workflow_templates.py
 
 # ============================================
 # Exported data files (should not be committed)
@@ -171,8 +191,11 @@ debug/
 utls-client
 utls-client-amd64
 
+# Temporary/one-off diagnostic files and xlsx exports
+tmp/
+*.xlsx
+
 # Local debug/temp files
-tmp_braces.txt
 
 # Local helper folders
 inspect_clienthello/

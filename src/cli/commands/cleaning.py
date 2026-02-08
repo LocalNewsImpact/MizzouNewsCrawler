@@ -125,6 +125,12 @@ def handle_cleaning_command(args) -> int:
                         )
 
                         wire_detected = metadata.get("wire_detected")
+                        wire_suppressed = bool(
+                            metadata.get("wire_suppressed_due_to_local_byline")
+                        )
+                        if wire_suppressed:
+                            wire_detected = None
+
                         locality_assessment = metadata.get("locality_assessment") or {}
                         is_local_wire = bool(
                             wire_detected
@@ -134,7 +140,10 @@ def handle_cleaning_command(args) -> int:
 
                         # Determine new status
                         new_status = current_status
-                        if is_local_wire:
+                        if wire_suppressed:
+                            if current_status in {"wire", "local", "extracted"}:
+                                new_status = "cleaned"
+                        elif is_local_wire:
                             if current_status in {"wire", "cleaned", "extracted"}:
                                 new_status = "local"
                         elif wire_detected:
