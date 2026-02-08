@@ -10,7 +10,6 @@ from scripts import manual_enqueue_urls
 from src.models import CandidateLink, Dataset
 from src.models.database import DatabaseManager
 
-
 pytestmark = pytest.mark.local_scripts
 
 

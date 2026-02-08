@@ -10,7 +10,6 @@ from sqlalchemy.orm import sessionmaker
 from scripts.backfill import backfill_article_entities as backfill_module
 from src.models import Article, ArticleEntity, Base, CandidateLink
 
-
 pytestmark = pytest.mark.local_scripts
 
 
