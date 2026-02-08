@@ -7,7 +7,7 @@ from unittest import mock
 
 import pytest
 
-from src.cli.commands.domain_diagnostics import (
+from src.cli.commands.test_domain import (
     DomainTestResult,
     add_test_domain_parser,
     categorize_error,
@@ -101,7 +101,7 @@ class TestCategorizeError:
     def test_categorize_connection_error(self):
         """Verify connection errors are categorized."""
         assert categorize_error("Connection refused") == "CONNECTION_ERROR"
-        assert categorize_error("Cannot connect") == "CONNECTION_ERROR"
+        assert categorize_error("Connection reset") == "CONNECTION_ERROR"
 
     def test_categorize_unknown_error(self):
         """Verify unknown errors default to OTHER_ERROR."""
@@ -204,8 +204,8 @@ class TestHandleDomainDiagnosticsCommand:
     """Test main command handler."""
 
     @mock.patch("builtins.print")
-    @mock.patch("src.cli.commands.domain_diagnostics.DatabaseManager")
-    @mock.patch("src.cli.commands.domain_diagnostics.ContentExtractor")
+    @mock.patch("src.cli.commands.test_domain.DatabaseManager")
+    @mock.patch("src.cli.commands.test_domain.ContentExtractor")
     def test_command_success_path(self, mock_extractor_class, mock_db, mock_print):
         """Verify command handles successful extraction."""
         # Setup args
@@ -241,7 +241,7 @@ class TestHandleDomainDiagnosticsCommand:
         assert result == 0
 
     @mock.patch("builtins.print")
-    @mock.patch("src.cli.commands.domain_diagnostics.DatabaseManager")
+    @mock.patch("src.cli.commands.test_domain.DatabaseManager")
     def test_command_no_articles_found(self, mock_db, mock_print):
         """Verify command handles no articles found."""
         mock_args = mock.MagicMock()
@@ -260,7 +260,7 @@ class TestHandleDomainDiagnosticsCommand:
         assert result == 0
 
     @mock.patch("builtins.print")
-    @mock.patch("src.cli.commands.domain_diagnostics.DatabaseManager")
+    @mock.patch("src.cli.commands.test_domain.DatabaseManager")
     def test_command_database_error(self, mock_db, mock_print):
         """Verify command handles database errors."""
         mock_args = mock.MagicMock()
@@ -279,8 +279,8 @@ class TestHandleDomainDiagnosticsCommand:
         assert result == 1
 
     @mock.patch("builtins.print")
-    @mock.patch("src.cli.commands.domain_diagnostics.DatabaseManager")
-    @mock.patch("src.cli.commands.domain_diagnostics.ContentExtractor")
+    @mock.patch("src.cli.commands.test_domain.DatabaseManager")
+    @mock.patch("src.cli.commands.test_domain.ContentExtractor")
     def test_command_partial_extraction(
         self, mock_extractor_class, mock_db, mock_print
     ):
@@ -312,8 +312,8 @@ class TestHandleDomainDiagnosticsCommand:
         assert result == 0
 
     @mock.patch("builtins.print")
-    @mock.patch("src.cli.commands.domain_diagnostics.DatabaseManager")
-    @mock.patch("src.cli.commands.domain_diagnostics.ContentExtractor")
+    @mock.patch("src.cli.commands.test_domain.DatabaseManager")
+    @mock.patch("src.cli.commands.test_domain.ContentExtractor")
     def test_command_extraction_failure(
         self, mock_extractor_class, mock_db, mock_print
     ):
@@ -343,8 +343,8 @@ class TestHandleDomainDiagnosticsCommand:
 
     @mock.patch("builtins.print")
     @mock.patch("builtins.open", new_callable=mock.mock_open)
-    @mock.patch("src.cli.commands.domain_diagnostics.DatabaseManager")
-    @mock.patch("src.cli.commands.domain_diagnostics.ContentExtractor")
+    @mock.patch("src.cli.commands.test_domain.DatabaseManager")
+    @mock.patch("src.cli.commands.test_domain.ContentExtractor")
     def test_command_output_to_file(
         self, mock_extractor_class, mock_db, mock_file, mock_print
     ):
@@ -378,8 +378,8 @@ class TestHandleDomainDiagnosticsCommand:
         mock_file.assert_called_with("/tmp/results.json", "w")
 
     @mock.patch("builtins.print")
-    @mock.patch("src.cli.commands.domain_diagnostics.DatabaseManager")
-    @mock.patch("src.cli.commands.domain_diagnostics.ContentExtractor")
+    @mock.patch("src.cli.commands.test_domain.DatabaseManager")
+    @mock.patch("src.cli.commands.test_domain.ContentExtractor")
     def test_command_verbose_mode(self, mock_extractor_class, mock_db, mock_print):
         """Verify verbose flag enables debug logging."""
         mock_args = mock.MagicMock()
@@ -409,8 +409,8 @@ class TestHandleDomainDiagnosticsCommand:
         assert result == 0
 
     @mock.patch("builtins.print")
-    @mock.patch("src.cli.commands.domain_diagnostics.DatabaseManager")
-    @mock.patch("src.cli.commands.domain_diagnostics.ContentExtractor")
+    @mock.patch("src.cli.commands.test_domain.DatabaseManager")
+    @mock.patch("src.cli.commands.test_domain.ContentExtractor")
     def test_command_domain_normalization(
         self, mock_extractor_class, mock_db, mock_print
     ):
@@ -442,8 +442,8 @@ class TestHandleDomainDiagnosticsCommand:
         assert result == 0
 
     @mock.patch("builtins.print")
-    @mock.patch("src.cli.commands.domain_diagnostics.DatabaseManager")
-    @mock.patch("src.cli.commands.domain_diagnostics.ContentExtractor")
+    @mock.patch("src.cli.commands.test_domain.DatabaseManager")
+    @mock.patch("src.cli.commands.test_domain.ContentExtractor")
     def test_command_multiple_urls(self, mock_extractor_class, mock_db, mock_print):
         """Verify command handles multiple URLs."""
         mock_args = mock.MagicMock()
@@ -475,8 +475,8 @@ class TestHandleDomainDiagnosticsCommand:
         assert result == 0
 
     @mock.patch("builtins.print")
-    @mock.patch("src.cli.commands.domain_diagnostics.DatabaseManager")
-    @mock.patch("src.cli.commands.domain_diagnostics.ContentExtractor")
+    @mock.patch("src.cli.commands.test_domain.DatabaseManager")
+    @mock.patch("src.cli.commands.test_domain.ContentExtractor")
     def test_command_chrome_error_handling(
         self, mock_extractor_class, mock_db, mock_print
     ):

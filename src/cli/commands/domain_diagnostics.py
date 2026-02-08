@@ -204,7 +204,7 @@ def add_test_domain_parser(subparsers):
     return parser
 
 
-def handle_domain_test_command(cli_args):
+def handle_domain_diagnostics_command(cli_args):
     """Test extraction on a specific domain and show diagnostics."""
 
     domain = cli_args.domain
