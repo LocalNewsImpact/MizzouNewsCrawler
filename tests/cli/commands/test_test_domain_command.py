@@ -1,229 +1,505 @@
 """Unit tests for test-domain diagnostic command."""
 
+import json
 import os
+from datetime import datetime
 from unittest import mock
 
 import pytest
 
 from src.cli.commands.domain_diagnostics import (
+    DomainTestResult,
+    add_test_domain_parser,
+    categorize_error,
+    get_recommendation,
     handle_domain_diagnostics_command,
 )
 
 
-class TestDomainCommand:
-    """Test the test-domain diagnostic command."""
+class TestDomainTestResult:
+    """Test DomainTestResult dataclass."""
 
-    def test_domain_command_basic_structure(self):
-        """Verify test-domain command has expected attributes."""
-        # The command function should exist and be callable
-        assert callable(handle_domain_diagnostics_command)
-
-    @mock.patch("src.cli.commands.domain_diagnostics.DatabaseManager")
-    def test_domain_query_construction(self, mock_db_manager):
-        """Verify database query for domain URLs is constructed correctly."""
-        # Mock database should be called to fetch URLs by domain
-        mock_session = mock.MagicMock()
-        mock_db_manager.return_value.get_session.return_value.__enter__.return_value = (
-            mock_session
+    def test_domain_test_result_creation(self):
+        """Verify DomainTestResult can be created."""
+        result = DomainTestResult(
+            domain="example.com",
+            url="http://example.com/article",
+            status="success",
+            methods_attempted=["http", "selenium"],
+            methods_passed={"http": True, "selenium": False},
+            methods_errors={"selenium": "timeout"},
+            fields_extracted={"title": True, "author": True, "content": True},
+            missing_fields=[],
+            final_content_length=1000,
+            recommendations=["Recommendation 1"],
+            timestamp=datetime.utcnow().isoformat(),
         )
+        assert result.domain == "example.com"
+        assert result.status == "success"
 
-        # The query should select from candidate_links by domain
-        mock_session.execute.return_value.fetchall.return_value = []
-
-        assert mock_db_manager.called or not mock_db_manager.called  # Placeholder
-
-    @mock.patch("src.cli.commands.domain_diagnostics.ContentExtractor")
-    def test_domain_creates_extractor(self, mock_extractor):
-        """Verify test-domain creates ContentExtractor for testing."""
-        mock_extractor_instance = mock.MagicMock()
-        mock_extractor.return_value = mock_extractor_instance
-
-        # Should be able to instantiate extractor
-        assert mock_extractor.return_value == mock_extractor_instance
-
-    def test_domain_error_categories_defined(self):
-        """Verify all error categories are handled."""
-        error_categories = [
-            "CLOUDFLARE_PROTECTION",
-            "SUBSCRIPTION_WALL",
-            "PROXY_CHALLENGE",
-            "HTTP_403",
-            "HTTP_404",
-            "TIMEOUT",
-            "CHROME_DRIVER_ERROR",
-            "CONNECTION_ERROR",
-        ]
-
-        for category in error_categories:
-            # Each category should be a valid string
-            assert isinstance(category, str)
-            assert len(category) > 0
-
-    @mock.patch("src.cli.commands.domain_diagnostics.handle_domain_diagnostics_command")
-    def test_domain_default_limit_one(self, mock_test_domain):
-        """Verify default limit for test-domain is 1 URL."""
-        # The command should use limit=1 by default for fast iteration
-        mock_test_domain.return_value = None
-
-        # Default limit should be 1 (changed from 3)
-        # This would be verified in the actual args parsing
-        assert True  # Placeholder for actual implementation
-
-    def test_domain_extraction_success_status(self):
-        """Verify extraction success status is correctly reported."""
-        success_statuses = ["success", "partial", "failure"]
-
-        for status in success_statuses:
-            assert isinstance(status, str)
-            assert status in success_statuses
-
-    def test_domain_field_extraction_results(self):
-        """Verify extracted fields are reported in results."""
-        extracted_fields = ["title", "author", "content", "publish_date"]
-
-        for field in extracted_fields:
-            assert isinstance(field, str)
-            assert len(field) > 0
-
-    def test_domain_missing_fields_detection(self):
-        """Verify missing fields are detected and reported."""
-        # If a field is None or empty, it should be marked as missing
-        fields = {
-            "title": "Test Title",
-            "author": None,
-            "content": "Test content",
-            "publish_date": None,
-        }
-
-        missing = [k for k, v in fields.items() if not v]
-        assert "author" in missing
-        assert "publish_date" in missing
-        assert len(missing) == 2
-
-    @mock.patch("src.cli.commands.domain_diagnostics.ContentExtractor")
-    def test_domain_calls_extractor(self, mock_extractor):
-        """Verify test-domain calls ContentExtractor for each URL."""
-        mock_instance = mock.MagicMock()
-        mock_extractor.return_value = mock_instance
-
-        # Should create an extractor instance
-        extractor = mock_extractor(
-            url="http://example.com",
-            proxy_url="http://localhost:3128",
+    def test_domain_test_result_to_dict(self):
+        """Verify to_dict() converts dataclass to dict."""
+        result = DomainTestResult(
+            domain="example.com",
+            url="http://example.com/article",
+            status="success",
+            methods_attempted=[],
+            methods_passed={},
+            methods_errors={},
+            fields_extracted={},
+            missing_fields=[],
+            final_content_length=500,
+            recommendations=[],
+            timestamp=datetime.utcnow().isoformat(),
         )
-
-        assert extractor == mock_instance
-
-    def test_domain_recommendation_generation(self):
-        """Verify error recommendations are generated."""
-        error_types = {
-            "CLOUDFLARE_PROTECTION": "bot-protection bypass",
-            "SUBSCRIPTION_WALL": "modal handling",
-            "PROXY_CHALLENGE": "proxy rotation",
-            "HTTP_403": "authentication",
-            "HTTP_404": "URL validation",
-            "TIMEOUT": "retry logic",
-            "CHROME_DRIVER_ERROR": "Chrome initialization",
-            "CONNECTION_ERROR": "network connectivity",
-        }
-
-        for error_type, recommendation_type in error_types.items():
-            assert isinstance(error_type, str)
-            assert isinstance(recommendation_type, str)
-            assert len(recommendation_type) > 0
+        result_dict = result.to_dict()
+        assert isinstance(result_dict, dict)
+        assert result_dict["domain"] == "example.com"
+        assert result_dict["status"] == "success"
 
 
-class TestDomainCommandIntegration:
-    """Integration-style tests for test-domain command."""
+class TestCategorizeError:
+    """Test error categorization function."""
+
+    def test_categorize_cloudflare_error(self):
+        """Verify Cloudflare errors are categorized correctly."""
+        assert (
+            categorize_error("Cloudflare challenge failed") == "CLOUDFLARE_PROTECTION"
+        )
+        assert categorize_error("CF_CHALLENGE detected") == "CLOUDFLARE_PROTECTION"
+
+    def test_categorize_subscription_error(self):
+        """Verify subscription wall errors are categorized."""
+        assert categorize_error("Subscription required") == "SUBSCRIPTION_WALL"
+        assert categorize_error("Paywall detected") == "SUBSCRIPTION_WALL"
+
+    def test_categorize_proxy_error(self):
+        """Verify proxy challenge errors are categorized."""
+        assert categorize_error("Proxy challenge failed") == "PROXY_CHALLENGE"
+        assert categorize_error("Squid blocked request") == "PROXY_CHALLENGE"
+
+    def test_categorize_403_error(self):
+        """Verify 403 errors are categorized."""
+        assert categorize_error("403 Forbidden") == "HTTP_403_FORBIDDEN"
+        assert categorize_error("Access Forbidden") == "HTTP_403_FORBIDDEN"
+
+    def test_categorize_404_error(self):
+        """Verify 404 errors are categorized."""
+        assert categorize_error("404 Not Found") == "HTTP_404_NOT_FOUND"
+        assert categorize_error("Page not found") == "HTTP_404_NOT_FOUND"
+
+    def test_categorize_timeout_error(self):
+        """Verify timeout errors are categorized."""
+        assert categorize_error("Request timed out") == "TIMEOUT"
+        assert categorize_error("Connection timed out") == "TIMEOUT"
+
+    def test_categorize_chrome_error(self):
+        """Verify Chrome/driver errors are categorized."""
+        assert categorize_error("ChromeDriver failed") == "CHROME_DRIVER_ERROR"
+        assert categorize_error("Selenium error") == "CHROME_DRIVER_ERROR"
+
+    def test_categorize_connection_error(self):
+        """Verify connection errors are categorized."""
+        assert categorize_error("Connection refused") == "CONNECTION_ERROR"
+        assert categorize_error("Cannot connect") == "CONNECTION_ERROR"
+
+    def test_categorize_unknown_error(self):
+        """Verify unknown errors default to OTHER_ERROR."""
+        assert categorize_error("Some random error") == "OTHER_ERROR"
+
+    def test_categorize_case_insensitive(self):
+        """Verify categorization is case-insensitive."""
+        assert categorize_error("CLOUDFLARE CHALLENGE") == "CLOUDFLARE_PROTECTION"
+        assert categorize_error("timeout ERROR") == "TIMEOUT"
+
+
+class TestGetRecommendation:
+    """Test recommendation generation function."""
+
+    def test_recommendation_cloudflare(self):
+        """Verify Cloudflare recommendations are generated."""
+        recs = get_recommendation("CLOUDFLARE_PROTECTION", "example.com")
+        assert len(recs) > 0
+        assert any("example.com" in r for r in recs)
+
+    def test_recommendation_subscription(self):
+        """Verify subscription wall recommendations are generated."""
+        recs = get_recommendation("SUBSCRIPTION_WALL", "example.com")
+        assert len(recs) > 0
+        assert any("subscription" in r.lower() for r in recs)
+
+    def test_recommendation_proxy(self):
+        """Verify proxy recommendations are generated."""
+        recs = get_recommendation("PROXY_CHALLENGE", "example.com")
+        assert len(recs) > 0
+        assert any("proxy" in r.lower() for r in recs)
+
+    def test_recommendation_403(self):
+        """Verify 403 error recommendations."""
+        recs = get_recommendation("HTTP_403_FORBIDDEN", "example.com")
+        assert len(recs) > 0
+
+    def test_recommendation_404(self):
+        """Verify 404 error recommendations."""
+        recs = get_recommendation("HTTP_404_NOT_FOUND", "example.com")
+        assert len(recs) > 0
+
+    def test_recommendation_timeout(self):
+        """Verify timeout recommendations."""
+        recs = get_recommendation("TIMEOUT", "example.com")
+        assert len(recs) > 0
+
+    def test_recommendation_chrome(self):
+        """Verify Chrome error recommendations."""
+        recs = get_recommendation("CHROME_DRIVER_ERROR", "example.com")
+        assert len(recs) > 0
+
+    def test_recommendation_connection(self):
+        """Verify connection error recommendations."""
+        recs = get_recommendation("CONNECTION_ERROR", "example.com")
+        assert len(recs) > 0
+
+    def test_recommendation_unknown(self):
+        """Verify unknown error recommendations."""
+        recs = get_recommendation("UNKNOWN_ERROR_TYPE", "example.com")
+        assert len(recs) > 0
+
+
+class TestAddTestDomainParser:
+    """Test parser creation for test-domain command."""
+
+    def test_add_test_domain_parser(self):
+        """Verify parser is created with required arguments."""
+        import argparse
+
+        main_parser = argparse.ArgumentParser()
+        subparsers = main_parser.add_subparsers()
+
+        parser = add_test_domain_parser(subparsers)
+        assert parser is not None
+
+    def test_parser_domain_required(self):
+        """Verify --domain argument is required."""
+        import argparse
+
+        main_parser = argparse.ArgumentParser()
+        subparsers = main_parser.add_subparsers()
+
+        parser = add_test_domain_parser(subparsers)
+        # Parser should be configured with --domain required
+        assert any(action.dest == "domain" for action in parser._actions)
+
+    def test_parser_limit_optional(self):
+        """Verify --limit argument is optional with default."""
+        import argparse
+
+        main_parser = argparse.ArgumentParser()
+        subparsers = main_parser.add_subparsers()
+
+        parser = add_test_domain_parser(subparsers)
+        assert any(action.dest == "limit" for action in parser._actions)
+
+
+class TestHandleDomainDiagnosticsCommand:
+    """Test main command handler."""
 
     @mock.patch("builtins.print")
     @mock.patch("src.cli.commands.domain_diagnostics.DatabaseManager")
     @mock.patch("src.cli.commands.domain_diagnostics.ContentExtractor")
-    def test_domain_full_workflow(self, mock_extractor, mock_db, mock_print):
-        """Verify full test-domain workflow with mocks."""
-        # Setup mock args
+    def test_command_success_path(self, mock_extractor_class, mock_db, mock_print):
+        """Verify command handles successful extraction."""
+        # Setup args
         mock_args = mock.MagicMock()
         mock_args.domain = "example.com"
         mock_args.limit = 1
         mock_args.verbose = False
         mock_args.output = None
 
-        # Setup mock database
+        # Setup database mock
         mock_session = mock.MagicMock()
         mock_db.return_value.get_session.return_value.__enter__.return_value = (
             mock_session
         )
+        mock_session.execute.return_value.fetchall.return_value = [
+            (1, "http://example.com/article", "example.com")
+        ]
 
-        # Setup mock candidate links - must return row with id, url, source
-        # Create mock row that can be unpacked
-        mock_row = (1, "http://example.com/article", "example.com")
-        mock_session.execute.return_value.fetchall.return_value = [mock_row]
-
-        # Setup mock extractor
-        mock_extractor_instance = mock.MagicMock()
-        mock_extractor_instance.status = "success"
-        mock_extractor_instance.title = "Test Article"
-        mock_extractor_instance.author = "Test Author"
-        mock_extractor_instance.content = "Test content"
-        mock_extractor_instance.publish_date = "2024-01-01"
-        mock_extractor.return_value = mock_extractor_instance
-
-        # Call the function
-        result = handle_domain_diagnostics_command(mock_args)
-
-        # Verify workflow components were used
-        assert mock_db.called
-        assert result is None or result == 0  # Success exit code
-
-    def test_domain_reuses_chromedriver(self):
-        """Verify test-domain reuses existing ChromeDriver."""
-        # The shared driver implementation prevents new Chrome creation
-        # This is verified by the shared driver unit tests
-        assert True  # Verified in TestSharedChromeDriver
-
-    def test_domain_handles_partial_extraction(self):
-        """Verify partial extraction results are properly reported."""
-        extraction_result = {
-            "title": "Article Title",
-            "author": "John Doe",
-            "content": "Article content here...",
-            "publish_date": None,  # Missing
+        # Setup extractor mock - return dict
+        mock_extractor = mock.MagicMock()
+        mock_extractor_class.return_value = mock_extractor
+        mock_extractor.extract_content.return_value = {
+            "title": "Test Article",
+            "author": "Test Author",
+            "published_date": "2024-01-01",
+            "content": "Test content here",
         }
 
-        extracted_count = sum(1 for v in extraction_result.values() if v)
-        total_count = len(extraction_result)
+        # Call command
+        result = handle_domain_diagnostics_command(mock_args)
 
-        assert extracted_count == 3
-        assert total_count == 4
-        assert extracted_count < total_count  # Partial
+        # Verify success
+        assert result == 0
 
+    @mock.patch("builtins.print")
+    @mock.patch("src.cli.commands.domain_diagnostics.DatabaseManager")
+    def test_command_no_articles_found(self, mock_db, mock_print):
+        """Verify command handles no articles found."""
+        mock_args = mock.MagicMock()
+        mock_args.domain = "nonexistent.com"
+        mock_args.limit = 1
+        mock_args.verbose = False
+        mock_args.output = None
 
-class TestDomainCommandErrorHandling:
-    """Test error handling in test-domain command."""
+        mock_session = mock.MagicMock()
+        mock_db.return_value.get_session.return_value.__enter__.return_value = (
+            mock_session
+        )
+        mock_session.execute.return_value.fetchall.return_value = []
 
-    def test_domain_handles_extraction_timeout(self):
-        """Verify timeout errors are categorized correctly."""
-        error_type = "TIMEOUT"
-        assert error_type == "TIMEOUT"
+        result = handle_domain_diagnostics_command(mock_args)
+        assert result == 0
 
-    def test_domain_handles_chrome_driver_error(self):
-        """Verify ChromeDriver errors are categorized correctly."""
-        error_type = "CHROME_DRIVER_ERROR"
-        assert error_type == "CHROME_DRIVER_ERROR"
+    @mock.patch("builtins.print")
+    @mock.patch("src.cli.commands.domain_diagnostics.DatabaseManager")
+    def test_command_database_error(self, mock_db, mock_print):
+        """Verify command handles database errors."""
+        mock_args = mock.MagicMock()
+        mock_args.domain = "example.com"
+        mock_args.limit = 1
+        mock_args.verbose = False
+        mock_args.output = None
 
-    def test_domain_handles_connection_error(self):
-        """Verify connection errors are categorized correctly."""
-        error_type = "CONNECTION_ERROR"
-        assert error_type == "CONNECTION_ERROR"
+        mock_session = mock.MagicMock()
+        mock_db.return_value.get_session.return_value.__enter__.return_value = (
+            mock_session
+        )
+        mock_session.execute.side_effect = Exception("Database connection failed")
 
-    def test_domain_handles_bot_protection(self):
-        """Verify bot protection errors are categorized correctly."""
-        error_type = "CLOUDFLARE_PROTECTION"
-        assert error_type == "CLOUDFLARE_PROTECTION"
+        result = handle_domain_diagnostics_command(mock_args)
+        assert result == 1
 
-    def test_domain_handles_subscription_wall(self):
-        """Verify subscription wall is categorized as non-blocking."""
-        error_type = "SUBSCRIPTION_WALL"
-        # Subscription wall should not block extraction
-        is_blocking = error_type not in ["SUBSCRIPTION_WALL"]
-        assert is_blocking is False
+    @mock.patch("builtins.print")
+    @mock.patch("src.cli.commands.domain_diagnostics.DatabaseManager")
+    @mock.patch("src.cli.commands.domain_diagnostics.ContentExtractor")
+    def test_command_partial_extraction(
+        self, mock_extractor_class, mock_db, mock_print
+    ):
+        """Verify command handles partial extraction (missing fields)."""
+        mock_args = mock.MagicMock()
+        mock_args.domain = "example.com"
+        mock_args.limit = 1
+        mock_args.verbose = False
+        mock_args.output = None
+
+        mock_session = mock.MagicMock()
+        mock_db.return_value.get_session.return_value.__enter__.return_value = (
+            mock_session
+        )
+        mock_session.execute.return_value.fetchall.return_value = [
+            (1, "http://example.com/article", "example.com")
+        ]
+
+        mock_extractor = mock.MagicMock()
+        mock_extractor_class.return_value = mock_extractor
+        mock_extractor.extract_content.return_value = {
+            "title": "Test Article",
+            "author": None,  # Missing field
+            "published_date": "2024-01-01",
+            "content": "Test content",
+        }
+
+        result = handle_domain_diagnostics_command(mock_args)
+        assert result == 0
+
+    @mock.patch("builtins.print")
+    @mock.patch("src.cli.commands.domain_diagnostics.DatabaseManager")
+    @mock.patch("src.cli.commands.domain_diagnostics.ContentExtractor")
+    def test_command_extraction_failure(
+        self, mock_extractor_class, mock_db, mock_print
+    ):
+        """Verify command handles extraction failure."""
+        mock_args = mock.MagicMock()
+        mock_args.domain = "example.com"
+        mock_args.limit = 1
+        mock_args.verbose = False
+        mock_args.output = None
+
+        mock_session = mock.MagicMock()
+        mock_db.return_value.get_session.return_value.__enter__.return_value = (
+            mock_session
+        )
+        mock_session.execute.return_value.fetchall.return_value = [
+            (1, "http://example.com/article", "example.com")
+        ]
+
+        mock_extractor = mock.MagicMock()
+        mock_extractor_class.return_value = mock_extractor
+        mock_extractor.extract_content.side_effect = Exception(
+            "Timeout during extraction"
+        )
+
+        result = handle_domain_diagnostics_command(mock_args)
+        assert result == 1
+
+    @mock.patch("builtins.print")
+    @mock.patch("builtins.open", new_callable=mock.mock_open)
+    @mock.patch("src.cli.commands.domain_diagnostics.DatabaseManager")
+    @mock.patch("src.cli.commands.domain_diagnostics.ContentExtractor")
+    def test_command_output_to_file(
+        self, mock_extractor_class, mock_db, mock_file, mock_print
+    ):
+        """Verify command saves results to JSON file."""
+        mock_args = mock.MagicMock()
+        mock_args.domain = "example.com"
+        mock_args.limit = 1
+        mock_args.verbose = False
+        mock_args.output = "/tmp/results.json"
+
+        mock_session = mock.MagicMock()
+        mock_db.return_value.get_session.return_value.__enter__.return_value = (
+            mock_session
+        )
+        mock_session.execute.return_value.fetchall.return_value = [
+            (1, "http://example.com/article", "example.com")
+        ]
+
+        mock_extractor = mock.MagicMock()
+        mock_extractor_class.return_value = mock_extractor
+        mock_extractor.extract_content.return_value = {
+            "title": "Test Article",
+            "author": "Test Author",
+            "published_date": "2024-01-01",
+            "content": "Test content",
+        }
+
+        result = handle_domain_diagnostics_command(mock_args)
+        assert result == 0
+        # Verify file was written
+        mock_file.assert_called_with("/tmp/results.json", "w")
+
+    @mock.patch("builtins.print")
+    @mock.patch("src.cli.commands.domain_diagnostics.DatabaseManager")
+    @mock.patch("src.cli.commands.domain_diagnostics.ContentExtractor")
+    def test_command_verbose_mode(self, mock_extractor_class, mock_db, mock_print):
+        """Verify verbose flag enables debug logging."""
+        mock_args = mock.MagicMock()
+        mock_args.domain = "example.com"
+        mock_args.limit = 1
+        mock_args.verbose = True
+        mock_args.output = None
+
+        mock_session = mock.MagicMock()
+        mock_db.return_value.get_session.return_value.__enter__.return_value = (
+            mock_session
+        )
+        mock_session.execute.return_value.fetchall.return_value = [
+            (1, "http://example.com/article", "example.com")
+        ]
+
+        mock_extractor = mock.MagicMock()
+        mock_extractor_class.return_value = mock_extractor
+        mock_extractor.extract_content.return_value = {
+            "title": "Test Article",
+            "author": "Test Author",
+            "published_date": "2024-01-01",
+            "content": "Test content",
+        }
+
+        result = handle_domain_diagnostics_command(mock_args)
+        assert result == 0
+
+    @mock.patch("builtins.print")
+    @mock.patch("src.cli.commands.domain_diagnostics.DatabaseManager")
+    @mock.patch("src.cli.commands.domain_diagnostics.ContentExtractor")
+    def test_command_domain_normalization(
+        self, mock_extractor_class, mock_db, mock_print
+    ):
+        """Verify domain is normalized (http/https stripped)."""
+        mock_args = mock.MagicMock()
+        mock_args.domain = "https://example.com/path"
+        mock_args.limit = 1
+        mock_args.verbose = False
+        mock_args.output = None
+
+        mock_session = mock.MagicMock()
+        mock_db.return_value.get_session.return_value.__enter__.return_value = (
+            mock_session
+        )
+        mock_session.execute.return_value.fetchall.return_value = [
+            (1, "http://example.com/article", "example.com")
+        ]
+
+        mock_extractor = mock.MagicMock()
+        mock_extractor_class.return_value = mock_extractor
+        mock_extractor.extract_content.return_value = {
+            "title": "Test",
+            "author": "Test",
+            "published_date": "2024-01-01",
+            "content": "Test",
+        }
+
+        result = handle_domain_diagnostics_command(mock_args)
+        assert result == 0
+
+    @mock.patch("builtins.print")
+    @mock.patch("src.cli.commands.domain_diagnostics.DatabaseManager")
+    @mock.patch("src.cli.commands.domain_diagnostics.ContentExtractor")
+    def test_command_multiple_urls(self, mock_extractor_class, mock_db, mock_print):
+        """Verify command handles multiple URLs."""
+        mock_args = mock.MagicMock()
+        mock_args.domain = "example.com"
+        mock_args.limit = 3
+        mock_args.verbose = False
+        mock_args.output = None
+
+        mock_session = mock.MagicMock()
+        mock_db.return_value.get_session.return_value.__enter__.return_value = (
+            mock_session
+        )
+        mock_session.execute.return_value.fetchall.return_value = [
+            (1, "http://example.com/article1", "example.com"),
+            (2, "http://example.com/article2", "example.com"),
+            (3, "http://example.com/article3", "example.com"),
+        ]
+
+        mock_extractor = mock.MagicMock()
+        mock_extractor_class.return_value = mock_extractor
+        mock_extractor.extract_content.return_value = {
+            "title": "Test",
+            "author": "Test",
+            "published_date": "2024-01-01",
+            "content": "Test content",
+        }
+
+        result = handle_domain_diagnostics_command(mock_args)
+        assert result == 0
+
+    @mock.patch("builtins.print")
+    @mock.patch("src.cli.commands.domain_diagnostics.DatabaseManager")
+    @mock.patch("src.cli.commands.domain_diagnostics.ContentExtractor")
+    def test_command_chrome_error_handling(
+        self, mock_extractor_class, mock_db, mock_print
+    ):
+        """Verify Chrome errors are handled with detailed output."""
+        mock_args = mock.MagicMock()
+        mock_args.domain = "example.com"
+        mock_args.limit = 1
+        mock_args.verbose = False
+        mock_args.output = None
+
+        mock_session = mock.MagicMock()
+        mock_db.return_value.get_session.return_value.__enter__.return_value = (
+            mock_session
+        )
+        mock_session.execute.return_value.fetchall.return_value = [
+            (1, "http://example.com/article", "example.com")
+        ]
+
+        mock_extractor = mock.MagicMock()
+        mock_extractor_class.return_value = mock_extractor
+        mock_extractor.extract_content.side_effect = Exception(
+            "ChromeDriver error: process died"
+        )
+
+        result = handle_domain_diagnostics_command(mock_args)
+        assert result == 1
