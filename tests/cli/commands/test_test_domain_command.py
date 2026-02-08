@@ -134,10 +134,18 @@ class TestDomainCommand:
 class TestDomainCommandIntegration:
     """Integration-style tests for test-domain command."""
 
+    @mock.patch("builtins.print")
     @mock.patch("src.cli.commands.test_domain.DatabaseManager")
     @mock.patch("src.cli.commands.test_domain.ContentExtractor")
-    def test_domain_full_workflow(self, mock_extractor, mock_db):
+    def test_domain_full_workflow(self, mock_extractor, mock_db, mock_print):
         """Verify full test-domain workflow with mocks."""
+        # Setup mock args
+        mock_args = mock.MagicMock()
+        mock_args.domain = "example.com"
+        mock_args.limit = 1
+        mock_args.verbose = False
+        mock_args.output = None
+
         # Setup mock database
         mock_session = mock.MagicMock()
         mock_db.return_value.get_session.return_value.__enter__.return_value = (
@@ -151,10 +159,19 @@ class TestDomainCommandIntegration:
 
         # Setup mock extractor
         mock_extractor_instance = mock.MagicMock()
+        mock_extractor_instance.status = "success"
+        mock_extractor_instance.title = "Test Article"
+        mock_extractor_instance.author = "Test Author"
+        mock_extractor_instance.content = "Test content"
+        mock_extractor_instance.publish_date = "2024-01-01"
         mock_extractor.return_value = mock_extractor_instance
 
-        # Verify workflow components exist
-        assert mock_session.execute.return_value.fetchall() == [mock_candidate]
+        # Call the function
+        result = test_domain(mock_args)
+
+        # Verify workflow components were used
+        assert mock_db.called
+        assert result is None or result == 0  # Success exit code
 
     def test_domain_reuses_chromedriver(self):
         """Verify test-domain reuses existing ChromeDriver."""
