@@ -7,6 +7,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+pytestmark = pytest.mark.local_scripts
+
 
 class TestSmokeTestMigrations:
     """Test the smoke test script functionality."""

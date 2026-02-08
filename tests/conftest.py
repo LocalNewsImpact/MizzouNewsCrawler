@@ -4,18 +4,11 @@ from __future__ import annotations
 
 import io
 import os
-import sys
 from pathlib import Path
 
 import pytest
 from coverage import Coverage
 from coverage.exceptions import CoverageException
-
-# Add project root to Python path so tests can import from scripts/ and src/
-# This must be done BEFORE any other imports
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
 
 # Force tests to use SQLite instead of PostgreSQL/Cloud SQL
 # Set BEFORE any imports of src.config to prevent loading production settings

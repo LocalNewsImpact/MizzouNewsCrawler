@@ -9,9 +9,13 @@ from sqlalchemy import create_engine, update
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+import pytest
+
 import scripts.populate_gazetteer as populate_gazetteer
 from scripts.populate_gazetteer import get_cached_geocode, set_cached_geocode
 from src.models import Base, GeocodeCache
+
+pytestmark = pytest.mark.local_scripts
 
 
 def setup_memory_db():

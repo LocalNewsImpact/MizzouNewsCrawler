@@ -11,6 +11,9 @@ from src.models import CandidateLink, Dataset
 from src.models.database import DatabaseManager
 
 
+pytestmark = pytest.mark.local_scripts
+
+
 class _TestDatabaseManager(DatabaseManager):
     """DatabaseManager subclass that forces a test database URL."""
 

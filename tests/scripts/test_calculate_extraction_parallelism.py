@@ -15,6 +15,10 @@ from scripts.calculate_extraction_parallelism import (
     get_extraction_backlog,
     main,
 )
+
+pytestmark = pytest.mark.local_scripts
+
+
 from src.models import Article, CandidateLink
 
 

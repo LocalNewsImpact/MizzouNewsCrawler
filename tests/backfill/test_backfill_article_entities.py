@@ -11,6 +11,9 @@ from scripts.backfill import backfill_article_entities as backfill_module
 from src.models import Article, ArticleEntity, Base, CandidateLink
 
 
+pytestmark = pytest.mark.local_scripts
+
+
 @pytest.fixture
 def db_session_factory(monkeypatch):
     """Provide in-memory DB session factory and patch DatabaseManager."""
