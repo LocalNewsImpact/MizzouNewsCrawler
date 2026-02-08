@@ -204,13 +204,13 @@ def add_test_domain_parser(subparsers):
     return parser
 
 
-def handle_domain_test_command(args):
+def handle_domain_test_command(cli_args):
     """Test extraction on a specific domain and show diagnostics."""
 
-    domain = args.domain
-    limit = args.limit
-    verbose = args.verbose
-    output = args.output
+    domain = cli_args.domain
+    limit = cli_args.limit
+    verbose = cli_args.verbose
+    output = cli_args.output
 
     if verbose:
         logging.getLogger("src.crawler").setLevel(logging.DEBUG)
