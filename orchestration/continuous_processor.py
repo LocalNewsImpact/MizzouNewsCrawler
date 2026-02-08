@@ -531,7 +531,12 @@ def process_wire_detection(count: int) -> bool:
     limit = min(count, max(1, WIRE_DETECTION_BATCH_SIZE))
     pending_articles = _claim_wire_articles(limit)
     if not pending_articles:
-        telemetry.finalize_cleaning_session()
+        telemetry.finalize_cleaning_session(
+            rough_candidates_found=0,
+            segments_detected=0,
+            total_removable_chars=0,
+            removal_percentage=0.0,
+        )
         return False
 
     processed_any = False

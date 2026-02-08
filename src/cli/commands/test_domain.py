@@ -183,7 +183,7 @@ def add_test_domain_parser(subparsers):
     return parser
 
 
-def test_domain(args):
+def handle_test_domain_command(args):
     """Test extraction on a specific domain and show diagnostics."""
     
     domain = args.domain

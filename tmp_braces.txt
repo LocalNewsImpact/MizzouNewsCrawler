@@ -1,0 +1,749 @@
+1: package main -> {count}
+2:  -> {count}
+3: import ( -> {count}
+4: 	"bufio" -> {count}
+5: 	"crypto/md5" -> {count}
+6: 	"encoding/hex" -> {count}
+7: 	"encoding/json" -> {count}
+8: 	"flag" -> {count}
+9: 	"fmt" -> {count}
+10: 	"log" -> {count}
+11: 	"net" -> {count}
+12: 	"net/http" -> {count}
+13: 	"net/url" -> {count}
+14: 	"os" -> {count}
+15: 	"reflect" -> {count}
+16: 	"strconv" -> {count}
+17: 	"strings" -> {count}
+18: 	"time" -> {count}
+19:  -> {count}
+20: 	"crypto/rand" -> {count}
+21: 	"golang.org/x/crypto/curve25519" -> {count}
+22:  -> {count}
+23: 	utls "github.com/refraction-networking/utls" -> {count}
+24: ) -> {count}
+25:  -> {count}
+26: func parseJA3(s string) (version uint16, ciphers []uint16, exts []int, curves []utls.CurveID, points []uint8, err error) { -> {count}
+27: 	parts := strings.Split(s, ",") -> {count}
+28: 	if len(parts) != 5 { -> {count}
+29: 		err = fmt.Errorf("invalid ja3 format") -> {count}
+30: 		return -> {count}
+31: 	} -> {count}
+32: 	vi, _ := strconv.Atoi(parts[0]) -> {count}
+33: 	version = uint16(vi) -> {count}
+34: 	for _, p := range strings.Split(parts[1], "-") { -> {count}
+35: 		if p == "" {continue} -> {count}
+36: 		v, _ := strconv.Atoi(p) -> {count}
+37: 		ciphers = append(ciphers, uint16(v)) -> {count}
+38: 	} -> {count}
+39: 	for _, p := range strings.Split(parts[2], "-") { -> {count}
+40: 		if p == "" {continue} -> {count}
+41: 		v, _ := strconv.Atoi(p) -> {count}
+42: 		exts = append(exts, v) -> {count}
+43: 	} -> {count}
+44: 	for _, p := range strings.Split(parts[3], "-") { -> {count}
+45: 		if p == "" {continue} -> {count}
+46: 		v, _ := strconv.Atoi(p) -> {count}
+47: 		curves = append(curves, utls.CurveID(v)) -> {count}
+48: 	} -> {count}
+49: 	for _, p := range strings.Split(parts[4], "-") { -> {count}
+50: 		if p == "" {continue} -> {count}
+51: 		v, _ := strconv.Atoi(p) -> {count}
+52: 		points = append(points, uint8(v)) -> {count}
+53: 	} -> {count}
+54: 	return -> {count}
+55: } -> {count}
+56:  -> {count}
+57: func extByID(id int, serverName string, curves []utls.CurveID) utls.TLSExtension { -> {count}
+58: 	switch id { -> {count}
+59: 	case 0: -> {count}
+60: 		return &utls.SNIExtension{ServerName: serverName} -> {count}
+61: 	case 5: -> {count}
+62: 		// status_request: empty struct -> {count}
+63: 		return &utls.StatusRequestExtension{} -> {count}
+64: 	case 10: -> {count}
+65: 		// Prepend GREASE groups (0x0a0a, 0x11ec) to match Chrome's supported_groups ordering -> {count}
+66: 		grease := []utls.CurveID{utls.CurveID(0x0a0a), utls.CurveID(0x11ec)} -> {count}
+67: 		combined := append(grease, curves...) -> {count}
+68: 		return &utls.SupportedCurvesExtension{Curves: combined} -> {count}
+69: 	case 11: -> {count}
+70: 		return &utls.SupportedPointsExtension{SupportedPoints: []uint8{0}} -> {count}
+71: 	case 13: -> {count}
+72: 		// signature_algorithms -- provide a minimal, valid payload: length(2) + algorithm(0x0403) -> {count}
+73: 		// encoded as uint16 length followed by algorithms -> {count}
+74: 		return &utls.GenericExtension{Id: uint16(13), Data: []byte{0x00, 0x02, 0x04, 0x03}} -> {count}
+75: 	case 16: -> {count}
+76: 		return &utls.ALPNExtension{AlpnProtocols: []string{"h2", "http/1.1"}} -> {count}
+77: 	case 23: -> {count}
+78: 		return &utls.ExtendedMasterSecretExtension{} -> {count}
+79: 	case 27: -> {count}
+80: 		// compress certificate: send empty list -> {count}
+81: 		return &utls.GenericExtension{Id: uint16(27), Data: []byte{0x00}} -> {count}
+82: 	case 35: -> {count}
+83: 		return &utls.SessionTicketExtension{} -> {count}
+84: 	case 65037: -> {count}
+85: 		// ECH placeholder to match JA3 presence (empty payload) -> {count}
+86: 		return &utls.GenericExtension{Id: uint16(65037), Data: []byte{}} -> {count}
+87: 	case 17613: -> {count}
+88: 		// Application settings (BoringSSL codepoint) placeholder -> {count}
+89: 		return &utls.GenericExtension{Id: uint16(17613), Data: []byte{}} -> {count}
+90: 	case 43: -> {count}
+91: 		// Include GREASE version 0xfafa before real versions to match Chrome observed behavior -> {count}
+92: 		return &utls.SupportedVersionsExtension{Versions: []uint16{uint16(0xfafa), utls.VersionTLS13, utls.VersionTLS12}} -> {count}
+93: 	case 45: -> {count}
+94: 		// psk_key_exchange_modes: 1 byte length + mode 1 (psk_dhe_ke) -> {count}
+95: 		return &utls.GenericExtension{Id: uint16(45), Data: []byte{0x01, 0x01}} -> {count}
+96: 	case 51: -> {count}
+97: 		// Build key shares to mimic Chrome: prepend GREASE key shares (0x0a0a, 0x11ec) as 1-byte placeholders, -> {count}
+98: 		// then include the requested curves (X25519 with a real public, others with 32-byte placeholders). -> {count}
+99: 		var keyShares []utls.KeyShare -> {count}
+100: 		// GREASE groups observed in Chrome -> {count}
+101: 		keyShares = append(keyShares, utls.KeyShare{Group: utls.CurveID(0x0a0a), Data: []byte{0x00}}) -> {count}
+102: 		keyShares = append(keyShares, utls.KeyShare{Group: utls.CurveID(0x11ec), Data: []byte{0x00}}) -> {count}
+103: 		for _, c := range curves { -> {count}
+104: 			switch c { -> {count}
+105: 			case utls.X25519: -> {count}
+106: 				pub, err := makeX25519Pub() -> {count}
+107: 				if err != nil { -> {count}
+108: 					keyShares = append(keyShares, utls.KeyShare{Group: c, Data: nil}) -> {count}
+109: 				} else { -> {count}
+110: 					keyShares = append(keyShares, utls.KeyShare{Group: c, Data: pub}) -> {count}
+111: 				} -> {count}
+112: 			default: -> {count}
+113: 				// fallback to 32-byte random placeholder for unknown groups -> {count}
+114: 				b := make([]byte, 32) -> {count}
+115: 				if _, err := rand.Read(b); err != nil { -> {count}
+116: 					b = []byte{0x00} -> {count}
+117: 				} -> {count}
+118: 				keyShares = append(keyShares, utls.KeyShare{Group: c, Data: b}) -> {count}
+119: 			} -> {count}
+120: 		} -> {count}
+121: 		return &utls.KeyShareExtension{KeyShares: keyShares} -> {count}
+122: 	default: -> {count}
+123: 		// Generic extension with empty payload (safe fallback) -> {count}
+124: 		return &utls.GenericExtension{Id: uint16(id), Data: []byte{}} -> {count}
+125: 	} -> {count}
+126: } -> {count}
+127:  -> {count}
+128: func makeX25519Pub() ([]byte, error) { -> {count}
+129: 	priv := make([]byte, 32) -> {count}
+130: 	if _, err := rand.Read(priv); err != nil { -> {count}
+131: 		return nil, err -> {count}
+132: 	} -> {count}
+133: 	pub, err := curve25519.X25519(priv, curve25519.Basepoint) -> {count}
+134: 	if err != nil { -> {count}
+135: 		return nil, err -> {count}
+136: 	} -> {count}
+137: 	return pub, nil -> {count}
+138: } -> {count}
+139:  -> {count}
+140: // patchFirstCipher sets the first cipher suite in the ClientHello to GREASE 0x9a9a -> {count}
+141: func patchFirstCipher(raw []byte) ([]byte, bool) { -> {count}
+142: 	b := make([]byte, len(raw)) -> {count}
+143: 	copy(b, raw) -> {count}
+144: 	var innerOff int -> {count}
+145: 	var inner []byte -> {count}
+146: 	if len(b) >= 5 && b[0] == 0x16 && b[1] == 0x03 { -> {count}
+147: 		recLen := int(b[3])<<8 | int(b[4]) -> {count}
+148: 		if 5+recLen <= len(b) { -> {count}
+149: 			innerOff = 5 -> {count}
+150: 			inner = b[innerOff : innerOff+recLen] -> {count}
+151: 		} else { -> {count}
+152: 			// fallback to treating b as handshake-only -> {count}
+153: 			inner = b -> {count}
+154: 			innerOff = 0 -> {count}
+155: 		} -> {count}
+156: 	} else { -> {count}
+157: 		inner = b -> {count}
+158: 		innerOff = 0 -> {count}
+159: 	} -> {count}
+160: 	// validate handshake -> {count}
+161: 	if len(inner) < 4 || inner[0] != 0x01 { -> {count}
+162: 		return b, false -> {count}
+163: 	} -> {count}
+164: 	off := 4 -> {count}
+165: 	if off+2+32 >= len(inner) { return b, false } -> {count}
+166: 	off += 2 + 32 -> {count}
+167: 	if off >= len(inner) { return b, false } -> {count}
+168: 	sidlen := int(inner[off]) -> {count}
+169: 	off += 1 + sidlen -> {count}
+170: 	if off+2 > len(inner) { return b, false } -> {count}
+171: 	csLen := int(inner[off])<<8 | int(inner[off+1]) -> {count}
+172: 	csOff := off + 2 -> {count}
+173: 	if csOff+2 > len(inner) { return b, false } -> {count}
+174: 	current := uint16(inner[csOff])<<8 | uint16(inner[csOff+1]) -> {count}
+175: 	if current == 0x9a9a { -> {count}
+176: 		return b, false -> {count}
+177: 	} -> {count}
+178: 	absIdx := innerOff + csOff -> {count}
+179: 	b[absIdx] = 0x9a -> {count}
+180: 	b[absIdx+1] = 0x9a -> {count}
+181: 	return b, true -> {count}
+182: } -> {count}
+183:  -> {count}
+184: // wrapTLSRecordIfNeeded wraps a handshake-only ClientHello in a TLS record header if necessary -> {count}
+185: func wrapTLSRecordIfNeeded(b []byte) []byte { -> {count}
+186: 	if len(b) >= 5 && b[0] == 0x16 && b[1] == 0x03 { -> {count}
+187: 		return b -> {count}
+188: 	} -> {count}
+189: 	n := len(b) -> {count}
+190: 	header := []byte{0x16, 0x03, 0x03, byte((n>>8)&0xff), byte(n & 0xff)} -> {count}
+191: 	return append(header, b...) -> {count}
+192: } -> {count}
+193:  -> {count}
+194: // parseServerHelloSummary inspects the server response and returns a short human-readable summary -> {count}
+195: func parseServerHelloSummary(resp []byte) string { -> {count}
+196: 	if len(resp) < 5 { -> {count}
+197: 		return fmt.Sprintf("short response (%d bytes)", len(resp)) -> {count}
+198: 	} -> {count}
+199: 	recType := resp[0] -> {count}
+200: 	switch recType { -> {count}
+201: 	case 0x15: -> {count}
+202: 		if len(resp) >= 7 { -> {count}
+203: 			return fmt.Sprintf("Alert level=%d desc=%d", resp[5], resp[6]) -> {count}
+204: 		} -> {count}
+205: 		return "Alert (short)" -> {count}
+206: 	case 0x16: -> {count}
+207: 		if len(resp) < 9 { return "Handshake (too short)" } -> {count}
+208: 		hsType := resp[5] -> {count}
+209: 		if hsType != 0x02 { return fmt.Sprintf("Handshake type 0x%02x", hsType) } -> {count}
+210: 		hsStart := 5 + 4 -> {count}
+211: 		if hsStart+2+32 >= len(resp) { return "ServerHello truncated" } -> {count}
+212: 		off := hsStart + 2 + 32 -> {count}
+213: 		if off >= len(resp) { return "ServerHello truncated" } -> {count}
+214: 		sidlen := int(resp[off]) -> {count}
+215: 		off += 1 + sidlen -> {count}
+216: 		if off+2 > len(resp) { return "ServerHello truncated" } -> {count}
+217: 		cipher := int(resp[off])<<8 | int(resp[off+1]) -> {count}
+218: 		off += 2 -> {count}
+219: 		if off+1 > len(resp) { return fmt.Sprintf("ServerHello: cipher=0x%04x", cipher) } -> {count}
+220: 		_ = resp[off] -> {count}
+221: 		off += 1 -> {count}
+222: 		if off+2 > len(resp) { return fmt.Sprintf("ServerHello: cipher=0x%04x comp=??", cipher) } -> {count}
+223: 		extTotal := int(resp[off])<<8 | int(resp[off+1]) -> {count}
+224: 		off += 2 -> {count}
+225: 		endExt := off + extTotal -> {count}
+226: 		selectedKS := -1 -> {count}
+227: 		for off+4 <= endExt && off+4 <= len(resp) { -> {count}
+228: 			eid := int(resp[off])<<8 | int(resp[off+1]) -> {count}
+229: 			elen := int(resp[off+2])<<8 | int(resp[off+3]) -> {count}
+230: 			if eid == 51 && off+4+elen <= len(resp) { -> {count}
+231: 				d := resp[off+4 : off+4+elen] -> {count}
+232: 				if len(d) >= 2 { -> {count}
+233: 					selectedKS = int(d[0])<<8 | int(d[1]) -> {count}
+234: 				} -> {count}
+235: 			} -> {count}
+236: 			off += 4 + elen -> {count}
+237: 		} -> {count}
+238: 		if selectedKS != -1 { -> {count}
+239: 			return fmt.Sprintf("ServerHello cipher=0x%04x selected_key_share=0x%04x", cipher, selectedKS) -> {count}
+240: 		} -> {count}
+241: 		return fmt.Sprintf("ServerHello cipher=0x%04x", cipher) -> {count}
+242: 	default: -> {count}
+243: 		return fmt.Sprintf("Record type 0x%02x", recType) -> {count}
+244: 	} -> {count}
+245: } -> {count}
+246:  -> {count}
+247: func buildSpecFromJA3(ja3 string, serverName string) (*utls.ClientHelloSpec, error) { -> {count}
+248: 	_, ciphers, exts, curves, _, err := parseJA3(ja3) -> {count}
+249: 	if err != nil { -> {count}
+250: 		return nil, err -> {count}
+251: 	} -> {count}
+252:  -> {count}
+253: 	var cipherSuites []uint16 -> {count}
+254: 	for _, c := range ciphers { -> {count}
+255: 		cipherSuites = append(cipherSuites, c) -> {count}
+256: 	} -> {count}
+257:  -> {count}
+258: 	spec := &utls.ClientHelloSpec{ -> {count}
+259: 		TLSVersMin:   utls.VersionTLS12, -> {count}
+260: 		TLSVersMax:   utls.VersionTLS13, -> {count}
+261: 		CipherSuites: cipherSuites, -> {count}
+262: 		Extensions:   []utls.TLSExtension{}, -> {count}
+263: 	} -> {count}
+264:  -> {count}
+265: 	// add extensions in the order given by JA3 (do not filter ECH/renegotiation) -> {count}
+266: 	for _, e := range exts { -> {count}
+267: 		ext := extByID(e, serverName, curves) -> {count}
+268: 		if ext != nil { -> {count}
+269: 			spec.Extensions = append(spec.Extensions, ext) -> {count}
+270: 		} -> {count}
+271: 	} -> {count}
+272:  -> {count}
+273: 	// ensure SNI present if not declared in JA3 (prepend) -> {count}
+274: 	hasSNI := false -> {count}
+275: 	for _, e := range exts { -> {count}
+276: 		if e == 0 { -> {count}
+277: 			hasSNI = true -> {count}
+278: 			break -> {count}
+279: 		} -> {count}
+280: 	} -> {count}
+281: 	if !hasSNI { -> {count}
+282: 		spec.Extensions = append([]utls.TLSExtension{&utls.SNIExtension{ServerName: serverName}}, spec.Extensions...) -> {count}
+283: 	} -> {count}
+284:  -> {count}
+285: 	return spec, nil -> {count}
+286: } -> {count}
+287:  -> {count}
+288: func main() { -> {count}
+289: 	var ja3 string -> {count}
+290: 	var extsFlag string -> {count}
+291: 	var targetURL string -> {count}
+292: 	var server string -> {count}
+293: 	var debug bool -> {count}
+294: 	var noSpec bool -> {count}
+295: 	var helloPreset string -> {count}
+296: 	var applyPreset string -> {count}
+297:  -> {count}
+298: 	flag.StringVar(&ja3, "ja3", "", "JA3 string to apply (version,ciphers,extensions,curves,points)") -> {count}
+299: 	flag.StringVar(&extsFlag, "exts", "", "optional: comma/dash-separated extension IDs to use instead of JA3 extensions") -> {count}
+300: 	flag.StringVar(&targetURL, "url", "https://tools.scrapfly.io/api/fp/ja3", "URL to GET after handshake") -> {count}
+301: 	flag.StringVar(&server, "server", "", "server name for SNI (default from URL)") -> {count}
+302: 	flag.BoolVar(&debug, "debug", false, "print debug info") -> {count}
+303: 	// Default to noSpec=true so running the binary with no flags uses a builtin Hello preset -> {count}
+304: 	flag.BoolVar(&noSpec, "no-spec", true, "use a built-in Hello preset instead of applying a custom ClientHelloSpec") -> {count}
+305: 	flag.StringVar(&helloPreset, "hello", "chrome_120", "hello preset to use when --no-spec is set (e.g., chrome_120, chrome_115, chrome_100)") -> {count}
+306: 	flag.StringVar(&applyPreset, "apply-preset", "", "if set, generate a ClientHelloSpec from the named utls preset (e.g., chrome_120) and apply it (forces --no-spec=false)") -> {count}
+307: 	// When true, include ECH (65037) and 65281 extension IDs in the generated spec. Disabled by default because -> {count}
+308: 	// including placeholder ECH data can cause handshake failures on some servers; use for debugging/matching only. -> {count}
+309: 	var includeECH bool -> {count}
+310: 	flag.BoolVar(&includeECH, "include-ech", false, "include ECH (65037) and 65281 in the custom spec (dangerous for handshake)") -> {count}
+311: 	// Allow building a spec directly from a raw ClientHello (e.g., a captured Chrome ClientHello bin). -> {count}
+312: 	// Useful for iterating toward an exact byte-for-byte match without guessing individual fields. -> {count}
+313: 	var rawSpecFile string -> {count}
+314: 	flag.StringVar(&rawSpecFile, "raw-spec-file", "", "path to raw ClientHello bin to use as the source spec (debug only)") -> {count}
+315: 	var rawExtFile string -> {count}
+316: 	flag.StringVar(&rawExtFile, "raw-ext-file", "", "path to a JSON file containing ordered extension id and raw data pairs (debug only)") -> {count}
+317: 	// Probe-only mode: send ClientHello and report ServerHello/Alert without attempting full handshake -> {count}
+318: 	var probeOnly bool -> {count}
+319: 	var probeTimeoutSec int -> {count}
+320: 	flag.BoolVar(&probeOnly, "probe-only", false, "send ClientHello and report ServerHello/Alert only (no TLS handshake)") -> {count}
+321: 	flag.IntVar(&probeTimeoutSec, "probe-timeout", 5, "probe socket read timeout in seconds") -> {count}
+322: 	flag.Parse() -> {count}
+323:  -> {count}
+324: 	if ja3 == "" && applyPreset == "" { -> {count}
+325: 		log.Fatal("--ja3 required (or use --apply-preset)") -> {count}
+326: 	} -> {count}
+327: 	u, err := url.Parse(targetURL) -> {count}
+328: 	if err != nil { log.Fatal(err) } -> {count}
+329: 	host := u.Hostname() -> {count}
+330: 	if server == "" { server = host } -> {count}
+331:  -> {count}
+332: 	// parse base JA3 to extract ciphers & curves; we'll optionally override extensions -> {count}
+333: 	var parsedExts []int -> {count}
+334: 	var curves []utls.CurveID -> {count}
+335: 	var ciphers []uint16 -> {count}
+336: 	if ja3 != "" { -> {count}
+337: 		_, ciphers, parsedExts, curves, _, err = parseJA3(ja3) -> {count}
+338: 		if err != nil { log.Fatal(err) } -> {count}
+339: 	} -> {count}
+340:  -> {count}
+341: 	var extIDs []int -> {count}
+342: 	if extsFlag != "" { -> {count}
+343: 		// accept comma-separated or dash-separated lists -> {count}
+344: 		sep := "," -> {count}
+345: 		if strings.Contains(extsFlag, "-") && !strings.Contains(extsFlag, ",") { -> {count}
+346: 			sep = "-" -> {count}
+347: 		} -> {count}
+348: 		parts := strings.Split(extsFlag, sep) -> {count}
+349: 		for _, p := range parts { -> {count}
+350: 			p = strings.TrimSpace(p) -> {count}
+351: 			if p == "" { continue } -> {count}
+352: 			v, _ := strconv.Atoi(p) -> {count}
+353: 			extIDs = append(extIDs, v) -> {count}
+354: 		} -> {count}
+355: 	} else { -> {count}
+356: 		extIDs = parsedExts -> {count}
+357: 	} -> {count}
+358:  -> {count}
+359: 	spec := &utls.ClientHelloSpec{ -> {count}
+360: 		TLSVersMin:   utls.VersionTLS12, -> {count}
+361: 		TLSVersMax:   utls.VersionTLS13, -> {count}
+362: 		CipherSuites: ciphers, -> {count}
+363: 		Extensions:   []utls.TLSExtension{}, -> {count}
+364: 	} -> {count}
+365:  -> {count}
+366: 	// If a raw ClientHello file is provided, parse it into a ClientHelloSpec and use it directly. -> {count}
+367: 	if rawSpecFile != "" { -> {count}
+368: 		b, err := os.ReadFile(rawSpecFile) -> {count}
+369: 		if err != nil { -> {count}
+370: 			log.Fatalf("failed reading raw spec file: %v", err) -> {count}
+371: 		} -> {count}
+372: 		f := utls.Fingerprinter{} -> {count}
+373: 		rspec, err := f.RawClientHello(b) -> {count}
+374: 		if err != nil { -> {count}
+375: 			log.Fatalf("failed parsing raw clienthello: %v", err) -> {count}
+376: 		} -> {count}
+377: 		spec = rspec -> {count}
+378: 		if debug { -> {count}
+379: 			log.Println("Using ClientHelloSpec constructed from raw file:", rawSpecFile) -> {count}
+380: 		} -> {count}
+381: 	} -> {count}
+382:  -> {count}
+383: 	// If a raw extensions JSON file is provided, use those exact extensions (id + data) in order. -> {count}
+384: 	var rawExtIDs map[int]bool -> {count}
+385: 	rawExtProvided := false -> {count}
+386: 	if rawExtFile != "" { -> {count}
+387: 		rb, err := os.ReadFile(rawExtFile) -> {count}
+388: 		if err != nil { -> {count}
+389: 			log.Fatalf("failed reading raw extensions file: %v", err) -> {count}
+390: 		} -> {count}
+391: 		var exts []struct{ -> {count}
+392: 			Id int `json:"id"` -> {count}
+393: 			DataHex string `json:"data_hex"` -> {count}
+394: 		} -> {count}
+395: 		if err := json.Unmarshal(rb, &exts); err != nil { -> {count}
+396: 			log.Fatalf("failed parsing raw extensions json: %v", err) -> {count}
+397: 		} -> {count}
+398: 		// replace spec.Extensions with exact GenericExtension entries and collect their IDs -> {count}
+399: 		spec.Extensions = []utls.TLSExtension{} -> {count}
+400: 		rawExtIDs = make(map[int]bool) -> {count}
+401: 		for _, e := range exts { -> {count}
+402: 			data, _ := hex.DecodeString(e.DataHex) -> {count}
+403: 			spec.Extensions = append(spec.Extensions, &utls.GenericExtension{Id: uint16(e.Id), Data: data}) -> {count}
+404: 			rawExtIDs[e.Id] = true -> {count}
+405: 		} -> {count}
+406: 		rawExtProvided = true -> {count}
+407: 		if debug { -> {count}
+408: 			log.Println("Using raw extensions from:", rawExtFile) -> {count}
+409: 		} -> {count}
+410: 	} -> {count}
+411:  -> {count}
+412: 	if debug { -> {count}
+413: 		log.Println("using extension IDs:", extIDs) -> {count}
+414: 		if rawExtProvided { -> {count}
+415: 			ids := []int{} -> {count}
+416: 			for k := range rawExtIDs { ids = append(ids, k) } -> {count}
+417: 			log.Println("raw extension IDs provided:", ids) -> {count}
+418: 		} -> {count}
+419: 	} -> {count}
+420:  -> {count}
+421: 	// filter/construct extensions using extByID (we still filter ECH & renegotiation by default) -> {count}
+422: 	filtered := []int{} -> {count}
+423: 	for _, e := range extIDs { -> {count}
+424: 		// By default we avoid adding ECH/65281 (they can be sensitive), but allow including them -> {count}
+425: 		// when --include-ech is explicitly set for debugging/JA3 matching. -> {count}
+426: 		if !includeECH && (e == 65037 || e == 65281) { continue } -> {count}
+427: 		filtered = append(filtered, e) -> {count}
+428: 	} -> {count}
+429: 	// If a raw clienthello or raw extensions file was supplied, avoid double-adding those extension IDs -> {count}
+430: 	if rawSpecFile == "" { -> {count}
+431: 		for _, e := range filtered { -> {count}
+432: 			if rawExtProvided && rawExtIDs != nil && rawExtIDs[e] { -> {count}
+433: 				if debug { log.Printf("Skipping extension %d because supplied in raw-ext-file", e) } -> {count}
+434: 				continue -> {count}
+435: 			} -> {count}
+436: 			ext := extByID(e, server, curves) -> {count}
+437: 			if ext != nil { -> {count}
+438: 				spec.Extensions = append(spec.Extensions, ext) -> {count}
+439: 			} -> {count}
+440: 		} -> {count}
+441: 	} else { -> {count}
+442: 		if debug { -> {count}
+443: 			log.Println("Skipping automatic extension construction because raw clienthello spec was provided") -> {count}
+444: 		} -> {count}
+445: 	} -> {count}
+446:  -> {count}
+447: 	// Ensure the GREASE cipher 0x9a9a appears at the front of the cipher list to match Chrome ordering. -> {count}
+448: 	// This forces the first suite to 39578 (0x9a9a) but avoids duplication if already present. -> {count}
+449: 	greaseCipher := uint16(39578) -> {count}
+450: 	if len(spec.CipherSuites) == 0 || spec.CipherSuites[0] != greaseCipher { -> {count}
+451: 		newSuites := []uint16{greaseCipher} -> {count}
+452: 		for _, cs := range spec.CipherSuites { -> {count}
+453: 			if cs == greaseCipher { -> {count}
+454: 				continue -> {count}
+455: 			} -> {count}
+456: 			newSuites = append(newSuites, cs) -> {count}
+457: 		} -> {count}
+458: 		spec.CipherSuites = newSuites -> {count}
+459: 	} -> {count}
+460:  -> {count}
+461: 	if debug { -> {count}
+462: 		buf, _ := json.MarshalIndent(spec, "", "  ") -> {count}
+463: 		fmt.Println(string(buf)) -> {count}
+464: 	} -> {count}
+465:  -> {count}
+466: 	// Dial and use uTLS with custom ClientHelloSpec -> {count}
+467: 	addr := host + ":443" -> {count}
+468: 	dialer := &net.Dialer{Timeout: 10 * time.Second} -> {count}
+469: 	conn, err := dialer.Dial("tcp", addr) -> {count}
+470: 	if err != nil { -> {count}
+471: 		log.Fatal(err) -> {count}
+472: 	} -> {count}
+473: 	defer conn.Close() -> {count}
+474:  -> {count}
+475: 	config := &utls.Config{ServerName: server} -> {count}
+476: 	var uconn *utls.UConn -> {count}
+477: 	if applyPreset != "" { -> {count}
+478: 		// generate spec from named preset and apply it (forces spec application path) -> {count}
+479: 		var presetSpec utls.ClientHelloSpec -> {count}
+480: 		switch strings.ToLower(applyPreset) { -> {count}
+481: 		case "chrome_120": -> {count}
+482: 			presetSpec, _ = utls.UTLSIdToSpec(utls.HelloChrome_120) -> {count}
+483: 		case "chrome_115": -> {count}
+484: 			presetSpec, _ = utls.UTLSIdToSpec(utls.HelloChrome_115_PQ) -> {count}
+485: 		case "chrome_100": -> {count}
+486: 			presetSpec, _ = utls.UTLSIdToSpec(utls.HelloChrome_100) -> {count}
+487: 		default: -> {count}
+488: 			presetSpec, _ = utls.UTLSIdToSpec(utls.HelloRandomized) -> {count}
+489: 		} -> {count}
+490: 		uconn = utls.UClient(conn, config, utls.HelloCustom) -> {count}
+491: 		if err := applyClientHelloSpec(uconn, &presetSpec, debug); err != nil { -> {count}
+492: 			log.Println("applyClientHelloSpec failed for preset:", err) -> {count}
+493: 		} else { -> {count}
+494: 			log.Println("Applied preset-based ClientHelloSpec") -> {count}
+495: 		} -> {count}
+496: 	} else if noSpec { -> {count}
+497: 		// select Hello preset (map common names to available utls presets) -> {count}
+498: 		switch strings.ToLower(helloPreset) { -> {count}
+499: 		case "chrome_120": -> {count}
+500: 			uconn = utls.UClient(conn, config, utls.HelloChrome_120) -> {count}
+501: 		case "chrome_115": -> {count}
+502: 			uconn = utls.UClient(conn, config, utls.HelloChrome_115_PQ) -> {count}
+503: 		case "chrome_100": -> {count}
+504: 			uconn = utls.UClient(conn, config, utls.HelloChrome_100) -> {count}
+505: 		default: -> {count}
+506: 			uconn = utls.UClient(conn, config, utls.HelloRandomized) -> {count}
+507: 		} -> {count}
+508: 		log.Println("Using builtin Hello preset, skipping ClientHelloSpec application") -> {count}
+509: 	} else { -> {count}
+510: 		uconn = utls.UClient(conn, config, utls.HelloCustom) -> {count}
+511: 		// set the custom ClientHelloSpec on the connection -> {count}
+512: 		if err := applyClientHelloSpec(uconn, spec, debug); err != nil { -> {count}
+513: 			log.Println("applyClientHelloSpec failed:", err) -> {count}
+514: 		} else { -> {count}
+515: 			log.Println("ClientHelloSpec applied") -> {count}
+516: 		} -> {count}
+517: 	} -> {count}
+518:  -> {count}
+519: 	// If debug is enabled, try to marshal the ClientHello and print a short hexdump of what will -> {count}
+520: 	// be sent to the server to aid debugging of malformed extensions. -> {count}
+521: 	if debug { -> {count}
+522: 		rv := reflect.ValueOf(uconn) -> {count}
+523: 		// try MarshalClientHelloNoECH first -> {count}
+524: 		if m := rv.MethodByName("MarshalClientHelloNoECH"); m.IsValid() { -> {count}
+525: 			if res := m.Call(nil); len(res) == 1 && !res[0].IsNil() { -> {count}
+526: 				log.Println("MarshalClientHelloNoECH returned error:", res[0].Interface()) -> {count}
+527: 			} -> {count}
+528: 		} -> {count}
+529: 		// try to read outgoing bytes -> {count}
+530: 		if m := rv.MethodByName("GetOutKeystream"); m.IsValid() { -> {count}
+531: 			outs := m.Call([]reflect.Value{reflect.ValueOf(8192)}) -> {count}
+532: 			if len(outs) == 2 { -> {count}
+533: 				if !outs[1].IsNil() { -> {count}
+534: 					log.Println("GetOutKeystream error:", outs[1].Interface()) -> {count}
+535: 				} else { -> {count}
+536: 					b := outs[0].Interface().([]byte) -> {count}
+537: 					hexSnippet := hex.EncodeToString(b) -> {count}
+538: 					if len(hexSnippet) > 800 { -> {count}
+539: 						hexSnippet = hexSnippet[:800] -> {count}
+540: 					} -> {count}
+541: 					log.Println("ClientHello hex snippet:", hexSnippet) -> {count}
+542: 				} -> {count}
+543: 			} -> {count}
+544: 		} -> {count}
+545:  -> {count}
+546: 		// if MarshalClientHelloNoECH created hello raw, write it to /tmp -> {count}
+547: 		if uconn.HandshakeState != nil && uconn.HandshakeState.Hello != nil && len(uconn.HandshakeState.Hello.Raw) > 0 { -> {count}
+548: 			raw := uconn.HandshakeState.Hello.Raw -> {count}
+549: 			// write raw bytes and hex to /tmp with mode in filename -> {count}
+550: 			mode := "preset" -> {count}
+551: 			if !noSpec { -> {count}
+552: 				mode = "spec" -> {count}
+553: 			} -> {count}
+554: 			hexFile := fmt.Sprintf("/tmp/clienthello_%s.hex", mode) -> {count}
+555: 			binFile := fmt.Sprintf("/tmp/clienthello_%s.bin", mode) -> {count}
+556: 			if err := os.WriteFile(hexFile, []byte(hex.EncodeToString(raw)), 0644); err != nil { -> {count}
+557: 				log.Println("Failed writing clienthello hex:", err) -> {count}
+558: 			} else { -> {count}
+559: 				log.Println("Wrote clienthello hex to", hexFile) -> {count}
+560: 			} -> {count}
+561: 			if err := os.WriteFile(binFile, raw, 0644); err != nil { -> {count}
+562: 				log.Println("Failed writing clienthello bin:", err) -> {count}
+563: 			} else { -> {count}
+564: 				log.Println("Wrote clienthello bin to", binFile) -> {count}
+565: 			} -> {count}
+566:  -> {count}
+567: 			// Patch first cipher suite to GREASE 0x9a9a if needed -> {count}
+568: 			patchedRaw, didPatch := patchFirstCipher(raw) -> {count}
+569: 			if didPatch { -> {count}
+570: 				uconn.HandshakeState.Hello.Raw = patchedRaw -> {count}
+571: 				patchedHex := fmt.Sprintf("/tmp/clienthello_%s_patched.hex", mode) -> {count}
+572: 				patchedBin := fmt.Sprintf("/tmp/clienthello_%s_patched.bin", mode) -> {count}
+573: 				if err := os.WriteFile(patchedHex, []byte(hex.EncodeToString(patchedRaw)), 0644); err != nil { -> {count}
+574: 					log.Println("Failed writing patched clienthello hex:", err) -> {count}
+575: 				} else { -> {count}
+576: 					log.Println("Wrote patched clienthello hex to", patchedHex) -> {count}
+577: 				} -> {count}
+578: 				if err := os.WriteFile(patchedBin, patchedRaw, 0644); err != nil { -> {count}
+579: 					log.Println("Failed writing patched clienthello bin:", err) -> {count}
+580: 				} else { -> {count}
+581: 					log.Println("Wrote patched clienthello bin to", patchedBin) -> {count}
+582: 				} -> {count}
+583: 				log.Println("Patched ClientHello first cipher to 0x9a9a") -> {count}
+584: 			} -> {count}
+585:  -> {count}
+586: 			// write probe copies for inspection -> {count}
+587: 			if err := os.WriteFile("/tmp/clienthello_probe.bin", raw, 0644); err == nil { -> {count}
+588: 				log.Println("Wrote clienthello probe bin to /tmp/clienthello_probe.bin") -> {count}
+589: 			} -> {count}
+590: 			if err := os.WriteFile("/tmp/clienthello_probe.hex", []byte(hex.EncodeToString(raw)), 0644); err == nil { -> {count}
+591: 				log.Println("Wrote clienthello probe hex to /tmp/clienthello_probe.hex") -> {count}
+592: 			} -> {count}
+593:  -> {count}
+594: 			// If probe-only mode is set, send ClientHello raw to server and parse response -> {count}
+595: 			if probeOnly { -> {count}
+596: 				toSend := uconn.HandshakeState.Hello.Raw -> {count}
+597: 				wrapped := wrapTLSRecordIfNeeded(toSend) -> {count}
+598: 				dialer := &net.Dialer{Timeout: time.Duration(probeTimeoutSec) * time.Second} -> {count}
+599: 				connProbe, err := dialer.Dial("tcp", host+":443") -> {count}
+600: 				if err != nil { -> {count}
+601: 					log.Println("probe-only: dial error:", err) -> {count}
+602: 				} else { -> {count}
+603: 					defer connProbe.Close() -> {count}
+604: 					connProbe.SetDeadline(time.Now().Add(time.Duration(probeTimeoutSec) * time.Second)) -> {count}
+605: 					if _, err := connProbe.Write(wrapped); err != nil { -> {count}
+606: 						log.Println("probe-only: write error:", err) -> {count}
+607: 					} else { -> {count}
+608: 						buf := make([]byte, 65536) -> {count}
+609: 						n, err := connProbe.Read(buf) -> {count}
+610: 						if n > 0 { -> {count}
+611: 							resp := buf[:n] -> {count}
+612: 							if err := os.WriteFile("/tmp/probe_response.bin", resp, 0644); err != nil { -> {count}
+613: 								log.Println("probe-only: failed writing response to /tmp/probe_response.bin:", err) -> {count}
+614: 							} else { -> {count}
+615: 								log.Println("probe-only: wrote response to /tmp/probe_response.bin") -> {count}
+616: 							} -> {count}
+617: 							summary := parseServerHelloSummary(resp) -> {count}
+618: 							log.Println("probe-only result:", summary) -> {count}
+619: 						} -> {count}
+620: 						if err != nil { -> {count}
+621: 							if ne, ok := err.(net.Error); ok && ne.Timeout() { -> {count}
+622: 								log.Println("probe-only: read timeout") -> {count}
+623: 							} else { -> {count}
+624: 								log.Println("probe-only: read error:", err) -> {count}
+625: 							} -> {count}
+626: 						} -> {count}
+627: 					} -> {count}
+628: 				} -> {count}
+629: 				// print local computed JA3 and exit -> {count}
+630: 				h := md5.Sum([]byte(ja3)) -> {count}
+631: 				fmt.Println("local ja3_md5:", hex.EncodeToString(h[:])) -> {count}
+632: 				os.Exit(0) -> {count}
+633: 			} -> {count}
+634: 		} -> {count}
+635:  -> {count}
+636: 	if err := uconn.Handshake(); err != nil { -> {count}
+637: 		log.Fatal("handshake failed:", err) -> {count}
+638: 	} -> {count}
+639:  -> {count}
+640: 	// Now use net/http over the connection (very small manual request) -> {count}
+641: 	req, _ := http.NewRequest("GET", targetURL, nil) -> {count}
+642: 	req.Header.Set("User-Agent", "utls-client/1.0") -> {count}
+643: 	req.Header.Set("Accept", "*/*") -> {count}
+644:  -> {count}
+645: 	// write the request -> {count}
+646: 	if err := req.Write(uconn); err != nil { -> {count}
+647: 		log.Fatal(err) -> {count}
+648: 	} -> {count}
+649: 	resp, err := http.ReadResponse(bufio.NewReader(uconn), req) -> {count}
+650: 	if err != nil { -> {count}
+651: 		log.Fatal(err) -> {count}
+652: 	} -> {count}
+653: 	defer resp.Body.Close() -> {count}
+654:  -> {count}
+655: 	var out map[string]interface{} -> {count}
+656: 	json.NewDecoder(resp.Body).Decode(&out) -> {count}
+657: 	jsonOut, _ := json.MarshalIndent(out, "", "  ") -> {count}
+658: 	fmt.Println(string(jsonOut)) -> {count}
+659:  -> {count}
+660: 	// print local computed JA3 from the spec -> {count}
+661: 	// compute md5 of ja3 string -> {count}
+662: 	h := md5.Sum([]byte(ja3)) -> {count}
+663: 	fmt.Println("local ja3_md5:", hex.EncodeToString(h[:])) -> {count}
+664: } -> {count}
+665:  -> {count}
+666: // applyClientHelloSpec attempts multiple runtime strategies to set a custom ClientHello spec -> {count}
+667: // on the provided uconn. It uses reflection so the program compiles across utls versions that -> {count}
+668: // expose different methods (SetClientHelloSpec, MakeClientHello, ApplyPreset, etc.). -> {count}
+669: func applyClientHelloSpec(uconn *utls.UConn, spec *utls.ClientHelloSpec, debug bool) error { -> {count}
+670: 	rv := reflect.ValueOf(uconn) -> {count}
+671: 	if debug { -> {count}
+672: 		for i := 0; i < rv.NumMethod(); i++ { -> {count}
+673: 			m := rv.Type().Method(i) -> {count}
+674: 			log.Printf("uconn method: %s -> %s", m.Name, m.Type) -> {count}
+675: 		} -> {count}
+676: 	} -> {count}
+677: 	methodNames := []string{"SetTLSVers", "SetClientHelloSpec", "MakeClientHello", "ApplyPreset", "SetClientHello"} -> {count}
+678: 	for _, name := range methodNames { -> {count}
+679: 		m := rv.MethodByName(name) -> {count}
+680: 		if !m.IsValid() { -> {count}
+681: 			continue -> {count}
+682: 		} -> {count}
+683: 		// verify the method accepts 1 argument assignable from spec, or 0 args -> {count}
+684: 		mt := m.Type() -> {count}
+685: 		if mt.NumIn() == 1 { -> {count}
+686: 			argType := mt.In(0) -> {count}
+687: 			v := reflect.ValueOf(spec) -> {count}
+688: 			// support value vs pointer parameter types -> {count}
+689: 			if !v.Type().AssignableTo(argType) { -> {count}
+690: 				if v.Kind() == reflect.Ptr && v.Elem().IsValid() && v.Elem().Type().AssignableTo(argType) { -> {count}
+691: 					v = v.Elem() -> {count}
+692: 				} else { -> {count}
+693: 					// not compatible -> {count}
+694: 					continue -> {count}
+695: 				} -> {count}
+696: 			} -> {count}
+697: 			var callErr error -> {count}
+698: 			func() { -> {count}
+699: 				defer func() { -> {count}
+700: 					if r := recover(); r != nil { -> {count}
+701: 						callErr = fmt.Errorf("panic calling %s: %v", name, r) -> {count}
+702: 					} -> {count}
+703: 				}() -> {count}
+704: 				outs := m.Call([]reflect.Value{v}) -> {count}
+705: 				for _, o := range outs { -> {count}
+706: 					if o.Type().Implements(reflect.TypeOf((*error)(nil)).Elem()) { -> {count}
+707: 						if !o.IsNil() { -> {count}
+708: 							callErr = o.Interface().(error) -> {count}
+709: 						} -> {count}
+710: 					} -> {count}
+711: 				} -> {count}
+712: 			}() -> {count}
+713: 			if callErr != nil { -> {count}
+714: 				return fmt.Errorf("%s returned error: %w", name, callErr) -> {count}
+715: 			} -> {count}
+716: 			if debug { -> {count}
+717: 				log.Printf("applied ClientHello using method %s", name) -> {count}
+718: 			} -> {count}
+719: 			return nil -> {count}
+720: 		} -> {count}
+721: 		if mt.NumIn() == 0 { -> {count}
+722: 			// try calling a no-arg method -> {count}
+723: 			var callErr error -> {count}
+724: 			func() { -> {count}
+725: 				defer func() { -> {count}
+726: 					if r := recover(); r != nil { -> {count}
+727: 						callErr = fmt.Errorf("panic calling %s: %v", name, r) -> {count}
+728: 					} -> {count}
+729: 				}() -> {count}
+730: 				outs := m.Call(nil) -> {count}
+731: 				for _, o := range outs { -> {count}
+732: 					if o.Type().Implements(reflect.TypeOf((*error)(nil)).Elem()) { -> {count}
+733: 						if !o.IsNil() { -> {count}
+734: 							callErr = o.Interface().(error) -> {count}
+735: 						} -> {count}
+736: 					} -> {count}
+737: 				} -> {count}
+738: 			}() -> {count}
+739: 			if callErr != nil { -> {count}
+740: 				return fmt.Errorf("%s returned error: %w", name, callErr) -> {count}
+741: 			} -> {count}
+742: 			if debug { -> {count}
+743: 				log.Printf("applied ClientHello using method %s (no-arg)", name) -> {count}
+744: 			} -> {count}
+745: 			return nil -> {count}
+746: 		} -> {count}
+747: 	} -> {count}
+748: 	return fmt.Errorf("no supported method found to set ClientHelloSpec on UConn") -> {count}
+749: } -> {count}

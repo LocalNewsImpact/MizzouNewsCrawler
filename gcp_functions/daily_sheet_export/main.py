@@ -8,7 +8,7 @@ except Exception:
             return func
 import re
 from urllib.parse import urlparse
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import sys
 from google.cloud import bigquery
