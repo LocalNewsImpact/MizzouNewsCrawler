@@ -5,7 +5,7 @@ from unittest import mock
 
 import pytest
 
-from src.cli.commands.test_domain import handle_domain_test_command as test_domain
+from src.cli.commands.domain_diagnostics import handle_domain_test_command as test_domain
 
 
 class TestDomainCommand:
@@ -16,7 +16,7 @@ class TestDomainCommand:
         # The command function should exist and be callable
         assert callable(test_domain)
 
-    @mock.patch("src.cli.commands.test_domain.DatabaseManager")
+    @mock.patch("src.cli.commands.domain_diagnostics.DatabaseManager")
     def test_domain_query_construction(self, mock_db_manager):
         """Verify database query for domain URLs is constructed correctly."""
         # Mock database should be called to fetch URLs by domain
@@ -30,7 +30,7 @@ class TestDomainCommand:
 
         assert mock_db_manager.called or not mock_db_manager.called  # Placeholder
 
-    @mock.patch("src.cli.commands.test_domain.ContentExtractor")
+    @mock.patch("src.cli.commands.domain_diagnostics.ContentExtractor")
     def test_domain_creates_extractor(self, mock_extractor):
         """Verify test-domain creates ContentExtractor for testing."""
         mock_extractor_instance = mock.MagicMock()
@@ -57,7 +57,7 @@ class TestDomainCommand:
             assert isinstance(category, str)
             assert len(category) > 0
 
-    @mock.patch("src.cli.commands.test_domain.handle_domain_test_command")
+    @mock.patch("src.cli.commands.domain_diagnostics.handle_domain_test_command")
     def test_domain_default_limit_one(self, mock_test_domain):
         """Verify default limit for test-domain is 1 URL."""
         # The command should use limit=1 by default for fast iteration
@@ -98,7 +98,7 @@ class TestDomainCommand:
         assert "publish_date" in missing
         assert len(missing) == 2
 
-    @mock.patch("src.cli.commands.test_domain.ContentExtractor")
+    @mock.patch("src.cli.commands.domain_diagnostics.ContentExtractor")
     def test_domain_calls_extractor(self, mock_extractor):
         """Verify test-domain calls ContentExtractor for each URL."""
         mock_instance = mock.MagicMock()
@@ -135,8 +135,8 @@ class TestDomainCommandIntegration:
     """Integration-style tests for test-domain command."""
 
     @mock.patch("builtins.print")
-    @mock.patch("src.cli.commands.test_domain.DatabaseManager")
-    @mock.patch("src.cli.commands.test_domain.ContentExtractor")
+    @mock.patch("src.cli.commands.domain_diagnostics.DatabaseManager")
+    @mock.patch("src.cli.commands.domain_diagnostics.ContentExtractor")
     def test_domain_full_workflow(self, mock_extractor, mock_db, mock_print):
         """Verify full test-domain workflow with mocks."""
         # Setup mock args
@@ -152,10 +152,10 @@ class TestDomainCommandIntegration:
             mock_session
         )
 
-        # Setup mock candidate links
-        mock_candidate = mock.MagicMock()
-        mock_candidate.url = "http://example.com/article"
-        mock_session.execute.return_value.fetchall.return_value = [mock_candidate]
+        # Setup mock candidate links - must return row with id, url, source
+        # Create mock row that can be unpacked
+        mock_row = (1, "http://example.com/article", "example.com")
+        mock_session.execute.return_value.fetchall.return_value = [mock_row]
 
         # Setup mock extractor
         mock_extractor_instance = mock.MagicMock()
