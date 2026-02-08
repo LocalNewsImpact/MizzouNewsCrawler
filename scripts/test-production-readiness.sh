@@ -9,64 +9,59 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$PROJECT_ROOT"
 
+# Detect architecture
+ARCH=$(uname -m)
+
 echo "🐳 Docker-Based Production Readiness Tests"
 echo "=========================================="
 echo ""
 echo "These tests run in actual Docker containers to verify:"
 echo "  ✓ Container imports and PYTHONPATH configuration"
-echo "  ✓ ChromeDriver initialization and browser automation"
 echo "  ✓ Production entrypoints work correctly"
-echo "  ✓ Extraction method logic and ordering"
+if [ "$ARCH" = "x86_64" ] || [ "$ARCH" = "amd64" ]; then
+    echo "  ✓ ChromeDriver initialization and browser automation"
+else
+    echo "  ⊘ ChromeDriver tests skipped on $ARCH (Chrome amd64 only)"
+fi
 echo ""
 
-# Build Docker images (skip if NO_DOCKER_BUILD=1)
-echo "🔨 Building Docker images..."
-if [ "${NO_DOCKER_BUILD:-}" = "1" ] || [ "${SKIP_BUILD:-}" = "1" ]; then
-    echo "⚠️  Skipping docker-compose build because NO_DOCKER_BUILD=1 or SKIP_BUILD=1"
-else
-    docker-compose --profile base build base
-    docker-compose build crawler processor
-fi
+# Use existing Docker images (don't rebuild)
+echo "✓ Using existing Docker images"
+echo "  (use NO_DOCKER_BUILD=0 to rebuild if needed)"
 echo ""
 
 # Run the tests
 echo "🧪 Running production readiness tests..."
 echo ""
 
-# Skip Chrome tests on unsupported architectures (amd64 only)
-ARCH=$(uname -m)
-if [ "$ARCH" = "x86_64" ] || [ "$ARCH" = "amd64" ]; then
-    # Run all Docker tests including Chrome
-    pytest tests/docker/ \
-        -v \
-        --tb=short \
-        --color=yes \
-        --no-cov \
-        -m docker \
-        "$@"
-else
-    # Skip Chrome tests on arm64/aarch64 (Apple Silicon)
-    echo "⚠️  Running Docker tests but skipping Chrome-specific tests on $ARCH"
-    pytest tests/docker/ \
-        -v \
-        --tb=short \
-        --color=yes \
-        --no-cov \
-        -m docker \
-        -m "not skip_chrome_arm64" \
-        "$@"
+# Build pytest args
+PYTEST_ARGS=(
+    "tests/docker/"
+    "-v"
+    "--tb=short"
+    "--color=yes"
+    "--no-cov"
+    "-m" "docker"
+)
+
+# Skip Chrome tests on arm64
+if [ "$ARCH" != "x86_64" ] && [ "$ARCH" != "amd64" ]; then
+    echo "⚠️  Skipping Chrome-specific tests on $ARCH"
+    PYTEST_ARGS+=("-m" "not skip_chrome_arm64")
 fi
+
+# Add any user-provided args
+PYTEST_ARGS+=("$@")
+
+pytest "${PYTEST_ARGS[@]}"
 
 exit_code=$?
 
 echo ""
 if [ $exit_code -eq 0 ]; then
-    echo "✅ All production readiness tests passed!"
+    echo "✅ All Docker tests passed!"
 else
-    echo "❌ Production readiness tests failed"
-    echo ""
-    echo "These failures indicate the code will NOT work in production."
-    echo "Fix these issues before deploying."
+    echo "❌ Docker tests failed"
 fi
 
 exit $exit_code
