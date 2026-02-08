@@ -5,7 +5,7 @@ from unittest import mock
 
 import pytest
 
-from src.cli.commands.test_domain import handle_test_domain_command as test_domain
+from src.cli.commands.test_domain import handle_domain_test_command as test_domain
 
 
 class TestDomainCommand:
@@ -57,7 +57,7 @@ class TestDomainCommand:
             assert isinstance(category, str)
             assert len(category) > 0
 
-    @mock.patch("src.cli.commands.test_domain.test_domain")
+    @mock.patch("src.cli.commands.test_domain.handle_domain_test_command")
     def test_domain_default_limit_one(self, mock_test_domain):
         """Verify default limit for test-domain is 1 URL."""
         # The command should use limit=1 by default for fast iteration
