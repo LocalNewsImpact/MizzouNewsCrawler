@@ -6,7 +6,7 @@ from unittest import mock
 import pytest
 
 from src.cli.commands.domain_diagnostics import (
-    handle_domain_test_command as test_domain,
+    handle_domain_diagnostics_command,
 )
 
 
@@ -16,7 +16,7 @@ class TestDomainCommand:
     def test_domain_command_basic_structure(self):
         """Verify test-domain command has expected attributes."""
         # The command function should exist and be callable
-        assert callable(test_domain)
+        assert callable(handle_domain_diagnostics_command)
 
     @mock.patch("src.cli.commands.domain_diagnostics.DatabaseManager")
     def test_domain_query_construction(self, mock_db_manager):
@@ -59,7 +59,7 @@ class TestDomainCommand:
             assert isinstance(category, str)
             assert len(category) > 0
 
-    @mock.patch("src.cli.commands.domain_diagnostics.handle_domain_test_command")
+    @mock.patch("src.cli.commands.domain_diagnostics.handle_domain_diagnostics_command")
     def test_domain_default_limit_one(self, mock_test_domain):
         """Verify default limit for test-domain is 1 URL."""
         # The command should use limit=1 by default for fast iteration
@@ -169,7 +169,7 @@ class TestDomainCommandIntegration:
         mock_extractor.return_value = mock_extractor_instance
 
         # Call the function
-        result = test_domain(mock_args)
+        result = handle_domain_diagnostics_command(mock_args)
 
         # Verify workflow components were used
         assert mock_db.called
