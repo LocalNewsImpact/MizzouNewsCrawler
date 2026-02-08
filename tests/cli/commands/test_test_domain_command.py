@@ -5,7 +5,9 @@ from unittest import mock
 
 import pytest
 
-from src.cli.commands.domain_diagnostics import handle_domain_test_command as test_domain
+from src.cli.commands.domain_diagnostics import (
+    handle_domain_test_command as test_domain,
+)
 
 
 class TestDomainCommand:
