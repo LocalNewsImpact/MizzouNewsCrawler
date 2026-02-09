@@ -27,6 +27,7 @@ def test_selenium_cookie_import_safe():
 
 
 def test_many_scripts_import_safe():
+    """Test pod-testing scripts are import-safe."""
     modules = [
         "scripts.run_scrapfly_tests_pod",
         "scripts.test_headful_pod",

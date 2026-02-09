@@ -187,17 +187,17 @@ def test_get_metrics_client_disabled_by_env():
         metrics_module._metrics_client = None
 
 
+@pytest.mark.skipif(
+    not MONITORING_AVAILABLE, reason="google-cloud-monitoring not installed"
+)
 def test_metrics_client_with_invalid_credentials():
     """Test metrics client handles invalid credentials gracefully."""
-    with patch("src.utils.metrics.MONITORING_AVAILABLE", True):
-        with patch(
-            "src.utils.metrics.monitoring_v3.MetricServiceClient"
-        ) as mock_client:
-            mock_client.side_effect = Exception("Authentication failed")
+    with patch("src.utils.metrics.monitoring_v3.MetricServiceClient") as mock_client:
+        mock_client.side_effect = Exception("Authentication failed")
 
-            # Should not raise, just disable
-            client = MetricsClient(project_id="test-project", enabled=True)
-            assert client.enabled is False
+        # Should not raise, just disable
+        client = MetricsClient(project_id="test-project", enabled=True)
+        assert client.enabled is False
 
 
 @pytest.mark.skipif(
@@ -226,17 +226,19 @@ def test_record_gauge_integration(mock_monitoring_client):
     assert mock_monitoring_client.create_time_series.called
 
 
+@pytest.mark.skipif(
+    not MONITORING_AVAILABLE, reason="google-cloud-monitoring not installed"
+)
 def test_metrics_error_handling():
     """Test metrics client handles errors gracefully."""
-    with patch("src.utils.metrics.MONITORING_AVAILABLE", True):
-        with patch(
-            "src.utils.metrics.monitoring_v3.MetricServiceClient"
-        ) as mock_client_class:
-            mock_client = Mock()
-            mock_client.create_time_series.side_effect = Exception("Network error")
-            mock_client_class.return_value = mock_client
+    with patch(
+        "src.utils.metrics.monitoring_v3.MetricServiceClient"
+    ) as mock_client_class:
+        mock_client = Mock()
+        mock_client.create_time_series.side_effect = Exception("Network error")
+        mock_client_class.return_value = mock_client
 
-            client = MetricsClient(project_id="test-project", enabled=True)
+        client = MetricsClient(project_id="test-project", enabled=True)
 
-            # Should not raise, just log error
-            client.record_counter("test_metric", 10)
+        # Should not raise, just log error
+        client.record_counter("test_metric", 10)
