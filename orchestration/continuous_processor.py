@@ -32,6 +32,7 @@ from src.services.wire_detection import (
     MediaCloudDetector,
     resolve_api_token,
 )
+from src.utils.content_cleaning_telemetry import ContentCleaningTelemetry
 
 # In containerized environments (GKE/Cloud Run), platform adds timestamps.
 # Use simple format to avoid duplication in logs.
@@ -40,6 +41,9 @@ logging.basicConfig(
     format="[%(levelname)s] %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+# Initialize telemetry for wire detection logging
+telemetry = ContentCleaningTelemetry(enable_telemetry=True)
 
 # Configuration from environment
 POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "60"))  # seconds
@@ -482,6 +486,23 @@ def _apply_detection_result(
             existing_payload.update(wire_payload)
             article.wire = existing_payload
 
+            # Log telemetry for wire detection
+            telemetry.log_wire_detection(
+                provider="mediacloud",
+                detection_method="headline_duplicate",
+                detection_stage="mediacloud_lookup",
+                confidence=1.0,  # MediaCloud matches are considered high confidence
+                article_ids=[pending.id],
+                domain=pending.source,
+                pattern_text=result.query,
+                extra_metadata={
+                    "story_count": result.story_count,
+                    "matched_story_count": result.matched_story_count,
+                    "matched_hosts": result.matched_hosts,
+                    "matched_story_ids": result.matched_story_ids,
+                },
+            )
+
             if article.status != "wire":
                 article.status = "wire"
 
@@ -501,9 +522,21 @@ def process_wire_detection(count: int) -> bool:
     if detector is None:
         return False
 
+    # Start telemetry session for wire detection
+    _ = telemetry.start_cleaning_session(
+        domain="mediacloud_wire_detection",
+        article_count=count,
+    )
+
     limit = min(count, max(1, WIRE_DETECTION_BATCH_SIZE))
     pending_articles = _claim_wire_articles(limit)
     if not pending_articles:
+        telemetry.finalize_cleaning_session(
+            rough_candidates_found=0,
+            segments_detected=0,
+            total_removable_chars=0,
+            removal_percentage=0.0,
+        )
         return False
 
     processed_any = False
@@ -534,6 +567,14 @@ def process_wire_detection(count: int) -> bool:
             )
         elif result.status == "ok":
             logger.debug("MediaCloud found no wire matches for article %s", pending.id)
+
+    # Finalize telemetry session
+    telemetry.finalize_cleaning_session(
+        rough_candidates_found=0,
+        segments_detected=0,
+        total_removable_chars=0,
+        removal_percentage=0.0,
+    )
 
     return processed_any
 

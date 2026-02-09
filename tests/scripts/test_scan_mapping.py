@@ -1,6 +1,10 @@
 from types import SimpleNamespace
 
+import pytest
+
 from scripts.scan_production_with_new_detector import map_detection_to_service
+
+pytestmark = pytest.mark.local_scripts
 
 
 def _det(evidence):

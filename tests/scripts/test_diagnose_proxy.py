@@ -5,6 +5,8 @@ import os
 import sys
 from unittest.mock import MagicMock, Mock, patch
 
+import pytest
+
 # Add scripts directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "scripts"))
 
@@ -15,6 +17,8 @@ from diagnose_proxy import (  # noqa: E402
     test_proxy_connectivity,
     test_real_site,
 )
+
+pytestmark = pytest.mark.local_scripts
 
 
 def test_check_environment_with_all_vars(monkeypatch, caplog):

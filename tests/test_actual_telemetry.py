@@ -12,6 +12,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from scripts.populate_gazetteer import GazetteerTelemetry
 
+pytestmark = pytest.mark.local_scripts
+
 
 class TestActualGazetteerTelemetry:
     """Test the actual GazetteerTelemetry implementation."""

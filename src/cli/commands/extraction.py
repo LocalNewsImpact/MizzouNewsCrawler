@@ -1560,6 +1560,31 @@ def _process_batch(
                     if metadata_value:
                         content["metadata"] = metadata_value
 
+                    # Sanity guard: avoid wire status with no evidence
+                    if article_status == "wire":
+                        has_wire_hints = bool(metadata_value.get("wire_hints"))
+                        has_wire_detection = bool(
+                            metadata_value.get("wire_detection")
+                            or metadata_value.get("content_type_detection")
+                        )
+                        byline_is_wire = bool(
+                            (metadata_value.get("byline") or {}).get("is_wire_content")
+                        )
+                        has_wire_payload = bool(wire_service_info)
+
+                        if not (
+                            has_wire_hints
+                            or has_wire_detection
+                            or byline_is_wire
+                            or has_wire_payload
+                        ):
+                            logger.warning(
+                                "Wire status without evidence; reverting to extracted: %s",
+                                url,
+                            )
+                            article_status = "extracted"
+                            wire_service_info = None
+
                     now = datetime.utcnow()
                     content_text = content.get("content", "")
 
@@ -2189,6 +2214,12 @@ def _run_post_extraction_cleaning(domains_to_articles, db=None):
                     )
 
                     wire_detected = metadata.get("wire_detected")
+                    wire_suppressed = bool(
+                        metadata.get("wire_suppressed_due_to_local_byline")
+                    )
+                    if wire_suppressed:
+                        wire_detected = None
+
                     locality_assessment = metadata.get("locality_assessment") or {}
                     is_local_wire = bool(
                         wire_detected
@@ -2198,7 +2229,10 @@ def _run_post_extraction_cleaning(domains_to_articles, db=None):
 
                     new_status = current_status
 
-                    if is_local_wire:
+                    if wire_suppressed:
+                        if current_status in {"wire", "local", "extracted"}:
+                            new_status = "cleaned"
+                    elif is_local_wire:
                         if current_status in {"wire", "cleaned", "extracted"}:
                             new_status = "local"
                     elif wire_detected:

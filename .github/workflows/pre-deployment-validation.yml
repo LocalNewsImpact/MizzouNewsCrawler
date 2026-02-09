@@ -76,6 +76,14 @@ jobs:
           done
 
           echo "✅ All Dockerfiles valid"
+          echo ""
+          
+          # NEW: Validate Dockerfile dependencies (COPY/ADD sources exist)
+          echo "=========================================="
+          echo "Validating Dockerfile Dependencies"
+          echo "=========================================="
+          
+          ./scripts/validate-dockerfile-deps.sh || exit 1
 
       - name: Validate deployment configurations
         run: |

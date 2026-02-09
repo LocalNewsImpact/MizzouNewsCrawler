@@ -10,6 +10,8 @@ import pytest
 from scripts import run_mediacloud_headline_check as cli
 from src.services.wire_detection import mediacloud as mc
 
+pytestmark = pytest.mark.local_scripts
+
 REQUIRED_FIELDS = [
     "media_cloud_candidate",
     "article_id",

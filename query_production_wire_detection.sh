@@ -9,7 +9,15 @@ from src.models.database import DatabaseManager
 from src.models import Article, CandidateLink
 
 # Updated detection logic
-WEAK_URL_PATTERNS = ["/ap-", "/cnn-", "/reuters-", "/wire/", "/world/", "/national/"]
+WEAK_URL_PATTERNS = [
+    "/ap-",
+    "/cnn-",
+    "/reuters-",
+    "/wire/",
+    "/world/",
+    "/national/",
+    "/national-news/",
+]
 
 COPYRIGHT_PATTERNS = [
     r"©\s*\d{4}\s+(?:The\s+)?(Associated Press|AP|Reuters|CNN|Bloomberg|NPR)",

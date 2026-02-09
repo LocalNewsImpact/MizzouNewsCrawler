@@ -47,8 +47,8 @@ def get_extraction_backlog() -> int:
             FROM candidate_links cl
             WHERE cl.status = 'article'
             AND cl.id NOT IN (
-                SELECT candidate_link_id
-                FROM articles
+                SELECT candidate_link_id 
+                FROM articles 
                 WHERE candidate_link_id IS NOT NULL
             )
         """
@@ -59,30 +59,30 @@ def get_extraction_backlog() -> int:
 
 def calculate_parallelism(backlog: int) -> int:
     """Calculate optimal number of extraction workers based on backlog size.
-
+    
     Formula: workers = backlog / (240 minutes / 4 minutes per article)
              workers = backlog / 60
-
+    
     Constraints:
     - Minimum: 3 workers (handles backlog + ongoing discovery growth)
     - Maximum: 15 workers (cost/resource constraint)
-
+    
     The minimum ensures we maintain capacity to process both the existing
     backlog and new articles continuously added by discovery processes,
     preventing backlog accumulation.
-
+    
     Args:
         backlog: Number of articles awaiting extraction
-
+        
     Returns:
         Number of workers needed (between 3 and 15)
     """
     if backlog == 0:
         return MIN_WORKERS
-
+    
     # Calculate workers needed to complete backlog in 4 hours
     workers_needed = int(backlog / ARTICLES_PER_WORKER)
-
+    
     # Apply min/max constraints
     if workers_needed < MIN_WORKERS:
         return MIN_WORKERS

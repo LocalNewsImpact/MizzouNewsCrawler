@@ -1,4 +1,8 @@
+import pytest
+
 import scripts.diagnose_user_agent_metadata as diag
+
+pytestmark = pytest.mark.local_scripts
 
 
 class DummyDriver:

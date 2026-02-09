@@ -1,4 +1,8 @@
+import pytest
+
 import scripts.run_scrapfly_tests_pod as pod
+
+pytestmark = pytest.mark.local_scripts
 
 
 def test_chrome_bin_default():

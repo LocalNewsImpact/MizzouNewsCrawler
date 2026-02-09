@@ -1,0 +1,10 @@
+RSS: https://www.newstribune.com/news/?output=rss
+<!doctype html>
+<html dir="ltr" lang="en">
+    <head>
+---
+RSS: https://www.newstribune.com/?output=rss
+<!doctype html>
+<html dir="ltr" lang="en">
+    <head>
+---

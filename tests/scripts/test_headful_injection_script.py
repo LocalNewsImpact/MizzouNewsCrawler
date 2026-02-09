@@ -1,4 +1,8 @@
+import pytest
+
 import scripts.headful_client_hints_probe as probe
+
+pytestmark = pytest.mark.local_scripts
 
 
 def test_build_injection_script_contains_platform_and_brands():
