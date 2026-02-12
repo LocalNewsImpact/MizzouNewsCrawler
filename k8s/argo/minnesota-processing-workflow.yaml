@@ -1,0 +1,75 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: minnesota-processing
+  namespace: production
+spec:
+  entrypoint: minnesota-pipeline
+  serviceAccountName: argo-workflow
+  
+  templates:
+  - name: minnesota-pipeline
+    steps:
+    - - name: clean-articles
+        template: clean-step
+    - - name: extract-entities
+        template: entity-extraction-step
+    - - name: analyze-articles
+        template: ml-analysis-step
+  
+  - name: clean-step
+    container:
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
+      command: ["python", "-m", "src.cli.main"]
+      args:
+      - "clean-articles"
+      - "--dataset"
+      - "Minnesota News Sources"
+      - "--batch-size"
+      - "100"
+      env:
+      - name: DATABASE_URL
+        valueFrom:
+          secretKeyRef:
+            name: database-credentials
+            key: DATABASE_URL
+      - name: DATASET_FILTER
+        value: "minnesota-news-sources"
+  
+  - name: entity-extraction-step
+    container:
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
+      command: ["python", "-m", "src.cli.main"]
+      args:
+      - "extract-entities"
+      - "--dataset"
+      - "Minnesota News Sources"
+      - "--batch-size"
+      - "500"
+      env:
+      - name: DATABASE_URL
+        valueFrom:
+          secretKeyRef:
+            name: database-credentials
+            key: DATABASE_URL
+      - name: DATASET_FILTER
+        value: "minnesota-news-sources"
+  
+  - name: ml-analysis-step
+    container:
+      image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
+      command: ["python", "-m", "src.cli.main"]
+      args:
+      - "analyze"
+      - "--dataset"
+      - "Minnesota News Sources"
+      - "--batch-size"
+      - "16"
+      env:
+      - name: DATABASE_URL
+        valueFrom:
+          secretKeyRef:
+            name: database-credentials
+            key: DATABASE_URL
+      - name: DATASET_FILTER
+        value: "minnesota-news-sources"
