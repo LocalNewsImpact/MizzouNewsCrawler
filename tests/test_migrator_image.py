@@ -200,6 +200,9 @@ class TestMigratorImage:
         assert triggers is not None
         assert "workflow_dispatch" in triggers
 
+    @pytest.mark.skip(
+        reason="Secret management scripts deprecated - using GCP Secret Manager directly"
+    )
     def test_setup_secrets_script_exists(self):
         """Test that namespace secrets setup script exists."""
         script_path = (
@@ -210,6 +213,9 @@ class TestMigratorImage:
             script_path, os.X_OK
         ), "setup-namespace-secrets.sh is not executable"
 
+    @pytest.mark.skip(
+        reason="Secret management scripts deprecated - using GCP Secret Manager directly"
+    )
     def test_setup_secrets_script_validates_inputs(self):
         """Test that setup secrets script validates required inputs."""
         script_path = (
