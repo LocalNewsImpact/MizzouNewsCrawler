@@ -10,6 +10,9 @@
 # Fast fuzzy string matching for entity extraction
 rapidfuzz>=3.0.0  # 50-100x faster than difflib for gazetteer matching
 
+# WARC file parsing for Minnesota dataset import
+warcio>=1.7.0  # Parse WARC archives for historical data ingestion
+
 # Browser automation used for last-resort extraction in processor
 selenium>=4.10.0
 undetected-chromedriver>=3.5.0

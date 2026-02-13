@@ -137,6 +137,20 @@ steps:
       - '--namespace=production'
     waitFor: ['get-gke-credentials']
 
+  # Update CLI deployment image
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'update-cli-deployment'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=us-central1-a'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=mizzou-cluster'
+    args:
+      - 'set'
+      - 'image'
+      - 'deployment/mizzou-cli'
+      - 'cli=${_REGISTRY}/processor:${SHORT_SHA}'
+      - '--namespace=production'
+    waitFor: ['get-gke-credentials']
+
   # Force a rollout restart to ensure new image is pulled
   # This handles case where same tag has new image digest
   - name: 'gcr.io/cloud-builders/kubectl'

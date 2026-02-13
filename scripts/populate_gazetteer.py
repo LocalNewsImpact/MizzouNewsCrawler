@@ -1365,6 +1365,8 @@ def main(
     dataset_slug: str | None = None,
     address: str | None = None,
     radius_miles: float | None = None,
+    radius_by_frequency: bool = False,
+    state_filter: str | None = None,
     dry_run: bool = False,
     publisher: str | None = None,
 ):
@@ -1581,6 +1583,10 @@ def main(
             )
             .where(ds_src_tbl.c.dataset_id == ds.id)
         )
+        
+        # Apply state filter if provided
+        if state_filter:
+            sel = sel.where(sources_tbl.c.state == state_filter)
 
         rows = session.execute(sel).fetchall()
         processed_count = 0
@@ -1594,6 +1600,20 @@ def main(
             src = dict(row._mapping)
             host_or_name = src.get("canonical_name") or src.get("host")
             print(f"  Source: {host_or_name} ({src.get('id')})")
+            
+            # Determine radius based on frequency if --radius-by-frequency is set
+            coverage_miles = radius_miles  # Default to explicit radius if provided
+            if radius_by_frequency:
+                source_frequency = src.get("frequency", "").lower()
+                if source_frequency == "daily":
+                    coverage_miles = 75.0
+                else:
+                    # weekly, monthly, biweekly, or any other frequency
+                    coverage_miles = 30.0
+                print(f"    Frequency-based radius: {source_frequency} -> {coverage_miles} miles")
+            elif coverage_miles is None:
+                # Fallback to default if no radius specified
+                coverage_miles = 20.0
 
             # CONSERVATIVE BULK PROCESSING: Check for existing OSM data
             source_id = src.get("id")
@@ -1667,9 +1687,9 @@ def main(
                 continue
 
             lat, lon = float(latlon[0]), float(latlon[1])
-            # Coverage radius: prefer CLI override, then dataset override
-            # (not currently modeled), fallback to 20 miles
-            coverage_miles = radius_miles or 20
+            
+            # Coverage radius was already determined above based on frequency or explicit argument
+            # (coverage_miles variable is already set)
 
             # Use efficient grouped queries (3 calls instead of 11)
             print("    Using grouped category queries...")
@@ -1849,6 +1869,16 @@ if __name__ == "__main__":
         help=("Coverage radius in miles to use for Overpass queries."),
     )
     parser.add_argument(
+        "--radius-by-frequency",
+        action="store_true",
+        help=("Determine radius based on source frequency: 75mi for daily, 30mi for others."),
+    )
+    parser.add_argument(
+        "--state",
+        default=None,
+        help=("Filter sources by state (e.g., MN for Minnesota)."),
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help=("Do not write to DB; just print results from Overpass."),
@@ -1864,6 +1894,8 @@ if __name__ == "__main__":
             dataset_slug=args.dataset,
             address=args.address,
             radius_miles=args.radius,
+            radius_by_frequency=args.radius_by_frequency,
+            state_filter=args.state,
             dry_run=args.dry_run,
         )
     else:
@@ -1872,5 +1904,7 @@ if __name__ == "__main__":
             dataset_slug=args.dataset,
             address=None,
             radius_miles=args.radius,
+            radius_by_frequency=args.radius_by_frequency,
+            state_filter=args.state,
             dry_run=args.dry_run,
         )

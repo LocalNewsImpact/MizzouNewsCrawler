@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minnesota-processor
+  namespace: production
+  labels:
+    app: minnesota-processor
+    dataset: minnesota-news-sources
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minnesota-processor
+  template:
+    metadata:
+      labels:
+        app: minnesota-processor
+        dataset: minnesota-news-sources
+    spec:
+      serviceAccountName: mizzou-workload-sa
+      containers:
+      - name: processor
+        image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: database-credentials
+              key: DATABASE_URL
+        - name: DATASET_FILTER
+          value: "minnesota-news-sources"
+        - name: MEDIACLOUD_ENABLED
+          value: "false"
+        - name: ENABLE_DISCOVERY
+          value: "false"
+        - name: ENABLE_VERIFICATION
+          value: "false"
+        - name: ENABLE_EXTRACTION
+          value: "false"
+        - name: ENABLE_CLEANING
+          value: "true"
+        - name: ENABLE_ML_ANALYSIS
+          value: "true"
+        - name: ENABLE_ENTITY_EXTRACTION
+          value: "true"
+        - name: ENABLE_WIRE_DETECTION
+          value: "true"
+        - name: LOG_LEVEL
+          value: "INFO"
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "4Gi"
+          limits:
+            cpu: "2000m"
+            memory: "8Gi"
+        livenessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - "import sys; sys.exit(0)"
+          initialDelaySeconds: 30
+          periodSeconds: 60
+        readinessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - "import sys; sys.exit(0)"
+          initialDelaySeconds: 10
+          periodSeconds: 30

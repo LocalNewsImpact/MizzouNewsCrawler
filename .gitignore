@@ -113,6 +113,7 @@ scripts/
 !scripts/test-ci-locally.sh
 !scripts/test-production-readiness.sh
 !scripts/populate_gazetteer.py
+!scripts/import_warc_minnesota.py
 !scripts/backfill/
 !scripts/manual_enqueue_urls.py
 !scripts/diagnose_proxy.py

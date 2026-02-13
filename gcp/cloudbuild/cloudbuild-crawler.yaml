@@ -42,6 +42,20 @@ steps:
       - '--namespace=production'
     waitFor: ['get-gke-credentials']
 
+  # Update work-queue deployment image
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'update-work-queue'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=us-central1-a'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=mizzou-cluster'
+    args:
+      - 'set'
+      - 'image'
+      - 'deployment/work-queue'
+      - 'work-queue=${_REGISTRY}/crawler:${SHORT_SHA}'
+      - '--namespace=production'
+    waitFor: ['get-gke-credentials']
+
   # Update Argo WorkflowTemplate to use new crawler image SHA
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'update-argo-workflow-template'
