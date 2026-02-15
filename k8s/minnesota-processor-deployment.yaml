@@ -17,16 +17,45 @@ spec:
         app: minnesota-processor
         dataset: minnesota-news-sources
     spec:
-      serviceAccountName: mizzou-workload-sa
+      serviceAccountName: mizzou-app
       containers:
       - name: processor
         image: us-central1-docker.pkg.dev/mizzou-news-crawler/mizzou-crawler/processor:latest
+        command:
+          - python
+          - orchestration/continuous_processor.py
         env:
-        - name: DATABASE_URL
+        - name: PYTHONPATH
+          value: "/app:/opt/origin-shim"
+        # Database configuration
+        - name: DATABASE_ENGINE
+          value: "postgresql+psycopg2"
+        - name: DATABASE_HOST
+          value: "127.0.0.1"
+        - name: DATABASE_PORT
+          value: "5432"
+        - name: DATABASE_USER
           valueFrom:
             secretKeyRef:
-              name: database-credentials
-              key: DATABASE_URL
+              name: cloudsql-db-credentials
+              key: username
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: password
+        - name: DATABASE_NAME
+          valueFrom:
+            secretKeyRef:
+              name: cloudsql-db-credentials
+              key: database
+        - name: DATABASE_URL
+          value: "$(DATABASE_ENGINE)://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)"
+        # Cloud SQL Connector configuration
+        - name: USE_CLOUD_SQL_CONNECTOR
+          value: "true"
+        - name: CLOUD_SQL_INSTANCE
+          value: "mizzou-news-crawler:us-central1:mizzou-db-prod"
         - name: DATASET_FILTER
           value: "minnesota-news-sources"
         - name: MEDIACLOUD_ENABLED
