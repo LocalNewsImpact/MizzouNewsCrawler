@@ -281,6 +281,10 @@ class NewsDiscovery:
         # Configure proxy behavior (origin adapter or standard proxies)
         self._configure_proxy_routing()
 
+        # Set global proxy environment variables for newspaper4k and other libraries
+        # that use requests library internally
+        self._set_global_proxy_env()
+
         # Initialize storysniffer client (if available)
         self.storysniffer = None
         if StorySniffer is not None:
@@ -408,6 +412,29 @@ class NewsDiscovery:
                 "🔐 Proxy provider %s did not supply proxies; using direct connections",
                 active_provider.value,
             )
+
+    def _set_global_proxy_env(self) -> None:
+        """Set HTTP_PROXY/HTTPS_PROXY environment variables for libraries that don't use our session.
+        
+        This ensures newspaper4k, feedparser, and other third-party libraries that create
+        their own HTTP clients will still use our residential proxy.
+        """
+        proxies = self.proxy_manager.get_requests_proxies()
+        if proxies:
+            proxy_url = proxies.get("http") or proxies.get("https")
+            if proxy_url:
+                # Set environment variables that requests library respects
+                os.environ["HTTP_PROXY"] = proxy_url
+                os.environ["HTTPS_PROXY"] = proxy_url
+                os.environ["http_proxy"] = proxy_url
+                os.environ["https_proxy"] = proxy_url
+                logger.info(
+                    "🌍 Set global proxy environment variables for third-party libraries: %s",
+                    mask_proxy_url(proxy_url),
+                )
+                return
+        
+        logger.info("🌍 No proxy configured, third-party libraries will use direct connections")
 
     def _create_db_manager(self) -> DatabaseManager:
         """Factory method for database manager instances."""
