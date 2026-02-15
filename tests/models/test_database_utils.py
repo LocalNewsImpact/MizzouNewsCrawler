@@ -306,7 +306,9 @@ class TestSafeSessionExecute:
     def test_reraises_other_exceptions(self):
         """Should reraise non-ArgumentError exceptions."""
         mock_session = Mock()
-        mock_session.execute = Mock(side_effect=OperationalError("DB error", None, None))
+        mock_session.execute = Mock(
+            side_effect=OperationalError("DB error", None, None)
+        )
 
         sql = "SELECT * FROM articles"
 

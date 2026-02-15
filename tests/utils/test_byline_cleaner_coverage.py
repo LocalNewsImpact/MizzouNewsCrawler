@@ -152,8 +152,7 @@ class TestBylineCleanerSourceRemoval:
         """Should remove canonical source name."""
         cleaner = BylineCleaner()
         result = cleaner.clean_byline(
-            "Jane Doe for The Herald",
-            source_canonical_name="Herald"
+            "Jane Doe for The Herald", source_canonical_name="Herald"
         )
         assert len(result) > 0
 
@@ -253,7 +252,7 @@ class TestBylineCleanerJSONOutput:
             "By John Smith",
             return_json=True,
             article_id="123",
-            source_name="Test Source"
+            source_name="Test Source",
         )
         assert isinstance(result, dict)
 
@@ -280,7 +279,7 @@ class TestBylineCleanerTelemetry:
             "By John Smith",
             article_id="article123",
             candidate_link_id="link456",
-            source_id="source789"
+            source_id="source789",
         )
         assert isinstance(result, list)
 
@@ -307,7 +306,7 @@ class TestBylineCleanerBulkCleaning:
         bylines = [
             {"byline": "By John Smith"},
             {"byline": "By Jane Doe"},
-            {"byline": "By Bob Johnson"}
+            {"byline": "By Bob Johnson"},
         ]
         result = cleaner.clean_bulk_bylines(bylines)
         assert len(result) == 3
