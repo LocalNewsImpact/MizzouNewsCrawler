@@ -149,7 +149,7 @@ class TestSafeExecute:
         mock_insert = Mock()
         mock_insert.__class__.__name__ = "Insert"
 
-        result = safe_execute(mock_conn, mock_insert)
+        safe_execute(mock_conn, mock_insert)
 
         mock_conn._orig_execute.assert_called_once_with(mock_insert)
 
@@ -160,7 +160,7 @@ class TestSafeExecute:
         mock_conn.execute = Mock(return_value=mock_result)
 
         sql = "SELECT * FROM users"
-        result = safe_execute(mock_conn, sql)
+        safe_execute(mock_conn, sql)
 
         assert mock_conn.execute.called
 
@@ -173,7 +173,7 @@ class TestSafeExecute:
         sql = "INSERT INTO users VALUES (?, ?, ?)"
         params = [(1, "John", "john@example.com"), (2, "Jane", "jane@example.com")]
 
-        result = safe_execute(mock_conn, sql, params)
+        safe_execute(mock_conn, sql, params)
 
         # Should have converted to :p0, :p1, :p2 format
         assert mock_conn.execute.called
@@ -187,7 +187,7 @@ class TestSafeExecute:
         sql = "INSERT INTO users VALUES (%s, %s, %s)"
         params = [(1, "John", "john@example.com")]
 
-        result = safe_execute(mock_conn, sql, params)
+        safe_execute(mock_conn, sql, params)
 
         assert mock_conn.execute.called
 
@@ -200,7 +200,7 @@ class TestSafeExecute:
         sql = "SELECT * FROM users WHERE id = :user_id"
         params = {"user_id": 1}
 
-        result = safe_execute(mock_conn, sql, params)
+        safe_execute(mock_conn, sql, params)
 
         assert mock_conn.execute.called
 
@@ -221,7 +221,7 @@ class TestSafeExecute:
         sql = "INSERT INTO users VALUES (?, ?)"
         params = (1, "John")
 
-        result = safe_execute(mock_conn, sql, params)
+        safe_execute(mock_conn, sql, params)
 
         # Should retry with named parameters
         assert mock_conn.execute.call_count >= 1
@@ -237,7 +237,7 @@ class TestSafeSessionExecute:
         mock_session.execute = Mock(return_value=mock_result)
         mock_select = Mock()
 
-        result = safe_session_execute(mock_session, mock_select)
+        safe_session_execute(mock_session, mock_select)
 
         mock_session.execute.assert_called_once()
 
@@ -248,7 +248,7 @@ class TestSafeSessionExecute:
         mock_session.execute = Mock(return_value=mock_result)
 
         sql = "SELECT * FROM articles"
-        result = safe_session_execute(mock_session, sql)
+        safe_session_execute(mock_session, sql)
 
         assert mock_session.execute.called
 
@@ -267,7 +267,7 @@ class TestSafeSessionExecute:
         sql = "INSERT INTO articles VALUES (?, ?, ?)"
         params = (1, "Title", "Content")
 
-        result = safe_session_execute(mock_session, sql, params)
+        safe_session_execute(mock_session, sql, params)
 
         assert mock_session.execute.call_count >= 1
 
@@ -286,7 +286,7 @@ class TestSafeSessionExecute:
         sql = "INSERT INTO articles VALUES (?, ?)"
         params = [(1, "Article 1"), (2, "Article 2")]
 
-        result = safe_session_execute(mock_session, sql, params)
+        safe_session_execute(mock_session, sql, params)
 
         assert mock_session.execute.call_count >= 1
 
@@ -299,7 +299,7 @@ class TestSafeSessionExecute:
         sql = "SELECT * FROM articles WHERE id = :article_id"
         params = {"article_id": 123}
 
-        result = safe_session_execute(mock_session, sql, params)
+        safe_session_execute(mock_session, sql, params)
 
         mock_session.execute.assert_called_once()
 
