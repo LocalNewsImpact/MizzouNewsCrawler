@@ -26,7 +26,7 @@ def test_mask_proxy_url_preserves_scheme():
     """Different URL schemes should be preserved."""
     http = mask_proxy_url("http://user:pass@proxy.net:8080")
     assert http == "http://user:***@proxy.net:8080"
-    
+
     socks5 = mask_proxy_url("socks5://user:pass@proxy.net:1080")
     assert socks5 == "socks5://user:***@proxy.net:1080"
 

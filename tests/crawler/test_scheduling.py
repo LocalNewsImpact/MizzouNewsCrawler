@@ -289,7 +289,9 @@ class TestSchedulingEdgeCases:
         # Should use default 7-day cadence, 8 days passed -> schedule
         assert result is True
 
-    def test_should_schedule_discovery_with_last_discovery_at_malformed(self, monkeypatch):
+    def test_should_schedule_discovery_with_last_discovery_at_malformed(
+        self, monkeypatch
+    ):
         """Malformed last_discovery_at should be handled gracefully."""
         monkeypatch.setattr(
             scheduling,
@@ -346,4 +348,3 @@ class TestSchedulingEdgeCases:
         )
         # Should handle None gracefully
         assert result is True
-

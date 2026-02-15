@@ -1200,10 +1200,18 @@ def test_set_global_proxy_env_with_proxies():
                 NewsDiscovery(database_url="sqlite:///:memory:")
 
                 # Verify all proxy environment variables are set
-                assert os.environ.get("HTTP_PROXY") == "http://t9880447.eero.online:3128"
-                assert os.environ.get("HTTPS_PROXY") == "http://t9880447.eero.online:3128"
-                assert os.environ.get("http_proxy") == "http://t9880447.eero.online:3128"
-                assert os.environ.get("https_proxy") == "http://t9880447.eero.online:3128"
+                assert (
+                    os.environ.get("HTTP_PROXY") == "http://t9880447.eero.online:3128"
+                )
+                assert (
+                    os.environ.get("HTTPS_PROXY") == "http://t9880447.eero.online:3128"
+                )
+                assert (
+                    os.environ.get("http_proxy") == "http://t9880447.eero.online:3128"
+                )
+                assert (
+                    os.environ.get("https_proxy") == "http://t9880447.eero.online:3128"
+                )
 
 
 def test_set_global_proxy_env_with_no_proxies():
@@ -1280,9 +1288,13 @@ def test_set_global_proxy_env_with_https_only():
 
                 # Verify proxy environment variables are set from https proxy
                 assert os.environ.get("HTTP_PROXY") == "https://secure-proxy.local:8443"
-                assert os.environ.get("HTTPS_PROXY") == "https://secure-proxy.local:8443"
+                assert (
+                    os.environ.get("HTTPS_PROXY") == "https://secure-proxy.local:8443"
+                )
                 assert os.environ.get("http_proxy") == "https://secure-proxy.local:8443"
-                assert os.environ.get("https_proxy") == "https://secure-proxy.local:8443"
+                assert (
+                    os.environ.get("https_proxy") == "https://secure-proxy.local:8443"
+                )
 
 
 def test_set_global_proxy_env_prefers_http_proxy():
@@ -1295,7 +1307,7 @@ def test_set_global_proxy_env_prefers_http_proxy():
                 mock_manager.active_provider.value = "squid"
                 mock_manager.get_requests_proxies.return_value = {
                     "http": "http://proxy1.local:8080",
-                    "https": "https://proxy2.local:8443"
+                    "https": "https://proxy2.local:8443",
                 }
                 mock_pm.return_value = mock_manager
 

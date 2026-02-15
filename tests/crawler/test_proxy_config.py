@@ -316,19 +316,19 @@ class TestProxyConfigEdgeCases:
     def test_health_status_boundaries(self):
         """Test health status transitions at exact boundaries."""
         config = ProxyConfig(provider=ProxyProvider.SQUID, enabled=True)
-        
+
         # Exactly 90% - should be healthy
         config.success_count = 90
         config.failure_count = 10
         assert config.success_rate == 90.0
         assert config.health_status == "healthy"
-        
+
         # Exactly 70% - should be degraded
         config.success_count = 70
         config.failure_count = 30
         assert config.success_rate == 70.0
         assert config.health_status == "degraded"
-        
+
         # Exactly 50% - should be unhealthy
         config.success_count = 50
         config.failure_count = 50
@@ -339,7 +339,7 @@ class TestProxyConfigEdgeCases:
         """Cannot switch to a disabled provider."""
         with mock.patch.dict(os.environ, {}, clear=True):
             manager = ProxyManager()
-            
+
         # BRIGHTDATA not configured/enabled
         result = manager.switch_provider(ProxyProvider.BRIGHTDATA)
         assert result is False
@@ -349,13 +349,13 @@ class TestProxyConfigEdgeCases:
         """Response time average should update correctly."""
         with mock.patch.dict(os.environ, {}, clear=True):
             manager = ProxyManager()
-            
+
         config = manager.configs[ProxyProvider.SQUID]
-        
+
         # First request: 1.0s
         manager.record_success(response_time=1.0)
         assert config.avg_response_time == 1.0
-        
+
         # Second request: 2.0s, average should be 1.5s
         manager.record_success(response_time=2.0)
         assert abs(config.avg_response_time - 1.5) < 0.01
@@ -374,7 +374,7 @@ class TestProxyConfigEdgeCases:
         ):
             manager = ProxyManager()
             proxies = manager.get_requests_proxies()
-            
+
         assert proxies["http"] == "http://user:pass@proxy.example.com:8080"
         assert proxies["https"] == "http://user:pass@proxy.example.com:8080"
 
@@ -391,7 +391,7 @@ class TestProxyConfigEdgeCases:
         ):
             manager = ProxyManager()
             proxies = manager.get_requests_proxies()
-            
+
         # Should inject username with empty password
         assert "user:@proxy.example.com" in proxies["http"]
 
@@ -409,7 +409,7 @@ class TestProxyConfigEdgeCases:
         ):
             manager = ProxyManager()
             proxies = manager.get_requests_proxies()
-            
+
         assert proxies["http"] == "http://user:pass@proxy.example.com:8080"
 
     def test_active_provider_with_explicit_enum_value(self):
@@ -438,17 +438,17 @@ class TestProxyConfigEdgeCases:
             manager = ProxyManager()
             manager.record_success(response_time=1.5)
             manager.record_failure()
-            
+
         providers = manager.list_providers()
         squid_info = providers["squid"]
-        
+
         assert "enabled" in squid_info
         assert "url" in squid_info
         assert "health" in squid_info
         assert "success_rate" in squid_info
         assert "requests" in squid_info
         assert "avg_response_time" in squid_info
-        
+
         assert squid_info["requests"] == 2
         assert squid_info["success_rate"] == "50.0%"
 
@@ -456,11 +456,10 @@ class TestProxyConfigEdgeCases:
         """Can record failure for non-active provider."""
         with mock.patch.dict(os.environ, {}, clear=True):
             manager = ProxyManager()
-            
+
         manager.record_failure(provider=ProxyProvider.DIRECT)
         direct_config = manager.configs[ProxyProvider.DIRECT]
         squid_config = manager.configs[ProxyProvider.SQUID]
-        
+
         assert direct_config.failure_count == 1
         assert squid_config.failure_count == 0
-

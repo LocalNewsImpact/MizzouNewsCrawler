@@ -415,7 +415,7 @@ class NewsDiscovery:
 
     def _set_global_proxy_env(self) -> None:
         """Set HTTP_PROXY/HTTPS_PROXY environment variables for libraries that don't use our session.
-        
+
         This ensures newspaper4k, feedparser, and other third-party libraries that create
         their own HTTP clients will still use our residential proxy.
         """
@@ -433,8 +433,10 @@ class NewsDiscovery:
                     mask_proxy_url(proxy_url),
                 )
                 return
-        
-        logger.info("🌍 No proxy configured, third-party libraries will use direct connections")
+
+        logger.info(
+            "🌍 No proxy configured, third-party libraries will use direct connections"
+        )
 
     def _create_db_manager(self) -> DatabaseManager:
         """Factory method for database manager instances."""
