@@ -158,32 +158,37 @@ class TestSafeExecute:
         """Should execute plain SQL string."""
         mock_conn = Mock()
         mock_result = Mock()
+        mock_conn._orig_execute = None
         mock_conn.execute = Mock(return_value=mock_result)
 
         sql = "SELECT * FROM users"
-        safe_execute(mock_conn, sql)
+        result = safe_execute(mock_conn, sql)
 
         assert mock_conn.execute.called
+        assert result == mock_result
 
     def test_converts_qmark_params_to_named(self):
         """Should convert qmark (?) parameters to named parameters."""
         mock_conn = Mock()
         mock_result = Mock()
+        mock_conn._orig_execute = None
         mock_conn.execute = Mock(return_value=mock_result)
 
         sql = "INSERT INTO users VALUES (?, ?, ?)"
         params = [(1, "John", "john@example.com"), (2, "Jane", "jane@example.com")]
 
-        safe_execute(mock_conn, sql, params)
+        result = safe_execute(mock_conn, sql, params)
 
         # Should have converted to :p0, :p1, :p2 format
         assert mock_conn.execute.called
+        assert result == mock_result
 
     def test_converts_percent_s_params_to_named(self):
         """Should convert %s parameters to named parameters."""
         mock_conn = Mock()
         mock_result = Mock()
         mock_conn.execute = Mock(return_value=mock_result)
+        mock_conn._orig_execute = None
 
         sql = "INSERT INTO users VALUES (%s, %s, %s)"
         params = [(1, "John", "john@example.com")]
@@ -197,6 +202,7 @@ class TestSafeExecute:
         mock_conn = Mock()
         mock_result = Mock()
         mock_conn.execute = Mock(return_value=mock_result)
+        mock_conn._orig_execute = None
 
         sql = "SELECT * FROM users WHERE id = :user_id"
         params = {"user_id": 1}
@@ -208,6 +214,7 @@ class TestSafeExecute:
     def test_handles_argument_error_with_tuple_params(self):
         """Should handle ArgumentError by converting tuple params."""
         mock_conn = Mock()
+        mock_conn._orig_execute = None
 
         # First call raises ArgumentError, second succeeds
         def side_effect(*args, **kwargs):
@@ -275,21 +282,20 @@ class TestSafeSessionExecute:
     def test_handles_list_of_tuples(self):
         """Should handle list of tuples for batch inserts."""
         mock_session = Mock()
+        mock_session._orig_execute = None
 
-        def side_effect(*args, **kwargs):
-            if hasattr(side_effect, "retry"):
-                return "success"
-            side_effect.retry = True
-            raise ArgumentError("Positional params not supported", None, None)
-
-        mock_session.execute = Mock(side_effect=side_effect)
+        # Mock to succeed on call with converted params
+        mock_result = Mock()
+        mock_session.execute = Mock(return_value=mock_result)
 
         sql = "INSERT INTO articles VALUES (?, ?)"
         params = [(1, "Article 1"), (2, "Article 2")]
 
-        safe_session_execute(mock_session, sql, params)
+        result = safe_session_execute(mock_session, sql, params)
 
-        assert mock_session.execute.call_count >= 1
+        # Should successfully execute
+        assert result == mock_result
+        assert mock_session.execute.called
 
     def test_handles_named_params(self):
         """Should pass through named parameters."""

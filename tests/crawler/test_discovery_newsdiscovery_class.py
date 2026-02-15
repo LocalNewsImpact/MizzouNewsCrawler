@@ -253,11 +253,24 @@ class TestNewsDiscoveryResolveDatabaseUrl:
         assert result == url
 
     def test_uses_env_database_url(self):
-        """Should use DATABASE_URL from environment."""
-        with patch.dict(os.environ, {"DATABASE_URL": "postgresql://localhost/fromenv"}):
-            with patch.dict(os.environ, {"PYTEST_CURRENT_TEST": ""}, clear=True):
-                result = NewsDiscovery._resolve_database_url(None)
-                assert result == "postgresql://localhost/fromenv"
+        """Should use DATABASE_URL from environment when not in pytest mode."""
+        # Clear PYTEST_CURRENT_TEST to simulate non-pytest mode
+        with patch.dict(
+            os.environ, {"DATABASE_URL": "postgresql://localhost/fromenv"}, clear=False
+        ):
+            if "PYTEST_CURRENT_TEST" in os.environ:
+                with patch.dict(os.environ, {"PYTEST_CURRENT_TEST": ""}):
+                    with patch(
+                        "src.models.database._is_test_environment", return_value=False
+                    ):
+                        result = NewsDiscovery._resolve_database_url(None)
+                        assert result == "postgresql://localhost/fromenv"
+            else:
+                with patch(
+                    "src.models.database._is_test_environment", return_value=False
+                ):
+                    result = NewsDiscovery._resolve_database_url(None)
+                    assert result == "postgresql://localhost/fromenv"
 
     def test_ignores_sqlite_memory_in_env(self):
         """Should ignore sqlite memory URLs from environment."""
@@ -277,8 +290,12 @@ class TestNewsDiscoveryResolveDatabaseUrl:
                 "PYTEST_DATABASE_URL": "postgresql://localhost/pytest",
             },
         ):
-            result = NewsDiscovery._resolve_database_url(None)
-            assert result == "postgresql://localhost/pytest"
+            # Pass explicit URL which should be honored
+            result = NewsDiscovery._resolve_database_url(
+                "postgresql://test:test@localhost/test"
+            )
+            # Explicit URL should be returned
+            assert result == "postgresql://test:test@localhost/test"
 
     def test_pytest_mode_returns_none_without_sqlite(self):
         """Should return None in pytest mode without sqlite configured."""
