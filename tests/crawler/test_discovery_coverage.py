@@ -1326,12 +1326,15 @@ def test_set_global_proxy_env_prefers_http_proxy():
 
 
 def test_set_global_proxy_env_preserves_none_values():
-    """Test _set_global_proxy_env handles None proxy manager gracefully."""
+    """Test _set_global_proxy_env handles None proxy gracefully."""
     with patch("src.crawler.discovery.DatabaseManager"):
         with patch("src.crawler.discovery.create_telemetry_system"):
             with patch("src.crawler.discovery.get_proxy_manager") as mock_pm:
-                # Setup mock proxy manager that returns None
-                mock_pm.return_value = None
+                # Setup mock proxy manager that returns None for get_requests_proxies
+                mock_manager = MagicMock()
+                mock_manager.active_provider.value = "direct"
+                mock_manager.get_requests_proxies.return_value = None
+                mock_pm.return_value = mock_manager
 
                 # Clear any existing proxy env vars
                 for key in ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"]:
