@@ -112,7 +112,7 @@ class TestProxyStatusToInt:
         """Should return integer type when matched."""
         result = proxy_status_to_int("success")
         assert isinstance(result, int)
-        
+
         result = proxy_status_to_int("disabled")
         assert isinstance(result, int)
 
@@ -120,7 +120,7 @@ class TestProxyStatusToInt:
         """Should return None type when not matched."""
         result = proxy_status_to_int("invalid")
         assert result is None
-        
+
         result = proxy_status_to_int(None)
         assert result is None
 
@@ -207,7 +207,7 @@ class TestIntegrationScenarios:
         """Successful proxy usage workflow."""
         status_str = "success"
         status_int = proxy_status_to_int(status_str)
-        
+
         assert status_int == PROXY_STATUS_SUCCESS
         assert status_int == 1
         # This would be stored in database as integer
@@ -217,7 +217,7 @@ class TestIntegrationScenarios:
         """Disabled proxy workflow."""
         status_str = "disabled"
         status_int = proxy_status_to_int(status_str)
-        
+
         assert status_int == PROXY_STATUS_DISABLED
         assert status_int == 0
 
@@ -225,7 +225,7 @@ class TestIntegrationScenarios:
         """Failed proxy workflow."""
         status_str = "failed"
         status_int = proxy_status_to_int(status_str)
-        
+
         assert status_int == PROXY_STATUS_FAILED
         assert status_int == 2
 
@@ -233,7 +233,7 @@ class TestIntegrationScenarios:
         """Bypassed proxy workflow."""
         status_str = "bypassed"
         status_int = proxy_status_to_int(status_str)
-        
+
         assert status_int == PROXY_STATUS_BYPASSED
         assert status_int == 3
 
@@ -246,7 +246,7 @@ class TestIntegrationScenarios:
     def test_handling_invalid_status_gracefully(self):
         """Invalid status should not crash, just return None."""
         invalid_statuses = ["unknown", "error", "timeout", "pending"]
-        
+
         for status in invalid_statuses:
             result = proxy_status_to_int(status)
             assert result is None
@@ -266,11 +266,11 @@ class TestIntegrationScenarios:
             "failed": 2,
             "bypassed": 3,
         }
-        
+
         for status_str, expected_int in mapping.items():
             result = proxy_status_to_int(status_str)
             assert result == expected_int
-            
+
             # Also test uppercase
             result = proxy_status_to_int(status_str.upper())
             assert result == expected_int

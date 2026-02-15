@@ -10,15 +10,31 @@ class TestNormalizeUrl:
 
     def test_removes_fragment(self):
         """Fragments should be removed."""
-        assert normalize_url("https://example.com/story#section") == "https://example.com/story"
-        assert normalize_url("https://example.com/story#top") == "https://example.com/story"
-        assert normalize_url("https://example.com/story#") == "https://example.com/story"
+        assert (
+            normalize_url("https://example.com/story#section")
+            == "https://example.com/story"
+        )
+        assert (
+            normalize_url("https://example.com/story#top")
+            == "https://example.com/story"
+        )
+        assert (
+            normalize_url("https://example.com/story#") == "https://example.com/story"
+        )
 
     def test_removes_query_parameters(self):
         """Query parameters should be removed."""
-        assert normalize_url("https://example.com/story?ref=home") == "https://example.com/story"
-        assert normalize_url("https://example.com/story?id=123") == "https://example.com/story"
-        assert normalize_url("https://example.com/story?") == "https://example.com/story"
+        assert (
+            normalize_url("https://example.com/story?ref=home")
+            == "https://example.com/story"
+        )
+        assert (
+            normalize_url("https://example.com/story?id=123")
+            == "https://example.com/story"
+        )
+        assert (
+            normalize_url("https://example.com/story?") == "https://example.com/story"
+        )
 
     def test_removes_both_fragment_and_query(self):
         """Both fragments and query parameters should be removed."""
@@ -27,8 +43,13 @@ class TestNormalizeUrl:
 
     def test_removes_trailing_slash_from_path(self):
         """Trailing slashes should be removed from paths."""
-        assert normalize_url("https://example.com/story/") == "https://example.com/story"
-        assert normalize_url("https://example.com/news/local/") == "https://example.com/news/local"
+        assert (
+            normalize_url("https://example.com/story/") == "https://example.com/story"
+        )
+        assert (
+            normalize_url("https://example.com/news/local/")
+            == "https://example.com/news/local"
+        )
 
     def test_preserves_root_trailing_slash(self):
         """Root URL should keep trailing slash."""
@@ -41,13 +62,25 @@ class TestNormalizeUrl:
 
     def test_preserves_port_number(self):
         """Port numbers should be preserved."""
-        assert normalize_url("https://example.com:8080/story") == "https://example.com:8080/story"
-        assert normalize_url("http://localhost:3000/article") == "http://localhost:3000/article"
+        assert (
+            normalize_url("https://example.com:8080/story")
+            == "https://example.com:8080/story"
+        )
+        assert (
+            normalize_url("http://localhost:3000/article")
+            == "http://localhost:3000/article"
+        )
 
     def test_preserves_subdomain(self):
         """Subdomains should be preserved."""
-        assert normalize_url("https://news.example.com/story") == "https://news.example.com/story"
-        assert normalize_url("https://www.example.com/story") == "https://www.example.com/story"
+        assert (
+            normalize_url("https://news.example.com/story")
+            == "https://news.example.com/story"
+        )
+        assert (
+            normalize_url("https://www.example.com/story")
+            == "https://www.example.com/story"
+        )
 
     def test_handles_empty_string(self):
         """Empty strings should be returned as-is."""
@@ -60,8 +93,14 @@ class TestNormalizeUrl:
 
     def test_strips_leading_trailing_whitespace(self):
         """Leading/trailing whitespace should be stripped."""
-        assert normalize_url("  https://example.com/story  ") == "https://example.com/story"
-        assert normalize_url("\thttps://example.com/story\n") == "https://example.com/story"
+        assert (
+            normalize_url("  https://example.com/story  ")
+            == "https://example.com/story"
+        )
+        assert (
+            normalize_url("\thttps://example.com/story\n")
+            == "https://example.com/story"
+        )
 
     def test_handles_none_gracefully(self):
         """None should be returned as-is."""
@@ -105,8 +144,14 @@ class TestNormalizeUrl:
 
     def test_preserves_path_with_file_extension(self):
         """Paths with file extensions should be preserved."""
-        assert normalize_url("https://example.com/story.html") == "https://example.com/story.html"
-        assert normalize_url("https://example.com/article.php") == "https://example.com/article.php"
+        assert (
+            normalize_url("https://example.com/story.html")
+            == "https://example.com/story.html"
+        )
+        assert (
+            normalize_url("https://example.com/article.php")
+            == "https://example.com/article.php"
+        )
 
     def test_handles_relative_url_parts(self):
         """URLs with .. or . in path should parse correctly."""

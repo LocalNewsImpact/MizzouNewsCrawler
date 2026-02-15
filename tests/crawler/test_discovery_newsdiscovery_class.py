@@ -256,18 +256,14 @@ class TestNewsDiscoveryResolveDatabaseUrl:
 
     def test_uses_env_database_url(self):
         """Should use DATABASE_URL from environment."""
-        with patch.dict(
-            os.environ, {"DATABASE_URL": "postgresql://localhost/fromenv"}
-        ):
+        with patch.dict(os.environ, {"DATABASE_URL": "postgresql://localhost/fromenv"}):
             with patch.dict(os.environ, {"PYTEST_CURRENT_TEST": ""}, clear=True):
                 result = NewsDiscovery._resolve_database_url(None)
                 assert result == "postgresql://localhost/fromenv"
 
     def test_ignores_sqlite_memory_in_env(self):
         """Should ignore sqlite memory URLs from environment."""
-        with patch.dict(
-            os.environ, {"DATABASE_URL": "sqlite:///:memory:"}
-        ):
+        with patch.dict(os.environ, {"DATABASE_URL": "sqlite:///:memory:"}):
             with patch("src.config.DATABASE_URL", "postgresql://localhost/configured"):
                 with patch.dict(os.environ, {"PYTEST_CURRENT_TEST": ""}, clear=True):
                     result = NewsDiscovery._resolve_database_url(None)
@@ -327,7 +323,9 @@ class TestNewsDiscoveryConfigureProxyRouting:
 
         with patch.dict(
             os.environ,
-            {"PROXY_POOL": "http://proxy1:8080, http://proxy2:8080, http://proxy3:8080"},
+            {
+                "PROXY_POOL": "http://proxy1:8080, http://proxy2:8080, http://proxy3:8080"
+            },
         ):
             nd = NewsDiscovery(database_url="postgresql://localhost/test")
 
